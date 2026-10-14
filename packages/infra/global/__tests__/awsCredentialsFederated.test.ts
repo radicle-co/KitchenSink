@@ -1,0 +1,835 @@
+// @vitest-environment node
+/**
+ * CI reaches AWS through ONE door, `.github/actions/awsAuth`, on one of the three OIDC roles ADR-0063 defines —
+ * never with an access key.
+ *
+ * ## Why this is a guard and not a convention
+ *
+ * The repository secrets `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` hold a ROOT access key: no role, no scope,
+ * replayable from anywhere until someone rotates it. Moving a workflow off it is easy; keeping every workflow off it is
+ * not, because the key keeps working until the secrets are deleted, and a new job copied from an old one brings the key
+ * back with no visible difference in its run. So the refusals are mechanical, over every workflow and composite action
+ * in the git index, and each has a fixture below that breaks exactly that rule and nothing else.
+ *
+ * ## The rules
+ *
+ * - `static-key` — no `secrets.AWS_*KEY*` reference anywhere.
+ * - `unfederated-sign-in` — `aws-actions/configure-aws-credentials` appears only inside `awsAuth`, and there only by
+ *   role, never with a key input.
+ * - `missing-id-token` — a job that runs `awsAuth` grants `id-token: write` at JOB level. Without it the action is red
+ *   (`awsAuthPredicate.test.ts`), and a caller that does not grant it is `reusableWorkflowPermissions.test.ts`'s refusal.
+ * - `workflow-id-token` — no workflow-level `id-token` grant: every job of that workflow could then mint a token.
+ * - `tier-environment` — a `prod` sign-in only in a job bound to `Production`, a `prod-read` one only in a job bound to
+ *   none, a `nonprod` one never in a job bound to `Production`. The trust policy would refuse the first two anyway; this
+ *   makes the mistake a test failure instead of a red deploy. Tiers and environments that are EXPRESSIONS are evaluated
+ *   over every combination of the inputs they read, so `deployInfra.yml`'s per-stage binding is judged, not exempted.
+ * - `teardown-prod-tier` — a reclamation job (`reclamationJobs.ts`) signs in only as `nonprod`, the one role that
+ *   carries `teardownGrants`.
+ * - `cdk-bootstrap` — no `cdk bootstrap`. The bootstrap stack is shared with another application in the account, and a
+ *   deploy job that re-runs it rewrites a stack it does not own.
+ * - `unknown-tier` — the tier resolves to one of `GITHUB_OIDC_TIERS`. (Which ROLE each names is held to the stack by
+ *   `awsAuthPredicate.test.ts`.)
+ * - `missing-timeout` / `session-shorter-than-job` — a signing-in job states `timeout-minutes`, and the session it asks
+ *   for lasts at least that long and at most the role's 180-minute ceiling. A deploy that outlives its session loses its
+ *   credentials while CloudFormation is still working.
+ * - `secrets-before-sign-in` — `load-secrets` reads Secrets Manager with the credentials `awsAuth` set, so a job that
+ *   uses it signs in first.
+ *
+ * ## The one exception, and how it ends
+ *
+ * Production still signs in with the key until the production roles are proven on `main` (ADR-0063, plan
+ * 2026-10-13-005 commit C). `LEGACY_KEY_JOBS` lists the jobs that still may, and the real tree's set of key-using jobs
+ * must EQUAL it: a new key user fails, and so does an entry that no longer uses the key. Commit C empties it.
+ *
+ * @pattern Specification — one pure verdict over the workflow graph, judged on the tree and on a fixture table
+ */
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+import { parse } from 'yaml';
+import { describe, expect, it } from 'vitest';
+
+import { GITHUB_OIDC_TIERS, PRODUCTION_ENVIRONMENT } from '../lib/platform/githubOidcTrust.js';
+import { RECLAMATION_JOBS } from './reclamationJobs.js';
+import { repoRoot } from './serviceSources.js';
+import { evaluateCondition, selectedLiteral, tokenize, unwrap, type Truth } from './workflowExpression.js';
+import { scalarText } from './workflowScalar.js';
+
+/**
+ * The jobs that still sign in with the access key: every one of them on a PRODUCTION path (a prod stage, a prod
+ * target, or a workflow that forwards the key to one). Emptied by commit C.
+ */
+const LEGACY_KEY_JOBS: readonly string[] = [
+    // Production deploys and the account-scoped app: bound to `Production`, moved to tier `prod` in commit C.
+    'prod-deploy.yml::deploy',
+    'accountDeploy.yml::deploy',
+    // `main`'s checks synthesize at `prod`: `ci-main` forwards the key, `_ci.yml::infra` hands it to `deployInfra`,
+    // and every `deployInfra` job signs in with it ONLY when its stage is `prod` (a `pr-{N}` run uses `awsAuth`).
+    'ci-main.yml::ci',
+    'ci-full.yml::base',
+    '_ci.yml::infra',
+    'deployInfra.yml::global',
+    'deployInfra.yml::identity-schema',
+    'deployInfra.yml::food-schema',
+    'deployInfra.yml::recipe-schema',
+    'deployInfra.yml::identity',
+    'deployInfra.yml::identity-webhooks',
+    'deployInfra.yml::food-service',
+    'deployInfra.yml::recipe-service',
+    'deployInfra.yml::recipe-workers',
+    'deployInfra.yml::ingredient-parser',
+    'deployInfra.yml::remote-search',
+    'deployInfra.yml::web',
+    'deployInfra.yml::shared',
+    'deployInfra.yml::ecosystem-smoke',
+    // Manual runs that may target production: the key only on the prod branch of each.
+    'deployedE2e.yml::resolve',
+    'deployedE2e.yml::deployed-tiers',
+    'deployedE2eTiers.yml::e2e-remote-search',
+    'deployedE2eTiers.yml::e2e-queue-guarantees',
+    'food-loadtest.yml::loadtest',
+];
+
+const AWS_AUTH = './.github/actions/awsAuth';
+const AWS_AUTH_ACTION = '.github/actions/awsAuth/action.yml';
+const LOAD_SECRETS = './.github/actions/load-secrets';
+const SIGN_IN_ACTION = 'aws-actions/configure-aws-credentials@';
+const DEFAULT_SESSION_MINUTES = 60;
+const MAX_SESSION_MINUTES = 180;
+
+type RuleId =
+    | 'static-key'
+    | 'unfederated-sign-in'
+    | 'missing-id-token'
+    | 'workflow-id-token'
+    | 'tier-environment'
+    | 'teardown-prod-tier'
+    | 'cdk-bootstrap'
+    | 'unknown-tier'
+    | 'missing-timeout'
+    | 'session-shorter-than-job'
+    | 'secrets-before-sign-in';
+
+interface Violation {
+    readonly rule: RuleId;
+    readonly where: string;
+    readonly detail: string;
+}
+
+interface Step {
+    readonly name?: string;
+    readonly id?: string;
+    readonly if?: unknown;
+    readonly uses?: string;
+    readonly run?: unknown;
+    readonly with?: Readonly<Record<string, unknown>>;
+}
+
+interface Job {
+    readonly if?: unknown;
+    readonly uses?: string;
+    readonly environment?: unknown;
+    readonly permissions?: unknown;
+    readonly 'timeout-minutes'?: unknown;
+    readonly steps?: readonly Step[];
+}
+
+interface Doc {
+    readonly permissions?: unknown;
+    readonly jobs?: Readonly<Record<string, Job>>;
+    readonly runs?: { readonly steps?: readonly Step[] };
+}
+
+/** One file under `.github/`: a workflow, a composite action, or a script. */
+interface Source {
+    readonly file: string;
+    readonly text: string;
+}
+
+const STATIC_KEY = /secrets\.AWS_[A-Z0-9_]*KEY[A-Z0-9_]*/u;
+const BOOTSTRAP = /\bcdk\b[^\n]*\bbootstrap\b/u;
+
+/** Text with `#` comment lines removed, so prose ABOUT a refused command does not trip the guard. */
+const withoutCommentLines = (text: string): string =>
+    text
+        .split('\n')
+        .filter((line) => !line.trimStart().startsWith('#'))
+        .join('\n');
+
+const isSignIn = (step: Step): boolean => (step.uses ?? '').startsWith(SIGN_IN_ACTION);
+
+/** A value an `environment:` key holds: a name, or `{ name, url }`. */
+const environmentText = (environment: unknown): string | undefined => {
+    if (environment === undefined || environment === null) {
+        return undefined;
+    }
+
+    if (typeof environment === 'object') {
+        return scalarText((environment as { readonly name?: unknown }).name);
+    }
+
+    return scalarText(environment);
+};
+
+const OPERATORS = new Set(['&&', '||', '!', '(', ')']);
+const COMPARISON = /^([\w.[\]*'-]+?)\s*(==|!=)\s*'([^']*)'$/u;
+const PATH = /^[A-Za-z_][\w.-]*$/u;
+const OTHER = '\u0000other';
+
+/**
+ * Every assignment of the inputs these expressions read, as `path -> value`. A path compared to literals takes each
+ * literal and one value equal to none; a path read bare takes true and false. Anything else is not enumerated, and an
+ * atom over it evaluates to `'unknown'`.
+ */
+function assignments(expressions: readonly string[]): readonly Readonly<Record<string, string>>[] {
+    const domains = new Map<string, Set<string>>();
+
+    for (const expression of expressions) {
+        for (const atom of tokenize(unwrap(expression))) {
+            if (OPERATORS.has(atom)) {
+                continue;
+            }
+
+            const comparison = COMPARISON.exec(atom);
+
+            if (comparison !== null) {
+                const [, key = '', , literal = ''] = comparison;
+                domains.set(key, new Set([...(domains.get(key) ?? []), literal, OTHER]));
+            } else if (PATH.test(atom) && atom !== 'true' && atom !== 'false') {
+                domains.set(atom, new Set([...(domains.get(atom) ?? []), 'true', 'false']));
+            }
+        }
+    }
+
+    let all: Record<string, string>[] = [{}];
+
+    for (const [key, values] of domains) {
+        all = all.flatMap((partial) => [...values].map((value) => ({ ...partial, [key]: value })));
+
+        if (all.length > 4096) {
+            throw new Error(`too many input combinations to enumerate (${expressions.join(' | ')})`);
+        }
+    }
+
+    return all;
+}
+
+const truthy = (value: string | undefined): boolean => value !== undefined && value !== '' && value !== 'false';
+
+/** Resolve one atom under an assignment. */
+const resolver =
+    (assignment: Readonly<Record<string, string>>) =>
+    (atom: string): Truth => {
+        if (/^'[^']*'$/u.test(atom)) {
+            return atom.length > 2 ? 'true' : 'false';
+        }
+
+        if (atom === 'true' || atom === 'false') {
+            return atom;
+        }
+
+        const comparison = COMPARISON.exec(atom);
+
+        if (comparison !== null) {
+            const [, key = '', operator, literal] = comparison;
+            const value = assignment[key];
+
+            if (value === undefined) {
+                return 'unknown';
+            }
+
+            return (value === literal) === (operator === '==') ? 'true' : 'false';
+        }
+
+        if (PATH.test(atom) && assignment[atom] !== undefined) {
+            return truthy(assignment[atom]) ? 'true' : 'false';
+        }
+
+        return 'unknown';
+    };
+
+/** How one `awsAuth` step can run: the tier it asks for and the environment its job is bound to, per assignment. */
+interface PossibleRun {
+    readonly tier: string | undefined;
+    readonly environment: string | undefined;
+}
+
+function possibleRuns(job: Job, step: Step): readonly PossibleRun[] {
+    const tierText = scalarText(step.with?.['tier']);
+    const environment = environmentText(job.environment);
+    const conditions = [scalarText(job.if), scalarText(step.if)].filter((condition) => condition !== '');
+    const runs: PossibleRun[] = [];
+
+    for (const assignment of assignments([...conditions, tierText, environment ?? ''])) {
+        const resolve = resolver(assignment);
+
+        if (conditions.some((condition) => evaluateCondition(condition, resolve) === 'false')) {
+            continue;
+        }
+
+        runs.push({
+            tier: selectedLiteral(tierText, resolve),
+            environment: environment === undefined ? '' : selectedLiteral(environment, resolve),
+        });
+    }
+
+    return runs;
+}
+
+/** The environment each tier's trust requires: `undefined` means "anything but Production". */
+const REQUIRED_ENVIRONMENT: Readonly<Record<string, string | undefined>> = {
+    prod: PRODUCTION_ENVIRONMENT,
+    'prod-read': '',
+    nonprod: undefined,
+};
+
+const isTeardown = (file: string, jobId: string): boolean =>
+    RECLAMATION_JOBS.some((job) => file === `.github/workflows/${job.workflow}` && job.job === jobId);
+
+const jobKey = (file: string, jobId: string): string => `${path.posix.basename(file)}::${jobId}`;
+
+/** The jobs that sign in with the key, whether or not they are allowed to. */
+function keyUsingJobs(sources: readonly Source[]): ReadonlySet<string> {
+    const found = new Set<string>();
+
+    for (const { file, text } of sources) {
+        if (!file.startsWith('.github/workflows/')) {
+            continue;
+        }
+
+        const doc = (parse(text) ?? {}) as Doc;
+
+        for (const [jobId, job] of Object.entries(doc.jobs ?? {})) {
+            const steps = job.steps ?? [];
+
+            if (STATIC_KEY.test(JSON.stringify(job)) || steps.some(isSignIn)) {
+                found.add(jobKey(file, jobId));
+            }
+        }
+    }
+
+    return found;
+}
+
+function jobViolations(file: string, jobId: string, job: Job, legacy: ReadonlySet<string>): Violation[] {
+    const where = `${file}::${jobId}`;
+    const violations: Violation[] = [];
+    const steps = job.steps ?? [];
+    const allowedKey = legacy.has(jobKey(file, jobId));
+
+    const add = (rule: RuleId, detail: string): void => {
+        violations.push({ rule, where, detail });
+    };
+
+    if (!allowedKey && STATIC_KEY.test(JSON.stringify(job))) {
+        add('static-key', 'references an AWS access-key secret; sign in through awsAuth instead');
+    }
+
+    if (!allowedKey && steps.some(isSignIn)) {
+        add('unfederated-sign-in', 'calls configure-aws-credentials directly; only awsAuth may');
+    }
+
+    const signInIndexes = steps.flatMap((step, index) => (step.uses === AWS_AUTH ? [index] : []));
+
+    steps.forEach((step, index) => {
+        if (step.uses === LOAD_SECRETS && !signInIndexes.some((signIn) => signIn < index)) {
+            add('secrets-before-sign-in', `load-secrets at step ${index} has no awsAuth step before it`);
+        }
+    });
+
+    if (signInIndexes.length === 0) {
+        return violations;
+    }
+
+    const permissions = job.permissions;
+
+    if (
+        typeof permissions !== 'object' ||
+        permissions === null ||
+        (permissions as Record<string, unknown>)['id-token'] !== 'write'
+    ) {
+        add('missing-id-token', 'runs awsAuth without a job-level `id-token: write`');
+    }
+
+    const timeout = job['timeout-minutes'];
+
+    if (typeof timeout !== 'number') {
+        add('missing-timeout', 'runs awsAuth without a numeric `timeout-minutes`');
+    }
+
+    for (const index of signInIndexes) {
+        const step = steps[index] as Step;
+        const sessionText = scalarText(step.with?.['session-minutes'], String(DEFAULT_SESSION_MINUTES));
+        const session = /^\d+$/u.test(sessionText) ? Number(sessionText) : Number.NaN;
+
+        if (Number.isNaN(session) || session > MAX_SESSION_MINUTES) {
+            add(
+                'session-shorter-than-job',
+                `session-minutes '${sessionText}' is not a number of at most ${MAX_SESSION_MINUTES}`,
+            );
+        } else if (typeof timeout === 'number' && session < timeout) {
+            add('session-shorter-than-job', `a ${session}-minute session cannot outlive a ${timeout}-minute job`);
+        }
+
+        for (const run of possibleRuns(job, step)) {
+            if (run.tier === undefined || !(GITHUB_OIDC_TIERS as readonly string[]).includes(run.tier)) {
+                add('unknown-tier', `tier resolves to '${run.tier ?? '(an expression this guard cannot resolve)'}'`);
+                continue;
+            }
+
+            const required = REQUIRED_ENVIRONMENT[run.tier];
+
+            if (run.environment === undefined) {
+                add('tier-environment', 'its environment is an expression this guard cannot resolve');
+            } else if (
+                required === undefined ? run.environment === PRODUCTION_ENVIRONMENT : run.environment !== required
+            ) {
+                add('tier-environment', `tier '${run.tier}' can run bound to environment '${run.environment}'`);
+            }
+
+            if (isTeardown(file, jobId) && run.tier !== 'nonprod') {
+                add('teardown-prod-tier', `a reclamation job signs in on tier '${run.tier}'`);
+            }
+        }
+    }
+
+    return violations;
+}
+
+/** Every violation over the given sources, keyed and deduplicated. Pure. */
+function violationsOf(sources: readonly Source[], legacy: ReadonlySet<string>): readonly Violation[] {
+    const violations: Violation[] = [];
+
+    for (const { file, text } of sources) {
+        if (BOOTSTRAP.test(file.endsWith('.sh') ? withoutCommentLines(text) : '')) {
+            violations.push({ rule: 'cdk-bootstrap', where: file, detail: 'a script runs cdk bootstrap' });
+        }
+
+        if (file.endsWith('.sh')) {
+            continue;
+        }
+
+        const doc = (parse(text) ?? {}) as Doc;
+        const steps = [...(doc.runs?.steps ?? []), ...Object.values(doc.jobs ?? {}).flatMap((job) => job.steps ?? [])];
+
+        for (const step of steps) {
+            if (BOOTSTRAP.test(withoutCommentLines(scalarText(step.run)))) {
+                violations.push({
+                    rule: 'cdk-bootstrap',
+                    where: `${file}::${step.name ?? '(unnamed)'}`,
+                    detail: 'runs cdk bootstrap',
+                });
+            }
+        }
+
+        if (doc.runs !== undefined) {
+            if (STATIC_KEY.test(text)) {
+                violations.push({
+                    rule: 'static-key',
+                    where: file,
+                    detail: 'an action references an AWS access-key secret',
+                });
+            }
+
+            for (const step of doc.runs.steps ?? []) {
+                const keyInput = ['aws-access-key-id', 'aws-secret-access-key', 'aws-session-token'].some(
+                    (key) => step.with?.[key] !== undefined,
+                );
+
+                if (isSignIn(step) && (file !== AWS_AUTH_ACTION || keyInput)) {
+                    violations.push({
+                        rule: 'unfederated-sign-in',
+                        where: file,
+                        detail: keyInput
+                            ? 'signs in with a key input'
+                            : 'only awsAuth may call configure-aws-credentials',
+                    });
+                }
+            }
+
+            continue;
+        }
+
+        const workflowPermissions = doc.permissions;
+
+        if (
+            workflowPermissions === 'write-all' ||
+            (typeof workflowPermissions === 'object' &&
+                workflowPermissions !== null &&
+                (workflowPermissions as Record<string, unknown>)['id-token'] === 'write')
+        ) {
+            violations.push({ rule: 'workflow-id-token', where: file, detail: 'grants id-token at workflow level' });
+        }
+
+        for (const [jobId, job] of Object.entries(doc.jobs ?? {})) {
+            violations.push(...jobViolations(file, jobId, job, legacy));
+        }
+    }
+
+    const seen = new Set<string>();
+
+    return violations.filter((violation) => {
+        const key = `${violation.rule} ${violation.where} ${violation.detail}`;
+        const fresh = !seen.has(key);
+        seen.add(key);
+
+        return fresh;
+    });
+}
+
+/** Every workflow, composite action and script under `.github/` in the git index. */
+function treeSources(): readonly Source[] {
+    return execFileSync(
+        'git',
+        ['ls-files', '.github/workflows/*.yml', '.github/actions/*/action.yml', '.github/scripts/*.sh'],
+        { cwd: repoRoot, encoding: 'utf8' },
+    )
+        .split('\n')
+        .filter(Boolean)
+        .map((file) => ({ file, text: readFileSync(path.join(repoRoot, file), 'utf8') }));
+}
+
+const NONE: ReadonlySet<string> = new Set();
+
+/** A workflow fixture, one job, signing in correctly. Each row below changes one thing. */
+const workflow = (job: string, header = 'permissions:\n    contents: read\n'): Source => ({
+    file: '.github/workflows/fixture.yml',
+    text: `name: fixture\non: push\n${header}jobs:\n${job}`,
+});
+
+const SIGNED_IN_JOB = `    check:
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: \${{ vars.AWS_ACCOUNT_ID }}
+                  region: \${{ vars.DEFAULT_AWS_REGION }}
+`;
+
+const DEPLOY_INFRA_ENVIRONMENT =
+    "${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}";
+
+const signedIn = (tier: string, extra = '', stepExtra = ''): string =>
+    SIGNED_IN_JOB.replace('tier: nonprod', `tier: ${tier}`)
+        .replace('        steps:\n', `${extra}        steps:\n`)
+        .replace('            - id: aws\n', `            - id: aws\n${stepExtra}`);
+
+const FIXTURES: readonly {
+    readonly shape: string;
+    readonly sources: readonly Source[];
+    readonly rule: RuleId | null;
+}[] = [
+    { shape: 'a correctly signed-in job', sources: [workflow(SIGNED_IN_JOB)], rule: null },
+    {
+        shape: 'a step that hands the access key to the AWS CLI through env',
+        sources: [
+            workflow(`    probe:
+        runs-on: ubuntu-latest
+        steps:
+            - env:
+                  AWS_ACCESS_KEY_ID: \${{ secrets.AWS_ACCESS_KEY_ID }}
+              run: aws sts get-caller-identity
+`),
+        ],
+        rule: 'static-key',
+    },
+    {
+        shape: 'a caller that forwards the key to a reusable workflow',
+        sources: [
+            workflow(`    call:
+        uses: ./.github/workflows/other.yml
+        secrets:
+            AWS_SECRET_ACCESS_KEY: \${{ secrets.AWS_SECRET_ACCESS_KEY }}
+`),
+        ],
+        rule: 'static-key',
+    },
+    {
+        shape: 'configure-aws-credentials called directly, even by role',
+        sources: [
+            workflow(`    direct:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  role-to-assume: arn:aws:iam::1:role/kitchensink-gha-nonprod
+                  aws-region: us-east-1
+`),
+        ],
+        rule: 'unfederated-sign-in',
+    },
+    {
+        shape: 'a composite action other than awsAuth that signs in',
+        sources: [
+            {
+                file: '.github/actions/other/action.yml',
+                text: `name: other
+runs:
+    using: composite
+    steps:
+        - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+          with:
+              role-to-assume: arn:aws:iam::1:role/kitchensink-gha-nonprod
+              aws-region: us-east-1
+`,
+            },
+        ],
+        rule: 'unfederated-sign-in',
+    },
+    {
+        shape: 'awsAuth itself taking a key input',
+        sources: [
+            {
+                file: AWS_AUTH_ACTION,
+                text: `name: awsAuth
+runs:
+    using: composite
+    steps:
+        - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+          with:
+              aws-access-key-id: \${{ inputs.key }}
+              aws-region: us-east-1
+`,
+            },
+        ],
+        rule: 'unfederated-sign-in',
+    },
+    {
+        shape: 'an awsAuth job with no job-level id-token grant',
+        sources: [workflow(SIGNED_IN_JOB.replace('            id-token: write\n', ''))],
+        rule: 'missing-id-token',
+    },
+    {
+        shape: 'an awsAuth job whose id-token grant is only read',
+        sources: [workflow(SIGNED_IN_JOB.replace('id-token: write', 'id-token: read'))],
+        rule: 'missing-id-token',
+    },
+    {
+        shape: 'a workflow-level id-token grant',
+        sources: [workflow(SIGNED_IN_JOB, 'permissions:\n    contents: read\n    id-token: write\n')],
+        rule: 'workflow-id-token',
+    },
+    {
+        shape: 'a workflow-level write-all',
+        sources: [workflow(SIGNED_IN_JOB, 'permissions: write-all\n')],
+        rule: 'workflow-id-token',
+    },
+    {
+        shape: 'a prod sign-in in a job bound to no environment',
+        sources: [workflow(signedIn('prod'))],
+        rule: 'tier-environment',
+    },
+    {
+        shape: 'a nonprod sign-in in a job bound to Production',
+        sources: [workflow(signedIn('nonprod', '        environment: Production\n'))],
+        rule: 'tier-environment',
+    },
+    {
+        shape: 'a prod-read sign-in in a job bound to Sandbox',
+        sources: [workflow(signedIn('prod-read', '        environment: Sandbox\n'))],
+        rule: 'tier-environment',
+    },
+    {
+        shape: "deployInfra's per-stage binding with a nonprod sign-in that can run at prod",
+        sources: [workflow(signedIn('nonprod', `        environment: ${DEPLOY_INFRA_ENVIRONMENT}\n`))],
+        rule: 'tier-environment',
+    },
+    {
+        shape: "deployInfra's per-stage binding with the nonprod sign-in kept off the prod stage",
+        sources: [
+            workflow(
+                signedIn(
+                    'nonprod',
+                    `        environment: ${DEPLOY_INFRA_ENVIRONMENT}\n`,
+                    "              if: inputs.stage != 'prod'\n",
+                ),
+            ),
+        ],
+        rule: null,
+    },
+    {
+        shape: 'a tier chosen by stage that pairs prod with Production',
+        sources: [
+            workflow(
+                signedIn(
+                    "${{ inputs.stage == 'prod' && 'prod' || 'nonprod' }}",
+                    "        environment: ${{ inputs.stage == 'prod' && 'Production' || 'Sandbox' }}\n",
+                ),
+            ),
+        ],
+        rule: null,
+    },
+    {
+        shape: 'a tier chosen by stage whose environment is chosen by a different input',
+        sources: [
+            workflow(
+                signedIn(
+                    "${{ inputs.stage == 'prod' && 'prod' || 'nonprod' }}",
+                    "        environment: ${{ inputs.deploy && 'Production' || 'Sandbox' }}\n",
+                ),
+            ),
+        ],
+        rule: 'tier-environment',
+    },
+    {
+        shape: 'an environment this guard cannot resolve',
+        sources: [workflow(signedIn('nonprod', '        environment: ${{ needs.plan.outputs.environment }}\n'))],
+        rule: 'tier-environment',
+    },
+    {
+        shape: 'a reclamation job signing in on prod-read',
+        sources: [{ ...workflow(signedIn('prod-read')), file: '.github/workflows/sandboxCleanup.yml' }].map(
+            (source) => ({ ...source, text: source.text.replace('    check:\n', '    cleanup:\n') }),
+        ),
+        rule: 'teardown-prod-tier',
+    },
+    {
+        shape: 'cdk bootstrap in a step',
+        sources: [
+            workflow(`    boot:
+        runs-on: ubuntu-latest
+        steps:
+            - run: packages/infra/global/node_modules/.bin/cdk bootstrap "aws://1/us-east-1"
+`),
+        ],
+        rule: 'cdk-bootstrap',
+    },
+    {
+        shape: 'cdk bootstrap in a script',
+        sources: [{ file: '.github/scripts/boot.sh', text: '#!/usr/bin/env bash\nnpx cdk bootstrap\n' }],
+        rule: 'cdk-bootstrap',
+    },
+    {
+        shape: 'a script that only MENTIONS cdk bootstrap in a comment',
+        sources: [{ file: '.github/scripts/boot.sh', text: '#!/usr/bin/env bash\n# never run cdk bootstrap here\n' }],
+        rule: null,
+    },
+    { shape: 'a tier the stack does not define', sources: [workflow(signedIn('production'))], rule: 'unknown-tier' },
+    {
+        shape: 'a tier read from a step output',
+        sources: [workflow(signedIn('${{ steps.plan.outputs.tier }}'))],
+        rule: 'unknown-tier',
+    },
+    {
+        shape: 'an awsAuth job with no timeout',
+        sources: [workflow(SIGNED_IN_JOB.replace('        timeout-minutes: 10\n', ''))],
+        rule: 'missing-timeout',
+    },
+    {
+        shape: 'a 90-minute job on the default one-hour session',
+        sources: [workflow(SIGNED_IN_JOB.replace('timeout-minutes: 10', 'timeout-minutes: 90'))],
+        rule: 'session-shorter-than-job',
+    },
+    {
+        shape: 'a 90-minute job that asks for a 90-minute session',
+        sources: [
+            workflow(
+                SIGNED_IN_JOB.replace('timeout-minutes: 10', 'timeout-minutes: 90').replace(
+                    '                  tier: nonprod\n',
+                    "                  tier: nonprod\n                  session-minutes: '90'\n",
+                ),
+            ),
+        ],
+        rule: null,
+    },
+    {
+        shape: "a session longer than the role's ceiling",
+        sources: [
+            workflow(
+                SIGNED_IN_JOB.replace(
+                    '                  tier: nonprod\n',
+                    "                  tier: nonprod\n                  session-minutes: '240'\n",
+                ),
+            ),
+        ],
+        rule: 'session-shorter-than-job',
+    },
+    {
+        shape: 'load-secrets before the sign-in',
+        sources: [
+            workflow(
+                SIGNED_IN_JOB.replace(
+                    '            - id: aws\n',
+                    '            - uses: ./.github/actions/load-secrets\n              with:\n                  stage: sandbox\n            - id: aws\n',
+                ),
+            ),
+        ],
+        rule: 'secrets-before-sign-in',
+    },
+    {
+        shape: 'load-secrets after the sign-in',
+        sources: [
+            workflow(
+                `${SIGNED_IN_JOB}            - uses: ./.github/actions/load-secrets\n              with:\n                  stage: sandbox\n`,
+            ),
+        ],
+        rule: null,
+    },
+];
+
+describe('the guard refuses each shape it names, and only that rule', () => {
+    for (const fixture of FIXTURES) {
+        it(`${fixture.shape} → ${fixture.rule ?? 'clean'}`, () => {
+            const rules = [...new Set(violationsOf(fixture.sources, NONE).map((violation) => violation.rule))];
+
+            expect(rules).toEqual(fixture.rule === null ? [] : [fixture.rule]);
+        });
+    }
+
+    it('lets an allowlisted job keep the key, and nothing else', () => {
+        const legacy = workflow(`    deploy:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: \${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: \${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: us-east-1
+`);
+
+        expect(violationsOf([legacy], new Set(['fixture.yml::deploy']))).toEqual([]);
+        expect(
+            violationsOf([legacy], NONE)
+                .map((violation) => violation.rule)
+                .sort(),
+        ).toEqual(['static-key', 'unfederated-sign-in']);
+        expect([...keyUsingJobs([legacy])]).toEqual(['fixture.yml::deploy']);
+    });
+});
+
+describe('the tree signs in to AWS only through awsAuth', () => {
+    const sources = treeSources();
+
+    it('is not vacuous: it reads awsAuth, load-secrets and the jobs that sign in', () => {
+        const files = sources.map((source) => source.file);
+
+        expect(files).toContain(AWS_AUTH_ACTION);
+        expect(files).toContain('.github/actions/load-secrets/action.yml');
+
+        const signingIn = sources
+            .filter((source) => source.file.startsWith('.github/workflows/'))
+            .flatMap((source) =>
+                Object.entries(((parse(source.text) ?? {}) as Doc).jobs ?? {})
+                    .filter(([, job]) => (job.steps ?? []).some((step) => step.uses === AWS_AUTH))
+                    .map(([jobId]) => jobKey(source.file, jobId)),
+            );
+
+        expect(signingIn).toEqual(expect.arrayContaining(['sandboxCleanup.yml::cleanup', 'sandboxUp.yml::start']));
+        expect(signingIn.length).toBeGreaterThan(30);
+    });
+
+    it('breaks none of the rules', () => {
+        expect(violationsOf(sources, new Set(LEGACY_KEY_JOBS))).toEqual([]);
+    });
+
+    it('signs in with the key in EXACTLY the allowlisted jobs — a new user fails, and so does a stale entry', () => {
+        expect([...keyUsingJobs(sources)].sort()).toEqual([...LEGACY_KEY_JOBS].sort());
+    });
+});

@@ -203,18 +203,9 @@ on:
                 type: string
                 default: ''
 
-        # Declared EXPLICITLY rather than relying on the caller's `secrets: inherit`. `inherit` hands this
-        # workflow every secret the repository holds, including ones it has no business seeing, and zizmor
-        # flags it for that reason. These two are the only secrets any job here consumes (grepped), and both
-        # are `required: false` so a fork or Dependabot PR still runs — the jobs degrade via their own
-        # secret-presence check rather than failing on a missing input.
-        secrets:
-            AWS_ACCESS_KEY_ID:
-                description: AWS access key id, used only to read stage-scoped secrets from Secrets Manager
-                required: false
-            AWS_SECRET_ACCESS_KEY:
-                description: AWS secret access key paired with AWS_ACCESS_KEY_ID
-                required: false
+        # ⛔ NO SECRETS. Every job here that reaches AWS signs in through `awsAuth` on the non-prod OIDC role
+        # (ADR-0063), so a caller grants `id-token: write` and passes nothing; a fork or Dependabot run cannot sign
+        # in, and the jobs read that from `awsAuth`'s `authenticated` output rather than from an empty secret.
 
 permissions:
     contents: read
@@ -331,6 +322,10 @@ jobs:
         # and a skipped job renders the raw `${{ … }}` verbatim.)
         name: Resolve the mobile tier's deployed sandbox
         runs-on: ubuntu-latest
+        timeout-minutes: 30
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role (describe calls only)
         needs: [install]
         # The same opt-out gate the tier itself carries, so a k6-only caller (`recipe-loadtest.yml`, which
         # passes `run_mobile_maestro: false`) pays nothing for this job either.
@@ -567,28 +562,35 @@ jobs:
             # half-deployed preview would drive flows whose behaviour is decided by which half is up. A
             # partial preview is an absence, and an absence skips.
             #
-            # ⚠️ NO CREDENTIALS IS AN ABSENCE TOO, not a red. Both AWS secrets are `required: false` on this
-            # reusable workflow (a fork or Dependabot PR is given neither), and a stack probe without
-            # credentials cannot distinguish "torn down" from "not allowed to look". Saying so and skipping
-            # is honest; failing the tier on a PR that cannot supply a credential is an unfixable red. That skip is
+            # ⚠️ A FORK OR DEPENDABOT RUN IS AN ABSENCE TOO, not a red. Neither can hold an OIDC token, `awsAuth`
+            # reports `authenticated=false` for exactly those runs (any other run that cannot sign in is red there),
+            # and a stack probe without credentials cannot distinguish "torn down" from "not allowed to look".
+            # Saying so and skipping is honest; failing the tier on a PR that cannot sign in is an unfixable red. That skip is
             # decided HERE, by `live=false`, and not by a tolerated failure further down: the shard's own secrets load
             # is NOT `continue-on-error` (owner rule 2026-10-13: a skip may only happen because the sandbox is down, and
             # a skip is never a pass), so on a LIVE sandbox a failed load is a red job.
             #
             # `GITHUB_OUTPUT=` is cleared per call so the two evaluations cannot overwrite each other's
             # `deploy=`/`live=` keys; ONE combined `live=` is written at the end.
+            - name: Sign in to AWS
+              id: aws
+              if: steps.target.outputs.eligible == 'true'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
             - name: Is anything deployed at this stage? (deploy-gate liveness)
               id: live
               if: steps.target.outputs.eligible == 'true'
               env:
-                  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  AUTHENTICATED: ${{ steps.aws.outputs.authenticated }}
                   RECIPE_ORIGIN: ${{ steps.target.outputs.recipe_origin }}
                   FOOD_ORIGIN: ${{ steps.target.outputs.food_origin }}
               run: |
                   set -euo pipefail
-                  if [ -z "${AWS_ACCESS_KEY_ID}" ]; then
-                      echo "::notice::this run holds no AWS credentials (they are withheld from fork and Dependabot PRs), so whether ${STAGE} is deployed cannot be established — SKIPPING the mobile tier rather than driving an unknown target"
+                  if [ "${AUTHENTICATED:-}" != 'true' ]; then
+                      echo "::notice::this run is not signed in to AWS (a fork or Dependabot run cannot be), so whether ${STAGE} is deployed cannot be established — SKIPPING the mobile tier rather than driving an unknown target"
                       echo 'live=false' >>"$GITHUB_OUTPUT"
                       exit 0
                   fi
@@ -640,6 +642,9 @@ jobs:
         # interpolated one publishes the raw `${{ … }}` verbatim on exactly the runs a human is scanning).
         name: E2E (mobile — Maestro on an emulator, against the deployed sandbox)
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role, for the liveness probe and the sandbox Clerk keys
         # Bounded (it had no bound, so GitHub's six hours): a shard no longer builds, so it is about 6 minutes of setup, the
         # emulator boot, and a quarter of the flows — the slowest shard of the measured 2-shard run was 46 minutes of flows.
         # ⛔ 60 ASSUMES FOUR SHARDS (see `maestro_shards`): at two shards the margin is about eight minutes, and fewer than
@@ -902,24 +907,30 @@ jobs:
             # agreement so the stack lists cannot drift one side at a time.
             #
             # ⚠️ ABSENCE SKIPS, IT NEVER FAILS — the same ruling as the resolver's own probe: a torn-down
-            # sandbox, withheld AWS credentials (fork/Dependabot PRs) and a partial preview are all
+            # sandbox, a run that cannot sign in (fork/Dependabot PRs) and a partial preview are all
             # `live=false` plus a `::notice::`, never a red. Gating the SECRETS step is the single valve:
             # every stateful step below already keys on `steps.secrets.outcome == 'success'`, which reads
             # `skipped` when this gate closes, and the `always()` reset-after carries the same term so it
             # skips too — a closed gate must not run a pool reset against a stage that no longer exists.
             # The prep steps above (checkout, cache, `npm ci`) sit deliberately outside the
             # valve: they touch nothing remote, and re-running them on the rare skip path is harmless.
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
             - name: Is the deployed sandbox still up? (deploy-gate liveness, re-probed for this shard)
               id: liveness
               env:
-                  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  AUTHENTICATED: ${{ steps.aws.outputs.authenticated }}
                   RECIPE_ORIGIN: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
                   FOOD_ORIGIN: ${{ needs.resolve-mobile-target.outputs.food_origin }}
               run: |
                   set -euo pipefail
-                  if [ -z "${AWS_ACCESS_KEY_ID}" ]; then
-                      echo "::notice::this run holds no AWS credentials (they are withheld from fork and Dependabot PRs), so whether ${STAGE} is deployed cannot be established — SKIPPING the mobile tier rather than driving an unknown target"
+                  if [ "${AUTHENTICATED:-}" != 'true' ]; then
+                      echo "::notice::this run is not signed in to AWS (a fork or Dependabot run cannot be), so whether ${STAGE} is deployed cannot be established — SKIPPING the mobile tier rather than driving an unknown target"
                       echo 'live=false' >>"$GITHUB_OUTPUT"
                       exit 0
                   fi
@@ -977,9 +988,6 @@ jobs:
               uses: ./.github/actions/load-secrets
               with:
                   stage: ${{ inputs.stage }}
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
             # ⛔ THE BUILT APP, AND PROOF THAT IT IS THIS RUN'S. Downloaded after the valve (so a closed valve fetches
             # nothing) and VERIFIED before the first pool reset, so a wrong app is refused before a Clerk slot is touched.
             # `verify-manifest` is exact: the platform, the content key in the artifact's own NAME, the three origins this
@@ -1373,6 +1381,9 @@ jobs:
         # ⛔ A CONSTANT (workflowInvariants invariant 8), and it says E2E and declares DEPLOYED (invariant 7).
         name: E2E (mobile — Maestro on an iOS Simulator, against the deployed sandbox)
         runs-on: macos-26
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role, for the liveness probe and the sandbox Clerk keys
         # ⛔ BOUNDED. A hung Simulator here holds its pool lane — and therefore the next run's iOS shard queued behind it — for
         # GitHub's six-hour default. 75 minutes (it was 150, sized for a per-shard build of up to 26 minutes plus 54 minutes
         # of flows on two shards): a shard is now about 8 minutes of setup, a boot that overlaps it, and a quarter of the
@@ -1512,17 +1523,24 @@ jobs:
             # ⛔ RE-ASK LIVENESS IN THIS JOB, BEFORE A STAGE SECRET IS LOADED — the Android job's re-probe, for its
             # reason (a re-run reads the resolver's FROZEN `live`). `maestroRerunLiveness.test.ts` holds the
             # question below byte-identical to the resolver's, so the stack lists cannot drift one copy at a time.
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '75'
             - name: Is the deployed sandbox still up? (deploy-gate liveness, re-probed for this shard)
               id: liveness
               env:
-                  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  AUTHENTICATED: ${{ steps.aws.outputs.authenticated }}
                   RECIPE_ORIGIN: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
                   FOOD_ORIGIN: ${{ needs.resolve-mobile-target.outputs.food_origin }}
               run: |
                   set -euo pipefail
-                  if [ -z "${AWS_ACCESS_KEY_ID}" ]; then
-                      echo "::notice::this run holds no AWS credentials (they are withheld from fork and Dependabot PRs), so whether ${STAGE} is deployed cannot be established — SKIPPING the mobile tier rather than driving an unknown target"
+                  if [ "${AUTHENTICATED:-}" != 'true' ]; then
+                      echo "::notice::this run is not signed in to AWS (a fork or Dependabot run cannot be), so whether ${STAGE} is deployed cannot be established — SKIPPING the mobile tier rather than driving an unknown target"
                       echo 'live=false' >>"$GITHUB_OUTPUT"
                       exit 0
                   fi
@@ -1576,9 +1594,6 @@ jobs:
               uses: ./.github/actions/load-secrets
               with:
                   stage: ${{ inputs.stage }}
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
             # ⛔ THE BUILT APP, AND PROOF THAT IT IS THIS RUN'S — the Android job's pair, for its reason. The Xcode the app was
             # built with is part of what is checked (`xcodebuild -version`, normalised by the script), because the Simulator
             # runtime on this runner must be the one that SDK targets.
@@ -1884,6 +1899,9 @@ jobs:
         # services — is reported in the job summary.
         name: Load test (k6 — deployed origins) · heavy tier
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role, for the sandbox Clerk keys
         needs: [install]
         # A hung origin that answers the health probe and then stalls every request would otherwise burn a
         # runner for six hours. Three probe legs of ~3 minutes plus up to twelve service scenarios and
@@ -2157,19 +2175,24 @@ jobs:
             # be scoped "such that it won't conflict with real data"). Do not lift it to "make prod measure
             # something". The job summary states that a prod run measured probes only, and
             # `k6WriteContainment.test.ts` evaluates every credentialled step in the production world.
+            - name: Sign in to AWS
+              id: aws
+              if: ${{ steps.live.outputs.recipe == 'true' && env.LOAD_TEST_TARGET != 'prod' }}
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '75'
             - name: Load the stage's Clerk secrets
               id: k6secrets
-              continue-on-error: true
               # Gated on the probe's own output like every step after it: with nothing serving there is
               # nothing to load a credential FOR, and reaching for a secret would be the one action in this
               # job that happens whether or not the tier has a target.
-              if: ${{ steps.live.outputs.recipe == 'true' && env.LOAD_TEST_TARGET != 'prod' }}
+              if: steps.live.outputs.recipe == 'true' && env.LOAD_TEST_TARGET != 'prod' && steps.aws.outputs.authenticated == 'true'
               uses: ./.github/actions/load-secrets
               with:
                   stage: sandbox
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
             # ⛔ LEASED, NOT CREATED. `provisionPool.ts` signs in as the fixed pool's k6 slots and refuses one
             # `poolAdmin` has not provisioned; it creates no Clerk user and writes no metadata. It no longer runs
             # `e2e-seed provision` either: no k6 scenario read that world (grepped), and it leased the MAESTRO tier's

@@ -35,7 +35,7 @@ on:
             - .github/workflows/remoteSearchLoadtest.yml
 
 permissions:
-    contents: read # checkout only; the AWS reads use repository secrets, not the GITHUB_TOKEN
+    contents: read # checkout only; AWS is reached through awsAuth, granted on the job
 
 concurrency:
     group: remote-search-load-${{ github.event.inputs.target_stage || github.ref }}
@@ -50,6 +50,9 @@ jobs:
         name: Run k6 against a remote search preview (deployed)
         if: ${{ github.event_name == 'workflow_dispatch' }}
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role (the preview's origin and signing key)
         timeout-minutes: 20
         env:
             TARGET_STAGE: ${{ inputs.target_stage }}
@@ -84,11 +87,12 @@ jobs:
                   sudo apt-get install -y k6
 
             - name: Configure AWS credentials (to read the origin and the signing key)
-              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              id: aws
+              uses: ./.github/actions/awsAuth
               with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ env.DEFAULT_AWS_REGION }}
 
             # Before any request: the origin comes from SSM, and this job is about to send signed requests to it.
             - name: Read the published search origin, and confirm it is under this repository's own domain

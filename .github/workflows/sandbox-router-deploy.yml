@@ -39,15 +39,16 @@ jobs:
     deploy:
         name: Deploy sandbox router
         runs-on: ubuntu-latest
+        timeout-minutes: 90
         # The CDK packages install `@radicle-co/infra-shared` from GitHub Packages, which authenticates
         # even for a public read. Granted on the job, not the workflow, so a job added later does not
         # inherit registry access it was never reviewed for.
         permissions:
             contents: read
             packages: read # zizmor: ignore[use-trusted-publishing]
-        # Authenticates to AWS and deploys the singleton sandbox router, then seeds the Vercel bypass key into
-        # its KVS — so it reads three secrets. Full `Sandbox` rationale on `sandbox-deploy.yml`'s `cleanup`
-        # job. Zero protection rules matters here too: this workflow's whole purpose includes a DAILY
+            id-token: write # awsAuth: the non-prod role; the deploy itself goes through the CDK deploy role
+        # Signs in to AWS and deploys the singleton sandbox router, then seeds the Vercel bypass key into its
+        # KVS. Full `Sandbox` rationale on `sandboxCleanup.yml`'s `cleanup` job. Zero protection rules matters here too: this workflow's whole purpose includes a DAILY
         # drift-heal of a singleton whose out-of-band deletion once left every preview NXDOMAIN for three
         # weeks, and an approval gate would leave that heal pending instead of applied.
         environment: Sandbox
@@ -77,12 +78,14 @@ jobs:
                       npm install --prefix "${app}" --no-audit --no-fund
                       echo "::endgroup::"
                   done
-            - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
               with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.AWS_REGION }}
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ env.AWS_REGION }}
+                  session-minutes: '90'
             # Drift detection BEFORE deploy: if the singleton is gone, something deleted it out-of-band and
             # sandbox.commise.app has been NXDOMAIN (all web previews broken). Surface that loudly; the
             # deploy below heals it. On a manual dispatch this is the auto-remediation signal.

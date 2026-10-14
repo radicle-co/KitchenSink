@@ -28,11 +28,8 @@ on:
                 description: The PR's preview stage, `pr-{N}`. A named stage owns no preview address.
                 required: true
                 type: string
+        # AWS is reached through `awsAuth`, so no AWS secret is passed in; a caller grants `id-token: write`.
         secrets:
-            AWS_ACCESS_KEY_ID:
-                required: true
-            AWS_SECRET_ACCESS_KEY:
-                required: true
             VERCEL_TOKEN:
                 required: true
 
@@ -43,14 +40,16 @@ jobs:
     preview-domain:
         name: Publish sandbox preview address
         runs-on: ubuntu-latest
+        timeout-minutes: 30
         # Constrained to a `pr-{N}` stage: a named stage owns no per-PR preview address, and
         # `previewDomainScope.ts` refuses it anyway.
         if: startsWith(inputs.stage, 'pr-')
-        # Reads AWS + Vercel credentials. Bound to `Sandbox`, which keeps ZERO protection rules: the binding makes
-        # the deploy target explicit, and a required reviewer would stall every Sandbox Up.
+        # Signs in to AWS and reads the Vercel token. Bound to `Sandbox`, which keeps ZERO protection rules: the
+        # binding makes the deploy target explicit, and a required reviewer would stall every Sandbox Up.
         environment: Sandbox
         permissions:
             contents: read
+            id-token: write # awsAuth: the non-prod role (it writes only pr-*.sandbox CNAMEs)
         env:
             PR: ${{ inputs.stage }}
             REGION: ${{ vars.DEFAULT_AWS_REGION }}
@@ -64,12 +63,13 @@ jobs:
                   node-version: 24
                   cache: npm
             - run: npm ci
-            - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
               with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
             # Resolved from the CloudFormation export rather than a repo variable, exactly as the PR-close
             # cleanup does — one source of truth for the zone both halves of the lifecycle write to.
             - name: Resolve the sandbox hosted zone

@@ -456,20 +456,21 @@ describe('the iOS test app’s build recipe', () => {
 });
 
 /**
- * The env names `load-secrets` puts in `$GITHUB_ENV` that are SECRET — read out of the action itself, so a secret
- * added there is covered here without anyone remembering to list it — plus the credentials its own
- * `aws-actions/configure-aws-credentials` step exports for every later step.
+ * The env names a signed-in job holds that are SECRET: those `load-secrets` puts in `$GITHUB_ENV` — read out of the
+ * action itself, so a secret added there is covered here without anyone remembering to list it — plus the three
+ * credentials `aws-actions/configure-aws-credentials` exports for every later step. Since ADR-0063 that action runs
+ * inside `awsAuth`, not `load-secrets`, and it exports the same three names for an OIDC session (a session token
+ * included, which the access key never had), so they are still held by the build job.
  */
 function secretEnvNames(): readonly string[] {
-    const action = readFileSync(
-        fileURLToPath(new URL('../../../../.github/actions/load-secrets/action.yml', import.meta.url)),
-        'utf8',
-    );
-    const written = [...action.matchAll(/^\s*echo "([A-Z_]+)=\$[A-Z_]+"/gmu)].map((match) => match[1] ?? '');
+    const action = (name: string): string =>
+        readFileSync(fileURLToPath(new URL(`../../../../.github/actions/${name}/action.yml`, import.meta.url)), 'utf8');
+    const loadSecrets = action('load-secrets');
+    const written = [...loadSecrets.matchAll(/^\s*echo "([A-Z_]+)=\$[A-Z_]+"/gmu)].map((match) => match[1] ?? '');
     const secret = written.filter((name) => /SECRET/u.test(name));
 
     expect(written.length, 'load-secrets no longer writes the shape this guard reads').toBeGreaterThan(0);
-    expect(action, 'load-secrets no longer configures AWS credentials').toMatch(/configure-aws-credentials@/u);
+    expect(action('awsAuth'), 'awsAuth no longer configures AWS credentials').toMatch(/configure-aws-credentials@/u);
 
     return [...new Set([...secret, 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN'])];
 }

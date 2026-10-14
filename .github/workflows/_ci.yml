@@ -1,9 +1,9 @@
 name: CI (reusable)
 
 # Reusable CI pipeline, parameterized by `stage`. Called by ci-pr.yml (stage=sandbox) and
-# ci-main.yml (stage=prod). All AWS/Clerk secret loading goes through the load-secrets composite
-# action, which reads kitchensink/<stage>/identity/keys — so PR pipelines use sandbox secrets and the
-# main pipeline uses prod secrets, with no duplicated secret-fetch logic.
+# ci-main.yml (stage=prod). Every job that reaches AWS signs in through `./.github/actions/awsAuth` on an OIDC
+# role (ADR-0063), and Clerk secrets load through the load-secrets composite after it, with no duplicated
+# secret-fetch logic.
 #
 # TIERS. This file is the BASE tier in full: install, then lint/format/typecheck/test/integration/build,
 # then the preview deploy. The DEPLOYED e2e tiers live in `deployedE2eTiers.yml`, which this file and the
@@ -18,9 +18,6 @@ name: CI (reusable)
 # The collision that `run_base_jobs` originally fixed — heavy-e2e.yml starting a SECOND concurrent
 # `e2e-web` on the same commit, two Playwright suites tearing down each other's shared sandbox Clerk
 # sign-in fixture — is now structurally impossible: heavy-e2e.yml no longer calls this file at all.
-#
-# Hardening path (requires repo/IAM setup, see docs/CI_ARCHITECTURE.md): move AWS auth to OIDC with
-# two stage-scoped roles and adopt GitHub Environments so prod secrets are unreachable from PR runs.
 #
 # ⛔ JOB NAMING AND TIERS (docs/CODING_STANDARDS.md §7.1a). A job's name says which tier it is. The test tiers this
 # file runs are unit, mocked integration and guards. It runs NO LOCAL-target e2e tier: that runs only on a
@@ -58,13 +55,15 @@ on:
         # so the reference resolved to nothing and the tier skipped under a green name.
         #
         # `required: false` is deliberate, not laziness: GitHub WITHHOLDS secrets from fork PRs and
-        # Dependabot runs, and this pipeline is built to degrade gracefully there — `load-secrets` carries
-        # `continue-on-error` and the dependent steps gate on `steps.secrets.outcome` (see the inventory in
-        # `workflowInvariants.test.ts`). Marking them required would turn that designed skip into an
-        # unfixable red check on exactly the PRs that cannot supply them.
+        # Dependabot runs, and a required secret would turn the designed skip into an unfixable red check on
+        # exactly the PRs that cannot supply them.
+        #
+        # ⚠️ TRANSITIONAL: the two AWS secrets are forwarded ONLY to `infra`, for `main`'s checks at the `prod`
+        # stage, which still sign in with the access key until the production roles are proven (ADR-0063). Every
+        # other job signs in through `awsAuth`, and `ci-pr.yml` passes neither.
         secrets:
             AWS_ACCESS_KEY_ID:
-                description: AWS access key id, used only to read stage-scoped secrets from Secrets Manager
+                description: AWS access key id, forwarded only to `deployInfra.yml` for the `prod` stage
                 required: false
             AWS_SECRET_ACCESS_KEY:
                 description: AWS secret access key paired with AWS_ACCESS_KEY_ID
@@ -265,6 +264,9 @@ jobs:
         permissions:
             contents: read
             packages: read # each infra job installs `@radicle-co/infra-shared` from GitHub Packages
+            id-token: write # awsAuth in deployInfra.yml (a callee can only downgrade)
+        # ⚠️ TRANSITIONAL: forwarded only for `main`'s checks at the `prod` stage, which still sign in with the key
+        # (see `deployInfra.yml`). A pull request's caller passes no key, so on a PR these are empty and unused.
         secrets:
             AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
             AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -325,15 +327,17 @@ jobs:
     # this job itself must stay GREEN when there is nothing deployed; it publishes `live=false` and the tier
     # skips.
     #
-    # ⚠️ NO `aws-actions/configure-aws-credentials` and NO `load-secrets` here, on purpose. Both FAIL when the
-    # credentials are withheld — which GitHub does by design for fork PRs and Dependabot — and a red
-    # `resolve-sandbox` would red the whole pipeline for a PR nobody can fix. Handing the keys to the AWS CLI
-    # through `env:` degrades correctly instead: `describe-stacks` fails, `deploy_gate_stack_status` answers
-    # ABSENT, the gate answers `deploy=true`, and the tier SKIPS.
+    # ⚠️ A FORK OR DEPENDABOT RUN CANNOT SIGN IN, AND THAT IS A SKIP, NOT A RED. GitHub withholds the OIDC token
+    # from both by design, and a red `resolve-sandbox` would red the whole pipeline for a PR nobody can fix. So
+    # `awsAuth` reports `authenticated=false` for exactly those runs and the liveness step answers `live=false`.
+    # Any other run that cannot sign in is red: a missing `id-token: write` must never read as "nothing deployed".
     resolve-sandbox:
         name: Resolve the PR sandbox
         timeout-minutes: 15
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role (describe calls only)
         # ⛔ THE STAGE IS DECIDED HERE, AT JOB LEVEL, and the step below only validates it. Computed in a step
         # and read back as a step output it is invisible to static analysis: `stackProbeCoverage.test.ts` reads
         # `env:` at file and job level only, so every stack the liveness step probes would come back "whose
@@ -462,12 +466,19 @@ jobs:
             # `GITHUB_OUTPUT=` is cleared per call so the two evaluations cannot overwrite each other's
             # `deploy=`/`live=` keys; ONE combined `live=` is written at the end. `changed`/`forced` are
             # `false`: this run has no diff to react to and is not a deploy button.
+            # Only when there is a stage to probe: a run without a pull request has nothing to sign in for.
+            - name: Sign in to AWS
+              id: aws
+              if: steps.target.outputs.stage != ''
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
             - name: Is anything deployed at this stage? (deploy-gate liveness)
               id: live
               env:
-                  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+                  AUTHENTICATED: ${{ steps.aws.outputs.authenticated }}
                   RECIPE_ORIGIN: ${{ steps.target.outputs.recipe_origin }}
                   FOOD_ORIGIN: ${{ steps.target.outputs.food_origin }}
               run: |
@@ -476,6 +487,12 @@ jobs:
                   if [ -z "${STAGE:-}" ] || [ -z "${RECIPE_ORIGIN}" ] || [ -z "${FOOD_ORIGIN}" ]; then
                       echo 'live=false' >>"$GITHUB_OUTPUT"
                       echo '::notice::no sandbox target resolved — SKIPPING the E2E tier'
+                      exit 0
+                  fi
+
+                  if [ "${AUTHENTICATED:-}" != 'true' ]; then
+                      echo 'live=false' >>"$GITHUB_OUTPUT"
+                      echo '::notice::this run is not signed in to AWS (a fork or Dependabot run), so whether the stage is deployed cannot be established — SKIPPING the E2E tier'
                       exit 0
                   fi
 
@@ -1127,7 +1144,11 @@ jobs:
     sandbox-status:
         name: Is the sandbox up?
         runs-on: ubuntu-latest
+        timeout-minutes: 15
         environment: Sandbox
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role (describe calls only)
         outputs:
             branch: ${{ steps.verdict.outputs.branch }}
         steps:
@@ -1138,28 +1159,31 @@ jobs:
                   # it out (zizmor `artipacked`). This job uploads nothing today, which is exactly the kind
                   # of "true right now" that stops being true quietly.
                   persist-credentials: false
-            - name: Configure AWS credentials
+            - name: Sign in to AWS
+              id: aws
               if: ${{ github.event_name == 'pull_request' }}
-              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              uses: ./.github/actions/awsAuth
               with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
             - name: Probe the shared tier and decide the branch
               id: verdict
               env:
                   EVENT: ${{ github.event_name }}
+                  AUTHENTICATED: ${{ steps.aws.outputs.authenticated }}
                   SKIP_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'skip-e2e') }}
                   REGION: ${{ vars.DEFAULT_AWS_REGION }}
               run: |
                   set -uo pipefail
 
                   # ⚠️ The probe only runs for a pull request. On `main` there is nothing to probe and no
-                  # credentials step above, so asking would fail for the wrong reason.
+                  # sign-in step above, so asking would fail for the wrong reason. A fork or Dependabot pull request
+                  # cannot sign in (`awsAuth` says so), cannot have a preview, and is answered as down.
                   # A probe that ERRORS (exit 1) is not "down": the status check could not answer, and calling that
                   # a skip would hide an AWS outage. Its own `::error::` lines are in the output printed first.
                   up='false'
-                  if [ "${EVENT}" = 'pull_request' ]; then
+                  if [ "${EVENT}" = 'pull_request' ] && [ "${AUTHENTICATED:-}" = 'true' ]; then
                     probe_status=0
                     probe=$(bash .github/scripts/sandboxStatus.sh probe "${REGION}" sandbox) || probe_status=$?
                     printf '%s\n' "$probe"
@@ -1209,11 +1233,9 @@ jobs:
         permissions:
             contents: read
             packages: read # zizmor: ignore[use-trusted-publishing]
+            id-token: write # awsAuth in sandboxPreview.yml and deployInfra.yml (a callee can only downgrade)
         with:
             stage: ${{ needs.resolve-sandbox.outputs.stage }}
-        secrets:
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     # ── THE MOBILE TEST APPS — built once per platform, BESIDE the preview deploy ───────────────────────────
     #
@@ -1245,14 +1267,12 @@ jobs:
         permissions:
             contents: read
             actions: read # mobile-app-build reuses an earlier run's test app artifact
+            id-token: write # awsAuth in _mobileAppBuild.yml (a callee can only downgrade)
         with:
             stage: sandbox
             recipe_origin: ${{ needs.resolve-sandbox.outputs.recipe_origin }}
             food_origin: ${{ needs.resolve-sandbox.outputs.food_origin }}
             identity_origin: ${{ needs.resolve-sandbox.outputs.identity_origin }}
-        secrets:
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     # ── THE DEPLOYED E2E TIERS — defined ONCE, in `deployedE2eTiers.yml`, and called from here ──────────
     #
@@ -1293,10 +1313,11 @@ jobs:
             && needs.deploy-preview.result == 'success' }}
         uses: ./.github/workflows/deployedE2eTiers.yml
         # ⛔ A called workflow can only DOWNGRADE its caller's grant; the web shards exchange an OIDC token for
-        # their secretless Argos credential, so `id-token: write` is granted here or the run fails to start.
+        # their secretless Argos credential, and the tiers sign in to AWS through `awsAuth`, so `id-token: write`
+        # is granted here or the run fails to start.
         permissions:
             contents: read
-            id-token: write # the web tier's secretless Argos OIDC exchange — a callee can only downgrade
+            id-token: write # Argos and awsAuth in deployedE2eTiers.yml — a callee can only downgrade
         with:
             target_stage: ${{ needs.resolve-sandbox.outputs.stage }}
             identity_origin: ${{ needs.resolve-sandbox.outputs.identity_origin }}
@@ -1326,9 +1347,8 @@ jobs:
                 needs.detect-mobile-flows.outputs.flows_collections == 'true',
                 needs.detect-mobile-flows.outputs.flows_discovery == 'true',
                 needs.detect-mobile-flows.outputs.flows_recipes == 'true') }}
+        # No AWS secret: a pull request's preview is non-prod, and every tier signs in through `awsAuth`.
         secrets:
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
             # ⛔ THE QUEUE-GUARANTEE TIER READS A CRON MONITOR, which is the only thing that can prove the
             # backstop is RUNNING — a check that never executes produces the same silence as a healthy one.
             # Omitted, that half skipped on every pull-request run while the job reported green under a name
@@ -1868,6 +1888,9 @@ jobs:
         name: Build ${{ matrix.workspace }}
         timeout-minutes: 30
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role, to read the sandbox Clerk keys
         needs: [install, build-ui]
         strategy:
             fail-fast: false
@@ -1934,18 +1957,23 @@ jobs:
             # apart — pinning two equal literals instead would let them go stale together.
             # `webE2eProductionBuild.test.ts` fails if either side moves.
             #
-            # If creds are unavailable (e.g. fork PRs) the build is skipped rather than failing — and `e2e-web`
-            # skips on the same condition, so the pair stays consistent.
-            - name: Load sandbox (dev-instance) Clerk secrets for the web build
+            # On a fork's pull request or a Dependabot run, `awsAuth` reports `authenticated=false` and the web build
+            # is skipped — and `e2e-web` skips on the same condition, so the pair stays consistent. On any other run a
+            # failed sign-in or secrets load is a red job, never a skip.
+            - name: Sign in to AWS
+              id: aws
               if: matrix.workspace == '@commise/web'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Load sandbox (dev-instance) Clerk secrets for the web build
               id: secrets
-              continue-on-error: true
+              if: matrix.workspace == '@commise/web' && steps.aws.outputs.authenticated == 'true'
               uses: ./.github/actions/load-secrets
               with:
                   stage: sandbox
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
 
             - name: Build
               if: matrix.workspace != '@commise/web' || steps.secrets.outcome == 'success'
@@ -2139,7 +2167,7 @@ jobs:
         # a job-level `permissions:` REPLACES the workflow default rather than adding to it.
         permissions:
             contents: read
-            id-token: write # the secretless Argos OIDC exchange — see the note above
+            id-token: write # the secretless Argos OIDC exchange, and awsAuth (the non-prod role) for the Clerk keys
         # ⛔ THE DEPLOYED PREVIEW, and nothing on this runner. `playwright.config.ts` reads
         # `PLAYWRIGHT_BASE_URL` as `baseURL` and — critically — declares NO `webServer` when it is set, so
         # there is no `next start`, no `.next` artifact to download and no port to bind.
@@ -2251,15 +2279,19 @@ jobs:
             # These are the BACKEND keys the fixture provisioning uses (`globalSetup` resolves the run-scoped
             # sign-in user through Clerk's Backend API); the publishable key the BROWSER runs on is the one the
             # preview's own Vercel build inlined.
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
             - name: Load sandbox (dev-instance) Clerk secrets for the stubbed-API web suite
               id: secrets
-              continue-on-error: true
+              if: steps.aws.outputs.authenticated == 'true'
               uses: ./.github/actions/load-secrets
               with:
                   stage: sandbox
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
             # ⛔ THIS JOB NEEDS NO SANDBOX RESOURCE, SO IT RUNS WHETHER OR NOT THE SANDBOX IS UP (owner ruling
             # 2026-10-12: the sandbox starts only by hand). It used to wake the sandbox RDS and NAT here, on the
             # belief that `globalSetup` blocked on the sandbox `user.created` webhook backfilling `external_id`.

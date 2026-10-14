@@ -38,18 +38,14 @@ on:
     # Sandbox Up calls this to rebuild the shared tier before the previews (ADR-0060). Inside a called workflow
     # `github.event_name` is the CALLER's (`workflow_dispatch`), so the flags below deploy everything — which is what
     # a rebuild needs.
+    # AWS is reached through `awsAuth`, so no AWS secret is passed in; the caller grants `id-token: write`.
     workflow_call:
         secrets:
-            AWS_ACCESS_KEY_ID:
-                required: true
-            AWS_SECRET_ACCESS_KEY:
-                required: true
             SENTRY_AUTH_TOKEN:
                 required: false
 
-# NO `id-token: write` — the single `deploy` job authenticates to AWS with STATIC access keys, never OIDC,
-# so the grant was dead privilege (same removal as prod-deploy.yml / sandbox-deploy.yml). Re-add it on the
-# job that assumes a role if this is ever migrated to OIDC.
+# `id-token: write` is granted on the `deploy` job, never here: it signs in through `awsAuth` on the non-prod OIDC
+# role (ADR-0063), and a workflow-level grant would let any job added later mint a token too.
 permissions:
     contents: read
 
@@ -70,18 +66,19 @@ jobs:
     deploy:
         name: Deploy Sandbox Identity
         runs-on: ubuntu-latest
+        timeout-minutes: 180
         # `packages/infra/global` installs `@radicle-co/infra-shared` from GitHub Packages,
         # which authenticates even for a public read. Granted on the job, not the workflow, so a
         # job added later does not inherit registry access it was never reviewed for.
         permissions:
             contents: read
             packages: read # zizmor: ignore[use-trusted-publishing]
+            id-token: write # awsAuth: the non-prod role; the stacks deploy through the CDK deploy role
 
-        # Binds the one job here — which authenticates to AWS with static keys and deploys the PERSISTENT
-        # shared sandbox identity tier — to the `Sandbox` GitHub Environment. Full rationale, including what
-        # this does and does NOT buy while the AWS keys are ORGANIZATION secrets (which cannot be
-        # environment-scoped) and why `Sandbox` must keep zero protection rules, is on `sandbox-deploy.yml`'s
-        # `cleanup` job. Note the asymmetry with prod-deploy.yml: this tier is shared and long-lived, but its
+        # Binds the one job here — which deploys the PERSISTENT shared sandbox identity tier — to the `Sandbox`
+        # GitHub Environment. Full rationale, including what this does and does NOT buy (the non-prod role trusts
+        # any job of this repository, so the binding narrows no credential) and why `Sandbox` must keep zero
+        # protection rules, is on `sandboxCleanup.yml`'s `cleanup` job. Note the asymmetry with prod-deploy.yml: this tier is shared and long-lived, but its
         # trigger is `pull_request`, so an approval rule would gate every identity-touching PR.
         environment: Sandbox
 
@@ -150,12 +147,14 @@ jobs:
                         - 'packages/shared/service-logging/**'
                         - 'packages/utils/identity/**'
 
-            - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
               with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ env.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
 
             # ⛔ Before any deploy: every app that owns alarms reads ALARMS_ENABLED at synth, and an unset flag
             # deploys none, whatever the stage's parameter says (`alarmFeatureFlag.test.ts`).
@@ -387,10 +386,6 @@ jobs:
                           { echo "::error::the CDK CLI is missing from ${app}. It belongs in that package's devDependencies, never in the ROOT package.json, which ships into every image built from this tree"; exit 1; }
                   done
 
-            - name: Resolve AWS Account ID
-              id: account
-              run: echo "id=$(aws sts get-caller-identity --query Account --output text)" >> "$GITHUB_OUTPUT"
-
             - name: Login to Amazon ECR
               id: login-ecr
               if: steps.flags.outputs.deploy_service == 'true'
@@ -408,10 +403,9 @@ jobs:
               run: |
                   docker buildx build --platform linux/amd64 -f packages/services/identity/Dockerfile -t ${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG} --push .
 
-            - name: CDK Bootstrap
-              env:
-                  ACCOUNT_ID: ${{ steps.account.outputs.id }}
-              run: packages/infra/global/node_modules/.bin/cdk bootstrap "aws://${ACCOUNT_ID}/${DEFAULT_AWS_REGION}"
+            # ⛔ NO `cdk bootstrap`. The account's bootstrap stack (`CDKToolkit`, qualifier `hnb659fds`) is already at the
+            # version these apps need, and it is SHARED with another application in this account: re-running it from a
+            # deploy rewrites a stack this repository does not own. `awsCredentialsFederated.test.ts` refuses it.
 
             # `STAGE` is already exported to every step by the workflow-level `env:` block, so the old
             # `STAGE=${{ env.STAGE }}` command prefix was re-deriving a variable that was in scope — and

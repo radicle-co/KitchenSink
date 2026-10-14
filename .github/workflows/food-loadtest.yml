@@ -3,7 +3,7 @@
 # server-side metrics, produces a capacity/degradation report, and tears down every test user.
 #
 # Trigger: Actions → "Food API load test" → Run workflow (or `gh workflow run food-loadtest.yml`).
-# Needs the same repo AWS credentials the deploy workflows use (to read the Clerk secret + CloudWatch).
+# Signs in to AWS through `awsAuth` (to read the Clerk secret + CloudWatch); a production read still uses the access key.
 name: Food API load test (deployed origin — manual only)
 
 on:
@@ -61,7 +61,7 @@ on:
                 default: '20'
 
 permissions:
-    contents: read # checkout only — the AWS/Clerk work uses repo secrets, not the GITHUB_TOKEN
+    contents: read # checkout only — AWS is reached through awsAuth, granted on the job
 
 # A load test provisions a distinct-user pool against a SHARED Clerk instance and then tears it down, so
 # two concurrent runs would race each other's users and skew both reports. `cancel-in-progress: false`
@@ -84,6 +84,9 @@ jobs:
         # Pinned by workflowInvariants' invariant 8.
         name: Run k6 food-API journey (deployed origin)
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role (sandbox Clerk keys and CloudWatch)
         timeout-minutes: 30
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -100,7 +103,19 @@ jobs:
             - name: Install k6 (into the loadtest package)
               run: npm run k6:install --workspace=@kitchensink/loadtest
 
-            - name: Configure AWS credentials
+            # ⚠️ TRANSITIONAL: a run that reads production (a `prod` target or `prod` Clerk secrets) still signs in with
+            # the access key, because the production roles can be proven only on `main` (ADR-0063; plan
+            # `docs/plans/2026-10-13-005-feat-ci-oidc-workflows-plan.md`, commit C). Every other run uses the non-prod
+            # role.
+            - name: Sign in to AWS
+              if: inputs.base_stage != 'prod' && inputs.target_stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ env.DEFAULT_AWS_REGION }}
+            - name: Sign in to AWS with the access key (production reads only, see above)
+              if: inputs.base_stage == 'prod' || inputs.target_stage == 'prod'
               uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}

@@ -213,11 +213,20 @@ describe('every door to the Maestro tier builds the apps and hands the shards th
         },
     );
 
-    it('grants the build job the one extra scope it needs, and no more', () => {
+    /**
+     * The two scopes the build needs and no more: `actions: read` to reuse an earlier run's app, and `id-token: write`
+     * because its jobs sign in to AWS through `awsAuth` (ADR-0063) and a called workflow can only downgrade. Any other
+     * scope here would be granted to a job that reads a Clerk key and uploads an artifact.
+     */
+    it('grants the build job the two extra scopes it needs, and no more', () => {
         for (const file of ['_ci.yml', 'deployedE2e.yml']) {
             const job = read(file).jobs?.['mobile-app-build'];
 
-            expect(job?.permissions, `${file}::mobile-app-build`).toEqual({ contents: 'read', actions: 'read' });
+            expect(job?.permissions, `${file}::mobile-app-build`).toEqual({
+                contents: 'read',
+                actions: 'read',
+                'id-token': 'write',
+            });
         }
     });
 
@@ -741,7 +750,8 @@ describe('the plan reuses an earlier build of the same content', () => {
         }
     });
 
-    it('may read artifacts of other runs (actions: read) and nothing else of the repository but its contents', () => {
-        expect(plan?.permissions).toEqual({ contents: 'read', actions: 'read' });
+    /** `id-token: write` is the `awsAuth` sign-in that reads the publishable key; nothing else is granted. */
+    it('may read artifacts of other runs (actions: read), sign in to AWS, and nothing else but its contents', () => {
+        expect(plan?.permissions).toEqual({ contents: 'read', actions: 'read', 'id-token': 'write' });
     });
 });

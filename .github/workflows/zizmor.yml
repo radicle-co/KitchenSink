@@ -16,11 +16,14 @@
 # BURN-DOWN (2026-08-08). Re-measured 251 on the then-current tree (the drift from 231 is workflow
 # growth, not a zizmor change), now **26**. Closed COMPLETELY:
 #   • excessive-permissions 7 → 0, both High included. The workflow-level `id-token: write` in
-#     prod-deploy / sandbox-deploy / sandbox-identity-deploy was DEAD privilege: all 12
-#     `configure-aws-credentials` call sites use static access keys and nothing under `.github/` names
-#     `role-to-assume`/`web-identity`, so it was removed rather than merely narrowed. ci-pr / ci-main /
+#     prod-deploy / sandbox-deploy / sandbox-identity-deploy was DEAD privilege at the time — every AWS sign-in
+#     then used a static access key — so it was removed rather than merely narrowed. ci-pr / ci-main /
 #     ci-full gained explicit blocks, with `id-token: write` job-scoped on the `_ci.yml` call (a called
 #     workflow can only DOWNGRADE what its caller grants, and `e2e-web` needs it for Argos).
+#     ⚠️ It is LIVE privilege now: CI signs in to AWS through `./.github/actions/awsAuth` on OIDC roles (ADR-0063),
+#     so every job that runs it, and every job that calls its workflow, grants `id-token: write` — at JOB level only.
+#     `awsCredentialsFederated.test.ts` refuses a workflow-level grant. The production deploys still use the static
+#     key until commit C of `docs/plans/2026-10-13-005-feat-ci-oidc-workflows-plan.md`.
 #   • template-injection 67 → 0. Every interpolation moved out of `run:` bodies into `env:`. The
 #     invariant is now uniform outside `_ci-heavy.yml`: NO `${{ … }}` appears in any `run:` body.
 #   • dependabot-cooldown 1 → 0, via `cooldown.default-days: 7` — plus a `github-actions` ecosystem

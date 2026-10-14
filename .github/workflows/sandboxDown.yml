@@ -78,6 +78,7 @@ jobs:
     down:
         name: Destroy sandbox for PR
         runs-on: ubuntu-latest
+        timeout-minutes: 180
         # ⛔ THE PRESS DESTROYS, AND NOTHING ELSE DOES. The `push:` above is a registration trigger; this
         # guard is what stops editing this file from tearing down a preview. It is the most load-bearing
         # `if:` in the repository — without it, a push to this path DELETES infrastructure.
@@ -89,6 +90,7 @@ jobs:
         permissions:
             contents: read
             actions: read # `release-if-idle` asks whether a Sandbox Up (or a preview deploy) is running right now
+            id-token: write # awsAuth: the non-prod role, the only tier that holds teardownGrants
         env:
             GH_TOKEN: ${{ github.token }}
             PR_NUMBER: ${{ inputs.pr }}
@@ -114,11 +116,14 @@ jobs:
                   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: npm ci --no-audit --no-fund
 
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
               with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
 
             # ⛔ THE VALIDATION LIVES INSIDE THE TEARDOWN STEP, NOT AHEAD OF IT, and that is not a style
             # choice — it is `sandboxReclamationReachability.test.ts` analyzer 1, written after a75bdcd7 put

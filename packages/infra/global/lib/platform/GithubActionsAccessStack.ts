@@ -114,9 +114,18 @@ interface Scope {
     readonly region: string;
 }
 
-/** One tier's role: its fixed name, why it exists, and the permissions it carries. */
+/**
+ * Each tier's fixed role name. Exported because the CI side names the same roles: `.github/actions/awsAuth` maps a
+ * tier to one of these, and `awsAuthPredicate.test.ts` holds that map equal to this one.
+ */
+export const GITHUB_ACTIONS_ROLE_NAMES: Readonly<Record<GithubOidcTier, string>> = {
+    nonprod: 'kitchensink-gha-nonprod',
+    'prod-read': 'kitchensink-gha-prod-read',
+    prod: 'kitchensink-gha-prod',
+};
+
+/** One tier's role: why it exists, and the permissions it carries. Its name is {@link GITHUB_ACTIONS_ROLE_NAMES}. */
 interface TierSpec {
-    readonly roleName: string;
     readonly description: string;
     readonly permissions: (role: iam.Role, scope: Scope) => void;
 }
@@ -302,17 +311,14 @@ const permissionsProd = (role: iam.Role, scope: Scope): void => {
 /** One entry per tier. A tier added to the union and not here is a compile error. */
 const TIERS: Readonly<Record<GithubOidcTier, TierSpec>> = {
     nonprod: {
-        roleName: 'kitchensink-gha-nonprod',
         description: 'GitHub Actions: pull-request checks, previews, the sandbox and its teardown',
         permissions: permissionsNonprod,
     },
     'prod-read': {
-        roleName: 'kitchensink-gha-prod-read',
         description: 'GitHub Actions: read-only checks against production, run from main with no environment',
         permissions: permissionsProdRead,
     },
     prod: {
-        roleName: 'kitchensink-gha-prod',
         description: 'GitHub Actions: production deploys, only from main under the Production environment',
         permissions: permissionsProd,
     },
@@ -335,7 +341,7 @@ export class GithubActionsAccessStack extends Stack {
         const build = (tier: GithubOidcTier): iam.Role => {
             const spec = TIERS[tier];
             const role = new iam.Role(this, `Role-${tier}`, {
-                roleName: spec.roleName,
+                roleName: GITHUB_ACTIONS_ROLE_NAMES[tier],
                 description: spec.description,
                 maxSessionDuration: MAX_SESSION,
                 assumedBy: new iam.WebIdentityPrincipal(provider.oidcProviderArn, githubTrustConditions(tier)),

@@ -116,11 +116,16 @@ on:
                     The web Playwright matrix's result (`success`, `failure`, `cancelled`, `skipped`). `_ci.yml`'s
                     merged report re-asserts it, because a job in the caller cannot `needs` a job in here.
                 value: ${{ jobs.web-verdict.outputs.result }}
-        # Declared EXPLICITLY rather than `secrets: inherit` (zizmor `secrets-inherit`). Both optional, so a fork
-        # PR still degrades through each tier's own secret-presence check rather than failing to start.
+        # Declared EXPLICITLY rather than `secrets: inherit` (zizmor `secrets-inherit`), and all optional.
+        #
+        # ⚠️ TRANSITIONAL — THE AWS KEY IS FOR A PRODUCTION TARGET ONLY. Every tier signs in through `awsAuth` on the
+        # non-prod OIDC role (ADR-0063), so a caller grants `id-token: write`. The production roles can be proven only
+        # on `main`, so until that move (plan `docs/plans/2026-10-13-005-feat-ci-oidc-workflows-plan.md`, commit C)
+        # the two tiers that read AWS at a `prod` target sign in with this key instead, and only `deployedE2e.yml`'s
+        # manual door passes it. `awsCredentialsFederated.test.ts` lists exactly those jobs.
         secrets:
             AWS_ACCESS_KEY_ID:
-                description: AWS access key id, used only to read stage-scoped secrets
+                description: AWS access key id, used only when the target is prod
                 required: false
             AWS_SECRET_ACCESS_KEY:
                 description: AWS secret access key paired with AWS_ACCESS_KEY_ID
@@ -458,6 +463,9 @@ jobs:
         name: E2E (remote-search — the deployed search CDN and its trust boundary)
         timeout-minutes: 15
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role (the stage's published parameters)
         env:
             E2E_TARGET: deployed
             REMOTE_SEARCH_STAGE: ${{ inputs.target_stage }}
@@ -488,7 +496,16 @@ jobs:
                   fi
                   echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
                   npm ci
-            - name: Configure AWS credentials (to read what the stage published)
+            - name: Sign in to AWS (to read what the stage published)
+              id: aws
+              if: inputs.target_stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ env.DEFAULT_AWS_REGION }}
+            - name: Sign in to AWS with the access key (prod target only, see the secrets note at the top)
+              if: inputs.target_stage == 'prod'
               uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -567,6 +584,9 @@ jobs:
         name: E2E (recipe ↔ food — the deployed services, actually linked)
         timeout-minutes: 20
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role, for the sandbox Clerk keys
         # ⚠️ The `vars.LINKAGE_E2E_ENABLED` half is GONE, because the reason for it is. It existed for one
         # stated blocker — an empty per-PR food catalog — and the seeding step below closes it. A live
         # sandbox is now the only precondition, so this check is present on every PR that raises one rather
@@ -658,17 +678,22 @@ jobs:
             # ⛔ THE SECRETS WERE NEVER LOADED, and nothing noticed because the job was gated off. Both the
             # credential mint and the catalog seed read `CLERK_SECRET_KEY` / `CLERK_PUBLISHABLE_KEY`, and
             # neither existed in this job's environment — so removing the gate without this step would have
-            # turned "absent check" into "check that always fails on its first step". A fork PR has no access
-            # to them, so the load is soft and every step below is gated on its outcome.
+            # turned "absent check" into "check that always fails on its first step". A fork or Dependabot run
+            # cannot sign in (`awsAuth` reports it), so the load is skipped there and every step below is gated
+            # on its outcome; on any other run a failed sign-in or load is red.
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
             - name: Load sandbox (dev-instance) Clerk secrets for the linkage suite
               id: secrets
-              continue-on-error: true
+              if: steps.aws.outputs.authenticated == 'true'
               uses: ./.github/actions/load-secrets
               with:
                   stage: sandbox
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
             # ⛔ BEFORE THE MINT, NOT AFTER IT — the ordering is the fix for a real failure, not tidiness.
             # A Clerk session token lives about sixty seconds. The mint step writes ONE to a file and the
             # suite reads it, so anything slow between the two spends that budget: this step took ~100s on
@@ -927,7 +952,7 @@ jobs:
         # a job-level `permissions:` REPLACES the workflow default rather than adding to it.
         permissions:
             contents: read
-            id-token: write # the secretless Argos OIDC exchange — see the note above
+            id-token: write # the secretless Argos OIDC exchange, and awsAuth (the non-prod role) for the Clerk keys
         # ⛔ THE DEPLOYED PREVIEW, and nothing on this runner. `playwright.config.ts` reads
         # `PLAYWRIGHT_BASE_URL` as `baseURL` and — critically — declares NO `webServer` when it is set, so
         # there is no `next start`, no `.next` artifact to download and no port to bind.
@@ -1082,15 +1107,19 @@ jobs:
             # These are the BACKEND keys the fixture provisioning uses (`globalSetup` resolves the run-scoped
             # sign-in user through Clerk's Backend API); the publishable key the BROWSER runs on is the one the
             # preview's own Vercel build inlined.
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
             - name: Load sandbox (dev-instance) Clerk secrets for the preview web E2E
               id: secrets
-              continue-on-error: true
+              if: steps.aws.outputs.authenticated == 'true'
               uses: ./.github/actions/load-secrets
               with:
                   stage: sandbox
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
             # ⛔ NOTHING IN THIS TIER STARTS THE SANDBOX (owner ruling 2026-10-12: it starts only by hand). This
             # job used to wake the sandbox RDS and NAT here, on the belief that `globalSetup` blocked on the
             # `user.created` webhook backfilling `external_id`. That wait is deleted code: `global.setup.ts`
@@ -1270,6 +1299,10 @@ jobs:
         # `_ci-heavy.yml` also skips a prod target in its own resolution step.
         if: ${{ inputs.run_mobile_maestro && inputs.target_stage != 'prod' }}
         uses: ./.github/workflows/_ci-heavy.yml
+        # `_ci-heavy.yml`'s jobs sign in to AWS through `awsAuth`, and a called workflow can only downgrade.
+        permissions:
+            contents: read
+            id-token: write # awsAuth in _ci-heavy.yml (a callee only downgrades)
         with:
             stage: sandbox
             target_stage: ${{ inputs.target_stage }}
@@ -1279,9 +1312,6 @@ jobs:
             maestro_shards: ${{ inputs.maestro_shards }}
             android_test_app: ${{ inputs.android_test_app }}
             ios_test_app: ${{ inputs.ios_test_app }}
-        secrets:
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     # ⛔ THE QUEUE-GUARANTEE PROOF (plan U14, ADR-0041). Everything else in this file drives the deployed
     # SERVICES. This drives the thing that WATCHES them, and it exists because the backstop's two strongest
@@ -1310,16 +1340,18 @@ jobs:
         name: E2E (queues — the deployed backstop is armed and running)
         timeout-minutes: 10
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role (read-only IAM and stack reads)
         env:
             E2E_TARGET: deployed
             TARGET_STAGE: ${{ inputs.target_stage }}
             IDENTITY_ORIGIN: ${{ inputs.identity_origin }}
-            # ⛔ THE SECRETS ARE READ INTO `env` HERE BECAUSE A STEP-LEVEL `if:` HAS NO `secrets` CONTEXT.
-            # Written as `if: ${{ secrets.X != '' }}` the conditions below are not merely wrong, they are
-            # wrong in the direction that stays green: the expression evaluates empty, every step skips, and
+            # ⛔ THE SECRET IS READ INTO `env` HERE BECAUSE A STEP-LEVEL `if:` HAS NO `secrets` CONTEXT.
+            # Written as `if: ${{ secrets.X != '' }}` the condition below is not merely wrong, it is
+            # wrong in the direction that stays green: the expression evaluates empty, the step skips, and
             # the job reports success having proved nothing. Scoped to this job rather than the workflow, per
             # zizmor's `secrets-inherit` note in `zizmor.yml`.
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
             SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -1346,8 +1378,17 @@ jobs:
                   # `DOMAIN_NAME`.
                   . .github/scripts/targetScope.sh
                   target_scope_assert "${DOMAIN_NAME}" "${IDENTITY_ORIGIN}"
-            - name: Configure AWS credentials
-              if: ${{ env.AWS_ACCESS_KEY_ID != '' }}
+            - name: Sign in to AWS
+              id: aws
+              if: inputs.target_stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Sign in to AWS with the access key (prod target only, see the secrets note at the top)
+              id: legacyKey
+              if: inputs.target_stage == 'prod'
               uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -1359,18 +1400,20 @@ jobs:
             #
             # The role is discovered through CloudFormation rather than named: CDK generates the physical
             # name, so a literal here would be a copy that rots the first time the construct path changes.
-            # ⛔ IT RUNS AND ANNOUNCES ITS OWN ABSENCE. This step was `if: ${{ env.AWS_ACCESS_KEY_ID != '' }}`,
-            # and a GitHub `if:` skip emits NOTHING — so on a run without credentials the job reported green
-            # under the name "the deployed backstop is armed and running" having proved nothing at all. That is
-            # the owner's ruling inverted: "NEVER report a skip as a pass — a skip claims nothing, a green over
-            # a suite that never ran claims something false." A notice is visible in the log and in the job
-            # summary; an `if:` is visible nowhere.
+            # ⛔ IT RUNS AND ANNOUNCES ITS OWN ABSENCE. A GitHub `if:` skip emits NOTHING — so on a run without
+            # credentials the job would report green under the name "the deployed backstop is armed and running"
+            # having proved nothing at all. That is the owner's ruling inverted: "NEVER report a skip as a pass — a
+            # skip claims nothing, a green over a suite that never ran claims something false." A notice is
+            # visible in the log and in the job summary; an `if:` is visible nowhere. Only a fork or Dependabot run
+            # is unsigned (`awsAuth`); any other run that cannot sign in is already red.
             - name: The deployed backstop role may read queue attributes and nothing else
+              env:
+                  SIGNED_IN: ${{ steps.aws.outputs.authenticated == 'true' || steps.legacyKey.outcome == 'success' }}
               run: |
                   set -euo pipefail
 
-                  if [ -z "${AWS_ACCESS_KEY_ID}" ]; then
-                      echo '::notice::NOT PROVED — no AWS credentials on this run, so the deployed backstop role was not read'
+                  if [ "${SIGNED_IN:-}" != 'true' ]; then
+                      echo '::notice::NOT PROVED — this run is not signed in to AWS (a fork or Dependabot run), so the deployed backstop role was not read'
                       exit 0
                   fi
 
@@ -1523,6 +1566,10 @@ jobs:
         name: k6 (load, deployed)
         if: ${{ inputs.run_load_test }}
         uses: ./.github/workflows/_ci-heavy.yml
+        # `_ci-heavy.yml`'s jobs sign in to AWS through `awsAuth`, and a called workflow can only downgrade.
+        permissions:
+            contents: read
+            id-token: write # awsAuth in _ci-heavy.yml (a callee only downgrades)
         with:
             stage: sandbox
             target_stage: ${{ inputs.target_stage }}
@@ -1531,6 +1578,3 @@ jobs:
             # ⛔ `prod` ONLY for a prod target. `_ci-heavy.yml` refuses a prod k6 run on anything but a manual
             # dispatch, and refuses `target_stage=prod` without this — so an automatic prod run is red, never quiet.
             load_test_target: ${{ inputs.target_stage == 'prod' && 'prod' || 'sandbox' }}
-        secrets:
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

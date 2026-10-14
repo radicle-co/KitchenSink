@@ -17,7 +17,8 @@ a build template per run-type": the callers supply the only thing that differs �
     _ci-heavy.yml     # reusable: HEAVY tier — mobile Maestro (~50 min emulator + APK),
                       #   recipe k6, food k6
   actions/
-    load-secrets/  # composite: configure AWS creds + load kitchensink/<stage>/identity/keys
+    awsAuth/       # composite: the one way CI signs in to AWS — an OIDC role per tier (ADR-0063)
+    load-secrets/  # composite: load kitchensink/<stage>/identity/keys, after awsAuth
 ```
 
 ## Why the tiers are two FILES and not two flags
@@ -113,35 +114,18 @@ ECS Container Insights log groups, out-of-band ECR repos). See
 > Until a feature service actually deploys per-PR, the `cleanup` job has nothing to match. Pre-existing
 > orphans created before this convention carry no `Environment` tag and need a one-off manual sweep.
 
-## Recommended hardening (step 2 DONE for deploys; step 1 still open)
+## Recommended hardening (step 2 DONE for deploys; step 1 IN PROGRESS)
 
-Current auth uses static `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, and those creds can read both
-sandbox and prod secrets — there is no AWS-side least-privilege boundary between PR and main runs. To
-close that:
-
-1. **OIDC with two stage-scoped IAM roles — STILL OPEN, and it is now the load-bearing half.** Add
-   `permissions: id-token: write`, switch the composite to `role-to-assume`, and scope each role's trust
-   policy by the OIDC `sub` claim — the sandbox role trusts
-   `repo:radicle-co/KitchenSink:pull_request` / `environment:Sandbox`, the prod role trusts
-   `environment:Production` / `ref:refs/heads/main`. Restrict each role's `secretsmanager:GetSecretValue`
-   to its own `kitchensink/<stage>/*` ARNs. This makes prod secrets physically unreachable from a PR.
-
-    ⚠️ **The sandbox role needs more than Secrets Manager.** Three sandbox _deploying_ jobs and — since
-    2026-08-25 — `_ci.yml`'s `e2e-web` shards run `.github/scripts/sandboxWake.sh ensure`, which needs
-    `rds:DescribeDBInstances`, `rds:StartDBInstance`, `ec2:DescribeInstances` and `ec2:StartInstances`.
-    Today they all share the one org-wide key pair, so nothing had to be granted for the `e2e-web` call
-    site; a role scoped from the `load-secrets` call alone would break the wake gate, and `e2e-web` would
-    go back to failing every overnight run inside ADR-0007's window. See the wake step's comment in
-    `_ci.yml`.
-
-    ⚠️ The environment bindings in step 2 do NOT achieve that on their own, and the reason is specific:
-    `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are **organization** secrets (verified via
-    `gh api repos/:owner/:repo/actions/organization-secrets`), and an org secret **cannot** be scoped to a
-    GitHub Environment — environment secrets are repo-level only. So every job in every workflow here can
-    still read the one key pair that serves both stages, whatever its `environment:` key says. The trust
-    boundary moves only when the credential itself becomes per-stage: either these OIDC roles, or two
-    distinct IAM users held as `Sandbox` / `Production` **environment** secrets with the org secret
-    removed from this repo's scope.
+1. **OIDC roles instead of the access key — IN PROGRESS (ADR-0063).** One GitHub OIDC provider and three roles
+   (`kitchensink-gha-nonprod`, `-prod-read`, `-prod`) are deployed by the account app. Every non-production job
+   signs in through `.github/actions/awsAuth` on the `nonprod` tier, with a job-level `id-token: write`; a fork or
+   Dependabot run reports `authenticated=false` and any other run that cannot sign in is red. The production jobs
+   (`prod-deploy.yml`, `accountDeploy.yml`, `deployInfra.yml` at `prod`, `main`'s prod-stage checks and the manual
+   prod-target runs) still use the static `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` until the production roles
+   are proven on `main` (plan `docs/plans/2026-10-13-005-feat-ci-oidc-workflows-plan.md`, commit C), and then the
+   secrets are deleted. `packages/infra/global/__tests__/awsCredentialsFederated.test.ts` lists exactly those jobs
+   and refuses a key anywhere else. ADR-0063 records the residual risk that matters most: any role that may assume
+   the CDK deploy role is account administrator through the shared bootstrap.
 
 2. **GitHub Environments — DONE for the deploy surface (2026-08-11, PR #91).** `Production` exists with a
    required reviewer (`gooftroop`) and a `main`-only branch policy, bound to `prod-deploy.yml`'s `deploy`

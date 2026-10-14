@@ -13,12 +13,12 @@ permissions:
 jobs:
     ci:
         uses: ./.github/workflows/_ci.yml
-        # `id-token: write` must be granted by the CALLER for `_ci.yml`'s `e2e-web` job to reach it (a called
-        # workflow can only downgrade). Job-scoped, and `contents: read` restated because a job-level block
-        # replaces the workflow default.
+        # `id-token: write` must be granted by the CALLER for `_ci.yml`'s jobs to sign in through `awsAuth` and for
+        # its web shards' Argos exchange (a called workflow can only downgrade). Job-scoped, and `contents: read`
+        # restated because a job-level block replaces the workflow default.
         permissions:
             contents: read
-            id-token: write # granted so _ci.yml e2e-web can reach it (a callee only downgrades)
+            id-token: write # awsAuth and Argos in _ci.yml (a callee only downgrades)
             # ⛔ A callee can only downgrade, so omitting this rejects the whole run (`startup_failure`).
             actions: read # mobile-app-build reuses an earlier run's test app artifact
             # `_ci.yml`'s `infra-shared` job declares `packages: write`, and a called workflow's job may only
@@ -27,7 +27,9 @@ jobs:
             packages: write # zizmor: ignore[use-trusted-publishing]
         with:
             stage: prod
-        # Explicit, not `inherit` — see ci-pr.yml. Only the two secrets `_ci.yml` declares are passed.
+        # Explicit, not `inherit` — see ci-pr.yml. ⚠️ TRANSITIONAL: the AWS key is passed because `main`'s checks
+        # at the `prod` stage still sign in with it (`_ci.yml`'s `infra` → `deployInfra.yml`) until the production
+        # roles are proven on `main` (ADR-0063; plan 2026-10-13-005, commit C).
         secrets:
             AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
             AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

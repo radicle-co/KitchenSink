@@ -41,9 +41,12 @@
  *      execute it); THIS test is what keeps the two copies from drifting one side at a time.
  *   6. A SECRETS FAILURE IS RED (2026-10-13) — the secrets step is not `continue-on-error`: a skip may only happen
  *      because the sandbox is down, and a swallowed failure on a live one was a green no-op shard.
- *   5. ABSENCE SKIPS — the probe treats missing AWS credentials (withheld from fork/Dependabot PRs) as
- *      `live=false` + `exit 0`, so a withheld secret can never red the tier: red-over-nothing is the mirror
- *      of green-over-nothing.
+ *   5. ABSENCE SKIPS, AND ONLY A REAL ABSENCE — the job signs in through `awsAuth` (ADR-0063) BEFORE the probe, with
+ *      no `if:`, and the probe reads that step's `authenticated` output: `false` (a fork or Dependabot run, the only
+ *      runs that cannot sign in) is `live=false` + `exit 0`, so it can never red the tier — red-over-nothing is the
+ *      mirror of green-over-nothing. Every other run that cannot sign in is red inside `awsAuth`, which the
+ *      access-key version could not do: it read an empty secret, so a job that forgot to pass the key looked exactly
+ *      like a fork and skipped green. The probe holds no key of its own.
  *
  * Mutation evidence: written together with the step it pins, and one red was found in review — an earlier
  * draft bound the stage as a private `PROBE_STAGE`, and the full suite red `deployGateSeedRef.test.ts`
@@ -52,7 +55,9 @@
  * deleting the step reds (1); re-pointing the secrets `if` at `needs.*.outputs.live` reds (2); moving the
  * probe below the secrets step reds (1); binding the stage at STEP level reds `stackProbeCoverage.test.ts`
  * (file/job-level resolution) and `maestroStageGuard.test.ts` (a second candidate in its refusal
- * discovery); dropping the credentials branch reds (5).
+ * discovery); dropping the credentials branch reds (5). Since (5) moved to `awsAuth` it runs the probe's own bash unsigned
+ * instead of matching its text, so a branch that stops writing `live=false`, or reaches the gate script, reds
+ * however it is spelled.
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -60,10 +65,13 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
+import { runWorkflowStep } from './workflowStepRunner.js';
+
 interface WorkflowStep {
     readonly id?: string;
     readonly if?: string;
     readonly uses?: string;
+    readonly with?: Record<string, string>;
     readonly run?: string;
     readonly 'continue-on-error'?: boolean;
     readonly env?: Record<string, string>;
@@ -238,11 +246,32 @@ describe.each(maestroJobs())('%s re-proves liveness inside its own job', (_, job
         );
     });
 
-    it('treats absent AWS credentials as a skip, never a red', () => {
-        const probeRun = (livenessSteps(maestroJob() as WorkflowJob)[0] as WorkflowStep).run ?? '';
+    it('signs in through awsAuth, unconditionally, before it asks — and the probe holds no key of its own', () => {
+        const steps = maestroJob()?.steps ?? [];
+        const signIn = steps.findIndex((step) => step.uses === './.github/actions/awsAuth');
+        const probe = livenessSteps(maestroJob() as WorkflowJob)[0] as WorkflowStep;
 
-        expect(probeRun, 'the credentials-withheld branch must write live=false and exit 0 before any ask').toMatch(
-            /if \[ -z "\$\{AWS_ACCESS_KEY_ID\}" \]; then\n\s*echo "::notice::[^\n]*\n\s*echo 'live=false' >>"\$GITHUB_OUTPUT"\n\s*exit 0\n\s*fi/u,
+        expect(signIn, 'the Maestro job does not sign in through awsAuth').toBeGreaterThanOrEqual(0);
+        expect(signIn, 'awsAuth must run before the liveness probe').toBeLessThan(steps.indexOf(probe));
+        expect(steps[signIn]?.if, 'a gated sign-in would let a missing id-token grant skip, not red').toBeUndefined();
+        expect(steps[signIn]?.with?.['tier']).toBe('nonprod');
+        expect(probe.env?.['AUTHENTICATED']).toBe(
+            `\${{ steps.${steps[signIn]?.id ?? '(no id)'}.outputs.authenticated }}`,
+        );
+        expect(JSON.stringify(probe.env), 'the probe must not read an access key').not.toMatch(
+            /AWS_ACCESS|AWS_SECRET/u,
         );
     });
+
+    for (const authenticated of ['false', '']) {
+        it(`treats an unsigned run (authenticated='${authenticated}') as a skip, never a red, and asks nothing`, () => {
+            const probe = livenessSteps(maestroJob() as WorkflowJob)[0] as WorkflowStep;
+            // The step runner's directory holds no `deployGate.sh`, so a probe that reached the gate would fail.
+            const outcome = runWorkflowStep(probe.run ?? '', { AUTHENTICATED: authenticated, STAGE: 'pr-91' });
+
+            expect(outcome.status, outcome.log).toBe(0);
+            expect(outcome.outputs['live']).toBe('false');
+            expect(outcome.log).toMatch(/::notice::/u);
+        });
+    }
 });

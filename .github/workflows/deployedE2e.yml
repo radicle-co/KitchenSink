@@ -116,6 +116,10 @@ jobs:
     resolve:
         name: Resolve target and liveness
         runs-on: ubuntu-latest
+        timeout-minutes: 30
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role (describe calls only)
         # ⛔ THE STAGE IS DECIDED HERE, AT JOB LEVEL, AND THE STEP BELOW ONLY VALIDATES IT. It used to be
         # computed in the step and read back as a step output, which is invisible to static analysis:
         # `stackProbeCoverage.test.ts` reads `env:` at file and job level only, so every stack this job
@@ -163,7 +167,18 @@ jobs:
                   cache: npm
             - name: Install dependencies
               run: npm ci
-            - name: Configure AWS credentials
+            # ⚠️ TRANSITIONAL: a `prod` target still signs in with the access key, because the production roles can be
+            # proven only on `main` (ADR-0063; plan `docs/plans/2026-10-13-005-feat-ci-oidc-workflows-plan.md`, commit
+            # C, which moves it to the read-only production role). Every other target uses the non-prod role.
+            - name: Sign in to AWS
+              if: github.event.inputs.target != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Sign in to AWS with the access key (prod target only, see above)
+              if: github.event.inputs.target == 'prod'
               uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -330,14 +345,12 @@ jobs:
         permissions:
             contents: read
             actions: read # mobile-app-build reuses an earlier run's test app artifact
+            id-token: write # awsAuth in _mobileAppBuild.yml (a callee can only downgrade)
         with:
             stage: sandbox
             recipe_origin: ${{ needs.resolve.outputs.recipe_origin }}
             food_origin: ${{ needs.resolve.outputs.food_origin }}
             identity_origin: ${{ needs.resolve.outputs.identity_origin }}
-        secrets:
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     deployed-tiers:
         # ⛔ A CONSTANT, and deliberately WITHOUT the word "E2E" — `workflowInvariants` invariant 8 (branch
@@ -356,11 +369,12 @@ jobs:
             && needs.resolve.result == 'success'
             && needs.resolve.outputs.live == 'true' }}
         uses: ./.github/workflows/deployedE2eTiers.yml
-        # ⛔ A called workflow can only DOWNGRADE its caller's grant, and the web shards exchange an OIDC token for
-        # their secretless Argos credential — so the grant is stated here, or the run fails to start.
+        # ⛔ A called workflow can only DOWNGRADE its caller's grant, and the tiers sign in to AWS through `awsAuth`
+        # while the web shards exchange an OIDC token for their secretless Argos credential — so the grant is stated
+        # here, or the run fails to start.
         permissions:
             contents: read
-            id-token: write # the web tier's secretless Argos OIDC exchange — a callee can only downgrade
+            id-token: write # Argos and awsAuth in deployedE2eTiers.yml — a callee can only downgrade
         with:
             target_stage: ${{ needs.resolve.outputs.stage }}
             identity_origin: ${{ needs.resolve.outputs.identity_origin }}
@@ -372,7 +386,8 @@ jobs:
             ios_test_app: ${{ needs.mobile-app-build.outputs.ios_test_app }}
             run_load_test: ${{ inputs.run_load_test }}
             maestro_shards: ${{ inputs.maestro_shards }}
-        # Declared EXPLICITLY rather than `secrets: inherit` (zizmor `secrets-inherit`).
+        # Declared EXPLICITLY rather than `secrets: inherit` (zizmor `secrets-inherit`). ⚠️ TRANSITIONAL: the AWS key
+        # is used only by a `prod` target (see `deployedE2eTiers.yml`'s secrets note).
         secrets:
             AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
             AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

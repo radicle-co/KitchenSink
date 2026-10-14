@@ -15,12 +15,13 @@ jobs:
     ci:
         uses: ./.github/workflows/_ci.yml
         # A called workflow can only DOWNGRADE what its caller grants, so `id-token: write` has to be
-        # granted here for `_ci.yml`'s `e2e-web` job to keep exchanging an OIDC token for its secretless
-        # Argos credential. Scoped to this job (not the workflow) so it is not ambiently available.
-        # `contents: read` is restated because a job-level block REPLACES the workflow default.
+        # granted here: `_ci.yml`'s jobs sign in to AWS through `awsAuth` on the non-prod OIDC role (ADR-0063), and
+        # the web shards exchange the same kind of token for their secretless Argos credential. Scoped to this job
+        # (not the workflow) so it is not ambiently available. `contents: read` is restated because a job-level
+        # block REPLACES the workflow default.
         permissions:
             contents: read
-            id-token: write # granted so _ci.yml e2e-web can reach it (a callee only downgrades)
+            id-token: write # awsAuth and Argos in _ci.yml (a callee only downgrades)
             # ⛔ A callee can only downgrade, so omitting this rejects the whole run (`startup_failure`).
             actions: read # mobile-app-build reuses an earlier run's test app artifact
             # ⛔ Granted for `_ci.yml`'s `infra-shared` job, which publishes the shared CDK constructs as a
@@ -30,12 +31,10 @@ jobs:
             packages: write # zizmor: ignore[use-trusted-publishing]
         with:
             stage: sandbox
-        # Explicit, not `inherit`: pass ONLY the two secrets `_ci.yml` declares, instead of exposing every
-        # repository secret to the called workflow. `_ci.yml` marks both optional, so a fork PR (where
-        # GitHub withholds them) still runs and skips the secret-dependent steps as designed.
+        # Explicit, not `inherit`: pass ONLY what a pull request's run uses, instead of exposing every repository
+        # secret to the called workflow. ⛔ NO AWS KEY: a pull request signs in through `awsAuth`, and the access key
+        # `_ci.yml` still declares is for `main`'s prod-stage checks alone (`ci-main.yml`).
         secrets:
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
             # Forwarded because `_ci.yml`'s queue-guarantee tier reads the cron monitor. Declaring it there
             # without passing it here would leave the reference resolving to an empty string — the tier
             # would skip, and the job would stay green while proving nothing.

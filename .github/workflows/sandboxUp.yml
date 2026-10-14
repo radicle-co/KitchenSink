@@ -75,9 +75,11 @@ jobs:
         name: Start the sandbox for this PR
         if: github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
+        timeout-minutes: 60
         permissions:
             contents: read # checkout of this repo's workflow scripts
             pull-requests: read # `gh pr view` — refuse a PR that is not open
+            id-token: write # awsAuth: the non-prod role
         outputs:
             stage: ${{ steps.pr.outputs.stage }}
         env:
@@ -123,11 +125,13 @@ jobs:
                       exit 1
                   fi
 
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
               with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
 
             # ⛔ REFUSE A PRESS WHILE THE MIDNIGHT RECLAIM IS RUNNING (ADR-0061). The reclaim deletes stacks for up to two
             # hours after the stop, and it only deletes a tier that is down: a start now would bring the database and the
@@ -189,17 +193,21 @@ jobs:
         needs: [start]
         if: github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
+        timeout-minutes: 30
         permissions:
             contents: read # checkout of this repo's workflow scripts
+            id-token: write # awsAuth: the non-prod role (the owed-drop ledger)
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
               with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
             - name: Drop the databases of PRs that closed while the sandbox was down
               env:
                   REGION: ${{ vars.DEFAULT_AWS_REGION }}
@@ -219,9 +227,8 @@ jobs:
         permissions:
             contents: read
             packages: read # zizmor: ignore[use-trusted-publishing]
+            id-token: write # awsAuth in sandbox-identity-deploy.yml (a callee can only downgrade)
         secrets:
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
             SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
     # `deployGate.sh` sees `forced=true`, so this deploys unconditionally — the press IS the intent. It also
@@ -234,12 +241,10 @@ jobs:
         permissions:
             contents: read
             packages: read # zizmor: ignore[use-trusted-publishing]
+            id-token: write # awsAuth in sandboxPreview.yml and deployInfra.yml (a callee can only downgrade)
         with:
             stage: ${{ needs.start.outputs.stage }}
             forced: true
-        secrets:
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     # The browsable address. It needs only the PR, so it runs beside the AWS deploys rather than behind them.
     domain:
@@ -249,11 +254,10 @@ jobs:
         uses: ./.github/workflows/previewDomain.yml
         permissions:
             contents: read
+            id-token: write # awsAuth in previewDomain.yml (a callee can only downgrade)
         with:
             stage: ${{ needs.start.outputs.stage }}
         secrets:
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
             VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
     verify:
@@ -261,8 +265,10 @@ jobs:
         needs: [start, identity, preview, domain]
         if: github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
+        timeout-minutes: 30
         permissions:
             contents: read # checkout of this repo's workflow scripts
+            id-token: write # awsAuth: the non-prod role
         env:
             AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
             DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
@@ -283,11 +289,13 @@ jobs:
                   cache: npm
             - name: Install dependencies (the shared smoke runs under npx tsx)
               run: npm ci
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
               with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
 
             # ⛔ "EVERY SERVICE, LAMBDA AND RESOURCE, ACCORDING TO ALL THE CDK" — asserted HERE, in the run
             # whose colour the owner reads, not only inside the workflows it called.
@@ -522,17 +530,21 @@ jobs:
         needs: [start, owed-drops, identity, preview, domain, verify]
         if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && needs.start.result == 'success' }}
         runs-on: ubuntu-latest
+        timeout-minutes: 30
         permissions:
             contents: read # checkout of this repo's workflow scripts
+            id-token: write # awsAuth: the non-prod role
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
               with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
             - name: Switch on this PR's scheduled jobs
               env:
                   REGION: ${{ vars.DEFAULT_AWS_REGION }}

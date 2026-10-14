@@ -58,14 +58,13 @@ jobs:
         # starting a second `e2e-web` against the shared sandbox Clerk instance. Use ci-full.yml for
         # everything.
         uses: ./.github/workflows/_ci-heavy.yml
+        # `_ci-heavy.yml`'s jobs sign in to AWS through `awsAuth`, and a called workflow can only downgrade.
+        permissions:
+            contents: read
+            id-token: write # awsAuth in _ci-heavy.yml (a callee only downgrades)
         with:
             stage: sandbox
             # The k6 tier's target, as dispatched; `sandbox` when the input is left empty.
             load_test_target: ${{ inputs.load_test_target || 'sandbox' }}
             # The 50-minute emulator job is not what a load run is for.
             run_mobile_maestro: false
-        # Explicit, not `inherit` — `_ci-heavy.yml` declares exactly these two, and `inherit` would hand it
-        # every repository secret regardless of need.
-        secrets:
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

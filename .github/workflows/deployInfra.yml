@@ -50,15 +50,22 @@ on:
                 required: false
                 default: all
                 type: string
-        # ⛔ REQUIRED even when `deploy: false`. The synth itself needs AWS: `recipe-workers` REFUSES to
-        # synth without `RECIPE_VPC_ID` / `RECIPE_DB_ENDPOINT`, which are CloudFormation exports resolved
-        # here, and `Vpc.fromLookup` is a synth-TIME call. A caller that omits these does not fail at the
-        # credential step — it fails later, claiming a platform export is missing.
+        # ⛔ AWS IS NEEDED EVEN WHEN `deploy: false`. The synth itself reads AWS: `recipe-workers` REFUSES to
+        # synth without `RECIPE_VPC_ID` / `RECIPE_DB_ENDPOINT`, which are CloudFormation exports resolved here,
+        # and `Vpc.fromLookup` is a synth-TIME call. Every job signs in through `awsAuth` on the non-prod role,
+        # so a caller grants `id-token: write`; a caller that does not is a red sign-in, not a later failure
+        # claiming a platform export is missing.
+        #
+        # ⚠️ TRANSITIONAL — THE `prod` STAGE STILL SIGNS IN WITH THE ACCESS KEY. The production roles can be proven
+        # only on `main` (their trust requires `refs/heads/main`), so until that move (ADR-0063; plan
+        # `docs/plans/2026-10-13-005-feat-ci-oidc-workflows-plan.md`, commit C) every job carries a second sign-in
+        # step that runs only at `prod`, and these two secrets are passed only by a caller that can run at `prod`.
+        # `awsCredentialsFederated.test.ts` lists exactly those jobs. Optional, because a non-prod caller passes none.
         secrets:
             AWS_ACCESS_KEY_ID:
-                required: true
+                required: false
             AWS_SECRET_ACCESS_KEY:
-                required: true
+                required: false
     workflow_dispatch:
         inputs:
             stage:
@@ -112,6 +119,11 @@ jobs:
     global:
         name: infra — global
         runs-on: ubuntu-latest
+        timeout-minutes: 180
+        permissions:
+            contents: read
+            packages: read # `@radicle-co/infra-shared` authenticates even for a public read
+            id-token: write # awsAuth: the non-prod role (a callee can only downgrade, so every caller grants it)
         # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
         # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
         # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
@@ -130,7 +142,17 @@ jobs:
                   # reason `infra-shared` fetches full history. ~100 MiB, a few seconds.
                   fetch-depth: 0
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              if: inputs.stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - name: Sign in to AWS with the access key (prod stage only, see the header)
+              if: inputs.stage == 'prod'
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -153,6 +175,11 @@ jobs:
     identity-schema:
         name: infra — identity-schema
         runs-on: ubuntu-latest
+        timeout-minutes: 180
+        permissions:
+            contents: read
+            packages: read # `@radicle-co/infra-shared` authenticates even for a public read
+            id-token: write # awsAuth: the non-prod role (a callee can only downgrade, so every caller grants it)
         # ⛔ ADR-0035: the schema is deployed and migrated AHEAD of everything that reads it, which is why it
         # is a job and not a step inside its declaring package's. `recipe-workers` reads the recipe database
         # that `recipe-service`'s app DECLARES, and workers deploys first — so attaching the schema to
@@ -163,7 +190,17 @@ jobs:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              if: inputs.stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - name: Sign in to AWS with the access key (prod stage only, see the header)
+              if: inputs.stage == 'prod'
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -191,6 +228,11 @@ jobs:
     food-schema:
         name: infra — food-schema
         runs-on: ubuntu-latest
+        timeout-minutes: 180
+        permissions:
+            contents: read
+            packages: read # `@radicle-co/infra-shared` authenticates even for a public read
+            id-token: write # awsAuth: the non-prod role (a callee can only downgrade, so every caller grants it)
         # ⛔ ADR-0035: the schema is deployed and migrated AHEAD of everything that reads it, which is why it
         # is a job and not a step inside its declaring package's. `recipe-workers` reads the recipe database
         # that `recipe-service`'s app DECLARES, and workers deploys first — so attaching the schema to
@@ -201,7 +243,17 @@ jobs:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              if: inputs.stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - name: Sign in to AWS with the access key (prod stage only, see the header)
+              if: inputs.stage == 'prod'
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -233,6 +285,11 @@ jobs:
     recipe-schema:
         name: infra — recipe-schema
         runs-on: ubuntu-latest
+        timeout-minutes: 180
+        permissions:
+            contents: read
+            packages: read # `@radicle-co/infra-shared` authenticates even for a public read
+            id-token: write # awsAuth: the non-prod role (a callee can only downgrade, so every caller grants it)
         # ⛔ ADR-0035: the schema is deployed and migrated AHEAD of everything that reads it, which is why it
         # is a job and not a step inside its declaring package's. `recipe-workers` reads the recipe database
         # that `recipe-service`'s app DECLARES, and workers deploys first — so attaching the schema to
@@ -243,7 +300,17 @@ jobs:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              if: inputs.stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - name: Sign in to AWS with the access key (prod stage only, see the header)
+              if: inputs.stage == 'prod'
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -274,6 +341,11 @@ jobs:
     identity:
         name: infra — identity
         runs-on: ubuntu-latest
+        timeout-minutes: 180
+        permissions:
+            contents: read
+            packages: read # `@radicle-co/infra-shared` authenticates even for a public read
+            id-token: write # awsAuth: the non-prod role (a callee can only downgrade, so every caller grants it)
         # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
         # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
         # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
@@ -287,7 +359,17 @@ jobs:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              if: inputs.stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - name: Sign in to AWS with the access key (prod stage only, see the header)
+              if: inputs.stage == 'prod'
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -377,6 +459,11 @@ jobs:
     identity-webhooks:
         name: infra — identity-webhooks
         runs-on: ubuntu-latest
+        timeout-minutes: 180
+        permissions:
+            contents: read
+            packages: read # `@radicle-co/infra-shared` authenticates even for a public read
+            id-token: write # awsAuth: the non-prod role (a callee can only downgrade, so every caller grants it)
         # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
         # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
         # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
@@ -390,7 +477,17 @@ jobs:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              if: inputs.stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - name: Sign in to AWS with the access key (prod stage only, see the header)
+              if: inputs.stage == 'prod'
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -411,6 +508,11 @@ jobs:
     food-service:
         name: infra — food-service
         runs-on: ubuntu-latest
+        timeout-minutes: 180
+        permissions:
+            contents: read
+            packages: read # `@radicle-co/infra-shared` authenticates even for a public read
+            id-token: write # awsAuth: the non-prod role (a callee can only downgrade, so every caller grants it)
         # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
         # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
         # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
@@ -430,7 +532,17 @@ jobs:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              if: inputs.stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - name: Sign in to AWS with the access key (prod stage only, see the header)
+              if: inputs.stage == 'prod'
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -535,6 +647,11 @@ jobs:
     recipe-service:
         name: infra — recipe-service
         runs-on: ubuntu-latest
+        timeout-minutes: 180
+        permissions:
+            contents: read
+            packages: read # `@radicle-co/infra-shared` authenticates even for a public read
+            id-token: write # awsAuth: the non-prod role (a callee can only downgrade, so every caller grants it)
         # ⛔ AFTER recipe-workers, not before. `RecipeServiceStack` reads the account-erasure queue URL and
         # ARN from a per-stage SSM parameter that the WORKERS stack publishes, and `ErasureService` refuses
         # to boot without it — "a stage wired with no queue fails the deploy loudly instead of degrading
@@ -564,7 +681,17 @@ jobs:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              if: inputs.stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - name: Sign in to AWS with the access key (prod stage only, see the header)
+              if: inputs.stage == 'prod'
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -615,6 +742,11 @@ jobs:
     recipe-workers:
         name: infra — recipe-workers
         runs-on: ubuntu-latest
+        timeout-minutes: 180
+        permissions:
+            contents: read
+            packages: read # `@radicle-co/infra-shared` authenticates even for a public read
+            id-token: write # awsAuth: the non-prod role (a callee can only downgrade, so every caller grants it)
         # Owns the account-erasure queue and publishes its URL/ARN to SSM for recipe-service to read, so it
         # goes FIRST of the recipe pair. It imports nothing cross-stack itself — verified: no
         # `Fn.importValue` anywhere in its lib.
@@ -637,7 +769,17 @@ jobs:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              if: inputs.stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - name: Sign in to AWS with the access key (prod stage only, see the header)
+              if: inputs.stage == 'prod'
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -668,6 +810,11 @@ jobs:
     ingredient-parser:
         name: infra — ingredient-parser
         runs-on: ubuntu-latest
+        timeout-minutes: 180
+        permissions:
+            contents: read
+            packages: read # `@radicle-co/infra-shared` authenticates even for a public read
+            id-token: write # awsAuth: the non-prod role (a callee can only downgrade, so every caller grants it)
         # ⛔ NO `needs:`, deliberately. It imports nothing cross-stack, reads no SSM, looks up no VPC, and
         # its `bin/app.ts` asks only for stage, region and account — ADR-0025's "it owns no database" taken
         # literally. An edge to `global` here would be serialisation with no fact under it, and it sits on
@@ -686,7 +833,17 @@ jobs:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              if: inputs.stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - name: Sign in to AWS with the access key (prod stage only, see the header)
+              if: inputs.stage == 'prod'
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -719,6 +876,11 @@ jobs:
     remote-search:
         name: infra — remote-search
         runs-on: ubuntu-latest
+        timeout-minutes: 180
+        permissions:
+            contents: read
+            packages: read # `@radicle-co/infra-shared` authenticates even for a public read
+            id-token: write # awsAuth: the non-prod role (a callee can only downgrade, so every caller grants it)
         # ⛔ AFTER `global`, which owns what this stack reads from its base stage: the domain's zone and certificate
         # (exports) and the shared values (SSM, `RemoteSearchSharedStack`). At prod both deploy in one run, so the
         # shared stack must converge first; at a preview `global` only checks. food-service `needs` this job in
@@ -736,7 +898,17 @@ jobs:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              if: inputs.stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - name: Sign in to AWS with the access key (prod stage only, see the header)
+              if: inputs.stage == 'prod'
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -801,6 +973,11 @@ jobs:
     web:
         name: infra — web
         runs-on: ubuntu-latest
+        timeout-minutes: 180
+        permissions:
+            contents: read
+            packages: read # `@radicle-co/infra-shared` authenticates even for a public read
+            id-token: write # awsAuth: the non-prod role (a callee can only downgrade, so every caller grants it)
         # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
         # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
         # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
@@ -814,7 +991,17 @@ jobs:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              if: inputs.stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - name: Sign in to AWS with the access key (prod stage only, see the header)
+              if: inputs.stage == 'prod'
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -833,6 +1020,11 @@ jobs:
     shared:
         name: infra — shared
         runs-on: ubuntu-latest
+        timeout-minutes: 180
+        permissions:
+            contents: read
+            packages: read # `@radicle-co/infra-shared` authenticates even for a public read
+            id-token: write # awsAuth: the non-prod role (a callee can only downgrade, so every caller grants it)
         # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
         # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
         # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
@@ -845,7 +1037,17 @@ jobs:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              if: inputs.stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - name: Sign in to AWS with the access key (prod stage only, see the header)
+              if: inputs.stage == 'prod'
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -869,6 +1071,11 @@ jobs:
     ecosystem-smoke:
         name: infra — ecosystem smoke (recipe ↔ food)
         runs-on: ubuntu-latest
+        timeout-minutes: 180
+        permissions:
+            contents: read
+            packages: read # `@radicle-co/infra-shared` authenticates even for a public read
+            id-token: write # awsAuth: the non-prod role (a callee can only downgrade, so every caller grants it)
         # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
         # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
         # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
@@ -887,7 +1094,17 @@ jobs:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
-            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+            - name: Sign in to AWS
+              if: inputs.stage != 'prod'
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - name: Sign in to AWS with the access key (prod stage only, see the header)
+              if: inputs.stage == 'prod'
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

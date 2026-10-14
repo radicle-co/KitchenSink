@@ -231,6 +231,61 @@ export function evaluateCondition(condition: string, atomTruth: (atom: string) =
 }
 
 /**
+ * The literal a VALUE expression selects (`environment:`, an action's `with:`), for the house pseudo-ternary shape
+ * `c1 && 'A' || c2 && 'B' || 'C'`, with each condition resolved through `atomTruth`.
+ *
+ * GitHub's `&&` yields its right side when the left is truthy and `||` its first truthy side, so the value is the
+ * first alternative whose conditions all hold and whose literal is non-empty, else the empty string. A scalar with
+ * no `${{ … }}` is its own literal.
+ *
+ * @param value - The raw scalar.
+ * @param atomTruth - Resolver for one condition atom.
+ * @returns The selected literal, or `undefined` when the expression is not that shape (parentheses, `!`, a
+ *   non-literal value) or a condition it depends on is `'unknown'`.
+ */
+export function selectedLiteral(value: string, atomTruth: (atom: string) => Truth): string | undefined {
+    if (!/^\$\{\{[\s\S]*\}\}$/.test(value.trim())) {
+        return value.trim();
+    }
+
+    const tokens = tokenize(unwrap(value));
+
+    if (tokens.some((token) => token === '(' || token === ')' || token === '!')) {
+        return undefined;
+    }
+
+    const alternatives: string[][] = [[]];
+
+    for (const token of tokens) {
+        if (token === '||') {
+            alternatives.push([]);
+        } else if (token !== '&&') {
+            alternatives[alternatives.length - 1]?.push(token);
+        }
+    }
+
+    for (const alternative of alternatives) {
+        const literal = /^'([^']*)'$/.exec(alternative[alternative.length - 1] ?? '')?.[1];
+
+        if (literal === undefined) {
+            return undefined;
+        }
+
+        const holds = alternative.slice(0, -1).reduce<Truth>((truth, atom) => conjoin(truth, atomTruth(atom)), 'true');
+
+        if (holds === 'unknown') {
+            return undefined;
+        }
+
+        if (holds === 'true' && literal !== '') {
+            return literal;
+        }
+    }
+
+    return '';
+}
+
+/**
  * Whether an `if` survives a SKIPPED dependency.
  *
  * GitHub skips every dependent of a skipped job unless the dependent opts out of the implicit `success()` —

@@ -739,11 +739,10 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     'continue-on-error _mobileAppBuild.yml::plan::Re-upload the reused Android test app into this run ×1',
     'continue-on-error _mobileAppBuild.yml::plan::Fetch the earlier iOS test app ×1',
     'continue-on-error _mobileAppBuild.yml::plan::Re-upload the reused iOS test app into this run ×1',
-    // Same reason one job over: without the stage's Clerk keys the k6 SCENARIOS cannot mint a pool, so the
-    // dependent steps skip on `steps.k6secrets.outcome`. The generic origin probes are unauthenticated and
-    // still run, so a fork PR measures the deployed origins and reports the scenarios as skipped — which is
-    // the honest outcome, rather than a red nobody with fork permissions can fix.
-    "continue-on-error _ci-heavy.yml::load-test-deployed::Load the stage's Clerk secrets ×1",
+    // (The five other `Load … Clerk secrets` entries — k6, the web build, both Playwright tiers and the linkage suite —
+    // were REMOVED with ADR-0063: `awsAuth` now tells a fork or Dependabot run, which reports `authenticated=false` and
+    // skips the load through its `if:`, from a run that forgot `id-token: write`, which is red. A tolerated load
+    // failure no longer has a job to do.)
     // The scenario steps gate on `steps.pool.outcome`, so the pool must not cancel the job mid-run — but
     // the failure is NOT swallowed: the step immediately after reads this same outcome and FAILS the job
     // when the sandbox was live. Run 34017385400 is why that step exists: a `422` from Clerk skipped every
@@ -753,19 +752,11 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     // verdict is already decided, a failed slot is printed as an `::error::`, and the NEXT run's reset-before is
     // fatal, so residue can never be measured over. No Clerk user is deleted — the pool is fixed.
     'continue-on-error _ci-heavy.yml::load-test-deployed::Reset the leased k6 pool slots after the run ×1',
-    'continue-on-error _ci.yml::build::Load sandbox (dev-instance) Clerk secrets for the web build ×1',
-    'continue-on-error deployedE2eTiers.yml::e2e-cross-service-linkage::Load sandbox (dev-instance) Clerk secrets for the linkage suite ×1',
     // The same `always()` test-pool reset as the k6 and Maestro tiers', for the same reason: the verdict is decided,
     // a failure is printed per slot, and the next run's FATAL reset-before refuses to run over what this one left.
     'continue-on-error deployedE2eTiers.yml::e2e-cross-service-linkage::Reset the leased linkage pool slot after the run (e2e-seed resetPool) ×1',
-    'continue-on-error deployedE2eTiers.yml::e2e-web::Load sandbox (dev-instance) Clerk secrets for the preview web E2E ×1',
     "continue-on-error deployedE2eTiers.yml::e2e-web::Reset this shard's leased pool slot after the run (e2e-seed resetPool) ×1",
-    // Same reason as its `e2e-web` sibling directly above: the secrets action is allowed to fail so a fork
-    // PR (which has no access to them) reports a clean skip rather than a red job, and EVERY step below it
-    // is gated on `steps.secrets.outcome == 'success'` — so a failure here cannot produce a green run that
-    // tested nothing; it produces a job that visibly did nothing.
-    'continue-on-error _ci.yml::integration-web-playwright::Load sandbox (dev-instance) Clerk secrets for the stubbed-API web suite ×1',
-    // Same fork-PR degradation, one job downstream: `e2e-web` is a 4-way shard matrix whose Playwright steps
+    // Fork-PR degradation, one job downstream: `e2e-web` is a 4-way shard matrix whose Playwright steps
     // skip when the Clerk secrets are withheld, so it uploads no blob. `download-artifact` FAILS on a pattern
     // that matches nothing, which would turn that designed skip into an unfixable red on exactly the PRs that
     // cannot supply secrets. Not silent: the merge step tests the directory and reports "no blob reports

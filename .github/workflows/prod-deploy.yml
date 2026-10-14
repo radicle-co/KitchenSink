@@ -48,12 +48,11 @@ on:
             - '.github/workflows/prod-deploy.yml'
     workflow_dispatch:
 
-# NO `id-token: write` — this workflow authenticates to AWS with STATIC access keys
-# (`aws-actions/configure-aws-credentials` + `secrets.AWS_ACCESS_KEY_ID`), never with OIDC, so an OIDC
-# token grant here bought nothing and handed every job in the workflow the ability to mint an AWS-federation
-# assertion. Verified before removal: no `role-to-assume` / `web-identity` / `ACTIONS_ID_TOKEN` reference
-# exists anywhere under `.github/`. If this workflow is ever migrated to OIDC role assumption (which it
-# should be), re-add `id-token: write` on the SINGLE job that assumes the role — not here.
+# NO WORKFLOW-LEVEL `id-token: write`, now or after the move to OIDC: a workflow-level grant hands every job in the
+# file the ability to mint an AWS-federation assertion. ⚠️ TRANSITIONAL — this workflow is the last to sign in with
+# the access key. CI's other workflows sign in through `./.github/actions/awsAuth` on the OIDC roles (ADR-0063); this
+# one moves to the `prod` role, granting `id-token: write` on its single `Production`-bound job, once the production
+# roles are proven on `main` (plan `docs/plans/2026-10-13-005-feat-ci-oidc-workflows-plan.md`, commit C).
 permissions:
     contents: read
 
@@ -589,11 +588,6 @@ jobs:
               run: |
                   npx turbo run build --filter='@kitchensink/food-service^...' --filter='@kitchensink/recipe-service^...'
 
-            - name: Resolve AWS Account ID
-              id: account
-              run: |
-                  echo "id=$(aws sts get-caller-identity --query Account --output text)" >> "$GITHUB_OUTPUT"
-
             # ADR-0020 trap 6 — the Lambda@Edge verifier's Clerk key is a BUILD-TIME input.
             #
             # Lambda@Edge cannot read environment variables, and this repository's
@@ -772,10 +766,9 @@ jobs:
               run: |
                   docker buildx build --platform linux/amd64 -f packages/services/identity/Dockerfile -t ${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG} --push .
 
-            - name: CDK Bootstrap
-              env:
-                  ACCOUNT_ID: ${{ steps.account.outputs.id }}
-              run: packages/infra/global/node_modules/.bin/cdk bootstrap "aws://${ACCOUNT_ID}/${DEFAULT_AWS_REGION}"
+            # ⛔ NO `cdk bootstrap`. The account's bootstrap stack (`CDKToolkit`, qualifier `hnb659fds`) is already at the
+            # version these apps need, and it is SHARED with another application in this account: re-running it from a
+            # deploy rewrites a stack this repository does not own. `awsCredentialsFederated.test.ts` refuses it.
 
             # `STAGE` is already exported to every step by the workflow-level `env:` block, so the old
             # `STAGE=${{ env.STAGE }}` command prefix was re-deriving a variable that was in scope — and

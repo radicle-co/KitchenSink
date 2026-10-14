@@ -42,20 +42,9 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
-const repoRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', '..');
+import { RECLAMATION_JOBS } from './reclamationJobs.js';
 
-/**
- * Jobs whose purpose is to DELETE per-PR infrastructure. Adding one here is the cheap half of the contract;
- * the expensive half is remembering that anything which can suspend them turns a PR close into a bill.
- */
-const RECLAMATION_JOBS: readonly { readonly workflow: string; readonly job: string }[] = [
-    // ADR-0060 moved both out of `sandbox-deploy.yml` (which the owner disabled): the on-close teardown to
-    // `sandboxCleanup.yml`, the abandoned-preview sweep to the dispatch-only `sandboxReapClosed.yml`.
-    { workflow: 'sandboxCleanup.yml', job: 'cleanup' },
-    { workflow: 'sandboxReapClosed.yml', job: 'reap-abandoned' },
-    // Sandbox Down tears a preview down and, for the last one, releases the shared tier.
-    { workflow: 'sandboxDown.yml', job: 'down' },
-];
+const repoRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', '..');
 
 /** Parses a workflow under `.github/workflows/`. */
 const readWorkflow = (name: string): Record<string, unknown> =>

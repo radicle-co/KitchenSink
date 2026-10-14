@@ -566,6 +566,13 @@ describe('6 — the merged web report re-asserts the shards through an output of
  *
  * Two rules, because either alone leaves the other failure live: every secret a step's shell tests must be
  * declared by EVERY caller, and no step may be gated on a secret's presence by `if:`.
+ *
+ * A THIRD since ADR-0063, for AWS: whether a tier is signed in is `awsAuth`'s `authenticated` output, never a
+ * secret's presence. An AWS secret was exactly the presence test the first two rules exist for — absent on a fork,
+ * and equally absent on a run whose caller forgot to forward it, so the second looked like the first and stayed
+ * green. `awsAuth` is red for every run that cannot sign in except a fork or Dependabot, so a tier that reads its
+ * output can skip only for those. What this proves: no step reads an AWS secret in its shell or environment, and
+ * every step that announces it is not signed in reads a sign-in step's outcome instead.
  */
 describe('5 — a proof that cannot run says so', () => {
     /** The secrets the tiers file declares as `workflow_call` inputs. */
@@ -624,9 +631,7 @@ describe('5 — a proof that cannot run says so', () => {
                 const condition = step.if ?? '';
 
                 for (const secret of declaredSecrets()) {
-                    // `configure-aws-credentials` is exempt and named: an action cannot emit a notice, and it
-                    // is not a proof — the steps that make the claims each announce their own absence.
-                    if (condition.includes(secret) && !(step.uses ?? '').includes('configure-aws-credentials')) {
+                    if (condition.includes(secret)) {
                         gated.push(`${name}: "${step.name ?? step.uses ?? '?'}" is gated on ${secret}`);
                     }
                 }
@@ -634,6 +639,38 @@ describe('5 — a proof that cannot run says so', () => {
         }
 
         expect(gated).toEqual([]);
+    });
+
+    it('⛔ no step tests an AWS secret — a sign-in’s absence is awsAuth’s answer, not an empty secret', () => {
+        const presence: string[] = [];
+
+        for (const [name, job] of Object.entries(tiers().jobs ?? {})) {
+            const environments = [job.env ?? {}, ...(job.steps ?? []).map((step) => step.env ?? {})];
+
+            if (environments.some((env) => /secrets\.AWS_/u.test(JSON.stringify(env)))) {
+                presence.push(`${name} puts an AWS secret in an environment, where a step can test it`);
+            }
+
+            for (const step of job.steps ?? []) {
+                if (/AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY/u.test(step.run ?? '')) {
+                    presence.push(`${name}: "${step.name ?? '?'}" reads an AWS secret in its shell`);
+                }
+            }
+        }
+
+        expect(presence).toEqual([]);
+    });
+
+    it('⛔ every step that announces it is not signed in reads a sign-in step, so only a fork can reach it', () => {
+        const announcing = Object.values(tiers().jobs ?? {}).flatMap((job) =>
+            (job.steps ?? []).filter((step) => /not signed in to AWS/u.test(step.run ?? '')),
+        );
+
+        expect(announcing.length, 'no step announces an unsigned run — the scan read nothing').toBeGreaterThan(0);
+
+        for (const step of announcing) {
+            expect(JSON.stringify(step.env ?? {}), step.name).toMatch(/steps\.aws\.outputs\.authenticated/u);
+        }
     });
 });
 

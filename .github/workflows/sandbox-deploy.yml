@@ -16,13 +16,9 @@ on:
     # `sandboxReapClosed.yml` (by hand), its PR-close teardown to `sandboxCleanup.yml`, and its preview address to
     # `previewDomain.yml` (called by Sandbox Up). What is left is the operator's hand-dispatch door below.
 
-# NO `id-token: write` — every AWS auth in this workflow uses STATIC access keys
-# (`aws-actions/configure-aws-credentials` + `secrets.AWS_ACCESS_KEY_ID`), never OIDC, so the grant was dead
-# privilege. It mattered more here than in the other deploy workflows: this one used to trigger on
-# `pull_request`, so a workflow-level OIDC-token grant was reachable from a run whose ref is PR-authored code.
-# Verified before removal: no `role-to-assume` / `web-identity` / `ACTIONS_ID_TOKEN` reference exists
-# anywhere under `.github/`. If a job is ever migrated to OIDC role assumption, add `id-token: write` to
-# THAT job's own `permissions:` block — never back at the workflow level.
+# `id-token: write` is granted on the job that calls `sandboxPreview.yml`, never here: the called jobs sign in through
+# `awsAuth` on the non-prod OIDC role (ADR-0063), and a workflow-level grant would let any job added later mint a
+# token. It mattered more here than in the other deploy workflows: this one used to trigger on `pull_request`.
 permissions:
     contents: read
 
@@ -54,6 +50,10 @@ jobs:
     # deploy-{service}:
     #     name: Deploy {service} sandbox (pr-${{ github.event.pull_request.number }})
     #     runs-on: ubuntu-latest
+    #     timeout-minutes: 60
+    #     permissions:
+    #         contents: read
+    #         id-token: write
     #     if: |
     #         (github.event_name == 'pull_request' && github.event.action != 'closed') ||
     #         (github.event_name == 'workflow_dispatch' && github.event.inputs.service == '{service}')
@@ -74,14 +74,12 @@ jobs:
     #           run: npm run infra:build --workspace=packages/services/{service}
     #         - name: Prune dev dependencies
     #           run: npm prune --omit=dev
-    #         - name: Configure AWS credentials
-    #           uses: aws-actions/configure-aws-credentials@v4
+    #         - name: Sign in to AWS
+    #           uses: ./.github/actions/awsAuth
     #           with:
-    #               aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-    #               aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-    #               aws-region: ${{ env.DEFAULT_AWS_REGION }}
-    #         - name: CDK Bootstrap
-    #                         run: npx cdk bootstrap aws://${{ vars.AWS_ACCOUNT_ID }}/${DEFAULT_AWS_REGION}
+    #               tier: nonprod
+    #               account-id: ${{ vars.AWS_ACCOUNT_ID }}
+    #               region: ${{ env.DEFAULT_AWS_REGION }}
     #         - name: CDK Deploy
     #           run: |
     #               STAGE=${{ env.STAGE }} \
@@ -134,11 +132,9 @@ jobs:
         permissions:
             contents: read
             packages: read # zizmor: ignore[use-trusted-publishing]
+            id-token: write # awsAuth in sandboxPreview.yml and deployInfra.yml (a callee can only downgrade)
         with:
             stage: ${{ github.event.inputs.stage }}
             # A hand-dispatched deploy is unconditional by definition — the operator asking IS the changed-
             # paths term, and ADR-0010 already records the dispatch bypassing the gate.
             forced: true
-        secrets:
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

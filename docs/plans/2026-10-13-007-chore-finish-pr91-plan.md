@@ -37,6 +37,7 @@ things out, but done."
 | A swipe that starts in an open ingredient list sometimes closes it (`ingredientRemoteFoods`, `edit`)      | Root cause found and fixed. Both flows stable    |
 | `recipes/landscape` fails intermittently on Android                                                       | Root cause found and fixed. Stable over runs     |
 | A new ingredient row lands just above the screen after a food is picked                                   | staff-ux-engineer spec, then built on both apps  |
+| `SyncProvider`'s re-arm keeps the old cook's closure, so a drain after a cook switch mid-flight is lost   | A failing test first, then fixed                 |
 | `readViewerAppId` in `web/tests/e2e/utils/recipeApi.ts` blames a claim that is present                    | The message names the real cause                 |
 | Whatever the first CI run with the iOS fixes shows                                                        | Each failure fixed at its root                   |
 | CI on the OIDC roles, sandbox half (commit B)                                                             | Plan 005. Proven on PR 91 by real runs           |
@@ -51,7 +52,7 @@ Each one gets its plan doc before code, built on web and mobile in lock-step, te
 | Cuisine field: 90-entry list, free text, required to publish in the app and recipe-service                | `docs/design/uiOverhaul/cuisineField.md` |
 | Roles and the paid-feature gate, two GitHub variables (both false), the role test pool, the owner account | Owner rulings 2026-10-13                 |
 | Usernames as the public byline                                                                            | Owner rulings 2026-10-13                 |
-| Google sign-in on mobile, plus Sign in with Apple (owner decision)                                        | Owner rulings 2026-10-13                 |
+| Google sign-in on mobile, plus Sign in with Apple (owner approved 2026-10-13)                             | Owner rulings 2026-10-13                 |
 | Live per-line parse statuses (server phases and both clients)                                             | Owner rulings 2026-10-13                 |
 | Maestro screenshot baselines: re-record on emulator-5556, camelCase names, enable the visual flows        | Owner rulings 2026-10-13                 |
 | The ten UI-walk defects whose cause needs a device or the sandbox                                         | UI walk register                         |

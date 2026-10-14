@@ -15,7 +15,7 @@ import { SyncProvider } from '@commise/query/sync';
 import { NotFoundError, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { focusManager, onlineManager } from '@tanstack/react-query';
-import { EMPTY_OUTBOX, loadOutbox, saveOutbox, type OutboxStore } from '@kitchensink/sync';
+import { EMPTY_OUTBOX, createMemoryOutboxStore, loadOutbox, saveOutbox, type OutboxStore } from '@kitchensink/sync';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 import { defaultRecipeFormValues, mintLineKey, recipeFormMessages } from '@commise/features-recipes';
 
@@ -616,5 +616,40 @@ describe('RecipeEditorContainer (web) — Paste a list', () => {
         await screen.findByRole('heading', { level: 1, name: 'Edit recipe' });
 
         expect(screen.queryByRole('button', { name: 'Paste a list' })).toBeNull();
+    });
+});
+
+/**
+ * ⛔ A PUBLISHED RECIPE'S PARKED SAVE CHANGES DOES NOT OUTLIVE THE DISCARD (plan 2026-10-13-004, item 5). Over the real
+ * outbox: Save changes meets a dropped connection and parks with an unknown outcome, so the changes may already stand.
+ * The confirm says so, Discard withdraws the parked save, the sync failure is gone, and the cook goes to the recipe
+ * page — whose read is marked stale, so it shows the server's copy and the cook sees which outcome happened.
+ */
+describe('RecipeEditorContainer (web) — Discard with a parked save', () => {
+    it('says the save may have gone through, withdraws it, and opens the recipe the server holds', async () => {
+        const client = createFakeRecipeServiceClient();
+        const stored = makeRecipeDetail({ id: 'rec_1', title: 'Stored Stew', status: RecipeStatus.PUBLISHED });
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(stored);
+        const update = vi.spyOn(client, 'updateRecipe').mockRejectedValue(new TypeError('Failed to fetch'));
+        const store = createMemoryOutboxStore();
+
+        renderEditor(client, 'rec_1', store);
+        await userEvent.type(await screen.findByDisplayValue('Stored Stew'), ' Deluxe');
+        await act(async () => {
+            await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+        });
+
+        await screen.findByText("We couldn't tell if your changes were saved.");
+        expect((await loadOutbox(store, 'user_cook')).records.map((record) => record.state)).toEqual(['parked']);
+
+        await userEvent.click(screen.getByRole('button', { name: 'More editor actions' }));
+        await userEvent.click(await screen.findByRole('menuitem', { name: 'Discard changes' }));
+        const dialog = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+        expect(within(dialog).getByText(/Your last save may have gone through/u)).toBeTruthy();
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Discard' }));
+
+        await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
+        await waitFor(async () => expect((await loadOutbox(store, 'user_cook')).records).toEqual([]));
+        expect(update).toHaveBeenCalledTimes(1);
     });
 });

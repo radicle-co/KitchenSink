@@ -97,12 +97,17 @@ export function editorChromeOf(input: EditorChromeInput): EditorChrome {
 /**
  * The discard item: a draft once anything exists, a published recipe's changes once there are any. A draft whose
  * create's outcome is unknown may already be on the server, and Discard removes only the device's copy
- * (`discardMayLeaveServerCopy`), so its confirm says that rather than promising a deletion. Pure.
+ * (`discardMayLeaveServerCopy`), so its confirm says that rather than promising a deletion. The same holds for a
+ * published recipe whose earlier save's outcome is unknown (`discardSavedChangesMayStand`). Pure.
  */
 function discardOf(editor: UseRecipeEditorResult, keep: DraftKeep, m: EditorMessages): EditorChrome['discard'] {
     if (editor.lifecycle === 'published') {
         return editor.hasUnsavedChanges
-            ? { menuLabel: m.discard.menuChanges, title: m.discard.changesTitle, body: m.discard.changesBody }
+            ? {
+                  menuLabel: m.discard.menuChanges,
+                  title: m.discard.changesTitle,
+                  body: editor.discardSavedChangesMayStand ? m.discard.changesMayStandBody : m.discard.changesBody,
+              }
             : undefined;
     }
 

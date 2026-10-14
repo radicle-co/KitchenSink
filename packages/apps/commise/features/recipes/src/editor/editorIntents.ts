@@ -90,7 +90,10 @@ export type DiscardRemove =
 export interface DiscardPlan {
     /** The device draft to drop. */
     readonly draftRef: string | undefined;
-    /** The parked record to withdraw first: the cook's confirmed Discard is the consent it needs (ADR-0057). */
+    /**
+     * The parked record to withdraw: the cook's confirmed Discard is the consent it needs (ADR-0057). Where a delete is
+     * queued too, `SyncQueue.discard` withdraws it with the delete in one change.
+     */
     readonly withdraw: number | undefined;
     /** The delete to queue once the withdrawal is done, if the server holds (or may come to hold) the recipe. */
     readonly remove: DiscardRemove | undefined;
@@ -99,6 +102,11 @@ export interface DiscardPlan {
      * to delete it. The container tells the cook before they confirm (code-reviewer High 1).
      */
     readonly mayLeaveServerCopy: boolean;
+    /**
+     * A published recipe's parked Save changes has an unknown outcome: it may already have landed, so Discard stops
+     * retrying it but cannot promise those changes are gone. The confirm says so (`discard.changesMayStandBody`).
+     */
+    readonly savedChangesMayStand: boolean;
     readonly exit: DiscardExit;
 }
 
@@ -130,8 +138,9 @@ function removeOf(serverId: string | undefined, ref: string | undefined): Discar
 }
 
 /**
- * What a Discard does: a published recipe's device changes are dropped and nothing else; a recipe never published is
- * deleted through the outbox if the server holds it or a create may still make it.
+ * What a Discard does: a published recipe's device changes are dropped, and so is an earlier Save changes that parked
+ * (the Discard is the consent); a recipe never published is deleted through the outbox if the server holds it or a
+ * create may still make it.
  *
  * ⛔ A PARKED CREATE IS NOT ON ITS WAY. Withdrawing it removes the only record that could produce the server id, so a
  * delete naming its local ref would wait for it forever and "not synced" would never clear (code-reviewer High 1). No
@@ -149,17 +158,22 @@ export function discardPlanOf(input: DiscardInput): DiscardPlan {
     const { server, ref, outstanding } = input;
     const serverId = serverIdOf(server);
 
+    const parked = outstanding?.parked === true ? outstanding : undefined;
+
     if (input.lifecycle === 'published' && serverId !== undefined) {
+        // ⛔ AN EARLIER SAVE CHANGES THAT PARKED GOES WITH THE DISCARD: it is work the cook was told about, and their
+        // confirmed Discard is the consent to withdraw it. Left, it outlived the editor as "Syncing 1" for ever. One on
+        // its way (pending or on the wire) is left alone: it is not parked, and only the drain may settle it.
         return {
             draftRef: serverId,
-            withdraw: undefined,
+            withdraw: parked?.seq,
             remove: undefined,
             mayLeaveServerCopy: false,
+            savedChangesMayStand: parked !== undefined && input.parkedFailure === 'unknown',
             exit: { kind: 'leftForRecipe', recipeId: serverId },
         };
     }
 
-    const parked = outstanding?.parked === true ? outstanding : undefined;
     const parkedCreate = serverId === undefined && parked?.kind === 'create';
 
     return {
@@ -167,6 +181,7 @@ export function discardPlanOf(input: DiscardInput): DiscardPlan {
         withdraw: parked?.seq,
         remove: removeOf(serverId, parkedCreate ? undefined : ref),
         mayLeaveServerCopy: parkedCreate && input.parkedFailure === 'unknown',
+        savedChangesMayStand: false,
         exit: { kind: 'discarded' },
     };
 }

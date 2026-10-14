@@ -154,6 +154,9 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
                 return;
 
             case 'leftForRecipe':
+                // ⛔ The recipe's read goes stale first: a parked save the cook just discarded may have landed, and the
+                // page must show what the server holds, not the copy cached for the last 30 s.
+                void queryClient.invalidateQueries({ queryKey: recipeQueries(client).detail(exit.recipeId).queryKey });
                 navigation.leftForRecipe(exit.recipeId);
 
                 return;

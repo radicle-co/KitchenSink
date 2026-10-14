@@ -163,6 +163,11 @@ export interface EditorWritePort {
     readonly submit: (intent: Intent) => Promise<{ readonly queued: true }>;
     readonly submitExclusive: (intent: Intent) => Promise<EditorSubmitOutcome>;
     readonly withdraw: (seq: number) => Promise<void>;
+    /**
+     * The cook's confirmed Discard as one change: the parked records of the recipe go and its delete is queued
+     * (`SyncQueue.discard`). Never rejects for a parked record.
+     */
+    readonly discard: (intent: Intent) => Promise<void>;
     readonly subscribe: (listener: (event: SettlementEvent<EditorWriteAnswer>) => void) => () => void;
     readonly failures: readonly EditorParkedWrite[];
 }
@@ -272,6 +277,11 @@ export interface UseRecipeEditorResult {
      * confirm (code-reviewer High 1); the editor never guesses a delete for it.
      */
     readonly discardMayLeaveServerCopy: boolean;
+    /**
+     * A published recipe's earlier Save changes is parked with an unknown outcome: Discard stops retrying it, but the
+     * changes may already stand on the server, so the confirm says so rather than "your recipe stays as it was".
+     */
+    readonly discardSavedChangesMayStand: boolean;
     /**
      * A confirmed Discard waits for the recipe's create to answer before it finishes (it may have to withdraw it): the
      * confirm shows it busy, and the editor stays mounted. Bounded by the request timeout.
@@ -1085,12 +1095,20 @@ function discard(ctx: EditorContext): void {
         void ctx.opts.drafts.discard(plan.draftRef);
     }
 
-    // The cook confirmed the discard, which is the consent a parked record needs before it may go.
-    const cleared = plan.withdraw === undefined ? Promise.resolve() : ctx.opts.port.withdraw(plan.withdraw);
+    // ⛔ The cook confirmed the discard, which is the consent a parked record needs before it may go. A delete and the
+    // withdrawals it makes moot are ONE change in the outbox (`SyncQueue.discard`): withdrawing first and submitting
+    // second left a window for a record to park between them, and `submit` then threw and orphaned it. Without a delete
+    // (a published recipe, a parked create), the parked write is withdrawn alone. Either way the hand-off does not wait,
+    // and a refusal (storage, or a record a drain has already taken back) must neither reject unhandled nor keep the
+    // cook in an editor they chose to leave.
+    const settled =
+        remove !== undefined
+            ? ctx.opts.port.discard(remove.intent)
+            : plan.withdraw === undefined
+              ? Promise.resolve()
+              : ctx.opts.port.withdraw(plan.withdraw);
 
-    if (remove !== undefined) {
-        void cleared.then(() => ctx.opts.port.submit(remove.intent));
-    }
+    settled.catch(() => undefined);
 
     ctx.opts.onExit(plan.exit);
 }
@@ -1202,7 +1220,7 @@ function onDiscardSettled(ctx: EditorContext, event: Settlement): void {
         const id = event.serverId ?? (event.answer?.kind === 'recipeWritten' ? event.answer.detail.id : undefined);
 
         if (id !== undefined) {
-            void ctx.opts.port.submit(recipeDeleteIntent(id));
+            ctx.opts.port.discard(recipeDeleteIntent(id)).catch(() => undefined);
         }
 
         finishDiscard(ctx, [ref, id]);
@@ -1218,14 +1236,15 @@ function onDiscardSettled(ctx: EditorContext, event: Settlement): void {
 }
 
 /**
- * Finish a Discard whose create has not answered: its delete is queued behind it, depending on its ref (`supersede`),
- * so a create that still syncs is deleted. A create that parks after this keeps its delete beside it until the session
- * ends — the residual of a bounded wait.
+ * Finish a Discard whose create has not answered: its delete is queued behind it, depending on its ref
+ * (`SyncQueue.discard`), so a create that still syncs is deleted. A create that parks after this settles WITH its delete,
+ * inside the outbox (`withdrawMoot`), so no editor is needed to clean up after the bounded wait. The same call also
+ * covers a create that parked in the breath between the bound and this call: `submit` threw on it and orphaned it.
  *
- * @sideEffect Submits to the outbox and finishes the discard.
+ * @sideEffect Asks the outbox and finishes the discard.
  */
 function discardBehindCreate(ctx: EditorContext, remove: Intent): void {
-    void ctx.opts.port.submit(remove).catch(() => undefined);
+    ctx.opts.port.discard(remove).catch(() => undefined);
     finishDiscard(ctx, [remove.localId]);
 }
 
@@ -1622,6 +1641,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
             createSubmitted: view.outstanding?.kind === 'create',
         }),
         discardMayLeaveServerCopy: view.discard.mayLeaveServerCopy,
+        discardSavedChangesMayStand: view.discard.savedChangesMayStand,
         discarding: lane.discarding !== undefined,
         setValues,
         setField,

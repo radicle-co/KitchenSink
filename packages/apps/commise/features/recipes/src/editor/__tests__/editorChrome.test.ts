@@ -78,6 +78,28 @@ describe('the ⋯ discard item', () => {
     });
 
     /**
+     * A published recipe whose earlier Save changes parked with an unknown outcome: Discard stops retrying it, but it may
+     * already stand on the server, so the confirm must not say "your recipe stays as it was when you last saved it".
+     */
+    it('⛔ says a published recipe`s earlier save may have gone through, whichever platform keeps the draft', () => {
+        const body =
+            "Your last save may have gone through. If it did, those changes stay in your recipe. Any changes that weren't saved are discarded.";
+        const published = { lifecycle: 'published', recipeId: 'rec_1', hasUnsavedChanges: true } as const;
+
+        for (const keep of ['disk', 'tabSession'] as const) {
+            expect(chrome({ ...published, discardSavedChangesMayStand: true }, { keep }).discard).toEqual({
+                menuLabel: 'Discard changes',
+                title: 'Discard your changes?',
+                body,
+            });
+        }
+
+        expect(chrome({ ...published, discardSavedChangesMayStand: false }).discard?.body).toBe(
+            'Your recipe stays as it was when you last saved it.',
+        );
+    });
+
+    /**
      * A1's `discardMayLeaveServerCopy`: the create's outcome is unknown, so the recipe may exist on the server, and the
      * editor never guesses a delete for it. Saying "everything in it will be deleted" would then be false: the confirm
      * says what Discard really does, in the words of where the draft is kept.

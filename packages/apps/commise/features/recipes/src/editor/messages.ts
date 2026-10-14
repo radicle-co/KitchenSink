@@ -106,6 +106,8 @@ export interface EditorMessages {
         readonly draftBody: string;
         readonly changesTitle: string;
         readonly changesBody: string;
+        /** A published recipe whose earlier save's outcome is unknown: Discard stops retrying it, but it may already stand. */
+        readonly changesMayStandBody: string;
         /** A draft whose create's outcome is unknown, so the recipe may be on the server: Discard leaves it there. */
         readonly mayBeSavedBody: string;
         readonly mayBeSavedBodyTab: string;
@@ -289,6 +291,8 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             draftBody: "The recipe and everything in it will be deleted. This can't be undone.",
             changesTitle: 'Discard your changes?',
             changesBody: 'Your recipe stays as it was when you last saved it.',
+            changesMayStandBody:
+                "Your last save may have gone through. If it did, those changes stay in your recipe. Any changes that weren't saved are discarded.",
             mayBeSavedBody: 'This recipe may already be saved. Discarding removes it from this device only.',
             mayBeSavedBodyTab: 'This recipe may already be saved. Discarding removes it from this tab only.',
             confirm: 'Discard',

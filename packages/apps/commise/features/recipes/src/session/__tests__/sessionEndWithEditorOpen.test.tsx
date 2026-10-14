@@ -60,6 +60,7 @@ function offlinePort(store: OutboxStore, subject: string): EditorWritePort {
             return { kind: 'queued', seq: queuedSeq };
         },
         withdraw: async () => undefined,
+        discard: async () => undefined,
         subscribe: () => () => undefined,
     };
 }

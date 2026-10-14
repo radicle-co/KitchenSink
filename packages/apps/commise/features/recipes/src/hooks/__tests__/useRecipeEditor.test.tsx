@@ -901,9 +901,10 @@ describe('discard', () => {
         });
         await settle();
 
-        expect(port.submitted).toEqual([
+        expect(port.discarded).toEqual([
             { entity: 'recipe', intentKind: 'delete', localId: 'rec_1', dependsOn: [], payload: { id: 'rec_1' } },
         ]);
+        expect(port.submit).not.toHaveBeenCalled();
         expect(drafts.discard).toHaveBeenCalledWith('rec_1');
         expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
     });
@@ -1113,8 +1114,9 @@ describe('discard while the create is on the wire', () => {
         await settle();
         await settle();
 
-        expect(port.submit).toHaveBeenCalledTimes(1);
-        expect(port.submit).toHaveBeenCalledWith({
+        expect(port.submit).not.toHaveBeenCalled();
+        expect(port.discard).toHaveBeenCalledTimes(1);
+        expect(port.discard).toHaveBeenCalledWith({
             entity: 'recipe',
             intentKind: 'delete',
             localId: 'rec_x',
@@ -1162,13 +1164,35 @@ describe('discard while the create is on the wire', () => {
         await settle();
         await settle();
 
-        expect(port.submit).toHaveBeenCalledWith({
+        expect(port.submit).not.toHaveBeenCalled();
+        expect(port.discard).toHaveBeenCalledWith({
             entity: 'recipe',
             intentKind: 'delete',
             localId: ref,
             dependsOn: [ref],
             payload: { id: ref },
         });
+        expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
+    });
+
+    /**
+     * ⛔ THE RACE THAT ORPHANED A PARKED CREATE. The bound passes, the editor asks the outbox to delete behind the create,
+     * and the create parks in the same breath. The old chain was `submit` (which throws on a parked record) with the
+     * rejection swallowed, so the parked create stayed with no delete. `discard` cannot lose the race, and a storage
+     * refusal must not leave the editor open or the rejection unhandled.
+     */
+    it('⛔ finishes the discard even when the outbox refuses the change (storage), with no unhandled rejection', async () => {
+        const { port, onExit, drafts, ref } = await discardingOnTheWire();
+
+        port.discard.mockRejectedValueOnce(new Error('storage full'));
+        act(() => {
+            vi.advanceTimersByTime(DEFAULT_REQUEST_TIMEOUT_MS);
+        });
+        await settle();
+        await settle();
+
+        expect(port.discard).toHaveBeenCalledTimes(1);
+        expect(drafts.discarded).toEqual([ref]);
         expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
     });
 
@@ -1214,7 +1238,7 @@ describe('discard while the create is on the wire', () => {
         unmount();
         await settle();
 
-        expect(port.submit).toHaveBeenCalledWith(expect.objectContaining({ intentKind: 'delete', dependsOn: [ref] }));
+        expect(port.discard).toHaveBeenCalledWith(expect.objectContaining({ intentKind: 'delete', dependsOn: [ref] }));
         expect(drafts.discarded).toEqual([ref]);
         expect(onExit).not.toHaveBeenCalled();
     });
@@ -2313,14 +2337,95 @@ describe('discard while the create is parked', () => {
         await settle();
         await settle();
 
-        expect(port.withdrawn).toEqual([seq]);
-        expect(port.submitted.at(-1)).toEqual({
+        // The withdrawal and the delete are ONE change now: the editor asks for the Discard and the outbox settles it.
+        const remove = {
             entity: 'recipe',
             intentKind: 'delete',
             localId: 'rec_1',
             dependsOn: [],
             payload: { id: 'rec_1' },
+        };
+
+        expect(port.discarded).toEqual([remove]);
+        expect(port.withdrawn).toEqual([]);
+        expect(port.queued()).toEqual([remove]);
+    });
+});
+
+/**
+ * ⛔ A PUBLISHED RECIPE'S PARKED SAVE CHANGES DOES NOT OUTLIVE THE DISCARD (plan 2026-10-13-004, item 5). Discard used to
+ * drop the device draft and leave the parked update in the outbox, so "Syncing 1" stayed up for ever. The cook's
+ * confirmed Discard is the consent to withdraw it; the editor then hands off to the recipe, which reads the server's
+ * copy, so the cook sees which outcome happened.
+ */
+describe('discard of a published recipe whose earlier save is parked', () => {
+    async function parkedSave(status?: number) {
+        const view = mount({ recipe: PUBLISHED });
+
+        act(() => {
+            view.result.current.setField('description', 'Mine.');
         });
+        act(() => {
+            view.result.current.saveChanges('');
+        });
+        await settle();
+        const seq = view.port.lastSeq();
+
+        act(() => {
+            view.port.park(seq, status);
+        });
+        await settle();
+
+        return { ...view, seq };
+    }
+
+    it('is offered, withdraws the parked update, drops the device draft and returns to the recipe', async () => {
+        const { result, port, drafts, onExit, seq } = await parkedSave();
+
+        expect(result.current.hasUnsavedChanges).toBe(true);
+        expect(result.current.discardSavedChangesMayStand).toBe(true);
+
+        act(() => {
+            result.current.discard();
+        });
+        await settle();
+        await settle();
+
+        expect(port.withdrawn).toEqual([seq]);
+        expect(port.discard).not.toHaveBeenCalled();
+        expect(port.queued()).toEqual([]);
+        expect(port.failures).toEqual([]);
+        expect(drafts.discard).toHaveBeenCalledWith('rec_1');
+        expect(onExit).toHaveBeenCalledWith({ kind: 'leftForRecipe', recipeId: 'rec_1' });
+    });
+
+    it('a refused save is withdrawn too, and the confirm does not claim it may stand', async () => {
+        const { result, port, seq } = await parkedSave(400);
+
+        expect(result.current.discardSavedChangesMayStand).toBe(false);
+
+        act(() => {
+            result.current.discard();
+        });
+        await settle();
+        await settle();
+
+        expect(port.withdrawn).toEqual([seq]);
+    });
+
+    it('⛔ still hands off when the parked write is no longer parked (a drain re-sent it meanwhile)', async () => {
+        const { result, port, onExit } = await parkedSave();
+
+        port.withdraw.mockRejectedValueOnce(
+            new Error('outbox: refusing to withdraw record, which is sending, not parked'),
+        );
+        act(() => {
+            result.current.discard();
+        });
+        await settle();
+        await settle();
+
+        expect(onExit).toHaveBeenCalledWith({ kind: 'leftForRecipe', recipeId: 'rec_1' });
     });
 });
 

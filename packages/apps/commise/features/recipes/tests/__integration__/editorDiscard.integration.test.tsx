@@ -13,7 +13,7 @@ import { DEFAULT_REQUEST_TIMEOUT_MS, RecipeServiceClient } from '@kitchensink/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DraftStore } from '../../src/editor/draftStore.js';
-import { useRecipeEditor } from '../../src/hooks/useRecipeEditor.js';
+import { useRecipeEditor, type EditorSeed } from '../../src/hooks/useRecipeEditor.js';
 import { makeOutboxPort } from './outboxPort.js';
 
 afterEach(cleanup);
@@ -43,22 +43,19 @@ function failingCreates(fails: () => Promise<Response>) {
     return { client, requests };
 }
 
-function mountEditor(client: RecipeServiceClient) {
+function mountEditor(client: RecipeServiceClient, seed: EditorSeed = {}) {
     const outbox = makeOutboxPort(client);
     const onExit = vi.fn();
     const view = renderHook(() =>
-        useRecipeEditor(
-            {},
-            {
-                locale: 'en',
-                port: outbox.port,
-                drafts: NO_DRAFTS,
-                keep: 'disk',
-                onExit,
-                rebindLine: vi.fn(),
-                readRecipe: (id) => client.getRecipeById(id),
-            },
-        ),
+        useRecipeEditor(seed, {
+            locale: 'en',
+            port: outbox.port,
+            drafts: NO_DRAFTS,
+            keep: 'disk',
+            onExit,
+            rebindLine: vi.fn(),
+            readRecipe: (id) => client.getRecipeById(id),
+        }),
     );
 
     return { ...view, ...outbox, onExit };
@@ -260,6 +257,43 @@ describe('Discard while the create is on the wire (real outbox)', () => {
         }
     });
 
+    /**
+     * ⛔ THE STUCK "SYNCING 1". The wait ran out, the editor closed with a delete queued behind the create, and the create
+     * then parked with an unknown outcome — after which no editor existed to withdraw it. The outbox now settles the
+     * pair itself, so the journal ends empty and nothing is sent again.
+     */
+    it('⛔ the wait runs out, then the create parks (unknown outcome): the journal ends empty, with no second POST', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+
+        try {
+            const service = heldCreate(10 * DEFAULT_REQUEST_TIMEOUT_MS);
+            const view = await discardOnTheWire(service);
+
+            await act(async () => {
+                vi.advanceTimersByTime(DEFAULT_REQUEST_TIMEOUT_MS);
+            });
+            await waitFor(() => expect(view.onExit).toHaveBeenCalledWith({ kind: 'discarded' }));
+
+            service.answer(new TypeError('Failed to fetch'));
+
+            await waitFor(async () => expect(await view.records()).toEqual([]));
+            expect(ours(service.requests)).toEqual(['POST /api/v1/recipes']);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('⛔ the same with the editor unmounted mid-wait: the create parks, and the journal ends empty', async () => {
+        const service = heldCreate();
+        const view = await discardOnTheWire(service);
+
+        view.unmount();
+        service.answer(new TypeError('Failed to fetch'));
+
+        await waitFor(async () => expect(await view.records()).toEqual([]));
+        expect(ours(service.requests)).toEqual(['POST /api/v1/recipes']);
+    });
+
     it('the editor is left while it waits: no hand-off, and a create that syncs later is still deleted', async () => {
         const service = heldCreate();
         const view = await discardOnTheWire(service);
@@ -320,5 +354,71 @@ describe('Discard while the create is on the wire (real outbox)', () => {
         await waitFor(() => expect(view.onExit).toHaveBeenCalledWith({ kind: 'discarded' }));
         expect(await view.records()).toEqual([]);
         expect(ours(service.requests)).toEqual([]);
+    });
+});
+
+/**
+ * A published recipe whose earlier Save changes parked, then Discard (plan 2026-10-13-004, item 5). The plan used to
+ * leave the parked update in the journal for ever. The cook's confirmed Discard withdraws it, and the editor hands off
+ * to the recipe, which reads the server's copy.
+ */
+describe('Discard of a published recipe with a parked Save changes (real outbox)', () => {
+    const PUBLISHED = makeRecipeDetail({ id: 'rec_pub', currentVersion: 3, status: RecipeStatus.PUBLISHED });
+
+    function refusingUpdates(status: number | 'drop') {
+        const requests: string[] = [];
+        const client = new RecipeServiceClient({
+            baseUrl: 'https://recipes.test',
+            token: 'tok',
+            fetch: async (input, init) => {
+                const request = new Request(input, init);
+                const path = new URL(request.url).pathname;
+
+                if (path === '/health') {
+                    return Response.json({});
+                }
+
+                requests.push(`${request.method} ${path}`);
+
+                if (status === 'drop') {
+                    throw new TypeError('Failed to fetch');
+                }
+
+                return Response.json({ error: { code: 'VALIDATION' } }, { status });
+            },
+        });
+
+        return { client, requests };
+    }
+
+    it.each([
+        ['a refused save', 400, false],
+        ['a save whose outcome is unknown', 'drop', true],
+    ] as const)('%s: Discard empties the journal and leaves for the recipe', async (_case, status, mayStand) => {
+        const { client, requests } = refusingUpdates(status);
+        const view = mountEditor(client, { recipe: PUBLISHED });
+
+        act(() => {
+            view.result.current.setField('description', 'Mine.');
+        });
+        act(() => {
+            view.result.current.saveChanges('');
+        });
+        await act(async () => {
+            await view.idle();
+        });
+        await waitFor(() => expect(view.result.current.parked).toBeDefined());
+
+        expect(view.result.current.hasUnsavedChanges).toBe(true);
+        expect(view.result.current.discardSavedChangesMayStand).toBe(mayStand);
+
+        act(() => {
+            view.result.current.discard();
+        });
+
+        await waitFor(() => expect(view.onExit).toHaveBeenCalledWith({ kind: 'leftForRecipe', recipeId: 'rec_pub' }));
+        await waitFor(async () => expect(await view.records()).toEqual([]));
+        expect(requests.filter((request) => request.startsWith('PATCH'))).toHaveLength(1);
+        expect(requests.filter((request) => request.startsWith('DELETE'))).toEqual([]);
     });
 });

@@ -11,7 +11,7 @@ import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
-import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { recipeQueries, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
@@ -163,6 +163,28 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
             stored.result.current.editor.discard();
         });
         expect(stored.nav.leftForRecipe).toHaveBeenCalledWith('rec_9');
+    });
+
+    /**
+     * ⛔ THE COOK SEES WHICH OUTCOME HAPPENED. A published recipe's parked save may have landed, and the recipe page would
+     * otherwise show the copy cached for up to its 30 s `staleTime`. Leaving for the recipe marks its read stale, so the
+     * page asks the server (the designer's ask for the published Discard).
+     */
+    it('⛔ leaving for the recipe marks its cached read stale, so the page shows the server`s copy', async () => {
+        const stored = complete({ status: RecipeStatus.PUBLISHED });
+        const client = createFakeRecipeServiceClient();
+        const view = mount({ recipe: stored }, client);
+        const key = recipeQueries(client).detail('rec_9').queryKey;
+
+        view.queryClient.setQueryData(key, stored);
+        expect(view.queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+
+        act(() => {
+            view.result.current.editor.discard();
+        });
+
+        expect(view.nav.leftForRecipe).toHaveBeenCalledWith('rec_9');
+        expect(view.queryClient.getQueryState(key)?.isInvalidated).toBe(true);
     });
 
     it('a leave heard by another route than × runs the exit checkpoint: a titled new recipe is created', async () => {

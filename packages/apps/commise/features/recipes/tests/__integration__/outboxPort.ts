@@ -12,16 +12,19 @@ import {
     appendExclusive,
     claimForSending,
     createMemoryOutboxStore,
+    discardEntity,
     drain,
     outboxMutatorFor,
     settle,
     supersede,
     withdraw as withdrawRecord,
+    type OutboxLog,
     type OutboxRecord,
     type SendResult,
     type SettlementEvent,
 } from '@kitchensink/sync';
 import {
+    isNotFoundError,
     isRecipeServiceClientError,
     isVersionConflictError,
     type RecipeServiceClient,
@@ -54,6 +57,11 @@ async function send(client: RecipeServiceClient, record: OutboxRecord): Promise<
 
         return { outcome: 'ok', serverId: payload.id ?? record.localId };
     } catch (error) {
+        // A delete that meets a 404 is done, as the app's `recipeSender` reads it (no route undeletes a recipe).
+        if (record.intentKind === 'delete' && isNotFoundError(error)) {
+            return { outcome: 'ok', serverId: payload.id ?? record.localId };
+        }
+
         if (isVersionConflictError(error) && error.server !== undefined) {
             return {
                 outcome: 'failed',
@@ -95,6 +103,19 @@ export function makeOutboxPort(client: RecipeServiceClient): {
     let failures: EditorWritePort['failures'] = [];
     let online = true;
 
+    /** The failures are a projection of the stored log, as the app's provider makes them (`failuresOf`). */
+    const project = (log: OutboxLog): void => {
+        failures = log.records
+            .filter((record) => record.state === 'parked')
+            .map((record) => ({
+                seq: record.seq,
+                entity: record.entity,
+                intentKind: record.intentKind,
+                localId: record.localId,
+                ...(record.lastStatus === undefined ? {} : { status: record.lastStatus }),
+            }));
+    };
+
     const flush = (): void => {
         if (!online) {
             return;
@@ -119,16 +140,7 @@ export function makeOutboxPort(client: RecipeServiceClient): {
                         return claimed;
                     },
                     settle: async (settlement) => {
-                        const next = await mutator.mutate((current) => settle(current, settlement));
-                        failures = next.records
-                            .filter((record) => record.state === 'parked')
-                            .map((record) => ({
-                                seq: record.seq,
-                                entity: record.entity,
-                                intentKind: record.intentKind,
-                                localId: record.localId,
-                                ...(record.lastStatus === undefined ? {} : { status: record.lastStatus }),
-                            }));
+                        project(await mutator.mutate((current) => settle(current, settlement)));
                     },
                 },
                 onSettled: (event) => {
@@ -178,7 +190,11 @@ export function makeOutboxPort(client: RecipeServiceClient): {
             return outcome;
         },
         withdraw: async (seq) => {
-            await mutator.mutate((current) => withdrawRecord(current, seq));
+            project(await mutator.mutate((current) => withdrawRecord(current, seq)));
+        },
+        discard: async (intent) => {
+            project(await mutator.mutate((current) => discardEntity(current, intent)));
+            flush();
         },
         subscribe: (listener) => {
             listeners.add(listener);

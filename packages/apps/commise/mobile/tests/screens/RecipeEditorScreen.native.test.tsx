@@ -7,7 +7,7 @@
  * `RecipeEditorView.native.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 
 import { renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
 import { SyncProvider } from '@commise/query/sync';
@@ -424,5 +424,53 @@ describe('RecipeEditorScreen (native) — Paste a list', () => {
         await screen.findByText('Edit recipe');
 
         expect(screen.queryByRole('button', { name: 'Paste a list' })).toBeNull();
+    });
+});
+
+/**
+ * ⛔ A PUBLISHED RECIPE'S PARKED SAVE CHANGES DOES NOT OUTLIVE THE DISCARD (plan 2026-10-13-004, item 5), on the phone
+ * as on the web: the same copy, the same withdrawal, the same hand-off. Over the real outbox, Save changes meets a
+ * dropped connection and parks with an unknown outcome, so the changes may already stand.
+ */
+describe('RecipeEditorScreen (native) — Discard with a parked save', () => {
+    it('says the save may have gone through, withdraws it, and leaves for the recipe', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({ id: 'rec_1', title: 'Stored Stew', status: RecipeStatus.PUBLISHED }),
+        );
+        const update = vi.spyOn(client, 'updateRecipe').mockRejectedValue(new TypeError('Failed to fetch'));
+        const store = createMemoryOutboxStore();
+        const handlers = { onFinished: vi.fn(), onClose: vi.fn(), onDiscarded: vi.fn() };
+
+        renderWithRecipeClient(
+            withFoodClient(
+                <SyncProvider subject="user_cook" send={recipeSender(() => client)} store={store}>
+                    <RecipeEditorScreen {...handlers} recipeId="rec_1" />
+                </SyncProvider>,
+            ),
+            client,
+        );
+
+        fireEvent.change(await screen.findByDisplayValue('Stored Stew'), { target: { value: 'Stored Stew Deluxe' } });
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+        });
+
+        await screen.findByText("We couldn't tell if your changes were saved.");
+        expect((await loadOutbox(store, 'user_cook')).records.map((record) => record.state)).toEqual(['parked']);
+
+        fireEvent.click(screen.getByRole('button', { name: 'More editor actions' }));
+        fireEvent.click(await screen.findByRole('menuitem', { name: 'Discard changes' }));
+        // The native dialog is announced as an interrupting `alert`, its title a heading (`ConfirmDialog.native`); the
+        // parked write's own alert is one too, so the dialog is found by its title.
+        const dialog = (await screen.findByRole('heading', { name: 'Discard your changes?' })).closest(
+            '[role="alert"]',
+        ) as HTMLElement;
+        expect(within(dialog).getByText(/Your last save may have gone through/u)).toBeTruthy();
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Discard' }));
+
+        await waitFor(() => expect(handlers.onClose).toHaveBeenCalledTimes(1));
+        await waitFor(async () => expect((await loadOutbox(store, 'user_cook')).records).toEqual([]));
+        expect(update).toHaveBeenCalledTimes(1);
     });
 });

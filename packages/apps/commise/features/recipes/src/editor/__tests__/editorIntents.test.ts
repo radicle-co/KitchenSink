@@ -74,6 +74,35 @@ describe('discardPlanOf', () => {
             withdraw: undefined,
             remove: undefined,
             mayLeaveServerCopy: false,
+            savedChangesMayStand: false,
+            exit: { kind: 'leftForRecipe', recipeId: 'rec_1' },
+        });
+    });
+
+    /**
+     * ⛔ A PUBLISHED RECIPE'S PARKED SAVE CHANGES DOES NOT OUTLIVE THE DISCARD. The plan used to answer `withdraw:
+     * undefined` for every published recipe, so an earlier Save changes that parked stayed in the outbox for ever, and
+     * "Syncing 1" with it. The cook's confirmed Discard is the consent to withdraw it. Whether its changes may already
+     * stand is the confirm's business: an unknown outcome might have landed (`savedChangesMayStand`).
+     */
+    it.each<[string, OutstandingWrite | undefined, FailureClass | undefined, number | undefined, boolean]>([
+        ['nothing outstanding', undefined, undefined, undefined, false],
+        [
+            'an update on its way (pending or on the wire): left alone',
+            write({ kind: 'update' }),
+            undefined,
+            undefined,
+            false,
+        ],
+        ['a parked update, outcome unknown', write({ kind: 'update', parked: true }), 'unknown', 7, true],
+        ['a parked update, refused', write({ kind: 'update', parked: true }), 'terminal', 7, false],
+        ['a parked update, signed out (transient)', write({ kind: 'update', parked: true }), 'transient', 7, false],
+        ['a parked update, conflict', write({ kind: 'update', parked: true }), 'conflict', 7, false],
+    ])('a published recipe with %s', (_case, outstanding, failure, withdraw, mayStand) => {
+        expect(plan('published', stored(RecipeStatus.PUBLISHED), outstanding, failure)).toMatchObject({
+            withdraw,
+            remove: undefined,
+            savedChangesMayStand: mayStand,
             exit: { kind: 'leftForRecipe', recipeId: 'rec_1' },
         });
     });
@@ -101,6 +130,7 @@ describe('discardPlanOf', () => {
                 },
             },
             mayLeaveServerCopy: false,
+            savedChangesMayStand: false,
             exit: { kind: 'discarded' },
         });
     });

@@ -38,6 +38,8 @@ export function makeFakeEditorWritePort() {
 
     const submitted: Intent[] = [];
     const withdrawn: number[] = [];
+    /** Every intent handed to `discard`, in order. */
+    const discarded: Intent[] = [];
     /** The refs a synced create resolved, as the real log keeps them (`OutboxLog.resolutions`). */
     const resolutions = new Map<string, string>();
 
@@ -97,6 +99,35 @@ export function makeFakeEditorWritePort() {
                 1,
             );
         }),
+        // The cook's confirmed Discard as the real log applies it (`discardEntity`): every parked record of the entity goes
+        // and so does a pending one; a record on the wire stays and the delete queues behind it; a delete of a ref nothing
+        // can resolve is never queued. It never rejects for a parked record.
+        discard: vi.fn(async (intent: Intent) => {
+            discarded.push(intent);
+
+            for (const [seq, record] of [...records.entries()]) {
+                const same = record.intent.entity === intent.entity && record.intent.localId === intent.localId;
+
+                if (same && record.state !== 'sending') {
+                    records.delete(seq);
+                    const at = failures.findIndex((failure) => failure.seq === seq);
+
+                    if (at !== -1) {
+                        failures.splice(at, 1);
+                    }
+                }
+            }
+
+            const producers = [...records.values()].flatMap((record) =>
+                record.intent.produces === undefined ? [] : [record.intent.produces],
+            );
+            const addressable = intent.dependsOn.every((ref) => resolutions.has(ref) || producers.includes(ref));
+
+            if (addressable) {
+                records.set(nextSeq, { intent, state: 'pending' });
+                nextSeq += 1;
+            }
+        }),
         subscribe: (listener: (event: Settlement) => void) => {
             listeners.add(listener);
 
@@ -110,6 +141,7 @@ export function makeFakeEditorWritePort() {
         ...writePort,
         submitted,
         withdrawn,
+        discarded,
         /** The drain claimed the newest record. */
         claim: (seq: number) => {
             const record = records.get(seq);

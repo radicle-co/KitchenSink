@@ -188,10 +188,13 @@ export const Combobox: FC<ComboboxProps> = ({
 
     useEffect(() => (popupShown ? requestReveal() : undefined), [popupShown]);
 
-    // A drag on the page closes the open list unless it began inside it: the list has no scroller of its own (item 7),
-    // so a drag that begins on it scrolls the page under the finger and keeps it open. Whether the touch began inside is
-    // tracked from the list's own touch events, in state: set on its start, cleared on its end, and spent by the one
-    // drag it began.
+    // A drag on the page closes the open list unless it began inside it. Whether the touch began inside is tracked
+    // from the list's own touch events, in state: set on its start, and spent by the one drag it began. Who ends the
+    // touch depends on the list. Unbounded, it has no scroller of its own (item 7): a drag that begins on it scrolls the
+    // page under the finger, keeps it open, and the touch ends on the list (`onTouchEnd`) or the page drag spends the
+    // flag. Bounded (`listMaxRows`), a nested scroller takes the gesture: JS gets a cancel and no `touchend`, and the
+    // scroller's begin-drag is a direct event the page's drag host never hears, so the scroller ends its own drag
+    // (`onScrollEndDrag`: the END, so a hand-off to the page mid-gesture still finds the flag set).
     //
     // ⛔ A `touchcancel` does not clear it. The scroller TAKING the gesture is what cancels the list's touch, and on
     // Android the cancel arrives BEFORE the drag's start (`ReactScrollView.handleInterceptedTouchEvent` calls
@@ -402,6 +405,7 @@ export const Combobox: FC<ComboboxProps> = ({
                             <ScrollView
                                 nestedScrollEnabled
                                 keyboardShouldPersistTaps="handled"
+                                onScrollEndDrag={() => setTouchInList(false)}
                                 style={{ maxHeight: boundedHeight }}
                             >
                                 {renderGroups()}

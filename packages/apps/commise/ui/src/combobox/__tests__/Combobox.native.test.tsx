@@ -25,12 +25,21 @@ import type { ComboboxGroup, ComboboxProps, ComboboxStatus } from '../props.js';
 import { watchRegion } from './regionSpeech.js';
 
 const platform = vi.hoisted(() => ({ os: undefined as 'ios' | undefined }));
+/** The props the latest `ScrollView` was given: react-native-web never calls `onScrollEndDrag`, so a case calls it. */
+const scroller = vi.hoisted(() => ({ props: undefined as { onScrollEndDrag?: () => void } | undefined }));
 
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
+    const { createElement } = await import('react');
+
     return {
         ...actual,
+        ScrollView: (props: { onScrollEndDrag?: () => void }) => {
+            scroller.props = props;
+
+            return createElement(actual.ScrollView, props);
+        },
         Platform: {
             ...actual.Platform,
             get OS() {
@@ -1115,5 +1124,44 @@ describe('Combobox (native) â€” a bounded list (`listMaxRows`, cuisineField.md Â
         act(() => beginDrag());
 
         expect(screen.getByRole('button', { name: 'Armenian' })).toBeTruthy();
+    });
+
+    /**
+     * Inside the nested scroller the gesture belongs to IT: JS gets a `touchcancel` and no `touchend`, and the
+     * scroller's `topScrollBeginDrag` is direct (it never bubbles to the page's drag host). Only its own drag END
+     * clears the flag, so a drag that began on the list still keeps it open and the next one, from outside, closes it.
+     */
+    it('a drag from outside closes it after the nested scroller took a touch and ended its own drag', () => {
+        const listeners = new Set<() => void>();
+
+        render(
+            <ScrollerDragContext.Provider
+                value={(listener) => {
+                    listeners.add(listener);
+
+                    return () => listeners.delete(listener);
+                }}
+            >
+                <Host groups={MANY} listMaxRows={3} openOnFocus />
+            </ScrollerDragContext.Provider>,
+        );
+        fireEvent.focus(field());
+        const finger = { identifier: 0, clientX: 10, clientY: 10, pageX: 10, pageY: 10, force: 1 };
+        const touch = { touches: [finger], changedTouches: [finger], targetTouches: [finger] };
+
+        fireEvent.touchStart(screen.getByRole('button', { name: 'Armenian' }), touch);
+        fireEvent.touchCancel(screen.getByRole('button', { name: 'Armenian' }), {
+            touches: [],
+            changedTouches: [finger],
+            targetTouches: [],
+        });
+        act(() => scroller.props?.onScrollEndDrag?.());
+        act(() => {
+            for (const listener of listeners) {
+                listener();
+            }
+        });
+
+        expect(field().getAttribute('aria-expanded')).toBe('false');
     });
 });

@@ -44,6 +44,7 @@ export {
     type RecoveryOptions,
     type Settlement,
 } from './outboxLog.js';
+export { createDrainLane, drainLaneFor, type DrainLane, type DrainPass } from './drainLane.js';
 export { createOutboxMutator, outboxMutatorFor, type OutboxMutator } from './outboxMutator.js';
 export {
     createMemoryOutboxStore,

@@ -1877,16 +1877,14 @@ describe('characterization: a write parked in an earlier session', () => {
     function withEarlierParked(status?: number) {
         const view = mount({ recipe: NEVER_PUBLISHED });
 
-        view.port.failures.push({
-            seq: 41,
-            entity: 'recipe',
-            intentKind: 'update',
-            localId: 'rec_1',
-            ...(status === undefined ? {} : { status }),
-        });
+        // A record the outbox holds, not only a projected failure: the fake's log is the real one.
+        const seq = view.port.parkEarlier(
+            { entity: 'recipe', intentKind: 'update', localId: 'rec_1', dependsOn: [], payload: { id: 'rec_1' } },
+            status,
+        );
         view.rerender({ seed: { recipe: NEVER_PUBLISHED } });
 
-        return view;
+        return { ...view, seq };
     }
 
     it('stands in the lane: it shows as parked, and a checkpoint writes the device draft but sends nothing', async () => {
@@ -1908,7 +1906,7 @@ describe('characterization: a write parked in an earlier session', () => {
     });
 
     it('Retry withdraws it and sends the draft again', async () => {
-        const { result, port } = withEarlierParked(503);
+        const { result, port, seq } = withEarlierParked(503);
 
         act(() => {
             result.current.setField('description', 'Mine.');
@@ -1919,7 +1917,7 @@ describe('characterization: a write parked in an earlier session', () => {
         await settle();
         await settle();
 
-        expect(port.withdrawn).toEqual([41]);
+        expect(port.withdrawn).toEqual([seq]);
         expect(port.submitted.at(-1)).toMatchObject({
             intentKind: 'update',
             payload: { input: { description: 'Mine.', expectedVersion: 3 } },
@@ -2298,7 +2296,10 @@ describe('discard while the create is parked', () => {
             savedAt: '2026-10-08T09:00:00.000Z',
         };
         const view = mount({ memento });
-        view.port.failures.push({ seq: 41, entity: 'recipe', intentKind: 'create', localId: ref, status: 503 });
+        const seq = view.port.parkEarlier(
+            { entity: 'recipe', intentKind: 'create', localId: ref, produces: ref, dependsOn: [], payload: {} },
+            503,
+        );
         view.rerender({ seed: { memento } });
 
         expect(view.result.current.parked).toEqual({ failure: 'transient', kind: 'create' });
@@ -2309,7 +2310,7 @@ describe('discard while the create is parked', () => {
         await settle();
         await settle();
 
-        expect(view.port.withdrawn).toEqual([41]);
+        expect(view.port.withdrawn).toEqual([seq]);
         expect(view.port.submit).not.toHaveBeenCalled();
     });
 

@@ -1,132 +1,111 @@
 /**
  * @module @commise/features-recipes/__fixtures__ — a fake of the editor's write port (`EditorWritePort`, the app's
- * `SyncQueue` structurally): it records each submit, and lets a test put a record on the wire, park it or answer it.
+ * `SyncQueue` structurally): it records each call, and lets a test put a record on the wire, park it or answer it.
  * The settlement bus is the only way the editor learns anything, which is the contract this fake keeps.
+ *
+ * ⛔ THE LOG IS THE REAL ONE. Every port call and every test handle applies `@kitchensink/sync`'s own pure functions
+ * (`appendExclusive`, `supersede`, `withdraw`, `discardEntity`, `claimForSending`, `settle`) to a real `OutboxLog`, so
+ * what the editor is told is what the outbox would do. A hand-copied model of those rules had already drifted (its
+ * Discard ignored `concerns`).
+ *
+ * ⚠️ `failures` is re-projected from the log by every port call and by `park`/`sync`, but NOT by `claim`, the way the
+ * app's projection trails a drain's claim until it re-renders: that gap is what lets a test put a record on the wire
+ * while the editor still reads it as parked.
  *
  * The port half is checked against {@link EditorWritePort} with `satisfies`, so a change to the port fails here rather
  * than hiding behind a cast in every test that mounts the editor.
  */
 import type { RecipeDetail } from '@kitchensink/recipe-core';
-import type { Intent, SettlementEvent } from '@kitchensink/sync';
+import {
+    EMPTY_OUTBOX,
+    appendExclusive,
+    appendIntent,
+    claimForSending,
+    discardEntity,
+    settle,
+    supersede,
+    withdraw as withdrawRecord,
+    type Intent,
+    type OutboxLog,
+    type SettlementEvent,
+} from '@kitchensink/sync';
 import { vi } from 'vitest';
 
-import type { EditorWriteAnswer, EditorWritePort } from '../hooks/useRecipeEditor.js';
+import type { EditorParkedWrite, EditorWriteAnswer, EditorWritePort } from '../hooks/useRecipeEditor.js';
 
 type Settlement = SettlementEvent<EditorWriteAnswer>;
 
 /**
  * Build a fake write port.
  *
- * @returns The port, with the test's handles: `claim`, `sync`, `park`, `lastSeq`, and what was submitted or withdrawn. A
- *   synced create records its ref's resolution, and a create of a resolved ref is answered `resolved`, as the real log
- *   does (`appendExclusive`).
+ * @returns The port, with the test's handles: `claim`, `sync`, `park`, `parkEarlier`, `lastSeq`, `queued`, and what was
+ *   submitted, withdrawn or discarded.
  */
 export function makeFakeEditorWritePort() {
     const listeners = new Set<(event: Settlement) => void>();
-    const records = new Map<
-        number,
-        { readonly intent: Intent; state: 'pending' | 'sending' | 'parked'; status?: number }
-    >();
-    let nextSeq = 1;
-    const failures: {
-        seq: number;
-        entity: 'recipe';
-        intentKind: Intent['intentKind'];
-        localId: string;
-        status?: number;
-    }[] = [];
+    let log: OutboxLog = EMPTY_OUTBOX;
+    /** The parked records, as the app projects them (`failuresOf`). Mutated in place: the port is spread below. */
+    const failures: EditorParkedWrite[] = [];
 
     const submitted: Intent[] = [];
     const withdrawn: number[] = [];
     /** Every intent handed to `discard`, in order. */
     const discarded: Intent[] = [];
-    /** The refs a synced create resolved, as the real log keeps them (`OutboxLog.resolutions`). */
-    const resolutions = new Map<string, string>();
+
+    const project = (): void => {
+        failures.splice(
+            0,
+            failures.length,
+            ...log.records
+                .filter((record) => record.state === 'parked')
+                .map((record) => ({
+                    seq: record.seq,
+                    entity: record.entity,
+                    intentKind: record.intentKind,
+                    localId: record.localId,
+                    ...(record.lastStatus === undefined ? {} : { status: record.lastStatus }),
+                })),
+        );
+    };
+
+    const apply = (next: OutboxLog): void => {
+        log = next;
+        project();
+    };
+
+    const announce = (event: Settlement): void => {
+        for (const listener of [...listeners]) {
+            listener(event);
+        }
+    };
 
     const writePort = {
         failures,
         submit: vi.fn(async (intent: Intent) => {
             submitted.push(intent);
+            apply(supersede(log, intent));
 
             return { queued: true as const };
         }),
         submitExclusive: vi.fn(async (intent: Intent) => {
-            const made = intent.produces === undefined ? undefined : resolutions.get(intent.produces);
+            const result = appendExclusive(log, intent);
 
-            if (made !== undefined) {
-                return { kind: 'resolved' as const, serverId: made };
+            if (result.kind !== 'queued') {
+                return result;
             }
 
-            const same = [...records.entries()].find(
-                ([, record]) => record.intent.entity === intent.entity && record.intent.localId === intent.localId,
-            );
-
-            if (same !== undefined && same[1].state === 'sending') {
-                return { kind: 'inFlight' as const, seq: same[0] };
-            }
-
-            if (same !== undefined && same[1].state === 'parked') {
-                return {
-                    kind: 'parked' as const,
-                    seq: same[0],
-                    ...(same[1].status === undefined ? {} : { status: same[1].status }),
-                };
-            }
-
-            if (same !== undefined) {
-                records.delete(same[0]);
-            }
-
-            const seq = nextSeq;
-            nextSeq += 1;
             submitted.push(intent);
+            apply(result.log);
 
-            // A delete supersedes, as the real log applies it: a create still queued goes with it, and a delete of a ref
-            // nothing resolved is never queued at all.
-            const addressable = intent.dependsOn.every((ref) => [...resolutions.keys()].includes(ref));
-
-            if (intent.intentKind !== 'delete' || addressable) {
-                records.set(seq, { intent, state: 'pending' });
-            }
-
-            return { kind: 'queued' as const, seq };
+            return { kind: 'queued' as const, seq: result.seq };
         }),
         withdraw: vi.fn(async (seq: number) => {
             withdrawn.push(seq);
-            records.delete(seq);
-            failures.splice(
-                failures.findIndex((failure) => failure.seq === seq),
-                1,
-            );
+            apply(withdrawRecord(log, seq));
         }),
-        // The cook's confirmed Discard as the real log applies it (`discardEntity`): every parked record of the entity goes
-        // and so does a pending one; a record on the wire stays and the delete queues behind it; a delete of a ref nothing
-        // can resolve is never queued. It never rejects for a parked record.
         discard: vi.fn(async (intent: Intent) => {
             discarded.push(intent);
-
-            for (const [seq, record] of [...records.entries()]) {
-                const same = record.intent.entity === intent.entity && record.intent.localId === intent.localId;
-
-                if (same && record.state !== 'sending') {
-                    records.delete(seq);
-                    const at = failures.findIndex((failure) => failure.seq === seq);
-
-                    if (at !== -1) {
-                        failures.splice(at, 1);
-                    }
-                }
-            }
-
-            const producers = [...records.values()].flatMap((record) =>
-                record.intent.produces === undefined ? [] : [record.intent.produces],
-            );
-            const addressable = intent.dependsOn.every((ref) => resolutions.has(ref) || producers.includes(ref));
-
-            if (addressable) {
-                records.set(nextSeq, { intent, state: 'pending' });
-                nextSeq += 1;
-            }
+            apply(discardEntity(log, intent));
         }),
         subscribe: (listener: (event: Settlement) => void) => {
             listeners.add(listener);
@@ -137,76 +116,82 @@ export function makeFakeEditorWritePort() {
         },
     } satisfies EditorWritePort;
 
+    /** The record numbered `seq`, or a throw: a handle naming no record is a broken test. */
+    const recordAt = (seq: number) => {
+        const record = log.records.find((candidate) => candidate.seq === seq);
+
+        if (record === undefined) {
+            throw new Error(`no record ${String(seq)}`);
+        }
+
+        return record;
+    };
+
     return {
         ...writePort,
         submitted,
         withdrawn,
         discarded,
-        /** The drain claimed the newest record. */
+        /** A drain claimed the record: it is on the wire. The projection is left as it was (see the module note). */
         claim: (seq: number) => {
-            const record = records.get(seq);
-
-            if (record !== undefined) {
-                record.state = 'sending';
-            }
+            log = claimForSending(log, seq) ?? log;
         },
         /** The newest record's sequence number. */
-        lastSeq: () => nextSeq - 1,
+        lastSeq: () => log.nextSeq - 1,
         /** What the outbox holds now, oldest first. */
-        queued: () => [...records.values()].map((record) => record.intent),
-        /** The drain answered: synced. */
+        queued: () => log.records.map(({ seq: _seq, state: _state, lastStatus: _status, ...intent }) => intent),
+        /** The state of the record numbered `seq`, or `undefined` once it has left the log. */
+        stateOf: (seq: number) => log.records.find((record) => record.seq === seq)?.state,
+        /** A record an earlier session parked: it is in the log before the editor mounts. Returns its number. */
+        parkEarlier: (intent: Intent, status?: number): number => {
+            const seq = log.nextSeq;
+
+            apply(
+                settle(appendIntent(log, intent), {
+                    seq,
+                    outcome: 'parked',
+                    ...(status === undefined ? {} : { status }),
+                }),
+            );
+
+            return seq;
+        },
+        /** The drain answered: synced. A record the log no longer holds (replaced or superseded) settles nothing. */
         sync: (seq: number, detail: RecipeDetail) => {
-            const record = records.get(seq);
-            records.delete(seq);
+            const record = log.records.find((candidate) => candidate.seq === seq);
 
-            if (record?.intent.produces !== undefined) {
-                resolutions.set(record.intent.produces, detail.id);
-            }
-
-            const event: Settlement = {
+            apply(
+                settle(log, {
+                    seq,
+                    outcome: 'synced',
+                    serverId: detail.id,
+                    ...(record?.produces === undefined ? {} : { produces: record.produces }),
+                }),
+            );
+            announce({
                 seq,
                 entity: 'recipe',
-                localId: record?.intent.localId ?? '',
-                intentKind: record?.intent.intentKind ?? 'update',
+                localId: record?.localId ?? '',
+                intentKind: record?.intentKind ?? 'update',
                 outcome: 'synced',
                 serverId: detail.id,
                 answer: { kind: 'recipeWritten', detail },
-            };
-
-            for (const listener of [...listeners]) {
-                listener(event);
-            }
+            });
         },
         /** The drain answered: parked. */
         park: (seq: number, status?: number, answer?: EditorWriteAnswer) => {
-            const record = records.get(seq);
+            const record = recordAt(seq);
 
-            if (record === undefined) {
-                throw new Error(`no record ${String(seq)}`);
-            }
-
-            record.state = 'parked';
-            record.status = status;
-            failures.push({
+            apply(settle(log, { seq, outcome: 'parked', ...(status === undefined ? {} : { status }) }));
+            announce({
                 seq,
                 entity: 'recipe',
-                intentKind: record.intent.intentKind,
-                localId: record.intent.localId,
-                ...(status === undefined ? {} : { status }),
-            });
-            const event: Settlement = {
-                seq,
-                entity: 'recipe',
-                localId: record.intent.localId,
-                intentKind: record.intent.intentKind,
+                localId: record.localId,
+                intentKind: record.intentKind,
                 outcome: 'parked',
                 ...(status === undefined ? {} : { status }),
                 ...(answer === undefined ? {} : { answer }),
-            };
-
-            for (const listener of [...listeners]) {
-                listener(event);
-            }
+            });
         },
     };
 }

@@ -30,18 +30,24 @@ things out, but done."
 
 ## Wave 1: CI green on PR 91
 
-| Item                                                                                                      | Done when                                        |
-| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| iOS: the rename-collection sheet closes the keyboard but does not save (`collections`, `collectionsPull`) | Fixed in the shared sheet, test-first. IOS green |
-| iOS: Discover filter suggestions sit under the keyboard (`discoverIngredientCap`, `landscape`)            | Fixed, test-first. IOS green                     |
-| A swipe that starts in an open ingredient list sometimes closes it (`ingredientRemoteFoods`, `edit`)      | Root cause found and fixed. Both flows stable    |
-| `recipes/landscape` fails intermittently on Android                                                       | Root cause found and fixed. Stable over runs     |
-| A new ingredient row lands just above the screen after a food is picked                                   | staff-ux-engineer spec, then built on both apps  |
-| `SyncProvider`'s re-arm keeps the old cook's closure, so a drain after a cook switch mid-flight is lost   | A failing test first, then fixed                 |
-| `readViewerAppId` in `web/tests/e2e/utils/recipeApi.ts` blames a claim that is present                    | The message names the real cause                 |
-| Whatever the first CI run with the iOS fixes shows                                                        | Each failure fixed at its root                   |
-| CI on the OIDC roles, sandbox half (commit B)                                                             | Plan 005. Proven on PR 91 by real runs           |
-| Faster iOS shards                                                                                         | Plan 006. Savings shown in the run logs          |
+| Item                                                                                                            | Done when                                         |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| iOS: the rename-collection sheet closes the keyboard but does not save (`collections`, `collectionsPull`)       | Fixed in the shared sheet, test-first. IOS green  |
+| iOS: Discover filter suggestions sit under the keyboard (`discoverIngredientCap`, `landscape`)                  | Fixed, test-first. IOS green                      |
+| A swipe that starts in an open ingredient list sometimes closes it (`ingredientRemoteFoods`, `edit`)            | Root cause found and fixed. Both flows stable     |
+| `recipes/landscape` fails intermittently on Android                                                             | Root cause found and fixed. Stable over runs      |
+| A new ingredient row lands just above the screen after a food is picked                                         | staff-ux-engineer spec, then built on both apps   |
+| `SyncProvider`'s re-arm keeps the old cook's closure, so a drain after a cook switch mid-flight is lost         | A failing test first, then fixed                  |
+| A Discard on the entity path never reports `mayStand` when it withdraws a parked create with an unknown outcome | Fixed or recorded as accepted after code-reviewer |
+| `awsCredentialsFederated.test.ts` guard helpers have cognitive complexity 30 and 35                             | Per-rule predicates extracted                     |
+| Cuisine: the mobile combobox cannot carry a field error, so the error shows as an alert under the field         | Design-system decision, then built                |
+| Cuisine: a long custom cuisine in a Discover chip (2-line clamp) is unchecked                                   | Checked on both apps                              |
+| Cuisine: a server refusal from an older queued save shows the general save failure, not field copy              | The outbox passes the error to the editor         |
+| Cuisine device checks: the 5-row list at font scale 2.0, and the list closing on Android Back                   | Run on emulator-5556                              |
+| `readViewerAppId` in `web/tests/e2e/utils/recipeApi.ts` blames a claim that is present                          | The message names the real cause                  |
+| Whatever the first CI run with the iOS fixes shows                                                              | Each failure fixed at its root                    |
+| CI on the OIDC roles, sandbox half (commit B)                                                                   | Plan 005. Proven on PR 91 by real runs            |
+| Faster iOS shards                                                                                               | Plan 006. Savings shown in the run logs           |
 
 ## Wave 2: the approved builds
 

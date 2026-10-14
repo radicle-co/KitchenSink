@@ -218,24 +218,22 @@ const permissionsNonprod = (role: iam.Role, scope: Scope): void => {
         [`arn:aws:ssm:${region}:${account}:parameter${OWED_DROP_LEDGER}/*`],
     );
     allow(role, SECRET_READ_ACTIONS, [`arn:aws:secretsmanager:${region}:${account}:secret:kitchensink/sandbox/*`]);
-    // CloudFormation names the database credentials and the remote-search signing key without a stage, and prod's
-    // copies share the prefix, so the stack tag keeps this read on the two sandbox stacks.
+    // CloudFormation names these two secrets without a stage, and prod's copies share the prefix, so a stack tag keeps
+    // each grant on its sandbox stack.
+    // ⛔ The database secret is the RDS MASTER credential, whose value only two functions may read (ADR-0039). CI only
+    // describes it: `verifyDeployment.sh` checks that the ARN a deployed Lambda names exists.
     allow(
         role,
-        SECRET_READ_ACTIONS,
-        [
-            `arn:aws:secretsmanager:${region}:${account}:secret:DatabaseCredentialsSecret*`,
-            `arn:aws:secretsmanager:${region}:${account}:secret:SigningKey*`,
-        ],
-        {
-            StringEquals: {
-                'secretsmanager:ResourceTag/aws:cloudformation:stack-name': [
-                    'kitchensink-data-sandbox',
-                    'kitchensink-remote-search-shared-sandbox',
-                ],
-            },
-        },
+        ['secretsmanager:DescribeSecret'],
+        [`arn:aws:secretsmanager:${region}:${account}:secret:DatabaseCredentialsSecret*`],
+        { StringEquals: { 'secretsmanager:ResourceTag/aws:cloudformation:stack-name': 'kitchensink-data-sandbox' } },
     );
+    // The remote-search deployed tier signs its probes with the sandbox key (`deployedSmoke.ts`).
+    allow(role, SECRET_READ_ACTIONS, [`arn:aws:secretsmanager:${region}:${account}:secret:SigningKey*`], {
+        StringEquals: {
+            'secretsmanager:ResourceTag/aws:cloudformation:stack-name': 'kitchensink-remote-search-shared-sandbox',
+        },
+    });
     // `verifyDeployment.sh` runs `head-bucket` on every bucket a deployed Lambda names.
     allow(role, ['s3:ListBucket'], ['arn:aws:s3:::kitchensink-*-sandbox-*', 'arn:aws:s3:::kitchensink-*-pr-*']);
     // The remote-search tier reads the function URL that its distribution must be the only way into.

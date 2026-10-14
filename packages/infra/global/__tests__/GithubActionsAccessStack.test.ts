@@ -273,26 +273,33 @@ describe('GithubActionsAccessStack: what no role may do', () => {
  */
 describe('GithubActionsAccessStack: the auto-named sandbox secrets', () => {
     // CloudFormation names these secrets without a stage (prod's copies share the prefix), so the stack tag is the
-    // only thing that keeps the grant off production. The glob matcher ignores conditions, so the tag is asserted here.
-    it('nonprod reads the database and signing-key secrets only of the two sandbox stacks, by stack tag', () => {
-        const reads = statementsOf(template(), 'kitchensink-gha-nonprod').filter((s) =>
-            asList(s.Resource).some((r) => /secret:(DatabaseCredentialsSecret|SigningKey)/.test(String(r))),
+    // only thing that keeps each grant off production. The glob matcher ignores conditions, so the tag is asserted here.
+    const tag = 'secretsmanager:ResourceTag/aws:cloudformation:stack-name';
+    const grantOn = (pattern: RegExp): Statement[] =>
+        statementsOf(template(), 'kitchensink-gha-nonprod').filter((s) =>
+            asList(s.Resource).some((r) => pattern.test(String(r))),
         );
 
-        expect(reads).toHaveLength(1);
-        expect(reads[0]?.Effect).toBe('Allow');
-        expect([...asList(reads[0]?.Action)].sort()).toEqual([
+    // ⛔ The database secret is the RDS MASTER credential: ADR-0039 lets exactly two functions read its value. CI only
+    // describes it (`verifyDeployment.sh` probes that the ARN a Lambda names exists).
+    it('nonprod may only describe the sandbox database master secret, never read its value', () => {
+        const grants = grantOn(/secret:DatabaseCredentialsSecret/);
+
+        expect(grants).toHaveLength(1);
+        expect(grants[0]?.Effect).toBe('Allow');
+        expect(asList(grants[0]?.Action)).toEqual(['secretsmanager:DescribeSecret']);
+        expect(grants[0]?.Condition).toEqual({ StringEquals: { [tag]: 'kitchensink-data-sandbox' } });
+    });
+
+    it('nonprod reads the remote-search signing key only of the sandbox remote-search stack', () => {
+        const grants = grantOn(/secret:SigningKey/);
+
+        expect(grants).toHaveLength(1);
+        expect([...asList(grants[0]?.Action)].sort()).toEqual([
             'secretsmanager:DescribeSecret',
             'secretsmanager:GetSecretValue',
         ]);
-        expect(reads[0]?.Condition).toEqual({
-            StringEquals: {
-                'secretsmanager:ResourceTag/aws:cloudformation:stack-name': [
-                    'kitchensink-data-sandbox',
-                    'kitchensink-remote-search-shared-sandbox',
-                ],
-            },
-        });
+        expect(grants[0]?.Condition).toEqual({ StringEquals: { [tag]: 'kitchensink-remote-search-shared-sandbox' } });
     });
 });
 
@@ -371,6 +378,11 @@ describe('GithubActionsAccessStack: the non-prod role reaches only what CI tears
 
         // `verifyDeployment.sh` probes every bucket a deployed Lambda names, and the remote-search tier reads its
         // function URL. Each is a read, and each stays off production by name.
+        [
+            'secretsmanager:GetSecretValue',
+            `arn:aws:secretsmanager:${region}:${account}:secret:DatabaseCredentialsSecret74-JXzjVhUdYcPm`,
+            false,
+        ],
         ['s3:ListBucket', 'arn:aws:s3:::kitchensink-data-sandbox-mediabucketbcbb02ba-h6ybojnuslif', true],
         ['s3:ListBucket', 'arn:aws:s3:::kitchensink-data-sandbox-archivebucket9decbf5d-xiovfhbzw8eh', true],
         ['s3:ListBucket', 'arn:aws:s3:::kitchensink-data-prod-mediabucketbcbb02ba-0000000000aa', false],

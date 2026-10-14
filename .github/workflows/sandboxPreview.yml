@@ -53,7 +53,7 @@ jobs:
         name: Decide whether this preview deploys
         runs-on: ubuntu-latest
         # Outlives `sandboxWake.sh check`'s worst case plus the gate's own work (`sandboxWakeWiring.test.ts`).
-        timeout-minutes: 60
+        timeout-minutes: 90
         permissions:
             contents: read
             packages: read # the food CDK package's install reads `@radicle-co/infra-shared` from GitHub Packages
@@ -85,6 +85,7 @@ jobs:
                   tier: nonprod
                   account-id: ${{ vars.AWS_ACCOUNT_ID }}
                   region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '90'
 
             # Each group also watches the workspace libraries its service links: a change to one of them alone
             # (a CORS or `azp` rule in `clerk-verify`) must redeploy a live preview, or the gate below keeps the

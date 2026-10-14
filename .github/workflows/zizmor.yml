@@ -139,7 +139,15 @@
 #   check nobody reads" failure that `deployGateStepGuards.test.ts` was written for on the same day. A red
 #   gate is only a gate while someone acts on it.
 #
-# CURRENT MEASUREMENT (2026-09-02, offline, after the repair above AND after `docs.yml` grew its deploy
+# CURRENT MEASUREMENT (2026-10-13, offline, after the non-prod jobs moved to `awsAuth`, ADR-0063): 0 shown at
+#   EVERY severity at `pedantic`. At `auditor` the only class is `secrets-outside-env`, on: the three reclamation
+#   jobs (`sandboxCleanup`, `sandboxDown`, `sandboxReapClosed` — unbound by design, and what they read now is the
+#   Vercel and GitHub tokens, not AWS); `deployedE2e`'s `resolve` and `food-loadtest`, which read the AWS key only
+#   for a production target until commit C of `docs/plans/2026-10-13-005-feat-ci-oidc-workflows-plan.md`; and
+#   `claude` / `claude-code-review`. Every job that moved to `awsAuth` left this audit, because a role assumed
+#   through OIDC is not a secret.
+#
+# PRIOR MEASUREMENT (2026-09-02, offline, after the repair above AND after `docs.yml` grew its deploy
 #   job): **38 findings — 22 declared per-site ignores, 16 suppressed, 0 shown at EVERY severity.**
 #   `--persona pedantic --min-severity informational --strict-collection .github/` exits 0. The growth
 #   from the 2026-08-11 line below is workflow growth (more `services:` containers and more checkouts),
@@ -190,7 +198,8 @@
 #       Environment binding can narrow it back down. Note this audit does NOT see workflow-level reads at
 #       all, so that change moved no number — it was made on its own merits.
 #
-#   ⚠️ BE HONEST ABOUT WHAT THE SANDBOX HALF BUYS TODAY: LESS THAN THE ZERO SUGGESTS. `AWS_ACCESS_KEY_ID` and
+#   ⚠️ BE HONEST ABOUT WHAT THE SANDBOX HALF BOUGHT THEN: LESS THAN THE ZERO SUGGESTED (2026-08-11; the boundary
+#   since moved to the OIDC roles of ADR-0063, which the non-prod jobs now assume). `AWS_ACCESS_KEY_ID` and
 #   `AWS_SECRET_ACCESS_KEY` are ORGANIZATION secrets (verified: `gh api
 #   repos/:owner/:repo/actions/organization-secrets`), and an org secret CANNOT be scoped to an Environment —
 #   environment secrets are repo-level only. So every job in every workflow here can still reach those keys

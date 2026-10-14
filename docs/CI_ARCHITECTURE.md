@@ -146,8 +146,8 @@ ECS Container Insights log groups, out-of-band ECR repos). See
     The **CI** workflows (`_ci`, `ci-pr`, `ci-main`, `ci-full`, `_ci-heavy`, `deployedE2eTiers`, the loadtests, `claude*`) are
     deliberately left **unbound** too: none is a deployment, binding them to a zero-protection environment
     would silence zizmor's `secrets-outside-env` without moving any boundary, and binding them to a
-    protected one would make every PR wait on a human. The residual — **12** findings, 8 reclamation and 4
-    CI/automation — is recorded as residual in `zizmor.yml`'s ledger rather than annotated away. Note for whoever does step 1: environment secrets cannot be forwarded via
+    protected one would make every PR wait on a human. The residual is recorded in `zizmor.yml`'s ledger rather
+    than annotated away. Note for whoever does step 1: environment secrets cannot be forwarded via
     `workflow_call`, so an `environment:` key intended to scope a secret must live in `_ci.yml` itself,
     not in its callers.
 

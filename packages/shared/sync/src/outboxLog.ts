@@ -410,7 +410,7 @@ export function discardEntity(log: OutboxLog, incoming: Intent): OutboxLog {
  * What a cook's confirmed Discard asks of the outbox. Both go through {@link applyDiscard}, in one mutation.
  */
 export type DiscardRequest =
-    /** Delete the entity: its parked records are withdrawn and the delete is queued ({@link discardEntity}). */
+    /** Delete the entity: its parked records are withdrawn and the delete is queued (`discardEntity`). */
     | { readonly kind: 'entity'; readonly intent: Intent }
     /** Drop ONE parked write, the one the confirm described (a published recipe's earlier Save changes). */
     | { readonly kind: 'parkedWrite'; readonly seq: number };

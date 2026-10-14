@@ -44,6 +44,9 @@ const auth = vi.hoisted(() => ({ userId: 'user_cook' }));
 
 vi.mock('@clerk/expo', () => ({ useAuth: () => ({ userId: auth.userId }) }));
 
+// The editor's error reporter reaches the Sentry SDK, which needs the native runtime; the reporter is its own unit.
+vi.mock('../../src/observability/sentryErrorReporter.js', () => ({ reportErrorToSentry: vi.fn() }));
+
 // The device draft over a memory store: this suite is about the screen and the outbox, not AsyncStorage.
 vi.mock('../../src/storage/editorDrafts.js', async () => {
     const { draftStoreFor } = await import('@commise/features-recipes');

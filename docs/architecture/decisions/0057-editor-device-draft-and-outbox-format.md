@@ -180,8 +180,11 @@ The rules on top of the format:
 - **A re-send that cannot write twice is the only re-send of a parked record.** Three cases qualify: a transient
   refusal; `401`, where the sender refused because its cook had no credential (signed out, or a token that could not be
   minted, `TokenMintFailedError`); and a delete of any outcome that stated no refusal. A delete cannot write twice: if
-  its first copy landed, the second meets a `404`, which the sender reads as done. That reading depends on there being
-  no route that undeletes a recipe. An unknown outcome of a create or an update, a conflict and a terminal refusal
+  its first copy landed, the second meets `404 RECIPE_NOT_FOUND`, which the sender reads as done. Only the service's
+  own code means that: the shared ALB answers a host with no rule with a code-less `404` (ADR-0003), and read as done
+  it would settle away the parked writes of a recipe that still exists, so every other `404` stays a failure
+  (`isRecipeNotFoundError`, `@kitchensink/recipe-service-client`). That reading depends on there being no route that
+  undeletes a recipe. An unknown outcome of a create or an update, a conflict and a terminal refusal
   wait for the cook.
 - **A record on the wire is never replaced, and neither is a parked one.** A parked record is work the cook was told
   about and has not decided on — a create parked with an unknown outcome may exist on the server, and replacing its
@@ -365,7 +368,7 @@ subject)` (`@commise/features-recipes`, both apps bind it to their store) clears
   `useEditorPage.test.tsx` (the background as an event).
 - Discard leaves nothing syncing: `outboxLog.test.ts` (`withdrawMoot` by status and delete state, a synced delete's
   withdrawals, `discardEntity`, `withdraw` of a blocked delete), `drainer.test.ts` (an unknown delete is re-sent, an
-  unknown create or update is not), `recipeSender.test.ts` (a delete's `404` is done, a failed mint is `401`),
+  unknown create or update is not), `recipeSender.test.ts` (a delete's `RECIPE_NOT_FOUND` is done and a code-less `404` is not, a failed mint is `401`),
   `syncProvider.test.tsx` (`discard` is one mutation and cannot lose the race), `offlineWritePath.integration.test.tsx`
   and `editorDiscard.integration.test.tsx` over the real outbox, `editorIntents.test.ts` and `editorChrome.test.ts`
   (the published Discard), `RecipeServiceGate.native.test.tsx` (an expired session keeps and resumes the cook's saves),

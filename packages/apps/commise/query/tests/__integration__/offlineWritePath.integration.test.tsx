@@ -25,6 +25,7 @@ import {
     loadOutbox,
     markSending,
     saveOutbox,
+    settle,
     type Intent,
     type OutboxStore,
 } from '@kitchensink/sync';
@@ -437,12 +438,16 @@ describe('a Discard settles the outbox through the real client (integration)', (
         ]);
     });
 
-    it('⛔ a delete times out and parks, is sent again, gets 404, and the log ends empty', async () => {
+    /**
+     * REWRITTEN (GATE round 3, B1): the second answer was `NOT_FOUND`, the service's route-level code, which says
+     * nothing about the recipe. Only `RECIPE_NOT_FOUND` means the first copy landed.
+     */
+    it('⛔ a delete times out and parks, is sent again, gets RECIPE_NOT_FOUND, and the log ends empty', async () => {
         const network = scriptedFetch([
             () => {
                 throw new TypeError('network timeout');
             },
-            () => Response.json({ code: 'NOT_FOUND', message: 'gone' }, { status: 404 }),
+            () => Response.json({ code: 'RECIPE_NOT_FOUND', message: 'Recipe srv-soup not found.' }, { status: 404 }),
         ]);
         const store = createMemoryOutboxStore();
         await saveOutbox(store, 'user_a', appendIntent(EMPTY_OUTBOX, deleteOf('srv-soup')));
@@ -463,5 +468,48 @@ describe('a Discard settles the outbox through the real client (integration)', (
             'DELETE /api/v1/recipes/srv-soup',
             'DELETE /api/v1/recipes/srv-soup',
         ]);
+    });
+
+    /**
+     * ⛔ A 404 THE SERVICE DID NOT SAY IS NOT "ALREADY DELETED". With `recipe-pr-{N}` torn down, the shared ALB
+     * answers the host with a code-less `text/plain` 404 (ADR-0003). Read as done, the delete synced and settled away
+     * the parked update of a recipe that still exists.
+     */
+    it("⛔ a delete that gets the ALB's text/plain 404 parks, and the recipe's parked update survives", async () => {
+        const network = scriptedFetch([
+            () => new Response('Not Found', { status: 404, headers: { 'content-type': 'text/plain' } }),
+        ]);
+        const store = createMemoryOutboxStore();
+        const update: Intent = {
+            ...updateIntent('Edited'),
+            localId: 'srv-soup',
+            dependsOn: [],
+            payload: { id: 'srv-soup', input: { expectedVersion: 1, title: 'Edited' } },
+        };
+        // A conflict park: the drain does not re-send it, so only the delete reaches the wire.
+        const seeded = appendIntent(
+            settle(appendIntent(EMPTY_OUTBOX, update), { seq: 1, outcome: 'parked', status: 409 }),
+            deleteOf('srv-soup'),
+        );
+        await saveOutbox(store, 'user_a', seeded);
+        expect(seeded.records.map((record) => [record.intentKind, record.state])).toStrictEqual([
+            ['update', 'parked'],
+            ['delete', 'pending'],
+        ]);
+
+        mount(store, network.fetch);
+
+        await waitFor(() => expect(screen.getByText('failed:2')).toBeTruthy());
+        expect(
+            (await loadOutbox(store, 'user_a')).records.map((record) => [
+                record.intentKind,
+                record.state,
+                record.lastStatus,
+            ]),
+        ).toStrictEqual([
+            ['update', 'parked', 409],
+            ['delete', 'parked', 404],
+        ]);
+        expect(wire(network.calls)).toStrictEqual(['DELETE /api/v1/recipes/srv-soup']);
     });
 });

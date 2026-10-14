@@ -24,7 +24,7 @@
 import { isSessionSubjectChangedError, isTokenMintFailedError } from '@commise/features-account';
 import {
     isInvalidRequestError,
-    isNotFoundError,
+    isRecipeNotFoundError,
     isRecipeServiceClientError,
     isVersionConflictError,
     type RecipeServiceClient,
@@ -97,12 +97,15 @@ async function dispatch(client: RecipeServiceClient, record: OutboxRecord): Prom
             try {
                 await client.deleteRecipe(id);
             } catch (error) {
-                // ⛔ A DELETE THAT MEETS A 404 IS DONE: its goal state is "the recipe is gone", and a re-sent delete
-                // whose first copy landed (an unknown outcome the drain sends again) answers exactly that. THIS RESTS ON
-                // THERE BEING NO ROUTE THAT UNDELETES A RECIPE (a delete is soft, a second one gets 404): the day one
-                // exists, a 404 could mean "not there yet" and this mapping must go. Create and update keep a 404 as a
+                // ⛔ A DELETE THAT MEETS THE SERVICE'S OWN "NO SUCH RECIPE" IS DONE: its goal state is "the recipe
+                // is gone", and a re-sent delete whose first copy landed (an unknown outcome the drain sends again)
+                // answers exactly that. THIS RESTS ON THERE BEING NO ROUTE THAT UNDELETES A RECIPE (a delete is soft, a
+                // second one gets `404 RECIPE_NOT_FOUND`): the day one exists, that answer could mean "not there yet"
+                // and this mapping must go. ⛔ ANY OTHER 404 STAYS A FAILURE: the shared ALB's code-less 404 for a host
+                // with no rule (a torn-down `recipe-pr-{N}`) says nothing about the recipe, and read as done it would
+                // settle away every parked write of a recipe that still exists. Create and update keep every 404 as a
                 // failure — there, an absent recipe means the write did not happen.
-                if (!isNotFoundError(error)) {
+                if (!isRecipeNotFoundError(error)) {
                     throw error;
                 }
             }

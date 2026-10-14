@@ -51,7 +51,13 @@ export type SendResult<A = unknown> =
           readonly answer?: A;
       };
 
-/** Sends one record. Injected, so the domain never learns which client or which transport. */
+/**
+ * Sends one record. Injected, so the domain never learns which client or which transport.
+ *
+ * ⛔ A SENDER ANSWERS AN ALREADY-APPLIED DELETE AS `ok`, AND ONLY ON THE SERVICE'S OWN CODE for "no such entity"
+ * (`RECIPE_NOT_FOUND`). A bare 404 may come from something in front of the service (an ALB with no rule for the host),
+ * and a delete reported `ok` settles away every parked write of its entity (`settle`).
+ */
 export type Sender<A = unknown> = (record: OutboxRecord) => Promise<SendResult<A>>;
 
 /**
@@ -140,9 +146,9 @@ export const MAX_INLINE_WAIT_MS = 10_000;
  *
  * ⛔ A PARKED RECORD IS RE-SENT ONLY WHEN THAT CANNOT WRITE TWICE: a transient refusal (the server did not process
  * it), `401` (the sender refused before sending, because its cook was signed out), or a DELETE of any outcome but a
- * stated refusal (its second copy meets a 404). An unknown outcome of anything else, a conflict and a terminal refusal
- * wait for the cook — re-sending an unknown outcome on the next reconnect is the blind retry
- * this module's rule forbids, one trigger later.
+ * stated refusal (its second copy meets the service's own 404). An unknown outcome of anything else, a conflict and
+ * a terminal refusal wait for the cook — re-sending an unknown outcome on the next reconnect is the blind retry this
+ * module's rule forbids, one trigger later.
  */
 function sendable(record: OutboxRecord): boolean {
     // ⛔ Drains are serialized, so a record already `sending` is one whose answer was never written down: unknown.
@@ -159,7 +165,8 @@ function sendable(record: OutboxRecord): boolean {
     }
 
     // ⛔ A DELETE CANNOT WRITE TWICE, so an unknown outcome may be sent again: if the first copy landed, the second meets
-    // a 404, which the sender reads as done. This depends on there being no route that undeletes a recipe (ADR-0057).
+    // the service's own "no such recipe" 404, which the sender reads as done. This depends on there being no route that
+    // undeletes a recipe (ADR-0057).
     if (record.intentKind === 'delete' && record.lastStatus === undefined) {
         return true;
     }

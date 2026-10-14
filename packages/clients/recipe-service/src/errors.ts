@@ -100,6 +100,21 @@ export function isNotFoundError(error: unknown): error is NotFoundError {
 }
 
 /**
+ * Whether the recipe service ITSELF answered that no active recipe has the id: a {@link NotFoundError} carrying
+ * `RECIPE_NOT_FOUND` (a soft-deleted recipe answers the same).
+ *
+ * ⛔ A 404 ALONE IS NOT THAT. The shared ALB answers a host with no listener rule with a code-less `text/plain` 404
+ * (ADR-0003), and the service answers a path it does not route with `NOT_FOUND`; neither says anything about the
+ * recipe. A caller that reads "the recipe is gone" from a 404 reads it here.
+ *
+ * @param error - The rejection.
+ * @returns Whether it is the service's own "no such recipe". Pure.
+ */
+export function isRecipeNotFoundError(error: unknown): error is NotFoundError {
+    return isNotFoundError(error) && error.code === 'RECIPE_NOT_FOUND';
+}
+
+/**
  * `409` — optimistic-concurrency conflict on a recipe update or version restore (`VERSION_CONFLICT`).
  * Carries the server's `currentVersion` and the client's `conflictingVersion` (from the response
  * `details`) so a caller can reconcile without re-reading the recipe.

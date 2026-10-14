@@ -72,6 +72,7 @@ export {
     isNotFoundError,
     isParseJobExpiredError,
     isPullDriftError,
+    isRecipeNotFoundError,
     isRecipeServiceClientError,
     isUnauthorizedError,
     isUnexpectedResponseError,

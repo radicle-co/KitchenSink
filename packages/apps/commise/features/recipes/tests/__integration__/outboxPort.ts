@@ -24,7 +24,7 @@ import {
     type SettlementEvent,
 } from '@kitchensink/sync';
 import {
-    isNotFoundError,
+    isRecipeNotFoundError,
     isRecipeServiceClientError,
     isVersionConflictError,
     type RecipeServiceClient,
@@ -57,8 +57,9 @@ async function send(client: RecipeServiceClient, record: OutboxRecord): Promise<
 
         return { outcome: 'ok', serverId: payload.id ?? record.localId };
     } catch (error) {
-        // A delete that meets a 404 is done, as the app's `recipeSender` reads it (no route undeletes a recipe).
-        if (record.intentKind === 'delete' && isNotFoundError(error)) {
+        // A delete that meets the service's own `RECIPE_NOT_FOUND` is done, as the app's `recipeSender` reads it (no route
+        // undeletes a recipe); any other 404 stays a failure.
+        if (record.intentKind === 'delete' && isRecipeNotFoundError(error)) {
             return { outcome: 'ok', serverId: payload.id ?? record.localId };
         }
 

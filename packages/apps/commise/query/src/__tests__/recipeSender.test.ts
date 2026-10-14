@@ -238,16 +238,31 @@ describe('recipeSender', () => {
 });
 
 /**
- * ⛔ A DELETE THAT MEETS A 404 IS DONE. The goal state of a delete is "the recipe is gone", and a second copy of a delete
- * that landed (an unknown outcome re-sent) answers 404. No route undeletes a recipe, so the 404 cannot mean "not yet".
- * Create and update keep a 404 as a failure: there the recipe being absent means the write did not happen.
+ * ⛔ A DELETE THAT MEETS THE SERVICE'S OWN "NO SUCH RECIPE" IS DONE. The goal state of a delete is "the recipe is gone",
+ * and a second copy of a delete that landed (an unknown outcome re-sent) answers `404 RECIPE_NOT_FOUND`. No route
+ * undeletes a recipe, so that answer cannot mean "not yet". Create and update keep a 404 as a failure: there the recipe
+ * being absent means the write did not happen.
+ *
+ * REWRITTEN (GATE round 3, B1): this suite read ANY 404 of a delete as done. The shared ALB's code-less `text/plain`
+ * 404 for a torn-down `recipe-pr-{N}` host, and the service's route-level `NOT_FOUND`, then reported a Discard as done
+ * while the recipe still existed, and the synced delete settled away every parked write of it.
  */
 describe('recipeSender — a delete that meets a 404', () => {
-    it('is ok, and names the id it addressed', async () => {
-        const deleteRecipe = vi.fn().mockRejectedValue(new NotFoundError('gone'));
+    it('is ok when the service says RECIPE_NOT_FOUND, and names the id it addressed', async () => {
+        const deleteRecipe = vi.fn().mockRejectedValue(new NotFoundError('gone', 'RECIPE_NOT_FOUND'));
         const send = recipeSender(() => ({ deleteRecipe }) as never);
 
         expect(await send(record('delete', { id: 'r1' }))).toStrictEqual({ outcome: 'ok', serverId: 'r1' });
+    });
+
+    it.each([
+        ['no code (the ALB answering a host with no rule)', new NotFoundError('Not Found')],
+        ['the route-level NOT_FOUND', new NotFoundError('no route', 'NOT_FOUND')],
+    ])('⛔ stays a failed 404 with %s', async (_name, error) => {
+        const deleteRecipe = vi.fn().mockRejectedValue(error);
+        const send = recipeSender(() => ({ deleteRecipe }) as never);
+
+        expect(await send(record('delete', { id: 'r1' }))).toStrictEqual({ outcome: 'failed', status: 404 });
     });
 
     it('⛔ does not turn other refusals of a delete into success', async () => {

@@ -394,7 +394,6 @@ recipes/addStepFocus=45
 recipes/ingredientUnmatched=75
 recipes/ingredientNutritionPanel=85
 recipes/ingredientRemove=88
-recipes/ingredientArrival=140
 recipes/ingredientAddDetails=97
 recipes/ingredientVariantSearch=103
 recipes/ingredientRowVariant=82

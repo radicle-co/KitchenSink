@@ -827,3 +827,98 @@ describe('SyncProvider — the editor`s exclusive submit, replies and withdrawal
         expect(send).toHaveBeenCalledTimes(1);
     });
 });
+
+/**
+ * `SyncQueue.discard` — the cook's confirmed Discard as ONE change (`discardEntity`). The editor used to withdraw a
+ * parked record and then submit the delete as two calls; a create that parked between them made the second throw
+ * (`supersede` refuses a parked record), the rejection was swallowed, and the parked create was orphaned with no delete.
+ */
+describe('SyncProvider — discard', () => {
+    const REF = 'local:recipe:r1';
+    const deleteOf = (localId: string, dependsOn: readonly string[] = []): Intent => ({
+        entity: 'recipe',
+        intentKind: 'delete',
+        localId,
+        dependsOn,
+        payload: { id: localId },
+    });
+
+    it('⛔ is one mutation: a parked update goes and the delete is queued in a single write to storage', async () => {
+        const store = createMemoryOutboxStore();
+        const parked = settle(appendIntent(EMPTY_OUTBOX, updateOf('rec_1')), {
+            seq: 1,
+            outcome: 'parked',
+            status: 500,
+        });
+
+        await saveOutbox(store, 'user_a', parked);
+        act(() => {
+            onlineManager.setOnline(false);
+        });
+
+        const { current, Capture } = captureQueue();
+
+        render(
+            <SyncProvider subject="user_a" send={vi.fn() as never} store={store}>
+                <Capture />
+            </SyncProvider>,
+        );
+        await waitFor(() => expect(screen.getByText('failed:1')).toBeTruthy());
+
+        const setItem = vi.spyOn(store, 'setItem');
+
+        await act(async () => {
+            await current().discard(deleteOf('rec_1'));
+        });
+
+        expect(setItem).toHaveBeenCalledTimes(1);
+        const stored = await loadOutbox(store, 'user_a');
+
+        expect(stored.records.map((record) => [record.intentKind, record.state])).toStrictEqual([
+            ['delete', 'pending'],
+        ]);
+    });
+
+    it('⛔ when the create parked between the editor`s decision and discard, nothing rejects and the log ends empty', async () => {
+        const send = vi.fn(async (): Promise<SendResult> => ({ outcome: 'failed' }));
+        const { current, Capture } = captureQueue();
+
+        render(
+            <SyncProvider subject="user_a" send={send as never}>
+                <Capture />
+            </SyncProvider>,
+        );
+
+        await act(async () => {
+            await current().submitExclusive({
+                entity: 'recipe',
+                intentKind: 'create',
+                localId: REF,
+                produces: REF,
+                dependsOn: [],
+                payload: {},
+            });
+        });
+        await waitFor(() => expect(screen.getByText('failed:1')).toBeTruthy());
+
+        await act(async () => {
+            await expect(current().discard(deleteOf(REF, [REF]))).resolves.toBeUndefined();
+        });
+
+        await waitFor(() => expect(screen.getByText('pending:0')).toBeTruthy());
+        expect(screen.getByText('failed:0')).toBeTruthy();
+        expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects with no signed-in subject, like the other writes', async () => {
+        const { current, Capture } = captureQueue();
+
+        render(
+            <SyncProvider subject={undefined} send={vi.fn() as never}>
+                <Capture />
+            </SyncProvider>,
+        );
+
+        await expect(current().discard(deleteOf('rec_1'))).rejects.toThrow(/no signed-in subject/);
+    });
+});

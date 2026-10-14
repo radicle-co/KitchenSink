@@ -16,7 +16,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { SessionSubjectChangedError } from '@commise/features-account';
-import { BadRequestError, InvalidRequestError, VersionConflictError } from '@kitchensink/recipe-service-client';
+import {
+    BadRequestError,
+    ForbiddenError,
+    InvalidRequestError,
+    NotFoundError,
+    VersionConflictError,
+} from '@kitchensink/recipe-service-client';
 import type { VersionConflictSide } from '@kitchensink/recipe-core';
 import { makeRecipeVersion } from '@kitchensink/recipe-core/testing';
 import { classifyFailure, type OutboxRecord } from '@kitchensink/sync';
@@ -208,5 +214,36 @@ describe('recipeSender', () => {
         const send = recipeSender(() => undefined);
 
         await expect(send(record('update', { id: 'r1', input: {} }))).rejects.toThrow(/no client/iu);
+    });
+});
+
+/**
+ * ⛔ A DELETE THAT MEETS A 404 IS DONE. The goal state of a delete is "the recipe is gone", and a second copy of a delete
+ * that landed (an unknown outcome re-sent) answers 404. No route undeletes a recipe, so the 404 cannot mean "not yet".
+ * Create and update keep a 404 as a failure: there the recipe being absent means the write did not happen.
+ */
+describe('recipeSender — a delete that meets a 404', () => {
+    it('is ok, and names the id it addressed', async () => {
+        const deleteRecipe = vi.fn().mockRejectedValue(new NotFoundError('gone'));
+        const send = recipeSender(() => ({ deleteRecipe }) as never);
+
+        expect(await send(record('delete', { id: 'r1' }))).toStrictEqual({ outcome: 'ok', serverId: 'r1' });
+    });
+
+    it('⛔ does not turn other refusals of a delete into success', async () => {
+        const deleteRecipe = vi.fn().mockRejectedValue(new ForbiddenError('no'));
+        const send = recipeSender(() => ({ deleteRecipe }) as never);
+
+        expect(await send(record('delete', { id: 'r1' }))).toStrictEqual({ outcome: 'failed', status: 403 });
+    });
+
+    it.each([
+        ['create', 'createRecipe'],
+        ['update', 'updateRecipe'],
+    ])('⛔ keeps a 404 of a %s a failure', async (kind, method) => {
+        const call = vi.fn().mockRejectedValue(new NotFoundError('gone'));
+        const send = recipeSender(() => ({ [method]: call }) as never);
+
+        expect(await send(record(kind, { id: 'r1', input: {} }))).toStrictEqual({ outcome: 'failed', status: 404 });
     });
 });

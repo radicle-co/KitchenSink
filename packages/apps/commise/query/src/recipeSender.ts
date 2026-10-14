@@ -24,6 +24,7 @@
 import { isSessionSubjectChangedError } from '@commise/features-account';
 import {
     isInvalidRequestError,
+    isNotFoundError,
     isRecipeServiceClientError,
     isVersionConflictError,
     type RecipeServiceClient,
@@ -92,7 +93,18 @@ async function dispatch(client: RecipeServiceClient, record: OutboxRecord): Prom
         }
 
         case 'delete': {
-            await client.deleteRecipe(id);
+            try {
+                await client.deleteRecipe(id);
+            } catch (error) {
+                // ⛔ A DELETE THAT MEETS A 404 IS DONE: its goal state is "the recipe is gone", and a re-sent delete
+                // whose first copy landed (an unknown outcome the drain sends again) answers exactly that. THIS RESTS ON
+                // THERE BEING NO ROUTE THAT UNDELETES A RECIPE (a delete is soft, a second one gets 404): the day one
+                // exists, a 404 could mean "not there yet" and this mapping must go. Create and update keep a 404 as a
+                // failure — there, an absent recipe means the write did not happen.
+                if (!isNotFoundError(error)) {
+                    throw error;
+                }
+            }
 
             return { outcome: 'ok', serverId: id };
         }

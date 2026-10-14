@@ -106,11 +106,28 @@ const updateIntent = (title: string): Intent => ({
     payload: { id: 'local:recipe:soup', input: { expectedVersion: 1, title } },
 });
 
-function Harness({ intents }: { readonly intents: readonly Intent[] }): ReactElement {
+function Harness({
+    intents,
+    discards = [],
+}: {
+    readonly intents: readonly Intent[];
+    readonly discards?: readonly Intent[];
+}): ReactElement {
     const queue = useSyncQueue();
 
     return (
         <>
+            {discards.map((intent, index) => (
+                <button
+                    key={`discard-${String(index)}`}
+                    type="button"
+                    onClick={() => {
+                        void queue.discard(intent);
+                    }}
+                >
+                    {`discard ${String(index)}`}
+                </button>
+            ))}
             {intents.map((intent, index) => (
                 <button
                     key={`${intent.intentKind}-${String(index)}`}
@@ -128,12 +145,17 @@ function Harness({ intents }: { readonly intents: readonly Intent[] }): ReactEle
     );
 }
 
-function mount(store: OutboxStore, fetchDouble: typeof fetch, intents: readonly Intent[] = []): void {
+function mount(
+    store: OutboxStore,
+    fetchDouble: typeof fetch,
+    intents: readonly Intent[] = [],
+    discards: readonly Intent[] = [],
+): void {
     const client = new RecipeServiceClient({ baseUrl: BASE, fetch: fetchDouble, token: 'token' });
 
     render(
         <SyncProvider subject="user_a" send={recipeSender(() => client)} store={store}>
-            <Harness intents={intents} />
+            <Harness intents={intents} discards={discards} />
         </SyncProvider>,
     );
 }
@@ -328,5 +350,118 @@ describe('the offline write path (integration)', () => {
 
         await waitFor(() => expect(network.calls).toHaveLength(2), { timeout: 5_000 });
         await waitFor(() => expect(screen.getByText('pending:0')).toBeTruthy());
+    });
+});
+
+/**
+ * A Discard that cannot leave a record behind (the stuck "Syncing 1"). Each case ends with an EMPTY outbox and the wire
+ * traffic the ADR allows: no second POST, and no DELETE for a recipe that was never made.
+ */
+describe('a Discard settles the outbox through the real client (integration)', () => {
+    const deleteOf = (localId: string, dependsOn: readonly string[] = []): Intent => ({
+        entity: 'recipe',
+        intentKind: 'delete',
+        localId,
+        dependsOn,
+        payload: { id: localId },
+    });
+    const wire = (calls: readonly Call[]): string[] => calls.map((call) => `${call.method} ${call.path}`);
+
+    it('⛔ a create times out with a delete queued behind it: the log ends empty, no second POST, no DELETE', async () => {
+        let fail: (() => void) | undefined;
+        const network = scriptedFetch([
+            async () => {
+                await new Promise<void>((_resolve, reject) => {
+                    fail = () => {
+                        reject(new TypeError('network timeout'));
+                    };
+                });
+
+                return detail('never', 1);
+            },
+        ]);
+        const store = createMemoryOutboxStore();
+
+        mount(store, network.fetch, [createIntent], [deleteOf('local:recipe:soup', ['local:recipe:soup'])]);
+        await press('submit 0');
+        await waitFor(() => expect(network.calls).toHaveLength(1));
+
+        await press('discard 0');
+        expect((await loadOutbox(store, 'user_a')).records.map((record) => record.intentKind)).toStrictEqual([
+            'create',
+            'delete',
+        ]);
+
+        await act(async () => {
+            fail?.();
+        });
+
+        await waitFor(async () => expect((await loadOutbox(store, 'user_a')).records).toStrictEqual([]));
+        await waitFor(() => expect(screen.getByText('pending:0')).toBeTruthy());
+        expect(wire(network.calls)).toStrictEqual(['POST /api/v1/recipes']);
+    });
+
+    it('⛔ an update gets 409 with the delete behind it, the delete gets 204: the log ends empty', async () => {
+        let conflict: (() => void) | undefined;
+        const network = scriptedFetch([
+            async () => {
+                await new Promise<void>((resolve) => {
+                    conflict = resolve;
+                });
+
+                return Response.json({ code: 'VERSION_CONFLICT', message: 'stale' }, { status: 409 });
+            },
+            () => new Response(null, { status: 204 }),
+        ]);
+        const store = createMemoryOutboxStore();
+        const update: Intent = {
+            ...updateIntent('Edited'),
+            localId: 'srv-soup',
+            dependsOn: [],
+            payload: { id: 'srv-soup', input: { expectedVersion: 1, title: 'Edited' } },
+        };
+
+        mount(store, network.fetch, [update], [deleteOf('srv-soup')]);
+        await press('submit 0');
+        await waitFor(() => expect(network.calls).toHaveLength(1));
+
+        await press('discard 0');
+        await act(async () => {
+            conflict?.();
+        });
+
+        await waitFor(async () => expect((await loadOutbox(store, 'user_a')).records).toStrictEqual([]));
+        expect(wire(network.calls)).toStrictEqual([
+            'PATCH /api/v1/recipes/srv-soup',
+            'DELETE /api/v1/recipes/srv-soup',
+        ]);
+    });
+
+    it('⛔ a delete times out and parks, is sent again, gets 404, and the log ends empty', async () => {
+        const network = scriptedFetch([
+            () => {
+                throw new TypeError('network timeout');
+            },
+            () => Response.json({ code: 'NOT_FOUND', message: 'gone' }, { status: 404 }),
+        ]);
+        const store = createMemoryOutboxStore();
+        await saveOutbox(store, 'user_a', appendIntent(EMPTY_OUTBOX, deleteOf('srv-soup')));
+
+        mount(store, network.fetch);
+        await waitFor(() => expect(screen.getByText('failed:1')).toBeTruthy());
+        expect((await loadOutbox(store, 'user_a')).records.map((record) => record.state)).toStrictEqual(['parked']);
+
+        await act(async () => {
+            onlineManager.setOnline(false);
+        });
+        await act(async () => {
+            onlineManager.setOnline(true);
+        });
+
+        await waitFor(async () => expect((await loadOutbox(store, 'user_a')).records).toStrictEqual([]));
+        expect(wire(network.calls)).toStrictEqual([
+            'DELETE /api/v1/recipes/srv-soup',
+            'DELETE /api/v1/recipes/srv-soup',
+        ]);
     });
 });

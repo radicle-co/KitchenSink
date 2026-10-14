@@ -19,6 +19,7 @@ import {
     appendIntent,
     claimForSending,
     createMemoryOutboxStore,
+    discardEntity,
     drain,
     outboxMutatorFor,
     settle,
@@ -79,6 +80,12 @@ export interface SyncQueue {
     /** Remove a parked write: the cook decided what happens to it. Rejects for a record that is not parked. */
     readonly withdraw: (seq: number) => Promise<void>;
     /**
+     * The cook's confirmed Discard, as ONE change: every parked record of the entity the delete makes moot is withdrawn
+     * and the delete is queued (`discardEntity`). It never rejects for a parked record — the Discard is the consent
+     * `submit`'s delete refuses to assume — and it cannot lose a race with a create that parks meanwhile.
+     */
+    readonly discard: (intent: Intent) => Promise<void>;
+    /**
      * Hear each record's settlement as the drain writes it. Returns the unsubscribe. ⛔ Events are not replayed: a
      * listener learns only what settles while it is subscribed, and the durable facts live in the stores.
      */
@@ -99,6 +106,7 @@ const NOT_MOUNTED: SyncQueue = {
     submit: refuseUnmounted,
     submitExclusive: refuseUnmounted,
     withdraw: refuseUnmounted,
+    discard: refuseUnmounted,
     subscribe: () => () => undefined,
     resolutionOf: () => undefined,
     pendingCount: 0,
@@ -420,17 +428,31 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
         [subject],
     );
 
+    const discard = useCallback(
+        async (intent: Intent): Promise<void> => {
+            if (subject === undefined) {
+                throw new Error('sync: discard called with no signed-in subject');
+            }
+
+            // ⛔ ONE MUTATION: the withdrawals and the delete cannot be separated by a drain's settlement.
+            await outboxMutatorFor(storeRef.current, subject).mutate((current) => discardEntity(current, intent));
+            void flush();
+        },
+        [flush, subject],
+    );
+
     const value = useMemo<SyncQueue>(
         () => ({
             submit,
             submitExclusive,
             withdraw,
+            discard,
             subscribe: bus.subscribe,
             resolutionOf: (ref) => log.resolutions[ref],
             pendingCount: log.records.length,
             failures: failuresOf(log),
         }),
-        [bus, log, submit, submitExclusive, withdraw],
+        [bus, discard, log, submit, submitExclusive, withdraw],
     );
 
     return <SyncQueueContext.Provider value={value}>{children}</SyncQueueContext.Provider>;

@@ -13,12 +13,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     isSessionSubjectChangedError,
-    isTokenMintFailedError,
     SessionSubjectChangedError,
     subjectBoundToken,
-    TokenMintFailedError,
     type SessionSubjectSource,
 } from '../subjectBoundToken.js';
+import { isTokenMintFailedError, TokenMintFailedError } from '../tokenMintFailedError.js';
 
 /** A mutable identity client whose live session belongs to `userId`, or to nobody. */
 function identity(userId: string | null | undefined): { session: SessionSubjectSource['session'] } {

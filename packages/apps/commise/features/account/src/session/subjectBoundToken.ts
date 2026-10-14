@@ -18,8 +18,9 @@
  * `signOutAndVerify` beside it is.
  *
  * @pattern Protection Proxy over the mint function — same signature, plus an access check on every call; a failed mint
- *     is translated into this module's own error (exception translation inside the proxy, not a second layer)
+ *     is translated into `TokenMintFailedError` (exception translation inside the proxy, not a second layer)
  */
+import { TokenMintFailedError } from './tokenMintFailedError.js';
 
 /**
  * The (structural) slice of the identity client the proxy reads: the live session's user. Satisfied by `useClerk()` on
@@ -45,27 +46,6 @@ export class SessionSubjectChangedError extends Error {
 /** Type guard for {@link SessionSubjectChangedError}. */
 export function isSessionSubjectChangedError(error: unknown): error is SessionSubjectChangedError {
     return error instanceof SessionSubjectChangedError;
-}
-
-/**
- * The platform's mint could not produce a token (Clerk could not refresh a session token with no network, or the web
- * provider's typed "not ready" while Clerk hydrates). The original failure is the `cause`. No request was sent: the
- * token is minted before the request, so the outbox can park the record as "no credential" and send it again once there
- * is one, instead of reading a statusless failure as an unknown outcome that only the cook may resolve.
- *
- * Its message names no user: it can reach a log or an error report.
- */
-export class TokenMintFailedError extends Error {
-    public constructor(cause: unknown) {
-        super('A session token could not be minted, so no request was sent', { cause });
-        this.name = 'TokenMintFailedError';
-        Object.setPrototypeOf(this, TokenMintFailedError.prototype);
-    }
-}
-
-/** Type guard for {@link TokenMintFailedError}. */
-export function isTokenMintFailedError(error: unknown): error is TokenMintFailedError {
-    return error instanceof TokenMintFailedError;
 }
 
 /**

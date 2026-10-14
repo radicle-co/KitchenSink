@@ -73,8 +73,7 @@ export type { SignOutClientStatus, SignOutVerificationClient } from './session/s
 export {
     SessionSubjectChangedError,
     isSessionSubjectChangedError,
-    TokenMintFailedError,
-    isTokenMintFailedError,
     subjectBoundToken,
 } from './session/subjectBoundToken.js';
+export { TokenMintFailedError, isTokenMintFailedError } from './session/tokenMintFailedError.js';
 export type { SessionSubjectSource } from './session/subjectBoundToken.js';

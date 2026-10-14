@@ -41,12 +41,16 @@ import { describe, expect, it } from 'vitest';
 
 import { SandboxSchedulerStack } from '../lib/platform/SandboxSchedulerStack.js';
 import { testApp } from './testApp.js';
+import { runWorkflowStep, type StepOutcome } from './workflowStepRunner.js';
 
 const WORKFLOW_DIR = fileURLToPath(new URL('../../../../.github/workflows/', import.meta.url));
 const SCRIPT_DIR = fileURLToPath(new URL('../../../../.github/scripts/', import.meta.url));
 
 interface Step {
+    readonly id?: string;
     readonly name?: string;
+    readonly if?: string;
+    readonly env?: Readonly<Record<string, string>>;
     readonly run?: string;
     readonly uses?: string;
     readonly 'continue-on-error'?: boolean;
@@ -558,6 +562,220 @@ describe('sandbox status check wiring — a job that runs the check outlives the
         expect(
             jobsTooShortForTheCheck(workflows(), checkWorstCaseSeconds(readFileSync(WAKE_SCRIPT, 'utf8'))),
             "raise the job limit to the check's worst case plus the job's own work, and say so beside it",
+        ).toEqual([]);
+    });
+});
+
+/**
+ * A step that cannot work while the sandbox is down: a deploy, a schema migration (its runner opens a connection to
+ * the stopped database), or a direct function invoke.
+ */
+const NEEDS_THE_SANDBOX = new RegExp(
+    `${DEPLOY_STEP.source}|\\brunMigrations\\.sh\\s+run\\b|\\baws lambda invoke\\b`,
+    'u',
+);
+
+/**
+ * A check that SKIPS rather than fails: it answers "down" by writing `up=false` and lets the job go on. A check that
+ * writes no `up=false` exits non-zero on "down", so nothing after it runs (`sandboxUp.yml`'s does that).
+ */
+const SKIPS_WHEN_DOWN = /\bup=false\b/u;
+
+/** One `steps.<id>.outputs.<name> == 'true'` comparison, the only gate shape the rule reads. */
+const TRUE_COMPARISON = /^steps\.([\w-]+)\.outputs\.([\w-]+)\s*==\s*'true'$/u;
+
+/**
+ * Shadows `aws` while a flag step runs on this machine: a flag step that stopped short-circuiting on "down" would
+ * otherwise reach whatever account the machine running the guard is signed in to.
+ */
+const NO_AWS = 'aws() { echo "aws is stubbed by the guard" >&2; return 97; }\nexport -f aws\n';
+
+/** The index of the job's first check that skips when down, or -1. Pure. */
+const skippingCheckIndex = (steps: readonly Step[]): number =>
+    steps.findIndex((step) => (step.run ?? '').includes(CHECK_INVOCATION) && SKIPS_WHEN_DOWN.test(step.run ?? ''));
+
+/**
+ * Whether an `if:` is false whenever `closed(step, output)` holds for what it reads. Each `||` branch must contain,
+ * among its `&&` terms, a `== 'true'` comparison on a closed output. Parentheses are not read, so a parenthesised
+ * gate counts as ungated: the rule fails closed rather than guessing. Pure.
+ *
+ * @param expression - The step's `if:`, with or without `${{ }}`.
+ * @param closed - Whether that step output is never `'true'` while the sandbox is down.
+ * @returns Whether the step is gated on the down verdict.
+ */
+function gatedOnTheVerdict(expression: string, closed: (stepId: string, output: string) => boolean): boolean {
+    const body = expression
+        .trim()
+        .replace(/^\$\{\{\s*/u, '')
+        .replace(/\s*\}\}$/u, '');
+
+    if (/[()]/u.test(body)) {
+        return false;
+    }
+
+    return body.split('||').every((branch) =>
+        branch.split('&&').some((term) => {
+            const match = TRUE_COMPARISON.exec(term.trim());
+
+            return match !== null && closed(match[1] ?? '', match[2] ?? '');
+        }),
+    );
+}
+
+/**
+ * Every step that needs the sandbox and runs after a check that answered "down", in the same job.
+ *
+ * A step is gated when its `if:` reads the check's own `up`, or a flag step's output that is proven not to be `'true'`
+ * on "down". The proof RUNS the flag step's bash (with `aws` shadowed): the env names it maps to the check's `up` get
+ * `false`, every other env name is empty, and the output must not come back `'true'`.
+ *
+ * @param docs - Parsed workflows.
+ * @returns Violation ids (`<file>::<job>::<step>`).
+ * @sideEffect Spawns bash for every flag step a gate reads.
+ */
+function stepsThatIgnoreADownSandbox(docs: readonly { file: string; doc: Doc }[]): readonly string[] {
+    const violations: string[] = [];
+
+    for (const { file, doc } of docs) {
+        for (const [jobName, job] of Object.entries(doc.jobs ?? {})) {
+            const steps = job.steps ?? [];
+            const checkAt = skippingCheckIndex(steps);
+
+            if (checkAt === -1) {
+                continue;
+            }
+
+            const checkId = steps[checkAt]?.id;
+            const verdict = new RegExp(`^\\$\\{\\{\\s*steps\\.${checkId ?? '(no id)'}\\.outputs\\.up\\s*\\}\\}$`, 'u');
+
+            const closed = (stepId: string, output: string): boolean => {
+                if (stepId === checkId) {
+                    return output === 'up';
+                }
+
+                const flagStep = steps.slice(checkAt + 1).find((step) => step.id === stepId);
+                const env = Object.entries(flagStep?.env ?? {});
+
+                if (flagStep?.run === undefined || !env.some(([, value]) => verdict.test(value))) {
+                    return false;
+                }
+
+                const outcome: StepOutcome = runWorkflowStep(
+                    `${NO_AWS}${flagStep.run}`,
+                    Object.fromEntries(env.map(([name, value]) => [name, verdict.test(value) ? 'false' : ''])),
+                );
+
+                return outcome.status === 0 && outcome.outputs[output] !== 'true';
+            };
+
+            for (const step of steps.slice(checkAt + 1)) {
+                if (!NEEDS_THE_SANDBOX.test(step.run ?? '')) {
+                    continue;
+                }
+
+                if (step.if === undefined || !gatedOnTheVerdict(step.if, closed)) {
+                    violations.push(`${file}::${jobName}::${label(step)}`);
+                }
+            }
+        }
+    }
+
+    return violations.sort();
+}
+
+/**
+ * Run 38515932978 (2026-10-14): a push arrived while the sandbox was stopped. The check answered "down", the flag step
+ * set every deploy flag false — and "Run identity DB migrations" carried no `if:`, so it invoked the runner, which
+ * timed out connecting to the stopped database and turned the run RED. The rule above checks that a deploy comes
+ * AFTER the check; this one checks that it is gated BY the check's answer.
+ */
+describe('sandbox status check wiring — a step that needs the sandbox is gated on the check`s answer', () => {
+    const check: Step = {
+        id: 'tier',
+        run: `rc=0\nbash .github/scripts/${CHECK_INVOCATION} us-east-1 || rc=$?\n[ "$rc" = 3 ] && echo 'up=false' >>"$GITHUB_OUTPUT"`,
+    };
+    const flags = (body: string, env: Readonly<Record<string, string>>): Step => ({ id: 'flags', env, run: body });
+    const READS_THE_VERDICT = { SANDBOX_UP: '${{ steps.tier.outputs.up }}', CHANGED: '${{ steps.changes.outputs.x }}' };
+    const SHORT_CIRCUITS = `if [ "$SANDBOX_UP" != 'true' ]; then echo 'deploy_service=false' >> "$GITHUB_OUTPUT"; exit 0; fi\necho 'deploy_service=true' >> "$GITHUB_OUTPUT"`;
+    const IGNORES_THE_VERDICT = `echo 'deploy_service=true' >> "$GITHUB_OUTPUT"`;
+    const ON_THE_FLAG = "steps.flags.outputs.deploy_service == 'true'";
+    const migrate = (gate?: string): Step => ({
+        name: 'Migrate',
+        run: 'bash .github/scripts/runMigrations.sh run us-east-1 stack Out identity dir',
+        ...(gate === undefined ? {} : { if: gate }),
+    });
+    const deploy = (gate: string): Step => ({ name: 'Deploy', if: gate, run: 'cdk deploy kitchensink-x-sandbox' });
+    const MIGRATE = ['w.yml::j::Migrate'];
+    const DEPLOY = ['w.yml::j::Deploy'];
+
+    it.each<readonly [string, readonly Step[], readonly string[]]>([
+        ['an ungated migration after a skipping check (run 38515932978)', [check, migrate()], MIGRATE],
+        ["a migration gated on the check's up", [check, migrate("steps.tier.outputs.up == 'true'")], []],
+        ['the same gate written as an expression', [check, migrate("${{ steps.tier.outputs.up == 'true' }}")], []],
+        [
+            'a deploy gated on a flag the flag step forces false when down',
+            [check, flags(SHORT_CIRCUITS, READS_THE_VERDICT), deploy(ON_THE_FLAG)],
+            [],
+        ],
+        [
+            'a deploy gated on a flag that ignores the verdict',
+            [check, flags(IGNORES_THE_VERDICT, READS_THE_VERDICT), deploy(ON_THE_FLAG)],
+            DEPLOY,
+        ],
+        [
+            'a deploy gated on a flag step that is not handed the verdict',
+            [check, flags(SHORT_CIRCUITS, { CHANGED: '${{ steps.changes.outputs.x }}' }), deploy(ON_THE_FLAG)],
+            DEPLOY,
+        ],
+        ['a gate unrelated to the verdict', [check, migrate("github.event_name == 'pull_request'")], MIGRATE],
+        [
+            'a gate with one branch that skips the verdict',
+            [check, migrate("steps.tier.outputs.up == 'true' || github.event_name == 'workflow_dispatch'")],
+            MIGRATE,
+        ],
+        [
+            'a gate that adds a condition to the verdict',
+            [check, migrate("steps.tier.outputs.up == 'true' && github.event_name == 'pull_request'")],
+            [],
+        ],
+        ['a negated gate, which an unset `up` passes', [check, migrate("steps.tier.outputs.up != 'false'")], MIGRATE],
+        [
+            'a parenthesised gate, which the rule does not read',
+            [check, migrate("(steps.tier.outputs.up == 'true')")],
+            MIGRATE,
+        ],
+        [
+            'an ungated migration after a check that FAILS when down',
+            [{ run: `bash .github/scripts/${CHECK_INVOCATION} us-east-1` }, migrate()],
+            [],
+        ],
+        ['an ungated step that needs nothing', [check, { name: 'Install', run: 'npm ci' }], []],
+    ])('%s', (_label, steps, expected) => {
+        expect(stepsThatIgnoreADownSandbox([{ file: 'w.yml', doc: { jobs: { j: { steps } } } }])).toEqual(expected);
+    });
+
+    it('a flag step run by the guard cannot reach AWS', () => {
+        expect(runWorkflowStep(`${NO_AWS}aws sts get-caller-identity`, {}).status).toBe(97);
+    });
+
+    it('reads a step that needs the sandbox after a skipping check, so the rule below is not vacuous', () => {
+        const reached = workflows().filter(({ doc }) =>
+            Object.values(doc.jobs ?? {}).some((job) => {
+                const steps = job.steps ?? [];
+                const at = skippingCheckIndex(steps);
+
+                return at !== -1 && steps.slice(at + 1).some((step) => NEEDS_THE_SANDBOX.test(step.run ?? ''));
+            }),
+        );
+
+        expect(reached.map(({ file }) => file)).toContain('sandbox-identity-deploy.yml');
+    });
+
+    it('no step that needs the sandbox runs after the check answered down', () => {
+        expect(
+            stepsThatIgnoreADownSandbox(workflows()),
+            'a job that needs the sandbox SKIPS when it is down (owner ruling 2026-10-12). Gate the step on the ' +
+                "check's `up` (`steps.<check id>.outputs.up == 'true'`), or on a flag its step sets false on down.",
         ).toEqual([]);
     });
 });

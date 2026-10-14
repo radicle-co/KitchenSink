@@ -216,7 +216,6 @@ jobs:
                       echo "deploy_global=false"
                       echo "deploy_service=false"
                       echo "deploy_webhooks=false"
-                      echo "run_migrations=false"
                     } >> "$GITHUB_OUTPUT"
                     echo "the sandbox is down — nothing deploys"
                     exit 0
@@ -281,15 +280,12 @@ jobs:
                   fi
                   if [ "$CHANGED_SERVICE" = "true" ] || [ "$service_missing" = "true" ]; then deploy_service=true; fi
                   if [ "$CHANGED_WEBHOOKS" = "true" ] || [ "$webhooks_missing" = "true" ]; then deploy_webhooks=true; fi
-                  run_migrations=false
-                  if [ "$deploy_service" = "true" ] || [ "$deploy_webhooks" = "true" ]; then run_migrations=true; fi
                   {
                     echo "deploy_global=$deploy_global"
                     echo "deploy_service=$deploy_service"
                     echo "deploy_webhooks=$deploy_webhooks"
-                    echo "run_migrations=$run_migrations"
                   } >> "$GITHUB_OUTPUT"
-                  echo "global=$deploy_global service=$deploy_service webhooks=$deploy_webhooks migrations=$run_migrations (missing: g=$global_missing s=$service_missing w=$webhooks_missing)"
+                  echo "global=$deploy_global service=$deploy_service webhooks=$deploy_webhooks (missing: g=$global_missing s=$service_missing w=$webhooks_missing)"
 
             - name: Setup Node.js
               uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -500,7 +496,8 @@ jobs:
             # and `runMigrations.sh` records that this exact mistake made PRODUCTION the weaker stage. A
             # `cdk deploy` of an unchanged stack is a no-op; the minute it costs is what makes the invoke
             # below provably hit THIS release's bundle rather than whatever was deployed last.
-            # ⚠️ GATED ON THE SAME FLAG AS THE STEP THAT BUNDLES ITS ASSET, and the invoke below is NOT.
+            # ⚠️ GATED ON THE SAME FLAG AS THE STEP THAT BUNDLES ITS ASSET, and the invoke below is NOT (it is
+            # gated only on the sandbox being up).
             # The asymmetry is the whole correctness argument, so it is written here rather than inferred.
             # Ungated, this step runs on a push that built neither the CDK app nor `dist-lambda/`: at best a
             # `MODULE_NOT_FOUND`, at worst a SUCCESSFUL deploy of the throwing inline placeholder over a
@@ -530,7 +527,12 @@ jobs:
             # `runMigrations.sh` is the ONE definition of "did the runner succeed" — `aws lambda invoke`
             # exits 0 when the FUNCTION threw, and this repo had four call sites with four different amounts
             # of rigour about that.
+            #
+            # ⛔ Gated on the sandbox being up and on NOTHING else: a down sandbox's database is stopped, and
+            # the invoke would time out connecting to it (run 38515932978). While up it runs on every push, so
+            # a stale runner is still caught (`sandboxWakeWiring.test.ts`).
             - name: Run identity DB migrations (before the service that reads them)
+              if: steps.tier.outputs.up == 'true'
               run: |
                   bash .github/scripts/runMigrations.sh run "${DEFAULT_AWS_REGION}" \
                     "kitchensink-identity-schema-${STAGE}" IdentityMigrationFunctionName identity \

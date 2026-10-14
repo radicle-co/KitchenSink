@@ -275,8 +275,10 @@ subject)` (`@commise/features-recipes`, both apps bind it to their store) clears
   UserButton. Clerk's loading `undefined` is ignored. The cook those stores were kept for is recorded in the same store
   (an IdP subject, nothing else), so a reload is no gap: a first value of `null` or of another cook after it still
   ends the first cook's session. The editor is keyed by the cook, so a switch remounts it and the first cook's exit
-  checkpoint runs against their own stores before the clear. Mobile clears on its own sign-out only, and that is the rule: a
-  session that expires without a sign-out (a long stretch offline, a revoked session) keeps the cook's drafts and outbox.
+  checkpoint runs against their own stores before the clear. Mobile clears on its own sign-out only, a decision the
+  owner delegated (`docs/plans/2026-10-13-004-fix-stuck-save-and-session-expiry-plan.md`, "Owner ruling (2026-10-13)",
+  decision 6): a session that expires without a sign-out (a long stretch offline, a revoked session) keeps the cook's
+  drafts and outbox.
   They are the cook's work, kept under their own `*.v1.{subject}` keys, which another cook on the phone cannot read, and
   they drain after that cook signs in again. A write the expiry caught parks as `401`, never as an unknown outcome,
   because a failed token mint sent nothing. A cook who never returns leaves their keys on the phone until its data is

@@ -7,7 +7,9 @@
  * the editor, the outbox observer, `SyncProvider` and the session end share their writers only while they share this.
  *
  * ⛔ A PHONE KEEPS A COOK'S UNSENT SAVES WHEN THEIR SESSION EXPIRES, and clears them only on a verified sign-out, an
- * account close or an erase (`useSignOutAndVerify`). An expired session (days offline, or a revoked one) takes the
+ * account close or an erase (`useSignOutAndVerify`); a decision the owner delegated, recorded in
+ * `docs/plans/2026-10-13-004-fix-stuck-save-and-session-expiry-plan.md` ("Owner ruling (2026-10-13)", decision 6). An
+ * expired session (days offline, or a revoked one) takes the
  * cook's `userId` to `null` without any sign-out, and the drafts and outbox are their work: they stay under their own
  * `*.v1.{subject}` keys, which another cook on the phone cannot read, and drain after THEY sign in again. A write the
  * expiry caught parks as `401` and resumes; it is never an unknown outcome (`TokenMintFailedError`). The web differs on

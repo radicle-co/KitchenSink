@@ -71,6 +71,7 @@ const createBody = (lines: readonly Record<string, unknown>[]): Record<string, u
     prepTimeMinutes: 10,
     cookTimeMinutes: 20,
     totalTimeMinutes: 30,
+    cuisine: 'Italian',
     ingredients: lines,
     steps: [{ instruction: 'Combine.' }],
 });

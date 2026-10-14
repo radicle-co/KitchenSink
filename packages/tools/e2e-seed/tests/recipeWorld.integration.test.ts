@@ -450,6 +450,12 @@ describe('the seeder over a real wire', () => {
         // seeder building a body the service would reject — the defect a mocked test cannot see.
         expect(state.schemaFailures).toEqual([]);
         expect(state.createdBodies).toHaveLength(3);
+
+        // The wire schema allows an absent cuisine (the PUBLISH policy, not zod, refuses it), so the parse above
+        // cannot prove it. Every seeded recipe is published, so each body must carry one.
+        for (const body of state.createdBodies) {
+            expect(body).toMatchObject({ cuisine: expect.stringMatching(/\S/u) });
+        }
     });
 
     it('omits `unit` on a unitless line rather than sending the empty string the schema rejects', async () => {

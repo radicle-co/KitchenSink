@@ -80,6 +80,7 @@ const createBody = (sourceLine?: string): Record<string, unknown> => ({
     prepTimeMinutes: 10,
     cookTimeMinutes: 20,
     totalTimeMinutes: 30,
+    cuisine: 'Italian',
     ingredients: [
         {
             ingredientId: FLOUR_ID,

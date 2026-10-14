@@ -169,6 +169,7 @@ function makeService(
 /** A create body. `sourceLine: null` means the cook AUTHORED the line — the field is simply not sent. */
 const createDto = (sourceLine: string | null = SOURCE_LINE): CreateRecipeDto => ({
     title: 'Bread',
+    cuisine: 'French',
     servings: 2,
     prepTimeMinutes: 5,
     cookTimeMinutes: 10,

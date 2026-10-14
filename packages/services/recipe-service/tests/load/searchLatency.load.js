@@ -42,7 +42,7 @@ const foodFilterTrend = new Trend('recipe_search_food_filter_duration', true);
 const FOOD_FILTER_PARAMS = Array.from({ length: 6 }, (_, index) => `foodIds=k6-load-root-${index}`).join('&');
 
 const QUERIES = ['chicken', 'pasta', 'salad', 'soup', 'vegan curry', 'chocolate cake', 'roast'];
-const CUISINES = ['italian', 'thai', 'mexican', 'indian', ''];
+const CUISINES = ['Italian', 'Thai', 'Mexican', 'Indian', ''];
 
 export const options = {
     scenarios: {

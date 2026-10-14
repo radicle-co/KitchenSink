@@ -354,18 +354,13 @@ const createRecipeRequestBaseSchema = z.strictObject({
 /**
  * Body of `POST /api/v1/recipes`.
  *
- * `ingredients` and `steps` carry no `.min(1)` on the base object; the floor is conditional and lives in the two
- * refinements below, because it is a property of PUBLISHING rather than of existing. A `draft` is allowed to be
- * empty — that is precisely what makes the wizard's Save-Draft-from-step-1 a legal request, and it was NOT legal
- * before: the flat `.min(1)` meant the app built `{ ingredients: [], steps: [] }`, this service answered `400`,
- * and the only reason no test caught it is that the web e2e mock validated nothing.
- *
- * An ABSENT `status` still requires content, because it defaults to `published` — so the exemption is keyed on
- * the explicit literal, and every body that does not say `draft` behaves exactly as it did before.
- *
- * ⚠️ This condition does NOT survive into `openapi.yaml`: JSON Schema cannot express "required only when a
- * sibling equals a literal" through `z.toJSONSchema`, so the document shows both arrays as merely arrays. The
- * zod here is the contract; the document is a projection of it (ADR-0014).
+ * ⛔ The PUBLISH FLOOR is not stated here. `ingredients`, `steps` and `cuisine` may all be absent or empty on the
+ * wire, because what Publish needs is a property of the STATE a write leaves, judged once by
+ * `recipes/domain/publishPolicy.ts` (`evaluatePublication`) in `RecipesService`. The refinements that used to sit here
+ * were the partial half of that rule: an update body cannot see what is stored, and they fired only when a body
+ * carried `status`, so a "Save changes" PATCH could empty a published recipe. A body that publishes too little is
+ * answered `400 PUBLISH_REQUIREMENTS_UNMET`, naming what is missing. An ABSENT `status` means `published`, resolved
+ * once in the service.
  */
 export const createRecipeRequestSchema = createRecipeRequestBaseSchema
     // ⚠️ `.extend()` on the CREATE schema, never on the BASE — see `recipeSourceInputSchema`'s note. The base
@@ -378,14 +373,6 @@ export const createRecipeRequestSchema = createRecipeRequestBaseSchema
         // the whole field; `ingredientArrayCap.test.ts`-style identity is preserved by composing the SAME
         // `MAX_RECIPE_INGREDIENTS` constant rather than a second number.
         ingredients: z.array(createRecipeIngredientInputSchema).max(MAX_RECIPE_INGREDIENTS),
-    })
-    .refine((value) => value.status === 'draft' || value.ingredients.length > 0, {
-        message: 'A published recipe needs at least one ingredient.',
-        path: ['ingredients'],
-    })
-    .refine((value) => value.status === 'draft' || value.steps.length > 0, {
-        message: 'A published recipe needs at least one step.',
-        path: ['steps'],
     });
 
 /** Request body for creating a recipe. */
@@ -405,36 +392,17 @@ export type CreateRecipeRequest = z.infer<typeof createRecipeRequestSchema>;
  * `Partial<>`'s omitted-means-unchanged rule would make "not stated" reachable only at create time, so a user who
  * ever set a difficulty could never remove it.
  */
-export const updateRecipeRequestSchema = createRecipeRequestBaseSchema
-    .omit({ visibility: true })
-    .partial()
-    .extend({
-        expectedVersion: recipeExpectedVersionSchema,
-        difficulty: recipeDifficultySchema.nullable().optional(),
-        // Three-state for the SAME reason as `difficulty` above: `Partial<>` makes an omit mean "unchanged",
-        // so clearing a stated meal type needs its own spelling on the wire, and an explicit `null` is it.
-        // Without this line a cook who ever chose "dinner" could never get back to "not stated".
-        mealType: recipeMealTypeSchema.nullable().optional(),
-    })
-    // Derived from the BASE, not from `createRecipeRequestSchema`: `.omit()` throws on an object carrying
-    // refinements. The publish floor is restated here rather than inherited, and its predicate is deliberately
-    // NOT create's — an absent `status` means "leave unchanged" on a PATCH, so only the explicit `published`
-    // literal triggers it, and only for an array the body actually supplies.
-    //
-    // A body that publishes WITHOUT resending the arrays cannot be judged here at all, since the wire does not
-    // carry what is already stored. `RecipesService.update` re-checks the persisted recipe on the publish
-    // transition; this pair is the fast, local half of that guarantee, not the whole of it.
-    .refine(
-        (value) => value.status !== 'published' || value.ingredients === undefined || value.ingredients.length > 0,
-        {
-            message: 'A published recipe needs at least one ingredient.',
-            path: ['ingredients'],
-        },
-    )
-    .refine((value) => value.status !== 'published' || value.steps === undefined || value.steps.length > 0, {
-        message: 'A published recipe needs at least one step.',
-        path: ['steps'],
-    });
+export const updateRecipeRequestSchema = createRecipeRequestBaseSchema.omit({ visibility: true }).partial().extend({
+    expectedVersion: recipeExpectedVersionSchema,
+    difficulty: recipeDifficultySchema.nullable().optional(),
+    // Three-state for the SAME reason as `difficulty` above: `Partial<>` makes an omit mean "unchanged",
+    // so clearing a stated meal type needs its own spelling on the wire, and an explicit `null` is it.
+    // Without this line a cook who ever chose "dinner" could never get back to "not stated".
+    mealType: recipeMealTypeSchema.nullable().optional(),
+    // Three-state again (owner rulings 2026-10-13): a cook who empties the Cuisine field must be able to clear it.
+    // Clearing the cuisine of a PUBLISHED recipe that needs one is refused by the publish policy, not here.
+    cuisine: recipeCuisineSchema.nullable().optional(),
+});
 
 /** Request body for updating a recipe. */
 export type UpdateRecipeRequest = z.infer<typeof updateRecipeRequestSchema>;

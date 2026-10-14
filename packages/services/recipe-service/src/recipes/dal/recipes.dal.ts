@@ -108,7 +108,8 @@ export interface UpdateRecipeInput {
     expectedVersion: number;
     title?: string;
     description?: string;
-    cuisine?: string;
+    /** Three-state, like `difficulty`: absent leaves it, a value sets it, `null` clears it. */
+    cuisine?: string | null;
     servings?: number;
     prepTimeMinutes?: number;
     cookTimeMinutes?: number;

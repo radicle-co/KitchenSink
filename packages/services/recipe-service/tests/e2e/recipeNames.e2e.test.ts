@@ -82,6 +82,7 @@ async function createRecipe(title: string, lookupIds: readonly string[]): Promis
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
         totalTimeMinutes: 15,
+        cuisine: 'Italian',
         ingredients: lookupIds.map((ingredientId) => ({
             ingredientId,
             quantity: { kind: 'exact', value: 100 },

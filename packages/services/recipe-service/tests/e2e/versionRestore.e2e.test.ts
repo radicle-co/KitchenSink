@@ -81,6 +81,7 @@ async function savedThenMoved(label: string, lookupId: string): Promise<RecipeBo
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
         totalTimeMinutes: 15,
+        cuisine: 'Italian',
         ingredients: [line(lookupId)],
         steps: [{ instruction: 'Cook.' }],
     });

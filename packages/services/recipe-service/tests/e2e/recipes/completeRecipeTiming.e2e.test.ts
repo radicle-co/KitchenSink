@@ -52,6 +52,7 @@ const COMPLETE_RECIPE_PAYLOAD = {
     prepTimeMinutes: 10,
     cookTimeMinutes: 20,
     totalTimeMinutes: 30,
+    cuisine: 'Italian',
     tags: ['integration'],
     dietaryFlags: [],
     ingredients: [

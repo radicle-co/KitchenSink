@@ -166,6 +166,7 @@ describe('the verification gate’s producer (U11 integration)', () => {
         prepTimeMinutes: 10,
         cookTimeMinutes: 20,
         totalTimeMinutes: 30,
+        cuisine: 'Italian',
         ingredients: [
             {
                 ingredientId: FOOD_BACKED_INGREDIENT_ID,

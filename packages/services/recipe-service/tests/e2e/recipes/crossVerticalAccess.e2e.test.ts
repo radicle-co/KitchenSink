@@ -32,6 +32,7 @@ const CREATE_BODY = {
     prepTimeMinutes: 5,
     cookTimeMinutes: 10,
     totalTimeMinutes: 15,
+    cuisine: 'Italian',
     visibility: 'public',
     tags: [],
     dietaryFlags: [],

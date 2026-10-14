@@ -79,6 +79,7 @@ const createBody = (overrides: Record<string, unknown> = {}): Record<string, unk
     prepTimeMinutes: 10,
     cookTimeMinutes: 20,
     totalTimeMinutes: 30,
+    cuisine: 'Italian',
     ingredients: [
         {
             ingredientId: FLOUR_ID,

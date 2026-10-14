@@ -318,6 +318,7 @@ describe('an ingredient RESOLVES to a real food record, not a freeform row', () 
                 prepTimeMinutes: 1,
                 cookTimeMinutes: 1,
                 totalTimeMinutes: 2,
+                cuisine: 'Italian',
             }),
         });
 
@@ -495,6 +496,7 @@ describe('a line bound to a VARIANT carries the variant’s own figures (curated
                 prepTimeMinutes: 1,
                 cookTimeMinutes: 1,
                 totalTimeMinutes: 2,
+                cuisine: 'Italian',
             }),
         });
 

@@ -13,14 +13,20 @@
  */
 import * as Sentry from '@sentry/nestjs';
 import { createHash } from 'node:crypto';
-import { BadRequestException, forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { deriveDisplayName } from '@kitchensink/identity-core';
 import { quantitiesEqual, type RecipeSnapshot, type VersionConflictSide } from '@kitchensink/recipe-core';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
 import { PROVISIONAL_VERIFICATION_THRESHOLDS } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
 import { bandKeyText } from '@kitchensink/recipe-core/resolution/band-authority-store';
 import { shadowRateFor } from '@kitchensink/recipe-core/resolution/band-policy';
-import { RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
+import {
+    RecipeSourceType,
+    RecipeStatus,
+    RecipeVisibility,
+    recipeSourceTypeSchema,
+    recipeStatusSchema,
+} from '@kitchensink/recipe-core';
 
 import { toPageEnvelope } from '../common/pagination.js';
 import { VersionsService } from '../versions/versions.service.js';
@@ -33,10 +39,12 @@ import {
     invalidVisibility,
     notOwner,
     provenanceNotPermitted,
+    publishRequirementsUnmet,
     recipeNotFound,
     versionConflict,
 } from './recipe.error.js';
 import { evaluateProvenance } from './domain/provenancePolicy.js';
+import { evaluatePublication, type PublishPolicyInput } from './domain/publishPolicy.js';
 import { defaultCloneVisibility, evaluateVisibility } from './domain/visibilityPolicy.js';
 import { isContained, type ContainmentSubject } from '../common/containmentPolicy.js';
 import { assertNotContained, testPrincipalContained } from '../common/containment.error.js';
@@ -139,6 +147,20 @@ function storedLineToVerifiable(
 export { PREMIUM_PERMISSION } from '../auth/principal.js';
 
 /** Map a DTO step to the DAL's step input shape. Pure. */
+/**
+ * Refuse a write that would leave a recipe published without what Publish needs (`domain/publishPolicy.ts`).
+ *
+ * @param state - The status, provenance and content the write would leave.
+ * @throws {RecipeDomainError} `PUBLISH_REQUIREMENTS_UNMET`, naming every gap. Pure apart from the throw.
+ */
+function assertPublishable(state: PublishPolicyInput): void {
+    const decision = evaluatePublication(state);
+
+    if (!decision.allowed) {
+        throw publishRequirementsUnmet(decision.missing);
+    }
+}
+
 function toStepInput(step: { instruction: string; timerSeconds?: number }): StepInput {
     return step.timerSeconds === undefined
         ? { instruction: step.instruction }
@@ -529,6 +551,20 @@ export class RecipesService {
                 : invalidVisibility(decision.reason, { visibility: requested, sourceType: provenance.sourceType });
         }
 
+        // ── Then what Publish needs (owner rulings 2026-10-13) ─────────────────────────────────────────
+        // An ABSENT status means published, resolved ONCE here and written explicitly below, so the policy and the row
+        // agree on what "published" means rather than the policy assuming the column default. Judged before the
+        // planner, because a pure refusal must not cost a call to food.
+        const status = dto.status ?? RecipeStatus.PUBLISHED;
+
+        assertPublishable({
+            status,
+            sourceType: provenance.sourceType,
+            cuisine: dto.cuisine ?? null,
+            ingredientCount: dto.ingredients.length,
+            stepCount: dto.steps.length,
+        });
+
         // OUTSIDE the transaction: the plan reads the bindings and asks food for their names.
         const plan = await this.planner.plan(caller, dto.ingredients);
         // Denormalized author handle (W8-a.2 / decision 6): the initial value from the token claims via the
@@ -556,8 +592,8 @@ export class RecipesService {
                     // Meal type (plan U34) — same rule as difficulty directly above: persisted only when the author
                     // stated one, omitted otherwise so the column stays NULL rather than acquiring a guessed value.
                     ...(dto.mealType !== undefined ? { mealType: dto.mealType } : {}),
-                    // Publication status (W8-a.3) — omitted → DB default 'published'; Save-Draft sends 'draft'.
-                    ...(dto.status !== undefined ? { status: dto.status } : {}),
+                    // Publication status (W8-a.3), as resolved above: never left to the column default.
+                    status,
                     tags: dto.tags ?? [],
                     dietaryFlags: dto.dietaryFlags ?? [],
                     // Provenance as the policy RESOLVED it, never as the body stated it. `sourceType` is always
@@ -955,6 +991,20 @@ export class RecipesService {
         const ownerId = principal.userId;
         const existing = await this.findEditableAggregate(ownerId, id, dto.expectedVersion, caller);
 
+        // What Publish needs (owner rulings 2026-10-13), judged on EVERY update against the state the write leaves: the
+        // patch's value where it carries one, the stored value where it does not. Not only when the body says
+        // `status: 'published'` — a "Save changes" PATCH sends no status, and judging only explicit publishes is what
+        // let one empty a published recipe. The compare-and-swap on `expectedVersion` below makes judging against
+        // `existing` safe: a write that lands in between is a 409, never a stale pass. Before the planner, so a pure
+        // refusal costs no call to food.
+        assertPublishable({
+            status: dto.status ?? recipeStatusSchema.parse(existing.recipe.status),
+            sourceType: recipeSourceTypeSchema.parse(existing.recipe.sourceType),
+            cuisine: dto.cuisine === undefined ? existing.recipe.cuisine : dto.cuisine,
+            ingredientCount: dto.ingredients?.length ?? existing.ingredients.length,
+            stepCount: dto.steps?.length ?? existing.steps.length,
+        });
+
         // Plan replacement lines only when the patch carries them (absent → links untouched).
         // ⛔ The resolved lines are then handed the TRANSCRIPTION the stored lines already hold. `PATCH`
         //    cannot carry a `sourceLine` (create-only, ADR-0023's shape) and `replaceForRecipe` swaps the
@@ -996,20 +1046,6 @@ export class RecipesService {
                       })),
                   };
         const newlySubstantive = !existing.recipe.hasSubstantiveEdit && detectSubstantiveEdit(existing, storedDto);
-
-        // A recipe may EXIST empty — that is what a draft IS — but it may not be PUBLISHED empty. The wire
-        // schema rejects a body that publishes while sending an empty array; only the service can judge the
-        // body that publishes WITHOUT resending the arrays, because only it knows what is already stored.
-        // Counting the patch when present and the persisted rows otherwise is the same "absent means
-        // unchanged" rule the DAL applies below, evaluated against the post-update state.
-        if (dto.status === RecipeStatus.PUBLISHED) {
-            const ingredientCount = dto.ingredients?.length ?? existing.ingredients.length;
-            const stepCount = dto.steps?.length ?? existing.steps.length;
-
-            if (ingredientCount === 0 || stepCount === 0) {
-                throw new BadRequestException('A published recipe needs at least one ingredient and one step.');
-            }
-        }
 
         // ⛔ ONE TRANSACTION, and the CAS miss must LEAVE it before it is diagnosed. `raiseVersionConflict`
         // calls `dal.readConflict`, which opens its own transaction AND issues

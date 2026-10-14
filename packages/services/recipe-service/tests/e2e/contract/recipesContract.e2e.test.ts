@@ -41,6 +41,7 @@ describe('recipe read shape — client ↔ server contract conformance', () => {
             prepTimeMinutes: 15,
             cookTimeMinutes: 30,
             totalTimeMinutes: 45,
+            cuisine: 'Italian',
             tags: ['contract'],
             dietaryFlags: [],
             // A user-entered nutrition override (FR-007a) so the per-serving aggregation (#9) is exercised

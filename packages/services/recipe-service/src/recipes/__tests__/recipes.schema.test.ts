@@ -300,6 +300,25 @@ describe('cuisine — max 100 carried forward, min(1) adopted', () => {
         expect(createAccepts({ cuisine: '' })).toBe(false);
         expect(recipeSchema.shape.cuisine.safeParse('').success).toBe(false);
     });
+
+    it('parses a create body’s cuisine to its canonical form, so the service stores one spelling', () => {
+        expect(createRecipeRequestSchema.parse(body({ cuisine: '  thai ' })).cuisine).toBe('Thai');
+    });
+
+    it('PATCH is three-state, like difficulty: absent leaves it, a value sets it (canonical), `null` clears it', () => {
+        const patch = (fields: Record<string, unknown>) =>
+            updateRecipeRequestSchema.safeParse({ expectedVersion: 1, ...fields });
+
+        expect(patch({}).data?.cuisine).toBeUndefined();
+        expect(patch({ cuisine: 'szechuan' }).data?.cuisine).toBe('Sichuan');
+        expect(patch({ cuisine: null }).success).toBe(true);
+        expect(patch({ cuisine: null }).data?.cuisine).toBeNull();
+        expect(patch({ cuisine: '' }).success).toBe(false);
+    });
+
+    it('create has no clear sentinel: there is nothing to clear on a recipe that does not exist', () => {
+        expect(createAccepts({ cuisine: null })).toBe(false);
+    });
 });
 
 describe('ingredientId — a real UUID, not "any non-empty string"', () => {
@@ -400,9 +419,10 @@ describe('array caps carried forward', () => {
         expect(MAX_RECIPE_TAGS).toBe(50);
     });
 
-    it('rejects an empty ingredients array and an empty steps array', () => {
-        expect(createAccepts({ ingredients: [] })).toBe(false);
-        expect(createAccepts({ steps: [] })).toBe(false);
+    it('accepts an empty ingredients array and an empty steps array: the publish policy, not the wire, refuses them', () => {
+        // Rewritten 2026-10-13: the floor lives once, in `recipes/domain/publishPolicy.ts`.
+        expect(createAccepts({ ingredients: [] })).toBe(true);
+        expect(createAccepts({ steps: [] })).toBe(true);
     });
 });
 

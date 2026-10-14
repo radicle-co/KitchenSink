@@ -75,6 +75,7 @@ describe('collection clone (FR-011 integration)', () => {
                 prepTimeMinutes: 5,
                 cookTimeMinutes: 10,
                 totalTimeMinutes: 15,
+                cuisine: 'Italian',
             })
             .returning({ id: recipes.id });
 
@@ -238,6 +239,7 @@ describe('CollectionsService.cloneCollection atomicity (S-R1 unit-of-work)', () 
                 prepTimeMinutes: 5,
                 cookTimeMinutes: 10,
                 totalTimeMinutes: 15,
+                cuisine: 'Italian',
             })
             .returning({ id: recipes.id });
 

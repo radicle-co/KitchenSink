@@ -5417,6 +5417,7 @@ components:
           type: string
           maxLength: 5000
         cuisine:
+          nullable: true
           type: string
           minLength: 1
           maxLength: 100

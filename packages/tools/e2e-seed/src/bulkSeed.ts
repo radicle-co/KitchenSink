@@ -24,6 +24,21 @@ type CreateRecipeRequest = Parameters<RecipeServiceClient['createRecipe']>[0];
 
 /** Cuisines, mains and methods, combined to give every recipe a distinct, plausible title. */
 const CUISINES = ['Thai', 'Sicilian', 'Oaxacan', 'Gujarati', 'Basque', 'Sichuan', 'Lebanese', 'Peruvian'] as const;
+
+/**
+ * The `CUISINES` list entry each title word files under. The service refuses to publish a recipe without a cuisine,
+ * and the title words are finer than its list (there is no "Oaxacan"), so each maps to the list entry that holds it.
+ */
+const CUISINE_FIELD: Readonly<Record<(typeof CUISINES)[number], string>> = {
+    Thai: 'Thai',
+    Sicilian: 'Italian',
+    Oaxacan: 'Mexican',
+    Gujarati: 'Indian',
+    Basque: 'Spanish',
+    Sichuan: 'Sichuan',
+    Lebanese: 'Lebanese',
+    Peruvian: 'Peruvian',
+};
 const MAINS = ['Chickpea', 'Aubergine', 'Lentil', 'Mushroom', 'Cauliflower', 'Butternut', 'Tofu', 'Barley'] as const;
 const METHODS = ['Stew', 'Traybake', 'Curry', 'Skillet', 'Braise', 'Salad', 'Soup', 'Hash'] as const;
 const DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
@@ -55,6 +70,7 @@ function recipeAt(index: number, ingredientId: string): CreateRecipeRequest {
         prepTimeMinutes: prep,
         cookTimeMinutes: cook,
         totalTimeMinutes: prep + cook,
+        cuisine: CUISINE_FIELD[pick(CUISINES, index)],
         ingredients: [
             {
                 ingredientId,

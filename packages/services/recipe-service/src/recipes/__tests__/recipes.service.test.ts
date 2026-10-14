@@ -6,12 +6,13 @@
  * `RECIPE_NOT_FOUND`, pagination `hasMore`, and the T033 optimistic-concurrency check
  * (`VERSION_CONFLICT` with `details.currentVersion`). No database is involved.
  */
-import { BadRequestException, HttpException } from '@nestjs/common';
+import { HttpException } from '@nestjs/common';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
 import { RecipeErrorCode, RecipeVisibility, recipeIngredientViewSchema } from '@kitchensink/recipe-core';
 
 import { PREMIUM_PERMISSION, RecipesService } from '../recipes.service.js';
+import { CURATOR_IMPORT_SCOPE } from '../recipes.schema.js';
 import type { RecipesDal, RecipeAggregate } from '../dal/recipes.dal.js';
 import type { IngredientRow } from '../../database/schema/index.js';
 import type { FoodLookupsDal } from '../../ingredients/dal/foodLookups.dal.js';
@@ -88,6 +89,10 @@ function premiumPrincipal(overrides: Partial<Principal> = {}): Principal {
     return principal({ permissions: [PREMIUM_PERMISSION], ...overrides });
 }
 
+/**
+ * A stored recipe with one step and NO lines. A published one is therefore below the publish floor, so an update test
+ * that is not about the floor uses {@link publishable} instead.
+ */
 function aggregate(overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {}): RecipeAggregate {
     const recipe = makeRecipeRow({ id: 'r-1', ownerId: OWNER, ...overrides });
 
@@ -96,6 +101,13 @@ function aggregate(overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {})
         steps: [makeRecipeStepRow({ recipeId: recipe.id, stepNumber: 1, instruction: 'Mix' })],
         ingredients: [],
     };
+}
+
+/** A stored recipe that meets the publish floor: a cuisine (the row default), a line and a step. */
+function publishable(overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {}): RecipeAggregate {
+    const base = aggregate(overrides);
+
+    return { ...base, ingredients: [makeIngredientLineRow({ recipeId: base.recipe.id })] };
 }
 
 /** The line id every {@link CREATE_DTO} line names. */
@@ -127,6 +139,8 @@ async function catchError(promise: Promise<unknown>): Promise<unknown> {
 
 const CREATE_DTO: CreateRecipeDto = {
     title: 'Soup',
+    // A published create needs a cuisine (the publish policy); the body defaults to published.
+    cuisine: 'Thai',
     servings: 2,
     prepTimeMinutes: 5,
     cookTimeMinutes: 10,
@@ -430,7 +444,7 @@ describe('RecipesService.getById', () => {
     it('throws RECIPE_NOT_FOUND (404, not 403) when a non-owner reads a private recipe (W8-a.4 IDOR)', async () => {
         // A private recipe the caller can't see is indistinguishable from a missing id — a 403 here would
         // confirm the id exists (an existence oracle). getById is the hottest such path.
-        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'private' })) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publishable({ visibility: 'private' })) });
         const error = await catchError(
             newService(dal).getById({ viewerId: OTHER, id: 'r-1', caller: undefined, budget: 'read' }),
         );
@@ -439,7 +453,7 @@ describe('RecipesService.getById', () => {
     });
 
     it('allows a non-owner to read a public recipe', async () => {
-        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publishable({ visibility: 'public' })) });
 
         const response = await newService(dal).getById({
             viewerId: OTHER,
@@ -452,7 +466,7 @@ describe('RecipesService.getById', () => {
     });
 
     it("includes the VIEWER's own rating as viewerRating, scoped to (recipe, viewer)", async () => {
-        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publishable({ visibility: 'public' })) });
         // The viewer (OTHER) has rated this recipe 4 stars.
         const ratingsDal = fakeRatingsDal(4);
 
@@ -470,7 +484,7 @@ describe('RecipesService.getById', () => {
     });
 
     it('OMITS viewerRating when the viewer has not rated the recipe (never a fabricated 0)', async () => {
-        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publishable({ visibility: 'public' })) });
         // Default stub: findStars resolves undefined (viewer has no rating).
         const response = await newService(dal).getById({
             viewerId: OTHER,
@@ -612,7 +626,7 @@ describe('RecipesService.getById — cover thumbnail (FOLLOW-UP-CR-001-A)', () =
     }
 
     it("serves the cover from the first photo's THUMBNAIL, while the gallery keeps the full-size original", async () => {
-        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publishable({ visibility: 'public' })) });
         const s3Key = 'recipes/01JOWNER/r-1/photos/p1';
         const thumbnailKey = `${s3Key}.thumb.jpg`;
         const service = serviceWithPhotos(dal, [{ s3Key, thumbnailKey, sortOrder: 0 }]);
@@ -626,7 +640,7 @@ describe('RecipesService.getById — cover thumbnail (FOLLOW-UP-CR-001-A)', () =
     });
 
     it('falls back to the original for a cover photo that has no thumbnail (pre-feature / degraded)', async () => {
-        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publishable({ visibility: 'public' })) });
         const s3Key = 'recipes/01JOWNER/r-1/photos/p1';
         const service = serviceWithPhotos(dal, [{ s3Key, thumbnailKey: null, sortOrder: 0 }]);
 
@@ -700,7 +714,7 @@ describe('RecipesService — difficulty passthrough (FR-001b)', () => {
         ['absent (unchanged)', { expectedVersion: 1, title: 'Renamed' } as UpdateRecipeDto, undefined],
     ])('forwards difficulty=%s straight through to the DAL update', async (_label, patch, expected) => {
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
+            findById: vi.fn().mockResolvedValue(publishable({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
 
@@ -839,7 +853,7 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
     it('a viewable-but-not-owned recipe (public, published) still returns 403 on a mutation (not an oracle)', async () => {
         // W8-a.4: seeing ≠ owning. You can see a public published recipe you don't own, so a modify attempt
         // is a legitimate 403 — the id is not secret. Only the UNSEEABLE case is masked as 404.
-        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ ownerId: OWNER })) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publishable({ ownerId: OWNER })) });
 
         const error = await catchError(newService(dal).delete(OTHER, 'r-1'));
 
@@ -871,10 +885,9 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
     });
 
     /**
-     * The half of the publish floor the wire cannot enforce. `updateRecipeRequestSchema` rejects a body that
-     * publishes while SENDING an empty array, but a body that publishes without resending the arrays is
-     * indistinguishable from a legitimate one until you look at what is stored — so only the service can
-     * refuse it. Reachable only since drafts were allowed to be empty; before that, no empty recipe existed.
+     * The publish policy judges the STORED state when the patch does not resend it: a body that publishes without the
+     * arrays is indistinguishable from a legitimate one until you look at what is stored. Rewritten 2026-10-13: it
+     * asserted a bare `BadRequestException`; the refusal is now the typed `PUBLISH_REQUIREMENTS_UNMET` naming each gap.
      */
     it('Publish is REFUSED when the stored draft is empty and the patch does not supply content', async () => {
         const dal = fakeRecipesDal({
@@ -886,7 +899,8 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
             newService(dal).update(principal(), 'r-1', { expectedVersion: 1, status: 'published' }, undefined),
         );
 
-        expect(error).toBeInstanceOf(BadRequestException);
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET);
+        expect(isRecipeDomainError(error) && error.details).toEqual({ missing: ['ingredients', 'steps'] });
         // Nothing was written: the refusal precedes the DAL, so a rejected publish cannot bump the version.
         expect(dal.update).not.toHaveBeenCalled();
     });
@@ -918,6 +932,165 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
     });
 });
 
+describe('RecipesService — the publish policy (owner rulings 2026-10-13: a cuisine is required to publish)', () => {
+    /** A stored recipe with a line and a step, in the given state. */
+    function stored(overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {}): RecipeAggregate {
+        const base = aggregate(overrides);
+
+        return { ...base, ingredients: [makeIngredientLineRow({ recipeId: base.recipe.id })] };
+    }
+
+    /** The code and details a refusal carries, for one comparison. */
+    function codeAndMissing(error: unknown): unknown {
+        return isRecipeDomainError(error) ? { code: error.code, details: error.details } : error;
+    }
+
+    const unmet = (...missing: string[]) => ({
+        code: RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET,
+        details: { missing },
+    });
+    const { cuisine: _cuisine, ...noCuisine } = CREATE_DTO;
+
+    it('refuses a create that publishes (status absent = published) without a cuisine, writing nothing', async () => {
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+
+        const error = await catchError(newService(dal).create(principal(), noCuisine, undefined));
+
+        expect(codeAndMissing(error)).toEqual(unmet('cuisine'));
+        expect(dal.create).not.toHaveBeenCalled();
+    });
+
+    it('lists every gap of a create in page order', async () => {
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+
+        const error = await catchError(
+            newService(dal).create(
+                principal(),
+                { ...noCuisine, status: 'published', ingredients: [], steps: [] },
+                undefined,
+            ),
+        );
+
+        expect(codeAndMissing(error)).toEqual(unmet('cuisine', 'ingredients', 'steps'));
+    });
+
+    it('saves a DRAFT create with no cuisine, ingredients or steps', async () => {
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate({ status: 'draft' })) });
+
+        await newService(dal).create(
+            principal(),
+            { ...noCuisine, status: 'draft', ingredients: [], steps: [] },
+            undefined,
+        );
+
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ status: 'draft' }), FAKE_TX);
+    });
+
+    it('writes the RESOLVED status explicitly: an absent status is published, not a database default', async () => {
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+
+        await newService(dal).create(principal(), CREATE_DTO, undefined);
+
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ status: 'published' }), FAKE_TX);
+    });
+
+    it('EXEMPTS a curator’s public-domain import from the cuisine (ADR-0023’s curator path)', async () => {
+        const dal = fakeRecipesDal({
+            create: vi.fn().mockResolvedValue(aggregate({ sourceType: 'imported_public', cuisine: null })),
+        });
+
+        await newService(dal).create(
+            principal({ scopes: [CURATOR_IMPORT_SCOPE] }),
+            {
+                ...noCuisine,
+                source: {
+                    sourceType: 'imported_public',
+                    sourceUrl: 'https://www.gutenberg.org/cache/epub/12350/pg12350.txt',
+                    sourceAttribution: 'The International Jewish Cook Book',
+                },
+            },
+            undefined,
+        );
+
+        expect(dal.create).toHaveBeenCalledWith(
+            expect.objectContaining({ sourceType: 'imported_public', status: 'published' }),
+            FAKE_TX,
+        );
+    });
+
+    it('refuses a PATCH that clears the cuisine of a published recipe', async () => {
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(stored()), update: vi.fn() });
+
+        const error = await catchError(
+            newService(dal).update(principal(), 'r-1', { expectedVersion: 1, cuisine: null }, undefined),
+        );
+
+        expect(codeAndMissing(error)).toEqual(unmet('cuisine'));
+        expect(dal.update).not.toHaveBeenCalled();
+    });
+
+    it('⛔ judges a "Save changes" PATCH (no status) on a published recipe: it cannot empty it', async () => {
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(stored()), update: vi.fn() });
+
+        const error = await catchError(
+            newService(dal).update(principal(), 'r-1', { expectedVersion: 1, ingredients: [] }, undefined),
+        );
+
+        expect(codeAndMissing(error)).toEqual(unmet('ingredients'));
+        expect(dal.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses publishing a stored draft that has no cuisine, unless the patch supplies one', async () => {
+        const draft = stored({ status: 'draft', cuisine: null });
+        const refused = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(draft), update: vi.fn() });
+        const supplied = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(draft),
+            update: vi.fn().mockResolvedValue(stored({ currentVersion: 2 })),
+        });
+
+        const error = await catchError(
+            newService(refused).update(principal(), 'r-1', { expectedVersion: 1, status: 'published' }, undefined),
+        );
+        await newService(supplied).update(
+            principal(),
+            'r-1',
+            { expectedVersion: 1, status: 'published', cuisine: 'Thai' },
+            undefined,
+        );
+
+        expect(codeAndMissing(error)).toEqual(unmet('cuisine'));
+        expect(supplied.update).toHaveBeenCalledWith(
+            'r-1',
+            expect.objectContaining({ status: 'published', cuisine: 'Thai' }),
+            FAKE_TX,
+        );
+    });
+
+    it('lets a DRAFT clear its cuisine, passing the null through to the DAL', async () => {
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(stored({ status: 'draft' })),
+            update: vi.fn().mockResolvedValue(stored({ status: 'draft', cuisine: null, currentVersion: 2 })),
+        });
+
+        await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, cuisine: null }, undefined);
+
+        expect(dal.update).toHaveBeenCalledWith('r-1', expect.objectContaining({ cuisine: null }), FAKE_TX);
+    });
+
+    it('lets a stored public-domain import be saved published without a cuisine', async () => {
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(stored({ sourceType: 'imported_public', cuisine: null })),
+            update: vi
+                .fn()
+                .mockResolvedValue(stored({ sourceType: 'imported_public', cuisine: null, currentVersion: 2 })),
+        });
+
+        await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, title: 'Kugel' }, undefined);
+
+        expect(dal.update).toHaveBeenCalled();
+    });
+});
+
 describe('RecipesService.update', () => {
     const patch: UpdateRecipeDto = { expectedVersion: 1, title: 'Renamed' };
 
@@ -929,14 +1102,14 @@ describe('RecipesService.update', () => {
     });
 
     it('throws NOT_OWNER when the caller does not own the recipe', async () => {
-        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate()) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publishable()) });
         const error = await catchError(newService(dal).update(principal({ userId: OTHER }), 'r-1', patch, undefined));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
     });
 
     it('throws an ENRICHED VERSION_CONFLICT (server + base snapshots) when expectedVersion is stale (T033/W8-a.5)', async () => {
-        const current = aggregate({ currentVersion: 5, title: 'Server title' });
+        const current = publishable({ currentVersion: 5, title: 'Server title' });
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(current),
             // The coherent conflict read: current server aggregate + the base version (v3) the client edited from.
@@ -986,7 +1159,7 @@ describe('RecipesService.update', () => {
     });
 
     it('omits the base side when the edited-from version is evicted past the DB window (W8-a.5)', async () => {
-        const current = aggregate({ currentVersion: 5 });
+        const current = publishable({ currentVersion: 5 });
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(current),
             readConflict: vi.fn().mockResolvedValue({ current }), // no baseVersion row retained
@@ -1010,10 +1183,10 @@ describe('RecipesService.update', () => {
     });
 
     it('a CAS-miss race (pre-check passes, update matches 0 rows) also raises the enriched conflict (W8-a.5)', async () => {
-        const current = aggregate({ currentVersion: 4 });
+        const current = publishable({ currentVersion: 4 });
         const dal = fakeRecipesDal({
             // Pre-check passes: findById still shows v3 (the client's expectedVersion) at read time...
-            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 3 })),
+            findById: vi.fn().mockResolvedValue(publishable({ currentVersion: 3 })),
             update: vi.fn().mockResolvedValue(undefined), // ...but the CAS lost the race → 0 rows
             readConflict: vi.fn().mockResolvedValue({ current }),
         });
@@ -1030,7 +1203,7 @@ describe('RecipesService.update', () => {
 
     it('a CAS-miss where the row is genuinely GONE raises 404, not a conflict (W8-a.5)', async () => {
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 3 })),
+            findById: vi.fn().mockResolvedValue(publishable({ currentVersion: 3 })),
             update: vi.fn().mockResolvedValue(undefined),
             readConflict: vi.fn().mockResolvedValue(undefined), // recipe vanished (tombstoned) since the pre-check
         });
@@ -1045,7 +1218,7 @@ describe('RecipesService.update', () => {
     it('updates when the version matches and returns the bumped recipe', async () => {
         const updated = aggregate({ currentVersion: 2 });
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
+            findById: vi.fn().mockResolvedValue(publishable({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(updated),
         });
         const service = newService(dal);
@@ -1059,7 +1232,7 @@ describe('RecipesService.update', () => {
     it('records a version snapshot after a successful update', async () => {
         const versions = makeFakeVersionsService();
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
+            findById: vi.fn().mockResolvedValue(publishable({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
         const service = makeRecipesService({
@@ -1091,7 +1264,7 @@ describe('RecipesService.update', () => {
         // another test; it stopped being reachable, because there is now exactly one writer.
         const versions = makeFakeVersionsService();
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
+            findById: vi.fn().mockResolvedValue(publishable({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
         const service = makeRecipesService({
@@ -1114,7 +1287,7 @@ describe('RecipesService.update', () => {
     it('records the editor handle (deriveDisplayName) on the update snapshot (W6 by-@handle attribution)', async () => {
         const versions = makeFakeVersionsService();
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
+            findById: vi.fn().mockResolvedValue(publishable({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
         const service = makeRecipesService({
@@ -1135,7 +1308,7 @@ describe('RecipesService.update', () => {
     it('omits the editor handle on update when the principal has no derivable name (graceful, matches create)', async () => {
         const versions = makeFakeVersionsService();
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
+            findById: vi.fn().mockResolvedValue(publishable({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
         const service = makeRecipesService({
@@ -1186,7 +1359,7 @@ describe('RecipesService — a never-published draft records no version (ADR-005
 
     it('a save of a never-published draft writes no version row, and the version number still moves', async () => {
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ ...NEVER_PUBLISHED, currentVersion: 4 })),
+            findById: vi.fn().mockResolvedValue(publishable({ ...NEVER_PUBLISHED, currentVersion: 4 })),
             update: vi.fn().mockResolvedValue(aggregate({ ...NEVER_PUBLISHED, currentVersion: 5 })),
         });
         const { service, versions } = serviceWith(dal);
@@ -1225,7 +1398,7 @@ describe('RecipesService — a never-published draft records no version (ADR-005
     it('⛔ a published recipe set back to draft still records a version on every save', async () => {
         const redrafted = { status: 'draft', firstPublishedAt: PUBLISHED_AT } as const;
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ ...redrafted, currentVersion: 3 })),
+            findById: vi.fn().mockResolvedValue(publishable({ ...redrafted, currentVersion: 3 })),
             update: vi.fn().mockResolvedValue(aggregate({ ...redrafted, currentVersion: 4 })),
         });
         const { service, versions } = serviceWith(dal);
@@ -1260,7 +1433,7 @@ describe('RecipesService.delete', () => {
     });
 
     it('throws NOT_OWNER for a non-owner', async () => {
-        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate()) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publishable()) });
         const error = await catchError(newService(dal).delete(OTHER, 'r-1'));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
@@ -1268,7 +1441,7 @@ describe('RecipesService.delete', () => {
 
     it('soft-deletes when the caller owns the recipe', async () => {
         const softDelete = vi.fn().mockResolvedValue(true);
-        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate()), softDelete });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publishable()), softDelete });
 
         await newService(dal).delete(OWNER, 'r-1');
 
@@ -1628,7 +1801,7 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
     it('⛔ refuses a contained test principal’s flip to PUBLIC with 403 TEST_PRINCIPAL_CONTAINED (ADR-0040)', async () => {
         const setVisibility = vi.fn();
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created', visibility: 'private' })),
+            findById: vi.fn().mockResolvedValue(publishable({ sourceType: 'user_created', visibility: 'private' })),
             setVisibility,
         });
 
@@ -1650,7 +1823,7 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
     });
 
     it('throws NOT_OWNER when the caller does not own the recipe', async () => {
-        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate()) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publishable()) });
         const error = await catchError(
             newService(dal).setVisibility(principal({ userId: OTHER }), 'r-1', RecipeVisibility.PRIVATE, undefined),
         );
@@ -1661,7 +1834,7 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
     it('DENIES free-tier user_created → private (INVALID_VISIBILITY) and never touches the DAL', async () => {
         const setVisibility = vi.fn();
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
+            findById: vi.fn().mockResolvedValue(publishable({ sourceType: 'user_created' })),
             setVisibility,
         });
 
@@ -1677,7 +1850,7 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
         const updated = aggregate({ sourceType: 'user_created', visibility: 'private' });
         const setVisibility = vi.fn().mockResolvedValue(updated);
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
+            findById: vi.fn().mockResolvedValue(publishable({ sourceType: 'user_created' })),
             setVisibility,
         });
 
@@ -1690,7 +1863,7 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
     it('derives premium from permissions, not scopes (a premium SCOPE must not unlock private)', async () => {
         const setVisibility = vi.fn();
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
+            findById: vi.fn().mockResolvedValue(publishable({ sourceType: 'user_created' })),
             setVisibility,
         });
 
@@ -1711,7 +1884,7 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
     it('re-throws RECIPE_NOT_FOUND when the row vanished before the write (concurrent tombstone)', async () => {
         const setVisibility = vi.fn().mockResolvedValue(undefined);
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
+            findById: vi.fn().mockResolvedValue(publishable({ sourceType: 'user_created' })),
             setVisibility,
         });
 
@@ -1877,6 +2050,7 @@ describe('RecipesService — a write reads its bindings in one batch (S-R6)', ()
     /** A 3-line create DTO: A, B, then A again (a repeated binding across two lines). */
     const MULTI_LINE_DTO: CreateRecipeDto = {
         title: 'Stew',
+        cuisine: 'Irish',
         servings: 2,
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
@@ -2129,7 +2303,7 @@ describe('RecipesService — the nutrition latency budget each route states', ()
     it("update answers on the 'postCommit' budget", async () => {
         const spy = vi.spyOn(RecipeDetailAssembler.prototype, 'toDetailResponse');
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
+            findById: vi.fn().mockResolvedValue(publishable({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
 
@@ -2146,7 +2320,7 @@ describe('RecipesService — the nutrition latency budget each route states', ()
     it("setVisibility answers on the 'postCommit' budget", async () => {
         const spy = vi.spyOn(RecipeDetailAssembler.prototype, 'toDetailResponse');
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
+            findById: vi.fn().mockResolvedValue(publishable({ sourceType: 'user_created' })),
             setVisibility: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
         });
 
@@ -2170,7 +2344,7 @@ describe('RecipesService — the nutrition latency budget each route states', ()
 
     it('getById answers on the budget its caller states', async () => {
         const spy = vi.spyOn(RecipeDetailAssembler.prototype, 'toDetailResponse');
-        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publishable({ visibility: 'public' })) });
         const service = newService(dal);
 
         await service.getById({ viewerId: OTHER, id: 'r-1', caller: undefined, budget: 'read' });
@@ -2188,7 +2362,7 @@ describe('RecipesService — the nutrition latency budget each route states', ()
  */
 describe('RecipesService.findEditableAggregate', () => {
     it('returns the aggregate to its owner at the current version', async () => {
-        const current = aggregate({ currentVersion: 4 });
+        const current = publishable({ currentVersion: 4 });
         const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(current) });
 
         await expect(newService(dal).findEditableAggregate(OWNER, 'r-1', 4, undefined)).resolves.toBe(current);
@@ -2212,7 +2386,7 @@ describe('RecipesService.findEditableAggregate', () => {
     });
 
     it('⛔ raises the SAME enriched VERSION_CONFLICT the update path raises when the version is stale', async () => {
-        const current = aggregate({ currentVersion: 5, title: 'Server title' });
+        const current = publishable({ currentVersion: 5, title: 'Server title' });
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(current),
             readConflict: vi.fn().mockResolvedValue({ current }),

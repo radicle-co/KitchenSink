@@ -80,6 +80,7 @@ async function seedRecipe(
             prepTimeMinutes: 5,
             cookTimeMinutes: 10,
             totalTimeMinutes: 15,
+            cuisine: 'Italian',
             ingredientNamesText: values.title.toLowerCase(),
             ...values,
         })
@@ -328,6 +329,7 @@ describe('Clone + visibility US2 (integration)', () => {
             prepTimeMinutes: 1,
             cookTimeMinutes: 1,
             totalTimeMinutes: 2,
+            cuisine: 'Italian',
             ingredients: [{ ingredientId: FLOUR_ID, quantity: { kind: 'exact', value: 1 }, unit: 'cup' }],
             steps: [{ instruction: 'Mix' }],
         };

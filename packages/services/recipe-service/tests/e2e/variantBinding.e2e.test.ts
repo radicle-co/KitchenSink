@@ -115,6 +115,7 @@ async function recipeOf(label: string, bindings: readonly string[], phrase?: str
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
         totalTimeMinutes: 15,
+        cuisine: 'Italian',
         ingredients: bindings.map((ingredientId) => ({
             ingredientId,
             quantity: { kind: 'exact', value: 100 },

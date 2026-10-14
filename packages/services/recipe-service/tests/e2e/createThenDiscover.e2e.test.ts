@@ -110,6 +110,7 @@ describe('create → public discovery (e2e, assembled app)', () => {
                 prepTimeMinutes: 5,
                 cookTimeMinutes: 10,
                 totalTimeMinutes: 15,
+                cuisine: 'Italian',
                 ingredients: [{ ingredientId, quantity: { kind: 'exact', value: 1 }, unit: 'cup' }],
                 steps: [{ instruction: 'Cook it.' }],
             }),

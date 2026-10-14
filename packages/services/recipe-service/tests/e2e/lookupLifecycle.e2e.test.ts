@@ -62,6 +62,7 @@ async function recipeOn(userId: string, label: string, lookupIds: readonly strin
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
         totalTimeMinutes: 15,
+        cuisine: 'Italian',
         ingredients: lookupIds.map((ingredientId) => ({
             ingredientId,
             quantity: { kind: 'exact', value: 1 },
@@ -292,6 +293,7 @@ describe('the life of a line binding (e2e, assembled app + food fake)', () => {
             prepTimeMinutes: 5,
             cookTimeMinutes: 10,
             totalTimeMinutes: 15,
+            cuisine: 'Italian',
             ingredients: [{ ingredientId: gone, quantity: { kind: 'exact', value: 1 } }],
             steps: [{ instruction: 'Cook.' }],
         });

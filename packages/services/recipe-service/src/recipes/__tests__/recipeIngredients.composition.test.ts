@@ -113,6 +113,7 @@ async function catchError(promise: Promise<unknown>): Promise<unknown> {
 
 const CREATE_DTO: CreateRecipeDto = {
     title: 'Soup',
+    cuisine: 'Thai',
     servings: 2,
     prepTimeMinutes: 5,
     cookTimeMinutes: 10,

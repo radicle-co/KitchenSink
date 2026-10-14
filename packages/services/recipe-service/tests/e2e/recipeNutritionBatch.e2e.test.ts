@@ -64,6 +64,7 @@ describe('POST /api/v1/recipes/nutrition-batch (e2e, assembled app)', () => {
                 prepTimeMinutes: 5,
                 cookTimeMinutes: 10,
                 totalTimeMinutes: 15,
+                cuisine: 'Italian',
                 ingredients: [
                     {
                         ingredientId: SEED_INGREDIENT_FLOUR,

@@ -48,6 +48,7 @@ const CREATE_DTO: CreateRecipeDto = {
     prepTimeMinutes: 5,
     cookTimeMinutes: 10,
     totalTimeMinutes: 15,
+    cuisine: 'Italian',
     ingredients: [{ ingredientId: FLOUR_ID, quantity: { kind: 'exact', value: 1 } }],
     steps: [{ instruction: 'Mix' }],
 };

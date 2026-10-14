@@ -37,6 +37,7 @@ async function seedRecipe(client: RecipeServiceClient, title: string): Promise<v
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
         totalTimeMinutes: 15,
+        cuisine: 'Italian',
         tags: ['contract'],
         dietaryFlags: ['vegetarian'],
         ingredients: [{ ingredientId: FLOUR_ID, quantity: { kind: 'exact', value: 1 } }],

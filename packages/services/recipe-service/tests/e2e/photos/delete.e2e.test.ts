@@ -44,6 +44,7 @@ const RECIPE_PAYLOAD = {
     prepTimeMinutes: 5,
     cookTimeMinutes: 10,
     totalTimeMinutes: 15,
+    cuisine: 'Italian',
     tags: ['integration'],
     dietaryFlags: [],
     ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000bb', quantity: { kind: 'exact', value: 1 } }],

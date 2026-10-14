@@ -211,6 +211,7 @@ describe('a never-published draft records no version (ADR-0058, integration)', (
         const created = await call('POST', '/api/v1/recipes', {
             ...DRAFT_BODY,
             status: undefined,
+            cuisine: 'Southern',
             ingredients: [{ ingredientId: BRISKET.lookupId, quantity: { kind: 'exact', value: 1 }, unit: 'g' }],
             steps: [{ instruction: 'Cook.' }],
         });

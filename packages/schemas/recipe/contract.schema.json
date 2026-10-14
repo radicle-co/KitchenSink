@@ -8257,9 +8257,16 @@
                     "type": "integer"
                 },
                 "cuisine": {
-                    "maxLength": 100,
-                    "minLength": 1,
-                    "type": "string"
+                    "anyOf": [
+                        {
+                            "maxLength": 100,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
                 },
                 "description": {
                     "maxLength": 5000,

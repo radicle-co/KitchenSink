@@ -82,6 +82,7 @@ async function recipeWith(first: string, phrase: string): Promise<RecipeBody> {
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
         totalTimeMinutes: 15,
+        cuisine: 'Italian',
         ingredients: [
             {
                 ingredientId: first,

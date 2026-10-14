@@ -90,6 +90,8 @@ export interface FixtureRecipeDefinition {
     readonly key: FixtureRecipeKey;
     readonly owner: FixtureOwner;
     readonly baseTitle: string;
+    /** A `CUISINES` entry, spelled exactly as the list spells it: the service refuses to publish a recipe without one. */
+    readonly cuisine: string;
     readonly description: string;
     readonly visibility: 'public' | 'private';
     readonly servings: number;
@@ -117,6 +119,7 @@ export const SEED_WORLD: readonly FixtureRecipeDefinition[] = [
         key: 'lamb',
         owner: 'signer',
         baseTitle: 'Mediterranean Grilled Lamb',
+        cuisine: 'Greek',
         description: 'Herb-marinated grilled lamb.',
         visibility: 'private',
         servings: 4,
@@ -152,6 +155,7 @@ export const SEED_WORLD: readonly FixtureRecipeDefinition[] = [
         key: 'asparagus',
         owner: 'signer',
         baseTitle: 'Asparagus with Green Sauce',
+        cuisine: 'Italian',
         description: 'Blanched asparagus, herb sauce.',
         visibility: 'private',
         servings: 2,
@@ -182,6 +186,7 @@ export const SEED_WORLD: readonly FixtureRecipeDefinition[] = [
         key: 'salad',
         owner: 'signer',
         baseTitle: 'Gourmet Garden Salad',
+        cuisine: 'Mediterranean',
         description: 'Seasonal greens, vinaigrette.',
         visibility: 'public',
         servings: 2,
@@ -215,6 +220,7 @@ export const SEED_WORLD: readonly FixtureRecipeDefinition[] = [
         key: 'risotto',
         owner: 'coAuthor',
         baseTitle: 'Herb Risotto',
+        cuisine: 'Italian',
         description: 'Creamy risotto with fresh herbs.',
         visibility: 'public',
         servings: 4,
@@ -279,6 +285,7 @@ export const PRIVATE_FOOD_RECIPE: FixtureRecipeDefinition = {
     key: 'privateFood',
     owner: 'coAuthor',
     baseTitle: 'Secret Recipe Crostini',
+    cuisine: 'Italian',
     description: 'Toasted bread with a drizzle.',
     visibility: 'public',
     servings: 2,

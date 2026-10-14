@@ -82,8 +82,10 @@ describe('CreateRecipeDto.ingredients cap (REQ-003a — between 1 and 100)', () 
         expect(() => create({ ingredients: makeIngredients(MAX_RECIPE_INGREDIENTS + 1) })).toThrow();
     });
 
-    it('rejects an EMPTY ingredients array (the lower bound recipe-core did not carry)', () => {
-        expect(() => create({ ingredients: [] })).toThrow();
+    it('ACCEPTS an empty ingredients array: the floor is a PUBLISH rule, judged by the publish policy', () => {
+        // Rewritten 2026-10-13: this asserted a 400 from the body. The floor now lives ONCE, in
+        // `recipes/domain/publishPolicy.ts`, which `RecipesService` runs on the state a write leaves.
+        expect(create({ ingredients: [] }).ingredients).toEqual([]);
     });
 });
 
@@ -104,39 +106,30 @@ describe('UpdateRecipeDto.ingredients cap (REQ-003a)', () => {
 });
 
 /**
- * The publish floor is CONDITIONAL: a recipe may exist empty (a draft), but not be published empty.
+ * The publish floor is NOT a wire rule any more (2026-10-13, the publish policy).
  *
- * The pair these replaced asserted a FLAT `min(1)` on both arrays. That read as a cardinality rule and was
- * really a publication rule, so it forbade the empty draft the wizard's Save-Draft is built to create — the
- * app sent `{ ingredients: [], steps: [] }` and the service answered 400.
+ * These cases used to pin four zod refinements that refused an empty array when a body said (or defaulted to)
+ * `published`. They were the partial half of the rule: a body cannot see what is stored, and they fired only when the
+ * body carried `status`, so a "Save changes" PATCH could empty a published recipe. The rule now lives ONCE, in
+ * `recipes/domain/publishPolicy.ts` (its truth table is `publishPolicy.test.ts`), applied by `RecipesService` to the
+ * state every create and update leaves. What these assert now is that the wire no longer states a second copy.
  */
-describe('ingredients/steps cardinality is a PUBLISH floor, not an existence floor', () => {
-    it('rejects an empty array on create when status is absent — the server defaults it to published', () => {
-        expect(() => create({ ingredients: [] })).toThrow();
-        expect(() => create({ steps: [] })).toThrow();
-    });
+describe('ingredients/steps cardinality is the publish policy’s, not the wire’s', () => {
+    it.each([{}, { status: 'published' as const }, { status: 'draft' as const }])(
+        'accepts empty arrays on create (%j): the service decides',
+        (status) => {
+            const parsed = create({ ingredients: [], steps: [], ...status });
 
-    it('rejects an empty array on create when publishing explicitly', () => {
-        expect(() => create({ ingredients: [], status: 'published' })).toThrow();
-        expect(() => create({ steps: [], status: 'published' })).toThrow();
-    });
+            expect(parsed.ingredients).toEqual([]);
+            expect(parsed.steps).toEqual([]);
+        },
+    );
 
-    it('ACCEPTS both empty on create when the body says draft', () => {
-        const draft = create({ ingredients: [], steps: [], status: 'draft' });
+    it('accepts empty arrays on an update that publishes: the service judges the state it leaves', () => {
+        const parsed = update({ ingredients: [], steps: [], status: 'published' });
 
-        expect(draft.ingredients).toEqual([]);
-        expect(draft.steps).toEqual([]);
-    });
-
-    it('rejects an empty array on an update that publishes', () => {
-        expect(() => update({ ingredients: [], status: 'published' })).toThrow();
-        expect(() => update({ steps: [], status: 'published' })).toThrow();
-    });
-
-    it('accepts an update that publishes without resending the arrays — only the service can judge that', () => {
-        // Absent means unchanged, and the wire does not carry what is stored, so this MUST pass validation.
-        // `RecipesService.update` is what rejects it when the persisted recipe is empty.
-        expect(update({ status: 'published' }).status).toBe('published');
+        expect(parsed.ingredients).toEqual([]);
+        expect(parsed.steps).toEqual([]);
     });
 });
 

@@ -55,6 +55,7 @@ describe('Collection list member summary (e2e)', () => {
                 prepTimeMinutes: 5,
                 cookTimeMinutes: 10,
                 totalTimeMinutes: 15,
+                cuisine: 'Italian',
                 ...(options.deleted === true ? { deletedAt: new Date() } : {}),
             })
             .returning({ id: recipes.id });

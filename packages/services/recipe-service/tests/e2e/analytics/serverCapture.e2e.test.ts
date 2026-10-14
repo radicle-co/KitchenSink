@@ -91,6 +91,7 @@ describe('U3 server-door capture (integration, booted app)', () => {
                 prepTimeMinutes: 5,
                 cookTimeMinutes: 10,
                 totalTimeMinutes: 15,
+                cuisine: 'Italian',
                 ingredients: [
                     {
                         ingredientId: INGREDIENT_ID,

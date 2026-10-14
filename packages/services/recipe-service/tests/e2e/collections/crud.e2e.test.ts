@@ -45,6 +45,7 @@ async function insertRecipe(
             prepTimeMinutes: 5,
             cookTimeMinutes: 10,
             totalTimeMinutes: 15,
+            cuisine: 'Italian',
         })
         .returning({ id: recipes.id });
 

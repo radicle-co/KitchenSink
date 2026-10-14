@@ -25,6 +25,7 @@ function createPayload(over: Record<string, unknown> = {}): Record<string, unkno
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
         totalTimeMinutes: 15,
+        cuisine: 'Italian',
         ingredients: [
             {
                 ingredientId: '00000000-0000-4000-8000-0000000000aa',

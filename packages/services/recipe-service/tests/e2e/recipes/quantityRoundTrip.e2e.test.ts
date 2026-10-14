@@ -62,6 +62,7 @@ const bodyWith = (quantity: IngredientQuantity, unit?: string): Record<string, u
     prepTimeMinutes: 10,
     cookTimeMinutes: 20,
     totalTimeMinutes: 30,
+    cuisine: 'Italian',
     ingredients: [{ ingredientId: FLOUR_ID, quantity, ...(unit === undefined ? {} : { unit }) }],
     steps: [{ instruction: 'Combine.' }],
 });

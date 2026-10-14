@@ -146,6 +146,7 @@ describe('POST /api/v1/recipes/nutrition-batch (integration)', () => {
                 prepTimeMinutes: 5,
                 cookTimeMinutes: 10,
                 totalTimeMinutes: 15,
+                cuisine: 'Italian',
                 tags: [],
                 dietaryFlags: [],
                 ingredientNamesText: '',

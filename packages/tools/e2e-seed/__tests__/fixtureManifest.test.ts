@@ -11,7 +11,7 @@ import {
     POOL_PASSWORD,
     slotFor,
 } from '@kitchensink/e2e-fixtures/testPool';
-import { MAX_SEARCH_FOOD_FILTERS } from '@kitchensink/schema-recipe';
+import { createRecipeRequestSchema, MAX_SEARCH_FOOD_FILTERS } from '@kitchensink/schema-recipe';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -173,6 +173,20 @@ describe('deriveFixtureManifest', () => {
             totalTimeMinutes: 20,
         });
         expect(asparagus?.ingredients).toHaveLength(5);
+    });
+
+    /**
+     * The service refuses to publish a recipe without a cuisine (`PUBLISH_REQUIREMENTS_UNMET`), and every seeded
+     * recipe is published — so a world recipe without a list-spelled cuisine would fail the whole reset at runtime.
+     * Parsing through the wire schema's own cuisine field means this cannot drift from the `CUISINES` list.
+     */
+    it('gives every recipe a cuisine the wire schema accepts', () => {
+        for (const recipe of [...SEED_WORLD, PRIVATE_FOOD_RECIPE]) {
+            const parsed = createRecipeRequestSchema.shape.cuisine.safeParse(recipe.cuisine);
+
+            expect(parsed.success, recipe.baseTitle).toBe(true);
+            expect(parsed.data, recipe.baseTitle).toBe(recipe.cuisine);
+        }
     });
 
     it('gives every recipe real lines and real steps', () => {

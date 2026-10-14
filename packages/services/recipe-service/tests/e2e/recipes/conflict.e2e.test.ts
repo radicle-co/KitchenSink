@@ -30,6 +30,7 @@ const CREATE_PAYLOAD = {
     prepTimeMinutes: 1,
     cookTimeMinutes: 1,
     totalTimeMinutes: 2,
+    cuisine: 'Italian',
     ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000bb', quantity: { kind: 'exact', value: 1 } }],
     steps: [{ instruction: 'Season.' }],
 };

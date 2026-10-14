@@ -294,6 +294,7 @@ export function toCreateRequest(
         prepTimeMinutes: recipe.prepTimeMinutes,
         cookTimeMinutes: recipe.cookTimeMinutes,
         totalTimeMinutes: recipe.totalTimeMinutes,
+        cuisine: recipe.cuisine,
         ingredients: recipe.ingredients.map((line) => ({
             ingredientId: ingredientIds.get(line.name) ?? '',
             quantity: { kind: 'exact' as const, value: line.quantity },

@@ -267,6 +267,7 @@ describe('U14 — a verification verdict reaches the cook (integration)', () => 
             prepTimeMinutes: 5,
             cookTimeMinutes: 10,
             totalTimeMinutes: 15,
+            cuisine: 'Italian',
             tags: [],
             dietaryFlags: [],
             ingredientNamesText: '',

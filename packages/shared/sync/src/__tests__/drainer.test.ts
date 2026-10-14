@@ -621,3 +621,33 @@ describe('drain — settlement events', () => {
         expect(events).toStrictEqual([]);
     });
 });
+
+/**
+ * ⛔ A DELETE IS THE ONE PARKED RECORD THAT IS RE-SENT AFTER AN UNKNOWN OUTCOME: it cannot write twice. A second copy of
+ * one that landed meets a 404, which the sender reads as done; a first copy that never landed is still wanted. The keep
+ * pin stays: an unknown create or update is not re-sent behind the cook's back.
+ */
+describe('drain — a parked delete with an unknown outcome', () => {
+    it('re-sends it', async () => {
+        const sender = scripted({ outcome: 'ok', serverId: 'rec_1' });
+
+        const after = await drain(parkedWith(undefined, { intentKind: 'delete' }), sender, noSleep);
+
+        expect(sender).toHaveBeenCalledTimes(1);
+        expect(after.log.records).toStrictEqual([]);
+    });
+
+    it.each([
+        ['create', undefined],
+        ['update', undefined],
+        ['delete', 409],
+        ['delete', 422],
+    ] as const)('⛔ does not re-send a parked %s with status %s', async (intentKind, status) => {
+        const sender = scripted();
+
+        const after = await drain(parkedWith(status, { intentKind }), sender, noSleep);
+
+        expect(sender).not.toHaveBeenCalled();
+        expect(after.log.records.map((record) => record.state)).toStrictEqual(['parked']);
+    });
+});

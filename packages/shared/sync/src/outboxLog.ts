@@ -203,7 +203,7 @@ export function withdraw(log: OutboxLog, seq: number): OutboxLog {
         candidate.intentKind === 'delete' &&
         candidate.entity === record.entity &&
         candidate.localId === record.localId &&
-        candidate.state === 'pending' &&
+        (candidate.state === 'pending' || candidate.state === 'blocked') &&
         candidate.dependsOn.includes(produced);
     const gone = new Set<number>([seq, ...log.records.filter(strands).map((candidate) => candidate.seq)]);
 
@@ -322,6 +322,96 @@ export function supersede(log: OutboxLog, incoming: Intent): OutboxLog {
     return { ...log, records: [...survivors, { ...incoming, dependsOn, seq: log.nextSeq, state: 'pending' }], nextSeq };
 }
 
+/** Whether `candidate` is a delete of `create`'s entity that waits, unsent, for the ref `create` is to produce. */
+function waitsOnCreate(candidate: OutboxRecord, create: OutboxRecord): boolean {
+    return (
+        create.produces !== undefined &&
+        candidate.intentKind === 'delete' &&
+        candidate.entity === create.entity &&
+        candidate.localId === create.localId &&
+        (candidate.state === 'pending' || candidate.state === 'blocked') &&
+        candidate.dependsOn.includes(create.produces)
+    );
+}
+
+/**
+ * Settle the pairs the log can prove pointless: a PARKED create whose ref no drain resolved, with a delete of the same
+ * entity waiting on that ref. The delete is the cook's consent (a Discard queues it behind a create on the wire), the
+ * create will never produce an id, so neither record can ever do anything: both leave.
+ *
+ * ⛔ APPLIED INSIDE THE MUTATION THAT PARKS THE CREATE (`settle`, `recoverInterrupted`), not left to a caller. The
+ * editor that could withdraw the create may be gone by then, and the pair would sit counted as "syncing" for ever.
+ * ⛔ WHATEVER THE STATUS. A create parked on an unknown outcome may exist on the server, and a delete cannot name it:
+ * that residual copy is the cook's to delete from My recipes (ADR-0057), no worse than a withdrawal.
+ *
+ * @param log - The log to settle.
+ * @returns A new log; the same log when no pair is found. Pure.
+ *
+ * @pattern Specification — a predicate over the log decides which records are moot; the Serialized Mutator applies the
+ *     result atomically with the settlement that made it true.
+ */
+export function withdrawMoot(log: OutboxLog): OutboxLog {
+    const gone = new Set<number>();
+
+    for (const create of log.records) {
+        if (
+            create.state !== 'parked' ||
+            create.produces === undefined ||
+            log.resolutions[create.produces] !== undefined
+        ) {
+            continue;
+        }
+
+        const waiting = log.records.filter((candidate) => waitsOnCreate(candidate, create));
+
+        if (waiting.length > 0) {
+            gone.add(create.seq);
+
+            for (const candidate of waiting) {
+                gone.add(candidate.seq);
+            }
+        }
+    }
+
+    return gone.size === 0 ? log : { ...log, records: log.records.filter((record) => !gone.has(record.seq)) };
+}
+
+/** Whether a parked `record` is pointless now that `deleted` (which the server answered as `serverId`) synced. Pure. */
+function isMootByDelete(record: OutboxRecord, deleted: OutboxRecord, serverId: string): boolean {
+    if (record.state !== 'parked') {
+        return false;
+    }
+
+    const ids = [deleted.localId, serverId];
+
+    return (
+        (record.entity === deleted.entity && ids.includes(record.localId)) ||
+        ids.some((id) => (record.concerns ?? []).includes(`${deleted.entity}:${id}`))
+    );
+}
+
+/**
+ * The cook's confirmed Discard as ONE change: withdraw every parked record the delete makes moot, then supersede the
+ * rest. Unlike {@link supersede} it never throws on a parked record, because the Discard IS the consent that
+ * `supersede` refuses to assume. It knows nothing of the UI.
+ *
+ * A create on the wire is left and the delete queues behind it (`supersede`); {@link withdrawMoot} settles that pair
+ * if the create then parks.
+ *
+ * @param log - The current log.
+ * @param incoming - The delete intent the cook consented to.
+ * @returns A new log. Pure.
+ */
+export function discardEntity(log: OutboxLog, incoming: Intent): OutboxLog {
+    const gone = new Set(
+        log.records
+            .filter((record) => record.state === 'parked' && belongsTo(record, incoming))
+            .map((record) => record.seq),
+    );
+
+    return supersede({ ...log, records: log.records.filter((record) => !gone.has(record.seq)) }, incoming);
+}
+
 /**
  * Mark a record as on the wire. The drain journals this BEFORE the request leaves (see {@link recoverInterrupted}).
  *
@@ -369,15 +459,27 @@ export function settle(log: OutboxLog, settlement: Settlement): OutboxLog {
                     ? log.resolutions
                     : resolveRef(log.resolutions, settlement.produces, settlement.serverId);
 
-            return { ...log, records: log.records.filter((record) => record.seq !== settlement.seq), resolutions };
+            const settled = log.records.find((record) => record.seq === settlement.seq);
+            const remaining = log.records.filter((record) => record.seq !== settlement.seq);
+
+            // ⛔ A DELETE THAT SYNCED MAKES EVERY PARKED WRITE OF ITS ENTITY POINTLESS, and nobody is left to withdraw
+            // them: the cook's Discard queued that delete, which is the consent (a Tombstone).
+            const records =
+                settled?.intentKind === 'delete'
+                    ? remaining.filter((record) => !isMootByDelete(record, settled, settlement.serverId))
+                    : remaining;
+
+            return { ...log, records, resolutions };
         }
 
         case 'parked':
-            return withRecord(log, settlement.seq, ({ lastStatus: _previous, ...record }) => ({
-                ...record,
-                state: 'parked',
-                ...(settlement.status === undefined ? {} : { lastStatus: settlement.status }),
-            }));
+            return withdrawMoot(
+                withRecord(log, settlement.seq, ({ lastStatus: _previous, ...record }) => ({
+                    ...record,
+                    state: 'parked',
+                    ...(settlement.status === undefined ? {} : { lastStatus: settlement.status }),
+                })),
+            );
 
         case 'blocked':
             return withRecord(log, settlement.seq, (record) => ({ ...record, state: 'blocked' }));
@@ -432,7 +534,7 @@ export function recoverInterrupted(log: OutboxLog, options: RecoveryOptions = {}
             (record.state === 'pending' || record.state === 'blocked') &&
             MINTS_A_ROW.has(record.intentKind));
 
-    return {
+    return withdrawMoot({
         ...log,
         records: log.records.map((record) => {
             if (!parks(record)) {
@@ -443,7 +545,7 @@ export function recoverInterrupted(log: OutboxLog, options: RecoveryOptions = {}
 
             return { ...interrupted, state: 'parked' };
         }),
-    };
+    });
 }
 
 /** Replace the record numbered `seq`, if present. Pure. */

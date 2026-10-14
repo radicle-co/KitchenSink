@@ -139,8 +139,9 @@ export const MAX_INLINE_WAIT_MS = 10_000;
  * Whether a record may be sent by this drain.
  *
  * ⛔ A PARKED RECORD IS RE-SENT ONLY WHEN THAT CANNOT WRITE TWICE: a transient refusal (the server did not process
- * it) or `401` (the sender refused before sending, because its cook was signed out). An unknown outcome, a conflict
- * and a terminal refusal wait for the cook — re-sending an unknown outcome on the next reconnect is the blind retry
+ * it), `401` (the sender refused before sending, because its cook was signed out), or a DELETE of any outcome but a
+ * stated refusal (its second copy meets a 404). An unknown outcome of anything else, a conflict and a terminal refusal
+ * wait for the cook — re-sending an unknown outcome on the next reconnect is the blind retry
  * this module's rule forbids, one trigger later.
  */
 function sendable(record: OutboxRecord): boolean {
@@ -154,6 +155,12 @@ function sendable(record: OutboxRecord): boolean {
     }
 
     if (record.lastStatus === 401) {
+        return true;
+    }
+
+    // ⛔ A DELETE CANNOT WRITE TWICE, so an unknown outcome may be sent again: if the first copy landed, the second meets
+    // a 404, which the sender reads as done. This depends on there being no route that undeletes a recipe (ADR-0057).
+    if (record.intentKind === 'delete' && record.lastStatus === undefined) {
         return true;
     }
 

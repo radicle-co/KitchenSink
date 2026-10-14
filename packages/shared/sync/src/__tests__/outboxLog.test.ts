@@ -24,12 +24,14 @@ import {
     appendExclusive,
     appendIntent,
     claimForSending,
+    discardEntity,
     drainOrder,
     markSending,
     recoverInterrupted,
     settle,
     supersede,
     withdraw,
+    withdrawMoot,
     type OutboxLog,
 } from '../outboxLog.js';
 import { type Intent, type OutboxRecord } from '../record.js';
@@ -694,7 +696,11 @@ describe('appendExclusive', () => {
 describe('withdraw — what waits on the withdrawn record', () => {
     const REF = 'local:recipe:r1';
 
-    /** Discard while the create is on the wire, then the create parks with an unknown outcome. */
+    /**
+     * Discard while the create is on the wire, then the create is parked with an unknown outcome. Parked by hand:
+     * `settle` now settles this pair itself (`withdrawMoot`), so a log holding it is one an older build persisted, and
+     * `withdraw` must still clear it.
+     */
     function discardedWhileSending(): OutboxLog {
         const sending = markSending(
             appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: REF, produces: REF })),
@@ -702,7 +708,12 @@ describe('withdraw — what waits on the withdrawn record', () => {
         );
         const discarded = supersede(sending, intent({ entity: 'recipe', intentKind: 'delete', localId: REF }));
 
-        return settle(discarded, { seq: 1, outcome: 'parked' });
+        return {
+            ...discarded,
+            records: discarded.records.map((record) =>
+                record.seq === 1 ? { ...record, state: 'parked' as const } : record,
+            ),
+        };
     }
 
     it('⛔ withdrawing the parked create also removes the delete that waited on its id', () => {
@@ -758,5 +769,246 @@ describe('withdraw', () => {
 
     it('is a no-op for a record that is already gone', () => {
         expect(withdraw(EMPTY, 7)).toBe(EMPTY);
+    });
+});
+
+/**
+ * ⛔ A RECORD THE LOG ITSELF CAN PROVE POINTLESS LEAVES BY ITSELF. A Discard queues a delete behind a create on the wire
+ * (the cook's consent, a Tombstone). When that create parks, no id will ever exist, so the pair is settled in the same
+ * mutation that parked it — nobody is left to withdraw it once the editor is gone (stuck "Syncing 1").
+ */
+describe('withdrawMoot — a parked create with the cook`s delete waiting on it', () => {
+    const REF = 'local:recipe:r1';
+
+    /** A create on the wire, with a Discard's delete queued behind it in `deleteState`. */
+    function createWithDelete(deleteState: 'pending' | 'blocked'): OutboxLog {
+        const sending = markSending(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: REF, produces: REF })),
+            1,
+        );
+        const withDelete = supersede(sending, intent({ entity: 'recipe', intentKind: 'delete', localId: REF }));
+
+        return deleteState === 'pending' ? withDelete : settleBlocked(withDelete, 2);
+    }
+
+    /** Mark a record blocked without going through `settle`, which would apply the very rule under test. */
+    function settleBlocked(log: OutboxLog, seq: number): OutboxLog {
+        return {
+            ...log,
+            records: log.records.map((record) => (record.seq === seq ? { ...record, state: 'blocked' } : record)),
+        };
+    }
+
+    it.each([
+        ['an unknown outcome', undefined],
+        ['a signed-out cook', 401],
+        ['a terminal refusal', 400],
+        ['a transient refusal that outlasted its attempts', 503],
+    ])('⛔ %s: parking the create settles the pair, for a pending and for a blocked delete', (_label, status) => {
+        for (const state of ['pending', 'blocked'] as const) {
+            const parked = settle(createWithDelete(state), {
+                seq: 1,
+                outcome: 'parked',
+                ...(status === undefined ? {} : { status }),
+            });
+
+            expect(parked.records, state).toStrictEqual([]);
+        }
+    });
+
+    it('⛔ leaves a parked create alone when no delete waits on it', () => {
+        const parked = settle(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: REF, produces: REF })),
+            { seq: 1, outcome: 'parked' },
+        );
+
+        expect(parked.records.map((record) => [record.intentKind, record.state])).toStrictEqual([['create', 'parked']]);
+    });
+
+    it('does nothing when the ref already resolved: the delete can still be sent', () => {
+        const parkedOnly = {
+            ...createWithDelete('pending'),
+            records: createWithDelete('pending').records.map((record) =>
+                record.seq === 1 ? { ...record, state: 'parked' as const } : record,
+            ),
+            resolutions: { [REF]: 'rec_1' },
+        };
+
+        expect(withdrawMoot(parkedOnly).records.map((record) => record.intentKind)).toStrictEqual(['create', 'delete']);
+    });
+
+    it('⛔ leaves another entity`s delete, and a create that is not parked, untouched', () => {
+        const unrelated = appendIntent(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: REF, produces: REF })),
+            intent({ entity: 'recipe', intentKind: 'delete', localId: 'rec_9' }),
+        );
+        const parked = settle(unrelated, { seq: 1, outcome: 'parked' });
+
+        expect(withdrawMoot(unrelated)).toBe(unrelated);
+        expect(parked.records.map((record) => record.intentKind)).toStrictEqual(['create', 'delete']);
+        expect(withdrawMoot(EMPTY)).toBe(EMPTY);
+    });
+
+    it('is applied by recoverInterrupted: a create a dead process left on the wire, with its delete behind it', () => {
+        expect(recoverInterrupted(createWithDelete('pending')).records).toStrictEqual([]);
+    });
+});
+
+describe('settle — a synced delete settles every parked write of its entity', () => {
+    /** Everything parked about recipe `rec_1`, plus one about `rec_2`, then the delete of `rec_1` queued. */
+    function parkedAround(): OutboxLog {
+        let log = EMPTY;
+        log = appendIntent(log, intent({ entity: 'recipe', intentKind: 'update', localId: 'rec_1' }));
+        log = appendIntent(log, intent({ entity: 'recipe', intentKind: 'setVisibility', localId: 'rec_1' }));
+        log = appendIntent(
+            log,
+            intent({ entity: 'collection', intentKind: 'addMember', localId: 'c1', concerns: ['recipe:rec_1'] }),
+        );
+        log = appendIntent(log, intent({ entity: 'recipe', intentKind: 'update', localId: 'rec_2' }));
+
+        for (const seq of [1, 2, 3, 4]) {
+            log = settle(log, { seq, outcome: 'parked', status: 409 });
+        }
+
+        return appendIntent(log, intent({ entity: 'recipe', intentKind: 'delete', localId: 'rec_1' }));
+    }
+
+    it('⛔ withdraws the update, the visibility and the membership of the deleted recipe, and only those', () => {
+        const after = settle(parkedAround(), { seq: 5, outcome: 'synced', serverId: 'rec_1' });
+
+        expect(after.records.map((record) => record.localId)).toStrictEqual(['rec_2']);
+    });
+
+    it('matches the entity by the id the server answered when the delete was queued under a local ref', () => {
+        const log = settle(appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'rec_1' })), {
+            seq: 1,
+            outcome: 'parked',
+            status: 500,
+        });
+        const withDelete = appendIntent(
+            log,
+            intent({
+                entity: 'recipe',
+                intentKind: 'delete',
+                localId: 'local:recipe:r1',
+                dependsOn: ['local:recipe:r1'],
+            }),
+        );
+
+        expect(settle(withDelete, { seq: 2, outcome: 'synced', serverId: 'rec_1' }).records).toStrictEqual([]);
+    });
+
+    it('⛔ a synced update (or any non-delete) withdraws nothing', () => {
+        const log = settle(
+            appendIntent(
+                appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'rec_1' })),
+                intent({ entity: 'recipe', intentKind: 'setVisibility', localId: 'rec_1' }),
+            ),
+            { seq: 2, outcome: 'parked', status: 409 },
+        );
+
+        expect(
+            settle(log, { seq: 1, outcome: 'synced', serverId: 'rec_1' }).records.map((record) => record.seq),
+        ).toStrictEqual([2]);
+    });
+
+    it('does not touch a pending write of the entity: only what the cook was already told about', () => {
+        const log = appendIntent(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'delete', localId: 'rec_1' })),
+            intent({ entity: 'recipe', intentKind: 'setVisibility', localId: 'rec_1' }),
+        );
+
+        expect(
+            settle(log, { seq: 1, outcome: 'synced', serverId: 'rec_1' }).records.map((record) => record.seq),
+        ).toStrictEqual([2]);
+    });
+});
+
+describe('withdraw — a blocked delete leaves with its producer', () => {
+    it('⛔ removes a delete that the drain marked blocked behind the withdrawn create', () => {
+        const REF = 'local:recipe:r1';
+        const log: OutboxLog = {
+            ...EMPTY,
+            nextSeq: 3,
+            records: [
+                {
+                    ...intent({ entity: 'recipe', intentKind: 'create', localId: REF, produces: REF }),
+                    seq: 1,
+                    state: 'parked',
+                },
+                {
+                    ...intent({ entity: 'recipe', intentKind: 'delete', localId: REF, dependsOn: [REF] }),
+                    seq: 2,
+                    state: 'blocked',
+                },
+            ],
+        };
+
+        expect(withdraw(log, 1).records).toStrictEqual([]);
+    });
+});
+
+describe('discardEntity — one consented change', () => {
+    const del = (localId: string, dependsOn: readonly string[] = []): Intent =>
+        intent({ entity: 'recipe', intentKind: 'delete', localId, dependsOn });
+
+    it('⛔ a parked create (never published, outcome unknown): nothing is left queued, and it does not throw', () => {
+        const REF = 'local:recipe:r1';
+        const parked = settle(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: REF, produces: REF })),
+            { seq: 1, outcome: 'parked' },
+        );
+
+        expect(discardEntity(parked, del(REF, [REF])).records).toStrictEqual([]);
+    });
+
+    it('⛔ a parked update of a recipe the server holds: it is withdrawn and the delete is queued', () => {
+        const parked = settle(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'rec_1' })),
+            { seq: 1, outcome: 'parked', status: 409 },
+        );
+
+        const after = discardEntity(parked, del('rec_1'));
+
+        expect(after.records.map((record) => [record.intentKind, record.state])).toStrictEqual([['delete', 'pending']]);
+    });
+
+    it('a record on the wire gets the delete behind it', () => {
+        const sending = markSending(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'rec_1' })),
+            1,
+        );
+
+        expect(
+            discardEntity(sending, del('rec_1')).records.map((record) => [record.intentKind, record.state]),
+        ).toStrictEqual([
+            ['update', 'sending'],
+            ['delete', 'pending'],
+        ]);
+    });
+
+    it('a pending record is superseded, and another entity`s parked record stays', () => {
+        let log = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'rec_2' }));
+        log = settle(log, { seq: 1, outcome: 'parked', status: 409 });
+        log = appendIntent(log, intent({ entity: 'recipe', intentKind: 'update', localId: 'rec_1' }));
+
+        const after = discardEntity(log, del('rec_1'));
+
+        expect(after.records.map((record) => [record.localId, record.intentKind, record.state])).toStrictEqual([
+            ['rec_2', 'update', 'parked'],
+            ['rec_1', 'delete', 'pending'],
+        ]);
+    });
+
+    it('⛔ a create on the wire with a delete queued behind it, then the create parks: both go', () => {
+        const REF = 'local:recipe:r1';
+        const sending = markSending(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: REF, produces: REF })),
+            1,
+        );
+        const discarded = discardEntity(sending, del(REF, [REF]));
+
+        expect(discarded.records.map((record) => record.intentKind)).toStrictEqual(['create', 'delete']);
+        expect(settle(discarded, { seq: 1, outcome: 'parked' }).records).toStrictEqual([]);
     });
 });

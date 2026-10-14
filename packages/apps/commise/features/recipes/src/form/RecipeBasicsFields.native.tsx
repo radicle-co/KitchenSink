@@ -22,6 +22,7 @@ import { FieldLabel, Stepper, TextArea } from '@commise/ui/input';
 import { useContainerClass } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { MAX_RECIPE_CUISINE_LENGTH } from '@kitchensink/recipe-core';
 import type { FC, ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -46,8 +47,6 @@ import {
 import { DESCRIPTION_COUNTER_FROM, DESCRIPTION_MAX_LENGTH, TITLE_COUNTER_FROM, TITLE_MAX_LENGTH } from './limits.js';
 import { recipeFormMessages } from './messages.js';
 import { durationOfMinutes, minutesOfDuration } from './minutesDuration.js';
-import { MAX_RECIPE_CUISINE_LENGTH } from '@kitchensink/recipe-core';
-
 import {
     applyDraftAction,
     statedChoice,

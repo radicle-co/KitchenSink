@@ -20,6 +20,7 @@ import { ChipRow } from '@commise/ui/chip';
 import { Combobox } from '@commise/ui/combobox';
 import { DurationField } from '@commise/ui/duration-field';
 import { FieldLabel, Stepper, TextArea } from '@commise/ui/input';
+import { MAX_RECIPE_CUISINE_LENGTH } from '@kitchensink/recipe-core';
 import type { FC, FocusEvent, KeyboardEvent, ReactNode } from 'react';
 
 import { editorMessages } from '../editor/messages.js';
@@ -43,8 +44,6 @@ import {
 import { DESCRIPTION_COUNTER_FROM, DESCRIPTION_MAX_LENGTH, TITLE_COUNTER_FROM, TITLE_MAX_LENGTH } from './limits.js';
 import { recipeFormMessages } from './messages.js';
 import { durationOfMinutes, minutesOfDuration } from './minutesDuration.js';
-import { MAX_RECIPE_CUISINE_LENGTH } from '@kitchensink/recipe-core';
-
 import {
     applyDraftAction,
     statedChoice,

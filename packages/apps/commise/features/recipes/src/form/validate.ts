@@ -251,8 +251,9 @@ const cuisineErrorOf = (raw: string): 'cuisineRequired' | 'cuisineTooLong' | und
 /**
  * The floor a SERVER write of a draft checks (blueprint A4; `editor/checkpointPolicy.ts`'s `draftFloorMet`): only what
  * the wire refuses outright — a title (within the wire's bound, not the publish limit), a cuisine within the wire's
- * bound (but none is needed), positive servings and non-negative times. Ingredients and steps may be empty, and are wire-legal as empty arrays on an update. A write the
- * floor would refuse is never asked for, so a checkpoint cannot loop on a `400`. Pure.
+ * bound (but none is needed), positive servings and non-negative times. Ingredients and steps may be empty, and are
+ * wire-legal as empty arrays on an update. A write the floor would refuse is never asked for, so a checkpoint cannot
+ * loop on a `400`. Pure.
  *
  * @param values - The editor's form values.
  * @returns The errors that keep the draft on the device (empty when a server write may go ahead).

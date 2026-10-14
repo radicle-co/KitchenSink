@@ -38,7 +38,9 @@ test.describe('the Cuisine field', () => {
         await expect(list.getByRole('option')).toHaveText(['Indian', 'Indonesian', 'Use “Ind”']);
 
         await cuisine.fill('nyonya');
-        await expect(page.getByText('No cuisines match “Nyonya”. You can use it as your own.')).toBeVisible();
+        await expect(
+            page.getByRole('paragraph').filter({ hasText: 'No cuisines match “Nyonya”. You can use it as your own.' }),
+        ).toBeVisible();
         await page.getByRole('option', { name: 'Use “Nyonya” as the cuisine' }).click();
 
         await expect(cuisine).toHaveValue('Nyonya');

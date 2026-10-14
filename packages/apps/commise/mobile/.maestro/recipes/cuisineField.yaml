@@ -19,35 +19,7 @@ appId: io.commise.mobile
           TITLE: 'Maestro Cuisine Curry'
 
 # One ingredient declared as written (no food service needed) and one step: everything Publish needs but the cuisine.
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Add an ingredient'
-- inputText: 'Tomato'
-- runFlow:
-      file: common/scrollOpenList.yaml
-      env:
-          TARGET: 'Use .*Tomato.* as written.*'
-- tapOn:
-      text: 'Use .*Tomato.* as written.*'
-- scrollUntilVisible:
-      element: 'Edit Tomato'
-      direction: UP
-      timeout: 30000
-- scrollUntilVisible:
-      element: 'Add step'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Add step'
-- inputText: 'Simmer.'
-# The step field keeps the iOS keyboard up over the action bar; a tap on the section heading closes it
-# (`common/typeTitle.yaml` says why a heading, and why not Return).
-- runFlow:
-      when:
-          platform: iOS
-      commands:
-          - tapOn: 'Steps'
+- runFlow: common/addTomatoAndStep.yaml
 
 # Publish without a cuisine: refused in the editor, which says how many things to fix and what the fix is.
 - tapOn: 'Publish'

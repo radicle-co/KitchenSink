@@ -19,6 +19,8 @@
  * - ⛔ The text is the host's alone: the field forwards what the cook types in the change event itself, and downshift
  *   never rewrites it, so a selection or an Escape never changes it behind the host and the caret stays where the
  *   cook is typing.
+ * - Enter with nothing active is reported to the host (`onSubmitWithoutChoice`). Under `typedText="isValue"` it also
+ *   closes the list, because the typed text is the value (`docs/design/uiOverhaul/cuisineField.md` §4 P1).
  * - Enter never submits the form around the field; Escape on a closed list abandons the entry through the host, or is
  *   left to the page when the host takes no abandon; Home and End move the caret (§3e); a press in the field moves the
  *   caret and leaves the list as it is.
@@ -323,6 +325,8 @@ export const Combobox: FC<ComboboxProps> = ({
     listRequested = false,
     openOnFocus = false,
     alertOccurrence,
+    typedText = 'needsChoice',
+    onBlur,
 }) => {
     const hintId = fieldHintId(id);
     const [inputNode, setInputNode] = useState<HTMLInputElement | null>(null);
@@ -481,6 +485,11 @@ export const Combobox: FC<ComboboxProps> = ({
             // method's, not a submit.
             if ((activeIndex < 0 || !isOpen) && event.nativeEvent.keyCode !== IME_KEY_CODE) {
                 onSubmitWithoutChoice?.();
+
+                // The typed text is the value (P1): submitting it is done with the list, and focus stays.
+                if (typedText === 'isValue') {
+                    closeMenu();
+                }
             }
         }
     };
@@ -506,6 +515,9 @@ export const Combobox: FC<ComboboxProps> = ({
             }
         },
         onKeyDown,
+        onBlur: () => {
+            onBlur?.();
+        },
         onChange: (event) => {
             onValueChange(event.currentTarget.value);
             setActiveKey(undefined);

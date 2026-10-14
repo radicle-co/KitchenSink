@@ -12,7 +12,11 @@
  *   shut.
  * - A drag on the page closes the list unless it began on the list (`ScrollerDragContext`): with no scroller of its
  *   own, the list scrolls with the page under the finger. A `touchcancel` does not end that touch: it is how the
- *   scroller announces that it took the gesture (below).
+ *   scroller announces that it took the gesture (below). A host may bound a long list (`listMaxRows`,
+ *   `docs/design/uiOverhaul/cuisineField.md` §4 P2): its options then sit in a nested scroller, still in the page's flow,
+ *   and a drag that began on it scrolls the list instead.
+ * - `typedText="isValue"` (P1): the typed text is the value, so the return key reads Done and ends the entry, a pick
+ *   dismisses the keyboard, and the keyboard hiding while the field has focus closes the list.
  * - Each time the list goes from hidden to shown, the leaf asks the scroller's host to show the field and three option
  *   rows below it (`FieldRevealContext`, E1). The leaf holds no geometry, and the host decides. Closing the list or
  *   unmounting releases the request.
@@ -40,7 +44,16 @@
  * @pattern Adapter over the React Native focus API — a level-triggered focus request, acknowledged once taken
  */
 import { useContext, useEffect, useEffectEvent, useRef, useState, type FC, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View, type TextInput as NativeTextInput } from 'react-native';
+import {
+    Keyboard,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    useWindowDimensions,
+    View,
+    type TextInput as NativeTextInput,
+} from 'react-native';
 
 import { FieldRevealContext } from '../fieldReveal/fieldRevealContext.js';
 import { ScrollerDragContext } from '../fieldReveal/scrollerDrag.js';
@@ -64,6 +77,9 @@ const LIST_PADDING_DP = nativeTokens.spacing[1];
 
 /** The room a reveal asks for below the field: the list's top margin and padding, and three option rows (E1). */
 const REVEAL_BELOW_DP = LIST_MARGIN_DP + LIST_PADDING_DP + 3 * TARGET_DP;
+
+/** The share of the window a bounded list may take at most (`cuisineField.md` §4 P2). */
+const BOUNDED_LIST_WINDOW_SHARE = 0.45;
 
 /** Releases nothing: what a list that opened with no field to measure hands back. */
 const RELEASE_NOTHING = (): void => undefined;
@@ -117,8 +133,15 @@ export const Combobox: FC<ComboboxProps> = ({
     listRequested = false,
     openOnFocus = false,
     alertOccurrence,
+    typedText = 'needsChoice',
+    onBlur,
+    listMaxRows,
 }) => {
     const [open, setOpen] = useState(false);
+    // Whether the field has focus: under `isValue` the keyboard hiding while it does closes the list (P1).
+    const [focused, setFocused] = useState(false);
+    const typedIsValue = typedText === 'isValue';
+    const { height: windowHeight, fontScale } = useWindowDimensions();
     const theme = useTheme();
     const { colors, wash } = theme;
     const labelShown = labelVisibility === 'visible';
@@ -186,6 +209,23 @@ export const Combobox: FC<ComboboxProps> = ({
 
     useEffect(() => (popupShown ? subscribeDrag(() => onPageDrag()) : undefined), [popupShown, subscribeDrag]);
 
+    // @sideEffect Under `isValue`, the keyboard hiding while the field has focus closes the list: React Native does not
+    // blur a `TextInput` when Android Back dismisses the keyboard, so the list would otherwise stay up with no keyboard
+    // (`cuisineField.md` §3.2). A field that needs a choice keeps its list, as before.
+    useEffect(() => {
+        if (!typedIsValue || !focused) {
+            return undefined;
+        }
+
+        const subscription = Keyboard.addListener('keyboardDidHide', () => {
+            setOpen(false);
+        });
+
+        return () => {
+            subscription.remove();
+        };
+    }, [typedIsValue, focused]);
+
     const choose = (option: ComboboxOption): void => {
         if (option.busy === true) {
             return;
@@ -193,6 +233,11 @@ export const Combobox: FC<ComboboxProps> = ({
 
         setOpen(false);
         onSelect(option.key);
+
+        // A pick of a value the typed text could also have been is the end of the entry: the keyboard goes too (P1).
+        if (typedIsValue) {
+            Keyboard.dismiss();
+        }
     };
 
     const renderOption = (option: ComboboxOption) => (
@@ -219,6 +264,25 @@ export const Combobox: FC<ComboboxProps> = ({
             </View>
         </Pressable>
     );
+
+    const renderGroups = () =>
+        groups.map((group) => (
+            <View key={group.key}>
+                {group.label !== undefined && (
+                    <Text accessibilityRole="header" style={[styles.groupLabel, { color: colors.inkMuted }]}>
+                        {group.label}
+                    </Text>
+                )}
+                {group.options.map(renderOption)}
+            </View>
+        ));
+
+    // P2: `listMaxRows + 0.5` rows at the current font scale (the half row shows the list scrolls), never past 45% of
+    // the window; only when there are more options than the bound.
+    const boundedHeight =
+        listMaxRows !== undefined && optionCount > listMaxRows
+            ? Math.min((listMaxRows + 0.5) * TARGET_DP * fontScale, windowHeight * BOUNDED_LIST_WINDOW_SHARE)
+            : undefined;
 
     return (
         <View style={styles.root}>
@@ -252,6 +316,7 @@ export const Combobox: FC<ComboboxProps> = ({
                         }}
                         onFocus={() => {
                             onFocus?.();
+                            setFocused(true);
 
                             if (openOnFocus || (closedByBlur.current && value !== '')) {
                                 setOpen(true);
@@ -262,11 +327,20 @@ export const Combobox: FC<ComboboxProps> = ({
                         onBlur={() => {
                             closedByBlur.current = open;
                             setOpen(false);
+                            setFocused(false);
+                            onBlur?.();
                         }}
-                        // The submit key chooses nothing: the keyboard and the list stay up, and the host says why.
-                        submitBehavior="submit"
+                        // The submit key chooses nothing. A field that needs a choice keeps the keyboard and the list up,
+                        // and the host says why; a field whose typed text is the value is done (P1): Done, then both go.
+                        submitBehavior={typedIsValue ? 'blurAndSubmit' : 'submit'}
+                        {...(typedIsValue ? { enterKeyHint: 'done' as const } : {})}
                         onSubmitEditing={() => {
                             onSubmitWithoutChoice?.();
+
+                            if (typedIsValue) {
+                                setOpen(false);
+                                Keyboard.dismiss();
+                            }
                         }}
                         style={[
                             styles.field,
@@ -316,18 +390,19 @@ export const Combobox: FC<ComboboxProps> = ({
                 >
                     {status !== undefined && <StatusLine line={status} loadingIcon={loadingIcon} />}
                     {listShown &&
-                        groups.map((group) => (
-                            <View key={group.key}>
-                                {group.label !== undefined && (
-                                    <Text
-                                        accessibilityRole="header"
-                                        style={[styles.groupLabel, { color: colors.inkMuted }]}
-                                    >
-                                        {group.label}
-                                    </Text>
-                                )}
-                                {group.options.map(renderOption)}
-                            </View>
+                        (boundedHeight === undefined ? (
+                            renderGroups()
+                        ) : (
+                            // P2: a long list scrolls inside itself, so the rest of the page stays in reach. It stays in
+                            // the page's flow, so nothing is drawn outside its parent (Android takes no touches there),
+                            // and a drag that began on it still keeps it open — the drag now scrolls the list.
+                            <ScrollView
+                                nestedScrollEnabled
+                                keyboardShouldPersistTaps="handled"
+                                style={{ maxHeight: boundedHeight }}
+                            >
+                                {renderGroups()}
+                            </ScrollView>
                         ))}
                     {trailingStatus.map((line, index) => (
                         // A line has no identity beyond its place: the host passes them in the order they arrived.

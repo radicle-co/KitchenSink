@@ -15,7 +15,7 @@
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useState, type FC } from 'react';
-import { AccessibilityInfo, Text, View } from 'react-native';
+import { AccessibilityInfo, Dimensions, Keyboard, Text, View } from 'react-native';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { FieldRevealContext, type FieldRevealer } from '../../fieldReveal/fieldRevealContext.js';
@@ -906,5 +906,214 @@ describe('Combobox (native) — a line under the field', () => {
 
         expect(note.compareDocumentPosition(option) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(field().compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+});
+
+describe('Combobox (native) — typed text that IS the value (`typedText="isValue"`, cuisineField.md §4 P1)', () => {
+    /** The listener the leaf registered for the keyboard hiding, captured from `Keyboard.addListener`. */
+    const captureKeyboardHide = (): { readonly hide: () => void } => {
+        const listeners: (() => void)[] = [];
+
+        vi.spyOn(Keyboard, 'addListener').mockImplementation((event, listener) => {
+            if (event === 'keyboardDidHide') {
+                listeners.push(() => {
+                    listener({} as never);
+                });
+            }
+
+            return { remove: vi.fn() } as never;
+        });
+
+        return {
+            hide: () => {
+                for (const listener of listeners) {
+                    listener();
+                }
+            },
+        };
+    };
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('the return key reads Done', () => {
+        render(<Host typedText="isValue" />);
+
+        expect(field().getAttribute('enterkeyhint')).toBe('done');
+    });
+
+    it('the return key tells the host, closes the list and dismisses the keyboard', () => {
+        const dismiss = vi.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+        const onSelect = vi.fn();
+        const onSubmitWithoutChoice = vi.fn();
+        render(<Host typedText="isValue" onSelect={onSelect} onSubmitWithoutChoice={onSubmitWithoutChoice} />);
+        type('fl');
+
+        fireEvent.keyDown(field(), { key: 'Enter' });
+
+        expect(onSubmitWithoutChoice).toHaveBeenCalledTimes(1);
+        expect(onSelect).not.toHaveBeenCalled();
+        expect(screen.queryByRole('button', { name: 'Flaxseed' })).toBeNull();
+        expect(dismiss).toHaveBeenCalled();
+    });
+
+    it('a tap chooses, closes the list and dismisses the keyboard', () => {
+        const dismiss = vi.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+        const onSelect = vi.fn();
+        render(<Host typedText="isValue" onSelect={onSelect} />);
+        type('fl');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Flaxseed' }));
+
+        expect(onSelect).toHaveBeenCalledExactlyOnceWith('flax');
+        expect(dismiss).toHaveBeenCalled();
+    });
+
+    it('the keyboard hiding while the field has focus closes the list (Android Back does not blur)', () => {
+        const keyboard = captureKeyboardHide();
+        render(<Host typedText="isValue" />);
+        fireEvent.focus(field());
+        type('fl');
+        expect(screen.getByRole('button', { name: 'Flaxseed' })).toBeTruthy();
+
+        act(() => keyboard.hide());
+
+        expect(screen.queryByRole('button', { name: 'Flaxseed' })).toBeNull();
+    });
+
+    it('⛔ by default (`needsChoice`) the return key keeps the list and the keyboard up, and the key is not Done', () => {
+        const dismiss = vi.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+        const keyboard = captureKeyboardHide();
+        render(<Host onSubmitWithoutChoice={vi.fn()} />);
+        fireEvent.focus(field());
+        type('fl');
+
+        fireEvent.keyDown(field(), { key: 'Enter' });
+        act(() => keyboard.hide());
+
+        expect(screen.getByRole('button', { name: 'Flaxseed' })).toBeTruthy();
+        expect(dismiss).not.toHaveBeenCalled();
+        expect(field().getAttribute('enterkeyhint')).not.toBe('done');
+    });
+});
+
+describe('Combobox (native) — the field reports leaving it (`onBlur`)', () => {
+    it('a blur tells the host once and chooses nothing', () => {
+        const onBlur = vi.fn();
+        const onSelect = vi.fn();
+        render(<Host onBlur={onBlur} onSelect={onSelect} />);
+        type('fl');
+
+        fireEvent.blur(field());
+
+        expect(onBlur).toHaveBeenCalledTimes(1);
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+});
+
+describe('Combobox (native) — a bounded list (`listMaxRows`, cuisineField.md §4 P2)', () => {
+    const MANY: readonly ComboboxGroup[] = [
+        {
+            key: 'cuisines',
+            options: ['Afghan', 'Algerian', 'American', 'Argentinian', 'Armenian', 'Australian', 'Austrian'].map(
+                (name) => ({ key: name, label: name }),
+            ),
+        },
+    ];
+
+    /** The nearest ancestor of an option whose inline style bounds its height: the bounded scroller, if any. */
+    const boundedScrollerOf = (element: HTMLElement): HTMLElement | null => {
+        let node = element.parentElement;
+
+        while (node !== null) {
+            if (node.style.maxHeight !== '') {
+                return node;
+            }
+
+            node = node.parentElement;
+        }
+
+        return null;
+    };
+
+    /** The window the leaf reads through `useWindowDimensions`: jsdom has no layout, so its own height is 0. */
+    const windowOf = (height: number, fontScale: number): void => {
+        vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 400, height, scale: 1, fontScale });
+    };
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('with more options than the bound, holds them in a scroller 5.5 rows tall at font scale 1', () => {
+        windowOf(2000, 1);
+        render(<Host groups={MANY} listMaxRows={5} openOnFocus />);
+        fireEvent.focus(field());
+
+        const scroller = boundedScrollerOf(screen.getByRole('button', { name: 'Afghan' }));
+
+        expect(scroller).not.toBeNull();
+        expect(scroller?.style.maxHeight).toBe(`${String(5.5 * 48)}px`);
+        // Every option is still there to scroll to.
+        expect(screen.getByRole('button', { name: 'Austrian' })).toBeTruthy();
+    });
+
+    it('grows the rows with the font scale', () => {
+        windowOf(2000, 2);
+        render(<Host groups={MANY} listMaxRows={5} openOnFocus />);
+        fireEvent.focus(field());
+
+        const scroller = boundedScrollerOf(screen.getByRole('button', { name: 'Afghan' }));
+
+        expect(scroller?.style.maxHeight).toBe(`${String(5.5 * 48 * 2)}px`);
+    });
+
+    it('never grows past 45% of the window', () => {
+        windowOf(800, 2);
+        render(<Host groups={MANY} listMaxRows={5} openOnFocus />);
+        fireEvent.focus(field());
+
+        const scroller = boundedScrollerOf(screen.getByRole('button', { name: 'Afghan' }));
+
+        expect(scroller?.style.maxHeight).toBe(`${String(800 * 0.45)}px`);
+    });
+
+    it('with no more options than the bound, draws no scroller of its own', () => {
+        render(<Host groups={MANY} listMaxRows={7} openOnFocus />);
+        fireEvent.focus(field());
+
+        expect(boundedScrollerOf(screen.getByRole('button', { name: 'Afghan' }))).toBeNull();
+    });
+
+    it('without a bound, draws no scroller of its own (the default, as before)', () => {
+        render(<Host groups={MANY} openOnFocus />);
+        fireEvent.focus(field());
+
+        expect(boundedScrollerOf(screen.getByRole('button', { name: 'Afghan' }))).toBeNull();
+    });
+
+    it('a drag that began inside the bounded list keeps it open (it scrolls the list, not the page)', () => {
+        let beginDrag: () => void = () => undefined;
+
+        const subscribe = (listener: () => void): (() => void) => {
+            beginDrag = listener;
+
+            return () => undefined;
+        };
+
+        render(
+            <ScrollerDragContext.Provider value={subscribe}>
+                <Host groups={MANY} listMaxRows={3} openOnFocus />
+            </ScrollerDragContext.Provider>,
+        );
+        fireEvent.focus(field());
+        const inside = screen.getByRole('button', { name: 'Armenian' });
+        const finger = { identifier: 0, clientX: 10, clientY: 10, pageX: 10, pageY: 10, force: 1 };
+
+        fireEvent.touchStart(inside, { touches: [finger], changedTouches: [finger], targetTouches: [finger] });
+        act(() => beginDrag());
+
+        expect(screen.getByRole('button', { name: 'Armenian' })).toBeTruthy();
     });
 });

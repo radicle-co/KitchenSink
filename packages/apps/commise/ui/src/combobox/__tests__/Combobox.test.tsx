@@ -1770,3 +1770,65 @@ describe('Combobox (web) — a line under the field', () => {
         expect(field().compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 });
+
+describe('Combobox (web) — typed text that IS the value (`typedText="isValue"`, cuisineField.md §4 P1)', () => {
+    it('Enter with nothing active tells the host and closes the list, keeping focus and the text', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        const onSubmitWithoutChoice = vi.fn();
+        render(<Host typedText="isValue" onSelect={onSelect} onSubmitWithoutChoice={onSubmitWithoutChoice} />);
+        await user.type(field(), 'f');
+        expect(screen.getByRole('listbox')).toBeTruthy();
+
+        await user.keyboard('{Enter}');
+
+        expect(onSubmitWithoutChoice).toHaveBeenCalledTimes(1);
+        expect(onSelect).not.toHaveBeenCalled();
+        expect(screen.queryByRole('listbox')).toBeNull();
+        expect(field().getAttribute('aria-expanded')).toBe('false');
+        expect(document.activeElement).toBe(field());
+        expect(field().value).toBe('f');
+    });
+
+    it('Enter on the active option still chooses it, and the list closes', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        const onSubmitWithoutChoice = vi.fn();
+        render(
+            <Host initial="f" typedText="isValue" onSelect={onSelect} onSubmitWithoutChoice={onSubmitWithoutChoice} />,
+        );
+        field().focus();
+
+        await user.keyboard('{ArrowDown}{Enter}');
+
+        expect(onSelect).toHaveBeenCalledExactlyOnceWith('flour');
+        expect(onSubmitWithoutChoice).not.toHaveBeenCalled();
+        expect(screen.queryByRole('listbox')).toBeNull();
+    });
+
+    it('⛔ by default (`needsChoice`) Enter with nothing active leaves the list open: a food must be picked', async () => {
+        const user = userEvent.setup();
+        render(<Host onSubmitWithoutChoice={vi.fn()} />);
+        await user.type(field(), 'f');
+
+        await user.keyboard('{Enter}');
+
+        expect(screen.getByRole('listbox')).toBeTruthy();
+    });
+});
+
+describe('Combobox (web) — the field reports leaving it (`onBlur`, cuisineField.md §3.1: commit on Tab or blur)', () => {
+    it('Tab out of the field tells the host once and chooses nothing', async () => {
+        const user = userEvent.setup();
+        const onBlur = vi.fn();
+        const onSelect = vi.fn();
+        render(<Host onBlur={onBlur} onSelect={onSelect} />);
+        await user.type(field(), 'f');
+        await user.keyboard('{ArrowDown}');
+
+        await user.tab();
+
+        expect(onBlur).toHaveBeenCalledTimes(1);
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+});

@@ -204,4 +204,26 @@ export interface ComboboxProps {
      * rides the focus request, and the same {@link onFocusRequestHandled} acknowledges both.
      */
     readonly listRequested?: boolean;
+    /**
+     * Which of the APG's two models the field follows (`docs/design/uiOverhaul/cuisineField.md` §4 P1). An enum, not a
+     * boolean, because it names the model:
+     *
+     * - `needsChoice` (the default): the value must be picked, as a food is. Submitting with nothing chosen leaves the
+     *   list open and the keyboard up, and the host says why.
+     * - `isValue`: "list autocomplete with manual selection", where the typed text becomes the value unless the cook
+     *   picks an option (the recipe's cuisine). Submitting with nothing chosen still calls
+     *   {@link onSubmitWithoutChoice}, and also closes the list. On native the return key reads Done and dismisses the
+     *   keyboard, a pick dismisses it too, and the list closes when the keyboard hides while the field has focus
+     *   (Android Back does not blur a `TextInput`).
+     */
+    readonly typedText?: 'needsChoice' | 'isValue';
+    /** The field lost focus: Tab, a press elsewhere, or the keyboard's Done. Nothing is chosen by it (3.2.2). */
+    readonly onBlur?: () => void;
+    /**
+     * NATIVE ONLY (`cuisineField.md` §4 P2): with more options than this, the options sit in a scroller of their own,
+     * `listMaxRows + 0.5` rows tall at the current font scale (the half row shows that it scrolls) and never taller than
+     * 45% of the window, so a long fixed list does not push the rest of the page out of reach. Absent: the list is as
+     * tall as its options. The web list needs nothing: its popup already scrolls inside a 20rem cap.
+     */
+    readonly listMaxRows?: number;
 }

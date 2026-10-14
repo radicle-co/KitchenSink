@@ -1456,6 +1456,13 @@ export const RecipeErrorCode = {
      * recipe missing a line the cook asked to get back.
      */
     VERSION_LINE_UNRESTORABLE: 'VERSION_LINE_UNRESTORABLE',
+    /**
+     * A write that would leave a recipe PUBLISHED without something Publish needs (owner rulings 2026-10-13): a
+     * cuisine, unless the recipe is a public-domain import, at least one ingredient, and at least one step. A 400;
+     * `details.missing` names every gap (`publishRequirementsUnmetDetailsSchema`), so a client shows its own copy for
+     * each instead of parsing a message. A draft is never refused this way.
+     */
+    PUBLISH_REQUIREMENTS_UNMET: 'PUBLISH_REQUIREMENTS_UNMET',
 } as const;
 
 /**
@@ -1496,6 +1503,7 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.PARSE_JOB_NOT_FOUND,
     RecipeErrorCode.PARSE_JOB_EXPIRED,
     RecipeErrorCode.VERSION_LINE_UNRESTORABLE,
+    RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET,
 ]);
 
 /**

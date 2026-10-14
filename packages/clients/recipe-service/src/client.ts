@@ -58,6 +58,7 @@ import {
     NotFoundError,
     ParseJobExpiredError,
     VersionLineUnrestorableError,
+    PublishRequirementsUnmetError,
     PullDriftError,
     RecipeServiceClientError,
     UnauthorizedError,
@@ -1640,6 +1641,9 @@ export class RecipeServiceClient {
             case 'UNAUTHORIZED':
             case 'IDENTITY_SYNC_PENDING':
                 return new UnauthorizedError(body.message, body.code);
+            // The publish floor: its own class, carrying what is missing, and still a `BadRequestError`.
+            case 'PUBLISH_REQUIREMENTS_UNMET':
+                return new PublishRequirementsUnmetError(body.details.missing, body.message);
             case 'VALIDATION_FAILED':
             case 'INVALID_VISIBILITY':
             case 'COLLECTION_NOT_CLONED':

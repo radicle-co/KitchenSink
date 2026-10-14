@@ -4764,6 +4764,45 @@
                     "additionalProperties": {},
                     "properties": {
                         "code": {
+                            "const": "PUBLISH_REQUIREMENTS_UNMET",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "missing": {
+                                    "items": {
+                                        "enum": [
+                                            "cuisine",
+                                            "ingredients",
+                                            "steps"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "minItems": 1,
+                                    "type": "array"
+                                }
+                            },
+                            "required": [
+                                "missing"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
                             "const": "VERSION_LINE_UNRESTORABLE",
                             "type": "string"
                         },
@@ -5790,6 +5829,7 @@
                 "PARSE_JOB_NOT_FOUND",
                 "PARSE_JOB_EXPIRED",
                 "VERSION_LINE_UNRESTORABLE",
+                "PUBLISH_REQUIREMENTS_UNMET",
                 "UNAUTHORIZED",
                 "IDENTITY_SYNC_PENDING",
                 "FORBIDDEN",

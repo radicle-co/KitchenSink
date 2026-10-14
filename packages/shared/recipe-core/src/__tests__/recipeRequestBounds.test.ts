@@ -20,6 +20,7 @@
  * go looking for a column to blame.
  */
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import {
     INT4_CEILING,
@@ -137,6 +138,29 @@ describe('cuisine — max 100, min(1) adopted', () => {
     it('rejects `""`, which the read schema also rejects', () => {
         expect(accepts(recipeCuisineSchema, '')).toBe(false);
         expect(accepts(recipeSchema.shape.cuisine, '')).toBe(false);
+    });
+
+    it('parses to the canonical cuisine (cuisineField.md §2): every writer that parses the wire stores one spelling', () => {
+        expect(recipeCuisineSchema.parse('  thai ')).toBe('Thai');
+        expect(recipeCuisineSchema.parse('szechuan')).toBe('Sichuan');
+        expect(recipeCuisineSchema.parse('nyonya')).toBe('Nyonya');
+    });
+
+    it('applies the bounds AFTER canonicalising: whitespace alone is refused, and so is a canonical form past 100', () => {
+        expect(accepts(recipeCuisineSchema, '   ')).toBe(false);
+        expect(accepts(recipeCuisineSchema, ` ${'a'.repeat(100)} `)).toBe(true);
+        // `ß` upper-cases to `SS`: 100 characters typed become 101 once canonical, and the canonical form is what is stored.
+        expect(accepts(recipeCuisineSchema, `ß${'a'.repeat(99)}`)).toBe(false);
+    });
+
+    it('keeps its bounds in the published JSON Schema on the request side as well as the response side', () => {
+        for (const io of ['input', 'output'] as const) {
+            expect(z.toJSONSchema(recipeCuisineSchema, { io })).toMatchObject({
+                type: 'string',
+                minLength: 1,
+                maxLength: MAX_RECIPE_CUISINE_LENGTH,
+            });
+        }
     });
 });
 

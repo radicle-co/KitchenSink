@@ -57,6 +57,7 @@ const DETAILS_BY_CODE: Readonly<Record<string, Record<string, unknown>>> = {
     COLLECTION_LIMIT_REACHED: { limit: 50 },
     MAX_PHOTOS_EXCEEDED: { limit: 10 },
     VERSION_LINE_UNRESTORABLE: { positions: [2] },
+    PUBLISH_REQUIREMENTS_UNMET: { missing: ['cuisine'] },
 };
 
 /** A minimal valid body for a published code. */
@@ -177,6 +178,26 @@ describe('forward compatibility — a deployed service may run ahead of a releas
         for (const invalid of [{}, { code: 404 }, { message: 'no code' }, null, 42, 'a bare string', []]) {
             expect(apiErrorSchema.safeParse(invalid).success, JSON.stringify(invalid)).toBe(false);
         }
+    });
+});
+
+describe('PUBLISH_REQUIREMENTS_UNMET — a write that would publish a recipe missing what Publish needs (owner rulings 2026-10-13)', () => {
+    it('is a 400, the status of its policy sibling INVALID_VISIBILITY', () => {
+        expect(RECIPE_ERROR_STATUS.PUBLISH_REQUIREMENTS_UNMET).toBe(400);
+        expect(RECIPE_ERROR_STATUS.PUBLISH_REQUIREMENTS_UNMET).toBe(RECIPE_ERROR_STATUS.INVALID_VISIBILITY);
+    });
+
+    it('promises details naming every missing requirement, at least one, from the published vocabulary', () => {
+        const body = (details?: unknown) => ({
+            code: 'PUBLISH_REQUIREMENTS_UNMET',
+            message: 'a message',
+            ...(details === undefined ? {} : { details }),
+        });
+
+        expect(recipeApiErrorSchema.safeParse(body({ missing: ['cuisine', 'steps'] })).success).toBe(true);
+        expect(recipeApiErrorSchema.safeParse(body()).success).toBe(false);
+        expect(recipeApiErrorSchema.safeParse(body({ missing: [] })).success).toBe(false);
+        expect(recipeApiErrorSchema.safeParse(body({ missing: ['photos'] })).success).toBe(false);
     });
 });
 

@@ -7,7 +7,12 @@
  * `{ code, message, details? }` envelope, so throwing this class is all a service/DAL needs to do.
  */
 import { HttpException } from '@nestjs/common';
-import { RecipeErrorCode, type RecipeError, type VersionConflictSide } from '@kitchensink/recipe-core';
+import {
+    RecipeErrorCode,
+    type PublishRequirement,
+    type RecipeError,
+    type VersionConflictSide,
+} from '@kitchensink/recipe-core';
 
 import { apiError } from '../common/apiError.js';
 
@@ -84,6 +89,23 @@ export function foodNotAdmissible(foodId: string, reason: string): RecipeDomainE
         RecipeErrorCode.UNKNOWN_INGREDIENT,
         `Food '${foodId}' cannot back an ingredient: ${reason}.`,
         { foodId },
+    );
+}
+
+/**
+ * `PUBLISH_REQUIREMENTS_UNMET` (→ 400) — the write would leave the recipe published without something Publish needs
+ * (`domain/publishPolicy.ts`). `details.missing` names every gap, so a client shows its own localized copy for each.
+ *
+ * @param missing - Every unmet requirement, in page order (at least one).
+ * @returns The error.
+ */
+export function publishRequirementsUnmet(
+    missing: readonly [PublishRequirement, ...PublishRequirement[]],
+): RecipeDomainError {
+    return new RecipeDomainError(
+        RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET,
+        `A published recipe needs: ${missing.join(', ')}.`,
+        { missing: [...missing] },
     );
 }
 

@@ -24,6 +24,8 @@
  */
 import { z } from 'zod';
 
+import { canonicalCuisine } from './cuisine.js';
+
 // ── Storage ceilings: physical rather than chosen ───────────────────────────────────────────────────
 
 /**
@@ -192,8 +194,18 @@ export const recipeSourceUrlSchema = z.string().url().max(MAX_RECIPE_SOURCE_URL_
  */
 export const recipeSourceAttributionSchema = z.string().min(1).max(MAX_RECIPE_SOURCE_ATTRIBUTION_LENGTH);
 
-/** A cuisine label. `.min(1)` for the same round-trip reason as {@link recipeTitleSchema}. */
-export const recipeCuisineSchema = z.string().min(1).max(MAX_RECIPE_CUISINE_LENGTH);
+/**
+ * A cuisine label: free text, parsed to its CANONICAL form (`canonicalCuisine`, `docs/design/uiOverhaul/cuisineField.md`
+ * §2), so the service, the typed client and the editor store one spelling of "Thai" and Discover's facets do not split.
+ *
+ * ⚠️ `.overwrite()`, not `.transform()`: it keeps the type a `string` and keeps `minLength`/`maxLength` in the JSON
+ * Schema for BOTH `io` modes. A `.transform().pipe()` drops `maxLength` on the request side (`io: 'input'`), which is
+ * the mode the published OpenAPI document and `storageCapacity.ts` read. The bounds run AFTER the overwrite, so
+ * whitespace alone is refused, and a canonical form that grew (`ß` → `SS`) is measured as it will be stored.
+ *
+ * `.min(1)` for the same round-trip reason as {@link recipeTitleSchema}.
+ */
+export const recipeCuisineSchema = z.string().overwrite(canonicalCuisine).min(1).max(MAX_RECIPE_CUISINE_LENGTH);
 
 /**
  * One instruction step's text.

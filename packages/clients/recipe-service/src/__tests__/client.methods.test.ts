@@ -10,8 +10,15 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import { recipeSearchQuerySchema } from '@kitchensink/schema-recipe';
 import type { RecipeSearchQuery } from '@kitchensink/schema-recipe';
 
-import { InvalidRequestError, isNotFoundError, isVersionLineUnrestorableError, RecipeServiceClient } from '../index.js';
-import type { VersionLineUnrestorableError } from '../index.js';
+import {
+    InvalidRequestError,
+    isBadRequestError,
+    isNotFoundError,
+    isPublishRequirementsUnmetError,
+    isVersionLineUnrestorableError,
+    RecipeServiceClient,
+} from '../index.js';
+import type { PublishRequirementsUnmetError, VersionLineUnrestorableError } from '../index.js';
 import {
     FIXTURE_OTHER_PHOTO_UUID,
     FIXTURE_OTHER_RECIPE_UUID,
@@ -345,6 +352,23 @@ describe('RecipeServiceClient — versions', () => {
         expect(isVersionLineUnrestorableError(error)).toBe(true);
         expect((error as VersionLineUnrestorableError).positions).toStrictEqual([0, 3]);
         expect((error as VersionLineUnrestorableError).status).toBe(409);
+    });
+
+    it('⛔ restoreRecipeVersion surfaces a 400 PUBLISH_REQUIREMENTS_UNMET as its own error, naming what is missing', async () => {
+        const fetchMock = stubFetch(400, {
+            code: 'PUBLISH_REQUIREMENTS_UNMET',
+            message: 'A published recipe needs: cuisine.',
+            details: { missing: ['cuisine'] },
+        });
+
+        const error = await makeClient(fetchMock)
+            .restoreRecipeVersion('rec_1', 2)
+            .catch((caught: unknown) => caught);
+
+        expect(isPublishRequirementsUnmetError(error)).toBe(true);
+        expect(isBadRequestError(error)).toBe(true);
+        expect((error as PublishRequirementsUnmetError).missing).toStrictEqual(['cuisine']);
+        expect((error as PublishRequirementsUnmetError).status).toBe(400);
     });
 });
 

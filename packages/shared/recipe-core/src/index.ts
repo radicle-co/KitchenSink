@@ -1,6 +1,12 @@
 export { CUISINE_ALIASES, CUISINES, canonicalCuisine, cuisineEntryOf, foldCuisine } from './cuisine.js';
 export type { Cuisine } from './cuisine.js';
 export {
+    PUBLISH_REQUIREMENTS,
+    publishRequirementSchema,
+    publishRequirementsUnmetDetailsSchema,
+} from './publishRequirement.js';
+export type { PublishRequirement, PublishRequirementsUnmetDetails } from './publishRequirement.js';
+export {
     FoodResolutionStatus,
     NAMELESS_LINE_STATUSES,
     foodResolutionStatusSchema,

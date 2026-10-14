@@ -4243,6 +4243,34 @@ components:
             code:
               type: string
               enum:
+                - PUBLISH_REQUIREMENTS_UNMET
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                missing:
+                  minItems: 1
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - cuisine
+                      - ingredients
+                      - steps
+              required:
+                - missing
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
                 - VERSION_LINE_UNRESTORABLE
             message:
               type: string

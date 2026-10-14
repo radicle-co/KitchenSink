@@ -66,6 +66,8 @@ export const RECIPE_ERROR_STATUS: Readonly<Record<RecipeErrorCode, number>> = {
     PARSE_JOB_EXPIRED: HttpStatus.CONFLICT,
     // ── Version restore (plan 002 R52) ──
     VERSION_LINE_UNRESTORABLE: HttpStatus.CONFLICT,
+    // ── The publish floor (owner rulings 2026-10-13): a policy answer, a 400 like its sibling INVALID_VISIBILITY ──
+    PUBLISH_REQUIREMENTS_UNMET: HttpStatus.BAD_REQUEST,
 
     // ── Auth and account lifecycle ──
     UNAUTHORIZED: HttpStatus.UNAUTHORIZED,

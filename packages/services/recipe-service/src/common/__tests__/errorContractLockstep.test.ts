@@ -39,6 +39,7 @@ import {
     ForbiddenError,
     GoneError,
     NotFoundError,
+    PublishRequirementsUnmetError,
     PullDriftError,
     RecipeServiceClient,
     UnauthorizedError,
@@ -52,6 +53,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { apiError } from '../apiError.js';
 import { apiErrorSchema, recipeApiErrorSchema, recipeErrorCodeSchema } from '../apiError.schema.js';
 import { ApiExceptionFilter } from '../filters/apiException.filter.js';
+import { publishRequirementsUnmet } from '../../recipes/recipe.error.js';
 import { CreateRecipeDto } from '../../recipes/dto/createRecipe.dto.js';
 
 const BASE = 'https://recipe.example.test';
@@ -188,6 +190,7 @@ const DETAILS_BY_CODE: Partial<Record<string, Record<string, unknown>>> = {
     [RecipeErrorCode.COLLECTION_LIMIT_REACHED]: { limit: 50 },
     [RecipeErrorCode.MAX_PHOTOS_EXCEEDED]: { limit: 10 },
     [RecipeErrorCode.VERSION_LINE_UNRESTORABLE]: { positions: [2] },
+    [RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET]: { missing: ['cuisine'] },
 };
 
 /** The `details` a real `VERSION_CONFLICT` carries (W8-a.5: enough for a client-side 3-way merge). */
@@ -371,6 +374,19 @@ describe('the recipe error contract, end to end through both halves', () => {
         expect(wire.status).toBe(HttpStatus.GONE);
         expect(error).toBeInstanceOf(GoneError);
         expect((error as GoneError).code).toBe(CODE.RECIPE_TOMBSTONED);
+    });
+
+    it('400 PUBLISH_REQUIREMENTS_UNMET → PublishRequirementsUnmetError naming what is missing, still a BadRequestError', async () => {
+        const { wire, error } = await throughTheWire(publishRequirementsUnmet(['cuisine', 'steps']), (client) =>
+            client.getRecipeById(RECIPE_ID),
+        );
+
+        expect(wire.status).toBe(HttpStatus.BAD_REQUEST);
+        expect(error).toBeInstanceOf(PublishRequirementsUnmetError);
+        // A 400 to every caller that only knows the class above it: the outbox reads it as terminal, as before.
+        expect(error).toBeInstanceOf(BadRequestError);
+        expect((error as PublishRequirementsUnmetError).missing).toStrictEqual(['cuisine', 'steps']);
+        expect((error as PublishRequirementsUnmetError).code).toBe(CODE.PUBLISH_REQUIREMENTS_UNMET);
     });
 
     it('403 CANNOT_RATE_OWN_RECIPE → ForbiddenError with its own code, never a bare 403', async () => {

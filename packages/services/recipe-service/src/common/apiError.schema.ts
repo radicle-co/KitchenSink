@@ -38,7 +38,11 @@
  */
 import { z } from 'zod';
 
-import { versionConflictDetailsSchema, IDENTITY_SYNC_PENDING_CODE } from '@kitchensink/recipe-core';
+import {
+    IDENTITY_SYNC_PENDING_CODE,
+    publishRequirementsUnmetDetailsSchema,
+    versionConflictDetailsSchema,
+} from '@kitchensink/recipe-core';
 
 /**
  * The structured error envelope — the ONLY body a non-2xx response from this service carries.
@@ -123,6 +127,8 @@ export const recipeErrorCodeSchema = z.enum([
     'PARSE_JOB_EXPIRED',
     /** Plan 002 R52 — a version restore would drop a line; `details.positions` names the snapshot lines. */
     'VERSION_LINE_UNRESTORABLE',
+    /** A write would publish a recipe missing what Publish needs; `details.missing` names each (owner 2026-10-13). */
+    'PUBLISH_REQUIREMENTS_UNMET',
 
     // ── Auth and account-lifecycle codes, which are NOT recipe-domain errors ──
     /** No, invalid, expired, or wrong-authorized-party bearer token. */
@@ -221,6 +227,14 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
             message: z.string(),
             /** The configured cap, reported so a caller need not guess it. */
             details: z.object({ limit: z.number() }).loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('PUBLISH_REQUIREMENTS_UNMET'),
+            message: z.string(),
+            /** Every unmet requirement, at least one, from `recipe-core`'s vocabulary. Composed, never re-declared. */
+            details: publishRequirementsUnmetDetailsSchema.loose(),
         })
         .loose(),
     z

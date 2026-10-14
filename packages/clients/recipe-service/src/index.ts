@@ -63,6 +63,7 @@ export {
     UnexpectedResponseError,
     VersionConflictError,
     VersionLineUnrestorableError,
+    PublishRequirementsUnmetError,
     isBadRequestError,
     isFetchUnavailableError,
     isSourceUnavailableError,
@@ -78,6 +79,7 @@ export {
     isUnexpectedResponseError,
     isVersionConflictError,
     isVersionLineUnrestorableError,
+    isPublishRequirementsUnmetError,
 } from './errors.js';
 
 // This client's half of the app-wide query retry policy. It sits beside `errors.ts` because only the module

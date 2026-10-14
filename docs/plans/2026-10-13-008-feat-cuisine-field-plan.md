@@ -2,7 +2,7 @@
 title: 'feat: the cuisine field — a 90-entry suggested list, free text, required to publish (app and recipe-service)'
 type: feat
 date: 2026-10-13
-status: DRAFT — awaiting staff-architect BLUEPRINT
+status: active — staff-architect BLUEPRINT folded in (2026-10-13)
 ---
 
 # The cuisine field, end to end
@@ -20,62 +20,70 @@ engineering authority for where each rule lives. `ownerDecisions.md` wins over b
 
 ## Facts read from source
 
-- `recipes.cuisine` is a nullable `text` column (`0001_initial.sql`). No migration is needed to hold the value.
-- The wire field is `recipeCuisineSchema = z.string().min(1).max(100)` (`recipe-core/src/recipeRequestBounds.ts`),
-  optional on create and on PATCH. ⚠️ PATCH has NO clear sentinel: `toCreateRecipeInput` omits an empty cuisine, so a
-  cook who empties the field on an existing recipe keeps the old value on the server. That is a live bug today and it
-  becomes visible under this feature (the editor would say "Cuisine needed" over a recipe the server still holds a
-  cuisine for).
-- The server's publish floor today is "≥1 ingredient and ≥1 step": two zod refinements per body
-  (`recipes.schema.ts`) plus a re-check in `RecipesService.update` that throws a bare `BadRequestException` (which the
-  filter publishes as the UNPUBLISHED generic `BAD_REQUEST` code).
-- Provenance on create is resolved by `evaluateProvenance` BEFORE visibility (ADR-0023). A clone copies
-  `sourceType` from its source, so a clone of an `imported_public` recipe is itself `imported_public`.
-- `CUISINES` (15 entries, display order, with `Other`) lives in `recipe-core/src/recipe.types.ts`; its consumers are the
-  editor's `cuisineSuggestions`, the e2e seed and the k6 search script.
-- The editor's cuisine field already uses the shared `Combobox` (`@commise/ui/combobox`) on both platforms, with
-  `openOnFocus` and an empty `countAnnouncement`.
+- `recipes.cuisine` is a nullable `text` column (`0001_initial.sql`). No migration is needed.
+- The wire field is `recipeCuisineSchema` (`recipe-core/src/recipeRequestBounds.ts`), optional on create and PATCH.
+  PATCH had NO clear sentinel, so a cook who emptied the field kept the old value on the server.
+- The publish floor ("≥1 ingredient and ≥1 step") was stated three times: two zod refinements per body and a re-check
+  in `RecipesService.update` that threw a bare `BadRequestException` (published as the unpublished `BAD_REQUEST`).
+  It fired only when the body carried `status: 'published'`, so a "Save changes" PATCH (which sends no `status`) could
+  empty a published recipe.
+- A clone copies `sourceType` from its source. Erasure sets `cloned_from_id = NULL`, so lineage cannot key a rule.
 
-## Decisions (draft — the server/contract rows are for the architect to confirm or overturn)
+## Decisions
 
-| #   | Decision                                                                                                                                                                                                                                                                                      |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | `recipe-core/src/cuisine.ts` owns `CUISINES` (90, `Intl.Collator('en')` order), `Cuisine`, `CUISINE_ALIASES`, `foldCuisine`, `canonicalCuisine`. `recipe.types.ts` stops declaring the list. Exported through the package's existing `index.ts` (a package export, so a barrel is allowed).   |
-| D2  | Aliases ship (§1.3: seven rows). Cheap, and without them "Szechuan" and "Sichuan" are two facets.                                                                                                                                                                                             |
-| D3  | The server canonicalises every written cuisine with `canonicalCuisine` (cuisineField §5 Q1: yes).                                                                                                                                                                                             |
-| D4  | "Required to publish" is a pure policy, `recipes/domain/publishPolicy.ts` (`evaluatePublication`), the sibling of `evaluateVisibility`/`evaluateProvenance`. Never a route guard: `POST/PATCH /recipes` stay open; what is gated is a field value at a status transition.                     |
-| D5  | The exemption is keyed on the RESOLVED provenance `sourceType === imported_public` (create: the provenance policy's output; update: the stored row). A clone of an imported recipe inherits it, server-side. The app requires a cuisine on every publish regardless (stricter, never looser). |
-| D6  | PATCH gains the three-state `cuisine: string \| null` (absent = unchanged, value = set, `null` = clear), the `difficulty`/`mealType` precedent. `toUpdateRecipeInput` sends `null` for an empty field.                                                                                        |
-| D7  | No migration and no CHECK constraint: the column exists, and the rule has an exemption a CHECK would restate as a second authority. Nothing is live.                                                                                                                                          |
-| D8  | Error: OPEN for the architect (see questions).                                                                                                                                                                                                                                                |
-| D9  | Client gate: `validate.ts` gains `cuisine?: 'cuisineRequired' \| 'cuisineTooLong'`; `cuisineTooLong` is also a draft-floor error. `sections.ts`, `gate.ts`, `sectionStatus.ts` follow (§3.6).                                                                                                 |
-| D10 | Combobox P1 (`typedText: 'needsChoice' \| 'isValue'`) and P2 (native `listMaxRows`) land in `@commise/ui`. P3 (`current` mark) is DEFERRED: cuisineField §4 marks it deferrable, and S6 works without it.                                                                                     |
-| D11 | The cuisine logic shared by both leaves is a headless hook, `form/useCuisineField.ts`: groups, the Use option, `editedSinceFocus`, the debounced count, commit through `canonicalCuisine`.                                                                                                    |
-| D12 | Discover: one pure `cuisineShortcutsOf(facets)` in `discovery/noResults.ts` (≥ `CUISINE_SHORTCUT_MIN_RECIPES`), used by both containers.                                                                                                                                                      |
-| D13 | Every writer that PUBLISHES without a cuisine is updated in the same change (seed, k6, e2e fixtures, smoke): the server now refuses them.                                                                                                                                                     |
+| #   | Decision                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | `recipe-core/src/cuisine.ts` owns `CUISINES` (90, `Intl.Collator('en')` order), `Cuisine`, `CUISINE_ALIASES`, `foldCuisine`, `cuisineEntryOf`, `canonicalCuisine`. Exported through the package's `index.ts` (a package export).                                                                                                                                                                                           |
+| D2  | Aliases ship (§1.3, eight rows).                                                                                                                                                                                                                                                                                                                                                                                           |
+| D3  | Canonicalisation lives in the wire schema: `recipeCuisineSchema = z.string().overwrite(canonicalCuisine).min(1).max(100)`. `.overwrite` keeps `minLength`/`maxLength` in JSON Schema for both `io` modes (`.transform().pipe()` loses `maxLength` under `io: 'input'`, which `storageCapacity.ts` reads). The bounds run after the overwrite, so whitespace-only is refused. The typed client parses with the same schema. |
+| D4  | `recipes/domain/publishPolicy.ts` — `evaluatePublication({ status, sourceType, cuisine, ingredientCount, stepCount })`, the third sibling of `evaluateProvenance`/`evaluateVisibility`. It owns the WHOLE publish floor: cuisine, ingredients, steps. `missing` lists every gap in page order. A draft is always allowed. Never a route guard.                                                                             |
+| D5  | Create: resolve `status = dto.status ?? PUBLISHED` once, run the policy after provenance and visibility and before `planner.plan`, and write the resolved status to the DAL explicitly. Update: run the policy on EVERY update, against the post-write state (patch value when present, stored value otherwise). Clone: none (born `DRAFT`).                                                                               |
+| D6  | Error: new domain code `PUBLISH_REQUIREMENTS_UNMET`, `400`, `details: { missing: PublishRequirement[] (min 1) }`. `PublishRequirement = 'cuisine' \| 'ingredients' \| 'steps'` lives in recipe-core. The bare `BadRequestException` is deleted. Client: `PublishRequirementsUnmetError` (a `BadRequestError`), `is*` guard, own `errorForCode` arm.                                                                        |
+| D7  | One authority: the four zod floor refinements are deleted; no cuisine refine is added (the update body cannot see stored `sourceType` or content).                                                                                                                                                                                                                                                                         |
+| D8  | PATCH: `cuisine: recipeCuisineSchema.nullable().optional()` (absent = unchanged, `null` = clear). `toUpdateRecipeInput` sends `null` for an empty field.                                                                                                                                                                                                                                                                   |
+| D9  | Exemption: `requiresCuisine(sourceType)`, an exhaustive switch; only `imported_public` is exempt. A clone of a corpus recipe inherits it (accepted: lineage is erased with the original's owner). The app requires a cuisine on every publish regardless — stricter, never looser.                                                                                                                                         |
+| D10 | No migration and no CHECK constraint: counts live in other tables, a CHECK would restate the exemption and turn a typed 400 into a 500, and nothing is live.                                                                                                                                                                                                                                                               |
+| D11 | Client gate: `validate.ts` gains `cuisine?: 'cuisineRequired' \| 'cuisineTooLong'`, measured on `canonicalCuisine(...)` (the server's order). `cuisineTooLong` is also a draft-floor error. `sections.ts`, `gate.ts`, `sectionStatus.ts` follow (§3.6).                                                                                                                                                                    |
+| D12 | A pure mapper `publishRefusalErrors(missing)` turns a server refusal into form error codes, so a refusal that does reach the editor is shown in the editor's own localized copy.                                                                                                                                                                                                                                           |
+| D13 | Combobox P1 (`typedText`), `onBlur`, and native P2 (`listMaxRows`) in `@commise/ui`. P3 (`current` mark) is DEFERRED: §4 marks it deferrable and S6 works without it.                                                                                                                                                                                                                                                      |
+| D14 | The cuisine field's shared logic is a headless hook, `form/useCuisineField.ts`, over a pure view `form/cuisineField.ts`: the groups, the Use option (`CUISINE_USE_OWN_KEY`), `editedSinceFocus`, the 500 ms count, commit through `canonicalCuisine`.                                                                                                                                                                      |
+| D15 | Discover: one pure `cuisineShortcutsOf(facets)` in `discovery/noResults.ts` (≥ `CUISINE_SHORTCUT_MIN_RECIPES`), used by both containers.                                                                                                                                                                                                                                                                                   |
+| D16 | Every writer that publishes without a cuisine is updated in this change: shared fixture factories first (seed, k6, e2e, smoke), then each Playwright spec and Maestro flow that presses Publish or Save changes.                                                                                                                                                                                                           |
 
-## Questions for the architect (BLUEPRINT)
+## Pattern register
 
-1. Policy scope: does `evaluatePublication` absorb the existing ingredients/steps floor (one authority for "may this
-   publish"), or only cuisine? If it absorbs them, do the zod refinements stay as the fast local half?
-2. Error code/shape: a new published domain code (e.g. `PUBLISH_REQUIREMENTS_UNMET`, 400, `details.missing:
-('cuisine' | 'ingredients' | 'steps')[]`) or `VALIDATION_FAILED` with `details.fields`? Clients map either to the
-   localized `errors.cuisineRequired`.
-3. Canonicalisation layer: a zod `.overwrite(canonicalCuisine)` on `recipeCuisineSchema` (every route inherits it,
-   parse-don't-validate) or an explicit call in the service before the DAL write?
-4. Create without `status`: it defaults to `published`, so a create that says nothing about status must carry a
-   cuisine. Confirm (it matches the ingredients/steps floor).
-5. Should the rule ALSO be a zod refine on create (the body carries `status` and `source`), or is the service policy
-   the only statement?
+- `@pattern Specification` — `evaluatePublication`, the third sibling policy, run after provenance.
+- `@pattern Visitor` — `requiresCuisine`, an exhaustive switch over `RecipeSourceType`.
+- `@pattern Value Object` — `canonicalCuisine`, applied by `.overwrite()` at the schema boundary.
+- `@pattern Visitor` — the client's `errorForCode` exhaustive switch gains one arm.
+- `@pattern Headless Hook` — `useCuisineField`, shared by the web and native leaves.
+- Already the pattern, nothing added: the three-state PATCH (the `difficulty`/`mealType` precedent).
 
-## Build order (test-first in each step)
+## Tests per tier
 
-1. recipe-core: `cuisine.ts` + tests (membership 90, order, aliases, fold, canonical idempotence).
-2. recipe-service: publish policy + tests; schema change (+ `recipes.schema.test.ts`); service wiring + unit tests;
-   integration test over the mocked app; `contract:generate`; LOCAL e2e case written (not run here).
-3. Clients: recipe-service client exhaustive switch if a code is added.
-4. `@commise/ui` combobox P1/P2 + tests (web and native).
-5. features/recipes: `cuisineSuggestions` word-start, `useCuisineField`, messages, `validate.ts`, wire PATCH null,
-   sections/gate/sectionStatus, both leaves, component tests for every state, `cuisineShortcutsOf`.
-6. Writers: seed, k6, e2e fixtures, Playwright spec, Maestro flow.
+| Tier                       | What                                                                                                                                                                         |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| recipe-core unit           | list membership/order/aliases, `foldCuisine`, `canonicalCuisine` idempotence; `recipeCuisineSchema` canonicalises and keeps its bounds in JSON Schema                        |
+| recipe-service unit        | the policy truth table (incl. an `imported_public` clone); create and update wiring; error factory and status table; schema tests rewritten for D7 and D8                    |
+| recipe-service integration | the mocked app: publish without cuisine → 400 `PUBLISH_REQUIREMENTS_UNMET`; draft saves; `imported_public` exempt; PATCH `null` on published refused; canonical value stored |
+| recipe-service LOCAL e2e   | written, not run here: clearing the cuisine of a published recipe is refused against a real database                                                                         |
+| client unit                | `PublishRequirementsUnmetError` from the envelope                                                                                                                            |
+| ui component               | P1, `onBlur`, P2 on both leaves                                                                                                                                              |
+| features unit + component  | suggestions, view, hook, validate, wire, sections/gate/status, both leaves for every state (S1–S9)                                                                           |
+| Playwright / Maestro       | written, not run: the happy path and the publish-blocked path                                                                                                                |
+
+## Build order
+
+1. recipe-core (done: `cuisine.ts`), then the schema overwrite and `publishRequirement.ts`.
+2. ui combobox P1/P2 (done).
+3. recipe-service policy, error contract, schema, service, integration, LOCAL e2e case, `contract:generate`.
+4. Client error class.
+5. features: view, hook, validate, wire, editor modules, both leaves, Discover shortcuts.
+6. Writers, Playwright, Maestro.
 7. Lint, typecheck, unit + integration of every touched package, `contract:verify`, `next build`.
+
+## Residual risk
+
+- A client other than the app can publish a clone of a corpus recipe without a cuisine. Readers already handle an
+  absent cuisine, because the corpus itself has none.
+- P2 and the keyboard-hide close need a device check (Android Back, font scale 2.0).

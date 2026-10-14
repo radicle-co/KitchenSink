@@ -18,7 +18,7 @@
  * a forward-compatible deploy into a client-side type error. The typed narrowing happens once, in
  * `client.ts`'s `errorForCode`, whose `switch` IS exhaustive over the published set.
  */
-import type { VersionConflictSide } from '@kitchensink/recipe-core';
+import type { PublishRequirement, VersionConflictSide } from '@kitchensink/recipe-core';
 
 import type { PullDiff } from './types.js';
 
@@ -55,6 +55,29 @@ export class BadRequestError extends RecipeServiceClientError {
 /** Type guard for {@link BadRequestError}. */
 export function isBadRequestError(error: unknown): error is BadRequestError {
     return error instanceof BadRequestError;
+}
+
+/**
+ * `400 PUBLISH_REQUIREMENTS_UNMET` — the write would leave the recipe published without something Publish needs
+ * (owner rulings 2026-10-13). `missing` names each gap in page order, so a surface marks the fields in its own
+ * localized copy. A {@link BadRequestError}, so every caller that knows only that class (the outbox's terminal 400, the
+ * retry policy) treats it as before: re-sending the same body meets the same refusal.
+ */
+export class PublishRequirementsUnmetError extends BadRequestError {
+    /** Every unmet requirement, in page order. */
+    public readonly missing: readonly PublishRequirement[];
+
+    public constructor(missing: readonly PublishRequirement[], message = 'A published recipe is missing something') {
+        super(message, 'PUBLISH_REQUIREMENTS_UNMET');
+        this.name = 'PublishRequirementsUnmetError';
+        this.missing = missing;
+        Object.setPrototypeOf(this, PublishRequirementsUnmetError.prototype);
+    }
+}
+
+/** Type guard for {@link PublishRequirementsUnmetError}. */
+export function isPublishRequirementsUnmetError(error: unknown): error is PublishRequirementsUnmetError {
+    return error instanceof PublishRequirementsUnmetError;
 }
 
 /** `401` — no/invalid/expired token, or wrong authorized party (the caller is unauthenticated). */

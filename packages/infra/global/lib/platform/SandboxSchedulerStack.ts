@@ -359,12 +359,18 @@ export class SandboxSchedulerStack extends Stack {
         //
         // ⛔ What it may delete is `teardownGrants`, the ONE definition CI's non-prod role also attaches (ADR-0063). The
         // planner (`reclaim.ts`) repeats the rule so that it never sends a call IAM would refuse, but if the planner is
-        // wrong, THIS is what stops it. Held by set equality in `SandboxSchedulerStack.test.ts`.
+        // wrong, THIS is what stops it. Held by set equality in `SandboxSchedulerStack.test.ts`, and to the calls the
+        // handler makes in `lambdaRolesCoverTheirSdkCalls.test.ts`.
+        //
+        // ⛔ `ListStacks` is not a call the code names: `DescribeStacks` with no `StackName` is ALSO authorized as
+        // `ListStacks`, on `stack/*/*` (CloudFormation API Reference, DescribeStacks). Without it the reclaim was
+        // denied on its first night and deleted nothing.
         reclaimFn.addToRolePolicy(
             new iam.PolicyStatement({
                 sid: 'SandboxReclaimDiscovery',
                 actions: [
                     'cloudformation:DescribeStacks',
+                    'cloudformation:ListStacks',
                     'rds:DescribeDBInstances',
                     'ec2:DescribeInstances',
                     'ecs:ListClusters',

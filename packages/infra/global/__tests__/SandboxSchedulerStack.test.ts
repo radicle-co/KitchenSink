@@ -556,6 +556,8 @@ describe('the midnight reclaim (ADR-0061)', () => {
             expect(new Set(allowed(statements).flatMap(actionsOf))).toEqual(
                 new Set([
                     'cloudformation:DescribeStacks',
+                    // `DescribeStacks` with no `StackName` is also authorized as `ListStacks` (ADR-0061 §8).
+                    'cloudformation:ListStacks',
                     'rds:DescribeDBInstances',
                     'ec2:DescribeInstances',
                     'ecs:ListClusters',
@@ -577,6 +579,8 @@ describe('the midnight reclaim (ADR-0061)', () => {
             expect(new Set(reads.flatMap(actionsOf))).toEqual(
                 new Set([
                     'cloudformation:DescribeStacks',
+                    // `DescribeStacks` with no `StackName` is also authorized as `ListStacks` (ADR-0061 §8).
+                    'cloudformation:ListStacks',
                     'rds:DescribeDBInstances',
                     'ec2:DescribeInstances',
                     'ecs:ListClusters',

@@ -148,8 +148,11 @@ CDK bootstrap. Its CloudFormation execution role is that saved role. So the recl
 only boundary is which stacks it can name. The delete statements are one function, `teardownGrants.ts`, and the CI role
 of ADR-0063 attaches the same function, so the two teardown paths share one boundary. The grant is:
 
-- Read-only discovery on `*`: `cloudformation:DescribeStacks`, `rds:DescribeDBInstances`, `ec2:DescribeInstances`, and
-  the ECS list and describe calls for clusters, services and tasks.
+- Read-only discovery on `*`: `cloudformation:DescribeStacks`, `cloudformation:ListStacks`, `rds:DescribeDBInstances`,
+  `ec2:DescribeInstances`, and the ECS list and describe calls for clusters, services and tasks. The code never calls
+  `ListStacks`. It calls `DescribeStacks` with no `StackName`, because only that call returns each stack's tags, and AWS
+  authorizes that call as `ListStacks` on `stack/*/*` as well. Without `ListStacks` the reclaim is denied before it
+  reads a single stack.
 - `cloudformation:DeleteStack` on `kitchensink-*-pr-*` stacks tagged `Environment=pr-*`.
 - `cloudformation:DeleteStack` on the three exact shared-tier stack ARNs tagged `Environment=sandbox`. The code builds
   them from the same constant the planner reads.
@@ -167,7 +170,9 @@ function gains only `states:StartExecution` on the one state machine. The schedu
 per-PR clusters carries the same `kitchensink-` prefix.
 
 `SandboxSchedulerStack.test.ts` holds the grant by set equality against the synthesized template. A bug in the planner
-can delete only stacks that rebuild.
+can delete only stacks that rebuild. `lambdaRolesCoverTheirSdkCalls.test.ts` holds the same role to the code: it reads
+every AWS SDK call the reclaim handler can reach, maps each to the IAM actions AWS authorizes it under, and fails when
+the role misses one or grants one the code does not use. The scheduler function's role is held the same way.
 
 ### 9. A failure is a Sentry issue
 

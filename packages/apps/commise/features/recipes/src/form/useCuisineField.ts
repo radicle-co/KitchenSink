@@ -20,9 +20,9 @@ import { canonicalCuisine } from '@kitchensink/recipe-core';
 import { useState } from 'react';
 
 import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
+import { LIVE_READING_PAUSE_MS } from './announcementPause.js';
 import { cuisineCommitOf, cuisineFieldView } from './cuisineField.js';
 import { recipeFormMessages } from './messages.js';
-import { LIVE_READING_PAUSE_MS } from './useIngredientsFields.js';
 
 /** What the field is bound to. */
 export interface CuisineFieldBinding {

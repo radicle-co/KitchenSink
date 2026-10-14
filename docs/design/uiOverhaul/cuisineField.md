@@ -298,6 +298,9 @@ intent. It is approved in this form:
   both are missing. After a refused publish, the existing "Fix {count} things" counts it. Details is not `complete`
   without a cuisine.
 - The Details hint `hint.details` stays as it is. The section reason already names what is missing.
+- ⚠️ **Superseded by the owner ruling of 2026-10-13:** the gate is enforced by recipe-service too, with the
+  public-domain import exempt (`docs/plans/2026-10-13-008-feat-cuisine-field-plan.md`, D4–D9). The bullet below is
+  the pre-ruling analysis.
 - ⚠️ **Consequence, stated and not hidden.** The gate lives in the editor only. The server's publish floor is
   ingredients and steps (`recipes.service.ts:1011-1017`). Imported (`imported_public`) and cloned recipes can be
   published without a cuisine. Every reader (cards, detail, Discover) must keep treating an absent cuisine as "no

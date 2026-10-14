@@ -48,14 +48,12 @@ import {
     type GroupedSection,
     type MoveToGroupView,
 } from './useIngredientGroups.js';
+import { LIVE_READING_PAUSE_MS } from './announcementPause.js';
 import { useLineEditorState } from './useLineEditorState.js';
 import { useRowFocus, type RowFocus } from './useRowFocus.js';
 
 /** The trailing add row's target in the entry. */
 const TRAILING = { kind: 'newLine' } as const satisfies LineCommitTarget;
-
-/** How long the cook pauses before the live reading is said: never per keystroke (build spec §7.5.3). */
-export const LIVE_READING_PAUSE_MS = 500;
 
 /**
  * One run of rows under a group label; `undefined` for an unlabelled run, which draws no heading. Its key is stable for

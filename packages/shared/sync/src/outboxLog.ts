@@ -196,15 +196,8 @@ export function withdraw(log: OutboxLog, seq: number): OutboxLog {
     // entity, so the delete could never be sent and sat pending forever. ONLY that delete: anything else waiting on the
     // ref is the cook's work, and the editor's Retry resubmits a withdrawn create under the same ref. A ref already
     // resolved names a server row, so a delete waiting on it can still be sent and stays.
-    const produced = record.produces;
-    const strands = (candidate: OutboxRecord): boolean =>
-        produced !== undefined &&
-        log.resolutions[produced] === undefined &&
-        candidate.intentKind === 'delete' &&
-        candidate.entity === record.entity &&
-        candidate.localId === record.localId &&
-        (candidate.state === 'pending' || candidate.state === 'blocked') &&
-        candidate.dependsOn.includes(produced);
+    const unresolved = record.produces !== undefined && log.resolutions[record.produces] === undefined;
+    const strands = (candidate: OutboxRecord): boolean => unresolved && waitsOnCreate(candidate, record);
     const gone = new Set<number>([seq, ...log.records.filter(strands).map((candidate) => candidate.seq)]);
 
     return { ...log, records: log.records.filter((candidate) => !gone.has(candidate.seq)) };

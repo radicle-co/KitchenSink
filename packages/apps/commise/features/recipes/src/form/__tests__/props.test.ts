@@ -1209,18 +1209,58 @@ describe('visibilityChoice', () => {
     });
 });
 
-describe('P3 — cuisineSuggestions', () => {
-    it('suggests the whole curated list, in order, for an empty or blank field', () => {
+describe('cuisineSuggestions (cuisineField.md §2: word-start matching, aliases, starts-with first)', () => {
+    it('suggests all 90 entries, in the list order, for an empty or blank field', () => {
         expect(cuisineSuggestions('')).toEqual([...CUISINES]);
-        expect(cuisineSuggestions('   ')).toEqual([...CUISINES]);
+        expect(cuisineSuggestions('   ')).toHaveLength(90);
     });
 
-    it('narrows to the cuisines that contain the text, without regard to case, keeping the curated order', () => {
-        expect(cuisineSuggestions('AN')).toEqual(CUISINES.filter((cuisine) => cuisine.toLowerCase().includes('an')));
-        expect(cuisineSuggestions('  fre ')).toEqual(['French']);
+    it.each([
+        // The examples §2 states, checked there by a script over the list.
+        ['can', ['Canadian', 'Cantonese']],
+        ['mex', ['Mexican', 'Tex-Mex']],
+        ['south', ['South African', 'Southern']],
+        ['am', ['American', 'Native American']],
+        ['ind', ['Indian', 'Indonesian']],
+        // `includes` gave half the list here; a word start gives nothing.
+        ['an', []],
+        // Case, spacing, dashes and marks fold away.
+        ['  FRE ', ['French']],
+        ['tex mex', ['Tex-Mex']],
+        ['middle   ea', ['Middle Eastern']],
+        ['eastern', ['Middle Eastern']],
+        ['créo', ['Creole']],
+        // An alias suggests its entry, once.
+        ['szech', ['Sichuan']],
+        ['iran', ['Persian']],
+        ['scandi', ['Nordic']],
+    ])('suggests %j as %j', (typed, expected) => {
+        expect(cuisineSuggestions(typed)).toEqual(expected);
     });
 
-    it('suggests nothing for a custom cuisine: it is held as typed, never corrected', () => {
+    it.each([
+        ['f', ['Filipino', 'French', 'Soul food']],
+        ['r', ['Romanian', 'Russian', 'Puerto Rican']],
+        [
+            'a',
+            [
+                'Afghan',
+                'Algerian',
+                'American',
+                'Argentinian',
+                'Armenian',
+                'Australian',
+                'Austrian',
+                'Native American',
+                'South African',
+            ],
+        ],
+    ])('puts names that START with %j before names that match at a later word: %j', (typed, expected) => {
+        expect(cuisineSuggestions(typed)).toEqual(expected);
+    });
+
+    it('suggests nothing for a custom cuisine: the field keeps the text, and the host offers "Use"', () => {
+        expect(cuisineSuggestions('Nyonya')).toEqual([]);
         expect(cuisineSuggestions('Grandma’s Secret Blend')).toEqual([]);
     });
 });

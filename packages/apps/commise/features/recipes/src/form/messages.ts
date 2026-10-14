@@ -8,6 +8,8 @@
 import type { LocalizedMessages } from '@commise/i18n';
 import type { RecipeMealType } from '@kitchensink/recipe-core';
 
+import type { PluralText } from '../editor/messages.js';
+
 /** Shared copy for the recipe create/edit form, rendered by both the web and native form leaves. */
 export interface RecipeFormMessages {
     /** Heading for the basics section. */
@@ -26,6 +28,18 @@ export interface RecipeFormMessages {
     readonly cuisineListLabel: string;
     /** NATIVE: the cuisine field's clear button. The web field clears with Escape. */
     readonly cuisineClear: string;
+    /** The cuisine field's hint: it accepts the cook's own words, and Publish needs one (`cuisineField.md` §3.5). */
+    readonly cuisineHint: string;
+    /** The polite count of the suggestions the field's text leaves (4.1.3), `{count}` filled. */
+    readonly cuisineSuggestionCount: PluralText;
+    /** The note when nothing in the list matches (contains `{text}`, the canonical form of what was typed). */
+    readonly cuisineNoMatch: string;
+    /** The heading over the "use your own" option, when the list has matches too. */
+    readonly cuisineNotListedHeading: string;
+    /** The "use your own" option's visible text (contains `{text}`). */
+    readonly cuisineUseOwn: string;
+    /** The "use your own" option's accessible name, which starts with its visible text (2.5.3; contains `{text}`). */
+    readonly cuisineUseOwnName: string;
     /** Group label for the difficulty radio group (FR-001b). */
     readonly difficultyLabel: string;
     /** Difficulty option: easy. */
@@ -479,6 +493,10 @@ export interface RecipeFormMessages {
         readonly titleTooLong: string;
         readonly titleTooLongToSave: string;
         readonly descriptionTooLong: string;
+        /** Publish needs a cuisine; a draft saves without one. */
+        readonly cuisineRequired: string;
+        /** Past the wire's bound (contains `{max}`): even a draft cannot be saved. */
+        readonly cuisineTooLong: string;
         readonly ingredientsPendingText: string;
         readonly ingredientsEmpty: string;
         readonly ingredientsUnresolved: string;
@@ -499,6 +517,12 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         cuisineLabel: 'Cuisine',
         cuisineListLabel: 'Cuisine suggestions',
         cuisineClear: 'Clear cuisine',
+        cuisineHint: 'Choose one, or type your own. You need one to publish.',
+        cuisineSuggestionCount: { one: '{count} cuisine', other: '{count} cuisines' },
+        cuisineNoMatch: 'No cuisines match “{text}”. You can use it as your own.',
+        cuisineNotListedHeading: 'Not listed?',
+        cuisineUseOwn: 'Use “{text}”',
+        cuisineUseOwnName: 'Use “{text}” as the cuisine',
         difficultyLabel: 'Difficulty',
         difficultyEasy: 'Easy',
         difficultyMedium: 'Medium',
@@ -706,6 +730,8 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
             titleTooLong: 'Shorten the title to 120 characters or fewer.',
             titleTooLongToSave: 'Shorten the title to 200 characters or fewer to save it.',
             descriptionTooLong: 'Shorten the description to 256 characters or fewer.',
+            cuisineRequired: 'Choose a cuisine, or type your own.',
+            cuisineTooLong: 'Shorten the cuisine to {max} characters or fewer.',
             ingredientsPendingText:
                 'An ingredient you typed isn’t in the recipe yet. Choose a food for it, or delete what you typed.',
             ingredientsEmpty: 'Add at least one ingredient.',

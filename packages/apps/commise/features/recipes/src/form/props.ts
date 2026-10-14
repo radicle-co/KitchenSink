@@ -9,11 +9,14 @@
  */
 import {
     classifyUnit,
+    CUISINE_ALIASES,
     CUISINES,
+    foldCuisine,
     isSizeWord,
     RECIPE_MEAL_TYPES,
     RecipeDifficulty,
     UNIT_VOCABULARY,
+    type Cuisine,
     type FoodResolutionStatus,
     type RecipeMealType,
     type RecipeVisibility,
@@ -535,19 +538,54 @@ export const statedChoice = <T extends string>(
 ): T | undefined => options.find((option) => option.value === value)?.value;
 
 /**
- * The cuisines the Cuisine field suggests for what the cook has typed: the curated {@link CUISINES} whose name contains
- * the text, in the curated order, without regard to case; the whole list for an empty field. The wire type is a free
- * string and `CUISINES` only a display list, so a cuisine not in it is not an error and is never suggested away: the
- * field holds exactly what the cook typed or picked. Shared by both platform leaves, so the list and its narrowing
- * cannot drift between them. Pure.
+ * Each entry's folded name and its folded aliases, as the starts of its words: what {@link cuisineSuggestions} matches
+ * against. Built once.
+ */
+const CUISINE_MATCH_FORMS: readonly { readonly cuisine: Cuisine; readonly names: readonly string[] }[] = CUISINES.map(
+    (cuisine) => ({
+        cuisine,
+        names: [
+            foldCuisine(cuisine),
+            ...Object.entries(CUISINE_ALIASES)
+                .filter(([, entry]) => entry === cuisine)
+                .map(([alias]) => foldCuisine(alias)),
+        ],
+    }),
+);
+
+/** The folded name from each word start: `"tex mex"` → `["tex mex", "mex"]`. */
+const laterWordStarts = (folded: string): readonly string[] =>
+    folded
+        .split(' ')
+        .slice(1)
+        .map((_, index, words) => words.slice(index).join(' '));
+
+/**
+ * The cuisines the Cuisine field suggests for what the cook has typed (`docs/design/uiOverhaul/cuisineField.md` §2):
+ * every entry for an empty field; otherwise the entries whose folded name, or an alias's, STARTS with the folded text,
+ * then those where it starts a LATER word ("mex" gives Mexican, then Tex-Mex), each run in the list's order. Matching at
+ * a word start rather than anywhere is what keeps "an" from suggesting half the list. A cuisine the list does not hold
+ * is never suggested away: the field keeps the text, and the host offers it as the cook's own. Shared by both platform
+ * leaves, so the list and its narrowing cannot drift between them. Pure.
  *
  * @param typed - The field's text.
  * @returns The suggestions, in display order.
  */
 export const cuisineSuggestions = (typed: string): readonly string[] => {
-    const needle = typed.trim().toLowerCase();
+    const needle = foldCuisine(typed);
 
-    return needle === '' ? CUISINES : CUISINES.filter((cuisine) => cuisine.toLowerCase().includes(needle));
+    if (needle === '') {
+        return CUISINES;
+    }
+
+    const starts = CUISINE_MATCH_FORMS.filter(({ names }) => names.some((name) => name.startsWith(needle)));
+    const later = CUISINE_MATCH_FORMS.filter(
+        (form) =>
+            !starts.includes(form) &&
+            form.names.some((name) => laterWordStarts(name).some((start) => start.startsWith(needle))),
+    );
+
+    return [...starts, ...later].map(({ cuisine }) => cuisine);
 };
 
 /**

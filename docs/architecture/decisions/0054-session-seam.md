@@ -63,11 +63,16 @@ Food-service already had a strict RFC 9110 parser for the same field.
 
 4. **Queued writes stay with their cook.** The outbox is persisted and namespaced by the cook. After that cook signs in
    again, it drains.
-    - At a change of cook, a drain can still be running. It holds the previous cook's sender, and that client's proxy
-      refuses.
-    - `recipeSender` then parks the record with status `401`: there is no credential for its cook. `classifyFailure`
-      reads that status as terminal.
-    - The record drains later only because the drainer sends every record again, parked ones included, on each drain.
+    - Each cook's outbox has its own drain lane (`drainLaneFor` in `@kitchensink/sync`, keyed like the outbox mutator).
+      One cook's request on the wire never holds the next cook's drain. A drain asked for while one runs is run next,
+      with the sender and session current when it was asked for.
+    - At a change of cook, a drain can still be running. Its request on the wire settles into its own cook's log.
+      After that it claims nothing more, and `SyncProvider` does not announce its settlements, because the listeners
+      write into the cache and drafts of the cook signed in now. The records it did not claim stay pending.
+    - A record claimed just before the change still goes out with the previous cook's sender, and that client's proxy
+      refuses. `recipeSender` then parks the record with status `401`: there is no credential for its cook.
+      `classifyFailure` reads that status as terminal. The record drains later only because the drainer sends a
+      `401`-parked record again on each drain.
     - Unsynced writes never block a sign-out. The outbox is dropped only on erasure or closure.
 5. **Four conditions decide the retry of a write, and all four must hold.** The server refused it without processing it
    (`429` or `503`). No client's veto in `RETRY_VETOES` refuses it. The stated wait is 30 seconds or less. The retry count is
@@ -85,9 +90,8 @@ Food-service already had a strict RFC 9110 parser for the same field.
 
 ### Owed
 
-- **Before the first `submit` call site.** No call site exists today. `SyncProvider` must cancel a running drain at a
-  change of cook, so the drain's `failures` cannot land in the next cook's state. The outbox must be dropped on erasure
-  and on closure.
+- **Before the first `submit` call site.** No call site exists today. The outbox must be dropped on erasure and on
+  closure.
 - **The two session stores on mobile.** `cookingProgress` and `servingScale` in `@commise/features-recipes` hold one
   cook's state, and they must reset at session end. Both are documented as test-only seams, and the package does not
   export the first one. Their owner changes them first.
@@ -128,6 +132,9 @@ Food-service already had a strict RFC 9110 parser for the same field.
   commit before the reset. No control in the app switches sessions. On mobile, `setActive` is called only on the
   signed-out sign-in and sign-up screens. On web, the Clerk instance's multi-session setting decides whether a
   signed-in visitor can add a second session.
+- A settlement that lands after its cook's session ended is not announced, so that cook's device draft does not learn
+  the version it produced. Their next save of that recipe meets a `409` and the conflict view. A create's server id is
+  kept in the log's resolutions, so it is never created twice.
 - A record parked at a change of cook reads as `terminal`, and its remedy (`edit`) is wrong for it. No surface renders a
   remedy yet. The first surface that does owes a reading for this case.
 - A mutation that a session change refuses fails at once. A mutation whose stated wait is over 30 seconds fails at once

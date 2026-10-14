@@ -1539,7 +1539,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The subtree that reads.",
-                            "declaredIn": "packages/apps/commise/query/src/QueryBoundary.tsx"
+                            "declaredIn": "../../../packages/apps/commise/query/src/QueryBoundary.tsx"
                         },
                         {
                             "name": "loading",
@@ -1548,7 +1548,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "What renders while a read under this boundary is pending — the surface's existing skeleton.",
-                            "declaredIn": "packages/apps/commise/query/src/QueryBoundary.tsx"
+                            "declaredIn": "../../../packages/apps/commise/query/src/QueryBoundary.tsx"
                         },
                         {
                             "name": "onError",
@@ -1557,7 +1557,7 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Report a failure — the surface's error reporter.",
-                            "declaredIn": "packages/apps/commise/query/src/QueryBoundary.tsx"
+                            "declaredIn": "../../../packages/apps/commise/query/src/QueryBoundary.tsx"
                         },
                         {
                             "name": "prefetchedKeys",
@@ -1575,7 +1575,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "What renders when a read fails; its `resetErrorBoundary` retries (and refetches). A render function rather than\na component, so a surface's failure body can close over the surface's own props — a Back control bound to its\nnavigator — without a component type created per render, which would remount the fallback every time.",
-                            "declaredIn": "packages/apps/commise/query/src/QueryBoundary.tsx"
+                            "declaredIn": "../../../packages/apps/commise/query/src/QueryBoundary.tsx"
                         },
                         {
                             "name": "resetKeys",
@@ -1584,7 +1584,7 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Values whose change clears a shown failure, e.g. the id of the recipe being read.",
-                            "declaredIn": "packages/apps/commise/query/src/QueryBoundary.tsx"
+                            "declaredIn": "../../../packages/apps/commise/query/src/QueryBoundary.tsx"
                         }
                     ],
                     "usesRefApi": [],

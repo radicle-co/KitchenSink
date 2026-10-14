@@ -325,6 +325,38 @@ const permissionsProd = (role: iam.Role, scope: Scope): void => {
         [`arn:aws:ssm:${region}:${account}:parameter/kitchensink/prod/*`],
     );
     allow(role, SECRET_READ_ACTIONS, [`arn:aws:secretsmanager:${region}:${account}:secret:kitchensink/prod/*`]);
+    // The same two auto-named secrets the non-prod role reaches, each kept on its prod stack by the stack tag.
+    // ⛔ The database secret is the RDS MASTER credential (ADR-0039): `verifyDeployment.sh` only describes it.
+    allow(
+        role,
+        ['secretsmanager:DescribeSecret'],
+        [`arn:aws:secretsmanager:${region}:${account}:secret:DatabaseCredentialsSecret*`],
+        { StringEquals: { 'secretsmanager:ResourceTag/aws:cloudformation:stack-name': 'kitchensink-data-prod' } },
+    );
+    // The remote-search smoke and its deployed tier sign their probes with the prod key (`deployedSmoke.ts`).
+    allow(role, SECRET_READ_ACTIONS, [`arn:aws:secretsmanager:${region}:${account}:secret:SigningKey*`], {
+        StringEquals: {
+            'secretsmanager:ResourceTag/aws:cloudformation:stack-name': 'kitchensink-remote-search-shared-prod',
+        },
+    });
+    // `verifyDeployment.sh` runs `head-bucket` on every bucket a deployed Lambda names.
+    allow(role, ['s3:ListBucket'], ['arn:aws:s3:::kitchensink-*-prod-*']);
+    // The remote-search smoke reads the function URL that its distribution must be the only way into.
+    allow(
+        role,
+        ['lambda:GetFunctionUrlConfig'],
+        [`arn:aws:lambda:${region}:${account}:function:kitchensink-remote-search-prod`],
+    );
+    // The queue-guarantee tier reads the backstop role's policies (ADR-0041). CloudFormation truncates a generated
+    // role name, which can drop the stage, so the role is named by its logical id.
+    allow(
+        role,
+        ['iam:ListRolePolicies', 'iam:ListAttachedRolePolicies', 'iam:GetRolePolicy'],
+        [`arn:aws:iam::${account}:role/kitchensink-*QueueCheckRole*`],
+    );
+    allow(role, ['iam:GetPolicy', 'iam:GetPolicyVersion'], ['arn:aws:iam::aws:policy/*']);
+    // `food-loadtest.yml`'s collector samples the service's metrics. The action takes no resource.
+    allow(role, ['cloudwatch:GetMetricStatistics'], ['*']);
     allow(role, OBSERVE_ACTIONS, ['*']);
 };
 

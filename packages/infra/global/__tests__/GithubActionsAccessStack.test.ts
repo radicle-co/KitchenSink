@@ -303,6 +303,91 @@ describe('GithubActionsAccessStack: the auto-named sandbox secrets', () => {
     });
 });
 
+/**
+ * What the production jobs read besides a deploy, each from a named caller: `verifyDeployment.sh` probes every bucket
+ * and secret a deployed Lambda names, the remote-search smoke and its deployed tier read the signing key and the
+ * function URL, the queue-guarantee tier reads the backstop role's policies, and `food-loadtest.yml`'s collector reads
+ * metrics. Each row is (action, resource, admitted) under IAM wildcard semantics; conditions are asserted separately.
+ */
+describe('GithubActionsAccessStack: the prod role reads what its jobs verify, and only by name', () => {
+    const t = template();
+    const prod = statementsOf(t, 'kitchensink-gha-prod');
+    const { account, region } = env;
+    const secret = (name: string): string => `arn:aws:secretsmanager:${region}:${account}:secret:${name}`;
+    const fn = (name: string): string => `arn:aws:lambda:${region}:${account}:function:${name}`;
+    const role = (name: string): string => `arn:aws:iam::${account}:role/${name}`;
+    // CloudFormation truncates a generated role name, so the stage can be gone from it: these are the real names.
+    const QUEUE_CHECK_ROLES = [
+        'kitchensink-identity-webhook-QueueCheckRole90B692FA-2DBSgcLuW1AJ',
+        'kitchensink-recipe-workers-p-QueueCheckRole90B692FA-blEhaaA5OyQT',
+    ];
+
+    const rows: readonly (readonly [string, string, boolean])[] = [
+        ['s3:ListBucket', 'arn:aws:s3:::kitchensink-data-prod-mediabucketbcbb02ba-0000000000aa', true],
+        ['s3:ListBucket', 'arn:aws:s3:::kitchensink-data-prod-archivebucket9decbf5d-0000000000aa', true],
+        ['s3:ListBucket', 'arn:aws:s3:::kitchensink-data-sandbox-mediabucketbcbb02ba-h6ybojnuslif', false],
+        ['s3:ListBucket', 'arn:aws:s3:::armoury-production-assets', false],
+        ['s3:GetObject', 'arn:aws:s3:::kitchensink-data-prod-mediabucketbcbb02ba-0000000000aa/a.jpg', false],
+
+        // ⛔ The RDS master credential: described, never read (ADR-0039).
+        ['secretsmanager:DescribeSecret', secret('DatabaseCredentialsSecret74-JXzjVhUdYcPm'), true],
+        ['secretsmanager:GetSecretValue', secret('DatabaseCredentialsSecret74-JXzjVhUdYcPm'), false],
+        ['secretsmanager:GetSecretValue', secret('SigningKeyASecretB1C2D3E4-AbCdEf'), true],
+        ['secretsmanager:GetSecretValue', secret('armoury/production/api-key-AbCdEf'), false],
+        ['secretsmanager:PutSecretValue', secret('SigningKeyASecretB1C2D3E4-AbCdEf'), false],
+
+        ['lambda:GetFunctionUrlConfig', fn('kitchensink-remote-search-prod'), true],
+        ['lambda:GetFunctionUrlConfig', fn('kitchensink-remote-search-pr-91'), false],
+        ['lambda:GetFunctionUrlConfig', fn('armoury-production-api'), false],
+
+        ...QUEUE_CHECK_ROLES.flatMap((name) => [
+            ['iam:ListRolePolicies', role(name), true] as const,
+            ['iam:ListAttachedRolePolicies', role(name), true] as const,
+            ['iam:GetRolePolicy', role(name), true] as const,
+            ['iam:PutRolePolicy', role(name), false] as const,
+            ['iam:AttachRolePolicy', role(name), false] as const,
+        ]),
+        ['iam:GetRolePolicy', role('kitchensink-gha-prod'), false],
+        ['iam:GetRolePolicy', role('armoury-production-api-role'), false],
+        ['iam:GetPolicy', 'arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole', true],
+        ['iam:GetPolicyVersion', 'arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole', true],
+        ['iam:GetPolicyVersion', `arn:aws:iam::${account}:policy/armoury-production-policy`, false],
+
+        ['cloudwatch:GetMetricStatistics', '*', true],
+        ['cloudwatch:PutMetricData', '*', false],
+        ['cloudwatch:DeleteAlarms', '*', false],
+    ];
+
+    it.each(rows)('%s on %s -> admitted=%s', (action, resource, expected) => {
+        expect(policyAdmits(prod, action, resource)).toBe(expected);
+    });
+
+    // CloudFormation names these secrets without a stage, so the stack tag is what keeps each grant off sandbox and
+    // off the other application. The glob matcher ignores conditions, so the tag is asserted here.
+    const tag = 'secretsmanager:ResourceTag/aws:cloudformation:stack-name';
+    const grantOn = (pattern: RegExp): Statement[] =>
+        prod.filter((s) => s.Effect === 'Allow' && asList(s.Resource).some((r) => pattern.test(String(r))));
+
+    it('describes the database master secret only of kitchensink-data-prod', () => {
+        const grants = grantOn(/secret:DatabaseCredentialsSecret/);
+
+        expect(grants).toHaveLength(1);
+        expect(asList(grants[0]?.Action)).toEqual(['secretsmanager:DescribeSecret']);
+        expect(grants[0]?.Condition).toEqual({ StringEquals: { [tag]: 'kitchensink-data-prod' } });
+    });
+
+    it('reads the remote-search signing key only of kitchensink-remote-search-shared-prod', () => {
+        const grants = grantOn(/secret:SigningKey/);
+
+        expect(grants).toHaveLength(1);
+        expect([...asList(grants[0]?.Action)].sort()).toEqual([
+            'secretsmanager:DescribeSecret',
+            'secretsmanager:GetSecretValue',
+        ]);
+        expect(grants[0]?.Condition).toEqual({ StringEquals: { [tag]: 'kitchensink-remote-search-shared-prod' } });
+    });
+});
+
 describe('GithubActionsAccessStack: the non-prod role reaches only what CI tears down', () => {
     const t = template();
     const nonprod = statementsOf(t, 'kitchensink-gha-nonprod');

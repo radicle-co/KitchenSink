@@ -4,7 +4,8 @@
  * section algorithm.
  */
 export { ScrollHost } from './ScrollHost.js';
-export { useOptionalScrollHost, useScrollHost } from './scrollHostContext.js';
+export { useScrollHost } from './scrollHostContext.js';
+export { useOptionalScrollHost } from './useOptionalScrollHost.js';
 export { currentSectionOf } from './currentSection.js';
 export type { SectionTop } from './currentSection.js';
 export type { CurrentChangeListener } from './currentChange.js';

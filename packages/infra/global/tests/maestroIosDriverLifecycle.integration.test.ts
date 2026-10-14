@@ -9,8 +9,9 @@
  *     `|| true` would swallow, so the only way to see it is to record every call.
  *   - The Simulator is NAMED, never inferred: `maestro --device <UDID> test …`, and the driver reset acts on
  *     that UDID.
- *   - The driver is torn down BEFORE the flow (the Android ordering, for the iOS reason: Maestro's iOS start
- *     REUSES a runner already answering on the pinned host port).
+ *   - The driver is torn down BEFORE the first flow, and before any flow that follows a flow that did not pass (the
+ *     Android ordering, for the iOS reason: Maestro's iOS start REUSES a runner already answering on the pinned host
+ *     port). After a flow that PASSED it is kept and `--no-reinstall-driver` is passed (the last describe block).
  *   - Run mode installs the built `.app` before the first flow, prints the flows iOS cannot run, and never
  *     drives one of them.
  *   - The app itself is never uninstalled or the Simulator erased between flows (that would sign every flow out).
@@ -71,11 +72,20 @@ function runWithStubs(args: readonly string[], env: Readonly<Record<string, stri
 
     for (const name of ['adb', 'maestro', 'node', 'npx', 'xcrun']) {
         const path = join(dir, name);
+        // Test-only failure injection, read from the environment the script is run with: `MAESTRO_STUB_FAIL_FLOWS` names
+        // flows whose `maestro test` exits 1, and `MAESTRO_STUB_NPX_FAIL_CALL` makes that numbered `npx` call (the per-flow
+        // e2e-seed reset) exit 1. Everything else exits 0, so a case that sets neither behaves exactly as before.
+        const injected =
+            name === 'maestro'
+                ? 'last="${!#}"; for f in ${MAESTRO_STUB_FAIL_FLOWS:-}; do case "$last" in */"$f".yaml) exit 1 ;; esac; done\n'
+                : name === 'npx'
+                  ? `n=$(($(cat "${log}.npx" 2>/dev/null || echo 0) + 1)); echo "$n" > "${log}.npx"; [ "$n" = "\${MAESTRO_STUB_NPX_FAIL_CALL:-0}" ] && exit 1\n`
+                  : '';
 
         // ONE field per argument, so a flattened argv is visible.
         writeFileSync(
             path,
-            `#!/usr/bin/env bash\n{ printf '%s' "${name}"; printf '\\t%s' "$@"; printf '\\n'; } >> "${log}"\nexit 0\n`,
+            `#!/usr/bin/env bash\n{ printf '%s' "${name}"; printf '\\t%s' "$@"; printf '\\n'; } >> "${log}"\n${injected}exit 0\n`,
             'utf8',
         );
         chmodSync(path, 0o755);
@@ -161,6 +171,112 @@ describe('maestro iOS driver lifecycle — one flow through the real loop', () =
 
     it('never uninstalls the app or erases the Simulator — that would sign every later flow out', () => {
         expect(recorded.calls.filter((call) => /io\.commise|\terase\b|\tprivacy\t/u.test(call))).toEqual([]);
+    });
+});
+
+/**
+ * ADDED 2026-10-13 (plan 2026-10-13-006, cut 2). Maestro's pinned CLI (2.6.1) has `--[no-]reinstall-driver` on `test` ("on
+ * iOS, reinstalls xctestrunner driver"), and the script used to uninstall the runner before EVERY flow, so every flow paid
+ * Maestro's full install and start (a median of 34.9 s of the 46.8 s before "Running on"). The runner is now kept across flows
+ * that follow a flow that PASSED, with `--no-reinstall-driver`; anything else resets it exactly as before.
+ *
+ * Why "the previous flow passed" is the whole rule: the reset's reason for existing is a runner that outlived a CRASHED flow
+ * and is inherited, wedged, by the next one (Maestro's iOS start returns early when a runner already answers on the pinned
+ * port). A flow that exited 0 closed its session normally, so the runner it leaves is a healthy one. The first flow of a run,
+ * a flow after a failed or skipped one, and every Android flow keep the full reset.
+ */
+describe('maestro iOS driver reuse - kept only after a flow that passed', () => {
+    const TERMINATE_OR_UNINSTALL = new RegExp(
+        `^xcrun\tsimctl\t(?:terminate|uninstall)\t${UDID}\t${DRIVER_BUNDLE}$`,
+        'u',
+    );
+    const FLOWS = ['home', 'dataSources', 'recipes/delete'] as const;
+
+    /** Per flow: the `maestro` call that ran it, and the driver teardown calls made since the previous flow's call. */
+    function perFlow(recorded: Recorded): readonly { readonly argv: readonly string[]; readonly teardowns: number }[] {
+        const result: { argv: readonly string[]; teardowns: number }[] = [];
+        let teardowns = 0;
+
+        for (const call of recorded.calls) {
+            if (TERMINATE_OR_UNINSTALL.test(call)) {
+                teardowns += 1;
+            } else if (call.startsWith('maestro\t')) {
+                result.push({ argv: call.split('\t').slice(1), teardowns });
+                teardowns = 0;
+            }
+        }
+
+        return result;
+    }
+
+    it('⛔ resets the runner before the FIRST flow and does not pass the flag', () => {
+        const recorded = runWithStubs(['run-one', ...FLOWS], IOS);
+        const [first] = perFlow(recorded);
+
+        expect(recorded.status, recorded.output).toBe(0);
+        expect(first?.teardowns, recorded.calls.join('\n')).toBe(2);
+        expect(first?.argv).not.toContain('--no-reinstall-driver');
+    });
+
+    it('⛔ KEEPS the runner for a flow that follows a pass: no terminate, no uninstall, the flag on `test`', () => {
+        const flows = perFlow(runWithStubs(['run-one', ...FLOWS], IOS));
+
+        expect(flows).toHaveLength(3);
+
+        for (const next of flows.slice(1)) {
+            expect(next.teardowns).toBe(0);
+            expect(next.argv.slice(0, 3)).toEqual(['--device', UDID, 'test']);
+            expect(next.argv).toContain('--no-reinstall-driver');
+        }
+    });
+
+    it('⛔ RESETS the runner for the flow after a FAILED one, with no flag - then trusts it again once a flow passes', () => {
+        const recorded = runWithStubs(['run-one', ...FLOWS], { ...IOS, MAESTRO_STUB_FAIL_FLOWS: 'dataSources' });
+        const flows = perFlow(recorded);
+
+        expect(recorded.status, 'a failed flow must still fail the run').not.toBe(0);
+        expect(flows).toHaveLength(3);
+        // dataSources ran on a kept runner (home passed) ...
+        expect(flows[1]?.teardowns).toBe(0);
+        expect(flows[1]?.argv).toContain('--no-reinstall-driver');
+        // ... failed, so recipes/delete gets a fresh runner ...
+        expect(flows[2]?.teardowns).toBe(2);
+        expect(flows[2]?.argv).not.toContain('--no-reinstall-driver');
+    });
+
+    it('⛔ RESETS the runner for the flow after a flow that was SKIPPED (its world could not be reset)', () => {
+        // Call 1 resets home's world, call 2 dataSources's: dataSources is not run, so recipes/delete cannot trust the runner.
+        const recorded = runWithStubs(['run-one', ...FLOWS], { ...IOS, MAESTRO_STUB_NPX_FAIL_CALL: '2' });
+        const flows = perFlow(recorded);
+
+        expect(recorded.status).not.toBe(0);
+        expect(flows.map((flow) => flow.argv.at(-1))).toEqual([
+            'packages/apps/commise/mobile/.maestro/home.yaml',
+            'packages/apps/commise/mobile/.maestro/recipes/delete.yaml',
+        ]);
+        expect(flows[1]?.teardowns).toBe(2);
+        expect(flows[1]?.argv).not.toContain('--no-reinstall-driver');
+    });
+
+    it('says, flow by flow, whether the runner was kept or reset - the CI comparison reads this line', () => {
+        const recorded = runWithStubs(['run-one', ...FLOWS], IOS);
+        const verdicts = recorded.output.split('\n').filter((line) => /^iOS XCUITest runner: /u.test(line));
+
+        expect(verdicts).toEqual([
+            'iOS XCUITest runner: reset (first flow of the run) before home',
+            'iOS XCUITest runner: kept (the previous flow passed) before dataSources',
+            'iOS XCUITest runner: kept (the previous flow passed) before recipes/delete',
+        ]);
+    });
+
+    it('⛔ Android is untouched: every flow still uninstalls the driver and no flow gets the flag', () => {
+        const recorded = runWithStubs(['run-one', 'home', 'dataSources'], { MAESTRO_PLATFORM: 'android' });
+        const uninstalls = recorded.calls.filter((call) => /^adb\tshell\tpm\tuninstall\t/u.test(call));
+
+        expect(recorded.status, recorded.output).toBe(0);
+        expect(uninstalls).toHaveLength(4);
+        expect(recorded.calls.filter((call) => call.includes('--no-reinstall-driver'))).toEqual([]);
+        expect(recorded.output).not.toMatch(/XCUITest runner/u);
     });
 });
 

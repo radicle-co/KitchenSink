@@ -34,6 +34,10 @@
  * leaked driver would hold the fixed port and turn a 1-in-188 flake into a deterministic failure for every
  * subsequent flow — strictly worse than the random scheme. The teardown is asserted by
  * `tests/maestroDriverLifecycle.integration.test.ts`; the two changes are a pair and neither is correct alone.
+ *
+ * ⚠️ That is the ANDROID argument (a device-side `BindException`). On iOS the runner is deliberately KEPT after a flow that
+ * passed (plan 2026-10-13-006, cut 2; `tests/maestroIosDriverLifecycle.integration.test.ts`) and reset after any other
+ * outcome, so the leaked-runner hazard there is answered by the failure rule, not by an unconditional teardown.
  */
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';

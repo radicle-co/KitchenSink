@@ -300,8 +300,10 @@ ios|recipes/privateFoodStandIn|coverage-gap|leaves the copy's untouched editor w
 ios|recipes/systemBackGuard|android-behaviour|its subject is Android's SYSTEM back key (KEYCODE_BACK) reaching an open Modal before any BackHandler; iOS has no system back key, so there is nothing to test"
 
 # Maestro's iOS XCUITest runner, as Maestro names it (`LocalXCTestInstaller.UI_TEST_RUNNER_APP_BUNDLE_ID`, read
-# at the pinned tag `cli-2.6.1`). Maestro reinstalls it at the start of every session, so removing it between
-# flows costs nothing.
+# at the pinned tag `cli-2.6.1`). Maestro reinstalls it at the start of every session unless it is told
+# `--no-reinstall-driver` (a `maestro test` option in 2.6.1: "on iOS, reinstalls xctestrunner driver"), and this
+# script now tells it so for a flow that follows a flow that PASSED - see `maestro_run_flow_list`. Anywhere else
+# the runner is removed first, which costs one reinstall.
 MAESTRO_IOS_DRIVER_BUNDLE='dev.mobile.maestro-driver-iosUITests.xctrunner'
 
 # ── SHARDING: how many runners the plan may be split across, and what each flow costs ────────────────────
@@ -1047,12 +1049,18 @@ maestro_prepare_device() {
 #
 # ⚠️ ON iOS THE HAZARD HAS A DIFFERENT SHAPE, and the reset is the same answer to it. The Simulator shares the
 # HOST's network, so the pinned port is a host port, and Maestro's iOS `start()` (read at `cli-2.6.1`,
-# `LocalXCTestInstaller.startXCTestRunner`) returns early when a runner ALREADY answers on it — a runner that
+# `LocalXCTestInstaller.startXCTestRunner`) returns early when a runner ALREADY answers on it - a runner that
 # survived a crashed flow is INHERITED by the next flow rather than colliding with it. Terminating and
 # uninstalling it first means every flow starts the runner Maestro just installed.
 #
-# Runs BEFORE each flow, never only after: a run that dies mid-flow is exactly the case that leaks a driver,
-# and cleanup that only happens on the way out never executes then.
+# ⚠️ THAT RESET IS NO LONGER UNCONDITIONAL ON iOS (plan 2026-10-13-006, cut 2). It cost every flow Maestro's full
+# runner install and start, a median 34.9 s of the 46.8 s before "Running on". The hazard it answers is a runner that
+# outlived a CRASHED flow, so `maestro_run_flow_list` calls this only when the previous flow did NOT pass (or there was
+# none) and otherwise keeps the runner and passes `--no-reinstall-driver`. This function is still the reset itself and
+# always does it; the decision to skip lives in the loop that knows how the last flow ended. Android is unchanged.
+#
+# Runs BEFORE each flow that needs it, never only after: a run that dies mid-flow is exactly the case that leaks a
+# driver, and cleanup that only happens on the way out never executes then.
 #
 # @sideEffect Uninstalls the driver packages and stops any surviving driver process on the device.
 maestro_reset_driver() {
@@ -1284,7 +1292,7 @@ maestro_run_flows() {
 #
 # @sideEffect Resets the driver, reseeds the database, runs Maestro, and dumps diagnostics on failure.
 maestro_run_flow_list() {
-    local rc=0 f reseed_mode flows="$*" platform
+    local rc=0 f reseed_mode flows="$*" platform driver_args=()
 
     if ! platform=$(maestro_platform); then
         echo "::error::unknown MAESTRO_PLATFORM '${MAESTRO_PLATFORM:-}' — refusing to guess which device to drive"
@@ -1301,10 +1309,28 @@ maestro_run_flow_list() {
         device_args=(--device "$MAESTRO_IOS_UDID")
     fi
 
+    # ⛔ iOS ONLY: whether the XCUITest runner the last flow left is safe to keep. True only when the previous flow's
+    # `maestro test` EXITED 0 - a flow that failed, was skipped (its world could not be reset, or it had no erasure
+    # subject) or does not exist yet (the first flow) leaves it unproven. It is set to 0 for every flow BEFORE the flow can
+    # fail and back to 1 only on a pass, so no skip path can leave a stale 1 behind.
+    local driver_trusted=0 runner_before='first flow of the run'
+
     for f in $flows; do
         echo "::group::maestro flow ${f}"
         echo "driver port ${MAESTRO_DRIVER_PORT} (pinned below the ephemeral range) for flow ${f}"
-        maestro_reset_driver
+        # ${driver_args[@]+…}: an EMPTY array is an unbound variable under `set -u` on bash 3.2 (macOS's system bash).
+        driver_args=()
+        if [ "$platform" = 'ios' ] && [ "$driver_trusted" -eq 1 ]; then
+            echo "iOS XCUITest runner: kept (the previous flow passed) before ${f}"
+            driver_args=(--no-reinstall-driver)
+        else
+            if [ "$platform" = 'ios' ]; then
+                echo "iOS XCUITest runner: reset (${runner_before}) before ${f}"
+            fi
+            maestro_reset_driver
+        fi
+        driver_trusted=0
+        runner_before='the previous flow did not pass'
         maestro_scope_device_log # so a failing flow's dump is scoped to just this flow
         # ⛔ Before the reset AND before Maestro: an erasing flow with no leased subject is not run at all.
         if ! maestro_erasure_subject_check "$f"; then
@@ -1330,7 +1356,10 @@ maestro_run_flow_list() {
         # `${a[@]+"${a[@]}"}` rather than a bare `"${a[@]}"`: under `set -u` an EMPTY array is an unbound
         # variable on bash 3.2 (still the system bash on macOS), and the `run-one` seam runs with no
         # manifest. Every element stays individually quoted, so titles keep their spaces.
-        if ! maestro ${device_args[@]+"${device_args[@]}"} test ${MAESTRO_FIXTURE_ENV_ARGS[@]+"${MAESTRO_FIXTURE_ENV_ARGS[@]}"} --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
+        if maestro ${device_args[@]+"${device_args[@]}"} test ${driver_args[@]+"${driver_args[@]}"} ${MAESTRO_FIXTURE_ENV_ARGS[@]+"${MAESTRO_FIXTURE_ENV_ARGS[@]}"} --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
+            driver_trusted=1
+            runner_before='the previous flow passed'
+        else
             echo "FLOW FAILED: ${f}"
             maestro_dump_device_log "$f"
             maestro_dump_port_owner

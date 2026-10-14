@@ -13,8 +13,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     isSessionSubjectChangedError,
+    isTokenMintFailedError,
     SessionSubjectChangedError,
     subjectBoundToken,
+    TokenMintFailedError,
     type SessionSubjectSource,
 } from '../subjectBoundToken.js';
 
@@ -101,7 +103,14 @@ describe('subjectBoundToken — a client built for a cook', () => {
         await expect(token(false)).rejects.toBeInstanceOf(SessionSubjectChangedError);
     });
 
-    it('lets a mint failure through unchanged, so "not ready" stays distinguishable from "another cook"', async () => {
+    /**
+     * REWRITTEN for plan 2026-10-13-004. A mint that fails (Clerk could not refresh its token offline, the web's typed
+     * `RecipeAuthNotReadyError` while Clerk hydrates) used to reach the outbox's sender as a plain error with no status,
+     * which it must read as an UNKNOWN outcome — parked for the cook, and for a create never sent again. Nothing was
+     * sent: the token is minted BEFORE the request. The proxy now names that fact with its own error, keeping the
+     * original as `cause`, so "not ready" stays distinguishable from "another cook" and from "the server said no".
+     */
+    it('⛔ wraps a mint failure in TokenMintFailedError, keeping the original as its cause', async () => {
         const notReady = new Error('Clerk returned no session token');
         const token = subjectBoundToken(
             'user_A',
@@ -109,7 +118,52 @@ describe('subjectBoundToken — a client built for a cook', () => {
             vi.fn(async () => Promise.reject(notReady)),
         );
 
-        await expect(token(false)).rejects.toBe(notReady);
+        const failure = await token(false).then(
+            () => undefined,
+            (error: unknown) => error,
+        );
+
+        expect(isTokenMintFailedError(failure)).toBe(true);
+        expect(failure).toBeInstanceOf(TokenMintFailedError);
+        expect((failure as TokenMintFailedError).cause).toBe(notReady);
+        expect(isSessionSubjectChangedError(failure)).toBe(false);
+    });
+
+    it('wraps a mint failure that is not an Error too (a thrown string)', async () => {
+        const token = subjectBoundToken(
+            'user_A',
+            identity('user_A'),
+            vi.fn(async () => Promise.reject('offline')),
+        );
+
+        const failure = await token(false).then(
+            () => undefined,
+            (error: unknown) => error,
+        );
+
+        expect(isTokenMintFailedError(failure)).toBe(true);
+        expect((failure as TokenMintFailedError).cause).toBe('offline');
+    });
+
+    it('⛔ a session change keeps its own error: it is another cook`s refusal, not a failed mint', async () => {
+        const client = identity('user_A');
+        const mint = vi.fn(async () => {
+            client.session = { user: { id: 'user_B' } };
+
+            return 'tok-B';
+        });
+
+        const failure = await subjectBoundToken(
+            'user_A',
+            client,
+            mint,
+        )(false).then(
+            () => undefined,
+            (error: unknown) => error,
+        );
+
+        expect(failure).toBeInstanceOf(SessionSubjectChangedError);
+        expect(isTokenMintFailedError(failure)).toBe(false);
     });
 });
 
@@ -165,6 +219,21 @@ describe('SessionSubjectChangedError', () => {
         expect(error.name).toBe('SessionSubjectChangedError');
         expect(isSessionSubjectChangedError(error)).toBe(true);
         expect(isSessionSubjectChangedError(new Error('other'))).toBe(false);
+        expect(error.message).not.toMatch(/user_/u);
+    });
+});
+
+describe('TokenMintFailedError', () => {
+    it('is an Error with its own name and guard, carries the cause, and names no user', () => {
+        const cause = new Error('offline');
+        const error = new TokenMintFailedError(cause);
+
+        expect(error).toBeInstanceOf(Error);
+        expect(error.name).toBe('TokenMintFailedError');
+        expect(error.cause).toBe(cause);
+        expect(isTokenMintFailedError(error)).toBe(true);
+        expect(isTokenMintFailedError(new Error('other'))).toBe(false);
+        expect(isTokenMintFailedError(new SessionSubjectChangedError())).toBe(false);
         expect(error.message).not.toMatch(/user_/u);
     });
 });

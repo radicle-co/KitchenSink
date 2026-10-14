@@ -35,7 +35,11 @@ import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { useEffect, useState, type ReactElement } from 'react';
 import { useSyncQueue } from '@commise/query/sync';
 
-import { isSessionSubjectChangedError } from '@commise/features-account';
+import {
+    isSessionSubjectChangedError,
+    isTokenMintFailedError,
+    type TokenMintFailedError,
+} from '@commise/features-account';
 import { appendIntent, loadOutbox, outboxMutatorFor } from '@kitchensink/sync';
 
 import { RecipeAuthNotReadyError } from '@/lib/recipeAuthNotReady';
@@ -627,8 +631,12 @@ describe('RecipeProviders (web) — token resolution', () => {
 
         // The request is never sent: no empty `Bearer`, no 401, nothing for the redirect handler to see.
         expect(fetchMock).not.toHaveBeenCalled();
-        // …and the refusal is the TYPED one, so "not ready" stays distinguishable from "the server said no".
-        expect(outcome).toBeInstanceOf(RecipeAuthNotReadyError);
+        // …and the refusal stays TYPED, so "not ready" stays distinguishable from "the server said no". REWRITTEN for plan
+        // 2026-10-13-004: the token proxy (`subjectBoundToken`) wraps a failed mint in its own `TokenMintFailedError`, which
+        // is what lets the outbox park a write as "no credential yet" instead of an unknown outcome. The typed
+        // `RecipeAuthNotReadyError` is its `cause`, and the query retry recovers either way (it abstains on both).
+        expect(isTokenMintFailedError(outcome)).toBe(true);
+        expect((outcome as TokenMintFailedError).cause).toBeInstanceOf(RecipeAuthNotReadyError);
     });
 });
 

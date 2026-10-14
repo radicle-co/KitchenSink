@@ -15,7 +15,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { SessionSubjectChangedError } from '@commise/features-account';
+import { SessionSubjectChangedError, TokenMintFailedError } from '@commise/features-account';
 import {
     BadRequestError,
     ForbiddenError,
@@ -158,6 +158,26 @@ describe('recipeSender', () => {
             'terminal',
         );
     });
+
+    /**
+     * ⛔ A TOKEN THAT COULD NOT BE MINTED SENT NOTHING (plan 2026-10-13-004). Clerk failing to refresh a session token with
+     * no network, or the web's "not ready" while Clerk hydrates, reached this sender as an error with no status, which is
+     * an UNKNOWN outcome: parked for the cook, and for a create never sent again. The mint runs before the request, so the
+     * truthful report is the one a signed-out cook gets: `401`, which the drain sends again once there is a credential.
+     */
+    it.each([
+        ['an update', 'update', 'updateRecipe'],
+        ['a create', 'create', 'createRecipe'],
+        ['a delete', 'delete', 'deleteRecipe'],
+    ])(
+        '⛔ parks %s whose token could not be minted as 401, not as an unknown outcome',
+        async (_label, kind, method) => {
+            const call = vi.fn().mockRejectedValue(new TokenMintFailedError(new Error('network request failed')));
+            const send = recipeSender(() => ({ [method]: call }) as never);
+
+            expect(await send(record(kind, { id: 'r1', input: {} }))).toStrictEqual({ outcome: 'failed', status: 401 });
+        },
+    );
 
     it('⛔ classifies a locally-rejected body as terminal, not as an unknown outcome', async () => {
         const updateRecipe = vi.fn().mockRejectedValue(new InvalidRequestError('updateRecipe', new Error('zod')));

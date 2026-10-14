@@ -6,9 +6,15 @@
  * ⛔ ONE OBJECT for the app: `draftStoreFor` and `outboxMutatorFor` each memoize one serial writer per store object, so
  * the editor, the outbox observer, `SyncProvider` and the session end share their writers only while they share this.
  *
- * ⚠️ Mobile ends the device session on its own sign-out only (`useSignOutAndVerify`). The web also ends it when Clerk's
- * cook changes under it (`useDeviceSessionScope`), because a tab is signed out from other tabs; whether an expired
- * session on a phone, possibly after days offline, should discard the cook's unsent saves is an owner decision.
+ * ⛔ A PHONE KEEPS A COOK'S UNSENT SAVES WHEN THEIR SESSION EXPIRES, and clears them only on a verified sign-out, an
+ * account close or an erase (`useSignOutAndVerify`). An expired session (days offline, or a revoked one) takes the
+ * cook's `userId` to `null` without any sign-out, and the drafts and outbox are their work: they stay under their own
+ * `*.v1.{subject}` keys, which another cook on the phone cannot read, and drain after THEY sign in again. A write the
+ * expiry caught parks as `401` and resumes; it is never an unknown outcome (`TokenMintFailedError`). The web differs on
+ * purpose: it also ends the session when Clerk's cook changes (`useDeviceSessionScope`), because a tab is signed out
+ * from other tabs and its draft lives only as long as the tab (ADR-0057, ADR-0054 §4). Do not add the web's scope here
+ * to "match" it. A cook who never signs in again leaves their keys on the phone until the app's data is cleared; that
+ * residue is accepted.
  */
 import { endDeviceSession as endStoredDeviceSession } from '@commise/features-recipes';
 

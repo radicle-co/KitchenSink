@@ -18,7 +18,7 @@ import {
     SourceBusyError,
 } from '@kitchensink/food-service-client';
 import { NotFoundError as RecipeNotFoundError, UnexpectedResponseError } from '@kitchensink/recipe-service-client';
-import { NotFoundError as ProfileNotFoundError } from '@commise/features-account';
+import { NotFoundError as ProfileNotFoundError, TokenMintFailedError } from '@commise/features-account';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -91,6 +91,19 @@ describe('shouldRetryQuery — it abstains on errors no client owns', () => {
         class RecipeAuthNotReadyError extends Error {}
 
         expect(shouldRetryQuery(0, new RecipeAuthNotReadyError('no token yet'))).toBe(true);
+    });
+
+    /**
+     * ⛔ THE TOKEN PROXY NOW WRAPS A FAILED MINT (plan 2026-10-13-004): `RecipeAuthNotReadyError` reaches the client as the
+     * `cause` of a `TokenMintFailedError`. The recovery above must survive the wrapping, and it does for the same reason
+     * it always did: no owner recognises the wrapper, so every owner abstains and the read is retried. The wrapping
+     * must not get a veto (a "do not retry a mint failure" would turn a hydration window into a failed screen).
+     */
+    it('⛔ keeps retrying a read whose token mint failed, whatever the cause', () => {
+        class RecipeAuthNotReadyError extends Error {}
+
+        expect(shouldRetryQuery(0, new TokenMintFailedError(new RecipeAuthNotReadyError('no token yet')))).toBe(true);
+        expect(shouldRetryQuery(0, new TokenMintFailedError(new Error('network request failed')))).toBe(true);
     });
 
     it.each([

@@ -21,7 +21,7 @@
  * @pattern Adapter — it translates the domain's intent vocabulary into one service client's methods, and is
  *     the only module that knows both.
  */
-import { isSessionSubjectChangedError } from '@commise/features-account';
+import { isSessionSubjectChangedError, isTokenMintFailedError } from '@commise/features-account';
 import {
     isInvalidRequestError,
     isNotFoundError,
@@ -51,7 +51,8 @@ export type ClientAccessor = () => RecipeServiceClient | undefined;
 const NOT_IMPLEMENTED: RecipeSendResult = { outcome: 'failed', status: 501 };
 
 /**
- * A refusal the client's token proxy produced, because the record's cook is no longer the signed-in one (ADR-0054).
+ * A refusal the client's token proxy produced, because the record's cook is no longer the signed-in one (ADR-0054), or
+ * because it could not mint a token at all (`TokenMintFailedError`).
  *
  * ⛔ PARKED, FOR THE REASON `NOT_IMPLEMENTED` IS: nothing was sent, so it is not `unknown`, and re-sending it inside
  * this drain only meets the same refusal, so it is not transient. `401` names what happened: there is no credential for
@@ -162,7 +163,10 @@ function failureFor(error: unknown): RecipeSendResult {
         return { outcome: 'failed', status: 400 };
     }
 
-    if (isSessionSubjectChangedError(error)) {
+    // ⛔ A TOKEN THAT COULD NOT BE MINTED SENT NOTHING, the same fact as a session that ended: the proxy mints before the
+    // request leaves. Reported as a statusless failure it was an UNKNOWN outcome, parked for the cook and, for a create,
+    // never sent again; as `401` it drains when a credential is back (a phone offline when its token expired).
+    if (isSessionSubjectChangedError(error) || isTokenMintFailedError(error)) {
         return SESSION_ENDED;
     }
 

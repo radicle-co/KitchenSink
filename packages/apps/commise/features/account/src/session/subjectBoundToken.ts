@@ -17,7 +17,8 @@
  * Shared by both platforms' composition roots, which supply their own SDK's `useClerk()` and mint function, as
  * `signOutAndVerify` beside it is.
  *
- * @pattern Protection Proxy over the mint function — same signature, plus an access check on every call
+ * @pattern Protection Proxy over the mint function — same signature, plus an access check on every call; a failed mint
+ *     is translated into this module's own error (exception translation inside the proxy, not a second layer)
  */
 
 /**
@@ -47,6 +48,27 @@ export function isSessionSubjectChangedError(error: unknown): error is SessionSu
 }
 
 /**
+ * The platform's mint could not produce a token (Clerk could not refresh a session token with no network, or the web
+ * provider's typed "not ready" while Clerk hydrates). The original failure is the `cause`. No request was sent: the
+ * token is minted before the request, so the outbox can park the record as "no credential" and send it again once there
+ * is one, instead of reading a statusless failure as an unknown outcome that only the cook may resolve.
+ *
+ * Its message names no user: it can reach a log or an error report.
+ */
+export class TokenMintFailedError extends Error {
+    public constructor(cause: unknown) {
+        super('A session token could not be minted, so no request was sent', { cause });
+        this.name = 'TokenMintFailedError';
+        Object.setPrototypeOf(this, TokenMintFailedError.prototype);
+    }
+}
+
+/** Type guard for {@link TokenMintFailedError}. */
+export function isTokenMintFailedError(error: unknown): error is TokenMintFailedError {
+    return error instanceof TokenMintFailedError;
+}
+
+/**
  * The user the identity client's live session belongs to.
  *
  * @param identity - The identity client.
@@ -57,13 +79,33 @@ function liveSubjectOf(identity: SessionSubjectSource): string | undefined {
 }
 
 /**
+ * Run the platform's mint, naming its failure.
+ *
+ * @param mint - The platform's token mint.
+ * @param forceRefresh - Whether to skip its cache.
+ * @returns The token.
+ * @throws {TokenMintFailedError} With the mint's own rejection as its `cause`. @sideEffect Mints a token.
+ */
+async function mintTranslated(
+    mint: (forceRefresh: boolean) => Promise<string>,
+    forceRefresh: boolean,
+): Promise<string> {
+    try {
+        return await mint(forceRefresh);
+    } catch (error) {
+        throw new TokenMintFailedError(error);
+    }
+}
+
+/**
  * Wrap `mint` so it mints only for `subject`, or, when `subject` is absent, only for the first cook it mints for.
  *
  * @param subject - The cook the client is built for (Clerk `userId`), or `undefined` when nobody was signed in.
  * @param identity - The identity client, read for its live session on every call (pass `useClerk()`).
  * @param mint - The platform's token mint; `forceRefresh` asks it to skip its cache.
  * @returns The bound mint. It rejects with {@link SessionSubjectChangedError} when the live session is not the cook's,
- *   before or after minting, and passes every other outcome of `mint` through unchanged.
+ *   before or after minting, and with {@link TokenMintFailedError} (the failure as its `cause`) when `mint` itself
+ *   rejects.
  */
 export function subjectBoundToken(
     subject: string | undefined,
@@ -81,7 +123,7 @@ export function subjectBoundToken(
             throw new SessionSubjectChangedError();
         }
 
-        const token = await mint(forceRefresh);
+        const token = await mintTranslated(mint, forceRefresh);
         const after = liveSubjectOf(identity);
 
         if (before !== undefined && after !== before) {

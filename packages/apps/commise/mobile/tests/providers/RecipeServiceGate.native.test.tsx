@@ -29,7 +29,7 @@
  * "must be used within a <RecipeServiceProvider>". The mismatch looked exactly like a missing provider.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { useAuth } from '@clerk/expo';
 import { isSessionSubjectChangedError } from '@commise/features-account';
 import { useSyncQueue } from '@commise/query/sync';
@@ -37,13 +37,15 @@ import { FoodServiceClient } from '@kitchensink/food-service-client';
 import { useFoodServiceClient, useFoodServiceSubject } from '@kitchensink/food-service-client/hooks';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
-import type { Intent } from '@kitchensink/sync';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { EMPTY_OUTBOX, appendIntent, saveOutbox, settle, type Intent } from '@kitchensink/sync';
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
 import { Text } from 'react-native';
 
 import { RecipeServiceGate } from '../../src/providers/RecipeServiceGate.js';
+import { nativeDeviceStore } from '../../src/storage/deviceSession.js';
+import { makeRecipeDetail } from '../__fixtures__/recipes.js';
 
 /** The live session's shape, as the gate reads it from `useClerk()`. */
 interface FakeSession {
@@ -399,5 +401,145 @@ describe('RecipeServiceGate — the sync queue mount', () => {
         await waitFor(() => {
             expect(screen.getByText('refused:sync: submit called with no signed-in subject|client')).toBeTruthy();
         });
+    });
+});
+
+/**
+ * ⛔ A PHONE'S SESSION EXPIRING KEEPS THE COOK'S UNSENT SAVES (plan 2026-10-13-004, item 6; ADR-0054 §4, ADR-0057).
+ *
+ * A session can end without a sign-out: a long stretch offline outlasts the refresh token, or Clerk revokes it. The
+ * cook's `userId` then goes to `null` and nobody pressed "sign out", so nothing may clear their drafts or their outbox:
+ * those are their work, namespaced by them, and they drain after THEY sign in again. Only a sign-out (verified), an
+ * account close or an erase ends the device session, and the `*.v1.{subject}` keys already keep another cook on the same
+ * phone from reading them.
+ *
+ * What `@clerk/expo` really does on expiry (`userId` to `null`) is stood in for by `signIn(null)`; a device is the only
+ * way to see Clerk itself do it.
+ */
+describe('RecipeServiceGate — the cook’s unsent saves outlive an expired session', () => {
+    const COOK_A = 'user_expiry_A';
+    const COOK_B = 'user_expiry_B';
+    const parkedUpdate: Intent = {
+        entity: 'recipe',
+        intentKind: 'update',
+        localId: 'rec_1',
+        dependsOn: [],
+        payload: { id: 'rec_1', input: { expectedVersion: 1, title: 'Soup, edited' } },
+    };
+
+    /** The pending count and each parked write's status, as the cook's notice reads them. */
+    function QueueProbe(): ReactElement {
+        const queue = useSyncQueue();
+
+        return (
+            <Text>{`pending:${queue.pendingCount}|parked:${queue.failures.map((f) => f.status ?? 'unknown').join(',')}`}</Text>
+        );
+    }
+
+    /** A recipe service that accepts every write. @sideEffect Stubs the global fetch. */
+    function acceptingFetch() {
+        const requests: string[] = [];
+        const fetchMock = vi.fn(async (input: Request | string, init?: RequestInit) => {
+            const request = new Request(input, init);
+            const path = new URL(request.url).pathname;
+
+            if (path !== '/health') {
+                requests.push(`${request.method} ${path}`);
+            }
+
+            return Response.json(makeRecipeDetail({ id: 'rec_1', currentVersion: 2 }));
+        });
+
+        vi.stubGlobal('fetch', fetchMock);
+
+        return requests;
+    }
+
+    afterEach(() => {
+        onlineManager.setOnline(true);
+    });
+
+    it('⛔ keeps A’s outbox and drafts when A’s session ends with no sign-out, hides them from B, and drains them when A signs in again', async () => {
+        const requests = acceptingFetch();
+        // A write A's phone parked as "no credential" (401) before the session ended, and a draft beside it.
+        await saveOutbox(
+            nativeDeviceStore,
+            COOK_A,
+            settle(appendIntent(EMPTY_OUTBOX, parkedUpdate), { seq: 1, outcome: 'parked', status: 401 }),
+        );
+        await nativeDeviceStore.setItem(`editor.draft.v1.${COOK_A}`, '{"formatVersion":1,"drafts":{}}');
+        onlineManager.setOnline(false);
+
+        signIn(COOK_A);
+        const view = renderGated(<QueueProbe />);
+        await waitFor(() => expect(screen.getByText('pending:1|parked:401')).toBeTruthy());
+
+        // A's session ends: Clerk reports no cook, and nobody signed out.
+        signIn(null);
+        view.rerender(<QueueProbe />);
+
+        expect(await nativeDeviceStore.getItem(`sync.outbox.v1.${COOK_A}`)).not.toBeNull();
+        expect(await nativeDeviceStore.getItem(`editor.draft.v1.${COOK_A}`)).not.toBeNull();
+
+        // B signs in on the same phone: B sees an empty outbox, and A's keys are untouched.
+        signIn(COOK_B);
+        view.rerender(<QueueProbe />);
+        await waitFor(() => expect(screen.getByText('pending:0|parked:')).toBeTruthy());
+        expect(await nativeDeviceStore.getItem(`sync.outbox.v1.${COOK_A}`)).not.toBeNull();
+        expect(await nativeDeviceStore.getItem(`editor.draft.v1.${COOK_A}`)).not.toBeNull();
+        expect(requests).toEqual([]);
+
+        // A signs in again: the records reappear, and the 401-parked write goes out and leaves the outbox.
+        signIn(COOK_A);
+        view.rerender(<QueueProbe />);
+        await waitFor(() => expect(screen.getByText('pending:1|parked:401')).toBeTruthy());
+        await act(async () => {
+            onlineManager.setOnline(true);
+        });
+
+        await waitFor(() => expect(requests).toEqual(['PATCH /api/v1/recipes/rec_1']));
+        await waitFor(() => expect(screen.getByText('pending:0|parked:')).toBeTruthy());
+    });
+
+    /**
+     * ⛔ A TOKEN THAT COULD NOT BE MINTED PARKS AS 401, NOT AS AN UNKNOWN OUTCOME. A phone offline when its token
+     * expires cannot refresh it: Clerk's `getToken` rejects, and the request is never sent. A statusless failure would
+     * be read as "may have been processed" and wait for the cook; `401` drains by itself once a token can be minted.
+     */
+    it('⛔ a write whose token mint fails parks as 401 and is sent when a token can be minted', async () => {
+        const requests = acceptingFetch();
+        signIn(COOK_A);
+        (clerk.session as FakeSession).getToken.mockRejectedValueOnce(new Error('Network request failed'));
+        const queueRef: { current: ReturnType<typeof useSyncQueue> | undefined } = { current: undefined };
+
+        function Submitter(): ReactElement {
+            const queue = useSyncQueue();
+
+            useEffect(() => {
+                queueRef.current = queue;
+            }, [queue]);
+
+            return <QueueProbe />;
+        }
+
+        renderGated(<Submitter />);
+        await waitFor(() => expect(queueRef.current).toBeDefined());
+        await act(async () => {
+            await queueRef.current?.submit(parkedUpdate);
+        });
+
+        await waitFor(() => expect(screen.getByText('pending:1|parked:401')).toBeTruthy());
+        expect(requests).toEqual([]);
+
+        // Back online with a token to mint: the same record drains.
+        await act(async () => {
+            onlineManager.setOnline(false);
+        });
+        await act(async () => {
+            onlineManager.setOnline(true);
+        });
+
+        await waitFor(() => expect(requests).toEqual(['PATCH /api/v1/recipes/rec_1']));
+        await waitFor(() => expect(screen.getByText('pending:0|parked:')).toBeTruthy());
     });
 });

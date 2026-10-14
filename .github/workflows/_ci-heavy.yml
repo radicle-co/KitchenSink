@@ -221,6 +221,10 @@ env:
     # a literal version, the tagged URL or a checked digest, or if the two installs see different pins.
     MAESTRO_VERSION: '2.6.1'
     MAESTRO_SHA256: '3440825f514f537c6a96bcf5de995780c2a4a7f83a43208fdc95d4f1fecfad3b'
+    # Maestro's own opt-out for its anonymous analytics (`MAESTRO_CLI_NO_ANALYTICS`, "any value", read by
+    # `maestro.cli.analytics.Analytics` in `maestro-cli-2.6.1.jar`): without it the CLI makes a network call at start and
+    # prints a notice on every flow. Top-level so both Maestro jobs get it from one place.
+    MAESTRO_CLI_NO_ANALYTICS: '1'
 
 jobs:
     install:
@@ -1513,13 +1517,61 @@ jobs:
                   xcrun simctl boot "${udid}"
                   echo "udid=${udid}" >> "$GITHUB_OUTPUT"
                   echo "booting ${IOS_SIMULATOR_DEVICE} on ${IOS_SIMULATOR_RUNTIME} as ${udid}"
+            # ⛔ NO npm CACHE ON THIS JOB (plan 2026-10-13-006, cut 1). `setup-node`'s automatic cache restored 616 MB at 3 to 5
+            # MB/s (122 to 350 s) and `npm ci` then still took 3 to 4 minutes, so the restore saved nothing the install does
+            # not redo. `package-manager-cache` is the input the pinned action declares for turning it off.
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
+                  package-manager-cache: false
             # A plain `npm ci`: there is no macOS `node_modules` entry to restore (see the job header), and saving
-            # one would put a second multi-GB entry per lockfile under the repository's shared 10 GB cache cap.
+            # one would put a second multi-GB entry per lockfile under the repository's shared 10 GB cache cap. It is TIMED,
+            # because the cache above was never measured against the install without it: the log line is how the next run
+            # says whether dropping it cost anything.
             - name: Install dependencies
-              run: npm ci
+              run: |
+                  set -euo pipefail
+                  started="${SECONDS}"
+                  npm ci
+                  echo "::notice::npm ci took $((SECONDS - started))s (no npm cache)"
+            # ⛔ PASSWORD AUTOFILL OFF, so iOS never raises "Save Password?" over the sign-in's code step. The sheet is another
+            # process: Maestro's hierarchy holds only the status bar while it is up, so no flow can tap "Not Now", and it
+            # covered `Verify` on every iOS sign-in of run 38407211276 (`maestroIosTier.test.ts`). The restriction lives in
+            # the device's configuration-profile files, which exist only once it has booted, hence after a first boot.
+            # ⚠️ Best-effort, like the keyboard preferences: the three paths are the ones Detox users edit (wix/Detox#3761)
+            # and are unverified on this runtime until a real run; a missing one WARNS by name.
+            # ⛔ THE DEVICE IS SHUT DOWN FOR THE WRITE and booted again after it. Run 38433716728 read `false` back from all
+            # three files on all four shards, and shard 2 still got the sheet on every sign-in: a running Simulator had
+            # already read the restriction, so a write under it changed the file and not the device. So only the file writes
+            # are best-effort: a shutdown that fails fails the step, because the write behind it would change nothing.
+            # ⛔ OFF THE CRITICAL PATH (plan 2026-10-13-006, cut 4). It runs right after `npm ci`, outside the secrets valve (it
+            # touches nothing remote), so the early boot has had the whole install to finish and the leading `bootstatus -b`
+            # returns at once. It does NOT wait for the second boot: 'Wait for the iOS Simulator to finish booting' below does,
+            # after the liveness probe, the secrets load, the pool reset, the app download, the seed and the Maestro install
+            # have run alongside it. It is not folded into the create step because the files exist only after a first boot, and
+            # waiting for one there would put the 2-3 minute boot back in front of `npm ci`.
+            - name: Switch password AutoFill off on the iOS Simulator
+              env:
+                  MAESTRO_IOS_UDID: ${{ steps.simulator.outputs.udid }}
+              run: |
+                  set -euo pipefail
+                  data="$HOME/Library/Developer/CoreSimulator/Devices/${MAESTRO_IOS_UDID}/data"
+                  xcrun simctl bootstatus "${MAESTRO_IOS_UDID}" -b
+                  xcrun simctl shutdown "${MAESTRO_IOS_UDID}"
+                  for file in \
+                      Containers/Shared/SystemGroup/systemgroup.com.apple.configurationprofiles/Library/ConfigurationProfiles/UserSettings.plist \
+                      Library/UserConfigurationProfiles/EffectiveUserSettings.plist \
+                      Library/UserConfigurationProfiles/PublicInfo/PublicEffectiveUserSettings.plist; do
+                      if [ ! -f "${data}/${file}" ]; then
+                          echo "::warning::${file} is not on this Simulator — password AutoFill may stay on, and iOS may cover the sign-in with Save Password"
+                          continue
+                      fi
+                      plutil -replace restrictedBool.allowPasswordAutoFill.value -bool NO "${data}/${file}" ||
+                          echo "::warning::could not switch password AutoFill off in ${file}"
+                      # Read back, so the log says whether the write took rather than only that it was tried.
+                      echo "${file}: allowPasswordAutoFill=$(plutil -extract restrictedBool.allowPasswordAutoFill.value raw "${data}/${file}" || echo unreadable)"
+                  done
+                  xcrun simctl boot "${MAESTRO_IOS_UDID}"
             # ⛔ RE-ASK LIVENESS IN THIS JOB, BEFORE A STAGE SECRET IS LOADED — the Android job's re-probe, for its
             # reason (a re-run reads the resolver's FROZEN `live`). `maestroRerunLiveness.test.ts` holds the
             # question below byte-identical to the resolver's, so the stack lists cannot drift one copy at a time.
@@ -1696,49 +1748,17 @@ jobs:
             - name: Build the workspace packages the seed tools import
               if: steps.secrets.outcome == 'success'
               run: npx turbo run build --filter='@kitchensink/e2e-seed^...'
-            # ⛔ WAIT FOR THE SIMULATOR STARTED EARLIER (see 'Create the pinned iOS Simulator and start it booting' above). By
-            # here the boot has been running through `npm ci`, the liveness probe, the secrets load, the pool reset and the
-            # app download, so this normally returns at once; it is a separate step because waiting is the only part of the
-            # boot that has to sit on the path to the flows. `-b` boots the device if it is not booting and waits for it
-            # either way.
+            # ⛔ WAIT FOR THE SIMULATOR STARTED EARLIER (see 'Create the pinned iOS Simulator and start it booting' above). It is
+            # the SECOND boot that this waits for: 'Switch password AutoFill off' restarts the device after `npm ci` and does
+            # not wait. By here that boot has been running through the liveness probe, the secrets load, the pool reset, the
+            # app download, the seed and the Maestro install, so this normally returns at once; it is a separate step because
+            # waiting is the only part of the boot that has to sit on the path to the flows. `-b` boots the device if it is
+            # not booting and waits for it either way.
             - name: Wait for the iOS Simulator to finish booting
               if: steps.secrets.outcome == 'success'
               env:
                   MAESTRO_IOS_UDID: ${{ steps.simulator.outputs.udid }}
               run: xcrun simctl bootstatus "${MAESTRO_IOS_UDID}" -b
-            # ⛔ PASSWORD AUTOFILL OFF, so iOS never raises "Save Password?" over the sign-in's code step. The sheet is another
-            # process: Maestro's hierarchy holds only the status bar while it is up, so no flow can tap "Not Now", and it
-            # covered `Verify` on every iOS sign-in of run 38407211276 (`maestroIosTier.test.ts`). The restriction lives in
-            # the device's configuration-profile files, which exist only once it has booted, hence after the wait.
-            # ⚠️ Best-effort, like the keyboard preferences: the three paths are the ones Detox users edit (wix/Detox#3761)
-            # and are unverified on this runtime until a real run; a missing one WARNS by name.
-            # ⛔ THE DEVICE IS SHUT DOWN FOR THE WRITE and booted again after it. Run 38433716728 read `false` back from all
-            # three files on all four shards, and shard 2 still got the sheet on every sign-in: a running Simulator had
-            # already read the restriction, so a write under it changed the file and not the device. So only the file writes
-            # are best-effort: a shutdown that fails fails the step, because the write behind it would change nothing.
-            - name: Switch password AutoFill off on the iOS Simulator
-              if: steps.secrets.outcome == 'success'
-              env:
-                  MAESTRO_IOS_UDID: ${{ steps.simulator.outputs.udid }}
-              run: |
-                  set -euo pipefail
-                  data="$HOME/Library/Developer/CoreSimulator/Devices/${MAESTRO_IOS_UDID}/data"
-                  xcrun simctl shutdown "${MAESTRO_IOS_UDID}"
-                  for file in \
-                      Containers/Shared/SystemGroup/systemgroup.com.apple.configurationprofiles/Library/ConfigurationProfiles/UserSettings.plist \
-                      Library/UserConfigurationProfiles/EffectiveUserSettings.plist \
-                      Library/UserConfigurationProfiles/PublicInfo/PublicEffectiveUserSettings.plist; do
-                      if [ ! -f "${data}/${file}" ]; then
-                          echo "::warning::${file} is not on this Simulator — password AutoFill may stay on, and iOS may cover the sign-in with Save Password"
-                          continue
-                      fi
-                      plutil -replace restrictedBool.allowPasswordAutoFill.value -bool NO "${data}/${file}" ||
-                          echo "::warning::could not switch password AutoFill off in ${file}"
-                      # Read back, so the log says whether the write took rather than only that it was tried.
-                      echo "${file}: allowPasswordAutoFill=$(plutil -extract restrictedBool.allowPasswordAutoFill.value raw "${data}/${file}" || echo unreadable)"
-                  done
-                  xcrun simctl boot "${MAESTRO_IOS_UDID}"
-                  xcrun simctl bootstatus "${MAESTRO_IOS_UDID}" -b
             # Install the app and run this shard's flows on the Simulator — `runMaestroFlows.sh`'s run mode, the same
             # one the emulator runs, told its platform. It installs the app, excludes (and PRINTS) the flows iOS
             # cannot run, partitions what is left for this shard, and drives each flow with the Android job's per-

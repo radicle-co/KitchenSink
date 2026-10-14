@@ -74,7 +74,10 @@ interface Job {
     readonly steps?: readonly Step[];
 }
 
-const workflow = parse(readFileSync(WORKFLOW, 'utf8')) as { readonly jobs?: Readonly<Record<string, Job>> };
+const workflow = parse(readFileSync(WORKFLOW, 'utf8')) as {
+    readonly env?: Readonly<Record<string, unknown>>;
+    readonly jobs?: Readonly<Record<string, Job>>;
+};
 const buildWorkflow = parse(readFileSync(BUILD_WORKFLOW, 'utf8')) as { readonly jobs?: Readonly<Record<string, Job>> };
 const ios = workflow.jobs?.[IOS_JOB];
 const android = workflow.jobs?.[ANDROID_JOB];
@@ -91,6 +94,18 @@ afterAll(() => {
 /** The first step whose `run:` matches, with its index. */
 function stepRunning(pattern: RegExp): { readonly step: Step | undefined; readonly index: number } {
     const index = steps.findIndex((step) => pattern.test(scalarText(step.run)));
+
+    return { step: steps[index], index };
+}
+
+/**
+ * The step that WAITS for the boot: the one whose whole body is the `bootstatus -b` call. Not found by pattern alone, because
+ * the AutoFill step also calls `bootstatus` once (before it shuts the device down), and not by name, which is prose.
+ */
+function waitStep(): { readonly step: Step | undefined; readonly index: number } {
+    const index = steps.findIndex((step) =>
+        /^xcrun simctl bootstatus "\$\{MAESTRO_IOS_UDID\}" -b$/u.test(scalarText(step.run).trim()),
+    );
 
     return { step: steps[index], index };
 }
@@ -293,7 +308,7 @@ describe('⛔ the toolchain is pinned by name and refused when absent', () => {
     });
 
     it('⛔ a separate step WAITS for the boot, after the secrets valve and before the flows run', () => {
-        const wait = stepRunning(/simctl\s+bootstatus/u);
+        const wait = waitStep();
         const flows = stepRunning(/runMaestroFlows\.sh/u);
         const secrets = steps.findIndex((step) => /load-secrets/u.test(step.uses ?? ''));
 
@@ -304,7 +319,7 @@ describe('⛔ the toolchain is pinned by name and refused when absent', () => {
     });
 
     it('the wait step waits on the UDID it is given, with -b so a boot in progress is waited out rather than restarted', () => {
-        const { step } = stepRunning(/simctl\s+bootstatus/u);
+        const { step } = waitStep();
         const dir = mkdtempSync(join(tmpdir(), 'maestro-ios-bootwait-'));
 
         scratch.push(dir);
@@ -557,6 +572,69 @@ describe('⛔ caching cannot go stale and cannot escape the prune', () => {
 });
 
 /**
+ * ADDED 2026-10-13 (plan 2026-10-13-006, cuts 1 and 5): what the shard pays before its first flow.
+ *
+ * The shard's `setup-node` restored a 616 MB npm cache at 3 to 5 MB/s (122 to 350 s) and `npm ci` then still took 3 to 4
+ * minutes, so the restore bought nothing the install did not redo. The cache is off for THIS job only (the Linux jobs read
+ * a fast, same-OS cache and are not measured here), and `npm ci` is timed so the next run says whether it got slower.
+ *
+ * Maestro's own CLI is deliberately NOT cached: `maestro.zip` is 313 MB (GitHub release asset, `cli-2.6.1`), which at the
+ * same 3 to 5 MB/s would restore slower than the release download it replaces, and a cache hit would skip the download the
+ * digest check is built around. Only its analytics are switched off (`MAESTRO_CLI_NO_ANALYTICS`, read by
+ * `maestro.cli.analytics.Analytics` in `maestro-cli-2.6.1.jar`).
+ */
+describe('⛔ the shard’s fixed setup cost', () => {
+    const setupNode = steps.find((step) => /^actions\/setup-node@/u.test(step.uses ?? ''));
+
+    it('turns the npm cache OFF on the iOS job’s setup-node, by the input the pinned action declares', () => {
+        expect(setupNode, 'the iOS job has no setup-node').toBeDefined();
+        expect(String(setupNode?.with?.['package-manager-cache'])).toBe('false');
+    });
+
+    it('times npm ci and reports the duration, so the saving is read off the log rather than assumed', () => {
+        const { step } = stepRunning(/^npm ci$/mu);
+        const dir = mkdtempSync(join(tmpdir(), 'maestro-ios-npmci-'));
+
+        scratch.push(dir);
+
+        const calls = join(dir, 'calls.log');
+
+        writeFileSync(
+            join(dir, 'npm'),
+            `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> "${calls}"\nexit \${NPM_EXIT:-0}\n`,
+        );
+        chmodSync(join(dir, 'npm'), 0o755);
+        writeFileSync(join(dir, 'step.sh'), scalarText(step?.run));
+
+        const run = (npmExit: string) =>
+            spawnSync('bash', ['--noprofile', '--norc', '-e', '-o', 'pipefail', 'step.sh'], {
+                cwd: dir,
+                encoding: 'utf8',
+                env: { PATH: `${dir}:${process.env['PATH'] ?? ''}`, HOME: dir, NPM_EXIT: npmExit },
+            });
+        const ok = run('0');
+
+        expect(ok.status, `${ok.stdout}${ok.stderr}`).toBe(0);
+        expect(readFileSync(calls, 'utf8')).toBe('ci\n');
+        expect(ok.stdout).toMatch(/::notice::npm ci took \d+s/u);
+        // A failed install is still a failed step, not a timing line over a broken tree.
+        expect(run('1').status).not.toBe(0);
+    });
+
+    it('switches Maestro CLI analytics off for every Maestro job, in the one top-level env', () => {
+        expect(scalarText(workflow.env?.['MAESTRO_CLI_NO_ANALYTICS'])).toBe('1');
+    });
+
+    it('does not cache the 313 MB Maestro zip — a restore at the measured rate loses to the release download', () => {
+        for (const job of [ios, android]) {
+            for (const step of (job?.steps ?? []).filter((candidate) => /actions\/cache/u.test(candidate.uses ?? ''))) {
+                expect(scalarText(step.with?.['path']), `${step.name ?? '(unnamed)'}`).not.toMatch(/\.maestro/u);
+            }
+        }
+    });
+});
+
+/**
  * ADDED 2026-10-13 (run 38407211276). iOS raises its own "Save Password?" sheet once a `current-password` field leaves the
  * screen, which the native sign-in does now that it really submits the password (1b6713969). The sheet is another
  * process: the failed step's hierarchy holds only the status bar, so Maestro can neither see nor tap its "Not Now", and it
@@ -575,7 +653,10 @@ describe('⛔ password AutoFill is switched off on the Simulator before the flow
      *
      * @sideEffect Writes stubs and files to a scratch directory and spawns bash.
      */
-    function runAutofillStep(present: readonly string[]): {
+    function runAutofillStep(
+        present: readonly string[],
+        options: { readonly failOn?: string } = {},
+    ): {
         readonly status: number;
         readonly output: string;
         readonly calls: string;
@@ -595,8 +676,13 @@ describe('⛔ password AutoFill is switched off on the Simulator before the flow
 
         writeFileSync(calls, '');
 
+        const failOn = options.failOn ?? '';
+
         for (const tool of ['plutil', 'xcrun']) {
-            writeFileSync(join(dir, tool), `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> "${calls}"\nexit 0\n`);
+            writeFileSync(
+                join(dir, tool),
+                `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> "${calls}"\ncase "$*" in "${failOn}"*) [ -n "${failOn}" ] && exit 1 ;; esac\nexit 0\n`,
+            );
             chmodSync(join(dir, tool), 0o755);
         }
 
@@ -615,16 +701,35 @@ describe('⛔ password AutoFill is switched off on the Simulator before the flow
         };
     }
 
-    it('runs after the boot wait and before the flows, behind the secrets valve, on the booted UDID', () => {
+    /**
+     * REWRITTEN 2026-10-13 (plan 2026-10-13-006, cut 4). The step used to sit AFTER the boot wait, so its shutdown, writes
+     * and SECOND boot (30 to 90 s, untimed) all stood between the secrets load and the flows. It now runs straight after
+     * `npm ci`: the early boot has had the whole install to finish, so its leading `bootstatus -b` returns at once, the
+     * shutdown and the writes take seconds, and the second boot overlaps the liveness probe, the secrets load, the pool
+     * reset, the app download, the seed and the Maestro install. The existing wait step is now the only wait, and it
+     * covers that second boot. The step is not "folded into" the create step on purpose: the profile files exist only
+     * after a first boot, so writing them there would force a `bootstatus` wait in front of `npm ci` and give the whole
+     * 2-3 minute overlap back (see 'the start step only STARTS the boot').
+     */
+    it('runs right after npm ci and before AWS sign-in, outside the secrets valve, on the early-booted UDID', () => {
         const autofill = stepRunning(/allowPasswordAutoFill/u);
-        const wait = stepRunning(/simctl\s+bootstatus/u);
+        const install = stepRunning(/^npm ci$/mu);
+        const wait = waitStep();
         const flows = stepRunning(/runMaestroFlows\.sh/u);
+        const signIn = steps.findIndex((step) => /awsAuth/u.test(step.uses ?? ''));
+        const secrets = steps.findIndex((step) => /load-secrets/u.test(step.uses ?? ''));
 
         expect(autofill.index, 'the iOS job has no step that switches password AutoFill off').toBeGreaterThan(-1);
-        expect(autofill.index).toBeGreaterThan(wait.index);
-        expect(autofill.index).toBeLessThan(flows.index);
-        expect(scalarText(autofill.step?.if)).toContain("steps.secrets.outcome == 'success'");
+        expect(autofill.index).toBeGreaterThan(install.index);
+        expect(autofill.index).toBeLessThan(signIn);
+        expect(autofill.index).toBeLessThan(secrets);
+        // It touches nothing remote and needs no secret, so a skipped shard costs nothing: no valve on it.
+        expect(autofill.step?.if).toBeUndefined();
         expect(scalarText(autofill.step?.env?.['MAESTRO_IOS_UDID'])).toBe('${{ steps.simulator.outputs.udid }}');
+        // The wait that covers its second boot is later, behind the valve, and before the flows.
+        expect(wait.index).toBeGreaterThan(autofill.index);
+        expect(wait.index).toBeLessThan(flows.index);
+        expect(scalarText(wait.step?.if)).toContain("steps.secrets.outcome == 'success'");
     });
 
     it('sets the restriction to NO in each of the three profile files', () => {
@@ -645,20 +750,36 @@ describe('⛔ password AutoFill is switched off on the Simulator before the flow
      * read them. So the step shuts the device down before it writes and boots it again after, and the boot waits until it
      * is up, so the install and the first flow meet a device that read the restriction as it started.
      */
-    it('writes the files with the Simulator SHUT DOWN, then boots it and waits, so the restriction is read at start', () => {
+    /**
+     * REWRITTEN 2026-10-13 (cut 4): the step used to END with `bootstatus -b`, which put the second boot on the critical
+     * path. The shutdown and the writes stay in order (a running device ignores a write, run 38433716728); the step now
+     * waits for the FIRST boot before it shuts down (the files exist only once it has booted) and does NOT wait for the
+     * second one, because the later wait step does that.
+     */
+    it('waits for the first boot, writes with the Simulator SHUT DOWN, boots it again, and does NOT wait for that boot', () => {
         const outcome = runAutofillStep(PROFILE_FILES);
-        const lines = outcome.calls.split('\n');
+        const lines = outcome.calls.split('\n').filter((line) => line.length > 0);
+        const firstBoot = lines.indexOf('simctl bootstatus UDID-1 -b');
         const shutdown = lines.indexOf('simctl shutdown UDID-1');
         const firstWrite = lines.findIndex((line) => line.startsWith('-replace '));
         const lastWrite = lines.findLastIndex((line) => line.startsWith('-replace '));
         const boot = lines.indexOf('simctl boot UDID-1');
-        const wait = lines.indexOf('simctl bootstatus UDID-1 -b');
 
         expect(outcome.status, outcome.output).toBe(0);
-        expect(shutdown, outcome.calls).toBeGreaterThan(-1);
+        expect(firstBoot, outcome.calls).toBeGreaterThan(-1);
+        expect(shutdown).toBeGreaterThan(firstBoot);
         expect(shutdown).toBeLessThan(firstWrite);
         expect(boot).toBeGreaterThan(lastWrite);
-        expect(wait).toBeGreaterThan(boot);
+        // Nothing after the second boot: the wait step owns that wait, off this step's path.
+        expect(lines.at(-1)).toBe('simctl boot UDID-1');
+        expect(lines.filter((line) => line.startsWith('simctl bootstatus'))).toHaveLength(1);
+    });
+
+    it('fails the step when the shutdown fails — a write under a running device changes nothing', () => {
+        const outcome = runAutofillStep(PROFILE_FILES, { failOn: 'simctl shutdown' });
+
+        expect(outcome.status).not.toBe(0);
+        expect(outcome.calls).not.toContain('-replace');
     });
 
     it('is best-effort like the keyboard preferences: a missing file WARNS by name and does not fail the shard', () => {

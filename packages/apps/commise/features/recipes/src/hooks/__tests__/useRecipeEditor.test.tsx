@@ -1207,6 +1207,34 @@ describe('discard while the create is on the wire', () => {
         },
     );
 
+    /**
+     * ⛔ The outbox answers the Discard's delete with a parked create the lane had not seen park; a drain may claim it
+     * before the editor acts on that answer, so the withdrawal is the outbox's (`parkedWrite`), never `withdraw` by
+     * number, which threw on a record on the wire.
+     */
+    it('⛔ the outbox reports the create parked, and a drain claims it before the editor acts: nothing throws', async () => {
+        const view = mount();
+        typeTitle(view.result);
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        const seq = view.port.lastSeq();
+
+        view.port.claim(seq);
+        view.port.submitExclusive.mockResolvedValueOnce({ kind: 'parked', seq, status: 503 });
+        act(() => {
+            view.result.current.discard();
+        });
+        await settle();
+        await settle();
+
+        expect(view.port.discarded).toEqual([{ kind: 'parkedWrite', seq }]);
+        expect(view.port.withdraw).not.toHaveBeenCalled();
+        expect(view.port.stateOf(seq)).toBe('sending');
+        expect(view.onExit).toHaveBeenCalledWith({ kind: 'discarded' });
+    });
+
     it('⛔ the create parks and storage refuses its withdrawal: the draft stays, the refusal is reported and shown', async () => {
         const { result, port, onExit, drafts, seq, reportError } = await discardingOnTheWire();
         const refusal = new Error('quota exceeded');

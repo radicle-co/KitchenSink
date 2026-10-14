@@ -211,7 +211,11 @@ The rules on top of the format:
   decision and the act can orphan itself or throw, which the earlier withdraw-then-submit and withdraw-by-number chains
   allowed (the editor swallowed the throw). It rejects only when storage refuses the write; the editor then keeps the
   draft, reports the refusal through the app's error reporter (Sentry on both platforms) and shows it in the confirm,
-  which offers the Discard again. The device draft goes only after the outbox has taken the change.
+  which offers the Discard again. The device draft goes only after the outbox has taken the change, or once the
+  Discard's wait reaches its bound (`DEFAULT_REQUEST_TIMEOUT_MS`, below) with the outbox still silent: the editor then
+  finishes the Discard as the cook asked, and a refusal that arrives later is only reported, with the draft already
+  gone. Keeping the draft past the bound would let the confirm say "nothing was removed" about a write that may still
+  land.
 - **Discard waits for a create on the wire.** The editor is `withdraw`'s only caller, so a create that parked after its
   editor had closed had no surface to be withdrawn from. A Discard of a recipe only a create can have made therefore
   submits its delete exclusively: the outbox removes a create still queued, reports a parked one for the editor to

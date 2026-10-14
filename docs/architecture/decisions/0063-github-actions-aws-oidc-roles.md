@@ -54,14 +54,25 @@ and also require `ref = refs/heads/main`; `prod` also requires `environment = Pr
 with no `sub`, a bare or owner-wide `sub`, no repository id, or a production tier missing its `ref` or `environment`, and
 the builder runs its own output through that judge.
 
-**4. Direct permissions are scoped by name, never by the `Environment` tag.** Every pattern starts `kitchensink-` or sits
-under `/kitchensink/`. Anything that creates or changes infrastructure goes through the CDK bootstrap roles, so each role's
-own policy covers only what a job does itself: publish images, invoke and describe functions, read and write its stage's
-parameters, read its stage's secrets, read stacks. The non-prod role may delete only stacks, services and clusters whose
-names end in `-sandbox` or carry a `-pr-` token, and may change DNS only for `pr-*.sandbox.commise.app` as a `CNAME`, by
-IAM condition on the record name and type. The `prod` role has no teardown action. The `prod-read` role may assume only
-the lookup role and carries an explicit deny on `kms:Decrypt` and every write verb, so a policy added to it later cannot
-quietly turn it into a writer. No role holds `iam:*` or `organizations:*`.
+**4. Direct permissions are scoped by name, never by the `Environment` tag alone.** Every pattern starts `kitchensink-` or
+sits under `/kitchensink/`. Anything that creates or changes infrastructure goes through the CDK bootstrap roles, so each
+role's own policy covers only what a job does itself: publish images, invoke and describe functions, read its stage's
+parameters and secrets, read stacks. Each action set the non-prod and prod roles share is named once in the stack.
+
+The non-prod role's stack, service and task deletes are not written in its own stack. They come from `teardownGrants`
+(`lib/sandbox-scheduler/teardownGrants.ts`), the same function the midnight reclaim role is built from
+([ADR-0061](0061-midnight-stop-reclaims-what-nothing-uses.md)): a `kitchensink-*-pr-*` stack tagged `Environment=pr-*`;
+exactly the stacks in `SHARED_TIER_DELETE_ORDER`, tagged `sandbox`; services and tasks under a `kitchensink-*-pr-*`
+cluster; and a Deny on anything tagged `production` and on any delete that names a role. So `kitchensink-data-sandbox`,
+`kitchensink-network-sandbox` and `kitchensink-identity-webhooks-sandbox` stay out of reach, as `sandboxSharedTier.sh`
+requires. The non-prod role may also delete log groups and image repositories, but only under the same per-PR name
+pattern. It writes parameters only under `/kitchensink/sandbox/owed-per-pr-database-drops/`, the ledger
+`perPrDatabaseDrop.sh` keeps, and it may change DNS only for `pr-*.sandbox.commise.app` as a `CNAME`, by IAM condition on
+the record name and type. Those conditions are the boundary, so the grant names `hostedzone/*` rather than a zone id.
+
+The `prod` role has no teardown action. The `prod-read` role may assume only the lookup role, and it carries one Deny with
+`NotAction` over exactly the reads it is granted. Everything else is denied, `kms:Decrypt` included, so a policy added to
+it later cannot turn it into a writer. No role holds `iam:*` or `organizations:*`.
 
 **5. Sessions last at most three hours**, and each role's ARN is a stack output.
 
@@ -78,6 +89,22 @@ quietly turn it into a writer. No role holds `iam:*` or `organizations:*`.
   the explicit deny on names ending in `prod` is defence in depth and cannot be claimed to cover every production function.
 - **Residual risk: the router's key-value store is addressed by an id CloudFormation generates**, so the non-prod role names
   the store by a wildcard within the account.
+- **Residual risk: the non-prod role writes the image repositories production pulls from.** Every preview pushes into
+  `kitchensink-identity`, `kitchensink-food` and `kitchensink-recipes`, and `ecrEnsureRepo.sh` applies their retention
+  policy on every run, so the role holds `ecr:PutLifecyclePolicy` there. A job on any branch could replace that policy with
+  one that expires the images production runs. It may not delete those repositories or change who may read them.
+- **Residual risk: the record-name condition also matches deeper names.** `StringLike` on `pr-*.sandbox.commise.app`
+  matches `pr-1.anything.sandbox.commise.app` too, because `*` crosses dots. Such a name cannot reach the apex, the
+  wildcard or the identity host, but it is wider than one label. The grant names `hostedzone/*`, but Route 53 accepts a
+  record only inside its zone's domain, so these names fit only a zone for `commise.app` or below. A `Null` condition
+  requires both keys, because `ForAllValues` is true when its key is absent.
+- **Residual risk: the production-tag Denies match nothing live until PR 91 deploys.** Production stacks still carry
+  the pre-change tag `Environment=global` from `main`. Until the first production deploy of this tagging scheme, the
+  name patterns alone keep production out, and the guards' fixture tables prove those patterns.
+- **Residual risk: a mis-tagged per-PR stack has no automatic teardown.** Both teardown roles require a `pr-*` tag on a
+  per-PR stack. A `kitchensink-*-pr-N` stack with another tag, or none, is refused by IAM for both the PR-close teardown
+  and the reclaim, and has to be deleted by hand. The App-level tag that prevents this is guarded by
+  `environmentTagScheme.test.ts`.
 - **Both subject spellings are trusted.** A repository that opts into the id-bearing form keeps working, and the numeric
   ids stay required either way.
 - **The root key stays in use until the workflows are moved and the secrets are deleted.** Creating these roles changes

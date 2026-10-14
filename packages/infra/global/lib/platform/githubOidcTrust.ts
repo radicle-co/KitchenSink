@@ -61,11 +61,17 @@ const SUB_PREFIXES: readonly string[] = [
 /** A condition value: IAM treats an array as OR. */
 type ConditionValue = string | readonly string[];
 
-/** The two condition operators trust uses. Keys are issuer-prefixed claim names. */
-export interface TrustConditions {
+/**
+ * The two condition operators trust uses. Keys are issuer-prefixed claim names.
+ *
+ * A `type` alias rather than an `interface` on purpose: CDK's principal takes `Conditions`, a
+ * `Record<string, unknown>`, and only an alias is assignable to an index signature, so the value goes to IAM
+ * as built here with no cast.
+ */
+export type TrustConditions = {
     readonly StringEquals?: Readonly<Record<string, ConditionValue>>;
     readonly StringLike?: Readonly<Record<string, ConditionValue>>;
-}
+};
 
 /** The issuer-prefixed condition key of a token claim. */
 export const claimKey = (claim: string): string => `${GITHUB_OIDC_ISSUER}:${claim}`;

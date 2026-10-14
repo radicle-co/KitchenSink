@@ -10,8 +10,10 @@
  * ## The three rules
  *
  *   1. **A stage owns a stack** only when the NAME is `kitchensink-<app>-pr-<N>` AND the `Environment` tag is one of
- *      that token's two spellings. A name with the wrong tag is left for its PR-close teardown (ADR-0005), warned
- *      about, and still counts as live for the shared tier.
+ *      that token's two spellings. A name with the wrong tag is left in place, warned about, and still counts as
+ *      live for the shared tier. Its PR-close teardown (ADR-0005) can delete it only while the tag is SOME `pr-*`
+ *      value: CI's role holds the same `teardownGrants` boundary as this one, so with any other tag, or none, IAM
+ *      refuses both, and an operator deletes it by hand.
  *   2. **The tier is quiescent** only when a sandbox database and a sandbox NAT were FOUND and each is `stopping` or
  *      `stopped`. Finding none THROWS: a tier that cannot be seen is not a tier that is down. When it is not
  *      quiescent the run stands down, starts no delete, and only keeps tracking deletes already in flight.
@@ -51,7 +53,8 @@ import {
  *
  * Mirrors `SHARED_TIER_DELETE_ORDER` in `.github/scripts/sandboxSharedTier.sh`, held equal by
  * `reclaimShellParity.test.ts`. Adding a name is a decision about destroying shared infrastructure, and it also
- * widens the reclaim role's `DeleteStack` grant, which is built from this constant.
+ * widens the `DeleteStack` grant of both teardown roles, the reclaim Lambda's and CI's non-prod role, which
+ * `teardownGrants.ts` builds from this constant.
  */
 export const SHARED_TIER_DELETE_ORDER = [
     'kitchensink-identity-service-sandbox',
@@ -365,7 +368,7 @@ export function planReclaim(observation: ReclaimObservation, iteration: number, 
         ) {
             warnings.push(
                 `${entry.name}: Environment tag ${JSON.stringify(entry.environmentTag ?? null)} does not belong to ` +
-                    `${token}, so it is left for its PR-close teardown`,
+                    `${token}, so it is left for its PR-close teardown, or for an operator when the tag is not pr-*`,
             );
             continue;
         }

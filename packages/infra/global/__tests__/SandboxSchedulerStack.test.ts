@@ -34,6 +34,7 @@ import { GlobalStack } from '../lib/platform/GlobalStack.js';
 import { SandboxSchedulerStack } from '../lib/platform/SandboxSchedulerStack.js';
 import { SHARED_TIER_DELETE_ORDER } from '../lib/sandbox-scheduler/reclaim.js';
 import { SCHEDULED_RULE_STAGE_TAG } from '../lib/sandbox-scheduler/scheduler.js';
+import { iamResourceMatches } from './iamGlob.js';
 import { testApp } from './testApp.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };
@@ -54,16 +55,6 @@ const schedulerTemplate = (logForwarderArn?: string): Template =>
                 ...(logForwarderArn === undefined ? {} : { logForwarderArn }),
             }))(testApp()),
     );
-
-/** Whether an IAM resource pattern (`*` = any run of characters) matches `arn`. Pure. */
-const iamMatches = (pattern: string, arn: string): boolean =>
-    new RegExp(
-        `^${pattern
-            .split('*')
-            .map((part) => part.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'))
-            .join('.*')}$`,
-        'u',
-    ).test(arn);
 
 describe('SandboxSchedulerStack (ADR-0007)', () => {
     describe('⛔ the UpdateService blast radius', () => {
@@ -107,22 +98,22 @@ describe('SandboxSchedulerStack (ADR-0007)', () => {
             // `-pr-`; `-prod-` supplies `-pro`, so prod is excluded by the PATTERN and not by convention.
             const patterns = updateServiceResources();
 
-            expect(patterns.some((pattern) => iamMatches(pattern, PROD_SERVICE))).toBe(false);
+            expect(patterns.some((pattern) => iamResourceMatches(pattern, PROD_SERVICE))).toBe(false);
         });
 
         it('⛔ grants on a per-PR preview service — the gap that made the selector inert', () => {
-            expect(updateServiceResources().some((pattern) => iamMatches(pattern, PER_PR_SERVICE))).toBe(true);
+            expect(updateServiceResources().some((pattern) => iamResourceMatches(pattern, PER_PR_SERVICE))).toBe(true);
         });
 
         it('⛔ grants NOTHING on a FOREIGN application`s per-PR cluster (ADR-0061 review)', () => {
             // The account also hosts another application. `service/*-pr-*/*` matched its `-pr-` clusters too.
             const foreign = `arn:aws:ecs:${env.region}:${env.account}:service/armoury-api-pr-5-Cluster-X/api`;
 
-            expect(updateServiceResources().some((pattern) => iamMatches(pattern, foreign))).toBe(false);
+            expect(updateServiceResources().some((pattern) => iamResourceMatches(pattern, foreign))).toBe(false);
         });
 
         it('still grants on the shared sandbox tier', () => {
-            expect(updateServiceResources().some((pattern) => iamMatches(pattern, SHARED_SERVICE))).toBe(true);
+            expect(updateServiceResources().some((pattern) => iamResourceMatches(pattern, SHARED_SERVICE))).toBe(true);
         });
 
         it('⛔ can read cluster TAGS, without which every per-PR cluster reads as untagged', () => {
@@ -659,8 +650,12 @@ describe('the midnight reclaim (ADR-0061)', () => {
                 .filter((s) => actionsOf(s).includes('ecs:DeleteService') || actionsOf(s).includes('ecs:StopTask'))
                 .map((s) => String(s.Resource));
 
-            expect(resources.some((pattern) => iamMatches(pattern, `${base}:service/${cluster}/api`))).toBe(matches);
-            expect(resources.some((pattern) => iamMatches(pattern, `${base}:task/${cluster}/0123abcd`))).toBe(matches);
+            expect(resources.some((pattern) => iamResourceMatches(pattern, `${base}:service/${cluster}/api`))).toBe(
+                matches,
+            );
+            expect(resources.some((pattern) => iamResourceMatches(pattern, `${base}:task/${cluster}/0123abcd`))).toBe(
+                matches,
+            );
         });
 
         it('⛔ DENIES a production-tagged resource, and DENIES any DeleteStack that names a role', () => {

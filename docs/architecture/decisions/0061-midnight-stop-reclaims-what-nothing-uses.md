@@ -145,7 +145,8 @@ that is deleted is gone. The nightly stop uses the same rule before it scales a 
 
 A `DeleteStack` call that names no role runs with the saved role of the stack. Every stack in scope was deployed by the
 CDK bootstrap. Its CloudFormation execution role is that saved role. So the reclaim Lambda needs no `iam:PassRole`. The
-only boundary is which stacks it can name. The grant is:
+only boundary is which stacks it can name. The delete statements are one function, `teardownGrants.ts`, and the CI role
+of ADR-0063 attaches the same function, so the two teardown paths share one boundary. The grant is:
 
 - Read-only discovery on `*`: `cloudformation:DescribeStacks`, `rds:DescribeDBInstances`, `ec2:DescribeInstances`, and
   the ECS list and describe calls for clusters, services and tasks.

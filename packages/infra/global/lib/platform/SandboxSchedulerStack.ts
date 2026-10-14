@@ -26,8 +26,8 @@ import type { Construct } from 'constructs';
 import { NODE_LAMBDA_RUNTIME } from '@radicle-co/infra-shared/security';
 
 import { NIGHTLY_STOP_HOUR, NIGHTLY_TIMEZONE } from '../sandbox-scheduler/nightlyStop.js';
-import { SHARED_TIER_DELETE_ORDER } from '../sandbox-scheduler/reclaim.js';
 import { SCHEDULED_RULE_STAGE_TAG } from '../sandbox-scheduler/scheduler.js';
+import { teardownGrants } from '../sandbox-scheduler/teardownGrants.js';
 
 /**
  * How many one-minute iterations the reclaim may take (ADR-0061). Two hours: well past the slowest stack delete seen,
@@ -357,14 +357,9 @@ export class SandboxSchedulerStack extends Stack {
 
         // ── The reclaim role: THE BOUNDARY (ADR-0061) ──────────────────────────────────────────────────────────
         //
-        // ⛔ A `DeleteStack` call with no `RoleARN` is performed by the stack's OWN saved role, which for every stack in
-        // scope is the CDK bootstrap's CloudFormation execution role. So this function never needs `iam:PassRole`, and
-        // WHICH STACKS IT MAY NAME is the only boundary there is. The planner (`reclaim.ts`) repeats the same rule so
-        // that it never sends a call IAM would refuse, but if the planner is wrong, THIS is what stops it. It is held
-        // by set equality in `SandboxSchedulerStack.test.ts`.
-        const stackArn = (name: string): string =>
-            `arn:aws:cloudformation:${this.region}:${this.account}:stack/${name}/*`;
-
+        // ⛔ What it may delete is `teardownGrants`, the ONE definition CI's non-prod role also attaches (ADR-0063). The
+        // planner (`reclaim.ts`) repeats the rule so that it never sends a call IAM would refuse, but if the planner is
+        // wrong, THIS is what stops it. Held by set equality in `SandboxSchedulerStack.test.ts`.
         reclaimFn.addToRolePolicy(
             new iam.PolicyStatement({
                 sid: 'SandboxReclaimDiscovery',
@@ -383,71 +378,9 @@ export class SandboxSchedulerStack extends Stack {
             }),
         );
 
-        // A per-PR stack: the NAME pattern and the TAG both have to match. `kitchensink-*-pr-*` also matches names the
-        // planner refuses (`…-pr-91-old`); the planner's anchored regex is the narrower rule, IAM the outer wall.
-        reclaimFn.addToRolePolicy(
-            new iam.PolicyStatement({
-                sid: 'SandboxReclaimDeletePerPrStacks',
-                actions: ['cloudformation:DeleteStack'],
-                resources: [stackArn('kitchensink-*-pr-*')],
-                conditions: { StringLike: { 'aws:ResourceTag/Environment': 'pr-*' } },
-            }),
-        );
-
-        // The shared tier: EXACT stack names, built from the same constant the planner reads, and tagged `sandbox`.
-        reclaimFn.addToRolePolicy(
-            new iam.PolicyStatement({
-                sid: 'SandboxReclaimDeleteSharedTier',
-                actions: ['cloudformation:DeleteStack'],
-                resources: SHARED_TIER_DELETE_ORDER.map(stackArn),
-                conditions: { StringEquals: { 'aws:ResourceTag/Environment': 'sandbox' } },
-            }),
-        );
-
-        // ECS: a service or task under a `kitchensink-…-pr-N-…` cluster. ⛔ The `kitchensink-` prefix is load-bearing:
-        // the account also hosts another application, `ecs:DeleteService` is irreversible, and a bare `*-pr-*` matched
-        // that application's clusters too. Production's `-prod-` clusters can never match `-pr-`.
-        //
-        // A service must ALSO carry `Environment=pr-*`: every service this repository builds gets the App-level tag
-        // (asserted in the food and recipe stack suites). ⚠️ NOT on StopTask: a task carries no tag of its own here, so
-        // the same condition would deny every call, and for tasks the cluster-name pattern is the only wall. The
-        // production Deny below therefore does nothing for StopTask (ADR-0061).
-        reclaimFn.addToRolePolicy(
-            new iam.PolicyStatement({
-                sid: 'SandboxReclaimDeleteService',
-                actions: ['ecs:DeleteService'],
-                resources: [`arn:aws:ecs:${this.region}:${this.account}:service/kitchensink-*-pr-*/*`],
-                conditions: { StringLike: { 'aws:ResourceTag/Environment': 'pr-*' } },
-            }),
-        );
-        reclaimFn.addToRolePolicy(
-            new iam.PolicyStatement({
-                sid: 'SandboxReclaimStopTask',
-                actions: ['ecs:StopTask'],
-                resources: [`arn:aws:ecs:${this.region}:${this.account}:task/kitchensink-*-pr-*/*`],
-            }),
-        );
-
-        // ⛔ Two explicit Denies, which win over any Allow: production is refused whatever tags or names it carries, and
-        // a DeleteStack that names a role is refused outright, so the call can only ever use the stack's own.
-        reclaimFn.addToRolePolicy(
-            new iam.PolicyStatement({
-                sid: 'SandboxReclaimNeverProduction',
-                effect: iam.Effect.DENY,
-                actions: ['cloudformation:DeleteStack', 'ecs:DeleteService', 'ecs:StopTask'],
-                resources: ['*'],
-                conditions: { StringEquals: { 'aws:ResourceTag/Environment': 'production' } },
-            }),
-        );
-        reclaimFn.addToRolePolicy(
-            new iam.PolicyStatement({
-                sid: 'SandboxReclaimNeverNamesARole',
-                effect: iam.Effect.DENY,
-                actions: ['cloudformation:DeleteStack'],
-                resources: ['*'],
-                conditions: { Null: { 'cloudformation:RoleArn': 'false' } },
-            }),
-        );
+        for (const statement of teardownGrants({ account: this.account, region: this.region }, 'SandboxReclaim')) {
+            reclaimFn.addToRolePolicy(statement);
+        }
 
         // ── The loop: wait, reclaim, decide (ADR-0061) ─────────────────────────────────────────────────────────
         //

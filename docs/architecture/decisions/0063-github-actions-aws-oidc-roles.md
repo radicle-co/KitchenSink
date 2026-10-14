@@ -132,12 +132,14 @@ it later cannot turn it into a writer. No role holds `iam:*` or `organizations:*
   deleted after the first green production deploy, the first green `main` checks and a green pull-request run. Until
   then, reverting the move on `main` restores the old path.
 - **Residual risk: the production tiers cannot be proven before merge.** Both trust only `refs/heads/main`, so the first
-  run of each is on `main`. The policies were checked before merge with `iam simulate-custom-policy` over every call the
-  moved jobs make, except the two secret grants conditioned on the `aws:cloudformation:stack-name` tag: the simulator
-  does not apply a context value to that key, so those two are proven only by a live run.
+  run of each is on `main`. Before merge, `iam simulate-custom-policy` judged the synthesized policies on about sixty
+  representative (action, resource) pairs the moved jobs make, and every one decided as expected except the two secret
+  grants conditioned on the `aws:cloudformation:stack-name` tag: the simulator does not apply a context value to that
+  key. The tag values those two name were read from the live secrets, so only the evaluation is unproven.
 - **Residual risk: a production deploy may run for at most three hours.** The session ceiling bounds `prod-deploy.yml`'s
-  job; one that runs longer is cancelled while CloudFormation may still be working. Its runs have taken well under an
-  hour.
+  job; one that runs longer is cancelled while CloudFormation may still be working. The first deploy after the move
+  carries every stack production has not deployed yet. It carries no database major upgrade: production already runs
+  PostgreSQL 18.
 - **A production run dispatched from a branch is red, not refused politely.** `Production` admits only `main`, and both
   production roles trust only `main`, so a prod-target dispatch, a `ci-full.yml` run at `prod` or a `deployInfra.yml`
   run at `prod` from any other ref fails at sign-in.

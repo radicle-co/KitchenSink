@@ -90,8 +90,9 @@ Built. Every production job signs in through `awsAuth`, and the guard has no exc
    trust only `refs/heads/main`.
 2. If the prod tier fails, revert commit C on `main`. The root key still works, so the old path comes back.
 3. What only a live run proves: the two secret grants conditioned on the `aws:cloudformation:stack-name` tag (the IAM
-   simulator does not apply a context value to that key; every other call the moved jobs make simulated as expected),
-   that the CDK lookup role answers `prod-read`'s synth, and that a prod deploy finishes inside 180 minutes.
+   simulator does not apply a context value to that key; the tag values were read from the live secrets, and about
+   sixty other representative calls simulated as expected), that the CDK lookup role answers `prod-read`'s synth, and
+   that a prod deploy finishes inside 180 minutes.
 4. After one green prod deploy, a green `ci-main` and a green PR run, delete the secrets `AWS_ACCESS_KEY_ID` and
    `AWS_SECRET_ACCESS_KEY`. ⚠️ `zizmor.yml` records them as ORGANIZATION secrets, not repository ones. Check where they
    live first: deleting an organization secret removes it from every repository in `radicle-co`.

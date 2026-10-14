@@ -143,7 +143,7 @@ const allow = (
     role: iam.Role,
     actions: readonly string[],
     resources: readonly string[],
-    conditions?: Record<string, Record<string, string>>,
+    conditions?: Record<string, Record<string, string | readonly string[]>>,
 ): void => {
     role.addToPolicy(
         new iam.PolicyStatement({
@@ -206,7 +206,7 @@ const permissionsNonprod = (role: iam.Role, scope: Scope): void => {
     allow(role, FUNCTION_INVOKE_ACTIONS, [lambdaArn('kitchensink-*')]);
     // Defence in depth, not the boundary: function names are not uniformly stage-suffixed, so this denies what
     // is named for production and cannot claim to cover everything that is.
-    deny(role, ['lambda:InvokeFunction'], [lambdaArn('kitchensink-*-prod*')]);
+    deny(role, ['lambda:InvokeFunction', 'lambda:GetFunctionUrlConfig'], [lambdaArn('kitchensink-*-prod*')]);
     allow(
         role,
         PARAMETER_READ_ACTIONS,
@@ -218,6 +218,28 @@ const permissionsNonprod = (role: iam.Role, scope: Scope): void => {
         [`arn:aws:ssm:${region}:${account}:parameter${OWED_DROP_LEDGER}/*`],
     );
     allow(role, SECRET_READ_ACTIONS, [`arn:aws:secretsmanager:${region}:${account}:secret:kitchensink/sandbox/*`]);
+    // CloudFormation names the database credentials and the remote-search signing key without a stage, and prod's
+    // copies share the prefix, so the stack tag keeps this read on the two sandbox stacks.
+    allow(
+        role,
+        SECRET_READ_ACTIONS,
+        [
+            `arn:aws:secretsmanager:${region}:${account}:secret:DatabaseCredentialsSecret*`,
+            `arn:aws:secretsmanager:${region}:${account}:secret:SigningKey*`,
+        ],
+        {
+            StringEquals: {
+                'secretsmanager:ResourceTag/aws:cloudformation:stack-name': [
+                    'kitchensink-data-sandbox',
+                    'kitchensink-remote-search-shared-sandbox',
+                ],
+            },
+        },
+    );
+    // `verifyDeployment.sh` runs `head-bucket` on every bucket a deployed Lambda names.
+    allow(role, ['s3:ListBucket'], ['arn:aws:s3:::kitchensink-*-sandbox-*', 'arn:aws:s3:::kitchensink-*-pr-*']);
+    // The remote-search tier reads the function URL that its distribution must be the only way into.
+    allow(role, ['lambda:GetFunctionUrlConfig'], [lambdaArn('kitchensink-remote-search-*')]);
     // A preview owns exactly its own CNAME. The record name and type are the boundary, not the zone: the apex, the
     // `*.sandbox` wildcard and the shared identity host share the preview zone and fail both conditions.
     allow(role, ['route53:ChangeResourceRecordSets'], [previewZones], {

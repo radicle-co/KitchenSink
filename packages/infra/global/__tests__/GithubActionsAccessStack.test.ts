@@ -271,6 +271,31 @@ describe('GithubActionsAccessStack: what no role may do', () => {
  * keep reaching. Each row is (action, resource, admitted); conditions are ignored, so a refusal here always comes
  * from a resource pattern, never from a tag.
  */
+describe('GithubActionsAccessStack: the auto-named sandbox secrets', () => {
+    // CloudFormation names these secrets without a stage (prod's copies share the prefix), so the stack tag is the
+    // only thing that keeps the grant off production. The glob matcher ignores conditions, so the tag is asserted here.
+    it('nonprod reads the database and signing-key secrets only of the two sandbox stacks, by stack tag', () => {
+        const reads = statementsOf(template(), 'kitchensink-gha-nonprod').filter((s) =>
+            asList(s.Resource).some((r) => /secret:(DatabaseCredentialsSecret|SigningKey)/.test(String(r))),
+        );
+
+        expect(reads).toHaveLength(1);
+        expect(reads[0]?.Effect).toBe('Allow');
+        expect(asList(reads[0]?.Action).sort()).toEqual([
+            'secretsmanager:DescribeSecret',
+            'secretsmanager:GetSecretValue',
+        ]);
+        expect(reads[0]?.Condition).toEqual({
+            StringEquals: {
+                'secretsmanager:ResourceTag/aws:cloudformation:stack-name': [
+                    'kitchensink-data-sandbox',
+                    'kitchensink-remote-search-shared-sandbox',
+                ],
+            },
+        });
+    });
+});
+
 describe('GithubActionsAccessStack: the non-prod role reaches only what CI tears down', () => {
     const t = template();
     const nonprod = statementsOf(t, 'kitchensink-gha-nonprod');
@@ -343,6 +368,18 @@ describe('GithubActionsAccessStack: the non-prod role reaches only what CI tears
         ['ecs:StopTask', ecs('task', SANDBOX_CLUSTER), false],
         ['ecs:UpdateService', ecs('service', SANDBOX_CLUSTER), false],
         ['ecs:DeleteCluster', `arn:aws:ecs:${region}:${account}:cluster/${PER_PR_CLUSTER}`, false],
+
+        // `verifyDeployment.sh` probes every bucket a deployed Lambda names, and the remote-search tier reads its
+        // function URL. Each is a read, and each stays off production by name.
+        ['s3:ListBucket', 'arn:aws:s3:::kitchensink-data-sandbox-mediabucketbcbb02ba-h6ybojnuslif', true],
+        ['s3:ListBucket', 'arn:aws:s3:::kitchensink-data-sandbox-archivebucket9decbf5d-xiovfhbzw8eh', true],
+        ['s3:ListBucket', 'arn:aws:s3:::kitchensink-data-prod-mediabucketbcbb02ba-0000000000aa', false],
+        ['s3:DeleteBucket', 'arn:aws:s3:::kitchensink-data-sandbox-mediabucketbcbb02ba-h6ybojnuslif', false],
+        [
+            'lambda:GetFunctionUrlConfig',
+            `arn:aws:lambda:${region}:${account}:function:kitchensink-remote-search-pr-91`,
+            true,
+        ],
 
         // SSM: reads stay broad; the only writes CI makes are the owed-drop ledger's (`perPrDatabaseDrop.sh`).
         ['ssm:PutParameter', parameter('/kitchensink/sandbox/owed-per-pr-database-drops/pr-91'), true],

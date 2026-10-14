@@ -23,6 +23,7 @@ import {
     EMPTY_OUTBOX,
     appendExclusive,
     appendIntent,
+    applyDiscard,
     claimForSending,
     discardEntity,
     drainOrder,
@@ -1010,5 +1011,85 @@ describe('discardEntity — one consented change', () => {
 
         expect(discarded.records.map((record) => record.intentKind)).toStrictEqual(['create', 'delete']);
         expect(settle(discarded, { seq: 1, outcome: 'parked' }).records).toStrictEqual([]);
+    });
+});
+
+/**
+ * ⛔ A PUBLISHED RECIPE'S DISCARD DECIDES ITS WITHDRAWAL FROM THE LOG AS IT IS, IN THE MUTATION THAT ACTS (GATE round 3).
+ * The editor planned from the parked records it last rendered, then withdrew by number. A drain could claim the record
+ * between the two (a `401` resumes when the cook signs in again): the withdrawal threw, was swallowed, and the save
+ * landed while the confirm promised the recipe "stays as it was". The plan and the act are now one pure step, and it
+ * says honestly whether the discarded changes may stand.
+ */
+describe('applyDiscard — one parked write, decided from the log as it is', () => {
+    const update = intent({ entity: 'recipe', intentKind: 'update', localId: 'rec_1' });
+    const parkedWith = (status?: number): OutboxLog =>
+        settle(appendIntent(EMPTY, update), {
+            seq: 1,
+            outcome: 'parked',
+            ...(status === undefined ? {} : { status }),
+        });
+
+    it.each([
+        ['a conflict', 409, false],
+        ['a terminal refusal', 400, false],
+        ['a refusal for a signed-out cook (nothing was sent)', 401, false],
+        ['a transient refusal (the server did not process it)', 503, false],
+        ['an unknown outcome (it may have landed)', undefined, true],
+    ])('a record parked on %s is withdrawn; may it stand: %s', (_label, status, mayStand) => {
+        const { log, outcome } = applyDiscard(parkedWith(status), { kind: 'parkedWrite', seq: 1 });
+
+        expect(log.records).toStrictEqual([]);
+        expect(outcome).toStrictEqual({ kind: mayStand ? 'mayStand' : 'settled' });
+    });
+
+    it('⛔ a record a drain claimed meanwhile is left on the wire, and its changes may stand; it does not throw', () => {
+        const claimed = claimForSending(parkedWith(401), 1)!;
+
+        const { log, outcome } = applyDiscard(claimed, { kind: 'parkedWrite', seq: 1 });
+
+        expect(log).toBe(claimed);
+        expect(outcome).toStrictEqual({ kind: 'mayStand' });
+    });
+
+    it('⛔ a record put back to pending by a deferral is left to the drain, and its changes may stand', () => {
+        const deferred = settle(claimForSending(parkedWith(503), 1)!, { seq: 1, outcome: 'deferred', until: 0 });
+
+        const { log, outcome } = applyDiscard(deferred, { kind: 'parkedWrite', seq: 1 });
+
+        expect(log.records.map((record) => record.state)).toStrictEqual(['pending']);
+        expect(outcome).toStrictEqual({ kind: 'mayStand' });
+    });
+
+    it('⛔ a record already gone settled meanwhile (it may have synced): nothing changes, and its changes may stand', () => {
+        const { log, outcome } = applyDiscard(EMPTY, { kind: 'parkedWrite', seq: 1 });
+
+        expect(log).toBe(EMPTY);
+        expect(outcome).toStrictEqual({ kind: 'mayStand' });
+    });
+
+    it('withdraws only the record it names', () => {
+        const other = settle(
+            appendIntent(parkedWith(409), intent({ entity: 'recipe', intentKind: 'update', localId: 'rec_2' })),
+            {
+                seq: 2,
+                outcome: 'parked',
+                status: 409,
+            },
+        );
+
+        expect(
+            applyDiscard(other, { kind: 'parkedWrite', seq: 1 }).log.records.map((record) => record.localId),
+        ).toStrictEqual(['rec_2']);
+    });
+
+    it('an entity Discard is discardEntity, and nothing it covered can stand', () => {
+        const log = parkedWith(409);
+        const remove = intent({ entity: 'recipe', intentKind: 'delete', localId: 'rec_1' });
+
+        const applied = applyDiscard(log, { kind: 'entity', intent: remove });
+
+        expect(applied.log).toStrictEqual(discardEntity(log, remove));
+        expect(applied.outcome).toStrictEqual({ kind: 'settled' });
     });
 });

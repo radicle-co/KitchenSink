@@ -16,7 +16,14 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { MAX_INLINE_WAIT_MS, drain, type DrainJournal, type SendResult, type Sender } from '../drainer.js';
+import {
+    MAX_INLINE_WAIT_MS,
+    drain,
+    resendsWhenParked,
+    type DrainJournal,
+    type SendResult,
+    type Sender,
+} from '../drainer.js';
 import { EMPTY_OUTBOX, appendIntent, markSending, settle, type OutboxLog } from '../outboxLog.js';
 import type { Intent, OutboxRecord } from '../record.js';
 
@@ -304,6 +311,27 @@ describe('drain — backoff', () => {
  * parked or not, so an UNKNOWN outcome — parked precisely because it may already have been applied — was re-sent
  * on the next reconnect: the blind retry the rule above forbids, one trigger later.
  */
+describe('resendsWhenParked — the rule the drain and the Discard confirm share', () => {
+    it.each([
+        ['an update with an unknown outcome', false, 'update', undefined],
+        ['an update refused with a conflict', false, 'update', 409],
+        ['an update refused terminally', false, 'update', 422],
+        ['an update refused transiently', true, 'update', 503],
+        ['an update its signed-out cook never sent', true, 'update', 401],
+        ['a delete with an unknown outcome', true, 'delete', undefined],
+        ['a delete refused terminally', false, 'delete', 404],
+    ] as const)('%s → %s', (_label, expected, intentKind, status) => {
+        expect(
+            resendsWhenParked({
+                entity: 'recipe',
+                intentKind,
+                localId: 'r1',
+                ...(status === undefined ? {} : { status }),
+            }),
+        ).toBe(expected);
+    });
+});
+
 describe('drain — what a parked record waits for', () => {
     it.each([
         ['an unknown outcome', undefined],

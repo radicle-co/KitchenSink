@@ -142,36 +142,43 @@ const MAX_BACKOFF_MS = 8_000;
 export const MAX_INLINE_WAIT_MS = 10_000;
 
 /**
- * Whether a record may be sent by this drain.
+ * Whether the drain sends a PARKED record again by itself, with no word from the cook.
  *
- * ⛔ A PARKED RECORD IS RE-SENT ONLY WHEN THAT CANNOT WRITE TWICE: a transient refusal (the server did not process
- * it), `401` (the sender refused before sending, because its cook was signed out), or a DELETE of any outcome but a
- * stated refusal (its second copy meets the service's own 404). An unknown outcome of anything else, a conflict and
- * a terminal refusal wait for the cook — re-sending an unknown outcome on the next reconnect is the blind retry this
- * module's rule forbids, one trigger later.
+ * ⛔ ONLY WHEN THAT CANNOT WRITE TWICE: a transient refusal (the server did not process it), `401` (the sender refused
+ * before sending, because its cook was signed out), or a DELETE of any outcome but a stated refusal (its second copy
+ * meets the service's own 404). An unknown outcome of anything else, a conflict and a terminal refusal wait for the
+ * cook — re-sending an unknown outcome on the next reconnect is the blind retry this module's rule forbids, one trigger
+ * later.
+ *
+ * Exported because a Discard's confirm reads it too: a parked write this answers `true` for may be claimed and land at
+ * any moment, so the confirm may not promise it will not (`discardPlanOf`).
+ *
+ * @param failure - The parked record, as the outbox reports it.
+ * @returns Whether a drain re-sends it. Pure.
  */
-function sendable(record: OutboxRecord): boolean {
-    // ⛔ Drains are serialized, so a record already `sending` is one whose answer was never written down: unknown.
-    if (record.state === 'sending') {
-        return false;
-    }
-
-    if (record.state !== 'parked') {
-        return true;
-    }
-
-    if (record.lastStatus === 401) {
+export function resendsWhenParked(failure: SyncFailure): boolean {
+    if (failure.status === 401) {
         return true;
     }
 
     // ⛔ A DELETE CANNOT WRITE TWICE, so an unknown outcome may be sent again: if the first copy landed, the second meets
     // the service's own "no such recipe" 404, which the sender reads as done. This depends on there being no route that
     // undeletes a recipe (ADR-0057).
-    if (record.intentKind === 'delete' && record.lastStatus === undefined) {
+    if (failure.intentKind === 'delete' && failure.status === undefined) {
         return true;
     }
 
-    return classifyFailure({ ...record, ...statusOf(record.lastStatus) }) === 'transient';
+    return classifyFailure(failure) === 'transient';
+}
+
+/** Whether a record may be sent by this drain: any record not on the wire or parked, and a parked one it re-sends. */
+function sendable(record: OutboxRecord): boolean {
+    // ⛔ Drains are serialized, so a record already `sending` is one whose answer was never written down: unknown.
+    if (record.state === 'sending') {
+        return false;
+    }
+
+    return record.state !== 'parked' || resendsWhenParked({ ...record, ...statusOf(record.lastStatus) });
 }
 
 /** A status as an optional property. Pure. */

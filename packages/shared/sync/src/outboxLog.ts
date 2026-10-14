@@ -11,6 +11,7 @@
  * @pattern Transactional Outbox in its LOG form — an ordered, dependency-aware set of intents with
  *     at-most-once delivery, not a coalescing map.
  */
+import { classifyFailure } from './itemStatus.js';
 import { LOCAL_REF_PREFIX, resolveRef, type ResolutionMap } from './references.js';
 import type { Intent, IntentKind, LocalRef, OutboxRecord } from './record.js';
 
@@ -403,6 +404,56 @@ export function discardEntity(log: OutboxLog, incoming: Intent): OutboxLog {
     );
 
     return supersede({ ...log, records: log.records.filter((record) => !gone.has(record.seq)) }, incoming);
+}
+
+/**
+ * What a cook's confirmed Discard asks of the outbox. Both go through {@link applyDiscard}, in one mutation.
+ */
+export type DiscardRequest =
+    /** Delete the entity: its parked records are withdrawn and the delete is queued ({@link discardEntity}). */
+    | { readonly kind: 'entity'; readonly intent: Intent }
+    /** Drop ONE parked write, the one the confirm described (a published recipe's earlier Save changes). */
+    | { readonly kind: 'parkedWrite'; readonly seq: number };
+
+/** What a Discard did: nothing it covered can reach the server, or a write it covered may have landed or still may. */
+export type DiscardOutcome = { readonly kind: 'settled' } | { readonly kind: 'mayStand' };
+
+const SETTLED: DiscardOutcome = { kind: 'settled' };
+const MAY_STAND: DiscardOutcome = { kind: 'mayStand' };
+
+/**
+ * The cook's confirmed Discard, decided from the log AS IT IS when the mutation runs, never from a caller's earlier
+ * reading of it.
+ *
+ * ⛔ PLAN AND ACT ARE ONE STEP. The editor plans from the parked records it last rendered; a drain may claim one of them
+ * before the act (a `401` resumes when the cook signs in again). A withdrawal by number then threw, was swallowed, and
+ * the save landed while the confirm said the recipe stays as it was. Here a record found on its way (pending or on the
+ * wire) is left to the drain and reported as `mayStand`; one already gone settled meanwhile and may have synced, so it
+ * is `mayStand` too; one still parked is withdrawn, and may stand only if its outcome is unknown. It never throws.
+ *
+ * @param log - The log as stored now.
+ * @param request - What the cook confirmed.
+ * @returns The new log, and whether what was discarded may still stand on the server. Pure.
+ */
+export function applyDiscard(
+    log: OutboxLog,
+    request: DiscardRequest,
+): { readonly log: OutboxLog; readonly outcome: DiscardOutcome } {
+    if (request.kind === 'entity') {
+        return { log: discardEntity(log, request.intent), outcome: SETTLED };
+    }
+
+    const record = log.records.find((candidate) => candidate.seq === request.seq);
+
+    if (record?.state !== 'parked') {
+        return { log, outcome: MAY_STAND };
+    }
+
+    const unknown =
+        classifyFailure({ ...record, ...(record.lastStatus === undefined ? {} : { status: record.lastStatus }) }) ===
+        'unknown';
+
+    return { log: withdraw(log, request.seq), outcome: unknown ? MAY_STAND : SETTLED };
 }
 
 /**

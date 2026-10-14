@@ -20,8 +20,10 @@ appId: io.commise.mobile
 
 # Typing a recipe's name switches the rails for the deterministic result list; a rail's order is data about the whole
 # sandbox.
-- tapOn: 'Search recipes'
-- inputText: 'Risotto'
+- runFlow:
+      file: common/searchDiscover.yaml
+      env:
+          QUERY: 'Risotto'
 - scrollUntilVisible:
       element: 'Save a copy of ${E2E_RECIPE_RISOTTO}'
       direction: DOWN

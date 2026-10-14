@@ -41,6 +41,8 @@ appId: io.commise.mobile
 # Empty the title first: the run-scoped seed title defeats a single erase (see the sub-flow).
 - runFlow: common/clearTitle.yaml
 - inputText: '${E2E_RECIPE_LAMB} (my edit)'
+# Close the keyboard before moving on, as `common/typeTitle.yaml` does and for its reason.
+- tapOn: 'About the recipe'
 
 # The seeded recipe now arrives WITH five ingredient lines and four steps of its own
 # (`packages/services/recipe-service/src/database/seed.ts`), so a save's ">= 1 of each" is already satisfied

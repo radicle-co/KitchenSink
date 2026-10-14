@@ -37,8 +37,10 @@ appId: io.commise.mobile
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
-- tapOn: 'Title'
-- inputText: 'Maestro Authored Food'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Authored Food'
 
 - scrollUntilVisible:
       element: 'Add an ingredient'

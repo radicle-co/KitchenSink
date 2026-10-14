@@ -38,21 +38,51 @@ appId: io.commise.mobile
 # Empty the title first: the run-scoped seed title defeats a single erase (see the sub-flow).
 - runFlow: common/clearTitle.yaml
 - inputText: '${E2E_RECIPE_LAMB} (edited)'
+# Close the keyboard before moving on, as `common/typeTitle.yaml` does and for its reason.
+- tapOn: 'About the recipe'
 # A difficulty chip clears by being pressed again (slice 7: the row has no "Not stated" chip). The seeded lamb states
 # none, so choose Hard, then clear it; the wire's explicit null is `recipeCrud.spec.ts`'s. It sits further down
-# Details, so scroll defensively rather than assume it is on screen.
+# Details, so scroll defensively rather than assume it is on screen. The scroll is to the chip, not to the group's label:
+# with the keyboard closed, a scroll to the label stops with the label at the action bar's edge and the chips under the
+# bar (seen on a local emulator, 2026-10-13).
 - scrollUntilVisible:
-      element: 'Difficulty'
+      element: 'Hard'
       direction: DOWN
       timeout: 20000
 - tapOn: 'Hard'
-- assertVisible:
-      text: 'Hard'
-      checked: true
+# iOS cannot read `checked` from a radio (`visibility.yaml` says why), so iOS asserts the phrase on the one chip right
+# of Medium and below the meal types' last row.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'Hard'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'radio button, checked'
+                rightOf: 'Medium'
+                below: 'Drink'
 - tapOn: 'Hard'
-- assertVisible:
-      text: 'Hard'
-      checked: false
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'Hard'
+                checked: false
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'radio button, unchecked'
+                rightOf: 'Medium'
+                below: 'Drink'
 
 # Ingredients — the seeded recipe already carries five lines, so this add is no longer what satisfies the >= 1 a
 # save needs; it is this flow's coverage of a line declared "as written" (no food-service dependency).

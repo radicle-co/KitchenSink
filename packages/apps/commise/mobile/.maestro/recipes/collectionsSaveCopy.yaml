@@ -57,7 +57,9 @@ appId: io.commise.mobile
 - extendedWaitUntil:
       visible: 'New collection'
       timeout: 40000
-- tapOn: 'Maestro clone source'
+# The list's card: iOS merges its texts into one label (`Maestro clone source, 0 recipes, Private`, run 38447859313), and
+# Maestro matches the WHOLE string, so the name is matched with the rest optional.
+- tapOn: 'Maestro clone source(, .*)?'
 - extendedWaitUntil:
       visible: 'More actions for Maestro clone source'
       timeout: 40000
@@ -67,4 +69,4 @@ appId: io.commise.mobile
 - extendedWaitUntil:
       visible: 'New collection'
       timeout: 40000
-- assertNotVisible: 'Maestro clone source'
+- assertNotVisible: 'Maestro clone source(, .*)?'

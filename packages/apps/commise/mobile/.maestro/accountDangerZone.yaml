@@ -32,8 +32,16 @@ appId: io.commise.mobile
 # The danger zone presents BOTH actions, distinctly, each with its consequence.
 - assertVisible: 'Close account'
 - assertVisible: 'Erase my data'
-- assertVisible: 'Signs you out and deactivates your account. Support can restore it.'
-- assertVisible: 'Permanently deletes your account and personal data.'
+# The consequence is each row's visible hint, which the row hands a screen reader as its accessibility HINT
+# (`ProfileRow.native.tsx`). Android publishes the hint's text as its own node; iOS publishes one node per row, named by
+# the label, and XCUITest exposes no hint, so Maestro cannot read it there (run 38433716728). The hints themselves are
+# pinned by `mobile/tests/screens/AccountDangerZone.native.test.tsx`.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible: 'Signs you out and deactivates your account. Support can restore it.'
+          - assertVisible: 'Permanently deletes your account and personal data.'
 
 # CLOSE reads as recoverable — never permanent deletion.
 - tapOn: 'Close account'

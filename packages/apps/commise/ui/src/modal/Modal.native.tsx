@@ -15,6 +15,11 @@
  * iOS is left alone: its close request is a gesture on the sheet, never the keyboard's key. Every other prop passes
  * through.
  *
+ * It is the field reveal's boundary too. A field reveal is a scroller showing a field inside it (`@commise/ui/field-reveal`),
+ * and no scroller outside the modal's window can show a field in it, though React context crosses the window: the row
+ * editor sheet's Unit combobox, rendered inside the recipe editor's scroller, scrolled the editor away under the sheet.
+ * So the modal hands its contents the Null Object revealer.
+ *
  * A raw `Modal` import from `react-native` anywhere else in the apps fails
  * `packages/infra/global/__tests__/modalAdapterImports.test.ts`.
  *
@@ -23,6 +28,7 @@
 import type { FC } from 'react';
 import { Keyboard, Modal as NativeModal, Platform, type ModalProps as NativeModalProps } from 'react-native';
 
+import { FieldRevealContext, revealNothing } from '../fieldReveal/fieldRevealContext.js';
 import { hasFocusedField } from '../textInput/TextInput.native.js';
 
 /** Every orientation. iOS intersects it with the app's own (`app.json` "orientation": "default" allows all). */
@@ -49,11 +55,12 @@ function keyboardServesAField(): boolean {
 export type ModalProps = Omit<NativeModalProps, 'supportedOrientations'>;
 
 /**
- * React Native's `Modal` with its window open to every orientation, whose Back closes the keyboard before the modal. A
- * presentational component: it renders its props and holds no state. Native only, because only React Native's `Modal`
+ * React Native's `Modal` with its window open to every orientation, whose Back closes the keyboard before the modal, and
+ * whose contents ask no outside scroller to reveal them. A presentational component: it renders its props and holds no
+ * state. Native only, because only React Native's `Modal`
  * opens a window of its own.
  */
-export const Modal: FC<ModalProps> = ({ onRequestClose, ...props }) => (
+export const Modal: FC<ModalProps> = ({ onRequestClose, children, ...props }) => (
     <NativeModal
         {...props}
         onRequestClose={
@@ -70,5 +77,7 @@ export const Modal: FC<ModalProps> = ({ onRequestClose, ...props }) => (
                   }
         }
         supportedOrientations={EVERY_ORIENTATION}
-    />
+    >
+        <FieldRevealContext.Provider value={revealNothing}>{children}</FieldRevealContext.Provider>
+    </NativeModal>
 );

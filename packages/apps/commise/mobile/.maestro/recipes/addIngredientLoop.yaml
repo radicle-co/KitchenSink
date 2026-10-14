@@ -28,8 +28,10 @@ appId: io.commise.mobile
 # Details. servings/prep/cook keep their valid defaults, as in `create.yaml`.
 - assertVisible: 'Close editor'
 - assertVisible: 'Title'
-- tapOn: 'Title'
-- inputText: 'Maestro Add Loop'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Add Loop'
 
 - scrollUntilVisible:
       element: 'Add an ingredient'

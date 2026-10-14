@@ -44,6 +44,8 @@ appId: io.commise.mobile
 # Empty the title first: the run-scoped seed title defeats a single erase (see the sub-flow).
 - runFlow: common/clearTitle.yaml
 - inputText: '${E2E_RECIPE_LAMB} (v2)'
+# Close the keyboard before moving on, as `common/typeTitle.yaml` does and for its reason.
+- tapOn: 'About the recipe'
 - scrollUntilVisible:
       element: 'Add an ingredient'
       direction: DOWN
@@ -109,6 +111,8 @@ appId: io.commise.mobile
 - assertVisible: 'Close editor'
 - runFlow: common/clearTitle.yaml
 - inputText: '${E2E_RECIPE_LAMB} (v3)'
+# Close the keyboard before moving on, as `common/typeTitle.yaml` does and for its reason.
+- tapOn: 'About the recipe'
 - tapOn: 'Save changes'
 - extendedWaitUntil:
       visible:

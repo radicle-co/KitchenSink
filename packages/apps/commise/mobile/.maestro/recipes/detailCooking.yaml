@@ -50,17 +50,55 @@ appId: io.commise.mobile
       element: '3 tbsp Olive oil.*'
       direction: DOWN
       timeout: 20000
-- assertVisible:
-      text: '3 tbsp Olive oil.*'
-      checked: false
+# iOS cannot read `checked` from a checkbox either (`visibility.yaml` says why; its phrase is `checkbox, checked`), so
+# iOS asserts the phrase on the row between its neighbours, the olive oil.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: '3 tbsp Olive oil.*'
+                checked: false
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'checkbox, unchecked'
+                below: '8 Lamb loin chops.*'
+                above: '3 cloves Garlic.*'
 - tapOn: '3 tbsp Olive oil.*'
-- assertVisible:
-      text: '3 tbsp Olive oil.*'
-      checked: true
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: '3 tbsp Olive oil.*'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'checkbox, checked'
+                below: '8 Lamb loin chops.*'
+                above: '3 cloves Garlic.*'
 - tapOn: '3 tbsp Olive oil.*'
-- assertVisible:
-      text: '3 tbsp Olive oil.*'
-      checked: false
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: '3 tbsp Olive oil.*'
+                checked: false
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'checkbox, unchecked'
+                below: '8 Lamb loin chops.*'
+                above: '3 cloves Garlic.*'
 
 # ── THE CURRENT STEP ── one at a time.
 - scrollUntilVisible:

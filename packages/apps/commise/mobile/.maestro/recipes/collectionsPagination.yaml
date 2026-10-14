@@ -18,6 +18,9 @@ appId: io.commise.mobile
 # control as the list footer (this flow is also the reason the list scrolls — a full page of 20 rows plus the
 # load-more control does not fit one screen, and without a scroll container the control was unreachable by
 # touch); `scrollUntilVisible` reaches it below the fold.
+# A card's name is matched as `<name>(, .*)?`: Android publishes the name as its own text, while iOS merges the card's
+# texts into one label (`Maestro pagination target, 0 recipes, Private`, run 38433716728), and Maestro matches the WHOLE
+# string. The `More actions for …` selectors name a control, not a card, and keep the exact name.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
@@ -44,7 +47,7 @@ appId: io.commise.mobile
       timeout: 40000
 - tapOn: 'Back to Collections'
 - extendedWaitUntil:
-      visible: 'Maestro pagination target'
+      visible: 'Maestro pagination target(, .*)?'
       timeout: 40000
 
 # Fill exactly one full page (20) of NEWER collections ahead of the target, pushing it to position 21.
@@ -63,25 +66,27 @@ appId: io.commise.mobile
                 timeout: 40000
           - tapOn: 'Back to Collections'
           - extendedWaitUntil:
-                visible: 'Maestro pagination filler'
+                visible: 'Maestro pagination filler(, .*)?'
                 timeout: 40000
 
 # PAGE 1: the 20 fillers are visible before any "load more" activation; the target (row 21) is proven ABSENT
 # — the assertion that a later "target visible" would otherwise prove nothing (it could just be un-paginated).
-- assertVisible: 'Maestro pagination filler'
-- assertNotVisible: 'Maestro pagination target'
+- assertVisible: 'Maestro pagination filler(, .*)?'
+- assertNotVisible: 'Maestro pagination target(, .*)?'
 
 # PAGINATE. The load-more control (W5/C7 — server-paged, no infinite scroll) renders below the 20th row.
+# 60 s: twenty cards with covers are ten rows on a phone, and run 38433716728 reached the end of them only as a 20 s
+# timeout ran out (the failure's own hierarchy shows the control on screen).
 - scrollUntilVisible:
       element: 'Load more'
       direction: DOWN
-      timeout: 20000
+      timeout: 60000
 - tapOn: 'Load more'
 
 # The one row that was NEVER on page 1 is now in the list — proof the second page actually loaded, not merely
 # that the button was pressed. It lands as the grid's last card, below the fold, so it is scrolled to.
 - scrollUntilVisible:
-      element: 'Maestro pagination target'
+      element: 'Maestro pagination target(, .*)?'
       direction: DOWN
       timeout: 40000
 
@@ -92,7 +97,7 @@ appId: io.commise.mobile
 # fillers: each is deleted from the TOP of the (newest-first) list, which — unlike the load-more control — is
 # always on screen without scrolling, so removing the topmost match repeatedly surfaces the next one. A delete is the
 # detail's ⋯ menu, then the confirmation, and lands back on the list.
-- tapOn: 'Maestro pagination target'
+- tapOn: 'Maestro pagination target(, .*)?'
 - tapOn: 'More actions for Maestro pagination target'
 - tapOn: 'Delete collection'
 - tapOn: 'Delete collection'
@@ -102,9 +107,9 @@ appId: io.commise.mobile
 
 - repeat:
       while:
-          visible: 'Maestro pagination filler'
+          visible: 'Maestro pagination filler(, .*)?'
       commands:
-          - tapOn: 'Maestro pagination filler'
+          - tapOn: 'Maestro pagination filler(, .*)?'
           - tapOn: 'More actions for Maestro pagination filler'
           - tapOn: 'Delete collection'
           - tapOn: 'Delete collection'
@@ -112,5 +117,5 @@ appId: io.commise.mobile
                 visible: 'New collection'
                 timeout: 40000
 
-- assertNotVisible: 'Maestro pagination filler'
-- assertNotVisible: 'Maestro pagination target'
+- assertNotVisible: 'Maestro pagination filler(, .*)?'
+- assertNotVisible: 'Maestro pagination target(, .*)?'

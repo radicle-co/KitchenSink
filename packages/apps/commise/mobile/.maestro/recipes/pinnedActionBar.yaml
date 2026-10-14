@@ -100,10 +100,12 @@ appId: io.commise.mobile
 # the section bar is gone, so the form gets every pixel the keyboard leaves. jsdom cannot see a keyboard; the component
 # tiers prove the structure (`RecipeEditorView.native.test.tsx`, `EditorActionBar.native.test.tsx`), this proves it on a
 # real device. The keyboard is closed again by the next tap, never by `hideKeyboard` (a BACK event on Android).
+# 60 s: from the foot of a published recipe's whole page to its Title is a long way at Maestro's scroll speed, and run
+# 38447859313 reached it only as a 30 s timeout ran out (the failure's own hierarchy shows the Title on screen).
 - scrollUntilVisible:
       element: 'Title'
       direction: UP
-      timeout: 30000
+      timeout: 60000
 - tapOn: 'Title'
 - assertNotVisible:
       text: 'Sections\. Current: .*'

@@ -124,10 +124,17 @@ appId: io.commise.mobile
 #      seeded line IS user-entered, and the gate is genuinely open.
 # The negative case — a recipe whose lines are all food-backed — needs a resolved ingredient and belongs to a
 # flow that creates one, not to a fixture that would have to lie to produce it.
-- scrollUntilVisible:
-      element: 'Your own food'
-      direction: DOWN
-      timeout: 20000
+# The badge is visible text that the row hands a screen reader as its accessibility HINT (`IngredientCheckRow.native.tsx`).
+# Android publishes it as its own node; iOS publishes one node per row and XCUITest exposes no hint, so the badge is
+# asserted on Android only (run 38433716728). The notice below is plain text and is asserted on both.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - scrollUntilVisible:
+                element: 'Your own food'
+                direction: DOWN
+                timeout: 20000
 
 # The step list, populated from this recipe rather than merely mounted: the heading is chrome, the first
 # step's own instruction text is the proof.

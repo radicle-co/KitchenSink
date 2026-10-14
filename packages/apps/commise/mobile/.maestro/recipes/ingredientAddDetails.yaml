@@ -17,8 +17,10 @@ appId: io.commise.mobile
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
-- tapOn: 'Title'
-- inputText: 'Maestro Add Details'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Add Details'
 
 # The root, from the food catalog, through the trailing field. A prefix, so the field's own text never matches the
 # option's name.
@@ -36,7 +38,8 @@ appId: io.commise.mobile
 - tapOn: 'boneless skinless chicken breasts'
 - scrollUntilVisible:
       element: 'Edit boneless skinless chicken breasts'
-      direction: DOWN
+      # The line lands above the add field the cook is at: one page, so it is UP.
+      direction: UP
       timeout: 30000
 
 # Add, by search. `Add details` is offered only when food's batch read says the root has a live variant.

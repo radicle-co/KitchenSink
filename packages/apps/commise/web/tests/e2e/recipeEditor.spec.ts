@@ -539,6 +539,11 @@ test.describe('the editor form fields (A-007, A-008, A-009, E15, P3, P4)', () =>
         await expect(page.getByText('3 cloves · garlic')).toBeVisible();
     });
 
+    // The placement is picked in JavaScript from `<main>`'s measured width (`useMainContainerClass`, a ResizeObserver
+    // source that reads `narrow` until `<main>` is measured), so it moves a frame or more after a load or a resize, and
+    // the button is unmounted from one place and mounted in the other. Each layout is therefore read until it holds
+    // (for a bounded 5 s, so a layout that never arrives still fails here), and an absent box fails rather than reading
+    // as 0.
     test('P4: from 600 Paste a list sits beside the add field, level with the input; at 320 it is under it', async ({
         page,
     }) => {
@@ -547,20 +552,29 @@ test.describe('the editor form fields (A-007, A-008, A-009, E15, P3, P4)', () =>
 
         const field = page.getByRole('combobox', { name: 'Add an ingredient' });
         const paste = page.getByRole('button', { name: 'Paste a list' });
-        const wideField = await field.boundingBox();
-        const widePaste = await paste.boundingBox();
-        expect(
-            Math.abs(
-                (wideField?.y ?? 0) +
-                    (wideField?.height ?? 0) / 2 -
-                    ((widePaste?.y ?? 0) + (widePaste?.height ?? 0) / 2),
-            ),
-        ).toBeLessThanOrEqual(2);
+
+        const boxOf = async (locator: Locator): Promise<{ y: number; height: number }> => {
+            const box = await locator.boundingBox();
+
+            if (box === null) {
+                throw new Error('P4: an element under test has no box (not rendered, or mid-swap)');
+            }
+
+            return box;
+        };
+
+        await expect(async () => {
+            const [wideField, widePaste] = await Promise.all([boxOf(field), boxOf(paste)]);
+            const fieldMiddle = wideField.y + wideField.height / 2;
+            const pasteMiddle = widePaste.y + widePaste.height / 2;
+            expect(Math.abs(fieldMiddle - pasteMiddle)).toBeLessThanOrEqual(2);
+        }).toPass({ timeout: 5_000 });
 
         await page.setViewportSize({ width: 320, height: 800 });
-        const narrowField = await field.boundingBox();
-        const narrowPaste = await paste.boundingBox();
-        expect(narrowPaste?.y ?? 0).toBeGreaterThan((narrowField?.y ?? 0) + (narrowField?.height ?? 0) - 1);
+        await expect(async () => {
+            const [narrowField, narrowPaste] = await Promise.all([boxOf(field), boxOf(paste)]);
+            expect(narrowPaste.y).toBeGreaterThan(narrowField.y + narrowField.height - 1);
+        }).toPass({ timeout: 5_000 });
     });
 
     test('A-008: Add step moves focus into the new step, so typing lands there and adds no more steps', async ({

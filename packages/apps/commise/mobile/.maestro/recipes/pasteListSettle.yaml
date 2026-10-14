@@ -13,8 +13,10 @@ appId: io.commise.mobile
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
 - assertVisible: 'Close editor'
-- tapOn: 'Title'
-- inputText: 'Maestro Settle Stew'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Settle Stew'
 
 - tapOn:
       text: 'Sections\. Current: .*'

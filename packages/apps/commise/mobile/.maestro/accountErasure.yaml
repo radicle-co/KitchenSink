@@ -99,6 +99,9 @@ appId: io.commise.mobile
 
 - tapOn: 'Confirmation phrase'
 - inputText: 'ERASE MY DATA'
+# Close the keyboard first: on iOS the dialog's actions sit behind it, still counted as visible, and the confirm tap
+# typed an `I` into the phrase instead (run 38433716728). The field has no submit, so its return key only blurs it.
+- pressKey: Enter
 
 # Confirm — the irreversible action. See the selector note above for why this is position-qualified.
 - tapOn:

@@ -593,8 +593,12 @@ describe('⛔ password AutoFill is switched off on the Simulator before the flow
         }
 
         writeFileSync(calls, '');
-        writeFileSync(join(dir, 'plutil'), `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> "${calls}"\nexit 0\n`);
-        chmodSync(join(dir, 'plutil'), 0o755);
+
+        for (const tool of ['plutil', 'xcrun']) {
+            writeFileSync(join(dir, tool), `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> "${calls}"\nexit 0\n`);
+            chmodSync(join(dir, tool), 0o755);
+        }
+
         writeFileSync(join(dir, 'step.sh'), scalarText(step?.run));
 
         const result = spawnSync('bash', ['--noprofile', '--norc', '-e', '-o', 'pipefail', 'step.sh'], {
@@ -632,6 +636,28 @@ describe('⛔ password AutoFill is switched off on the Simulator before the flow
             // ...and reads it back, so a write that did not take shows in the log.
             expect(outcome.calls).toContain(`-extract restrictedBool.allowPasswordAutoFill.value raw ${file}`);
         }
+    });
+
+    /**
+     * ADDED 2026-10-13 (run 38433716728). All four iOS shards read the restriction back as `false`, and shard 2 still got
+     * "Save Password?" over the code step of every sign-in: the files were written, but a RUNNING Simulator had already
+     * read them. So the step shuts the device down before it writes and boots it again after, and the boot waits until it
+     * is up, so the install and the first flow meet a device that read the restriction as it started.
+     */
+    it('writes the files with the Simulator SHUT DOWN, then boots it and waits, so the restriction is read at start', () => {
+        const outcome = runAutofillStep(PROFILE_FILES);
+        const lines = outcome.calls.split('\n');
+        const shutdown = lines.indexOf('simctl shutdown UDID-1');
+        const firstWrite = lines.findIndex((line) => line.startsWith('-replace '));
+        const lastWrite = lines.findLastIndex((line) => line.startsWith('-replace '));
+        const boot = lines.indexOf('simctl boot UDID-1');
+        const wait = lines.indexOf('simctl bootstatus UDID-1 -b');
+
+        expect(outcome.status, outcome.output).toBe(0);
+        expect(shutdown, outcome.calls).toBeGreaterThan(-1);
+        expect(shutdown).toBeLessThan(firstWrite);
+        expect(boot).toBeGreaterThan(lastWrite);
+        expect(wait).toBeGreaterThan(boot);
     });
 
     it('is best-effort like the keyboard preferences: a missing file WARNS by name and does not fail the shard', () => {

@@ -83,14 +83,21 @@ appId: io.commise.mobile
       timeout: 10000
 
 # 3. Typing switches from the rails to the result list (the query is debounced, then the results settle).
-- tapOn: 'Search recipes'
-- inputText: 'Risotto'
-- extendedWaitUntil:
-      visible: '${E2E_RECIPE_RISOTTO}'
+- runFlow:
+      file: common/searchDiscover.yaml
+      env:
+          QUERY: 'Risotto'
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_RISOTTO}'
+      direction: DOWN
       timeout: 40000
 - assertNotVisible: 'Trending'
 
 # Clearing the query returns to the curated rails.
+- scrollUntilVisible:
+      element: 'Search recipes'
+      direction: UP
+      timeout: 20000
 - tapOn: 'Search recipes'
 - eraseText
 - extendedWaitUntil:

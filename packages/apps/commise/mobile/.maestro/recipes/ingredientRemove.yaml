@@ -15,8 +15,10 @@ appId: io.commise.mobile
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
-- tapOn: 'Title'
-- inputText: 'Maestro Remove Rows'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Remove Rows'
 - scrollUntilVisible:
       element: 'Add an ingredient'
       direction: DOWN
@@ -53,7 +55,8 @@ appId: io.commise.mobile
 # Remove the FIRST row only, from its `⋮` menu.
 - scrollUntilVisible:
       element: 'Actions for Maestro Alpha'
-      direction: DOWN
+      # The line lands above the add field the cook is at: one page, so it is UP.
+      direction: UP
       timeout: 20000
 - tapOn: 'Actions for Maestro Alpha'
 - tapOn: 'Remove ingredient'

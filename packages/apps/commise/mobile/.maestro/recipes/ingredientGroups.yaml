@@ -12,8 +12,10 @@ appId: io.commise.mobile
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
-- tapOn: 'Title'
-- inputText: 'Maestro Groups'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Groups'
 
 - scrollUntilVisible:
       element: 'Add an ingredient'
@@ -50,6 +52,12 @@ appId: io.commise.mobile
 - tapOn: 'Actions for Maestro Garlic'
 - assertNotVisible: 'Move to group…'
 - tapOn: 'Move up'
+# Garlic moves up a row, which can be above the top of the screen (run 38447859313 kept the page still and left only
+# Cumin's top edge in view), so it is scrolled back to before the order is read.
+- scrollUntilVisible:
+      element: 'Edit Maestro Garlic'
+      direction: UP
+      timeout: 20000
 - assertVisible:
       text: 'Edit Maestro Garlic'
       above: 'Edit Maestro Cumin'

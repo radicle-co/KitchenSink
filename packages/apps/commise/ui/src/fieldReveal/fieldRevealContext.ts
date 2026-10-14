@@ -33,5 +33,8 @@ export type FieldRevealer = (request: RevealRequest) => () => void;
 /** Releases nothing. */
 const RELEASE_NOTHING = (): void => undefined;
 
+/** The revealer of a field no scroller can show: it asks nothing and releases nothing. */
+export const revealNothing: FieldRevealer = () => RELEASE_NOTHING;
+
 /** The host's revealer. The default does nothing. */
-export const FieldRevealContext = createContext<FieldRevealer>(() => RELEASE_NOTHING);
+export const FieldRevealContext = createContext<FieldRevealer>(revealNothing);

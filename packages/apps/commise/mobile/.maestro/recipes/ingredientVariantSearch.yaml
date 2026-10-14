@@ -18,8 +18,10 @@ appId: io.commise.mobile
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
-- tapOn: 'Title'
-- inputText: 'Maestro Variant Search'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Variant Search'
 
 # One variant named: the result is the root carrying it, its option named with the part after the food (§S2).
 - scrollUntilVisible:
@@ -35,8 +37,10 @@ appId: io.commise.mobile
       label: 'the catalog search found the KTD-16 root carrying its one "fried" variant'
 - tapOn: 'boneless skinless chicken breasts, fried'
 - scrollUntilVisible:
-      element: 'Edit boneless skinless chicken breasts'
-      direction: DOWN
+      element: 'Actions for boneless skinless chicken breasts, fried'
+      # The line lands above the add field the cook is at: one page, so it is UP. The scroll is to the row's menu, on its
+      # first line: scrolling up, a row's top comes into view last, and run 38447859313 had only part of it on screen.
+      direction: UP
       timeout: 30000
 
 # The pick bound the variant: the row names its part after the food, and the dotted line shows it under the name.

@@ -21,8 +21,10 @@ appId: io.commise.mobile
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
-- tapOn: 'Title'
-- inputText: 'Maestro Unmatched'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Unmatched'
 
 - scrollUntilVisible:
       element: 'Add an ingredient'
@@ -44,7 +46,8 @@ appId: io.commise.mobile
 # its open control, named for the line, and no status word.
 - scrollUntilVisible:
       element: 'Edit Maestro Glorp'
-      direction: DOWN
+      # The line lands above the add field the cook is at: one page, so it is UP.
+      direction: UP
       timeout: 30000
 - assertNotVisible:
       text: '^Your own wording$'

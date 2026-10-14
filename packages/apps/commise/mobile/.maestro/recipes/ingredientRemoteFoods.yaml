@@ -29,8 +29,10 @@ appId: io.commise.mobile
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
-- tapOn: 'Title'
-- inputText: 'Maestro Remote Foods'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Remote Foods'
 
 # The Ingredients section, on the same page: with no lines yet, the trailing field is its first control.
 - scrollUntilVisible:

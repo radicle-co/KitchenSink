@@ -24,8 +24,10 @@ appId: io.commise.mobile
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
-- tapOn: 'Title'
-- inputText: 'Maestro Row Candidates'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Row Candidates'
 
 # A row to work on: the run's probe food `Flour` (`e2e-seed provision`).
 - scrollUntilVisible:
@@ -41,7 +43,8 @@ appId: io.commise.mobile
 - tapOn: 'Flour, your food'
 - scrollUntilVisible:
       element: 'Edit Flour'
-      direction: DOWN
+      # The line lands above the add field the cook is at: one page, so it is UP.
+      direction: UP
       timeout: 30000
 
 # Change food to the words by name. The field opens on the food's name with the caret at its end, so the name is erased

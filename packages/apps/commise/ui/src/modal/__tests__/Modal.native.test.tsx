@@ -10,10 +10,11 @@
  * orientation: the recorded prop is the contract, and the on-device proof is the Maestro landscape flow.
  */
 import { cleanup, render, screen } from '@testing-library/react';
-import { createElement, type ComponentProps } from 'react';
+import { createElement, useContext, useEffect, type ComponentProps, type FC } from 'react';
 import { Keyboard, Platform, Text, TextInput, type Modal as ModalType } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { FieldRevealContext, type FieldRevealer } from '../../fieldReveal/fieldRevealContext.js';
 import { Modal } from '../Modal.native.js';
 
 const state = vi.hoisted(() => ({ modal: undefined as ComponentProps<typeof ModalType> | undefined }));
@@ -145,6 +146,46 @@ describe('Modal (native)', () => {
             state.modal?.onRequestClose?.({} as never);
 
             expect(onRequestClose).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    // A field reveal is a scroller showing a field INSIDE it (`@commise/ui/field-reveal`). A modal opens a window of its
+    // own, so no scroller outside it can show a field in it, yet React context crosses the window. Run 38447859313: the
+    // row editor sheet's Unit combobox, rendered inside the recipe editor's scroller, asked the EDITOR to reveal it, and
+    // the editor scrolled to Details under the sheet. The modal is the boundary, so it hands its contents the Null Object.
+    describe('the field reveal', () => {
+        /** A field that asks for a reveal as it mounts, the way a combobox does when its list opens. */
+        const AskingField: FC = () => {
+            const reveal = useContext(FieldRevealContext);
+
+            useEffect(() => reveal({ field: { measureLayout: () => undefined }, below: 120 }), [reveal]);
+
+            return <Text>Field</Text>;
+        };
+
+        it('a field outside a modal reaches the scroller around it (the probe works)', () => {
+            const outer = vi.fn<FieldRevealer>(() => () => undefined);
+            render(
+                <FieldRevealContext.Provider value={outer}>
+                    <AskingField />
+                </FieldRevealContext.Provider>,
+            );
+
+            expect(outer).toHaveBeenCalledTimes(1);
+        });
+
+        it('⛔ a field inside a modal never asks a scroller outside the modal', () => {
+            const outer = vi.fn<FieldRevealer>(() => () => undefined);
+            render(
+                <FieldRevealContext.Provider value={outer}>
+                    <Modal visible transparent>
+                        <AskingField />
+                    </Modal>
+                </FieldRevealContext.Provider>,
+            );
+
+            expect(screen.getByText('Field')).toBeTruthy();
+            expect(outer).not.toHaveBeenCalled();
         });
     });
 });

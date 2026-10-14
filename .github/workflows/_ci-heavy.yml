@@ -1697,6 +1697,10 @@ jobs:
             # the device's configuration-profile files, which exist only once it has booted, hence after the wait.
             # ⚠️ Best-effort, like the keyboard preferences: the three paths are the ones Detox users edit (wix/Detox#3761)
             # and are unverified on this runtime until a real run; a missing one WARNS by name.
+            # ⛔ THE DEVICE IS SHUT DOWN FOR THE WRITE and booted again after it. Run 38433716728 read `false` back from all
+            # three files on all four shards, and shard 2 still got the sheet on every sign-in: a running Simulator had
+            # already read the restriction, so a write under it changed the file and not the device. So only the file writes
+            # are best-effort: a shutdown that fails fails the step, because the write behind it would change nothing.
             - name: Switch password AutoFill off on the iOS Simulator
               if: steps.secrets.outcome == 'success'
               env:
@@ -1704,6 +1708,7 @@ jobs:
               run: |
                   set -euo pipefail
                   data="$HOME/Library/Developer/CoreSimulator/Devices/${MAESTRO_IOS_UDID}/data"
+                  xcrun simctl shutdown "${MAESTRO_IOS_UDID}"
                   for file in \
                       Containers/Shared/SystemGroup/systemgroup.com.apple.configurationprofiles/Library/ConfigurationProfiles/UserSettings.plist \
                       Library/UserConfigurationProfiles/EffectiveUserSettings.plist \
@@ -1717,6 +1722,8 @@ jobs:
                       # Read back, so the log says whether the write took rather than only that it was tried.
                       echo "${file}: allowPasswordAutoFill=$(plutil -extract restrictedBool.allowPasswordAutoFill.value raw "${data}/${file}" || echo unreadable)"
                   done
+                  xcrun simctl boot "${MAESTRO_IOS_UDID}"
+                  xcrun simctl bootstatus "${MAESTRO_IOS_UDID}" -b
             # Install the app and run this shard's flows on the Simulator — `runMaestroFlows.sh`'s run mode, the same
             # one the emulator runs, told its platform. It installs the app, excludes (and PRINTS) the flows iOS
             # cannot run, partitions what is left for this shard, and drives each flow with the Android job's per-

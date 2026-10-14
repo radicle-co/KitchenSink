@@ -33,8 +33,10 @@ appId: io.commise.mobile
 # Asparagus, then a premium card at x=1315. A rail's order is data about the whole sandbox, not about this flow.
 # Typing the title's base switches Discover to the deterministic result list, the same way `discoverDetailSaveCopy.yaml`
 # reaches the same recipe. The run key in the title means no other run's row can satisfy the anchored selector.
-- tapOn: 'Search recipes'
-- inputText: 'Risotto'
+- runFlow:
+      file: common/searchDiscover.yaml
+      env:
+          QUERY: 'Risotto'
 - scrollUntilVisible:
       element:
           text: '^${E2E_RECIPE_RISOTTO}$'
@@ -75,9 +77,23 @@ appId: io.commise.mobile
       element: 'Rate 4 stars'
       direction: DOWN
       timeout: 20000
-- assertVisible:
-      text: 'Rate 4 stars'
-      checked: true
+# iOS cannot read `checked` from a radio (`visibility.yaml` says why), so iOS asserts the phrase on the star between
+# 3 and 5.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'Rate 4 stars'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'radio button, checked'
+                rightOf: 'Rate 3 stars'
+                leftOf: 'Rate 5 stars'
 
 # Sc10 — rating reveals the remove affordance; removing it succeeds and withdraws the affordance,
 # restoring the caller's contribution to zero (leaving the shared seed net-unchanged).

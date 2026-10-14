@@ -19,15 +19,21 @@ appId: io.commise.mobile
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
 - assertVisible: 'Close editor'
-- tapOn: 'Title'
-- inputText: 'Maestro Amount First'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Amount First'
 
 - scrollUntilVisible:
       element: 'Add an ingredient'
       direction: DOWN
       timeout: 20000
-# A-007 / E13: the field's label and its hint are drawn above it, and not only spoken.
-- assertVisible: 'Type the amount first, then pick the food. For example: 2 tbsp olive oil.'
+# A-007 / E13: the field's label and its hint are drawn above it, and not only spoken. The hint is scrolled to as well:
+# the scroll to the label can stop with the label at the screen's foot and the hint under it (run 38447859313).
+- scrollUntilVisible:
+      element: 'Type the amount first, then pick the food. For example: 2 tbsp olive oil.'
+      direction: DOWN
+      timeout: 20000
 - tapOn: 'Add an ingredient'
 - inputText: '2 cups Flou'
 # The live reading: the amount and the known unit, then the food the search is asked for.

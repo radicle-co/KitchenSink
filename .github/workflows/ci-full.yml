@@ -49,8 +49,7 @@ jobs:
         permissions:
             contents: read
             id-token: write # granted so _ci.yml e2e-web can reach it (a callee only downgrades)
-            # ⛔ Granted for `_ci.yml`'s `mobile-app-build` job, whose plan reads and downloads an earlier run's test app
-            # artifact. A callee can only downgrade, so a caller that omits it has the whole run rejected (`startup_failure`).
+            # ⛔ A callee can only downgrade, so omitting this rejects the whole run (`startup_failure`).
             actions: read # mobile-app-build reuses an earlier run's test app artifact
             # ⛔ Same rule, and this caller was MISSED when the constructs started publishing:
             # `_ci.yml`'s `infra-shared` job writes the prerelease to GitHub Packages, and `cdk-checks`,

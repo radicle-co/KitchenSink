@@ -18,8 +18,10 @@ appId: io.commise.mobile
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
-- tapOn: 'Title'
-- inputText: 'Maestro Row Editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Row Editor'
 
 # The probe food, then an amount the cook chose, set in the row editor (UI overhaul slice 8, build spec §7.5.2: a sheet
 # on a phone).
@@ -36,7 +38,8 @@ appId: io.commise.mobile
 - tapOn: 'Flour, your food'
 - scrollUntilVisible:
       element: 'Edit Flour'
-      direction: DOWN
+      # The line lands above the add field the cook is at: one page, so it is UP.
+      direction: UP
       timeout: 30000
 - tapOn: 'Edit Flour'
 - tapOn: 'Amount'

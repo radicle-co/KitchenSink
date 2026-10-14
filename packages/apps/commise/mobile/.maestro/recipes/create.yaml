@@ -19,13 +19,15 @@ appId: io.commise.mobile
 # Details. The editor's × is its own control ('New recipe' would also match the FAB), so it is the entry checkpoint.
 - assertVisible: 'Close editor'
 - assertVisible: 'Title'
-- tapOn: 'Title'
-- inputText: 'Maestro Weeknight Soup'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Weeknight Soup'
 
 # State a difficulty (FR-001b): the chip row sits further down Details, so scroll defensively rather than assume it
-# is already on screen.
+# is already on screen. To the chip, not the label, for `edit.yaml`'s reason.
 - scrollUntilVisible:
-      element: 'Difficulty'
+      element: 'Hard'
       direction: DOWN
       timeout: 20000
 - tapOn: 'Hard'
@@ -34,7 +36,7 @@ appId: io.commise.mobile
 # group's shape deliberately, and its "not stated" option is named 'No meal type' rather than 'Not stated'
 # precisely so the two chips do not share one accessible name inside one form (WCAG 3.3.2).
 - scrollUntilVisible:
-      element: 'Meal type'
+      element: 'Dinner'
       direction: DOWN
       timeout: 20000
 - tapOn: 'Dinner'
@@ -47,6 +49,10 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Cuisine'
 - tapOn: 'Italian'
+# A pick keeps the field focused and the keyboard up (the combobox's submit chooses nothing, so the return key cannot
+# close it). A tap on the group's plain heading does: the editor's scroller only keeps the keyboard for a tap a control
+# handles. On iOS the keyboard otherwise stays up, and the taps below landed on its keys (run 38433716728: `ItalianqT`).
+- tapOn: 'Kind of dish'
 - scrollUntilVisible:
       element: 'Add a tag'
       direction: DOWN

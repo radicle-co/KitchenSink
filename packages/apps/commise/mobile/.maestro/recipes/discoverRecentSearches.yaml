@@ -26,13 +26,20 @@ appId: io.commise.mobile
 - assertNotVisible: 'Recent searches'
 
 # 1. Run a real search — the rails give way to the result list once the debounced query settles.
-- tapOn: 'Search recipes'
-- inputText: 'Risotto'
-- extendedWaitUntil:
-      visible: '${E2E_RECIPE_RISOTTO}'
+- runFlow:
+      file: common/searchDiscover.yaml
+      env:
+          QUERY: 'Risotto'
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_RISOTTO}'
+      direction: DOWN
       timeout: 40000
 
-# 2. Back to the idle state: clearing the field (still focused) reveals the search that ran.
+# 2. Back to the idle state: clearing the field reveals the search that ran.
+- scrollUntilVisible:
+      element: 'Search recipes'
+      direction: UP
+      timeout: 20000
 - tapOn: 'Search recipes'
 - eraseText
 - extendedWaitUntil:
@@ -42,8 +49,9 @@ appId: io.commise.mobile
 
 # 3. Tapping the entry re-runs it: the result list returns.
 - tapOn: 'Search for “Risotto”'
-- extendedWaitUntil:
-      visible: '${E2E_RECIPE_RISOTTO}'
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_RISOTTO}'
+      direction: DOWN
       timeout: 40000
 
 # 4. It survives an app restart (AsyncStorage, not in-memory state). `signin.yaml` relaunches the app itself

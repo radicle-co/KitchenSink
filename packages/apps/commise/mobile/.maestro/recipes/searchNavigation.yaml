@@ -63,6 +63,9 @@ appId: io.commise.mobile
       visible:
           text: '^3 recipes$'
       timeout: 20000
+# Close the keyboard before the tab bar: on iOS it covers the bar, and the Discover tap pressed the keyboard's own key
+# instead (run 38433716728). The search key on an empty field only blurs it.
+- pressKey: Enter
 
 # --- Navigation: cross to Discover, and search it server-side -------------------------------------------
 - tapOn: 'Discover'
@@ -95,8 +98,10 @@ appId: io.commise.mobile
 # would return the full public feed and this would fail. It is also immune to seed drift (it does not care
 # which public rows exist), unlike an exact-count assertion — discoverDetailSaveCopy.yaml clones "Herb Risotto" and
 # delete.yaml removes the other public seed row, so the public feed's size is not stable across a suite run.
-- tapOn: 'Search recipes'
-- inputText: 'zzzznosuchrecipe'
+- runFlow:
+      file: common/searchDiscover.yaml
+      env:
+          QUERY: 'zzzznosuchrecipe'
 # Slice 5 (`buildSpec.md` §4.6): a search that finds nothing NAMES the term; the browse-empty copy is a different state.
 - extendedWaitUntil:
       visible: 'No recipes for .zzzznosuchrecipe.'
@@ -106,7 +111,10 @@ appId: io.commise.mobile
 # A query that DOES match returns the seeded public recipe — the positive half of the same contract.
 - tapOn: 'Search recipes'
 - eraseText
-- inputText: 'Risotto'
+- runFlow:
+      file: common/searchDiscover.yaml
+      env:
+          QUERY: 'Risotto'
 - extendedWaitUntil:
       visible: '${E2E_RECIPE_RISOTTO}'
       timeout: 40000

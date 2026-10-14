@@ -25,8 +25,10 @@ appId: io.commise.mobile
 # Details. servings/prep/cook keep their valid defaults, as in `create.yaml`.
 - assertVisible: 'Close editor'
 - assertVisible: 'Title'
-- tapOn: 'Title'
-- inputText: 'Maestro Marinade Bowl'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Marinade Bowl'
 
 # Ingredients, below Details. REWRITTEN for UI overhaul slice 8 (build spec §7.5.3, §7.5.5): name a group first, then
 # type the amount, the food and, after a comma, the preparation into that group's add field, and declare the line "as
@@ -76,6 +78,13 @@ appId: io.commise.mobile
 - tapOn: 'Add step'
 - tapOn: 'Step 1'
 - inputText: 'Marinate and grill.'
+# The step field keeps the iOS keyboard up over the action bar; a tap on the section heading closes it
+# (`common/typeTitle.yaml` says why a heading, and why not Return).
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - tapOn: 'Steps'
 
 - tapOn: 'Publish'
 
@@ -104,12 +113,12 @@ appId: io.commise.mobile
 - tapOn: 'Edit recipe'
 - assertVisible: 'Close editor'
 # The read row carries the preparation, and the group heading the fold re-derives from the line's label returns.
+# The scroll is to the preparation itself, not to the row's name: run 38447859313 stopped with the name a 16 px sliver
+# at the action bar's edge (Maestro counts a clipped element's visible part as all of it) and the line under it hidden.
 - scrollUntilVisible:
-      element: 'Edit 2 cups Tomato'
+      element: '.*Tomato · finely chopped.*'
       direction: DOWN
       timeout: 20000
-- assertVisible:
-      text: '.*Tomato · finely chopped.*'
 - scrollUntilVisible:
       element:
           text: 'For the marinade'

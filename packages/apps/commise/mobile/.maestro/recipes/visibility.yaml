@@ -30,11 +30,16 @@ appId: io.commise.mobile
 # optimistic update and writes the PATCH response straight into `recipe(id)`. So a radio that becomes CHECKED
 # means the change was stored. A failed PATCH leaves the old radio checked and the wait goes red.
 #
-# ⚠️ WHICH STATE FILTERS CAN FAIL. Each radio is TWO matchable nodes: the accessible radio (label as
+# ⚠️ WHICH STATE FILTERS CAN FAIL. On Android each radio is TWO matchable nodes: the accessible radio (label as
 # `accessibilityText`, carrying checked/enabled) and its visible `Text` child, which is never checked and never
 # disabled. So `checked: true` and `enabled: false` really test the radio. `checked: false` or `enabled: true`
 # would always match the child and prove nothing, which is why "enabled" is asserted as `assertNotVisible …
-# enabled: false`.
+# enabled: false`. iOS publishes ONE node per radio, with its texts merged into the label.
+#
+# ⚠️ The EDITOR's radios carry a hint under the title, so their accessible name is BOTH texts, joined by the platform:
+# `Private, Only you can see it` (run 38433716728's hierarchies, on both platforms). Maestro matches the WHOLE string,
+# so `Private` names only the Android `Text` child, which is never checked, and `Only you can see it` names nothing on
+# iOS. The editor leg therefore names the radio by its full label.
 #
 # Uses the run's "Mediterranean Grilled Lamb" (seeded PRIVATE, owned by the signer).
 - runFlow: ../auth/signin.yaml
@@ -49,14 +54,28 @@ appId: io.commise.mobile
 - tapOn: 'New recipe'
 - assertVisible: 'Close editor'
 - scrollUntilVisible:
-      element: 'Only you can see it'
+      element: 'Private, Only you can see it'
       direction: DOWN
       timeout: 30000
-- tapOn: 'Only you can see it'
+- tapOn: 'Private, Only you can see it'
 - assertNotVisible: 'Private recipes are part of Premium.'
-- assertVisible:
-      text: 'Private'
-      checked: true
+# Maestro reads `checked` on iOS only from a switch's `1`/`0` value; a React Native radio's value is the phrase
+# `radio button, checked` (run 38433716728). So iOS asserts that phrase on the radio below Public, which in a
+# two-radio group is Private.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'Private, Only you can see it'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'radio button, checked'
+                below: 'Public, Anyone can find it in Discover'
 - tapOn: 'Close editor'
 - assertVisible: 'Recipes'
 

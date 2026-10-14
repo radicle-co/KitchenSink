@@ -180,10 +180,13 @@ onFlowComplete:
       direction: UP
       timeout: 20000
 - setOrientation: LANDSCAPE_LEFT
+# Sideways, slowly, for the reason the scroll down to the field above gives: run 38447859313's default swipe carried the
+# Title across the window between two checks and ran out of time below it.
 - scrollUntilVisible:
       element: 'Maestro Landscape Draft'
       direction: UP
-      timeout: 20000
+      speed: 10
+      timeout: 40000
 
 # Throw the draft away through the editor's own header menu: × or Back would keep it, because the editor saves on
 # exit (build spec §3.5). The menu is in the pinned header, so it is reachable wherever the page is scrolled.

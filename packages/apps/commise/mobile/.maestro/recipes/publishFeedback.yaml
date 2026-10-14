@@ -10,8 +10,10 @@ appId: io.commise.mobile
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
 - assertVisible: 'Close editor'
-- tapOn: 'Title'
-- inputText: 'Maestro Feedback Soup'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Feedback Soup'
 
 # One ingredient declared as written (no food service needed) and one step: the least a recipe needs to publish.
 - scrollUntilVisible:
@@ -36,6 +38,13 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Add step'
 - inputText: 'Simmer.'
+# The step field keeps the iOS keyboard up over the action bar; a tap on the section heading closes it
+# (`common/typeTitle.yaml` says why a heading, and why not Return).
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - tapOn: 'Steps'
 
 - tapOn: 'Publish'
 - extendedWaitUntil:
@@ -53,6 +62,8 @@ appId: io.commise.mobile
 - assertVisible: 'Close editor'
 - tapOn: 'Title'
 - inputText: ' two'
+# Closes the keyboard before Save changes, for `common/typeTitle.yaml`'s reason.
+- tapOn: 'About the recipe'
 - tapOn: 'Save changes'
 - extendedWaitUntil:
       visible:

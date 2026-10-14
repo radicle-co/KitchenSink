@@ -17,8 +17,10 @@ appId: io.commise.mobile
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
-- tapOn: 'Title'
-- inputText: 'Maestro Row Variant'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Row Variant'
 
 # A variant-bound line: the root carrying its one "fried" variant.
 - scrollUntilVisible:
@@ -36,9 +38,10 @@ appId: io.commise.mobile
 
 # A root-bound line beside it. A prefix, so the field's own text never matches the option's name, and the option is
 # below the trailing field, where row 1's own name cannot be.
-- extendedWaitUntil:
-      visible:
-          text: 'Actions for boneless skinless chicken breasts, fried'
+- scrollUntilVisible:
+      element: 'Actions for boneless skinless chicken breasts, fried'
+      # The line lands above the add field the cook is at: one page, so it is UP.
+      direction: UP
       timeout: 30000
       label: 'the first line binds the "fried" variant'
 - tapOn: 'Add an ingredient'
@@ -54,8 +57,14 @@ appId: io.commise.mobile
       below: 'Add an ingredient'
 - scrollUntilVisible:
       element: 'Edit beef brisket'
-      direction: DOWN
+      # The line lands above the add field the cook is at: one page, so it is UP.
+      direction: UP
       timeout: 30000
+# The first line sits above it; bring it into view too, for the assertions over both.
+- scrollUntilVisible:
+      element: 'Edit boneless skinless chicken breasts'
+      direction: UP
+      timeout: 20000
 
 # The variant's parts sit under the root name, and the root-bound line shows the name only (R28).
 - assertVisible:

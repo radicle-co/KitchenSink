@@ -22,12 +22,14 @@ appId: io.commise.mobile
 - scrollUntilVisible:
       element: 'Coming soon'
       direction: DOWN
+# Each heading is matched with its badge optional: Android publishes the heading and "Soon" as two nodes, while iOS
+# merges them into one label (`This week’s meals, Soon`, run 38447859313), and Maestro matches the WHOLE string.
 - scrollUntilVisible:
-      element: 'This week’s meals'
+      element: 'This week’s meals(, Soon)?'
       direction: DOWN
-- assertVisible: 'Today’s nutrition'
-- assertVisible: 'Resume cooking'
-- assertVisible: 'Soon'
+- assertVisible: 'Today’s nutrition(, Soon)?'
+- assertVisible: 'Resume cooking(, Soon)?'
+- assertVisible: '(.*, )?Soon'
 
 # Tapping the recipe widget's entry point navigates into the recipes surface. It heads the Home surface, above the
 # placeholders, so scroll back up to it.

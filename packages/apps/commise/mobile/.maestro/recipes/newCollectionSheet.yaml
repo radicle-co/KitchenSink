@@ -23,7 +23,14 @@ appId: io.commise.mobile
 # A typed name is not lost to a stray close: Close asks first, and Keep editing keeps it.
 - tapOn: 'Name'
 - inputText: 'Maestro sheet collection'
-- hideKeyboard
+# The keyboard is closed on Android only. On iOS `hideKeyboard` fails over this field (run 38433716728: "Couldn't hide
+# the keyboard"), and it is not needed there: Close sits in the sheet's title row, above the keyboard. The return key
+# would not do either, because it creates the collection (the field's submit).
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - hideKeyboard
 - tapOn: 'Close'
 - assertVisible: 'Discard this collection\?'
 - tapOn: 'Keep editing'

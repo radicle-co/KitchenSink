@@ -20,8 +20,10 @@ appId: io.commise.mobile
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
-- tapOn: 'Title'
-- inputText: 'Maestro Nutrition Panel'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Nutrition Panel'
 
 - scrollUntilVisible:
       element: 'Add an ingredient'
@@ -39,7 +41,8 @@ appId: io.commise.mobile
 # The matched row is quiet (UI overhaul slice 8, build spec §7.5.1): its figures open from its ⋯ Food details.
 - scrollUntilVisible:
       element: 'Edit Flour'
-      direction: DOWN
+      # The line lands above the add field the cook is at: one page, so it is UP.
+      direction: UP
       timeout: 30000
 - tapOn: 'Actions for Flour'
 - tapOn: 'Food details'

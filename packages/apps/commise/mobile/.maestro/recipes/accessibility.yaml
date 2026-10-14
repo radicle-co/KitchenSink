@@ -69,8 +69,10 @@ appId: io.commise.mobile
 # behind the signer's public rows. Typing the title's base switches to the deterministic result list, while
 # the run-scoped title keeps the selector unique to this run. This still proves the a11y label on a discovery
 # result — the behavior this block owns — without coupling it to rail placement.
-- tapOn: 'Search recipes'
-- inputText: 'Risotto'
+- runFlow:
+      file: common/searchDiscover.yaml
+      env:
+          QUERY: 'Risotto'
 - scrollUntilVisible:
       element:
           text: '^${E2E_RECIPE_RISOTTO}$'

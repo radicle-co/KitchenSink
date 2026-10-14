@@ -846,6 +846,48 @@ describe('Combobox (native) — a drag on the page', () => {
         expect(field().getAttribute('aria-expanded')).toBe('false');
     });
 
+    /**
+     * The scroller TAKING the gesture is what cancels the list's touch. On Android, `ReactScrollView`'s
+     * `handleInterceptedTouchEvent` sends JS a `touchcancel` (`NativeGestureUtil.notifyNativeGestureStarted`) and only
+     * then emits the drag's start (`emitScrollBeginDragEvent`), so the cancel ARRIVES FIRST for every drag that began on
+     * the list. A cancel is therefore not the end of the gesture; it is the very drag the list must stay open for.
+     * `common/scrollOpenList.yaml` swipes from inside the list, so `edit` and `ingredientRemoteFoods` depend on it.
+     */
+    it('that begins inside the list keeps it open when the scroller cancels the touch first (Android order)', () => {
+        const { beginDrag } = renderInScroller();
+        type('fl');
+
+        fireEvent.touchStart(list(), touch);
+        fireEvent.touchCancel(list(), lifted);
+        act(() => beginDrag());
+
+        expect(field().getAttribute('aria-expanded')).toBe('true');
+        expect(screen.getByRole('button', { name: 'Flaxseed' })).toBeTruthy();
+    });
+
+    it('that begins inside the list keeps it open when the cancel follows the drag', () => {
+        const { beginDrag } = renderInScroller();
+        type('fl');
+
+        fireEvent.touchStart(list(), touch);
+        act(() => beginDrag());
+        fireEvent.touchCancel(list(), lifted);
+
+        expect(field().getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('shields only its own drag: the next drag, begun outside the list, closes it', () => {
+        const { beginDrag } = renderInScroller();
+        type('fl');
+
+        fireEvent.touchStart(list(), touch);
+        fireEvent.touchCancel(list(), lifted);
+        act(() => beginDrag());
+        act(() => beginDrag());
+
+        expect(field().getAttribute('aria-expanded')).toBe('false');
+    });
+
     it('with no scroller around it, nothing closes the list', () => {
         render(<Host />);
         type('fl');

@@ -11,7 +11,8 @@
  *   focused with its answerable list gone. A close the field chose — a pick — and a focus no list ever followed stay
  *   shut.
  * - A drag on the page closes the list unless it began on the list (`ScrollerDragContext`): with no scroller of its
- *   own, the list scrolls with the page under the finger.
+ *   own, the list scrolls with the page under the finger. A `touchcancel` does not end that touch: it is how the
+ *   scroller announces that it took the gesture (below).
  * - Each time the list goes from hidden to shown, the leaf asks the scroller's host to show the field and three option
  *   rows below it (`FieldRevealContext`, E1). The leaf holds no geometry, and the host decides. Closing the list or
  *   unmounting releases the request.
@@ -166,11 +167,19 @@ export const Combobox: FC<ComboboxProps> = ({
 
     // A drag on the page closes the open list unless it began inside it: the list has no scroller of its own (item 7),
     // so a drag that begins on it scrolls the page under the finger and keeps it open. Whether the touch began inside is
-    // tracked from the list's own touch events, in state.
+    // tracked from the list's own touch events, in state: set on its start, cleared on its end, and spent by the one
+    // drag it began.
+    //
+    // ⛔ A `touchcancel` does not clear it. The scroller TAKING the gesture is what cancels the list's touch, and on
+    // Android the cancel arrives BEFORE the drag's start (`ReactScrollView.handleInterceptedTouchEvent` calls
+    // `NativeGestureUtil.notifyNativeGestureStarted`, a cancel to JS, then `emitScrollBeginDragEvent`). Neither order
+    // may matter. A cancel no drag follows leaves the flag set until the next drag, which then keeps the list open once.
     const subscribeDrag = useContext(ScrollerDragContext);
     const [touchInList, setTouchInList] = useState(false);
     const onPageDrag = useEffectEvent((): void => {
-        if (!touchInList) {
+        if (touchInList) {
+            setTouchInList(false);
+        } else {
             setOpen(false);
         }
     });
@@ -303,7 +312,6 @@ export const Combobox: FC<ComboboxProps> = ({
                     accessibilityLabel={listLabel}
                     onTouchStart={() => setTouchInList(true)}
                     onTouchEnd={() => setTouchInList(false)}
-                    onTouchCancel={() => setTouchInList(false)}
                     style={[styles.list, { backgroundColor: colors.paperOverlay }]}
                 >
                     {status !== undefined && <StatusLine line={status} loadingIcon={loadingIcon} />}

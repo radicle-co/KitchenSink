@@ -2810,8 +2810,8 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientRow.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: entryCopy expanded inlineEditor panel row",
-                "native: amountColumn entryCopy expanded inlineEditor m panel row speak"
+                "web: arrived entryCopy expanded inlineEditor panel row",
+                "native: amountColumn arrived entryCopy expanded inlineEditor m onLayout panel row speak"
             ]
         },
         {

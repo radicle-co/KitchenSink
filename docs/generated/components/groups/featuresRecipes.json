@@ -6,11 +6,11 @@
     "coverage": {
         "components": 132,
         "implementations": 236,
-        "props": 1120,
+        "props": 1123,
         "documentedComponents": 132,
         "implementationsWithModuleDoc": 236,
         "implementationsWithComponentDoc": 136,
-        "documentedProps": 862,
+        "documentedProps": 865,
         "classifiedComponents": 114,
         "componentsWithPatternTag": 58,
         "crossPlatformComponents": 104
@@ -13816,6 +13816,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "arrived",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The row a pick just added, until the cook moves on: it wears the `selectedFill` tint, for the eye only\n(`docs/design/uiOverhaul/ingredientArrival.md`). Nothing is announced; the tint fades over 150 ms unless the cook\nprefers reduced motion, when it goes at once.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/IngredientRow.tsx"
+                        },
+                        {
                             "name": "entryCopy",
                             "type": "RowEntryFieldCopy",
                             "typeDetail": null,
@@ -13905,6 +13914,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/IngredientRow.native.tsx"
                         },
                         {
+                            "name": "arrived",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The row a pick just added, until the cook moves on: it wears the `selectedFill` tint, for the eye only\n(`docs/design/uiOverhaul/ingredientArrival.md`). Nothing is announced and nothing animates; native snaps it off.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/IngredientRow.native.tsx"
+                        },
+                        {
                             "name": "entryCopy",
                             "type": "RowEntryFieldCopy",
                             "typeDetail": null,
@@ -13938,6 +13956,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/IngredientRow.native.tsx"
+                        },
+                        {
+                            "name": "onLayout",
+                            "type": "((event: LayoutChangeEvent) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The row's layout, so the screen can say how far the field under it is from the row's top.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/IngredientRow.native.tsx"
                         },
                         {

@@ -205,6 +205,7 @@ describe('worldDivergences detects the divergences it exists to detect', () => {
         baseTitle: 'Lamb',
         description: 'Grilled lamb.',
         visibility: 'private',
+        cuisine: 'Greek',
         servings: 4,
         prepTimeMinutes: 15,
         cookTimeMinutes: 30,
@@ -229,6 +230,7 @@ describe('worldDivergences detects the divergences it exists to detect', () => {
         totalTimeMinutes: 45,
         servings: 4,
         visibility: 'private',
+        cuisine: 'Greek',
     };
     const seedDuck: SeedRecipe = { ...seedLamb, id: 'duck-id', ownerId: SEED_OWNER_PRO, title: 'Duck' };
     const line = (id: string, recipeId: string, name: string, quantity: number, unit: string) =>
@@ -276,6 +278,7 @@ describe('worldDivergences detects the divergences it exists to detect', () => {
         ['total time changed in seed.ts', [lamb], withSeedLamb({ totalTimeMinutes: 40 }), 'totalTimeMinutes'],
         ['description changed in seed.ts', [lamb], withSeedLamb({ description: 'Lamb.' }), 'description'],
         ['visibility changed in the fixture world', withLamb({ visibility: 'public' }), seedWorld, 'visibility'],
+        ['cuisine changed in seed.ts', [lamb], withSeedLamb({ cuisine: 'Turkish' }), 'cuisine'],
         ['owner changed in seed.ts', [lamb], withSeedLamb({ ownerId: SEED_OWNER_PRO }), 'owner'],
         ['owner in seed.ts that is neither identity', [lamb], withSeedLamb({ ownerId: 'nobody' }), 'owner'],
         [

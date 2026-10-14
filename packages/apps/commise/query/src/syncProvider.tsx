@@ -12,6 +12,8 @@
  *
  * @pattern Command Processor composed with an Observer subscription — the drainer is the processor, and
  *     `onlineManager` is the trigger; both are injected, so this file owns wiring and nothing else.
+ * @pattern Coalescing single-flight per cook — each pass runs in that cook's `drainLaneFor` lane, gated by the
+ *     provider's session gate so a drain that outlives its cook claims and announces nothing more.
  */
 import {
     EMPTY_OUTBOX,

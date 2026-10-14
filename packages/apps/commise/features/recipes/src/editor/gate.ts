@@ -7,7 +7,13 @@
  */
 import { recipeStepInstructionSchema } from '@kitchensink/recipe-core';
 
-import { descriptionFieldId, ingredientAddFieldId, stepFieldId, titleFieldId } from '../form/fieldIds.js';
+import {
+    cuisineFieldId,
+    descriptionFieldId,
+    ingredientAddFieldId,
+    stepFieldId,
+    titleFieldId,
+} from '../form/fieldIds.js';
 import type { RecipeFormErrors } from '../form/validate.js';
 import type { RecipeFormValues } from '../form/values.js';
 import { firstSectionWithErrors, type EditorSectionId } from './sections.js';
@@ -50,6 +56,11 @@ export function firstInvalidFieldOf(errors: RecipeFormErrors, values: RecipeForm
 
     if (errors.description !== undefined) {
         return descriptionFieldId;
+    }
+
+    // Page order: the cuisine sits in Details after the description, and servings and times have no single control.
+    if (errors.cuisine !== undefined) {
+        return cuisineFieldId;
     }
 
     if (errors.ingredients === 'ingredientsEmpty' || errors.ingredients === 'ingredientsPendingText') {

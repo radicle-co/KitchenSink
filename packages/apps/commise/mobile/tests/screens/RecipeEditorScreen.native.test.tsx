@@ -202,6 +202,7 @@ describe('RecipeEditorScreen (native)', () => {
         const draft = makeRecipeDetail({
             id: 'rec_1',
             title: 'Ready Stew',
+            cuisine: 'Irish',
             status: RecipeStatus.DRAFT,
             currentVersion: 2,
         });
@@ -233,6 +234,7 @@ describe('RecipeEditorScreen (native)', () => {
         const draft = makeRecipeDetail({
             id: 'rec_1',
             title: 'Ready Stew',
+            cuisine: 'Irish',
             status: RecipeStatus.DRAFT,
             visibility: RecipeVisibility.PRIVATE,
             currentVersion: 2,
@@ -439,7 +441,7 @@ describe('RecipeEditorScreen (native) — Discard with a parked save', () => {
     it('says the save may have gone through, withdraws it, and leaves for the recipe', async () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-            makeRecipeDetail({ id: 'rec_1', title: 'Stored Stew', status: RecipeStatus.PUBLISHED }),
+            makeRecipeDetail({ id: 'rec_1', title: 'Stored Stew', cuisine: 'Irish', status: RecipeStatus.PUBLISHED }),
         );
         const update = vi.spyOn(client, 'updateRecipe').mockRejectedValue(new TypeError('Failed to fetch'));
         const store = createMemoryOutboxStore();

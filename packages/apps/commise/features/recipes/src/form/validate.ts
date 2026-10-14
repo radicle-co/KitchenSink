@@ -9,7 +9,12 @@
  * Pure and platform-agnostic: shared unchanged by the web (`*.tsx`) and native (`*.native.tsx`) form
  * leaves and by the app container, so the two renders can never drift. No React, no platform APIs.
  */
-import { recipeStepInstructionSchema, recipeTitleSchema } from '@kitchensink/recipe-core';
+import {
+    canonicalCuisine,
+    recipeCuisineSchema,
+    recipeStepInstructionSchema,
+    recipeTitleSchema,
+} from '@kitchensink/recipe-core';
 
 import { DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH } from './limits.js';
 import { type RecipeFormValues } from './values.js';
@@ -28,6 +33,10 @@ export type RecipeFormErrorCode =
     | 'titleTooLongToSave'
     /** Past the 256 publish limit (owner 2026-10-13): Publish is refused, a draft still saves (`draftFloorErrors`). */
     | 'descriptionTooLong'
+    /** Publish needs a cuisine (owner 2026-10-13); a draft saves without one. */
+    | 'cuisineRequired'
+    /** Past the wire's 100, measured on the canonical form: even a draft cannot be saved (`draftFloorErrors`). */
+    | 'cuisineTooLong'
     | 'ingredientsPendingText'
     | 'ingredientsEmpty'
     | 'ingredientsUnresolved'
@@ -40,6 +49,7 @@ export type RecipeFormErrorCode =
 export interface RecipeFormErrors {
     title?: RecipeFormErrorCode;
     description?: RecipeFormErrorCode;
+    cuisine?: RecipeFormErrorCode;
     ingredients?: RecipeFormErrorCode;
     steps?: RecipeFormErrorCode;
     servings?: RecipeFormErrorCode;
@@ -159,6 +169,12 @@ export const validateRecipeForm = (values: RecipeFormValues, pendingEntryText: s
         errors.description = 'descriptionTooLong';
     }
 
+    const cuisine = cuisineErrorOf(values.cuisine);
+
+    if (cuisine !== undefined) {
+        errors.cuisine = cuisine;
+    }
+
     if (hasEntryText(pendingEntryText)) {
         errors.ingredients = 'ingredientsPendingText';
     } else if (values.ingredients.length === 0) {
@@ -215,20 +231,40 @@ const titleErrorOf = (raw: string): 'titleRequired' | 'titleTooLongToSave' | und
 };
 
 /**
+ * What the WIRE and the publish rule say about a cuisine (owner rulings 2026-10-13). Judged on `canonicalCuisine`, the
+ * form the wire parses it to and the service stores, so the editor and the service agree on both the empty case and
+ * the bound (the bound runs after canonicalising there too). Pure.
+ *
+ * @param raw - The cuisine as typed.
+ * @returns The code, or `undefined` when the cuisine may be published.
+ */
+const cuisineErrorOf = (raw: string): 'cuisineRequired' | 'cuisineTooLong' | undefined => {
+    const cuisine = canonicalCuisine(raw);
+
+    if (cuisine === '') {
+        return 'cuisineRequired';
+    }
+
+    return recipeCuisineSchema.safeParse(cuisine).success ? undefined : 'cuisineTooLong';
+};
+
+/**
  * The floor a SERVER write of a draft checks (blueprint A4; `editor/checkpointPolicy.ts`'s `draftFloorMet`): only what
- * the wire refuses outright — a title (within the wire's bound, not the publish limit), positive servings and
- * non-negative times. Ingredients and steps may be empty, and are wire-legal as empty arrays on an update. A write the
+ * the wire refuses outright — a title (within the wire's bound, not the publish limit), a cuisine within the wire's
+ * bound (but none is needed), positive servings and non-negative times. Ingredients and steps may be empty, and are wire-legal as empty arrays on an update. A write the
  * floor would refuse is never asked for, so a checkpoint cannot loop on a `400`. Pure.
  *
  * @param values - The editor's form values.
  * @returns The errors that keep the draft on the device (empty when a server write may go ahead).
  */
 export const draftFloorErrors = (values: RecipeFormValues): RecipeFormErrors => {
-    const { servings, times } = validateRecipeForm(values, '');
+    const { servings, times, cuisine } = validateRecipeForm(values, '');
     const title = titleErrorOf(values.title);
 
     return {
         ...(title === undefined ? {} : { title }),
+        // A draft may lack a cuisine; it may not carry one the wire refuses.
+        ...(cuisine === 'cuisineTooLong' ? { cuisine } : {}),
         ...(servings === undefined ? {} : { servings }),
         ...(times === undefined ? {} : { times }),
     };

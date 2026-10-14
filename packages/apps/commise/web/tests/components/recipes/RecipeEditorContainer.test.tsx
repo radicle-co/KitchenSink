@@ -23,7 +23,14 @@ import { RecipeEditorContainer } from '@/components/recipes/RecipeEditorContaine
 import { webDeviceStore } from '@/components/recipes/deviceSession';
 import { editorDraftsFor } from '@/components/recipes/editorDrafts';
 
-import { makeRecipeDetail } from './__fixtures__/recipeFixtures';
+import { makeRecipeDetail as makeBaseRecipeDetail } from './__fixtures__/recipeFixtures';
+
+/**
+ * A recipe as the editor meets one: with a cuisine, which Publish needs since 2026-10-13. These cases are about the
+ * container's hand-offs, not the cuisine rule (`validate.test.ts` owns that).
+ */
+const makeRecipeDetail = (...[overrides]: Parameters<typeof makeBaseRecipeDetail>) =>
+    makeBaseRecipeDetail({ cuisine: 'Italian', ...overrides });
 
 const { pushMock, replaceMock, profile, auth } = vi.hoisted(() => ({
     pushMock: vi.fn(),
@@ -204,6 +211,7 @@ describe('RecipeEditorContainer (web)', () => {
         const { photos: _photos, ...values } = {
             ...defaultRecipeFormValues(),
             title: 'Private Stew',
+            cuisine: 'Irish',
             visibility: RecipeVisibility.PRIVATE,
             ingredients: [
                 {

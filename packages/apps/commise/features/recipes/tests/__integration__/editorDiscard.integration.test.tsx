@@ -8,13 +8,20 @@
  */
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { RecipeStatus } from '@kitchensink/recipe-core';
-import { makeRecipeDetail } from '@kitchensink/recipe-core/testing';
+import { makeRecipeDetail as makeBaseRecipeDetail } from '@kitchensink/recipe-core/testing';
 import { DEFAULT_REQUEST_TIMEOUT_MS, RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DraftStore } from '../../src/editor/draftStore.js';
 import { useRecipeEditor, type EditorSeed } from '../../src/hooks/useRecipeEditor.js';
 import { makeOutboxPort } from './outboxPort.js';
+
+/**
+ * A recipe as the editor meets one: with a cuisine, which Publish needs since 2026-10-13. These cases are about the
+ * editor's machinery, not the cuisine rule (`form/__tests__/validate.test.ts` owns that).
+ */
+const makeRecipeDetail = (...[overrides]: Parameters<typeof makeBaseRecipeDetail>) =>
+    makeBaseRecipeDetail({ cuisine: 'Italian', ...overrides });
 
 afterEach(cleanup);
 

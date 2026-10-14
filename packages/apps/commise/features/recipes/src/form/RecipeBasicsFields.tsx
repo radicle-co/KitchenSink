@@ -5,7 +5,8 @@
  * - About the recipe: the title (one line however it arrives, a soft 120 limit counted on the trimmed text) and the
  *   description (a soft cap with a counter from 80%).
  * - Time and servings: a stepper, prep and cook as durations that never show a "0", and the computed total.
- * - Kind of dish: the cuisine select, and the meal-type and difficulty choice rows, each clearable.
+ * - Kind of dish: the cuisine (free text with the suggested list, `useCuisineField`), and the meal-type and difficulty
+ *   choice rows, each clearable.
  * - Diet and tags: the two chip inputs.
  *
  * Presentational and controlled: every edit goes up through `onChange`. The one listener on the frame reports a field
@@ -25,7 +26,7 @@ import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import { ChipInput } from './ChipInput.js';
 import { readLimit, singleLine } from './fieldText.js';
-import { descriptionErrorId, servingsErrorId, timesErrorId, titleErrorId } from './fieldErrorIds.js';
+import { cuisineErrorId, descriptionErrorId, servingsErrorId, timesErrorId, titleErrorId } from './fieldErrorIds.js';
 import {
     cuisineFieldId,
     describedByOf,
@@ -40,15 +41,17 @@ import {
 import { DESCRIPTION_COUNTER_FROM, DESCRIPTION_MAX_LENGTH, TITLE_COUNTER_FROM, TITLE_MAX_LENGTH } from './limits.js';
 import { recipeFormMessages } from './messages.js';
 import { durationOfMinutes, minutesOfDuration } from './minutesDuration.js';
+import { MAX_RECIPE_CUISINE_LENGTH } from '@kitchensink/recipe-core';
+
 import {
     applyDraftAction,
-    cuisineSuggestions,
     statedChoice,
     statedDifficultyOptions,
     statedMealTypeOptions,
     type RecipeEditorSectionProps,
 } from './props.js';
 import { computeTotalTime } from './totalTime.js';
+import { useCuisineField } from './useCuisineField.js';
 import type { RecipeFormValues } from './values.js';
 
 /** A field's message under it (§7.8): the `label` role in `dangerText`. */
@@ -106,6 +109,14 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
     );
     const difficulties = statedDifficultyOptions(m);
     const mealTypes = statedMealTypeOptions(m);
+    const cuisine = useCuisineField({
+        value: values.cuisine,
+        onChange: (next) => onChange({ ...values, cuisine: next }),
+    });
+    const cuisineMessage =
+        errors?.cuisine === undefined
+            ? undefined
+            : fillTemplate(m.errors[errors.cuisine], { max: MAX_RECIPE_CUISINE_LENGTH });
 
     const counterText = (count: number, max: number): string => fillTemplate(e.details.titleCounter, { count, max });
 
@@ -250,26 +261,25 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
 
             <Group heading={m.groups.kindOfDish}>
                 <div className="grid grid-cols-1 gap-4 @regular/main:grid-cols-2">
-                    {/* P3 (build spec §7.4): a Combobox over the curated list. The cuisine is a free string on the wire,
-                        so the field holds what the cook typed or picked; Escape clears it. */}
+                    {/* `cuisineField.md` §3: free text, the typed text IS the value (`typedText="isValue"`), with the
+                        90 suggestions and the cook's own words as "Use “…”". Escape on a closed list clears it. */}
                     <Combobox
                         id={cuisineFieldId}
                         label={m.cuisineLabel}
                         listLabel={m.cuisineListLabel}
-                        value={values.cuisine}
-                        onValueChange={(cuisine) => onChange({ ...values, cuisine })}
-                        groups={[
-                            {
-                                key: 'cuisines',
-                                options: cuisineSuggestions(values.cuisine).map((cuisine) => ({
-                                    key: cuisine,
-                                    label: cuisine,
-                                })),
-                            },
-                        ]}
-                        onSelect={(cuisine) => onChange({ ...values, cuisine })}
+                        hint={m.cuisineHint}
+                        {...cuisine}
                         onAbandon={() => onChange({ ...values, cuisine: '' })}
-                        countAnnouncement=""
+                        invalid={cuisineMessage !== undefined}
+                        {...(cuisineMessage === undefined ? {} : { describedBy: cuisineErrorId })}
+                        belowField={
+                            cuisineMessage === undefined ? undefined : (
+                                <p id={cuisineErrorId} className={fieldMessage} role="alert">
+                                    {cuisineMessage}
+                                </p>
+                            )
+                        }
+                        typedText="isValue"
                         openOnFocus
                     />
                     <div className="flex flex-col gap-1">

@@ -247,6 +247,8 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
                 titleTooLong: 'Title too long',
                 titleTooLongToSave: 'Title too long to save',
                 descriptionTooLong: 'Description too long',
+                cuisineRequired: 'Cuisine needed',
+                cuisineTooLong: 'Cuisine too long',
                 ingredientsPendingText: 'Add or clear the line you typed',
                 ingredientsUnresolved: { one: '{count} needs a match', other: '{count} need a match' },
                 ingredientsQuantityInvalid: { one: '{count} amount to fix', other: '{count} amounts to fix' },

@@ -26,6 +26,7 @@ export type EditorSectionId = (typeof EDITOR_SECTIONS)[number];
 const FIELD_SECTION: Readonly<Record<keyof RecipeFormErrors, EditorSectionId>> = {
     title: 'details',
     description: 'details',
+    cuisine: 'details',
     servings: 'details',
     times: 'details',
     ingredients: 'ingredients',

@@ -45,13 +45,14 @@ export type AttentionReason =
     | 'titleTooLong'
     | 'titleTooLongToSave'
     | 'descriptionTooLong'
+    | 'cuisineTooLong'
     | 'servingsPositive'
     | 'timesNonNegative'
     | 'ingredientsUnresolved'
     | 'ingredientsQuantityInvalid';
 
 /** Something entered, but a field Publish needs is missing. */
-export type InProgressReason = 'titleRequired' | 'ingredientsPendingText' | 'stepBlank';
+export type InProgressReason = 'titleRequired' | 'cuisineRequired' | 'ingredientsPendingText' | 'stepBlank';
 
 /** One section's status. */
 export type SectionStatus =
@@ -151,6 +152,10 @@ function detailsStatus(input: SectionStatusInput, errors: RecipeFormErrors): Sec
         attention.push('descriptionTooLong');
     }
 
+    if (own.cuisine === 'cuisineTooLong') {
+        attention.push('cuisineTooLong');
+    }
+
     if (own.servings !== undefined) {
         attention.push('servingsPositive');
     }
@@ -165,7 +170,12 @@ function detailsStatus(input: SectionStatusInput, errors: RecipeFormErrors): Sec
         return { kind: 'attention', reason: first, count: attention.length };
     }
 
-    return detailsEntered(input.values) ? { kind: 'inProgress', reason: 'titleRequired' } : NOT_STARTED;
+    if (!detailsEntered(input.values)) {
+        return NOT_STARTED;
+    }
+
+    // The title reason wins when both are missing: it is first on the page.
+    return { kind: 'inProgress', reason: own.title === undefined ? 'cuisineRequired' : 'titleRequired' };
 }
 
 /** Whether the cook has typed anything in Details: a field that differs from a new recipe's. */

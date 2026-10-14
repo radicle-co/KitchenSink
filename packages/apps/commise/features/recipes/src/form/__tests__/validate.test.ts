@@ -4,7 +4,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { makeFilledRecipeFormValues, withLineKeys } from '../../__fixtures__/index.js';
-import { MAX_RECIPE_TITLE_LENGTH, recipeIngredientQuantitySchema } from '@kitchensink/recipe-core';
+import {
+    MAX_RECIPE_CUISINE_LENGTH,
+    MAX_RECIPE_TITLE_LENGTH,
+    recipeIngredientQuantitySchema,
+} from '@kitchensink/recipe-core';
 import { DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH } from '../limits.js';
 import { mintedLineKey } from '../lineKey.js';
 import { applyDraftAction } from '../props.js';
@@ -39,6 +43,23 @@ describe('validateRecipeForm', () => {
         expect(validateRecipeForm(withDescription('a'.repeat(DESCRIPTION_MAX_LENGTH + 1)), '').description).toBe(
             'descriptionTooLong',
         );
+    });
+
+    it('⛔ requires a cuisine to publish (owner 2026-10-13), judged on the canonical form', () => {
+        expect(validateRecipeForm(makeFilledRecipeFormValues({ cuisine: '' }), '').cuisine).toBe('cuisineRequired');
+        expect(validateRecipeForm(makeFilledRecipeFormValues({ cuisine: '   ' }), '').cuisine).toBe('cuisineRequired');
+        // Free text is a cuisine: the list is a suggestion, never a closed set.
+        expect(validateRecipeForm(makeFilledRecipeFormValues({ cuisine: 'nyonya' }), '')).toEqual({});
+    });
+
+    it('refuses a cuisine past the wire’s 100, measured as it will be stored', () => {
+        const withCuisine = (cuisine: string) => validateRecipeForm(makeFilledRecipeFormValues({ cuisine }), '');
+
+        expect(withCuisine('a'.repeat(MAX_RECIPE_CUISINE_LENGTH))).toEqual({});
+        expect(withCuisine(` ${'a'.repeat(MAX_RECIPE_CUISINE_LENGTH)}  `)).toEqual({});
+        expect(withCuisine('a'.repeat(MAX_RECIPE_CUISINE_LENGTH + 1)).cuisine).toBe('cuisineTooLong');
+        // `ß` upper-cases to `SS`: 100 typed characters become 101 once canonical, which the service refuses.
+        expect(withCuisine(`ß${'a'.repeat(MAX_RECIPE_CUISINE_LENGTH - 1)}`).cuisine).toBe('cuisineTooLong');
     });
 
     it('requires at least one ingredient and one step', () => {
@@ -378,6 +399,13 @@ describe('draftFloorErrors', () => {
         expect(
             draftFloorErrors(makeFilledRecipeFormValues({ description: 'a'.repeat(DESCRIPTION_MAX_LENGTH * 4) })),
         ).toEqual({});
+    });
+
+    it('⛔ lets a draft save with no cuisine, and refuses one the wire would refuse', () => {
+        expect(draftFloorErrors(makeFilledRecipeFormValues({ cuisine: '' }))).toEqual({});
+        expect(
+            draftFloorErrors(makeFilledRecipeFormValues({ cuisine: 'a'.repeat(MAX_RECIPE_CUISINE_LENGTH + 1) })),
+        ).toEqual({ cuisine: 'cuisineTooLong' });
     });
 
     it('refuses the numbers the wire refuses', () => {

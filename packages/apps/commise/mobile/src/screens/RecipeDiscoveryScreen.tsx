@@ -49,7 +49,7 @@ import {
     isDiscoverySearching,
     noResultKindOf,
     recipeIdPagesOf,
-    showsCuisineShortcuts,
+    cuisineShortcutsOf,
     tryTheseTagsOf,
     useFilterPresentation,
     useMainContainerClass,
@@ -426,12 +426,10 @@ export function RecipeDiscoveryScreen({
         setBrowseDismissed(true);
     };
 
-    const cuisines: readonly RecipeBrowseCuisineShortcut[] = showsCuisineShortcuts(facets.cuisine)
-        ? (facets.cuisine ?? []).map((facet) => ({
-              value: facet.value,
-              onSelect: () => onFilterAction({ kind: 'setCuisine', cuisine: facet.value }),
-          }))
-        : [];
+    const cuisines: readonly RecipeBrowseCuisineShortcut[] = cuisineShortcutsOf(facets.cuisine).map((cuisine) => ({
+        value: cuisine,
+        onSelect: () => onFilterAction({ kind: 'setCuisine', cuisine }),
+    }));
 
     const view = filterBarViewOf({ facets, filters, viewState: ingredientSearch.viewState }, filterCopy);
     const ingredients = {

@@ -334,7 +334,7 @@ export { RecipeDiscoveryLoading } from './discovery/RecipeDiscoveryLoading.js';
 export { RecipeDiscoveryResults } from './discovery/RecipeDiscoveryResults.js';
 export { DiscoveryFooter } from './discovery/DiscoveryFooter.js';
 export { DiscoverySortMenu } from './discovery/DiscoverySortMenu.js';
-export { noResultKindOf, showsCuisineShortcuts, tryTheseTagsOf } from './discovery/noResults.js';
+export { cuisineShortcutsOf, noResultKindOf, showsCuisineShortcuts, tryTheseTagsOf } from './discovery/noResults.js';
 export type { NoResultKind } from './discovery/noResults.js';
 export { discoveryMessages } from './discovery/messages.js';
 export {

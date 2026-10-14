@@ -21,7 +21,15 @@ import { DEFAULT_REQUEST_TIMEOUT_MS } from '@kitchensink/recipe-service-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { makeFakeEditorWritePort as fakePort } from '../../__fixtures__/editorWritePort.js';
-import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
+import { makeIngredientView, makeRecipeDetail as makeBaseRecipeDetail } from '../../__fixtures__/index.js';
+
+/**
+ * A recipe as the editor meets one: with a cuisine, which Publish needs since 2026-10-13. The shared Object Mother states
+ * none, and every Publish case here is about the editor's machinery, not the cuisine rule (`validate.test.ts` owns it).
+ */
+const makeRecipeDetail = (...[overrides]: Parameters<typeof makeBaseRecipeDetail>) =>
+    makeBaseRecipeDetail({ cuisine: 'Italian', ...overrides });
+
 import { DEVICE_SAVE_IDLE_MS, SERVER_CHECKPOINT_IDLE_MS } from '../../editor/checkpointPolicy.js';
 import { createPasteHold, type PasteHold } from '../../editor/pasteHold.js';
 import type { DraftMemento, DraftStore } from '../../editor/draftStore.js';
@@ -576,8 +584,13 @@ describe('Publish', () => {
         });
         await settle();
 
-        expect(outcome).toMatchObject({ kind: 'refused', section: 'ingredients' });
-        expect(result.current.errors).toMatchObject({ ingredients: 'ingredientsEmpty', steps: 'stepsRequired' });
+        // A title alone: the cuisine is missing too (owner 2026-10-13), and Details comes first in page order.
+        expect(outcome).toMatchObject({ kind: 'refused', section: 'details' });
+        expect(result.current.errors).toMatchObject({
+            cuisine: 'cuisineRequired',
+            ingredients: 'ingredientsEmpty',
+            steps: 'stepsRequired',
+        });
         expect(result.current.publishAttempted).toBe(true);
         expect(port.submitExclusive).not.toHaveBeenCalled();
     });

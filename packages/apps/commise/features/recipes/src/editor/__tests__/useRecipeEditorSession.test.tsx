@@ -18,7 +18,15 @@ import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { makeFakeEditorWritePort } from '../../__fixtures__/editorWritePort.js';
-import { makeRecipeDetail } from '../../__fixtures__/index.js';
+import { makeRecipeDetail as makeBaseRecipeDetail } from '../../__fixtures__/index.js';
+
+/**
+ * A recipe as the editor meets one: with a cuisine, which Publish needs since 2026-10-13. The shared Object Mother states
+ * none, and every Publish case here is about the editor's machinery, not the cuisine rule (`validate.test.ts` owns it).
+ */
+const makeRecipeDetail = (...[overrides]: Parameters<typeof makeBaseRecipeDetail>) =>
+    makeBaseRecipeDetail({ cuisine: 'Italian', ...overrides });
+
 import { toRecipeFormValues } from '../../form/wire.js';
 import type { EditorSeed } from '../../hooks/useRecipeEditor.js';
 import type { DraftStore } from '../draftStore.js';

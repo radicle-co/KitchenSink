@@ -64,7 +64,7 @@ import {
     isDiscoverySearching,
     noResultKindOf,
     recipeIdPagesOf,
-    showsCuisineShortcuts,
+    cuisineShortcutsOf,
     tryTheseTagsOf,
     useFilterPresentation,
     useMainContainerClass,
@@ -412,13 +412,10 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
         setBrowseDismissed(true);
     };
 
-    const cuisines: readonly RecipeBrowseCuisineShortcut[] = showsCuisineShortcuts(facets.cuisine)
-        ? (facets.cuisine ?? []).map((facet) => ({
-              value: facet.value,
-              onSelect: () =>
-                  applyCriteria(applyFilterAction(filters, { kind: 'setCuisine', cuisine: facet.value }), searchInput),
-          }))
-        : [];
+    const cuisines: readonly RecipeBrowseCuisineShortcut[] = cuisineShortcutsOf(facets.cuisine).map((cuisine) => ({
+        value: cuisine,
+        onSelect: () => applyCriteria(applyFilterAction(filters, { kind: 'setCuisine', cuisine }), searchInput),
+    }));
 
     const view = filterBarViewOf({ facets, filters, viewState: ingredientSearch.viewState }, filterCopy);
     const search = {

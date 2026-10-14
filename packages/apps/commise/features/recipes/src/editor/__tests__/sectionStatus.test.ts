@@ -85,6 +85,32 @@ describe('Details', () => {
         expect(statuses(exact).details).toEqual({ kind: 'complete' });
     });
 
+    it('is in progress with "cuisine needed" when the title is there and the cuisine is not (owner 2026-10-13)', () => {
+        const values = makeFilledRecipeFormValues({ cuisine: '' });
+
+        expect(statuses(values).details).toEqual({ kind: 'inProgress', reason: 'cuisineRequired' });
+        // Not "complete", so Photos & publish is not ready either.
+        expect(statuses(values).photos).toEqual({ kind: 'optional' });
+    });
+
+    it('says "title needed" first when both the title and the cuisine are missing', () => {
+        const values = { ...defaultRecipeFormValues(), description: 'Creamy.' };
+
+        expect(statuses(values).details).toEqual({ kind: 'inProgress', reason: 'titleRequired' });
+    });
+
+    it('counts the missing cuisine in "Fix {count} things" after a refused Publish', () => {
+        const values = makeFilledRecipeFormValues({ title: '', cuisine: '' });
+
+        expect(statuses(values, { attempted: true }).details).toEqual({ kind: 'fix', count: 2 });
+    });
+
+    it('needs attention for a cuisine past the wire`s 100, which even a draft cannot save', () => {
+        const values = makeFilledRecipeFormValues({ cuisine: 'a'.repeat(101) });
+
+        expect(statuses(values).details).toEqual({ kind: 'attention', reason: 'cuisineTooLong', count: 1 });
+    });
+
     it('is complete at exactly the limit', () => {
         expect(statuses(makeFilledRecipeFormValues({ title: 'a'.repeat(TITLE_MAX_LENGTH) })).details).toEqual({
             kind: 'complete',

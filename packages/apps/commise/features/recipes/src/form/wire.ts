@@ -19,7 +19,7 @@
  * Pure and platform-agnostic: shared unchanged by the web (`*.tsx`) and native (`*.native.tsx`) form
  * leaves and by the app container, so the two renders can never drift. No React, no platform APIs.
  */
-import { quantityLowerBound, type RecipeDetail, type RecipeStatus } from '@kitchensink/recipe-core';
+import { canonicalCuisine, quantityLowerBound, type RecipeDetail, type RecipeStatus } from '@kitchensink/recipe-core';
 import type { CreateRecipeRequest, UpdateRecipeRequest } from '@kitchensink/schema-recipe';
 import { type RecipeFormValues } from './values.js';
 import { isStoredLine, seedLineKey } from './lineKey.js';
@@ -41,7 +41,9 @@ import { draftQuantity } from './quantity.js';
 export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeStatus): CreateRecipeRequest => ({
     title: values.title.trim(),
     ...(values.description.trim() === '' ? {} : { description: values.description.trim() }),
-    ...(values.cuisine.trim() === '' ? {} : { cuisine: values.cuisine.trim() }),
+    // The canonical form (`cuisineField.md` §2): the field commits it already; this is the safety net, and the wire parse
+    // applies it a third time. Empty is absent, as for every optional string here.
+    ...(canonicalCuisine(values.cuisine) === '' ? {} : { cuisine: canonicalCuisine(values.cuisine) }),
     // Difficulty is optional on create with NO clear sentinel: carry it only when stated, omit otherwise.
     ...(values.difficulty === undefined ? {} : { difficulty: values.difficulty }),
     // Meal type follows the SAME create rule, for the same reason: there is nothing to clear on a recipe
@@ -88,9 +90,10 @@ export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeSta
 
 /**
  * Map form values to the service's published `UpdateRecipeRequest` body, minus the `expectedVersion`
- * optimistic-concurrency token the caller adds. Identical to {@link toCreateRecipeInput} for every field
- * EXCEPT two, and both exceptions are the contract's, not this function's.
+ * optimistic-concurrency token the caller adds. Identical to {@link toCreateRecipeInput} except where the
+ * contract differs: the three-state fields and `visibility`.
  *
+ * `difficulty`, `mealType` and `cuisine` are three-state on update; the rule is stated here for `difficulty`.
  * `difficulty` is three-state on update (omit = unchanged, value = set, `null` = clear). The edit form is
  * seeded from the recipe's current difficulty, so the field's presence encodes the user's INTENT: a present
  * value means "set/keep this difficulty", and an ABSENT value means the user chose "not stated" and wants it
@@ -129,6 +132,9 @@ export const toUpdateRecipeInput = (
         difficulty: values.difficulty ?? null,
         // Identical three-state rule for meal type (U34) — see `difficulty` directly above.
         mealType: values.mealType ?? null,
+        // And for the cuisine (2026-10-13): an emptied field CLEARS it. An omit would leave the server's old value, so
+        // the editor would say "Cuisine needed" over a recipe the server still holds a cuisine for.
+        cuisine: rest.cuisine ?? null,
     };
 };
 

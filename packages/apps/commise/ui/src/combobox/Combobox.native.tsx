@@ -232,12 +232,15 @@ export const Combobox: FC<ComboboxProps> = ({
         }
 
         setOpen(false);
-        onSelect(option.key);
 
         // A pick of a value the typed text could also have been is the end of the entry: the keyboard goes too (P1).
+        // ⛔ BEFORE `onSelect`: dismissing blurs the field, and a blur can report synchronously (react-native-web) with
+        // the host's handlers still holding the text as typed. Dismissing first lets the pick be the last word.
         if (typedIsValue) {
             Keyboard.dismiss();
         }
+
+        onSelect(option.key);
     };
 
     const renderOption = (option: ComboboxOption) => (

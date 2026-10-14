@@ -398,44 +398,86 @@ describe('RecipeBasicsFields (web) — prep, cook and total', () => {
     });
 });
 
-// P3 (build spec §7.4: "Cuisine `Combobox`"): the cuisine is a text field with a list of suggestions, not a select. The
-// wire type is a free string (`CUISINES` is only a display list), so a custom cuisine is what the cook typed.
+// The Cuisine field (`docs/design/uiOverhaul/cuisineField.md` §3, owner rulings 2026-10-13): free text with the 90
+// suggestions under it, filtered by what the cook types; the cook's own words are a value too, offered as "Use “…”".
+// One case per state of §3.1 (S1–S9; S10, disabled, does not occur — the editor never disables this field).
 describe('RecipeBasicsFields (web) — cuisine', () => {
     const cuisineField = (): HTMLInputElement =>
         screen.getByRole<HTMLInputElement>('combobox', { name: m.cuisineLabel });
+    const listbox = (): HTMLElement => screen.getByRole('listbox', { name: m.cuisineListLabel });
     const suggestions = (): string[] =>
-        within(screen.getByRole('listbox', { name: m.cuisineListLabel }))
+        within(listbox())
             .getAllByRole('option')
             .map((option) => option.textContent ?? '');
 
-    it('is a Combobox with a visible label, holding the current cuisine', () => {
-        renderLive();
+    it('S1 — a visible label, the hint under it describing the field, and no list', () => {
+        renderLive({ initial: filled({ cuisine: '' }) });
 
-        expect(cuisineField().value).toBe('Italian');
         expect(screen.getByText(m.cuisineLabel, { selector: 'label' }).getAttribute('for')).toBe(cuisineField().id);
+        const hint = screen.getByText(m.cuisineHint);
+        expect(cuisineField().getAttribute('aria-describedby')?.split(' ')).toContain(hint.id);
+        // No `aria-required`: a draft saves without a cuisine, so the field claims no refusal that never comes.
+        expect(cuisineField().hasAttribute('aria-required')).toBe(false);
+        expect(screen.queryByRole('listbox')).toBeNull();
     });
 
-    it('offers the whole curated list as soon as it takes focus, in order, with no "none" row', async () => {
+    it('S2 — focus on an empty field lists all 90, in order, and says how many', async () => {
         const user = userEvent.setup();
         renderLive({ initial: filled({ cuisine: '' }) });
 
-        await user.tab();
         await user.click(cuisineField());
 
         expect(suggestions()).toEqual([...CUISINES]);
+        expect(screen.getByText('90 cuisines')).toBeTruthy();
     });
 
-    it('narrows the list to what the cook types, without regard to case', async () => {
+    it('S6 — focus over a committed cuisine still lists all 90: the filter is the cook’s next edit, not the value', async () => {
+        const user = userEvent.setup();
+        renderLive();
+
+        await user.click(cuisineField());
+
+        expect(cuisineField().value).toBe('Italian');
+        expect(suggestions()).toHaveLength(90);
+    });
+
+    it('S3 — typing narrows to the names that start with the text, then offers the cook’s own words under "Not listed?"', async () => {
         const user = userEvent.setup();
         renderLive({ initial: filled({ cuisine: '' }) });
 
         await user.click(cuisineField());
-        await user.type(cuisineField(), 'FRE');
+        await user.type(cuisineField(), 'ind');
 
-        expect(suggestions()).toEqual(CUISINES.filter((cuisine) => cuisine.toLowerCase().includes('fre')));
+        expect(suggestions()).toEqual(['Indian', 'Indonesian', 'Use “Ind”']);
+        const notListed = within(listbox()).getByRole('group', { name: m.cuisineNotListedHeading });
+        expect(within(notListed).getByRole('option', { name: 'Use “Ind” as the cuisine' })).toBeTruthy();
     });
 
-    it('reports a choice and takes the cuisine’s own spelling', async () => {
+    it('S4 — an exact match offers no Use option: the entry is the value', async () => {
+        const user = userEvent.setup();
+        renderLive({ initial: filled({ cuisine: '' }) });
+
+        await user.click(cuisineField());
+        await user.type(cuisineField(), 'thai');
+
+        expect(suggestions()).toEqual(['Thai']);
+    });
+
+    it('S5 — no match: the note, then one option that uses the cook’s words, saved in their canonical form', async () => {
+        const user = userEvent.setup();
+        const { onChange } = renderLive({ initial: filled({ cuisine: '' }) });
+
+        await user.click(cuisineField());
+        await user.type(cuisineField(), 'nyonya');
+
+        expect(screen.getByText('No cuisines match “Nyonya”. You can use it as your own.')).toBeTruthy();
+        expect(suggestions()).toEqual(['Use “Nyonya”']);
+        await user.click(screen.getByRole('option', { name: 'Use “Nyonya” as the cuisine' }));
+        expect(lastValues(onChange).cuisine).toBe('Nyonya');
+        expect(screen.queryByRole('listbox')).toBeNull();
+    });
+
+    it('a pick commits the entry in the list’s spelling', async () => {
         const user = userEvent.setup();
         const { onChange } = renderLive({ initial: filled({ cuisine: '' }) });
 
@@ -446,19 +488,56 @@ describe('RecipeBasicsFields (web) — cuisine', () => {
         expect(lastValues(onChange).cuisine).toBe('French');
     });
 
-    it('keeps a custom cuisine byte for byte, with no list for it, and clears with Escape', async () => {
+    it('S7 — Enter with nothing active commits the typed text, canonical, and closes the list', async () => {
+        const user = userEvent.setup();
+        const { onChange } = renderLive({ initial: filled({ cuisine: '' }) });
+
+        await user.click(cuisineField());
+        await user.type(cuisineField(), 'grandma style{Enter}');
+
+        expect(lastValues(onChange).cuisine).toBe('Grandma style');
+        expect(screen.queryByRole('listbox')).toBeNull();
+        expect(document.activeElement).toBe(cuisineField());
+    });
+
+    it('Tab out of the field commits the typed text in the list’s spelling, and chooses nothing', async () => {
+        const user = userEvent.setup();
+        const { onChange } = renderLive({ initial: filled({ cuisine: '' }) });
+
+        await user.click(cuisineField());
+        await user.type(cuisineField(), 'thai');
+        await user.tab();
+
+        expect(lastValues(onChange).cuisine).toBe('Thai');
+    });
+
+    it('keeps a custom cuisine, and clears with Escape on a closed list', async () => {
         const user = userEvent.setup();
         const { onChange } = renderLive({ initial: filled({ cuisine: 'Grandma’s Secret Blend' }) });
 
         expect(cuisineField().value).toBe('Grandma’s Secret Blend');
 
-        // Focus opens the list, which has nothing to show for a custom name. Escape on an open list only closes it
-        // (APG); the next Escape, on a closed list, clears the field.
+        // Focus opens the list. Escape on an open list only closes it (APG); the next Escape, on a closed list, clears.
         cuisineField().focus();
         await user.keyboard('{Escape}');
         expect(onChange).not.toHaveBeenCalled();
         await user.keyboard('{Escape}');
         expect(lastValues(onChange).cuisine).toBe('');
+    });
+
+    it('S8 — a refused Publish names the field and the fix, linked to it, and marks it invalid', () => {
+        renderLive({ initial: filled({ cuisine: '' }), errors: { cuisine: 'cuisineRequired' } });
+
+        const alert = spokenAlert();
+        expect(alert.textContent).toBe(m.errors.cuisineRequired);
+        expect(cuisineField().getAttribute('aria-invalid')).toBe('true');
+        expect(cuisineField().getAttribute('aria-describedby')?.split(' ')).toContain(alert.id);
+    });
+
+    it('S9 — past 100 characters it says the limit, filled with the wire’s number', () => {
+        renderLive({ initial: filled({ cuisine: 'a'.repeat(101) }), errors: { cuisine: 'cuisineTooLong' } });
+
+        expect(spokenAlert().textContent).toBe('Shorten the cuisine to 100 characters or fewer.');
     });
 });
 

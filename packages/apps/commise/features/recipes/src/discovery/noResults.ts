@@ -89,6 +89,26 @@ export function showsCuisineShortcuts(cuisines: readonly FacetBucket[] | undefin
 }
 
 /**
+ * The cuisines the browse view's "Browse by cuisine" row offers: each one with at least
+ * {@link CUISINE_SHORTCUT_MIN_RECIPES} recipes, in the server's order (most common first), and none while the row does
+ * not show. A cuisine is free text (`docs/design/uiOverhaul/cuisineField.md` §5), so offering every facet bucket would
+ * put a chip on every one-off spelling. One statement for both platforms' containers, which used to map the buckets
+ * themselves. Pure.
+ *
+ * @param cuisines - The cuisine facet, or `undefined` when the search returned none.
+ * @returns The cuisine values to offer.
+ */
+export function cuisineShortcutsOf(cuisines: readonly FacetBucket[] | undefined): readonly string[] {
+    if (!showsCuisineShortcuts(cuisines)) {
+        return [];
+    }
+
+    return (cuisines ?? [])
+        .filter((cuisine) => cuisine.count >= CUISINE_SHORTCUT_MIN_RECIPES)
+        .map((cuisine) => cuisine.value);
+}
+
+/**
  * The heading of a no-result state, which is also what is announced when a search settles on nothing.
  *
  * @param kind - What narrowed the search, or `undefined` for an empty catalogue.

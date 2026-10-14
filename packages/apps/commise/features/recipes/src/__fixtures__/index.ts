@@ -199,6 +199,8 @@ export function makeRecipeFormValues(overrides: Partial<RecipeFormValues> = {}):
 export const makeFilledRecipeFormValues = (over: Partial<RecipeFormValues> = {}): RecipeFormValues => ({
     ...defaultRecipeFormValues(),
     title: 'Herb Risotto',
+    // Required to publish since 2026-10-13.
+    cuisine: 'Italian',
     servings: 4,
     prepTimeMinutes: 10,
     cookTimeMinutes: 25,

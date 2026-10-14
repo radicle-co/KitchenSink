@@ -5,7 +5,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { makeRecipeFormValues } from '../../__fixtures__/index.js';
-import { descriptionFieldId, ingredientAddFieldId, stepFieldId, titleFieldId } from '../../form/fieldIds.js';
+import {
+    cuisineFieldId,
+    descriptionFieldId,
+    ingredientAddFieldId,
+    stepFieldId,
+    titleFieldId,
+} from '../../form/fieldIds.js';
 import { firstInvalidFieldOf, gateOutcomeOf } from '../gate.js';
 
 describe('gateOutcomeOf', () => {
@@ -48,6 +54,17 @@ describe('firstInvalidFieldOf', () => {
         expect(firstInvalidFieldOf({ description: 'descriptionTooLong' }, values)).toBe(descriptionFieldId);
         expect(firstInvalidFieldOf({ title: 'titleTooLong', description: 'descriptionTooLong' }, values)).toBe(
             titleFieldId,
+        );
+    });
+
+    it('names the cuisine field for a missing or too-long cuisine, after the title and description (page order)', () => {
+        expect(firstInvalidFieldOf({ cuisine: 'cuisineRequired' }, values)).toBe(cuisineFieldId);
+        expect(firstInvalidFieldOf({ cuisine: 'cuisineTooLong' }, values)).toBe(cuisineFieldId);
+        expect(firstInvalidFieldOf({ description: 'descriptionTooLong', cuisine: 'cuisineRequired' }, values)).toBe(
+            descriptionFieldId,
+        );
+        expect(firstInvalidFieldOf({ cuisine: 'cuisineRequired', ingredients: 'ingredientsEmpty' }, values)).toBe(
+            cuisineFieldId,
         );
     });
 

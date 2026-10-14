@@ -24,6 +24,7 @@ describe('EDITOR_SECTIONS', () => {
 describe('the field -> section map', () => {
     it.each([
         ['title', 'details'],
+        ['cuisine', 'details'],
         ['servings', 'details'],
         ['times', 'details'],
         ['ingredients', 'ingredients'],

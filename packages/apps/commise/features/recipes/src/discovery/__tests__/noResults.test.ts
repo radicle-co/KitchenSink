@@ -7,7 +7,13 @@ import { describe, expect, it } from 'vitest';
 
 import { EMPTY_RECIPE_FILTERS } from '../../filters/model.js';
 import { discoveryMessages } from '../messages.js';
-import { noResultKindOf, noResultTitleOf, showsCuisineShortcuts, tryTheseTagsOf } from '../noResults.js';
+import {
+    cuisineShortcutsOf,
+    noResultKindOf,
+    noResultTitleOf,
+    showsCuisineShortcuts,
+    tryTheseTagsOf,
+} from '../noResults.js';
 
 describe('noResultKindOf', () => {
     it('is undefined when nothing narrows the search: that is an empty catalogue, not a no-match', () => {
@@ -62,6 +68,21 @@ describe('showsCuisineShortcuts', () => {
     it('hides it for no cuisines at all', () => {
         expect(showsCuisineShortcuts([])).toBe(false);
         expect(showsCuisineShortcuts(undefined)).toBe(false);
+    });
+});
+
+describe('cuisineShortcutsOf (cuisineField.md §5: free text must not put a chip on every one-off spelling)', () => {
+    const cuisine = (value: string, count: number) => ({ value, count });
+
+    it('offers only the cuisines with three or more recipes, in the server’s order', () => {
+        const facets = [cuisine('Thai', 9), cuisine('Nyonya', 1), cuisine('Italian', 4), cuisine('Greek', 3)];
+
+        expect(cuisineShortcutsOf(facets)).toEqual(['Thai', 'Italian', 'Greek']);
+    });
+
+    it('offers nothing while the row itself does not show', () => {
+        expect(cuisineShortcutsOf([cuisine('Thai', 9), cuisine('Italian', 4), cuisine('Nyonya', 1)])).toEqual([]);
+        expect(cuisineShortcutsOf(undefined)).toEqual([]);
     });
 });
 

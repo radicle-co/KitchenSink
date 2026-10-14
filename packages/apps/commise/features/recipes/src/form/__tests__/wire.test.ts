@@ -135,6 +135,30 @@ describe('a blank step is not sent (slice 7 checkpoints)', () => {
     });
 });
 
+describe('the cuisine on the wire (owner rulings 2026-10-13; cuisineField.md §2)', () => {
+    it('sends the canonical cuisine on create, the safety net under the field’s own commit', () => {
+        expect(toCreateRecipeInput(makeFilledRecipeFormValues({ cuisine: '  szechuan ' })).cuisine).toBe('Sichuan');
+        expect(toCreateRecipeInput(makeFilledRecipeFormValues({ cuisine: 'nyonya' })).cuisine).toBe('Nyonya');
+    });
+
+    it('omits an empty cuisine on create: there is nothing to clear on a recipe that does not exist', () => {
+        const input = toCreateRecipeInput(makeFilledRecipeFormValues({ cuisine: '   ' }));
+
+        expect('cuisine' in input).toBe(false);
+    });
+
+    it('⛔ sends an explicit null on update when the cook emptied the field, so the server clears it', () => {
+        const input = toUpdateRecipeInput(makeFilledRecipeFormValues({ cuisine: '' }));
+
+        expect(input.cuisine).toBeNull();
+        expect('cuisine' in input).toBe(true);
+    });
+
+    it('sends the canonical cuisine on update', () => {
+        expect(toUpdateRecipeInput(makeFilledRecipeFormValues({ cuisine: 'thai' })).cuisine).toBe('Thai');
+    });
+});
+
 describe('toUpdateRecipeInput (three-state difficulty)', () => {
     it('carries a stated difficulty (set on an update)', () => {
         expect(
@@ -260,12 +284,22 @@ describe('the form projections satisfy their published request contracts', () =>
         expect(parsed.success).toBe(true);
     });
 
-    it('but the SAME empty body is rejected when it publishes', () => {
+    /**
+     * Rewritten 2026-10-13. This pinned the wire's publish refinements, which are gone: what Publish needs is now ONE
+     * rule in the service (`publishPolicy.ts`, a typed `400 PUBLISH_REQUIREMENTS_UNMET`) and, in the app, the editor's
+     * own validator, which refuses before anything is sent. So the same empty body passes the wire, and the validator
+     * is what stops it — with a code for each field, the cuisine included.
+     */
+    it('but the SAME empty body is refused by the editor’s validator when it publishes, not by the wire', () => {
         const stepOneOnly = { ...defaultRecipeFormValues(), title: 'Weeknight Draft', servings: 4 };
         const parsed = createRecipeRequestSchema.safeParse(toCreateRecipeInput(stepOneOnly, RecipeStatus.PUBLISHED));
 
-        expect(parsed.success).toBe(false);
-        expect(parsed.error?.issues.map((issue) => issue.path.join('.'))).toEqual(['ingredients', 'steps']);
+        expect(parsed.success).toBe(true);
+        expect(validateRecipeForm(stepOneOnly, '')).toEqual({
+            cuisine: 'cuisineRequired',
+            ingredients: 'ingredientsEmpty',
+            steps: 'stepsRequired',
+        });
     });
 });
 
@@ -334,6 +368,7 @@ describe('toRecipeFormValues + validate + submit — the quantity round-trip (U9
     const seed = (quantity: RecipeIngredientView['quantity']): RecipeFormValues =>
         toRecipeFormValues(
             makeRecipeDetail({
+                cuisine: 'Italian',
                 ingredients: [makeIngredientView({ quantity, unit: 'cups' })],
                 steps: [makeStepView()],
             }),

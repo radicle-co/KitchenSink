@@ -146,7 +146,6 @@ function storedLineToVerifiable(
 
 export { PREMIUM_PERMISSION } from '../auth/principal.js';
 
-/** Map a DTO step to the DAL's step input shape. Pure. */
 /**
  * Refuse a write that would leave a recipe published without what Publish needs (`domain/publishPolicy.ts`).
  *
@@ -157,10 +156,11 @@ function assertPublishable(state: PublishPolicyInput): void {
     const decision = evaluatePublication(state);
 
     if (!decision.allowed) {
-        throw publishRequirementsUnmet(decision.missing);
+        throw publishRequirementsUnmet(decision.reason, decision.missing);
     }
 }
 
+/** Map a DTO step to the DAL's step input shape. Pure. */
 function toStepInput(step: { instruction: string; timerSeconds?: number }): StepInput {
     return step.timerSeconds === undefined
         ? { instruction: step.instruction }

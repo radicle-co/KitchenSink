@@ -96,17 +96,15 @@ export function foodNotAdmissible(foodId: string, reason: string): RecipeDomainE
  * `PUBLISH_REQUIREMENTS_UNMET` (→ 400) — the write would leave the recipe published without something Publish needs
  * (`domain/publishPolicy.ts`). `details.missing` names every gap, so a client shows its own localized copy for each.
  *
+ * @param reason - The policy's own refusal text (`PublishDecision.reason`), so the sentence is written once.
  * @param missing - Every unmet requirement, in page order (at least one).
  * @returns The error.
  */
 export function publishRequirementsUnmet(
+    reason: string,
     missing: readonly [PublishRequirement, ...PublishRequirement[]],
 ): RecipeDomainError {
-    return new RecipeDomainError(
-        RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET,
-        `A published recipe needs: ${missing.join(', ')}.`,
-        { missing: [...missing] },
-    );
+    return new RecipeDomainError(RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET, reason, { missing: [...missing] });
 }
 
 /** `NOT_OWNER` — the authenticated principal does not own the recipe. */

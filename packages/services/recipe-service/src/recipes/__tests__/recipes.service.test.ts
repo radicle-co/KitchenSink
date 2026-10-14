@@ -933,13 +933,6 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
 });
 
 describe('RecipesService — the publish policy (owner rulings 2026-10-13: a cuisine is required to publish)', () => {
-    /** A stored recipe with a line and a step, in the given state. */
-    function stored(overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {}): RecipeAggregate {
-        const base = aggregate(overrides);
-
-        return { ...base, ingredients: [makeIngredientLineRow({ recipeId: base.recipe.id })] };
-    }
-
     /** The code and details a refusal carries, for one comparison. */
     function codeAndMissing(error: unknown): unknown {
         return isRecipeDomainError(error) ? { code: error.code, details: error.details } : error;
@@ -1019,7 +1012,7 @@ describe('RecipesService — the publish policy (owner rulings 2026-10-13: a cui
     });
 
     it('refuses a PATCH that clears the cuisine of a published recipe', async () => {
-        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(stored()), update: vi.fn() });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publishable()), update: vi.fn() });
 
         const error = await catchError(
             newService(dal).update(principal(), 'r-1', { expectedVersion: 1, cuisine: null }, undefined),
@@ -1030,7 +1023,7 @@ describe('RecipesService — the publish policy (owner rulings 2026-10-13: a cui
     });
 
     it('⛔ judges a "Save changes" PATCH (no status) on a published recipe: it cannot empty it', async () => {
-        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(stored()), update: vi.fn() });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publishable()), update: vi.fn() });
 
         const error = await catchError(
             newService(dal).update(principal(), 'r-1', { expectedVersion: 1, ingredients: [] }, undefined),
@@ -1041,11 +1034,11 @@ describe('RecipesService — the publish policy (owner rulings 2026-10-13: a cui
     });
 
     it('refuses publishing a stored draft that has no cuisine, unless the patch supplies one', async () => {
-        const draft = stored({ status: 'draft', cuisine: null });
+        const draft = publishable({ status: 'draft', cuisine: null });
         const refused = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(draft), update: vi.fn() });
         const supplied = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(draft),
-            update: vi.fn().mockResolvedValue(stored({ currentVersion: 2 })),
+            update: vi.fn().mockResolvedValue(publishable({ currentVersion: 2 })),
         });
 
         const error = await catchError(
@@ -1068,8 +1061,8 @@ describe('RecipesService — the publish policy (owner rulings 2026-10-13: a cui
 
     it('lets a DRAFT clear its cuisine, passing the null through to the DAL', async () => {
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(stored({ status: 'draft' })),
-            update: vi.fn().mockResolvedValue(stored({ status: 'draft', cuisine: null, currentVersion: 2 })),
+            findById: vi.fn().mockResolvedValue(publishable({ status: 'draft' })),
+            update: vi.fn().mockResolvedValue(publishable({ status: 'draft', cuisine: null, currentVersion: 2 })),
         });
 
         await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, cuisine: null }, undefined);
@@ -1079,10 +1072,10 @@ describe('RecipesService — the publish policy (owner rulings 2026-10-13: a cui
 
     it('lets a stored public-domain import be saved published without a cuisine', async () => {
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(stored({ sourceType: 'imported_public', cuisine: null })),
+            findById: vi.fn().mockResolvedValue(publishable({ sourceType: 'imported_public', cuisine: null })),
             update: vi
                 .fn()
-                .mockResolvedValue(stored({ sourceType: 'imported_public', cuisine: null, currentVersion: 2 })),
+                .mockResolvedValue(publishable({ sourceType: 'imported_public', cuisine: null, currentVersion: 2 })),
         });
 
         await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, title: 'Kugel' }, undefined);

@@ -377,8 +377,9 @@ describe('the recipe error contract, end to end through both halves', () => {
     });
 
     it('400 PUBLISH_REQUIREMENTS_UNMET → PublishRequirementsUnmetError naming what is missing, still a BadRequestError', async () => {
-        const { wire, error } = await throughTheWire(publishRequirementsUnmet(['cuisine', 'steps']), (client) =>
-            client.getRecipeById(RECIPE_ID),
+        const { wire, error } = await throughTheWire(
+            publishRequirementsUnmet('The policy’s own words.', ['cuisine', 'steps']),
+            (client) => client.getRecipeById(RECIPE_ID),
         );
 
         expect(wire.status).toBe(HttpStatus.BAD_REQUEST);
@@ -387,6 +388,7 @@ describe('the recipe error contract, end to end through both halves', () => {
         expect(error).toBeInstanceOf(BadRequestError);
         expect((error as PublishRequirementsUnmetError).missing).toStrictEqual(['cuisine', 'steps']);
         expect((error as PublishRequirementsUnmetError).code).toBe(CODE.PUBLISH_REQUIREMENTS_UNMET);
+        expect((error as PublishRequirementsUnmetError).message).toBe('The policy’s own words.');
     });
 
     it('403 CANNOT_RATE_OWN_RECIPE → ForbiddenError with its own code, never a bare 403', async () => {

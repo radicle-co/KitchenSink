@@ -135,6 +135,9 @@ APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outpu
 #   - `recipes/ingredientNutritionPanel` (plan 002 US5) follows it for the same reasons; it picks the seeded probe
 #     food `Flour` rather than creating one.
 #   - `recipes/ingredientRemove` (plan 002 US6) follows them: the same freeform prelude, twice, and a discard.
+#   - `recipes/ingredientArrival` (`docs/design/uiOverhaul/ingredientArrival.md`) follows it: eight lines declared "as written"
+#     through `recipes/common/addDeclaredLine.yaml`, then one look at the page with no scroll command. It needs NO food
+#     service and discards its draft.
 #   - `recipes/ingredientAddDetails` (curated U15) sits after `createAuthoredFood`: it picks a KTD-16 root from the
 #     stage's food catalog, so it needs the food service and the catalog seed, and it discards its draft.
 #   - `recipes/ingredientVariantSearch` (curated AE3) and `recipes/ingredientRowVariant` (curated U15) follow it, for
@@ -252,6 +255,7 @@ recipes:recipes/addStepFocus
 recipes:recipes/ingredientUnmatched
 recipes:recipes/ingredientNutritionPanel
 recipes:recipes/ingredientRemove
+recipes:recipes/ingredientArrival
 recipes:recipes/createAuthoredFood
 recipes:recipes/ingredientAddDetails
 recipes:recipes/ingredientVariantSearch
@@ -390,6 +394,7 @@ recipes/addStepFocus=45
 recipes/ingredientUnmatched=75
 recipes/ingredientNutritionPanel=85
 recipes/ingredientRemove=88
+recipes/ingredientArrival=140
 recipes/ingredientAddDetails=97
 recipes/ingredientVariantSearch=103
 recipes/ingredientRowVariant=82

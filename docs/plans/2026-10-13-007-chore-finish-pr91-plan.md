@@ -44,6 +44,7 @@ things out, but done."
 | Cuisine: a long custom cuisine in a Discover chip (2-line clamp) is unchecked                                   | Checked on both apps                              |
 | Cuisine: a server refusal from an older queued save shows the general save failure, not field copy              | The outbox passes the error to the editor         |
 | Cuisine device checks: the 5-row list at font scale 2.0, and the list closing on Android Back                   | Run on emulator-5556                              |
+| Bounded combobox: after scrolling the list, a page drag from outside closes it (Android + iOS)                  | Run on a device                                   |
 | `readViewerAppId` in `web/tests/e2e/utils/recipeApi.ts` blames a claim that is present                          | The message names the real cause                  |
 | Whatever the first CI run with the iOS fixes shows                                                              | Each failure fixed at its root                    |
 | CI on the OIDC roles, sandbox half (commit B)                                                                   | Plan 005. Proven on PR 91 by real runs            |

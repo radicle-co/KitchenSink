@@ -18,6 +18,7 @@ import { Match, Template } from 'aws-cdk-lib/assertions';
 import ts from 'typescript';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { PARSE_LINE_DELIVERY } from '@kitchensink/recipe-core/parsing/parse-line-delivery';
 import { BEDROCK_MODEL_REGISTRY, residencyClearance } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
@@ -1687,6 +1688,32 @@ describe('RecipeWorkersStack — the parse-job hand-off', () => {
         prTemplate.hasResourceProperties('AWS::SSM::Parameter', {
             Name: '/kitchensink/pr-73/recipe/parse-queue-url',
         });
+    });
+
+    /**
+     * ⛔ `recipe-service` reads these numbers to tell a cook what a pending line is doing (`lineProgressOf`), and it
+     * reads them from `PARSE_LINE_DELIVERY`, never from this stack. So the stack must BUILD its timing from that one
+     * constant: a literal reintroduced here would move the queue and leave the service's reading of it behind.
+     */
+    it('builds the parse handler timeout, queue visibility and claim lease from PARSE_LINE_DELIVERY', () => {
+        const functions = template.findResources('AWS::Lambda::Function');
+        const parseLine = Object.entries(functions).find(([id]) => id.startsWith('RecipeParseLineFunction'));
+        const queues = template.findResources('AWS::SQS::Queue');
+        const parseQueue = Object.entries(queues).find(
+            ([id]) => id.startsWith('RecipeParseQueue') && !id.includes('Dlq') && !id.includes('DLQ'),
+        );
+
+        if (parseLine === undefined || parseQueue === undefined) {
+            throw new Error('the parse function or the parse queue is missing from the template');
+        }
+
+        const [, fn] = parseLine;
+        const [, queue] = parseQueue;
+        const env = (fn.Properties?.Environment as { Variables: Record<string, string> } | undefined)?.Variables;
+
+        expect(fn.Properties?.Timeout).toBe(PARSE_LINE_DELIVERY.leaseSeconds);
+        expect(env?.['PARSE_CLAIM_LEASE_SECONDS']).toBe(String(PARSE_LINE_DELIVERY.leaseSeconds));
+        expect(queue.Properties?.VisibilityTimeout).toBe(PARSE_LINE_DELIVERY.visibilityTimeoutSeconds);
     });
 });
 

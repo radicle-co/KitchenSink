@@ -30,6 +30,7 @@
         "./parsing/parse-job-text": "./src/parsing/parseJobText.ts",
         "./analytics/event-payload": "./src/analytics/eventPayload.ts",
         "./parsing/parse-job-aggregate": "./src/parsing/parseJobAggregate.ts",
+        "./parsing/parse-line-delivery": "./src/parsing/parseLineDelivery.ts",
         "./parsing/parse-key": "./src/parsing/parseKey.ts",
         "./spend/spend-arithmetic": "./src/spend/spendArithmetic.ts",
         "./parsing/parse-prompt": "./src/parsing/parsePrompt.ts",

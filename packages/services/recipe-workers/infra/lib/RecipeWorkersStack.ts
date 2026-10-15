@@ -36,6 +36,7 @@ import {
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
 import { consumerConcurrencyFor } from './consumerConcurrency.js';
+import { PARSE_LINE_DELIVERY } from '@kitchensink/recipe-core/parsing/parse-line-delivery';
 import {
     BEDROCK_MODEL_REGISTRY,
     DEFAULT_MONTHLY_CEILING_MICROS,
@@ -1353,9 +1354,11 @@ export class RecipeWorkersStack extends Stack {
         // SQS redelivers work that is still running; the claim lease equals the handler timeout, so a
         // duplicate delivered mid-attempt is refused while a genuine redelivery — which can only arrive
         // after the visibility timeout — is admitted. The gap between the last two is the whole margin, and
-        // it is invisible if the numbers live apart.
-        const parseHandlerTimeout = Duration.seconds(150);
-        const PARSE_QUEUE_VISIBILITY_TIMEOUT = Duration.seconds(180);
+        // it is invisible if the numbers live apart. ⛔ They come from `PARSE_LINE_DELIVERY` (recipe-core), which
+        // recipe-service also reads to tell a cook what a pending line is doing — so the queue and that reading
+        // move together. Do not spell a literal here.
+        const parseHandlerTimeout = Duration.seconds(PARSE_LINE_DELIVERY.leaseSeconds);
+        const PARSE_QUEUE_VISIBILITY_TIMEOUT = Duration.seconds(PARSE_LINE_DELIVERY.visibilityTimeoutSeconds);
         // Sized to park rather than lose a message whose database is down (R2), NOT to bound real attempts — that is
         // `CLAIM_ATTEMPT_ALLOWANCE`, which counts claims rather than receives.
         const PARSE_QUEUE_MAX_RECEIVES = receivesBeforeParking(PARSE_QUEUE_VISIBILITY_TIMEOUT);

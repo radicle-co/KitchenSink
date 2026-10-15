@@ -15,6 +15,11 @@
  * reading of the name can know: `DescribeStacks` with no `StackName` also needs `cloudformation:ListStacks`, and it is
  * evaluated on `stack/*\/*` — the call the midnight reclaim was denied three times on its first night.
  *
+ * ⚠️ WHY NOT awslabs IAM Policy Autopilot. It derives actions by pattern-matching call sites, not by type-checking
+ * them, so it cannot apply the port narrowing above (it would count every method of `createRdsApi`), and what it over-
+ * reports breaks the "grants nothing else" direction of `lambdaRolesCoverTheirSdkCalls`, which fails on any granted
+ * action no call needs.
+ *
  * @pattern Visitor — a recursive walk over the checker's AST, following calls into the declarations they resolve to
  */
 import path from 'node:path';

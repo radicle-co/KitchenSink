@@ -83,7 +83,7 @@ export class UsersService {
                 displayName: input.name,
                 picture: input.picture,
             },
-            { onEmailCollision: 'placeholder', emailIsReal: true },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true, emailIsReal: true },
         );
 
         if (result.kind !== 'complete') {
@@ -139,7 +139,7 @@ export class UsersService {
                     picture: claims.picture,
                     username,
                 },
-                { onEmailCollision: 'placeholder', emailIsReal: realEmail !== undefined },
+                { onEmailCollision: 'placeholder', owesCreatedByline: true, emailIsReal: realEmail !== undefined },
             );
 
             if (result.kind !== 'complete') {
@@ -181,7 +181,7 @@ export class UsersService {
                         picture: claims.picture,
                         username,
                     },
-                    { onEmailCollision: 'placeholder', emailIsReal: true },
+                    { onEmailCollision: 'placeholder', owesCreatedByline: true, emailIsReal: true },
                 );
 
                 if (healed.kind === 'complete') {

@@ -260,7 +260,7 @@ describe('e2e: reconciliation Lambda', () => {
         expect(mockProvisionCompleteUser).toHaveBeenCalledWith(
             expect.anything(),
             expect.objectContaining({ identityId: 'user_drift_new', email: 'new@example.com' }),
-            { onEmailCollision: 'placeholder', emailIsReal: true },
+            { onEmailCollision: 'placeholder', owesCreatedByline: false, emailIsReal: true },
         );
     });
 

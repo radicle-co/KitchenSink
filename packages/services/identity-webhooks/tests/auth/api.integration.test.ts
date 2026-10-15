@@ -162,7 +162,7 @@ describe('e2e: identityWebhook Lambda', () => {
                 identityId: 'user_created_e2e',
                 email: 'user_created_e2e@example.com',
             }),
-            { onEmailCollision: 'signal-incomplete', emailIsReal: true },
+            { onEmailCollision: 'signal-incomplete', owesCreatedByline: true, emailIsReal: true },
         );
         expect(mockSetExternalId).toHaveBeenCalledWith('user_created_e2e', '01USERCREATED0000000000000');
         // Owner ruling 2026-10-13: the default role is written at sign-up.

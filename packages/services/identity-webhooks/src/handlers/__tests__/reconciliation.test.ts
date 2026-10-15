@@ -127,12 +127,12 @@ describe('reconciliation handler', () => {
                 avatarUrl: 'https://example.com/new.jpg',
                 username: 'newuser',
             }),
-            { onEmailCollision: 'placeholder', emailIsReal: true },
+            { onEmailCollision: 'placeholder', owesCreatedByline: false, emailIsReal: true },
         );
         expect(mockProvisionCompleteUser).toHaveBeenCalledWith(
             expect.anything(),
             expect.objectContaining({ identityId: 'user_existing', email: 'existing@example.com' }),
-            { onEmailCollision: 'placeholder', emailIsReal: true },
+            { onEmailCollision: 'placeholder', owesCreatedByline: false, emailIsReal: true },
         );
     });
 

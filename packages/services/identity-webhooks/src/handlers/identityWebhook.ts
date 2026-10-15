@@ -97,7 +97,7 @@ const handleUserCreated = async (data: IdentityUserData, db: IdentityWriter, req
                 avatarUrl: data.image_url ?? null,
                 username: data.username ?? null,
             },
-            { onEmailCollision: 'signal-incomplete', emailIsReal: true },
+            { onEmailCollision: 'signal-incomplete', owesCreatedByline: true, emailIsReal: true },
         );
     } catch (err) {
         // Genuine provisioning failure (a DB/constraint error left the user incomplete): emit the

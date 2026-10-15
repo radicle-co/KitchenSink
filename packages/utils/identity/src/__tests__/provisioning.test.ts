@@ -142,7 +142,7 @@ describe('provisionCompleteUser', () => {
         const result = await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com', name: 'Ada', avatarUrl: 'https://img/ada.png' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(result.kind).toBe('complete');
@@ -165,7 +165,7 @@ describe('provisionCompleteUser', () => {
         await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com', name: 'Ada Lovelace', username: 'ada' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(valuesByTable.get('profiles')).toMatchObject({ displayName: 'Ada Lovelace', username: 'ada' });
@@ -190,7 +190,7 @@ describe('provisionCompleteUser', () => {
         await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(txStatements[0], 'no statement ran on the transaction handle — the upsert is not serialized').toMatch(
@@ -205,7 +205,7 @@ describe('provisionCompleteUser', () => {
         await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(insertedTables).toEqual(['users', 'accounts', 'profiles']);
@@ -222,7 +222,7 @@ describe('provisionCompleteUser', () => {
         await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(conflictSets[0]).toHaveProperty('deletedAt');
@@ -234,7 +234,7 @@ describe('provisionCompleteUser', () => {
         await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'real@b.com' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(conflictSets[0]).toHaveProperty('email');
@@ -246,7 +246,7 @@ describe('provisionCompleteUser', () => {
         const result = await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com', name: 'Ada', picture: 'https://img/ada.png' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         // Only the users upsert ran — the closed account's companion rows are NEVER re-created.
@@ -260,7 +260,7 @@ describe('provisionCompleteUser', () => {
         await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(insertedTables).toEqual(['users']);
@@ -274,7 +274,7 @@ describe('provisionCompleteUser', () => {
         const result = await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'taken@b.com' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(result.kind).toBe('complete');
@@ -291,7 +291,7 @@ describe('provisionCompleteUser', () => {
         const result = await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'taken@b.com' },
-            { onEmailCollision: 'signal-incomplete' },
+            { onEmailCollision: 'signal-incomplete', owesCreatedByline: true },
         );
 
         expect(result).toEqual({ kind: 'incomplete', reason: 'email-collision' });
@@ -303,7 +303,11 @@ describe('provisionCompleteUser', () => {
         const { deps } = buildMockDb({ userInsertThrowsOnce: dbErr });
 
         await expect(
-            provisionCompleteUser(deps, { identityId: 'id_1', email: 'a@b.com' }, { onEmailCollision: 'placeholder' }),
+            provisionCompleteUser(
+                deps,
+                { identityId: 'id_1', email: 'a@b.com' },
+                { onEmailCollision: 'placeholder', owesCreatedByline: true },
+            ),
         ).rejects.toThrow('connection reset');
     });
 
@@ -313,7 +317,7 @@ describe('provisionCompleteUser', () => {
         await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(valuesByTable.get('profiles')).toEqual({
@@ -336,7 +340,7 @@ describe('provisionCompleteUser', () => {
         const result = await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com', name: 'Ada Lovelace', username: 'ada' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(result).toMatchObject({
@@ -351,10 +355,25 @@ describe('provisionCompleteUser', () => {
         const result = await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com', name: 'Ada', username: 'ada' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(result.kind).toBe('complete');
+        expect(result).not.toHaveProperty('createdByline');
+    });
+
+    // Reconciliation has no handle-sync topic, so it cannot publish. A debt it can never settle would make the
+    // identity backstop report a LOST sync for every user it provisions, forever.
+    it('records NO debt, and returns no byline, for a caller that cannot publish', async () => {
+        const { deps, valuesByTable } = buildMockDb();
+
+        const result = await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com', name: 'Ada', username: 'ada' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: false },
+        );
+
+        expect(valuesByTable.get('profiles')).toMatchObject({ handleSyncOwedAt: null, updatedAt: NEW_PROFILE_CLOCK });
         expect(result).not.toHaveProperty('createdByline');
     });
 
@@ -364,7 +383,7 @@ describe('provisionCompleteUser', () => {
         const result = await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com', name: 'Ada', username: 'ada' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(result).not.toHaveProperty('createdByline');

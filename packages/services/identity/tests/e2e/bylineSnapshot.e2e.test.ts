@@ -159,6 +159,29 @@ describe('the byline snapshot (real Postgres)', () => {
             expect(stamps[2]!).toBeGreaterThan(stamps[1]!);
         });
 
+        it('⛔ stamps whole milliseconds even when the previous stamp carries MICROSECONDS, so the debt can settle', async () => {
+            // A row written by a column default (`now()`) carries microseconds. Put that stamp ahead of the
+            // statement's clock so `previous + 1 ms` is the larger arm of GREATEST: a clock that truncated before
+            // comparing would hand back microseconds, which no JS `Date` can hold, and the settle would never match.
+            const userId = await provision('sub_micro');
+            await pool.query(
+                `UPDATE profiles SET updated_at = now() + interval '5 seconds' + interval '123 microseconds' WHERE user_id = $1`,
+                [userId],
+            );
+
+            const { byline } = await userDao.syncProviderFields(userId, {
+                name: 'Ada King',
+                picture: null,
+                username: 'ada',
+                now: new Date(),
+            });
+            await userDao.settleHandleSync(userId, byline!.stampedAt, null);
+            const row = await profileOf(userId);
+
+            expect(row.updatedAt.toISOString()).toBe(byline!.stampedAt.toISOString());
+            expect(row.handleSyncOwedAt).toBeNull();
+        });
+
         it('⛔ under a CONCURRENT PATCH and webhook, the highest-keyed snapshot carries BOTH changes', async () => {
             const userId = await provision('sub_race');
             const messages: HandleSyncMessage[] = [];

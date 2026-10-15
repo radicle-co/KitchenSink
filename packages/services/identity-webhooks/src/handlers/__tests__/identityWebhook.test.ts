@@ -301,7 +301,7 @@ describe('identity-webhook handler', () => {
                 avatarUrl: 'https://example.com/avatar.png',
                 username: 'johndoe',
             }),
-            { onEmailCollision: 'signal-incomplete', emailIsReal: true },
+            { onEmailCollision: 'signal-incomplete', owesCreatedByline: true, emailIsReal: true },
         );
         // External id backfill runs AFTER the complete local unit, and stamps the sync marker on success.
         expect(mockSetExternalId).toHaveBeenCalledWith('user_abc123', 'usr_ulid');

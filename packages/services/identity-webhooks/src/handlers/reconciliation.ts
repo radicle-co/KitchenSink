@@ -66,7 +66,7 @@ const innerHandler = async (
                     avatarUrl: idpUser.imageUrl ?? null,
                     username: idpUser.username ?? null,
                 },
-                { onEmailCollision: 'placeholder', emailIsReal: true },
+                { onEmailCollision: 'placeholder', owesCreatedByline: false, emailIsReal: true },
             );
         } catch (err) {
             // One user's genuine failure must not abort the whole nightly run: emit the distinct paging

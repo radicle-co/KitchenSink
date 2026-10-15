@@ -99,6 +99,14 @@ export type EmailCollisionPolicy = 'placeholder' | 'signal-incomplete';
 export interface ProvisionOpts {
     readonly onEmailCollision: EmailCollisionPolicy;
     /**
+     * Whether this caller PUBLISHES the byline a new profile creates (plan 2026-10-15-010 D6b). When `true` the
+     * insert records a handle-sync debt — on the same clock as the row — and the result carries `createdByline` for
+     * the caller to publish and settle. When `false` it records none and returns none: a caller with no handle-sync
+     * topic (reconciliation) would otherwise leave a debt nothing can settle, which the identity backstop reports as
+     * a LOST sync for every user it provisions. REQUIRED, so each caller decides.
+     */
+    readonly owesCreatedByline: boolean;
+    /**
      * `false` ⇒ never overwrite an existing email on conflict — a read-through placeholder must not
      * clobber a real email a concurrent webhook just wrote. Default `true`.
      */
@@ -211,7 +219,7 @@ export async function provisionCompleteUser<TUser extends ProvisionedUser = Prov
         return { kind: 'complete', user };
     }
 
-    const createdByline = await ensureAccountAndProfile(deps, user.id, input);
+    const createdByline = await ensureAccountAndProfile(deps, user.id, input, opts.owesCreatedByline);
 
     return createdByline === undefined ? { kind: 'complete', user } : { kind: 'complete', user, createdByline };
 }
@@ -342,6 +350,7 @@ async function ensureAccountAndProfile(
     deps: ProvisionDeps,
     userId: string,
     input: ProvisionInput,
+    owesCreatedByline: boolean,
 ): Promise<CreatedByline | undefined> {
     const { db, schema } = deps;
 
@@ -354,7 +363,7 @@ async function ensureAccountAndProfile(
             avatarUrl: input.avatarUrl ?? null,
             username: input.username ?? null,
             updatedAt: deps.newProfileClock,
-            handleSyncOwedAt: deps.newProfileClock,
+            handleSyncOwedAt: owesCreatedByline ? deps.newProfileClock : null,
             handleSyncFailureCode: null,
         })
         .onConflictDoNothing()
@@ -364,5 +373,5 @@ async function ensureAccountAndProfile(
             stampedAt: schema.profiles.updatedAt,
         });
 
-    return created === undefined ? undefined : (created as unknown as CreatedByline);
+    return created === undefined || !owesCreatedByline ? undefined : (created as unknown as CreatedByline);
 }

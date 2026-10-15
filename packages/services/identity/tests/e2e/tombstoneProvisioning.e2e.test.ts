@@ -70,7 +70,7 @@ describe('lifecycle-aware provisioning — no resurrection (integration)', () =>
         const created = await provisionCompleteUser<typeof users.$inferSelect>(
             deps,
             { identityId: 'idp_tomb', email: 'real@example.com', name: 'Ada Lovelace', picture: 'https://img/a.png' },
-            { onEmailCollision: 'placeholder', emailIsReal: true },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true, emailIsReal: true },
         );
         expect(created.kind).toBe('complete');
 
@@ -86,7 +86,7 @@ describe('lifecycle-aware provisioning — no resurrection (integration)', () =>
         await provisionCompleteUser<typeof users.$inferSelect>(
             deps,
             { identityId: 'idp_tomb', email: 'real@example.com', name: 'Ada Lovelace', picture: 'https://img/a.png' },
-            { onEmailCollision: 'placeholder', emailIsReal: true },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true, emailIsReal: true },
         );
 
         const [row] = await db.select().from(users).where(eq(users.id, userId));
@@ -105,7 +105,7 @@ describe('lifecycle-aware provisioning — no resurrection (integration)', () =>
         const created = await provisionCompleteUser<typeof users.$inferSelect>(
             deps,
             { identityId: 'idp_erased', email: 'gone@example.com', name: 'Grace' },
-            { onEmailCollision: 'placeholder', emailIsReal: true },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true, emailIsReal: true },
         );
         const userId = created.kind === 'complete' ? created.user.id : '';
 
@@ -122,7 +122,7 @@ describe('lifecycle-aware provisioning — no resurrection (integration)', () =>
         await provisionCompleteUser<typeof users.$inferSelect>(
             deps,
             { identityId: 'idp_erased', email: 'gone@example.com', name: 'Grace' },
-            { onEmailCollision: 'placeholder', emailIsReal: true },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true, emailIsReal: true },
         );
 
         const [row] = await db.select().from(users).where(eq(users.id, userId));
@@ -140,7 +140,7 @@ describe('lifecycle-aware provisioning — no resurrection (integration)', () =>
         const created = await provisionCompleteUser<typeof users.$inferSelect>(
             deps,
             { identityId: 'idp_active', email: 'back@example.com', name: 'Reg' },
-            { onEmailCollision: 'placeholder', emailIsReal: true },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true, emailIsReal: true },
         );
         const userId = created.kind === 'complete' ? created.user.id : '';
         await db.update(users).set({ deletedAt: new Date() }).where(eq(users.id, userId));
@@ -148,7 +148,7 @@ describe('lifecycle-aware provisioning — no resurrection (integration)', () =>
         await provisionCompleteUser<typeof users.$inferSelect>(
             deps,
             { identityId: 'idp_active', email: 'back@example.com', name: 'Reg' },
-            { onEmailCollision: 'placeholder', emailIsReal: true },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true, emailIsReal: true },
         );
 
         const [row] = await db

@@ -108,7 +108,7 @@ async function main(): Promise<void> {
             const result = await provisionCompleteUser(
                 { db, schema: { users, accounts, profiles }, newUserId: () => externalId, newProfileClock },
                 { identityId, email },
-                { onEmailCollision: 'placeholder', emailIsReal: true },
+                { onEmailCollision: 'placeholder', owesCreatedByline: false, emailIsReal: true },
             );
 
             if (result.kind !== 'complete') {

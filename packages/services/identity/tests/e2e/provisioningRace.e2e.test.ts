@@ -63,19 +63,19 @@ describe('provisionCompleteUser — race-safety under concurrency (integration)'
         provisionCompleteUser(
             deps,
             { identityId, email, name: 'Race', displayName: 'Race' },
-            { onEmailCollision: 'placeholder', emailIsReal: true },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true, emailIsReal: true },
         );
     const webhook = (identityId: string, email: string) =>
         provisionCompleteUser(
             deps,
             { identityId, email, name: 'Race', displayName: 'Race' },
-            { onEmailCollision: 'signal-incomplete', emailIsReal: true },
+            { onEmailCollision: 'signal-incomplete', owesCreatedByline: true, emailIsReal: true },
         );
     const reconcile = (identityId: string, email: string) =>
         provisionCompleteUser(
             deps,
             { identityId, email, name: 'Race', displayName: 'Race' },
-            { onEmailCollision: 'placeholder', emailIsReal: true },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true, emailIsReal: true },
         );
 
     it('concurrent read-through + webhook for the SAME identity converge on exactly one complete user (×8, no deadlock)', async () => {
@@ -242,7 +242,7 @@ describe('provisionCompleteUser — race-safety under concurrency (integration)'
         await provisionCompleteUser(
             deps,
             { identityId: sub, email, name: 'Keep Me', displayName: 'Keep Me', avatarUrl: 'https://img/a.jpg' },
-            { onEmailCollision: 'placeholder', emailIsReal: true },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true, emailIsReal: true },
         );
         const [seeded] = await db.select().from(users).where(eq(users.identityId, sub));
         const userId = seeded!.id;

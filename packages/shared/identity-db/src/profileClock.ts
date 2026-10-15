@@ -25,5 +25,12 @@ import { profiles } from './schema/profiles.js';
  */
 export const newProfileClock: SQL = sql`date_trunc('milliseconds', statement_timestamp())`;
 
-/** `GREATEST(now at millisecond precision, the row's previous stamp + 1 ms)`. */
-export const profileClock: SQL = sql`GREATEST(${newProfileClock}, ${profiles.updatedAt} + interval '1 millisecond')`;
+/**
+ * `GREATEST(now, the row's previous stamp + 1 ms)`, truncated to milliseconds AFTER the comparison.
+ *
+ * ⛔ The truncation is outermost on purpose. A row whose stamp carries microseconds — any row written by a column
+ * default (`now()`) rather than by this clock — would otherwise make `previous + 1 ms` win with its microseconds
+ * intact, and the stamp would not survive the JS `Date` round trip that `settleHandleSync` compares on. Truncating
+ * `previous + 1 ms` still lands strictly after `previous` (it loses under 1 ms of the 1 ms it added).
+ */
+export const profileClock: SQL = sql`date_trunc('milliseconds', GREATEST(statement_timestamp(), ${profiles.updatedAt} + interval '1 millisecond'))`;

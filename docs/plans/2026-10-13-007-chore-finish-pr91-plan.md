@@ -30,29 +30,33 @@ things out, but done."
 
 ## Wave 1: CI green on PR 91
 
-| Item                                                                                                            | Done when                                                                        |
-| --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| iOS: the rename-collection sheet closes the keyboard but does not save (`collections`, `collectionsPull`)       | Fixed in the shared sheet, test-first. IOS green                                 |
-| iOS: Discover filter suggestions sit under the keyboard (`discoverIngredientCap`, `landscape`)                  | Fixed, test-first. IOS green                                                     |
-| A swipe that starts in an open ingredient list sometimes closes it (`ingredientRemoteFoods`, `edit`)            | Root cause found and fixed. Both flows stable                                    |
-| `recipes/landscape` fails intermittently on Android                                                             | Root cause found and fixed. Stable over runs                                     |
-| A new ingredient row lands just above the screen after a food is picked                                         | staff-ux-engineer spec, then built on both apps                                  |
-| `SyncProvider`'s re-arm keeps the old cook's closure, so a drain after a cook switch mid-flight is lost         | A failing test first, then fixed                                                 |
-| A Discard on the entity path never reports `mayStand` when it withdraws a parked create with an unknown outcome | Fixed or recorded as accepted after code-reviewer                                |
-| `awsCredentialsFederated.test.ts` guard helpers have cognitive complexity 30 and 35                             | Per-rule predicates extracted                                                    |
-| Cuisine: the mobile combobox cannot carry a field error, so the error shows as an alert under the field         | Design-system decision, then built                                               |
-| Cuisine: a long custom cuisine in a Discover chip (2-line clamp) is unchecked                                   | Checked on both apps                                                             |
-| Cuisine: a server refusal from an older queued save shows the general save failure, not field copy              | The outbox passes the error to the editor                                        |
-| Cuisine device checks: the 5-row list at font scale 2.0, and the list closing on Android Back                   | Run on emulator-5556                                                             |
-| Bounded combobox: after scrolling the list, a page drag from outside closes it (Android + iOS)                  | Run on a device                                                                  |
-| `SyncProvider`: a stale drain's retry wait replaces the next cook's timer (`setRetryInMs` without `live()`)     | A deterministic failing test, then the `live()` guard                            |
-| Arrival: `labelBlock` and `LIST_TO_FIELD_DP` restate layout gaps the styles own                                 | Read from layout or the styles' own constants                                    |
-| Midnight reclaim failed on its first run: the reclaim role lacks `cloudformation:ListStacks`                    | Fixed with a role-vs-SDK-calls guard, deployed, and a midnight run seen deleting |
-| Sandbox Identity Deploy fails red, not skipped, while the sandbox is down                                       | Skips with a notice when down; a guard covers the class                          |
-| `readViewerAppId` in `web/tests/e2e/utils/recipeApi.ts` blames a claim that is present                          | The message names the real cause                                                 |
-| Whatever the first CI run with the iOS fixes shows                                                              | Each failure fixed at its root                                                   |
-| CI on the OIDC roles, sandbox half (commit B)                                                                   | Plan 005. Proven on PR 91 by real runs                                           |
-| Faster iOS shards                                                                                               | Plan 006. Savings shown in the run logs                                          |
+| Item                                                                                                                  | Done when                                                                        |
+| --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| iOS: the rename-collection sheet closes the keyboard but does not save (`collections`, `collectionsPull`)             | Fixed in the shared sheet, test-first. IOS green                                 |
+| iOS: Discover filter suggestions sit under the keyboard (`discoverIngredientCap`, `landscape`)                        | Fixed, test-first. IOS green                                                     |
+| A swipe that starts in an open ingredient list sometimes closes it (`ingredientRemoteFoods`, `edit`)                  | Root cause found and fixed. Both flows stable                                    |
+| `recipes/landscape` fails intermittently on Android                                                                   | Root cause found and fixed. Stable over runs                                     |
+| A new ingredient row lands just above the screen after a food is picked                                               | staff-ux-engineer spec, then built on both apps                                  |
+| `SyncProvider`'s re-arm keeps the old cook's closure, so a drain after a cook switch mid-flight is lost               | A failing test first, then fixed                                                 |
+| A Discard on the entity path never reports `mayStand` when it withdraws a parked create with an unknown outcome       | Fixed or recorded as accepted after code-reviewer                                |
+| `awsCredentialsFederated.test.ts` guard helpers have cognitive complexity 30 and 35                                   | Per-rule predicates extracted                                                    |
+| Cuisine: the mobile combobox cannot carry a field error, so the error shows as an alert under the field               | Design-system decision, then built                                               |
+| Cuisine: a long custom cuisine in a Discover chip (2-line clamp) is unchecked                                         | Checked on both apps                                                             |
+| Cuisine: a server refusal from an older queued save shows the general save failure, not field copy                    | The outbox passes the error to the editor                                        |
+| Cuisine device checks: the 5-row list at font scale 2.0, and the list closing on Android Back                         | Run on emulator-5556                                                             |
+| Bounded combobox: after scrolling the list, a page drag from outside closes it (Android + iOS)                        | Run on a device                                                                  |
+| `SyncProvider`: a stale drain's retry wait replaces the next cook's timer (`setRetryInMs` without `live()`)           | A deterministic failing test, then the `live()` guard                            |
+| Arrival: `labelBlock` and `LIST_TO_FIELD_DP` restate layout gaps the styles own                                       | Read from layout or the styles' own constants                                    |
+| Midnight reclaim failed on its first run: the reclaim role lacks `cloudformation:ListStacks`                          | Fixed with a role-vs-SDK-calls guard, deployed, and a midnight run seen deleting |
+| Sandbox Identity Deploy fails red, not skipped, while the sandbox is down                                             | Skips with a notice when down; a guard covers the class                          |
+| The react-native-web ResizeObserver/layout stub is copied in 6 test files                                             | One test-support module per package                                              |
+| `lambdaRolesCoverTheirSdkCalls` covers only the scheduler stack; extend it to recipe-workers, identity-webhooks, food | Every Lambda role checked, or the name narrowed                                  |
+| `sdkCommandReach.ts` does not record why IAM Policy Autopilot was not used                                            | One sentence in its header                                                       |
+| Two stale sentences in `zizmor.yml` about which jobs assume the roles                                                 | Rewritten                                                                        |
+| `readViewerAppId` in `web/tests/e2e/utils/recipeApi.ts` blames a claim that is present                                | The message names the real cause                                                 |
+| Whatever the first CI run with the iOS fixes shows                                                                    | Each failure fixed at its root                                                   |
+| CI on the OIDC roles, sandbox half (commit B)                                                                         | Plan 005. Proven on PR 91 by real runs                                           |
+| Faster iOS shards                                                                                                     | Plan 006. Savings shown in the run logs                                          |
 
 ## Wave 2: the approved builds
 

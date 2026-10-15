@@ -46,7 +46,6 @@ import {
     RecipeUpsellSheet,
     RecipeMakePublicDialog,
     useGatedPrivate,
-    privateRefusalOf,
     useMakePublicConfirm,
     useServerRefusedPrivate,
     editorMessages,
@@ -219,7 +218,7 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     });
     // Q5 (UX SPECIFY 2026-10-15): a downgraded owner confirms Make public first; the confirm stays up, busy, while the
     // change is in flight, and says a failure inside itself.
-    const serverRefusedPrivate = useServerRefusedPrivate(id);
+    const serverRefusedPrivate = useServerRefusedPrivate(id, knownPaidFeaturesOf(profile));
     // The confirm's words say what is KNOWN: a failed profile read is "may not", never "won't" (review).
     const makePublic = useMakePublicConfirm({
         state: knownPaidFeaturesOf(profile) ?? 'loading',
@@ -418,11 +417,7 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                 because trying again cannot succeed. */}
             {serverRefusedPrivate ? (
                 <p role="alert" className="max-w-detail text-meta text-danger-text">
-                    {
-                        visibilityCopy.privateRefused[
-                            privateRefusalOf(knownPaidFeaturesOf(profile) ?? 'loading') ?? 'final'
-                        ]
-                    }
+                    {visibilityCopy.privateRefused[serverRefusedPrivate]}
                 </p>
             ) : (
                 setVisibility.error !== null &&

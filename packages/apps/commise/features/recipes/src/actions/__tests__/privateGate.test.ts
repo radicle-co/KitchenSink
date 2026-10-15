@@ -19,6 +19,7 @@ import {
     privateNeedsPremium,
     privateRefusalOf,
     refusedDraftPrivate,
+    serverRefusalOf,
     showsPremiumBadge,
 } from '../privateGate.js';
 
@@ -188,5 +189,20 @@ describe('privateRefusalOf — a change to private the server is known to refuse
         ['granted', undefined],
     ] as const)('%s → %s', (state, expected) => {
         expect(privateRefusalOf(state)).toBe(expected);
+    });
+});
+
+describe('serverRefusalOf — why a Private the server DID refuse was refused', () => {
+    // The server has already said no, so unlike `privateRefusalOf` this always answers: what the client knows picks the
+    // words (Premium would help, or nothing will), and what it does not know is told as final — a refusal that trying
+    // again cannot cure.
+    it.each([
+        [undefined, 'final'],
+        ['loading', 'final'],
+        ['granted', 'final'],
+        ['upsell', 'premium'],
+        ['hidden', 'final'],
+    ] as const)('for a profile reading of %s → %s', (known, why) => {
+        expect(serverRefusalOf(known)).toBe(why);
     });
 });

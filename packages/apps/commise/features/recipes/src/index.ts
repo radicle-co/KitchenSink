@@ -214,7 +214,6 @@ export { usePrivateChoice } from './actions/usePrivateChoice.js';
 export { useGatedPrivate } from './actions/useGatedPrivate.js';
 export {
     makePublicConsequence,
-    privateRefusalOf,
     mayRestorePrivate,
     offersPrivate,
     privateChoice,

@@ -155,6 +155,19 @@ export function privateRefusalOf(state: PaidFeatureState): PrivateRefusal | unde
 }
 
 /**
+ * Why a Private the server DID refuse (`INVALID_VISIBILITY`) was refused, in the words' key. Pure.
+ *
+ * The server has already said no, so this always answers: `premium` when the client knows Premium would help, and
+ * `final` otherwise — including when it does not know (a failed profile read), because trying again cannot cure it.
+ *
+ * @param known - The profile's own answer (`knownPaidFeaturesOf`): `undefined` while unknown or after a failed read.
+ * @returns The refusal's reason.
+ */
+export function serverRefusalOf(known: PaidFeatureState | undefined): PrivateRefusal {
+    return privateRefusalOf(known ?? 'loading') ?? 'final';
+}
+
+/**
  * Whether the draft holds a Private the server is KNOWN to refuse: a draft kept from before the cook lost the paid
  * features, for a recipe that is not held private. Pure.
  *

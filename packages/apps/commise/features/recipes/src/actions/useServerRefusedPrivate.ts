@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @module @commise/features-recipes/actions — whether the server refused a Private for this recipe AFTER it was sent
- * (plan 2026-10-14-009, the stuck-save review).
+ * @module @commise/features-recipes/actions — whether the server refused a Private for this recipe AFTER it was sent,
+ * and why (plan 2026-10-14-009, the stuck-save review).
  *
  * The client does not send a Private it knows will be refused (`privateRefusalOf`). An unknown state (a failed profile
  * read) or a stale one (a role removed under a cached profile) still sends it, and the editor's follow-up is answered
@@ -12,40 +12,72 @@
  *
  * @pattern Observer — `useMutationState` subscribes the page to the visibility writes in the cache, whoever sent them
  */
+import type { PaidFeatureState } from '@commise/features-account';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { isBadRequestError } from '@kitchensink/recipe-service-client';
-import { RECIPE_VISIBILITY_MUTATION_KEY } from '@kitchensink/recipe-service-client/hooks';
-import { useMutationState } from '@tanstack/react-query';
+import {
+    RECIPE_VISIBILITY_MUTATION_KEY,
+    type RecipeVisibilityVariables,
+} from '@kitchensink/recipe-service-client/hooks';
+import { useMutationState, type Mutation } from '@tanstack/react-query';
+
+import { serverRefusalOf, type PrivateRefusal } from './privateGate.js';
 
 /** A visibility write as the cache holds it. */
 interface VisibilityAttempt {
-    readonly variables: { readonly id: string; readonly visibility: RecipeVisibility } | undefined;
+    readonly variables: RecipeVisibilityVariables | undefined;
     readonly error: unknown;
 }
 
+const VISIBILITIES: readonly unknown[] = Object.values(RecipeVisibility);
+
 /**
- * Whether the latest visibility write for `recipeId` was a Private the server refused as `INVALID_VISIBILITY`.
+ * Read a cached write's variables as the visibility mutation's own variables type. The cache holds every mutation's
+ * variables as `unknown`, and the key names only ours, so this checks the shape rather than claiming it.
+ */
+function visibilityVariablesOf(variables: unknown): RecipeVisibilityVariables | undefined {
+    if (typeof variables !== 'object' || variables === null) {
+        return undefined;
+    }
+
+    const { id, visibility } = variables as { readonly id?: unknown; readonly visibility?: unknown };
+
+    return typeof id === 'string' && VISIBILITIES.includes(visibility)
+        ? { id, visibility: visibility as RecipeVisibility }
+        : undefined;
+}
+
+const attemptOf = (mutation: Mutation): VisibilityAttempt => ({
+    variables: visibilityVariablesOf(mutation.state.variables),
+    error: mutation.state.error,
+});
+
+/**
+ * Why the latest visibility write for `recipeId` was refused, when it was a Private the server refused as
+ * `INVALID_VISIBILITY`.
  *
  * @param recipeId - The recipe the page shows.
- * @returns `true` only for that refusal; any other failure keeps the page's generic message.
+ * @param known - The profile's own answer (`knownPaidFeaturesOf`), which picks the words.
+ * @returns The refusal's reason, or `undefined` when there is no such refusal; any other failure keeps the page's
+ *     generic message.
  * @sideEffect Subscribes to the mutation cache.
  */
-export function useServerRefusedPrivate(recipeId: string): boolean {
+export function useServerRefusedPrivate(
+    recipeId: string,
+    known: PaidFeatureState | undefined,
+): PrivateRefusal | undefined {
     const attempts = useMutationState<VisibilityAttempt>({
         filters: {
             mutationKey: RECIPE_VISIBILITY_MUTATION_KEY,
-            predicate: (mutation) => (mutation.state.variables as VisibilityAttempt['variables'])?.id === recipeId,
+            predicate: (mutation) => attemptOf(mutation).variables?.id === recipeId,
         },
-        select: (mutation) => ({
-            variables: mutation.state.variables as VisibilityAttempt['variables'],
-            error: mutation.state.error,
-        }),
+        select: attemptOf,
     });
     const latest = attempts.at(-1);
-
-    return (
+    const refused =
         latest?.variables?.visibility === RecipeVisibility.PRIVATE &&
         isBadRequestError(latest.error) &&
-        latest.error.code === 'INVALID_VISIBILITY'
-    );
+        latest.error.code === 'INVALID_VISIBILITY';
+
+    return refused ? serverRefusalOf(known) : undefined;
 }

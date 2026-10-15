@@ -13,6 +13,15 @@ import { useRecipeServiceClient } from './recipeServiceProvider.js';
 export const RECIPE_VISIBILITY_MUTATION_KEY = ['recipe-service', 'mutations', 'recipeVisibility'] as const;
 
 /**
+ * What a visibility write carries: the variables `useSetRecipeVisibility` files under
+ * {@link RECIPE_VISIBILITY_MUTATION_KEY}. Exported so a reader of the mutation cache names this shape, not a copy of it.
+ */
+export interface RecipeVisibilityVariables {
+    readonly id: string;
+    readonly visibility: RecipeVisibility;
+}
+
+/**
  * `PATCH /api/v1/recipes/{id}/visibility` — set a recipe's visibility.
  *
  * DA3 — write-through: the response is the full, freshly-persisted `RecipeDetail`, so it is written straight
@@ -34,8 +43,7 @@ export function useSetRecipeVisibility() {
 
     return useMutation({
         mutationKey: RECIPE_VISIBILITY_MUTATION_KEY,
-        mutationFn: (vars: { id: string; visibility: RecipeVisibility }) =>
-            client.setRecipeVisibility(vars.id, vars.visibility),
+        mutationFn: (vars: RecipeVisibilityVariables) => client.setRecipeVisibility(vars.id, vars.visibility),
         onSuccess: async (data, vars) => {
             // Cancel any in-flight `recipe(id)` GET before writing through, so a stale detail fetch settling
             // after this visibility change cannot clobber the fresh response (symmetric with the other hooks).

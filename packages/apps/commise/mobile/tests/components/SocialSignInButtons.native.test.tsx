@@ -15,7 +15,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { BUTTON_DIMMED_OPACITY } from '@commise/ui/button';
+import { dimmedOpacity } from '@commise/ui/scale';
 import { systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { SocialSignInButtons } from '../../src/components/auth/SocialSignInButtons.js';
@@ -24,9 +24,9 @@ import { mobileMessages } from '../../src/i18n/messages.js';
 const { auth } = mobileMessages.en;
 
 // A value no literal in the Google button could match: its dimmed opacity must be READ from the design system.
-vi.mock('@commise/ui/button', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('@commise/ui/button')>()),
-    BUTTON_DIMMED_OPACITY: 0.25,
+vi.mock('@commise/ui/scale', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/ui/scale')>()),
+    dimmedOpacity: 0.25,
 }));
 
 vi.mock('react-native', async (importOriginal) => {
@@ -141,7 +141,7 @@ describe('SocialSignInButtons', () => {
 
         const google = screen.getByRole('button', { name: auth.continueWithGoogle });
 
-        expect(BUTTON_DIMMED_OPACITY).toBe(0.25);
+        expect(dimmedOpacity).toBe(0.25);
         expect(getComputedStyle(google).opacity).toBe('0.25');
     });
 
@@ -150,7 +150,7 @@ describe('SocialSignInButtons', () => {
 
         const apple = screen.getByRole('button', { name: APPLE });
 
-        expect(getComputedStyle(apple).opacity).toBe(String(BUTTON_DIMMED_OPACITY));
+        expect(getComputedStyle(apple).opacity).toBe(String(dimmedOpacity));
     });
 
     it('locks both providers while the EMAIL form is busy too, without claiming a provider is signing in', () => {

@@ -13,8 +13,9 @@
  *
  * Presentational: props → JSX.
  */
-import { BUTTON_DIMMED_OPACITY, BUTTON_VISUAL_HEIGHT } from '@commise/ui/button';
+import { BUTTON_VISUAL_HEIGHT } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
+import { dimmedOpacity } from '@commise/ui/scale';
 import { useTheme } from '@commise/ui/theme';
 import { useMessages } from '@commise/i18n/react';
 import {
@@ -126,7 +127,7 @@ const styles = StyleSheet.create({
     // 12 pt between providers: more than Apple's minimum margin (a tenth of the button's height).
     group: { gap: nativeTokens.spacing[3] },
     apple: { height: HEIGHT, width: '100%' },
-    dimmed: { opacity: BUTTON_DIMMED_OPACITY },
+    dimmed: { opacity: dimmedOpacity },
     status: { ...nativeTokens.type.meta },
     divider: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[3] },
     rule: { flex: 1, height: StyleSheet.hairlineWidth },

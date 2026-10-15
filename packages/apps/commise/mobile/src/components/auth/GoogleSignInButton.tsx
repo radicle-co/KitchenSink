@@ -19,8 +19,9 @@
  *     slot, exactly as `Button`'s `busy` swaps its glyph; what the press DOES is the caller's.
  */
 import { googleSignIn } from '@commise/ui/brands';
-import { BUTTON_DIMMED_OPACITY, BUTTON_VISUAL_HEIGHT } from '@commise/ui/button';
+import { BUTTON_VISUAL_HEIGHT } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
+import { dimmedOpacity } from '@commise/ui/scale';
 import type { JSX } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import { Path, Svg } from 'react-native-svg';
@@ -104,7 +105,7 @@ const styles = StyleSheet.create({
         alignSelf: 'stretch',
     },
     // The same dimming the design system gives a locked control (§1.10).
-    dimmed: { opacity: BUTTON_DIMMED_OPACITY },
+    dimmed: { opacity: dimmedOpacity },
     // The label wraps rather than truncates; it is never `nowrap` (owner rule on control text).
     label: { ...nativeTokens.type.label, flexShrink: 1, textAlign: 'center' },
 });

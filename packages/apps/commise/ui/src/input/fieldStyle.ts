@@ -9,6 +9,7 @@ import type { TextStyle } from 'react-native';
 
 import type { Theme } from '../theme/themeFor.js';
 import { nativeTokens } from '../tokens/native.js';
+import { dimmedOpacity } from '../tokens/scale.js';
 
 /** The field's edge width, in points. */
 export const FIELD_EDGE = 1;
@@ -49,4 +50,5 @@ export function fieldPaint({ colors }: Theme, invalid: boolean): TextStyle {
     };
 }
 
-export const fieldDisabled = { opacity: 0.4 } as const;
+/** A disabled field dims as every other disabled control does. */
+export const fieldDisabled = { opacity: dimmedOpacity } as const;

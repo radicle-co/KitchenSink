@@ -1,8 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { role, roleDark } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
 import { themeFor } from '../../theme/themeFor.js';
+// A value no literal in the field could match: the disabled opacity must be READ from the shared token.
+vi.mock('../../tokens/scale.js', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../../tokens/scale.js')>()),
+    dimmedOpacity: 0.25,
+}));
+
 import { FIELD_MIN_HEIGHT, fieldDisabled, fieldGeometry, fieldPaint } from '../fieldStyle.js';
 
 /**
@@ -27,8 +33,8 @@ describe('the native field geometry', () => {
         expect(Object.keys(fieldGeometry).filter((key) => /color/iu.test(key))).toEqual([]);
     });
 
-    it('dims to 40% when disabled', () => {
-        expect(fieldDisabled.opacity).toBe(0.4);
+    it('dims to the shared dimmed opacity when disabled', () => {
+        expect(fieldDisabled.opacity).toBe(0.25);
     });
 });
 

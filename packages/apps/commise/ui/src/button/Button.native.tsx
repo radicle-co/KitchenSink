@@ -35,7 +35,8 @@ import { useTheme } from '../theme/useTheme.native.js';
 import type { Theme } from '../theme/themeFor.js';
 import { PressScale } from '../pressScale/index.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
-import { BUTTON_DIMMED_OPACITY, BUTTON_VISUAL_HEIGHT, surfaceOf, type ButtonProps, type ButtonSize } from './props.js';
+import { dimmedOpacity } from '../tokens/scale.js';
+import { BUTTON_VISUAL_HEIGHT, surfaceOf, type ButtonProps, type ButtonSize } from './props.js';
 
 /** The touch floor: 44 pt on iOS, 48 dp on Android (§1.6, "every 44 in this file is 48 dp on Android"). */
 const touchFloor = (): number => (Platform.OS === 'android' ? 48 : 44);
@@ -161,5 +162,5 @@ const styles = StyleSheet.create({
     hitFrame: { justifyContent: 'center' },
     glyph: { flexShrink: 0 },
     label: nativeTokens.type.label,
-    inactive: { opacity: BUTTON_DIMMED_OPACITY },
+    inactive: { opacity: dimmedOpacity },
 });

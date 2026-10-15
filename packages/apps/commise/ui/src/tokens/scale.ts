@@ -151,6 +151,13 @@ export const elevation = {
 /** The subtle border colour — single source for the web `semantic.border` and the native theme. */
 export const borderSubtle = 'rgba(178, 190, 195, 0.3)';
 
+/**
+ * How far a locked, unavailable or disabled native control dims (§1.10). One number for every control that dims — the
+ * `Button`, the stepper, a text field, and a control that cannot be a `Button` (the sign-in provider buttons) — so none
+ * drifts from the rest. Unit-neutral: an opacity, 0 to 1.
+ */
+export const dimmedOpacity = 0.4;
+
 export type Spacing = typeof spacing;
 export type Radius = typeof radius;
 export type FontFamily = typeof fontFamily;

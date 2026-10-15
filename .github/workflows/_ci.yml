@@ -1649,6 +1649,11 @@ jobs:
               run: '[ -n "$(ls -A packages/apps/commise/ui/dist 2>/dev/null)" ] || npm run build --workspace=@commise/ui'
             - name: Run web integration tests
               run: npm run test:integration --workspace=@commise/web
+            # Plan 012: the Expo CLI's own config loader and config plugins evaluate `app.config.ts` per Clerk instance
+            # (`expo config --type introspect` — no device, nothing written), proving the iOS Google URL scheme and the
+            # Sign in with Apple entitlement a Vitest import cannot see.
+            - name: Run mobile integration tests
+              run: npm run test:integration --workspace=@commise/mobile
             # Plan 002 V1: the recipe feature's own tier — the editor's draft pipeline and its nutrition read composed
             # from real modules (leaf, hooks, TanStack Query, the real client's zod parsing), with only `fetch` mocked.
             - name: Run features-recipes integration tests

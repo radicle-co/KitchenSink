@@ -126,6 +126,10 @@ describe.each(PLATFORMS)('the %s test app’s content key (turbo’s task hash)'
         expect(inputs).toContain('App.tsx');
         expect(inputs.some((file) => file.startsWith('src/'))).toBe(true);
     });
+
+    it('covers the app config, which selects the Google / Apple sign-in clients compiled into the build (plan 012)', () => {
+        expect(Object.keys(task.inputs ?? {})).toContain('app.config.ts');
+    });
 });
 
 /**

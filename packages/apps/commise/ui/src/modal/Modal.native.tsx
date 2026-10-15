@@ -31,7 +31,7 @@ import { Keyboard, Modal as NativeModal, Platform, type ModalProps as NativeModa
 import { FieldRevealContext, revealNothing } from '../fieldReveal/fieldRevealContext.js';
 import { hasFocusedField } from '../textInput/TextInput.native.js';
 
-/** Every orientation. iOS intersects it with the app's own (`app.json` "orientation": "default" allows all). */
+/** Every orientation. iOS intersects it with the app's own (`app.config.ts` `orientation: 'default'` allows all). */
 const EVERY_ORIENTATION: NonNullable<NativeModalProps['supportedOrientations']> = [
     'portrait',
     'portrait-upside-down',

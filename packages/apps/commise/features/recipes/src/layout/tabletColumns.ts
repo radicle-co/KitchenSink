@@ -4,7 +4,7 @@
  *
  * ## Why this exists
  *
- * `mobile/app.json` declares `supportsTablet: true`, and nothing in the recipe screens adapted to width —
+ * `mobile/app.config.ts` declares `supportsTablet: true`, and nothing in the recipe screens adapted to width —
  * the only `useWindowDimensions` in the feature was the photo carousel's. So at 768–1024pt the list
  * rendered a single column of full-width cards, the discovery grid stayed pinned at two (~500pt cards), and
  * detail body text ran the full width of an iPad, far past the 45–75 character measure a reader can track.

@@ -8,7 +8,8 @@ export default defineConfig({
         globals: true,
         setupFiles: [],
         include: ['tests/**/*.test.ts'],
-        exclude: ['node_modules', 'dist'],
+        // The integration tier has its own config and script (`vitest.integration.config.ts`); it must not run here.
+        exclude: ['node_modules', 'dist', 'tests/__integration__/**'],
 
         // `src/config/env.ts` validates the app's endpoints at MODULE LOAD and has no defaults, so any
         // screen test that reaches a service client would otherwise die with a configuration error.

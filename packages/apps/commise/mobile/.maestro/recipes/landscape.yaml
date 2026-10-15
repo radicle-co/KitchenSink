@@ -5,7 +5,7 @@ onFlowComplete:
     - setOrientation: PORTRAIT
 ---
 # The core story in LANDSCAPE on a phone, TYPING included (WCAG 2.2 SC 1.3.4 Orientation;
-# `docs/design/compactHeightLayout.md` §13.2). `app.json` no longer locks portrait, and Android 16 ignores an
+# `docs/design/compactHeightLayout.md` §13.2). `app.config.ts` no longer locks portrait, and Android 16 ignores an
 # orientation lock on large screens anyway. `setOrientation` arrived in Maestro 2.0.0; CI pins 2.6.1.
 #
 # The story, rotated: search the recipe list, open a recipe and come back, filter Discover by an ingredient typed into

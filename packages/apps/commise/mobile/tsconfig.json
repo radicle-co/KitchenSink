@@ -15,6 +15,6 @@
             "@commise/features-account": ["../features/account/src/index.ts"]
         }
     },
-    "include": ["src/**/*", "app/**/*", "tests/**/*", "App.tsx", "tamagui.config.ts"],
+    "include": ["src/**/*", "app/**/*", "tests/**/*", "App.tsx", "app.config.ts", "tamagui.config.ts"],
     "exclude": ["node_modules", "dist"]
 }

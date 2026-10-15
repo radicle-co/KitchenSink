@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 133,
-        "implementations": 238,
-        "props": 1125,
-        "documentedComponents": 133,
-        "implementationsWithModuleDoc": 238,
-        "implementationsWithComponentDoc": 138,
-        "documentedProps": 867,
-        "classifiedComponents": 115,
-        "componentsWithPatternTag": 58,
-        "crossPlatformComponents": 105
+        "components": 134,
+        "implementations": 240,
+        "props": 1135,
+        "documentedComponents": 134,
+        "implementationsWithModuleDoc": 240,
+        "implementationsWithComponentDoc": 140,
+        "documentedProps": 879,
+        "classifiedComponents": 116,
+        "componentsWithPatternTag": 59,
+        "crossPlatformComponents": 106
     },
     "components": [
         {
@@ -14675,11 +14675,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/PastedReadingRow.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `PastedReadingRow` (web): a pasted line not in the recipe yet, as a row of\nthe Ingredients list (build spec §7.5.1 \"Reading\", §7.5.4). Its own text, then \"Reading…\" (or, while its work waits\nfor a connection, that it finishes once back online), or, when its lookup failed, ⚠ \"Couldn't look up\" in\n`attention` with Try again named for the line.\n\nPresentational: props in, markup out. The native leaf is `./PastedReadingRow.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/form — `PastedReadingRow` (web): a pasted line not in the recipe yet, as a row of the\nIngredients list (build spec §7.5.4; plan 2026-10-15-011). Its own text, then its state line — a static glyph and\nwords saying what the line is doing (`pasteStatusCopy.ts`) — then, on its own line, the one action its state allows:\nAdd as written for a line waiting on the cook, Try again for a failed lookup.\n\nPresentational: props in, markup out. Nothing moves (WCAG 2.2.2: the editor stays usable through the wait). The\nnative leaf is `./PastedReadingRow.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes/form — `PastedReadingRow` (web): a pasted line not in the recipe yet, as a row of"
+                            "text": "@commise/features-recipes/form — `PastedReadingRow` (web): a pasted line not in the recipe yet, as a row of the"
                         }
                     ],
                     "description": "One pasted line still joining the recipe.",
@@ -14688,12 +14688,21 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "onRetry",
+                            "name": "onAddAsWritten",
+                            "type": "((lineIndex: number) => void) | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Add a line as the cook wrote it, by its `lineIndex`; absent, a waiting row offers no way out.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedReadingRowProps.ts"
+                        },
+                        {
+                            "name": "onRetryLookup",
                             "type": "(() => void) | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Ask again for the line whose lookup failed; absent, the failed row offers no Try again.",
+                            "description": "Ask again for the line whose lookup failed; absent, a failed row offers no Try again.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedReadingRowProps.ts"
                         },
                         {
@@ -14702,7 +14711,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "The pasted line, its position in the paste, and what it is doing.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedReadingRowProps.ts"
                         }
                     ],
@@ -14718,7 +14727,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/PastedReadingRow.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `PastedReadingRow` (native): the React Native leaf of\n`./PastedReadingRow.tsx`, on the same props. Painted from the theme's roles, so it reads in both themes (D15).",
+                    "moduleDoc": "@commise/features-recipes/form — `PastedReadingRow` (native): the React Native leaf of\n`./PastedReadingRow.tsx`, on the same props and the same words (`pasteStatusCopy.ts`). Painted from the theme's roles,\nso it reads in both themes (D15). The one action sits on its own line, so nothing wraps inside a control at 320 px.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -14731,12 +14740,21 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "onRetry",
+                            "name": "onAddAsWritten",
+                            "type": "((lineIndex: number) => void) | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Add a line as the cook wrote it, by its `lineIndex`; absent, a waiting row offers no way out.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedReadingRowProps.ts"
+                        },
+                        {
+                            "name": "onRetryLookup",
                             "type": "(() => void) | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Ask again for the line whose lookup failed; absent, the failed row offers no Try again.",
+                            "description": "Ask again for the line whose lookup failed; absent, a failed row offers no Try again.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedReadingRowProps.ts"
                         },
                         {
@@ -14745,7 +14763,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "The pasted line, its position in the paste, and what it is doing.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedReadingRowProps.ts"
                         }
                     ],
@@ -14870,6 +14888,158 @@
                             "defaultValue": null,
                             "description": "The parse job is being created: the primary reads busy.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteListSheetProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/form/PasteProgressBlock",
+            "name": "PasteProgressBlock",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/form",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over `useFocusOnSignal` — the DOM focus move the action's signal asks for",
+                "Adapter over `useScreenReaderFocusOnSignal` — the screen-reader focus move the action's signal asks for"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PasteProgressBlock",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteProgressBlock.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteProgressBlock` (web): the ONE block over a paste's unjoined lines (UX\nspec, plan 2026-10-15-011). It says how many lines are in the recipe, what step the paste is at, and — when lines wait\non the cook — offers Try again (job-wide) and Add the rest as written. It is NOT a live region: up to 200 lines change\nunder it, and the paste's one polite region speaks only at milestones (`usePasteAnnouncement`).\n\nPresentational, but it holds a ref: after an action its own control may disappear, and focus must land on the block\nrather than on the page (SC 2.4.3). Nothing moves (WCAG 2.2.2). The native leaf is `./PasteProgressBlock.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PasteProgressBlock` (web): the ONE block over a paste's unjoined lines (UX"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `useFocusOnSignal` — the DOM focus move the action's signal asks for"
+                        }
+                    ],
+                    "description": "The progress block over a paste.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "focusSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Moves when the cook acted on the paste: focus goes to the block if the control that had it went away.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteProgressBlockProps.ts"
+                        },
+                        {
+                            "name": "onAddRestAsWritten",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Add every stalled and retryable line as written.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteProgressBlockProps.ts"
+                        },
+                        {
+                            "name": "onRetryParse",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Re-drive every retryable line of the paste.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteProgressBlockProps.ts"
+                        },
+                        {
+                            "name": "progress",
+                            "type": "PasteProgress",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The paste's count, the step it is at, and what its actions would cover (`pasteProgressOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteProgressBlockProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "PasteProgressBlock",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteProgressBlock.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteProgressBlock` (native): the React Native leaf of\n`./PasteProgressBlock.tsx`, on the same props and words. The count and status read as ONE accessible element, and the\nactions sit on their own line, wrapping between buttons (never inside one) at 320 px.\n\nIt holds a ref for the same reason as the web leaf: after an action its own control may disappear, and the screen\nreader must land on the block rather than nowhere.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PasteProgressBlock` (native): the React Native leaf of"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `useScreenReaderFocusOnSignal` — the screen-reader focus move the action's signal asks for"
+                        }
+                    ],
+                    "description": "The progress block over a paste.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "focusSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Moves when the cook acted on the paste: focus goes to the block if the control that had it went away.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteProgressBlockProps.ts"
+                        },
+                        {
+                            "name": "onAddRestAsWritten",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Add every stalled and retryable line as written.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteProgressBlockProps.ts"
+                        },
+                        {
+                            "name": "onRetryParse",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Re-drive every retryable line of the paste.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteProgressBlockProps.ts"
+                        },
+                        {
+                            "name": "progress",
+                            "type": "PasteProgress",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The paste's count, the step it is at, and what its actions would cover (`pasteProgressOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteProgressBlockProps.ts"
                         }
                     ],
                     "usesRefApi": [],

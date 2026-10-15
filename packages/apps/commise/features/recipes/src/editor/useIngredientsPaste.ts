@@ -88,7 +88,13 @@ export function useIngredientsPaste(options: UseIngredientsPasteOptions): Ingred
     return {
         view: {
             reading: paste.reading,
-            onRetry: paste.retry,
+            progress: paste.progress,
+            onRetryLookup: paste.retryLookup,
+            onRetryParse: paste.retryParse,
+            onAddAsWritten: paste.addAsWritten,
+            onAddRestAsWritten: paste.addRestAsWritten,
+            focusSignal: paste.focusSignal,
+            announcement: paste.announcement,
             added: paste.added,
             onOpen: paste.available && empty ? open : undefined,
         },

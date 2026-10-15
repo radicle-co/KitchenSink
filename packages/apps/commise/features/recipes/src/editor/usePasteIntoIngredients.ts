@@ -15,8 +15,11 @@
  *   PATCH cannot carry them, so it lands as an authored line (A5, Q3; D10 accepts it).
  * - **Offline the lookups pause** (TanStack's `networkMode: 'online'`) and resume on reconnect; the rows then say so
  *   (`waiting`), from the mutations' own `isPaused`, never from a connectivity read.
- * - **No row reads for good** (`pastedLines.ts`): past the stall bound, or once the job cannot be read, a line joins
- *   through the add field's own reader.
+ * - **No time limit** (owner ruling 2026-10-13; plan 2026-10-15-011): each row says what the server reports its line is
+ *   doing. A line the server calls stalled, or that the system stopped trying, waits on the COOK: Add as written joins
+ *   it through the add field's own reader, Add the rest as written does that for every such line, and Try again
+ *   re-drives the whole paste. Only the server's own terminals (an expired or unreadable job) join without the cook.
+ * - **One progress block and one polite region** over the rows (`pasteProgress.ts`, `usePasteAnnouncement.ts`).
  * - **A lookup that fails** holds its line, and the lines after it, so the order holds; Try again asks again.
  *
  * ⚠️ RESIDUAL: the lines still reading are not in the device draft (ADR-0057 keeps form values only), so closing the
@@ -27,15 +30,22 @@
  * @pattern Command — each line's join, a TanStack mutation over its by-name lookups
  * @pattern Adapter — a settled line to draft rows, through `pastedLines.ts` and the line adapters
  */
-import { useAddIngredientByName, useCreateParseJob, useParseJob } from '@kitchensink/recipe-service-client/hooks';
+import {
+    useAddIngredientByName,
+    useCreateParseJob,
+    useParseJob,
+    useRetryParseJob,
+} from '@kitchensink/recipe-service-client/hooks';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useEffectEvent, useState } from 'react';
 
 import type { DraftAction, ResolvedRecipeFormIngredient } from '../form/draftAction.js';
 import { mintLineKey } from '../form/mintLineKey.js';
-import type { PasteReadingRow } from '../form/props.js';
+import type { PasteProgress, PasteReadingRow } from '../form/props.js';
 import { toIngredientLine, withLineMeasure } from '../hooks/lineCommit.js';
-import { PASTE_STALL_BOUND_MS, pastedLinesOf, type PastedLine, type PastedRow } from './pastedLines.js';
+import { pastedLinesOf, type PastedLine, type PastedRow } from './pastedLines.js';
+import { pasteMilestoneOf, pasteProgressOf, pasteRowsOf } from './pasteProgress.js';
+import { usePasteAnnouncement, type PasteAnnouncement } from './usePasteAnnouncement.js';
 
 /** A pasted line the job has settled. */
 type SettledPastedLine = Extract<PastedLine, { readonly kind: 'settled' }>;
@@ -65,8 +75,20 @@ export interface PasteIntoIngredients {
     readonly acceptedCount: number;
     /** The pasted lines not in the recipe yet, in paste order. */
     readonly reading: readonly PasteReadingRow[];
+    /** The progress block over them, while a paste is unfinished and its job has been read. */
+    readonly progress: PasteProgress | undefined;
     /** Ask again for the line whose lookup failed. */
-    readonly retry: () => void;
+    readonly retryLookup: () => void;
+    /** Re-drive every retryable line of the paste (the service's retry is job-wide). */
+    readonly retryParse: () => void;
+    /** Join one line as the cook wrote it, through the add field's reader. */
+    readonly addAsWritten: (lineIndex: number) => void;
+    /** Join every line waiting on the cook as written. */
+    readonly addRestAsWritten: () => void;
+    /** Moves each time the cook acts on the paste, so focus can follow to the progress block. */
+    readonly focusSignal: number;
+    /** What the polite region says, at milestones only. */
+    readonly announcement: PasteAnnouncement | undefined;
     /** How many ingredients the last finished paste added, said politely, once per paste. */
     readonly added: { readonly count: number; readonly occurrence: number } | undefined;
 }
@@ -74,8 +96,8 @@ export interface PasteIntoIngredients {
 /** One paste, from its accepted job to its last line. */
 interface PasteSession {
     readonly jobId: string;
-    /** When the job was accepted, epoch milliseconds: the stall bound is measured from it. */
-    readonly runningSince: number;
+    /** The lines the cook chose to add as written, by index. */
+    readonly typedByCook: ReadonlySet<number>;
     /** How many lines, in paste order, have joined. */
     readonly done: number;
     /** The rows added so far. */
@@ -117,30 +139,36 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
     const [added, setAdded] = useState<PasteIntoIngredients['added']>(undefined);
     const create = useCreateParseJob({
         onSuccess: (job) => {
-            setSession({ jobId: job.id, runningSince: Date.now(), done: 0, addedRows: 0, failedAt: undefined });
+            setSession({ jobId: job.id, typedByCook: new Set(), done: 0, addedRows: 0, failedAt: undefined });
             setAcceptedCount((count) => count + 1);
         },
     });
     const poll = useParseJob(session?.jobId ?? '');
     const byName = useAddIngredientByName();
+    const retryJob = useRetryParseJob();
+    const [focusSignal, setFocusSignal] = useState(0);
 
-    // The stall bound's clock: one timer per paste, which fires as the bound passes. A render-time `Date.now()` would
-    // not do: a poll whose job has not moved re-renders nothing, so a stuck job would never cross the bound.
+    // The deadline's clock: one timer per job, which fires as its `expiresAt` passes, so an expired job's unread lines
+    // join (the server's terminal, not a client limit). A render-time `Date.now()` would not do: a poll whose job has not
+    // moved re-renders nothing, so the deadline would never be crossed.
     const [clock, setClock] = useState(() => Date.now());
-    const runningSince = session?.runningSince;
+    const expiresAt = session === undefined ? undefined : poll.data?.expiresAt;
 
     useEffect(() => {
-        if (runningSince === undefined) {
+        const deadline = expiresAt === undefined ? Number.NaN : Date.parse(expiresAt);
+
+        if (!Number.isFinite(deadline)) {
             return undefined;
         }
 
+        // ⚠️ Capped, because `setTimeout` treats a delay past 2^31 - 1 ms as zero; a later tick re-arms it.
         const timer = setTimeout(
             () => setClock(Date.now()),
-            Math.max(0, runningSince + PASTE_STALL_BOUND_MS + 1 - Date.now()),
+            Math.min(2_147_483_647, Math.max(0, deadline + 1 - Date.now())),
         );
 
         return () => clearTimeout(timer);
-    }, [runningSince]);
+    }, [expiresAt]);
 
     const lines: readonly PastedLine[] =
         session === undefined || poll.data === undefined
@@ -149,7 +177,7 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
                   job: poll.data,
                   jobFailed: poll.isError,
                   now: clock,
-                  runningSince: session.runningSince,
+                  typedByCook: session.typedByCook,
               });
     const next = session === undefined || session.failedAt !== undefined ? undefined : lines[session.done];
     const nextSettledIndex = next?.kind === 'settled' ? next.lineIndex : undefined;
@@ -219,6 +247,30 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
 
     // The work waits for a connection: the join (a mutation) paused, a lookup inside it paused, or the poll paused.
     const waiting = join.isPaused || byName.isPaused || poll.fetchStatus === 'paused';
+    const reading =
+        session === undefined
+            ? []
+            : pasteRowsOf({ jobId: session.jobId, lines, done: session.done, failedAt: session.failedAt, waiting });
+    const progress =
+        session === undefined || reading.length === 0
+            ? undefined
+            : pasteProgressOf(reading, session.done, lines.length);
+    const condition = progress === undefined ? undefined : pasteMilestoneOf(progress);
+    const announcement = usePasteAnnouncement(
+        session?.jobId,
+        condition,
+        progress === undefined ? 0 : progress.status.kind === 'needsYou' ? progress.status.count : progress.count,
+    );
+
+    /** The cook chose to add these lines as written: each joins through the reader, and focus follows to the block. */
+    const addAsWrittenAt = (lineIndexes: readonly number[]): void => {
+        setSession((current) =>
+            current === undefined
+                ? current
+                : { ...current, typedByCook: new Set([...current.typedByCook, ...lineIndexes]) },
+        );
+        setFocusSignal((signal) => signal + 1);
+    };
 
     return {
         available: offered && session === undefined && !create.isPending,
@@ -227,15 +279,25 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
         failed: create.isError,
         clearFailure: () => create.reset(),
         acceptedCount,
-        reading:
-            session === undefined
-                ? []
-                : lines.slice(session.done).map((line) => ({
-                      key: `${session.jobId}:${String(line.lineIndex)}`,
-                      sourceLine: line.sourceLine,
-                      state: session.failedAt === line.lineIndex ? 'failed' : waiting ? 'waiting' : 'reading',
-                  })),
-        retry: () => setSession((current) => (current === undefined ? current : { ...current, failedAt: undefined })),
+        reading,
+        progress,
+        retryLookup: () =>
+            setSession((current) => (current === undefined ? current : { ...current, failedAt: undefined })),
+        retryParse: () => {
+            if (session !== undefined) {
+                retryJob.mutate(session.jobId);
+                setFocusSignal((signal) => signal + 1);
+            }
+        },
+        addAsWritten: (lineIndex) => addAsWrittenAt([lineIndex]),
+        addRestAsWritten: () =>
+            addAsWrittenAt(
+                reading
+                    .filter((row) => row.state === 'stalled' || row.state === 'retryable')
+                    .map((row) => row.lineIndex),
+            ),
+        focusSignal,
+        announcement,
         added,
     };
 }

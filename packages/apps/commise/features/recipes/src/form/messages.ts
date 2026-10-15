@@ -174,6 +174,54 @@ export interface RecipeFormMessages {
      * of the 2026-10-09 review). ⚠️ Copy written in implementation, owed a `staff-ux-engineer` review.
      */
     readonly rowStateWaitingForConnection: string;
+    /** A pasted row while its line waits to be read (plan 2026-10-15-011: the server's `queued`). */
+    readonly rowStateQueued: string;
+    /** A pasted row while its line is read again after an earlier attempt (`retrying`). */
+    readonly rowStateRetrying: string;
+    /** A pasted row between attempts (`delayed`). Promises no time. */
+    readonly rowStateDelayed: string;
+    /** A pasted row whose paste has not moved for a while (`stalled`). NOT a failure: it may still move. */
+    readonly rowStateStalled: string;
+    /** A pasted row the system stopped trying to read (`failed_retryable`). */
+    readonly rowStateRetryable: string;
+    /** A pasted row already read, waiting behind an earlier line: lines join in paste order. */
+    readonly rowStateJoinsInOrder: string;
+    /** A stalled or unread pasted row's way out: add it as the cook wrote it. */
+    readonly statusActionAddAsWritten: string;
+    /** That action's accessible name: starts with its visible words (SC 2.5.3). Holds `{line}`, the pasted line. */
+    readonly statusActionAddAsWrittenLabel: string;
+    /** The paste's progress block title: lines in the recipe so far. Holds `{count}` (the paste) and `{done}`. */
+    readonly pasteProgressCount: PluralText;
+    /** The block's status when lines wait on the cook. Holds `{count}`. */
+    readonly pasteProgressNeedsYou: PluralText;
+    /** The block's status while the work waits for a connection. */
+    readonly pasteProgressOffline: string;
+    /** The block's status when every line still being read has stalled. */
+    readonly pasteProgressStalled: string;
+    /** The second line under {@link pasteProgressStalled}: the cook's two choices. */
+    readonly pasteProgressStalledHint: string;
+    /** The block's status while the head line is read. Holds `{line}`, its 1-based position. */
+    readonly pasteProgressReading: string;
+    /** …while it is read again. Holds `{line}`. */
+    readonly pasteProgressRetrying: string;
+    /** …while it waits to be tried again. Holds `{line}`. */
+    readonly pasteProgressDelayed: string;
+    /** …while it waits to be read. Holds `{line}`. */
+    readonly pasteProgressQueued: string;
+    /** …while its foods are looked up. Holds `{line}`. */
+    readonly pasteProgressLookingUp: string;
+    /** Try again's accessible name on the block: it re-drives every retryable line. Holds `{count}`. */
+    readonly pasteRetryAllLabel: PluralText;
+    /** The block's bulk way out, for every stalled or unread line. */
+    readonly pasteAddRestAsWritten: string;
+    /** Its accessible name. Holds `{count}`. */
+    readonly pasteAddRestAsWrittenLabel: PluralText;
+    /** Said politely when a paste starts. Holds `{count}`. */
+    readonly pasteProgressStarted: PluralText;
+    /** Said politely when work moves again after a stall, an outage or a retry. */
+    readonly pasteProgressResumed: string;
+    /** The web list of pasted lines not in the recipe yet. */
+    readonly pasteReadingListLabel: string;
     /** A row's second line when the cook must pick among foods (build spec §7.5.1, `rowState.chooseMatch`). */
     readonly rowStateChooseMatch: string;
     /** A row's second line when nothing matched, or the line names no food (`rowState.noMatch`). */
@@ -577,6 +625,33 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         rowStateReading: 'Reading…',
         rowStateLookupFailed: 'Couldn’t look up',
         rowStateWaitingForConnection: 'Reads when you’re back online',
+        rowStateQueued: 'Waiting to be read',
+        rowStateRetrying: 'Reading again…',
+        rowStateDelayed: 'Waiting to try again',
+        rowStateStalled: 'Taking longer than usual',
+        rowStateRetryable: 'Couldn’t read this line',
+        rowStateJoinsInOrder: 'Read. Joins in paste order.',
+        statusActionAddAsWritten: 'Add as written',
+        statusActionAddAsWrittenLabel: 'Add as written: {line}',
+        pasteProgressCount: { one: 'Added {done} of {count} line', other: 'Added {done} of {count} lines' },
+        pasteProgressNeedsYou: { one: '{count} line needs you', other: '{count} lines need you' },
+        pasteProgressOffline: 'Paused until you’re back online',
+        pasteProgressStalled: 'Taking longer than usual',
+        pasteProgressStalledHint: 'You can keep waiting, or add the lines as written.',
+        pasteProgressReading: 'Reading line {line}',
+        pasteProgressRetrying: 'Reading line {line} again',
+        pasteProgressDelayed: 'Waiting to try line {line} again',
+        pasteProgressQueued: 'Waiting to read line {line}',
+        pasteProgressLookingUp: 'Looking up line {line}',
+        pasteRetryAllLabel: { one: 'Try again for {count} line', other: 'Try again for {count} lines' },
+        pasteAddRestAsWritten: 'Add the rest as written',
+        pasteAddRestAsWrittenLabel: {
+            one: 'Add the rest as written: {count} line',
+            other: 'Add the rest as written: {count} lines',
+        },
+        pasteProgressStarted: { one: 'Reading {count} pasted line.', other: 'Reading {count} pasted lines.' },
+        pasteProgressResumed: 'Reading again.',
+        pasteReadingListLabel: 'Lines not added yet',
         rowStateChooseMatch: 'Choose a match',
         rowStateNoMatch: 'No match found',
         rowStateFoodRemoved: 'Food no longer listed',

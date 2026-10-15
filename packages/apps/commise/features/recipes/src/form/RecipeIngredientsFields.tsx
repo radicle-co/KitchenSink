@@ -40,6 +40,8 @@ import { IngredientsNutritionTotal } from './IngredientsNutritionTotal.js';
 import { recipeFormMessages } from './messages.js';
 import { MoveToGroupSheet } from './MoveToGroupSheet.js';
 import { PastedReadingRow } from './PastedReadingRow.js';
+import { PasteProgressBlock } from './PasteProgressBlock.js';
+import { pasteAnnouncementTextOf } from './pasteStatusCopy.js';
 import type { RecipeIngredientsFieldsProps } from './props.js';
 import { trailingEntryFieldOf } from './trailingEntryField.js';
 import type { SectionAddView } from './useIngredientGroups.js';
@@ -192,6 +194,31 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
         />
     );
 
+    // The paste's lines not in the recipe yet: ONE progress block, then their own list (UX spec, plan 2026-10-15-011).
+    const pastedLines =
+        paste === undefined || reading.length === 0 ? null : (
+            <>
+                {paste.progress !== undefined && (
+                    <PasteProgressBlock
+                        progress={paste.progress}
+                        onRetryParse={paste.onRetryParse}
+                        onAddRestAsWritten={paste.onAddRestAsWritten}
+                        focusSignal={paste.focusSignal}
+                    />
+                )}
+                <ul aria-label={m.pasteReadingListLabel} className="flex flex-col">
+                    {reading.map((row) => (
+                        <PastedReadingRow
+                            key={row.key}
+                            row={row}
+                            onRetryLookup={paste.onRetryLookup}
+                            onAddAsWritten={paste.onAddAsWritten}
+                        />
+                    ))}
+                </ul>
+            </>
+        );
+
     return (
         // Slice 7: the editor's section holds the region and its H2 ("Ingredients"); this leaf is the body under it.
         // One form needs no cards (§7.1).
@@ -213,6 +240,11 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             <p role="status" className="sr-only">
                 {paste?.added === undefined ? '' : pluralOf(editor.pasteAdded, paste.added.count, locale)}
             </p>
+            {/* The paste's ONE polite region: milestones only, never a row (plan 2026-10-15-011). The visible block is
+                not live. Always rendered, so the region exists before its text changes. */}
+            <p role="status" className="sr-only">
+                {paste?.announcement === undefined ? '' : pasteAnnouncementTextOf(paste.announcement, m, locale)}
+            </p>
             {empty ? (
                 <p className="text-body-sm text-ink-muted">{m.noIngredients}</p>
             ) : (
@@ -232,23 +264,14 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                                     className="flex flex-col"
                                 >
                                     {section.rows.map(rowOf)}
-                                    {/* Pasted lines being read follow the list's own rows (§7.5.4). */}
-                                    {at === model.sections.length - 1 &&
-                                        reading.map((row) => (
-                                            <PastedReadingRow key={row.key} row={row} onRetry={paste?.onRetry} />
-                                        ))}
                                 </ul>
+                                {/* Pasted lines being read follow the list's own rows (§7.5.4), under their block. */}
+                                {at === model.sections.length - 1 && pastedLines}
                                 <GroupFoot add={section.addHere} model={model} />
                             </div>
                         );
                     })}
-                    {model.sections.length === 0 && (
-                        <ul aria-label={index.sections.ingredients} className="flex flex-col">
-                            {reading.map((row) => (
-                                <PastedReadingRow key={row.key} row={row} onRetry={paste?.onRetry} />
-                            ))}
-                        </ul>
-                    )}
+                    {model.sections.length === 0 && pastedLines}
                 </>
             )}
             {model.emptyGroups.map((group) => (

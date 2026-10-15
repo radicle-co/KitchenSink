@@ -9,7 +9,7 @@
         "platform-singleton": 46,
         "ref-api": 13,
         "unclassified-layer": 98,
-        "undocumented-prop": 169
+        "undocumented-prop": 167
     },
     "findings": [
         {
@@ -2969,26 +2969,6 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "state"
-            ]
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresRecipes/form/PastedReadingRow",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/PastedReadingRow.native.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "row"
-            ]
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresRecipes/form/PastedReadingRow",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/PastedReadingRow.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "row"
             ]
         },
         {

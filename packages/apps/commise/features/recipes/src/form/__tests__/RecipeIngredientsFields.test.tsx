@@ -942,20 +942,37 @@ describe('RecipeIngredientsFields (web) — ⛔ no control can create an unresol
 });
 
 describe('RecipeIngredientsFields (web) — pasted lines (build spec §7.5.1 "Reading", §7.5.4)', () => {
+    /**
+     * REWRITTEN for plan 2026-10-15-011 (UX spec there): the pasted lines moved out of the section's list into a list of
+     * their own ("Lines not added yet"), under ONE progress block, and each row now says what its line is doing.
+     */
     const PASTE: IngredientsPasteView = {
         reading: [
-            { key: 'j:0', sourceLine: '2 cups flour', state: 'reading' },
-            { key: 'j:1', sourceLine: '1 tsp salt', state: 'failed' },
+            { key: 'j:0', lineIndex: 0, sourceLine: '2 cups flour', state: 'reading' },
+            { key: 'j:1', lineIndex: 1, sourceLine: '1 tsp salt', state: 'lookupFailed' },
         ],
-        onRetry: noop,
+        progress: {
+            done: 0,
+            count: 2,
+            status: { kind: 'needsYou', count: 1 },
+            retryCount: 0,
+            restCount: 0,
+        },
+        onRetryLookup: noop,
+        onRetryParse: noop,
+        onAddAsWritten: noop,
+        onAddRestAsWritten: noop,
+        focusSignal: 0,
+        announcement: undefined,
         added: undefined,
         onOpen: undefined,
     };
+    const pastedList = (): HTMLElement => screen.getByRole('list', { name: en.pasteReadingListLabel });
 
-    it('each line not in the recipe yet is a row of the list, with its own text and its state', () => {
+    it('each line not in the recipe yet is an item of its own list, with its own text and its state', () => {
         renderLeaf({ values: valuesWith([]), paste: PASTE });
 
-        expect(rowItems().map((row) => row.textContent)).toEqual([
+        expect(rowItems(pastedList()).map((row) => row.textContent)).toEqual([
             '2 cups flour' + en.rowStateReading,
             '1 tsp salt' + en.rowStateLookupFailed + en.statusActionRetry,
         ]);
@@ -965,26 +982,72 @@ describe('RecipeIngredientsFields (web) — pasted lines (build spec §7.5.1 "Re
     it('a line waiting for a connection says it finishes once the device is back online (finding 11)', () => {
         renderLeaf({
             values: valuesWith([]),
-            paste: { ...PASTE, reading: [{ key: 'j:0', sourceLine: '2 cups flour', state: 'waiting' }] },
+            paste: { ...PASTE, reading: [{ key: 'j:0', lineIndex: 0, sourceLine: '2 cups flour', state: 'waiting' }] },
         });
 
-        expect(rowItems().map((row) => row.textContent)).toEqual(['2 cups flour' + en.rowStateWaitingForConnection]);
+        expect(rowItems(pastedList()).map((row) => row.textContent)).toEqual([
+            '2 cups flour' + en.rowStateWaitingForConnection,
+        ]);
     });
 
-    it('pasted lines follow the list’s own rows', () => {
+    it('pasted lines follow the list’s own rows, under the one progress block', () => {
         renderLeaf({ paste: PASTE });
 
-        expect(rowItems()).toHaveLength(3);
+        const block = screen.getByText('Added 0 of 2 lines');
+
+        expect(rowItems()).toHaveLength(1);
+        expect(ingredientList().compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(block.compareDocumentPosition(pastedList()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(screen.getByText('1 line needs you')).toBeTruthy();
     });
 
     it('a line whose lookup failed offers Try again, named for its line', async () => {
         const user = userEvent.setup();
-        const onRetry = vi.fn();
-        renderLeaf({ values: valuesWith([]), paste: { ...PASTE, onRetry } });
+        const onRetryLookup = vi.fn();
+        renderLeaf({ values: valuesWith([]), paste: { ...PASTE, onRetryLookup } });
 
         await user.click(screen.getByRole('button', { name: 'Try again for 1 tsp salt' }));
 
-        expect(onRetry).toHaveBeenCalledTimes(1);
+        expect(onRetryLookup).toHaveBeenCalledTimes(1);
+    });
+
+    it('a stalled line offers Add as written, and the block offers the rest and a job-wide Try again', async () => {
+        const user = userEvent.setup();
+        const onAddAsWritten = vi.fn();
+        const onAddRestAsWritten = vi.fn();
+        const onRetryParse = vi.fn();
+        renderLeaf({
+            values: valuesWith([]),
+            paste: {
+                ...PASTE,
+                reading: [
+                    { key: 'j:0', lineIndex: 0, sourceLine: '2 cups flour', state: 'stalled' },
+                    { key: 'j:1', lineIndex: 1, sourceLine: '1 tsp salt', state: 'retryable' },
+                ],
+                progress: { done: 0, count: 2, status: { kind: 'needsYou', count: 1 }, retryCount: 1, restCount: 2 },
+                onAddAsWritten,
+                onAddRestAsWritten,
+                onRetryParse,
+            },
+        });
+
+        await user.click(screen.getByRole('button', { name: 'Add as written: 2 cups flour' }));
+        await user.click(screen.getByRole('button', { name: 'Add the rest as written: 2 lines' }));
+        await user.click(screen.getByRole('button', { name: 'Try again for 1 line' }));
+
+        expect(onAddAsWritten).toHaveBeenCalledWith(0);
+        expect(onAddRestAsWritten).toHaveBeenCalledTimes(1);
+        expect(onRetryParse).toHaveBeenCalledTimes(1);
+    });
+
+    it('says a paste milestone politely, in a region of its own', () => {
+        renderLeaf({
+            paste: { ...PASTE, announcement: { milestone: 'started', count: 2, occurrence: 1 } },
+        });
+
+        expect(screen.getAllByRole('status').some((region) => region.textContent === 'Reading 2 pasted lines.')).toBe(
+            true,
+        );
     });
 
     it('says politely how many ingredients a finished paste added', () => {

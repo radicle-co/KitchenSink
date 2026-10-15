@@ -39,6 +39,8 @@ import { IngredientsNutritionTotal } from './IngredientsNutritionTotal.native.js
 import { recipeFormMessages } from './messages.js';
 import { MoveToGroupSheet } from './MoveToGroupSheet.native.js';
 import { PastedReadingRow } from './PastedReadingRow.native.js';
+import { PasteProgressBlock } from './PasteProgressBlock.native.js';
+import { pasteAnnouncementTextOf } from './pasteStatusCopy.js';
 import type { RecipeIngredientsFieldsProps } from './props.js';
 import { trailingEntryFieldOf } from './trailingEntryField.js';
 import type { SectionAddView } from './useIngredientGroups.js';
@@ -236,6 +238,10 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             <LiveRegion politeness="polite" visuallyHidden>
                 {paste?.added === undefined ? '' : pluralOf(editor.pasteAdded, paste.added.count, locale)}
             </LiveRegion>
+            {/* The paste's ONE polite region: milestones only, never a row (plan 2026-10-15-011). */}
+            <LiveRegion politeness="polite" visuallyHidden>
+                {paste?.announcement === undefined ? '' : pasteAnnouncementTextOf(paste.announcement, m, locale)}
+            </LiveRegion>
             {empty ? (
                 <Text style={[styles.body, { color: colors.inkMuted }]}>{m.noIngredients}</Text>
             ) : (
@@ -254,9 +260,22 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                     </View>
                 ))
             )}
-            {/* Pasted lines being read follow the list's own rows (§7.5.4). */}
+            {/* Pasted lines being read follow the list's own rows (§7.5.4), under ONE progress block. */}
+            {paste?.progress !== undefined && reading.length > 0 && (
+                <PasteProgressBlock
+                    progress={paste.progress}
+                    onRetryParse={paste.onRetryParse}
+                    onAddRestAsWritten={paste.onAddRestAsWritten}
+                    focusSignal={paste.focusSignal}
+                />
+            )}
             {reading.map((row) => (
-                <PastedReadingRow key={row.key} row={row} onRetry={paste?.onRetry} />
+                <PastedReadingRow
+                    key={row.key}
+                    row={row}
+                    onRetryLookup={paste?.onRetryLookup}
+                    onAddAsWritten={paste?.onAddAsWritten}
+                />
             ))}
             {model.emptyGroups.map((group) => (
                 <View key={group.key} style={styles.stack}>

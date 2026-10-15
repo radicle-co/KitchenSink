@@ -20,7 +20,7 @@ import {
     makeParseProposalFood,
 } from '../../__fixtures__/parseJobs.js';
 import type { DraftAction } from '../../form/draftAction.js';
-import { PASTE_STALL_BOUND_MS } from '../pastedLines.js';
+import { PASTE_ANNOUNCE_INTERVAL_MS } from '../usePasteAnnouncement.js';
 
 const mocks = vi.hoisted(() => ({
     created: undefined as ((job: ParseJobResponse) => void) | undefined,
@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
     jobError: false,
     polledId: vi.fn(),
     byName: vi.fn(),
+    retryParse: vi.fn(),
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
@@ -45,6 +46,7 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
         return { data: id === '' ? undefined : mocks.job, isError: id !== '' && mocks.jobError };
     },
     useAddIngredientByName: () => ({ mutateAsync: mocks.byName, isPaused: false }),
+    useRetryParseJob: () => ({ mutate: mocks.retryParse }),
 }));
 
 import { usePasteIntoIngredients, type UsePasteIntoIngredientsOptions } from '../usePasteIntoIngredients.js';
@@ -149,11 +151,19 @@ describe('usePasteIntoIngredients — the job', () => {
             }),
         );
 
+        // The fixture's lines are pending and the server reads them as queued (`progress`).
         expect(result.current.reading.map((row) => [row.sourceLine, row.state])).toEqual([
-            ['2 cups flour', 'reading'],
-            ['1 tsp salt', 'reading'],
+            ['2 cups flour', 'queued'],
+            ['1 tsp salt', 'queued'],
         ]);
         expect(result.current.acceptedCount).toBe(1);
+        expect(result.current.progress).toEqual({
+            done: 0,
+            count: 2,
+            status: { kind: 'step', step: 'queued', position: 1 },
+            retryCount: 0,
+            restCount: 0,
+        });
     });
 
     it('a refused create (offline included) says so and reads nothing', () => {
@@ -296,29 +306,57 @@ describe('usePasteIntoIngredients — a lookup that fails', () => {
         rerender({ offered: true, keepsSource: true, dispatch });
         await settle();
 
+        // The second line is read and waits its turn behind the first (lines join in paste order).
         expect(result.current.reading.map((row) => [row.sourceLine, row.state])).toEqual([
-            ['2 cups flour', 'failed'],
-            ['1 tsp salt', 'reading'],
+            ['2 cups flour', 'lookupFailed'],
+            ['1 tsp salt', 'ready'],
         ]);
         expect(appended(dispatch)).toEqual([]);
 
-        act(() => result.current.retry());
+        act(() => result.current.retryLookup());
         await settle();
 
         expect(appended(dispatch).map((line) => line.name)).toEqual(['flour', 'salt']);
     });
 });
 
-describe('usePasteIntoIngredients — no row reads for good', () => {
-    it('⛔ a line still pending past the stall bound joins through the add field’s reader', async () => {
+/**
+ * ⛔ REWRITTEN for owner ruling 2026-10-13 (plan 2026-10-15-011): "it takes as long as it takes". The 3-minute stall
+ * bound that joined every unread line through the reader is gone. A line waits as long as the parse takes; a line the
+ * server calls stalled, or that the system stopped trying, waits on the COOK — Add as written joins it through the add
+ * field's reader, and Try again re-drives the whole paste. The server's own terminals still join without the cook.
+ */
+describe('usePasteIntoIngredients — no time limit; the cook decides', () => {
+    const OLIVE = '2 tbsp olive oil, for frying';
+
+    it('⛔ a pending line waits however long the parse takes: no clock joins it', async () => {
         vi.useFakeTimers({ now: FIXTURE_NOW });
         const { result, rerender, dispatch } = render();
-        act(() => result.current.submit('2 tbsp olive oil, for frying'));
-        accept(makeParseJob({ lines: [makeParseJobLine({ sourceLine: '2 tbsp olive oil, for frying' })] }));
+        act(() => result.current.submit(OLIVE));
+        accept(makeParseJob({ lines: [makeParseJobLine({ sourceLine: OLIVE, progress: { phase: 'reading' } })] }));
 
         act(() => {
-            vi.advanceTimersByTime(PASTE_STALL_BOUND_MS + 1);
+            vi.advanceTimersByTime(60 * 60 * 1_000);
         });
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await settle();
+
+        expect(mocks.byName).not.toHaveBeenCalled();
+        expect(result.current.reading.map((row) => row.state)).toEqual(['reading']);
+    });
+
+    it('a stalled line waits on the cook, and Add as written joins it through the reader', async () => {
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit(OLIVE));
+        accept(makeParseJob({ lines: [makeParseJobLine({ sourceLine: OLIVE, progress: { phase: 'stalled' } })] }));
+        await settle();
+
+        expect(result.current.reading.map((row) => row.state)).toEqual(['stalled']);
+        expect(result.current.progress?.status).toEqual({ kind: 'stalled' });
+        expect(appended(dispatch)).toEqual([]);
+
+        const signal = result.current.focusSignal;
+        act(() => result.current.addAsWritten(0));
         rerender({ offered: true, keepsSource: true, dispatch });
         await settle();
 
@@ -328,6 +366,74 @@ describe('usePasteIntoIngredients — no row reads for good', () => {
             expect.objectContaining({ quantity: 2, unit: 'tbsp', preparation: 'for frying' }),
         ]);
         expect(appended(dispatch)[0]).not.toHaveProperty('sourcePhrase');
+        expect(result.current.focusSignal).toBe(signal + 1);
+    });
+
+    it('a retryable line waits on the cook; Try again re-drives the whole paste', async () => {
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit('2 cups flour\n1 tsp salt'));
+        accept(
+            makeParseJob({
+                status: 'partial',
+                lines: [
+                    makeParseJobLine({ lineIndex: 0, sourceLine: '2 cups flour', status: 'failed_retryable' }),
+                    makeParseJobLine({ lineIndex: 1, sourceLine: '1 tsp salt', status: 'failed_retryable' }),
+                ],
+            }),
+        );
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await settle();
+
+        expect(result.current.reading.map((row) => row.state)).toEqual(['retryable', 'retryable']);
+        expect(result.current.progress).toMatchObject({ status: { kind: 'needsYou', count: 2 }, retryCount: 2 });
+
+        act(() => result.current.retryParse());
+
+        expect(mocks.retryParse).toHaveBeenCalledWith(makeParseJob().id);
+        expect(appended(dispatch)).toEqual([]);
+    });
+
+    it('Add the rest as written joins every line waiting on the cook, and leaves read lines their parse', async () => {
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit('x'));
+        accept(
+            makeParseJob({
+                lines: [
+                    parsed(0, '2 cups flour', 'flour'),
+                    makeParseJobLine({ lineIndex: 1, sourceLine: '1 tsp salt', progress: { phase: 'stalled' } }),
+                    makeParseJobLine({ lineIndex: 2, sourceLine: OLIVE, status: 'failed_retryable' }),
+                ],
+            }),
+        );
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await settle();
+
+        act(() => result.current.addRestAsWritten());
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await settle();
+
+        expect(appended(dispatch).map((line) => [line.name, line.sourcePhrase])).toEqual([
+            ['flour', 'flour'],
+            ['salt', undefined],
+            ['olive oil', undefined],
+        ]);
+        expect(result.current.reading).toEqual([]);
+    });
+
+    it('an expired job joins its unread lines through the reader at its deadline', async () => {
+        vi.useFakeTimers({ now: FIXTURE_NOW });
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit(OLIVE));
+        // The fixture job expires a day after FIXTURE_NOW.
+        accept(makeParseJob({ lines: [makeParseJobLine({ sourceLine: OLIVE, progress: { phase: 'reading' } })] }));
+
+        act(() => {
+            vi.advanceTimersByTime(24 * 60 * 60 * 1_000 + 1);
+        });
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await settle();
+
+        expect(appended(dispatch).map((line) => line.name)).toEqual(['olive oil']);
     });
 
     it('a job that cannot be read joins every line through the reader', async () => {
@@ -340,6 +446,72 @@ describe('usePasteIntoIngredients — no row reads for good', () => {
         await settle();
 
         expect(appended(dispatch).map((line) => line.name)).toEqual(['flour']);
+    });
+});
+
+/**
+ * The polite region (UX spec, plan 2026-10-15-011): it speaks at milestones only, never per row, and at most once per
+ * interval — the newest milestone wins a burst.
+ */
+describe('usePasteIntoIngredients — what is said politely', () => {
+    it('says the paste started, then a stall that lasts past the interval', async () => {
+        vi.useFakeTimers({ now: FIXTURE_NOW });
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit('2 cups flour'));
+        accept(makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'reading' } })] }));
+        // A paste starting is said at once: on the next turn, not after the interval.
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect(result.current.announcement).toMatchObject({ milestone: 'started', count: 1, occurrence: 1 });
+
+        mocks.job = makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'stalled' } })] });
+        rerender({ offered: true, keepsSource: true, dispatch });
+
+        // Inside the interval nothing new is said; once it has passed, the stall is.
+        expect(result.current.announcement).toMatchObject({ milestone: 'started', occurrence: 1 });
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(PASTE_ANNOUNCE_INTERVAL_MS);
+        });
+
+        expect(result.current.announcement).toMatchObject({ milestone: 'stalled', occurrence: 2 });
+    });
+
+    it('a stall that clears inside the interval is never said: the condition is back where it was', async () => {
+        vi.useFakeTimers({ now: FIXTURE_NOW });
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit('2 cups flour'));
+        accept(makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'reading' } })] }));
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        mocks.job = makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'stalled' } })] });
+        rerender({ offered: true, keepsSource: true, dispatch });
+        mocks.job = makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'retrying' } })] });
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(PASTE_ANNOUNCE_INTERVAL_MS);
+        });
+
+        expect(result.current.announcement).toMatchObject({ milestone: 'started', occurrence: 1 });
+    });
+
+    it('says nothing when only a row moves within the same condition', async () => {
+        vi.useFakeTimers({ now: FIXTURE_NOW });
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit('2 cups flour'));
+        accept(makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'queued' } })] }));
+
+        mocks.job = makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'reading' } })] });
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(PASTE_ANNOUNCE_INTERVAL_MS * 2);
+        });
+
+        expect(result.current.announcement).toMatchObject({ milestone: 'started', occurrence: 1 });
     });
 });
 

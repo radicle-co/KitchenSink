@@ -759,15 +759,63 @@ describe('RecipeIngredientsFields (native) — ⛔ no control can create an unre
 });
 
 describe('RecipeIngredientsFields (native) — pasted lines (§7.5.1 "Reading", §7.5.4)', () => {
+    /** REWRITTEN for plan 2026-10-15-011: the view carries the progress block and the cook's actions. */
     const PASTE: IngredientsPasteView = {
         reading: [
-            { key: 'j:0', sourceLine: '2 cups flour', state: 'reading' },
-            { key: 'j:1', sourceLine: '1 tsp salt', state: 'failed' },
+            { key: 'j:0', lineIndex: 0, sourceLine: '2 cups flour', state: 'reading' },
+            { key: 'j:1', lineIndex: 1, sourceLine: '1 tsp salt', state: 'lookupFailed' },
         ],
-        onRetry: noop,
+        progress: {
+            done: 0,
+            count: 2,
+            status: { kind: 'needsYou', count: 1 },
+            retryCount: 0,
+            restCount: 0,
+        },
+        onRetryLookup: noop,
+        onRetryParse: noop,
+        onAddAsWritten: noop,
+        onAddRestAsWritten: noop,
+        focusSignal: 0,
+        announcement: undefined,
         added: undefined,
         onOpen: undefined,
     };
+
+    it('the one progress block comes before the pasted lines', () => {
+        renderLeaf({ values: valuesWith([]), paste: PASTE });
+
+        const block = screen.getByText('Added 0 of 2 lines');
+
+        expect(
+            block.compareDocumentPosition(screen.getByText('2 cups flour')) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        expect(screen.getByText('1 line needs you')).toBeTruthy();
+    });
+
+    it('a stalled line offers Add as written, named for its line', () => {
+        const onAddAsWritten = vi.fn();
+        renderLeaf({
+            values: valuesWith([]),
+            paste: {
+                ...PASTE,
+                reading: [{ key: 'j:0', lineIndex: 0, sourceLine: '2 cups flour', state: 'stalled' }],
+                onAddAsWritten,
+            },
+        });
+
+        press('Add as written: 2 cups flour');
+
+        expect(onAddAsWritten).toHaveBeenCalledWith(0);
+    });
+
+    it('says a paste milestone politely', () => {
+        renderLeaf({ paste: { ...PASTE, announcement: { milestone: 'stalled', count: 2, occurrence: 1 } } });
+
+        expect(
+            screen.getByText('Taking longer than usual. You can keep waiting, or add the lines as written.'),
+        ).toBeTruthy();
+    });
 
     it('each line not in the recipe yet reads as a row with its state', () => {
         renderLeaf({ values: valuesWith([]), paste: PASTE });
@@ -780,7 +828,7 @@ describe('RecipeIngredientsFields (native) — pasted lines (§7.5.1 "Reading", 
     it('a line waiting for a connection says it finishes once the device is back online (finding 11)', () => {
         renderLeaf({
             values: valuesWith([]),
-            paste: { ...PASTE, reading: [{ key: 'j:0', sourceLine: '2 cups flour', state: 'waiting' }] },
+            paste: { ...PASTE, reading: [{ key: 'j:0', lineIndex: 0, sourceLine: '2 cups flour', state: 'waiting' }] },
         });
 
         expect(screen.getByText(en.rowStateWaitingForConnection)).toBeTruthy();

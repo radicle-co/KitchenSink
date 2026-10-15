@@ -137,23 +137,84 @@ export interface RecipeIngredientsFieldsProps extends RecipeFormSectionProps {
     readonly paste?: IngredientsPasteView;
 }
 
+/**
+ * What a pasted line not in the recipe yet is doing (plan 2026-10-15-011). The first four are the server's phase while
+ * it reads the line; `stalled` and `retryable` wait on the cook; `ready` is read and waiting behind an earlier line
+ * (lines join in paste order); `joining` is the next line, being looked up; `waiting` is that work paused for a
+ * connection; `lookupFailed` is a lookup that failed and offers Try again. Precedence: `lookupFailed` > `waiting` > the
+ * line's own state.
+ */
+export type PasteRowState =
+    | 'queued'
+    | 'reading'
+    | 'retrying'
+    | 'delayed'
+    | 'stalled'
+    | 'retryable'
+    | 'ready'
+    | 'joining'
+    | 'waiting'
+    | 'lookupFailed';
+
 /** A pasted line not in the recipe yet (`usePasteIntoIngredients`). */
 export interface PasteReadingRow {
     readonly key: string;
+    /** The line's position in the paste, from 0. */
+    readonly lineIndex: number;
     readonly sourceLine: string;
-    /**
-     * `reading` while it is read and joined; `waiting` while that work is paused for a connection (it resumes on
-     * reconnect); `failed` once its lookup failed, which offers Try again.
-     */
-    readonly state: 'reading' | 'waiting' | 'failed';
+    readonly state: PasteRowState;
 }
+
+/** The step the paste is at, as its progress block says it (first match wins; `pasteProgressOf`). */
+export type PasteProgressStatus =
+    /** Lines wait on the cook: retryable lines and failed lookups. */
+    | { readonly kind: 'needsYou'; readonly count: number }
+    /** The work is paused for a connection. */
+    | { readonly kind: 'offline' }
+    /** Every line the server still holds is stalled. */
+    | { readonly kind: 'stalled' }
+    /** The line being worked on, by its 1-based position in the paste. */
+    | {
+          readonly kind: 'step';
+          readonly step: 'queued' | 'reading' | 'retrying' | 'delayed' | 'joining';
+          readonly position: number;
+      };
+
+/** The one progress block over a paste's unjoined lines (UX spec, plan 2026-10-15-011). */
+export interface PasteProgress {
+    /** Lines in the recipe so far: it never goes backward. */
+    readonly done: number;
+    /** Lines in the paste. */
+    readonly count: number;
+    readonly status: PasteProgressStatus;
+    /** Retryable lines: Try again re-drives them all, so it is offered once, here, when any exist. */
+    readonly retryCount: number;
+    /** Lines Add the rest as written would add: the stalled and retryable ones. */
+    readonly restCount: number;
+}
+
+/** What the paste's polite region may speak about: one of these changing, at most every few seconds. */
+export type PasteMilestone = 'started' | 'needsYou' | 'stalled' | 'resumed' | 'offline';
 
 /** What the field group draws of a paste (build spec §7.5.1 "Reading", §7.5.4). */
 export interface IngredientsPasteView {
     /** The pasted lines not in the recipe yet, in paste order: rows after the list's own. */
     readonly reading: readonly PasteReadingRow[];
+    /** The progress block over them, while a paste is unfinished. */
+    readonly progress: PasteProgress | undefined;
     /** Ask again for the line whose lookup failed. */
-    readonly onRetry: () => void;
+    readonly onRetryLookup: () => void;
+    /** Re-drive every retryable line of the paste. */
+    readonly onRetryParse: () => void;
+    /** Add one line as the cook wrote it, by its `lineIndex`. */
+    readonly onAddAsWritten: (lineIndex: number) => void;
+    /** Add every stalled and retryable line as written. */
+    readonly onAddRestAsWritten: () => void;
+    /** Moves when the cook acted on the paste: focus goes to the progress block. */
+    readonly focusSignal: number;
+    /** The milestone to say politely, once per occurrence; the leaf words it. */
+    readonly announcement:
+        { readonly milestone: PasteMilestone; readonly count: number; readonly occurrence: number } | undefined;
     /** How many ingredients the last finished paste added, said politely once per paste. */
     readonly added: { readonly count: number; readonly occurrence: number } | undefined;
     /** The empty section's Paste a list, beside the add field; `undefined` when paste is not offered. */

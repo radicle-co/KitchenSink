@@ -60,8 +60,11 @@ const COMPLETE_JOB = {
     ],
 };
 
-/** The wire double: records each request, answers the parse job and the by-name lookup; `beforeJob` holds the job. */
-function wire(beforeJob: () => Promise<void> = async () => undefined) {
+/**
+ * The wire double: records each request, answers the parse job and the by-name lookup; `beforeJob` holds the job, and
+ * `detail` is what polling the job answers.
+ */
+function wire(beforeJob: () => Promise<void> = async () => undefined, detail: unknown = COMPLETE_JOB) {
     const requests: { readonly route: string; readonly body: unknown }[] = [];
 
     const fetchDouble = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -98,7 +101,7 @@ function wire(beforeJob: () => Promise<void> = async () => undefined) {
                     202,
                 );
             case `GET /api/v1/recipe-parse-jobs/${JOB_ID}`:
-                return json(COMPLETE_JOB, 200);
+                return json(detail, 200);
             case 'POST /api/v1/ingredients/by-name':
                 // The wire's ingredient: the lookup admitted it and is still resolving it (R19: the parse bound nothing).
                 return json(
@@ -145,7 +148,14 @@ const Editor: FC<{ readonly onValues: (values: RecipeFormValues) => void }> = ({
         <>
             <ul aria-label="Reading">
                 {paste.view.reading.map((row) => (
-                    <li key={row.key}>{`${row.sourceLine}: ${row.state}`}</li>
+                    <li key={row.key}>
+                        {`${row.sourceLine}: ${row.state}`}
+                        {row.state === 'stalled' && (
+                            <button type="button" onClick={() => paste.view.onAddAsWritten(row.lineIndex)}>
+                                {`Add as written: ${row.sourceLine}`}
+                            </button>
+                        )}
+                    </li>
                 ))}
             </ul>
             <PasteListSheet sheet={paste.sheet} submitting={paste.submitting} failed={paste.failed} />
@@ -272,5 +282,41 @@ describe('Paste a list — on the wire', () => {
             `GET /api/v1/recipe-parse-jobs/${JOB_ID}`,
             'POST /api/v1/ingredients/by-name',
         ]);
+    });
+
+    /**
+     * Owner ruling 2026-10-13 (plan 2026-10-15-011): no client time limit. A line the SERVER reads as stalled waits on
+     * the cook — the poll's `progress` reaches the row through the real client's strict parse — and Add as written joins
+     * it through the add field's reader, so the create carries the line but claims no parsed phrase.
+     */
+    it('a line the server reads as stalled waits on the cook; Add as written joins it as the cook wrote it', async () => {
+        const user = userEvent.setup();
+        const { client, requests } = wire(undefined, {
+            ...COMPLETE_JOB,
+            status: 'running',
+            lines: [{ ...COMPLETE_JOB.lines[0], status: 'pending', proposal: null, progress: { phase: 'stalled' } }],
+        });
+        let latest: RecipeFormValues | undefined;
+        renderEditor(client, (values) => {
+            latest = values;
+        });
+
+        const sheet = screen.getByRole('dialog', { name: 'Paste a list' });
+        await user.type(within(sheet).getByRole('textbox', { name: 'Ingredient lines' }), '2 cups flour, sifted');
+        await user.click(within(sheet).getByRole('button', { name: 'Add 1 ingredient' }));
+
+        const reading = screen.getByRole('list', { name: 'Reading' });
+        await waitFor(() => expect(within(reading).getByRole('listitem').textContent).toContain('stalled'));
+        expect(requests.map((request) => request.route)).not.toContain('POST /api/v1/ingredients/by-name');
+
+        await user.click(within(reading).getByRole('button', { name: 'Add as written: 2 cups flour, sifted' }));
+
+        await waitFor(() => expect(latest?.ingredients).toHaveLength(1));
+        expect(requests.at(-1)).toEqual({ route: 'POST /api/v1/ingredients/by-name', body: { name: 'flour' } });
+
+        const body = toCreateRecipeInput(latest ?? defaultRecipeFormValues(), RecipeStatus.DRAFT);
+        expect(body.ingredients[0]).toMatchObject({ sourceLine: '2 cups flour, sifted' });
+        expect(body.ingredients[0]).not.toHaveProperty('sourcePhrase');
+        expect(createRecipeRequestSchema.safeParse(body).error?.issues ?? []).toEqual([]);
     });
 });

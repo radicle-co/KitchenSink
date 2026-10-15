@@ -25,7 +25,13 @@ const paste = (over: Partial<PasteIntoIngredients> = {}): PasteIntoIngredients =
     clearFailure: vi.fn(),
     acceptedCount: 0,
     reading: [],
-    retry: vi.fn(),
+    progress: undefined,
+    retryLookup: vi.fn(),
+    retryParse: vi.fn(),
+    addAsWritten: vi.fn(),
+    addRestAsWritten: vi.fn(),
+    focusSignal: 0,
+    announcement: undefined,
     added: undefined,
     ...over,
 });
@@ -87,18 +93,52 @@ describe('useIngredientsPaste', () => {
     it('Publish waits while pasted lines are still joining the recipe', () => {
         expect(render({}, 0).result.current.pending).toBe(false);
         expect(
-            render({ reading: [{ key: 'j:0', sourceLine: '2 cups flour', state: 'reading' }] }, 0).result.current
-                .pending,
+            render({ reading: [{ key: 'j:0', lineIndex: 0, sourceLine: '2 cups flour', state: 'reading' }] }, 0).result
+                .current.pending,
         ).toBe(true);
         expect(render({ submitting: true }, 0).result.current.pending).toBe(true);
     });
 
-    it('hands the field group the rows still reading, Try again, and the count said once a paste ends', () => {
-        const retry = vi.fn();
-        const reading = [{ key: 'j:0', sourceLine: '2 cups flour', state: 'failed' as const }];
-        const { result } = render({ reading, retry, added: { count: 3, occurrence: 2 } }, 1);
+    it('hands the field group the rows, the progress block, every action, and what is said politely', () => {
+        const retryLookup = vi.fn();
+        const retryParse = vi.fn();
+        const addAsWritten = vi.fn();
+        const addRestAsWritten = vi.fn();
+        const reading = [{ key: 'j:0', lineIndex: 0, sourceLine: '2 cups flour', state: 'lookupFailed' as const }];
+        const progress = {
+            done: 0,
+            count: 1,
+            status: { kind: 'needsYou' as const, count: 1 },
+            retryCount: 0,
+            restCount: 0,
+        };
+        const announcement = { milestone: 'needsYou' as const, count: 1, occurrence: 3 };
+        const { result } = render(
+            {
+                reading,
+                progress,
+                retryLookup,
+                retryParse,
+                addAsWritten,
+                addRestAsWritten,
+                focusSignal: 4,
+                announcement,
+                added: { count: 3, occurrence: 2 },
+            },
+            1,
+        );
 
-        expect(result.current.view).toMatchObject({ reading, onRetry: retry, added: { count: 3, occurrence: 2 } });
+        expect(result.current.view).toMatchObject({
+            reading,
+            progress,
+            onRetryLookup: retryLookup,
+            onRetryParse: retryParse,
+            onAddAsWritten: addAsWritten,
+            onAddRestAsWritten: addRestAsWritten,
+            focusSignal: 4,
+            announcement,
+            added: { count: 3, occurrence: 2 },
+        });
     });
 
     /**
@@ -114,7 +154,9 @@ describe('useIngredientsPaste', () => {
         view.rerender();
         expect(hold.get()).toBe(false);
 
-        double.current = paste({ reading: [{ key: 'l1', sourceLine: '2 cups flour', state: 'reading' }] });
+        double.current = paste({
+            reading: [{ key: 'l1', lineIndex: 0, sourceLine: '2 cups flour', state: 'reading' }],
+        });
         view.rerender();
         expect(hold.get()).toBe(true);
 
@@ -132,7 +174,9 @@ describe('useIngredientsPaste', () => {
         view.rerender();
         expect(released).toHaveBeenCalledTimes(1);
 
-        double.current = paste({ reading: [{ key: 'l1', sourceLine: '2 cups flour', state: 'reading' }] });
+        double.current = paste({
+            reading: [{ key: 'l1', lineIndex: 0, sourceLine: '2 cups flour', state: 'reading' }],
+        });
         view.rerender();
         view.unmount();
         expect(released).toHaveBeenCalledTimes(1);

@@ -2,10 +2,12 @@
  * Unit tests for the paste's projection (`editor/pastedLines.ts`; blueprint A5, build spec §7.5.4): which pasted lines
  * are still reading, and what each settled line becomes in the recipe.
  *
- * ⛔ Three facts about the service decide when a line has stopped moving, so each has a case: a `partial`
- * job keeps moving, expiry is the timestamp and not the status, and a line can stay `pending` forever. None of them may
- * leave a row reading for good: past the stall bound, an expired job, an unreadable line and a job that cannot be read
- * all settle the line through the add field's own reader.
+ * ⛔ REWRITTEN for owner ruling 2026-10-13 (plan 2026-10-15-011): "it takes as long as it takes". There is no client
+ * time limit any more — the 3-minute stall bound that settled every unread line through the reader is gone, and with
+ * it the cases that pinned it. What replaces it: a pending line reads with the phase the SERVER reports; a line the
+ * server calls `stalled`, and a `failed_retryable` line, AWAIT THE COOK (Add as written, or Try again); and a line the
+ * cook chose to add as written settles through the add field's own reader. The server's terminals still settle without
+ * the cook: an expired job, an unreadable line and a job that cannot be read.
  */
 import { ABSENT_QUANTITY } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
@@ -16,7 +18,7 @@ import {
     makeParseProposal,
     makeParseProposalFood,
 } from '../../__fixtures__/parseJobs.js';
-import { PASTE_STALL_BOUND_MS, pastedLinesOf, type PastedLinesInput } from '../pastedLines.js';
+import { pastedLinesOf, type PastedLinesInput } from '../pastedLines.js';
 
 const NOW = Date.parse('2026-10-09T10:01:00.000Z');
 
@@ -24,7 +26,7 @@ const input = (over: Partial<PastedLinesInput> = {}): PastedLinesInput => ({
     job: makeParseJob(),
     jobFailed: false,
     now: NOW,
-    runningSince: NOW - 1_000,
+    typedByCook: new Set(),
     ...over,
 });
 
@@ -38,8 +40,38 @@ const OLIVE_OIL_FALLBACK = {
 };
 
 describe('pastedLinesOf', () => {
-    it('a pending line of a running job is reading, with its own text', () => {
-        expect(pastedLinesOf(input())).toEqual([{ kind: 'reading', lineIndex: 0, sourceLine: '2 cups flour' }]);
+    it('a pending line of a running job is reading, with its own text and the phase the server reports', () => {
+        expect(pastedLinesOf(input())).toEqual([
+            { kind: 'reading', lineIndex: 0, sourceLine: '2 cups flour', phase: 'queued' },
+        ]);
+    });
+
+    it.each(['queued', 'reading', 'retrying', 'delayed'] as const)(
+        'a pending line the server reads as %s reads so',
+        (phase) => {
+            const job = makeParseJob({ lines: [makeParseJobLine({ progress: { phase } })] });
+
+            expect(pastedLinesOf(input({ job }))[0]).toEqual({
+                kind: 'reading',
+                lineIndex: 0,
+                sourceLine: '2 cups flour',
+                phase,
+            });
+        },
+    );
+
+    it('⛔ a stalled line awaits the cook rather than settling: no clock gives up on it', () => {
+        const job = makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'stalled' } })] });
+
+        expect(pastedLinesOf(input({ job }))).toEqual([
+            { kind: 'awaitingCook', lineIndex: 0, sourceLine: '2 cups flour', cause: 'stalled' },
+        ]);
+    });
+
+    it('a pending line with no progress reads as queued', () => {
+        const job = makeParseJob({ lines: [makeParseJobLine({ progress: null })] });
+
+        expect(pastedLinesOf(input({ job }))[0]).toMatchObject({ kind: 'reading', phase: 'queued' });
     });
 
     it('a parsed line becomes one row per proposed food: the name to look up, the measure, the phrase it read', () => {
@@ -236,12 +268,14 @@ describe('pastedLinesOf', () => {
      * in a colon used to be dropped only when the parse answered; on every other path it became a food named after it.
      */
     describe('a line the reader settles adds no food when it names none (finding 9)', () => {
-        const OLD = NOW - PASTE_STALL_BOUND_MS - 1;
         const PATHS = [
             {
-                path: 'past the stall bound',
+                path: 'the cook chose to add it as written',
                 at: (sourceLine: string) =>
-                    input({ job: makeParseJob({ lines: [makeParseJobLine({ sourceLine })] }), runningSince: OLD }),
+                    input({
+                        job: makeParseJob({ lines: [makeParseJobLine({ sourceLine })] }),
+                        typedByCook: new Set([0]),
+                    }),
             },
             {
                 path: 'an unparseable line',
@@ -298,26 +332,50 @@ describe('pastedLinesOf', () => {
         );
     });
 
-    it('⛔ a partial job keeps reading its retryable lines: they may still land on their own', () => {
-        const job = makeParseJob({
-            status: 'partial',
-            lines: [makeParseJobLine({ sourceLine: '2 tbsp olive oil, for frying', status: 'failed_retryable' })],
-        });
+    /**
+     * REWRITTEN (plan 2026-10-15-011): this used to assert a retryable line keeps reading because it "may still land on
+     * its own". Since the worker claims only a `pending` line, it almost never does, so it waits on the cook instead.
+     */
+    it('⛔ a retryable line awaits the cook, whatever the job status says', () => {
+        for (const status of ['partial', 'running'] as const) {
+            const job = makeParseJob({
+                status,
+                lines: [makeParseJobLine({ sourceLine: '2 tbsp olive oil, for frying', status: 'failed_retryable' })],
+            });
 
-        expect(pastedLinesOf(input({ job }))[0]?.kind).toBe('reading');
+            expect(pastedLinesOf(input({ job }))).toEqual([
+                { kind: 'awaitingCook', lineIndex: 0, sourceLine: '2 tbsp olive oil, for frying', cause: 'retryable' },
+            ]);
+        }
     });
 
     it.each([
-        { why: 'a pending line past the stall bound', status: 'running' as const, line: 'pending' as const },
-        { why: 'a retryable line past the stall bound', status: 'partial' as const, line: 'failed_retryable' as const },
-    ])('⛔ $why settles through the reader, so no row reads for good', ({ status, line }) => {
+        { why: 'a stalled line', line: makeParseJobLine({ progress: { phase: 'stalled' } }) },
+        { why: 'a retryable line', line: makeParseJobLine({ status: 'failed_retryable' }) },
+        { why: 'a line still being read', line: makeParseJobLine({ progress: { phase: 'reading' } }) },
+        {
+            why: "⛔ a line whose parse landed after the cook chose — the cook's choice wins",
+            line: makeParseJobLine({ status: 'parsed', proposal: makeParseProposal() }),
+        },
+    ])('$why the cook chose to add as written settles through the reader', ({ line }) => {
+        const job = makeParseJob({ lines: [{ ...line, sourceLine: '2 tbsp olive oil, for frying' }] });
+
+        expect(pastedLinesOf(input({ job, typedByCook: new Set([0]) }))).toEqual([
+            { kind: 'settled', lineIndex: 0, sourceLine: '2 tbsp olive oil, for frying', rows: [OLIVE_OIL_FALLBACK] },
+        ]);
+    });
+
+    it("the cook's choice for one line leaves the others alone", () => {
         const job = makeParseJob({
-            status,
-            lines: [makeParseJobLine({ sourceLine: '2 tbsp olive oil, for frying', status: line })],
+            lines: [
+                makeParseJobLine({ lineIndex: 0, sourceLine: '2 tbsp olive oil, for frying' }),
+                makeParseJobLine({ lineIndex: 1, sourceLine: '1 tsp salt', progress: { phase: 'stalled' } }),
+            ],
         });
 
-        expect(pastedLinesOf(input({ job, runningSince: NOW - PASTE_STALL_BOUND_MS - 1 }))).toEqual([
-            { kind: 'settled', lineIndex: 0, sourceLine: '2 tbsp olive oil, for frying', rows: [OLIVE_OIL_FALLBACK] },
+        expect(pastedLinesOf(input({ job, typedByCook: new Set([0]) })).map((line) => line.kind)).toEqual([
+            'settled',
+            'awaitingCook',
         ]);
     });
 

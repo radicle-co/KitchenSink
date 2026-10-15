@@ -546,11 +546,7 @@ export class FoodsService {
         });
 
         // Crosswalk: a query that is a known barcode or source item key resolves directly to a root.
-        const crosswalk = await this.crosswalkHitOf(query);
-
-        if (crosswalk !== undefined && !results.some((result) => result.id === crosswalk.id)) {
-            results.unshift(crosswalk);
-        }
+        await this.prependCrosswalkHit(results, query);
 
         if (!withNutrition || results.length === 0) {
             // ⛔ Enrichment is strictly OPT-IN (plan U4b): the default caller is the per-keystroke typeahead,
@@ -618,11 +614,8 @@ export class FoodsService {
                 ...(variant === undefined ? {} : { variant: variantViewOf(variant) }),
             };
         });
-        const crosswalk = await this.crosswalkHitOf(query);
 
-        if (crosswalk !== undefined && !results.some((result) => result.id === crosswalk.id)) {
-            results.unshift(crosswalk);
-        }
+        await this.prependCrosswalkHit(results, query);
 
         return { results };
     }
@@ -1207,6 +1200,21 @@ export class FoodsService {
             }
 
             throw new FoodNotFoundError(id);
+        }
+    }
+
+    /**
+     * Puts the crosswalk hit first in `results` unless the text search already returned that root.
+     *
+     * @param results - The ranked hits; mutated in place.
+     * @param query - The trimmed query.
+     * @sideEffect Mutates `results`; reads as {@link crosswalkHitOf} does.
+     */
+    private async prependCrosswalkHit(results: CatalogSearchResponse['results'], query: string): Promise<void> {
+        const crosswalk = await this.crosswalkHitOf(query);
+
+        if (crosswalk !== undefined && !results.some((result) => result.id === crosswalk.id)) {
+            results.unshift(crosswalk);
         }
     }
 

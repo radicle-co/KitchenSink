@@ -1,24 +1,22 @@
 /**
  * The parse-job READ SEAM (`parseJobQueries`) — its key, its fetcher, and the rule that actually matters
- * here: WHEN THE POLL STOPS.
+ * here: WHEN THE POLL STOPS, AND HOW FAST IT RUNS.
  *
- * ⚠️ REWRITTEN, not tightened. The first version of this file asserted that a `partial` job stops the poll
- * because "nothing moves until the cook presses retry". That is a FALSE property of the server, and every
- * assertion built on it was green for the wrong reason. Three verified facts overturn it:
+ * ⚠️ REWRITTEN TWICE. The first version asserted that a `partial` job stops the poll; the second justified polling it
+ * with a self-heal that U6 has since mostly closed. What is true now (plan 2026-10-15-011):
  *
- *  1. `ParseJobsService.enqueueOrMark` converts an enqueue failure into `failed_retryable` lines, and that
- *     population can include a line whose message really did send — rule 2 of that service's module
- *     docstring owns the rule and states when.
- *  2. The worker's landing `UPDATE` (`handlers/parseLine.ts`) is guarded on `job_id AND line_index AND
- *     line_digest` — there is NO status predicate — so one of those in-flight messages lands and flips its
- *     `failed_retryable` line straight to `parsed`.
- *  3. `PARSE_JOB_AGGREGATE_SQL` runs `WHERE job.status IN ('running','partial')`, so `partial` is
- *     explicitly admitted and re-derived on every landing.
+ *  1. A `failed_retryable` line comes from two writers — the producer's enqueue-failure mark and the worker's landing
+ *     when neither engine answered — and `claimLine` (`handlers/parseLine.ts`) only claims a `pending` line, so a
+ *     message that arrives AFTER the mark is refused.
+ *  2. A worker that claimed BEFORE the mark still lands — the landing `UPDATE` has no status predicate — and
+ *     `PARSE_JOB_AGGREGATE_SQL` re-derives a `partial` job on that landing.
  *
- * A `partial` job therefore SELF-HEALS toward `complete`. Stopping the poll on it strands a cook in front
- * of "10 lines failed, press Retry" for a job that has already finished. So `partial` polls — at a longer
- * cadence, because a settling job is waiting on messages already in flight rather than on work not yet
- * begun.
+ * So a `partial` job can still move, but only by that narrow race: it polls at the slow settling cadence, and a line
+ * left `failed_retryable` waits on the cook (Try again, or Add as written).
+ *
+ * ⛔ THERE IS NO TIME LIMIT (owner ruling 2026-10-13: "it takes as long as it takes"). A `running` job polls until it
+ * settles or expires. What keeps a long wait from becoming a request storm is the BACK-OFF: when every pending line
+ * reads `stalled`, nothing is moving, so the poll drops to the settling cadence until something does.
  *
  * ⛔ AND EXPIRY IS DERIVED FROM `expiresAt`, NOT READ OFF `status`. The TTL sweep runs on a 15-minute tick
  * while `ParseJobsDal.gateMutation` refuses a mutation the instant `expires_at <= now()` — so for up to a
@@ -41,10 +39,11 @@ import type { RecipeServiceClient } from '../client.js';
 import {
     DEFAULT_PARSE_JOB_POLL_INTERVAL_MS,
     PARSE_JOB_SETTLING_POLL_INTERVAL_MS,
+    parseJobPollIntervalOf,
     parseJobQueries,
     recipeServiceKeys,
 } from '../index.js';
-import { FIXTURE_PARSE_JOB_UUID, makeParseJob } from '../__fixtures__/parseJobs.js';
+import { FIXTURE_PARSE_JOB_UUID, makeParseJob, makeParseJobLine } from '../__fixtures__/parseJobs.js';
 
 /** A client stand-in carrying only the methods these factories call. */
 function makeFakeClient(methods: Partial<RecipeServiceClient>): RecipeServiceClient {
@@ -105,9 +104,8 @@ describe('parseJobQueries.detail — the poll keeps running while the job can st
         expect(pollDecision(detailOptions(), live('running'))).toBe(DEFAULT_PARSE_JOB_POLL_INTERVAL_MS);
     });
 
-    it('KEEPS POLLING a partial job, at the settling cadence — its in-flight lines still land', () => {
-        // See the module docstring: an enqueue failure marks lines whose messages DID send, and the
-        // worker's landing has no status predicate, so those lines flip to `parsed` with no retry.
+    it('KEEPS POLLING a partial job, at the settling cadence — a claim taken before the mark still lands', () => {
+        // See the module docstring: a worker that claimed before the mark lands with no status predicate.
         expect(pollDecision(detailOptions(), live('partial'))).toBe(PARSE_JOB_SETTLING_POLL_INTERVAL_MS);
     });
 
@@ -159,5 +157,53 @@ describe('parseJobQueries.detail — the poll stops when nothing more can be lea
         const broken = { ...makeParseJob({ status: 'running' }), expiresAt: 'not-a-date' };
 
         expect(pollDecision(detailOptions(), broken)).toBe(false);
+    });
+});
+
+/**
+ * The cadence as a pure decision (`parseJobPollIntervalOf`, plan 2026-10-15-011) — the back-off that replaces the
+ * client's old 3-minute give-up. A stalled paste is still watched, just less often.
+ */
+describe('parseJobPollIntervalOf — no time limit, but no storm', () => {
+    const NOW = Date.parse('2026-10-15T10:00:00.000Z');
+    const LIVE = '2026-10-16T10:00:00.000Z';
+
+    function runningWith(phases: readonly ('queued' | 'reading' | 'retrying' | 'delayed' | 'stalled' | null)[]) {
+        return makeParseJob({
+            status: 'running',
+            expiresAt: LIVE,
+            lines: phases.map((phase, lineIndex) =>
+                phase === null
+                    ? makeParseJobLine({ lineIndex, status: 'parsed' })
+                    : makeParseJobLine({ lineIndex, progress: { phase } }),
+            ),
+        });
+    }
+
+    it.each([
+        { why: 'lines are being read', phases: ['reading', 'queued'], cadence: 'running' },
+        { why: 'one line is stalled but another is moving', phases: ['stalled', 'delayed'], cadence: 'running' },
+        { why: 'the landed lines do not count as moving', phases: [null, 'stalled', 'stalled'], cadence: 'settling' },
+        { why: 'every pending line is stalled', phases: ['stalled', 'stalled'], cadence: 'settling' },
+        { why: 'every line landed and the aggregate is due', phases: [null], cadence: 'running' },
+    ] as const)('a running job where $why polls at the $cadence cadence', ({ phases, cadence }) => {
+        expect(parseJobPollIntervalOf(runningWith(phases), NOW, 4000)).toBe(
+            cadence === 'running' ? 4000 : PARSE_JOB_SETTLING_POLL_INTERVAL_MS,
+        );
+    });
+
+    it('keeps watching a stalled paste for as long as it lives — no clock gives up on it', () => {
+        const stalled = runningWith(['stalled']);
+
+        expect(parseJobPollIntervalOf(stalled, Date.parse(LIVE) - 1, 4000)).toBe(PARSE_JOB_SETTLING_POLL_INTERVAL_MS);
+        expect(parseJobPollIntervalOf(stalled, Date.parse(LIVE), 4000)).toBe(false);
+    });
+
+    it('stops on the terminal states and polls partial slowly', () => {
+        expect(parseJobPollIntervalOf(makeParseJob({ status: 'complete', expiresAt: LIVE }), NOW, 4000)).toBe(false);
+        expect(parseJobPollIntervalOf(makeParseJob({ status: 'expired', expiresAt: LIVE }), NOW, 4000)).toBe(false);
+        expect(parseJobPollIntervalOf(makeParseJob({ status: 'partial', expiresAt: LIVE }), NOW, 4000)).toBe(
+            PARSE_JOB_SETTLING_POLL_INTERVAL_MS,
+        );
     });
 });

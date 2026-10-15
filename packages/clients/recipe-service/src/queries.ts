@@ -209,19 +209,17 @@ export const DEFAULT_INGREDIENT_POLL_INTERVAL_MS = 2500;
 export const DEFAULT_PARSE_JOB_POLL_INTERVAL_MS = 4000;
 
 /**
- * Poll cadence (ms) for a SETTLING (`partial`) parse job — and the reason this state polls at all.
+ * Poll cadence (ms) for a parse job that is SETTLING (`partial`) or STALLED — watched, but slowly.
  *
- * ⛔ `partial` IS NOT TERMINAL, which is the opposite of how it reads. It is reached when
- * `ParseJobsService.enqueueOrMark` converts an enqueue failure into `failed_retryable` lines, and that
- * population can include a line whose message really did send — see rule 2 of that service's module
- * docstring, which owns the rule and states when it happens. Those messages then land, and the worker's
- * landing `UPDATE` is guarded on `job_id AND line_index AND line_digest` with NO status predicate — so a
- * `failed_retryable` line flips straight to `parsed`, the aggregate re-runs (`WHERE job.status IN
- * ('running','partial')` admits it), and the job walks itself to `complete` with no retry pressed.
+ * ⛔ `partial` IS NOT QUITE TERMINAL. A `failed_retryable` line comes from the producer's enqueue-failure mark or from
+ * a worker landing that no engine answered; `claimLine` only claims a `pending` line, so a message arriving after the
+ * mark is refused — but a worker that claimed BEFORE the mark still lands (its `UPDATE` has no status predicate) and
+ * the aggregate re-derives the job. That race is narrow, so the cadence is slow, and a line left retryable waits on
+ * the cook.
  *
- * Stopping here would strand a cook in front of "10 lines failed, press Retry" for a job that had already
- * finished. So it polls — but SLOWER than `running`, because a settling job is waiting on messages already
- * in flight rather than on work that has yet to begin, and the tail can be long.
+ * ⛔ AND IT IS THE BACK-OFF FOR A STALLED PASTE (plan 2026-10-15-011). There is no time limit (owner ruling
+ * 2026-10-13), so a `running` job whose every pending line reads `stalled` is still watched until it moves or expires
+ * — at this cadence, so an editor left open on a stuck paste does not poll every few seconds for a day.
  */
 export const PARSE_JOB_SETTLING_POLL_INTERVAL_MS = 20_000;
 
@@ -598,6 +596,41 @@ export function parseJobIsLive(job: Pick<ParseJobResponse, 'expiresAt'>, now: nu
 }
 
 /**
+ * How often to read a parse job again, or `false` to stop — the poll's whole rule, as a pure decision.
+ *
+ * - not live (`expiresAt` passed or unreadable), `complete` or `expired`: stop — nothing more can be learned;
+ * - `partial`: the settling cadence (see {@link PARSE_JOB_SETTLING_POLL_INTERVAL_MS});
+ * - `running`: the running cadence, UNLESS every pending line reads `stalled`, when nothing is moving and the settling
+ *   cadence applies. A running job with no pending line is waiting on its aggregate, which the next landing or read
+ *   settles, so it keeps the running cadence.
+ *
+ * @param job - The job as last read.
+ * @param now - Epoch milliseconds, a parameter so the rule is table-testable.
+ * @param runningMs - The cadence while work is moving.
+ * @returns Milliseconds to the next read, or `false`. Pure.
+ */
+export function parseJobPollIntervalOf(job: ParseJobResponse, now: number, runningMs: number): number | false {
+    if (!parseJobIsLive(job, now)) {
+        return false;
+    }
+
+    switch (job.status) {
+        case 'running': {
+            const pending = job.lines.filter((line) => line.status === 'pending');
+            const allStalled = pending.length > 0 && pending.every((line) => line.progress?.phase === 'stalled');
+
+            return allStalled ? PARSE_JOB_SETTLING_POLL_INTERVAL_MS : runningMs;
+        }
+
+        case 'partial':
+            return PARSE_JOB_SETTLING_POLL_INTERVAL_MS;
+        case 'complete':
+        case 'expired':
+            return false;
+    }
+}
+
+/**
  * `queryOptions` factory for the async ingredient-parse job's ONE read (plan U9).
  *
  * @param client - The configured client the factory's fetcher calls through.
@@ -639,15 +672,7 @@ export function parseJobQueries(client: RecipeServiceClient) {
                 refetchInterval: (query) => {
                     const data = query.state.data as ParseJobResponse | undefined;
 
-                    if (data === undefined || !parseJobIsLive(data, Date.now())) {
-                        return false;
-                    }
-
-                    if (data.status === 'running') {
-                        return pollIntervalMs;
-                    }
-
-                    return data.status === 'partial' ? PARSE_JOB_SETTLING_POLL_INTERVAL_MS : false;
+                    return data === undefined ? false : parseJobPollIntervalOf(data, Date.now(), pollIntervalMs);
                 },
             }),
     };

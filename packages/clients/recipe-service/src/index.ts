@@ -27,6 +27,7 @@ export {
     collectionQueries,
     ingredientQueries,
     parseJobIsLive,
+    parseJobPollIntervalOf,
     parseJobQueries,
     recipeProjections,
     recipeQueries,

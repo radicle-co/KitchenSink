@@ -13,16 +13,14 @@ export interface ParseJobOptions extends QueryEnableOptions {
 /**
  * `GET /api/v1/recipe-parse-jobs/{id}` — poll one parse job until it settles.
  *
- * Self-limiting: the cadence comes from {@link parseJobQueries}`.detail`, which polls while the job can
- * still MOVE — `running` at the standard cadence and `partial` at the longer settling one — and stops on
- * `complete`, on `expired`, and once `expiresAt` has passed. Gate it on an id actually existing — `''`
- * before a create has landed disables the query rather than firing a request for a job that does not exist.
+ * Self-limiting: the cadence comes from {@link parseJobQueries}`.detail` (`parseJobPollIntervalOf`), which polls while
+ * the job can still MOVE — `running` at the standard cadence, dropping to the slower settling one when every pending
+ * line reads `stalled`, and `partial` at the settling one — and stops on `complete`, on `expired`, and once `expiresAt`
+ * has passed. There is no time limit (owner ruling 2026-10-13). Gate it on an id actually existing — `''` before a
+ * create has landed disables the query rather than firing a request for a job that does not exist.
  *
- * ⛔ DO NOT "fix" this to poll ONLY while `running` and stop on `partial`. A `partial` job SELF-HEALS: an
- * enqueue failure marks lines whose messages did
- * send, those land anyway (the worker's landing `UPDATE` has no status predicate), and the aggregate
- * re-derives. Stopping there strands a cook in front of "press Retry" for a job that already finished.
- * The factory's own docstring carries the full reasoning.
+ * ⛔ DO NOT "fix" this to stop on `partial`. A worker that claimed a line before the producer marked it retryable still
+ * lands, and the aggregate re-derives the job; the factory's own docstring carries the reasoning.
  *
  * ⚠️ EXPIRY ARRIVES HERE AS DATA, not as an error: the service answers an expired job's read `200` with
  * `status: 'expired'`. Only a mutation raises `ParseJobExpiredError`.

@@ -17,6 +17,7 @@ import {
     type BylineSnapshot,
     type HandleSyncMessage,
 } from '@kitchensink/identity-core';
+import type { UserId } from '@kitchensink/identity-db';
 
 /** DI token for the {@link HandleSyncPublisher}. */
 export const HANDLE_SYNC_PUBLISHER = 'HANDLE_SYNC_PUBLISHER';
@@ -74,7 +75,7 @@ export function createSnsHandleSyncPublisher(config: SnsHandleSyncConfig): Handl
 }
 
 /** Settle the debt a byline write recorded — `UserDAO.settleHandleSync`'s shape. */
-export type SettleHandleSync = (userId: string, owedAt: Date, failureCode: string | null) => Promise<void>;
+export type SettleHandleSync = (userId: UserId, owedAt: Date, failureCode: string | null) => Promise<void>;
 
 /** What {@link publishOwedByline} did. Never a throw: the byline write it follows has already committed. */
 export type OwedBylineOutcome =
@@ -105,7 +106,7 @@ export type OwedBylineOutcome =
 export async function publishOwedByline(
     publisher: HandleSyncPublisher,
     settle: SettleHandleSync,
-    userId: string,
+    userId: UserId,
     byline: BylineSnapshot & { readonly stampedAt: Date },
 ): Promise<OwedBylineOutcome> {
     try {

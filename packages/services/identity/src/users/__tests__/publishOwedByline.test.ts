@@ -3,13 +3,23 @@
  * D6c): publish the snapshot, then settle the debt the write recorded, conditionally on its stamp.
  */
 import { HANDLE_SYNC_PUBLISH_FAILED } from '@kitchensink/identity-core';
-import { describe, expect, it, vi } from 'vitest';
+import { newUserId, type UserId } from '@kitchensink/identity-db';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
-import { publishOwedByline } from '../handleSync.publisher.js';
+import { publishOwedByline, type SettleHandleSync } from '../handleSync.publisher.js';
 
-const USER = '01J9ZK8N7QF3B2X4M6T0V5C1AB';
+const USER = newUserId();
 const STAMP = new Date('2026-10-15T08:00:00.123Z');
 const BYLINE = { displayName: 'Ada Lovelace', username: 'ada', stampedAt: STAMP };
+
+describe('SettleHandleSync', () => {
+    // The port names the id it settles, so a route cannot hand it an account id or a bare string, and no caller
+    // launders one with a cast inside its settle lambda (plan 2026-10-13-007, Wave 1).
+    it('takes a UserId, the same brand UserDAO.settleHandleSync takes', () => {
+        expectTypeOf<Parameters<SettleHandleSync>[0]>().toEqualTypeOf<UserId>();
+        expectTypeOf<Parameters<typeof publishOwedByline>[2]>().toEqualTypeOf<UserId>();
+    });
+});
 
 describe('publishOwedByline', () => {
     it('publishes the WHOLE snapshot keyed by the write’s own stamp, then clears exactly that debt', async () => {

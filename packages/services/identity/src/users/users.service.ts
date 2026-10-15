@@ -1,7 +1,7 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, sql } from 'drizzle-orm';
-import { provisionCompleteUser, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
+import { provisionCompleteUser, type CreatedByline, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
 import { computeProfileScrub, deriveDisplayName, parseUsername, type BylineSnapshot } from '@kitchensink/identity-core';
 import { eraseIdentityRow, newProfileClock, profileClock, UserDAO } from '@kitchensink/identity-db';
 
@@ -124,6 +124,8 @@ export class UsersService {
             .limit(1);
 
         let userRow: typeof users.$inferSelect;
+        // The byline a profile insert created on THIS request, if any — published once, after the row is settled.
+        let createdByline: CreatedByline | undefined;
 
         if (!found) {
             // Create through the shared routine. `users.email` is NOT NULL: when the token carries no
@@ -150,7 +152,7 @@ export class UsersService {
             }
 
             userRow = result.user;
-            await this.publishByline(userRow.id, result.createdByline);
+            createdByline = result.createdByline;
             traceAuth('provision.created', {
                 sub: claims.sub,
                 userId: userRow.id,
@@ -186,13 +188,18 @@ export class UsersService {
                 );
 
                 if (healed.kind === 'complete') {
-                    await this.publishByline(userRow.id, healed.createdByline);
+                    createdByline = healed.createdByline;
                 }
             }
         }
 
+        // The ONE place a row's text id becomes the branded `UserId` (the column is plain `text`).
+        const userId = userRow.id as UserId;
+
+        await this.publishByline(userId, createdByline);
+
         return {
-            userId: userRow.id as UserId,
+            userId,
             email: userRow.email,
             clerkUserId: claims.sub,
             // Authorization grants come from the Clerk-signed token (admin-set public_metadata),
@@ -217,7 +224,7 @@ export class UsersService {
      * @sideEffect Publishes to the handle-sync topic; updates `profiles`.
      */
     private async publishByline(
-        userId: string,
+        userId: UserId,
         byline: (BylineSnapshot & { readonly stampedAt: Date }) | undefined,
     ): Promise<void> {
         if (byline === undefined) {
@@ -226,7 +233,7 @@ export class UsersService {
 
         const sync = await publishOwedByline(
             this.handleSync,
-            (owner, owedAt, code) => new UserDAO(this.db).settleHandleSync(owner as UserId, owedAt, code),
+            (owner, owedAt, code) => new UserDAO(this.db).settleHandleSync(owner, owedAt, code),
             userId,
             byline,
         );

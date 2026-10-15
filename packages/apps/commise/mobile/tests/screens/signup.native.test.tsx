@@ -69,8 +69,8 @@ const setActive = vi.fn(async () => undefined);
 type StepResult = { error: { code?: string; message: string } | null };
 const ok = async (): Promise<StepResult> => ({ error: null });
 
-/** What the Clerk instance still wants after a valid email + password. */
-type Requirement = 'nothing' | 'emailCode' | 'username';
+/** What the Clerk instance still wants after the four fields and a password. */
+type Requirement = 'nothing' | 'emailCode' | 'phone';
 
 /**
  * A Clerk `signUp` future-resource double that models Clerk's REAL status transitions (the sign-in double it
@@ -97,7 +97,7 @@ function makeSignUp(requirement: Requirement = 'nothing', overrides: Record<stri
                 signUp.missingFields = [];
                 signUp.unverifiedFields = ['email_address'];
             } else {
-                signUp.missingFields = ['username'];
+                signUp.missingFields = ['phone_number'];
             }
 
             return { error: null };
@@ -132,9 +132,22 @@ function makeSignUp(requirement: Requirement = 'nothing', overrides: Record<stri
     return signUp;
 }
 
-/** Fill the credentials and press Create account. */
-function submitCredentials(password = 'pw') {
-    fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
+/** The four profile fields both Clerk instances require (owner ruling 2026-10-13), by their visible labels. */
+const PROFILE = {
+    [auth.firstNameLabel]: 'Ada',
+    [auth.lastNameLabel]: 'Lovelace',
+    [auth.usernameLabel]: 'ada',
+    [auth.emailLabel]: 'a@b.com',
+};
+
+/** Fill every field except those named in `skip`, and press Create account. */
+function submitCredentials(password = 'pw', skip: readonly string[] = []) {
+    for (const [label, value] of Object.entries(PROFILE)) {
+        if (!skip.includes(label)) {
+            fireEvent.change(screen.getByLabelText(label), { target: { value } });
+        }
+    }
+
     fireEvent.change(screen.getByLabelText(auth.passwordLabel), { target: { value: password } });
     fireEvent.click(screen.getByRole('button', { name: auth.createAccountAction }));
 }
@@ -195,8 +208,7 @@ describe('SignUpScreen — chrome + design system', () => {
         useClerkMock.mockReturnValue(partialHook({ setActive }));
         render(<SignUpScreen onBack={() => undefined} />);
 
-        fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
-        fireEvent.click(screen.getByRole('button', { name: auth.createAccountAction }));
+        submitCredentials();
 
         await waitFor(() => {
             const button = screen.getByRole('button', { name: auth.createAccountAction });
@@ -222,7 +234,12 @@ describe('SignUpScreen — sign-up flow', () => {
         submitCredentials('pw');
 
         await waitFor(() => expect(setActive).toHaveBeenCalledWith({ session: 'sess_1' }));
-        expect(signUp.create).toHaveBeenCalledWith({ emailAddress: 'a@b.com' });
+        expect(signUp.create).toHaveBeenCalledWith({
+            firstName: 'Ada',
+            lastName: 'Lovelace',
+            username: 'ada',
+            emailAddress: 'a@b.com',
+        });
         expect(signUp.password).toHaveBeenCalledWith({ password: 'pw' });
         expect(signUp.verifications.sendEmailCode).not.toHaveBeenCalled();
     });
@@ -280,7 +297,7 @@ describe('SignUpScreen — sign-up flow', () => {
     });
 
     it('says more is needed, and reports it, when the instance wants something this form has no field for', async () => {
-        const signUp = setup('username');
+        const signUp = setup('phone');
 
         submitCredentials('pw');
 
@@ -312,14 +329,69 @@ describe('SignUpScreen — sign-up flow', () => {
         expect(screen.queryByLabelText(auth.codeLabel)).toBeNull();
     });
 
-    it('refuses an empty email without calling Clerk, and says why', async () => {
+    it.each([
+        [auth.firstNameLabel, auth.firstNameRequired],
+        [auth.lastNameLabel, auth.lastNameRequired],
+        [auth.usernameLabel, auth.usernameRequired],
+        [auth.emailLabel, auth.emailRequired],
+    ])('refuses an empty %s without calling Clerk, and says why UNDER that field', async (label, message) => {
         const signUp = setup('nothing');
 
-        fireEvent.change(screen.getByLabelText(auth.passwordLabel), { target: { value: 'pw' } });
-        fireEvent.click(screen.getByRole('button', { name: auth.createAccountAction }));
+        submitCredentials('pw', [label]);
 
-        expect((await screen.findByRole('alert')).textContent).toBe(auth.emailRequired);
+        const field = screen.getByLabelText(label);
+        const described = await screen.findByText(message);
+
+        expect(field.getAttribute('aria-invalid')).toBe('true');
+        expect(field.getAttribute('aria-describedby')?.split(' ')).toContain(described.id);
         expect(signUp.create).not.toHaveBeenCalled();
+    });
+
+    it('a blank-only name is empty: names are trimmed before they are judged and sent', async () => {
+        const signUp = setup('nothing');
+
+        fireEvent.change(screen.getByLabelText(auth.firstNameLabel), { target: { value: '   ' } });
+        submitCredentials('pw', [auth.firstNameLabel]);
+
+        expect(await screen.findByText(auth.firstNameRequired)).toBeTruthy();
+        expect(signUp.create).not.toHaveBeenCalled();
+    });
+
+    it('puts Clerk’s error on the field it names (a taken username), not in the alert', async () => {
+        const { ClerkAPIResponseError } = await import('@clerk/shared/error');
+        const taken = new ClerkAPIResponseError('That username is taken. Please try another.', {
+            data: [
+                {
+                    code: 'form_identifier_exists',
+                    message: 'That username is taken. Please try another.',
+                    long_message: 'That username is taken. Please try another.',
+                    meta: { param_name: 'username' },
+                },
+            ],
+            status: 422,
+        });
+        setup('nothing', { create: vi.fn(async () => ({ error: taken })) });
+
+        submitCredentials('pw');
+
+        const described = await screen.findByText('That username is taken. Please try another.');
+
+        expect(screen.getByLabelText(auth.usernameLabel).getAttribute('aria-describedby')?.split(' ')).toContain(
+            described.id,
+        );
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(setActive).not.toHaveBeenCalled();
+    });
+
+    it('clears a field’s error once the person edits it', async () => {
+        setup('nothing');
+        submitCredentials('pw', [auth.usernameLabel]);
+        await screen.findByText(auth.usernameRequired);
+
+        fireEvent.change(screen.getByLabelText(auth.usernameLabel), { target: { value: 'ada' } });
+
+        expect(screen.queryByText(auth.usernameRequired)).toBeNull();
+        expect(screen.getByLabelText(auth.usernameLabel).getAttribute('aria-invalid')).not.toBe('true');
     });
 
     it('falls back to the localized message when a failure carries no Clerk message', async () => {
@@ -342,13 +414,16 @@ describe('SignUpScreen — Section 8 native: order, copy and field hints', () =>
         render(<SignUpScreen onBack={() => undefined} />);
     }
 
-    it('reads mark → H1 → the brand line → email → password → Create account → the sign-in link', () => {
+    it('reads mark → H1 → the brand line → first, last, username, email → password → Create account → sign-in link', () => {
         setup();
 
         const ordered = [
             screen.getByText(auth.brand),
             screen.getByRole('heading', { name: auth.createHeading, level: 1 }),
             screen.getByText(auth.brandLine),
+            screen.getByLabelText(auth.firstNameLabel),
+            screen.getByLabelText(auth.lastNameLabel),
+            screen.getByLabelText(auth.usernameLabel),
             screen.getByLabelText(auth.emailLabel),
             screen.getByLabelText(auth.passwordLabel),
             screen.getByRole('button', { name: auth.createAccountAction }),
@@ -369,14 +444,32 @@ describe('SignUpScreen — Section 8 native: order, copy and field hints', () =>
         expect(screen.getByLabelText(auth.passwordLabel).getAttribute('autocomplete')).toBe('new-password');
     });
 
+    it('asks the OS for name and username autofill (SC 1.3.5), and never autocorrects a username', () => {
+        setup();
+
+        expect(screen.getByLabelText(auth.firstNameLabel).getAttribute('autocomplete')).toBe('given-name');
+        expect(screen.getByLabelText(auth.lastNameLabel).getAttribute('autocomplete')).toBe('family-name');
+        expect(screen.getByLabelText(auth.usernameLabel).getAttribute('autocomplete')).toBe('username');
+        expect(screen.getByLabelText(auth.usernameLabel).getAttribute('autocorrect')).toBe('off');
+        expect(screen.getByLabelText(auth.usernameLabel).getAttribute('autocapitalize')).toBe('none');
+    });
+
+    it('says what the username is for, under its label', () => {
+        setup();
+
+        expect(screen.getByText(auth.usernameHint)).toBeTruthy();
+    });
+
     it('locks the form while the sign-up is in flight', async () => {
         setup({ create: vi.fn(() => new Promise<StepResult>(() => undefined)) });
 
-        fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
-        fireEvent.click(screen.getByRole('button', { name: auth.createAccountAction }));
+        submitCredentials();
 
         await waitFor(() => expect(screen.getByLabelText(auth.emailLabel).hasAttribute('readonly')).toBe(true));
-        expect(screen.getByLabelText(auth.passwordLabel).hasAttribute('readonly')).toBe(true);
+
+        for (const label of [auth.firstNameLabel, auth.lastNameLabel, auth.usernameLabel, auth.passwordLabel]) {
+            expect(screen.getByLabelText(label).hasAttribute('readonly'), label).toBe(true);
+        }
     });
 
     it('names an unreachable service on a network failure, but not for a rejected password', async () => {

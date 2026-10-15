@@ -3,11 +3,14 @@
  *
  * The sibling of `LoginScreen`: a custom Clerk sign-up form on the design system
  * (`@commise/ui` {@link Button} with `busy` + tokenized {@link Input}), all copy from `mobileMessages`,
- * associated field labels, and a `SafeAreaView` + `KeyboardAvoider` shell. It runs `signUp.create` →
- * `signUp.password`, and — when the instance verifies the email — an email-code step
- * (`verifications.sendEmailCode` → a `oneTimeCode` field → `verifications.verifyEmailCode`) before `setActive`.
- * Any other requirement the instance still has (a username, a name) is a field this form does not offer: it says so,
- * and reports it to Sentry, rather than stranding the user on a form that cannot finish.
+ * associated field labels, and a `SafeAreaView` + `KeyboardAvoider` shell. It asks for the four profile fields both
+ * Clerk instances require — first name, last name, username, email (owner ruling 2026-10-13; the
+ * `SIGN_UP_FIELDS` registry, plan 012 D8) — and a password, then runs `signUp.create` → `signUp.password`, and — when
+ * the instance verifies the email — an email-code step (`verifications.sendEmailCode` → a `oneTimeCode` field →
+ * `verifications.verifyEmailCode`) before `setActive`. An empty field is refused under that field without calling
+ * Clerk; Clerk's rejection of a field (a taken username) is shown under the field it names. Any requirement the
+ * instance still has after that is one this form does not offer: it says so, and reports it to Sentry, rather than
+ * stranding the user on a form that cannot finish.
  *
  * `onBack` returns to the sign-in form, which is where this screen is always reached FROM: the signed-out gate
  * opens on login, and login's own "Create account" control is the only route here (owner decision 2026-07-28
@@ -29,10 +32,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Sentry from '@sentry/react-native';
 
 import { authFailureMessage } from '../auth/authFailureMessage.js';
+import { fieldOfClerkError, SIGN_UP_FIELDS, type SignUpFieldName } from '../auth/signUpFields.js';
 import { AuthCodeActions } from '../components/auth/AuthCodeActions.js';
 import { AuthCodeFields } from '../components/auth/AuthCodeFields.js';
 import { AuthHeader } from '../components/auth/AuthHeader.js';
 import { AuthSwitchLink } from '../components/auth/AuthSwitchLink.js';
+import { SignUpFields, type SignUpErrors, type SignUpValues } from '../components/auth/SignUpFields.js';
 import { mobileMessages } from '../i18n/messages.js';
 
 export interface SignUpScreenProps {
@@ -44,10 +49,11 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
     const { colors } = useTheme();
     const { setActive } = useClerk();
     const { signUp } = useSignUp();
-    const [email, setEmail] = useState('');
+    const [values, setValues] = useState<SignUpValues>({});
+    const [fieldErrors, setFieldErrors] = useState<SignUpErrors>({});
     const [password, setPassword] = useState('');
     const [code, setCode] = useState('');
-    // 'credentials' → email+password; 'code' → the instance verifies the email, and the emailed code finishes it.
+    // 'credentials' → the profile fields + password; 'code' → the instance verifies the email, and the emailed code finishes it.
     const [step, setStep] = useState<'credentials' | 'code'>('credentials');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
@@ -59,6 +65,32 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
         fallback,
     });
     const failureCopy = copyFor(t.signUpFailed);
+    const requiredCopy: Readonly<Record<SignUpFieldName, string>> = {
+        first_name: t.firstNameRequired,
+        last_name: t.lastNameRequired,
+        username: t.usernameRequired,
+        email_address: t.emailRequired,
+    };
+
+    function changeField(field: SignUpFieldName, text: string) {
+        setValues((current) => ({ ...current, [field]: text }));
+        setFieldErrors((current) => ({ ...current, [field]: undefined }));
+    }
+
+    // A failure that names one of the four fields goes under that field; anything else goes to the alert. An email
+    // failure keeps the screen's own words for "missing" / "malformed" (`authFailureMessage`), as it always has.
+    function showFailure(failure: unknown) {
+        const onField = fieldOfClerkError(failure);
+
+        if (onField === undefined) {
+            setError(authFailureMessage(failure, failureCopy));
+
+            return;
+        }
+
+        const message = onField.field === 'email_address' ? authFailureMessage(failure, failureCopy) : onField.message;
+        setFieldErrors((current) => ({ ...current, [onField.field]: message }));
+    }
 
     // Send the verification code to the email. Returns true when a code is on its way.
     async function sendVerificationCode(): Promise<boolean> {
@@ -130,23 +162,33 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
             return;
         }
 
-        // Trimmed: an Android keyboard appends a space after autocomplete, and Clerk reads that as a different address.
-        const emailAddress = email.trim();
+        // Trimmed: an Android keyboard appends a space after autocomplete, and Clerk reads that as a different value.
+        const trimmed = Object.fromEntries(
+            SIGN_UP_FIELDS.map((field) => [field.name, (values[field.name] ?? '').trim()]),
+        ) as Record<SignUpFieldName, string>;
+        const empty = SIGN_UP_FIELDS.filter((field) => trimmed[field.name] === '');
 
-        if (emailAddress === '') {
-            setError(t.emailRequired);
+        setError(null);
+
+        if (empty.length > 0) {
+            setFieldErrors(Object.fromEntries(empty.map((field) => [field.name, requiredCopy[field.name]])));
 
             return;
         }
 
+        setFieldErrors({});
         setBusy(true);
-        setError(null);
 
         try {
-            const createResult = await signUp.create({ emailAddress });
+            const createResult = await signUp.create({
+                firstName: trimmed.first_name,
+                lastName: trimmed.last_name,
+                username: trimmed.username,
+                emailAddress: trimmed.email_address,
+            });
 
             if (createResult.error) {
-                setError(authFailureMessage(createResult.error, failureCopy));
+                showFailure(createResult.error);
 
                 return;
             }
@@ -154,14 +196,14 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
             const pwResult = await signUp.password({ password });
 
             if (pwResult.error) {
-                setError(authFailureMessage(pwResult.error, failureCopy));
+                showFailure(pwResult.error);
 
                 return;
             }
 
             await resolveStatus();
         } catch (e) {
-            setError(authFailureMessage(e, failureCopy));
+            showFailure(e);
         } finally {
             setBusy(false);
         }
@@ -224,20 +266,14 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
 
                     {onCredentials ? (
                         <View style={styles.fields}>
-                            <View style={styles.field}>
-                                <FieldLabel forId="signup-email" label={t.emailLabel} />
-                                <Input
-                                    id="signup-email"
-                                    placeholder={t.emailPlaceholder}
-                                    value={email}
-                                    onChangeText={setEmail}
-                                    inputMode="email"
-                                    autoCapitalize="none"
-                                    autoComplete="email"
-                                    enterKeyHint="next"
-                                    disabled={busy}
-                                />
-                            </View>
+                            <SignUpFields
+                                fields={SIGN_UP_FIELDS}
+                                idPrefix="signup"
+                                values={values}
+                                errors={fieldErrors}
+                                onChange={changeField}
+                                busy={busy}
+                            />
                             <View style={styles.field}>
                                 <FieldLabel forId="signup-password" label={t.passwordLabel} />
                                 <Input

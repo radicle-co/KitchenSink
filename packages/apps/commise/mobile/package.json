@@ -17,7 +17,9 @@
         "format:check": "prettier --check ."
     },
     "dependencies": {
-        "@clerk/expo": "^4.0.4",
+        "@clerk/expo": "^4.6.0",
+        "@clerk/expo-google-signin": "^1.0.4",
+        "@clerk/shared": "^4.30.1",
         "@commise/features-account": "*",
         "@commise/features-core": "*",
         "@commise/features-recipes": "*",
@@ -51,7 +53,9 @@
         "@tanstack/react-query": "^5.62.0",
         "ditox": "^3.3.0",
         "expo": "~57.0.17",
+        "expo-apple-authentication": "~57.0.2",
         "expo-auth-session": "~57.0.5",
+        "expo-constants": "~57.0.15",
         "expo-crypto": "~57.0.1",
         "expo-font": "~57.0.1",
         "expo-glass-effect": "~57.0.4",

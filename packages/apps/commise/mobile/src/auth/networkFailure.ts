@@ -2,8 +2,8 @@
  * @module auth/networkFailure — whether a failed Clerk call failed because Clerk could not be REACHED (as opposed to
  * answering "no"), so the sign-in screens can say so (`docs/design/uiOverhaul/buildSpec.md` §8 "States").
  *
- * Library-first: Clerk ships `isNetworkError`, but it is marked `@internal` and `@clerk/shared` is not a dependency of
- * this app, so importing it would couple the screens to a private export of a transitive package. This is the same
+ * Library-first: Clerk ships `isNetworkError`, but it is marked `@internal`, so importing it would couple the screens to
+ * a private export (`@clerk/shared` is a declared dependency for its public `keys` parser, not for this). This is the same
  * three-way test over the shapes that actually occur, read from the shipped clerk-js native bundle: a
  * `ClerkRuntimeError` with `code: 'network_error'`, a `ClerkOfflineError` (`'clerk_offline'`), and the bare
  * `TypeError('Network request failed')` React Native's `fetch` rejects with.

@@ -20,7 +20,15 @@ function footer(state: SaveCopyState, over: Partial<React.ComponentProps<typeof 
 
     render(
         <LocaleProvider locale="en">
-            <DiscoveryFooter title="Pasta" authorDisplayName="braise.club" state={state} onSave={onSave} {...over} />
+            <DiscoveryFooter
+                title="Pasta"
+                authorUsername="braise"
+                authorDisplayName="Eliza Moreno"
+                avatar="shown"
+                state={state}
+                onSave={onSave}
+                {...over}
+            />
         </LocaleProvider>,
     );
 
@@ -33,30 +41,72 @@ const glyphFill = () =>
         ? 'none'
         : 'currentColor';
 
-describe('DiscoveryFooter (native) — the author', () => {
-    it('says “@handle” and nothing about the avatar', () => {
+/** Text a reader sees: the byline's invisible bidi isolates removed. */
+const visible = (text: string | null | undefined): string => (text ?? '').replace(/[\u2068\u2069]/gu, '');
+
+/** Find the one element whose own text reads `expected` once the isolates are removed. */
+const byline = (expected: string) =>
+    screen.getByText(
+        (_content, element) => element?.children.length === 0 && visible(element.textContent) === expected,
+    );
+
+describe('DiscoveryFooter (native) — the byline (plan 2026-10-15-010 D11)', () => {
+    it('says “@username (Display Name)”, with a disc drawn from the USERNAME that is not read aloud', () => {
         footer({ kind: 'idle' });
 
-        expect(screen.getByText('@braise.club')).toBeTruthy();
-        // The disc is decoration: its letter is not read, so the handle is said once.
+        expect(byline('@braise (Eliza Moreno)')).toBeTruthy();
         expect(screen.getByText('B')).toBeTruthy();
     });
 
-    it('shows the source instead when the recipe was imported and has no author handle', () => {
-        footer({ kind: 'idle' }, { authorDisplayName: undefined, sourceAttribution: 'Serious Eats' });
+    it('says “@username” alone when the author has no display name', () => {
+        footer({ kind: 'idle' }, { authorDisplayName: undefined });
+
+        expect(byline('@braise')).toBeTruthy();
+    });
+
+    it('says the display name, never prefixed “@”, when the author has no username', () => {
+        footer({ kind: 'idle' }, { authorUsername: undefined });
+
+        expect(byline('Eliza Moreno')).toBeTruthy();
+        expect(screen.queryByText(/@/u)).toBeNull();
+    });
+
+    it('says “Former member”, with no disc, for an erased author — never the pseudonym', () => {
+        footer({ kind: 'idle' }, { authorUsername: undefined, authorDisplayName: 'user_01J9ZK8N7QF3B2X4M6T0V5C1AB' });
+
+        expect(byline('Former member')).toBeTruthy();
+        expect(screen.queryByText(/user_/u)).toBeNull();
+        expect(screen.queryByText('U')).toBeNull();
+    });
+
+    it('drops the disc on a compact card, keeping the words', () => {
+        footer({ kind: 'idle' }, { avatar: 'hidden' });
+
+        expect(byline('@braise (Eliza Moreno)')).toBeTruthy();
+        expect(screen.queryByText('B')).toBeNull();
+    });
+
+    it('shows the source instead when the recipe was imported and has no author', () => {
+        footer(
+            { kind: 'idle' },
+            { authorUsername: undefined, authorDisplayName: undefined, sourceAttribution: 'Serious Eats' },
+        );
 
         expect(screen.getByText('From Serious Eats')).toBeTruthy();
     });
 
-    it('never says “From” without a source: a copy has neither a handle nor an attribution (W-03)', () => {
-        footer({ kind: 'idle' }, { authorDisplayName: undefined, sourceAttribution: undefined });
+    it('never says “From” without a source: a copy has neither an author nor an attribution (W-03)', () => {
+        footer(
+            { kind: 'idle' },
+            { authorUsername: undefined, authorDisplayName: undefined, sourceAttribution: undefined },
+        );
 
         expect(screen.queryByText(/From/u)).toBeNull();
         expect(screen.getByRole('button', { name: 'Save a copy of Pasta' })).toBeTruthy();
     });
 
     it('says nothing about an author it does not have, and still offers the button', () => {
-        footer({ kind: 'idle' }, { authorDisplayName: undefined });
+        footer({ kind: 'idle' }, { authorUsername: undefined, authorDisplayName: undefined });
 
         expect(screen.queryByText(/@/u)).toBeNull();
         expect(screen.getByRole('button', { name: 'Save a copy of Pasta' })).toBeTruthy();

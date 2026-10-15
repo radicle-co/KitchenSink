@@ -214,8 +214,10 @@ export interface PullUpdatesDialogProps {
     /** The last failed preview/commit, if any: `'drift'` is the 409 stale-diff path, `'generic'` any other
      *  failure. Absent when the last attempt (if any) succeeded. */
     readonly error?: 'drift' | 'generic';
-    /** The source collection owner's display handle, frozen at clone time; may be absent (unresolved owner). */
+    /** The source collection owner's display name, frozen at clone time; may be absent (unresolved owner). */
     readonly sourceOwnerDisplayName?: string;
+    /** The source owner's CURRENT username, resolved when the copy is read (plan 2026-10-15-010 D7). */
+    readonly sourceOwnerUsername?: string;
     /** The source collection's name, frozen at clone time. */
     readonly sourceCollectionName?: string;
     /** Invoked when Cancel is activated, or the dialog is dismissed via Escape/backdrop (one exit path). */

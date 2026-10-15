@@ -17,6 +17,7 @@ import { makeRecipe } from '../../__fixtures__/index.js';
 import { toRecipeCardModel } from '../../card/model.js';
 import { RecipeDiscoveryCard } from '../RecipeDiscoveryCard.js';
 import type { RecipeDiscoveryCardProps } from '../model.js';
+import { isolate } from '../../byline/bylineText.js';
 
 afterEach(cleanup);
 
@@ -25,7 +26,8 @@ function renderCard(over: Partial<RecipeDiscoveryCardProps> = {}) {
         recipe: toRecipeCardModel(makeRecipe({ id: 'rec_1', title: 'Lamb Shoulder' })),
         variant: 'grid',
         headingLevel: 3,
-        authorDisplayName: 'braise.club',
+        authorUsername: 'braise',
+        authorDisplayName: 'Eliza Moreno',
         saveCopy: { kind: 'idle' },
         onSelect: vi.fn(),
         onSave: vi.fn(),
@@ -49,7 +51,9 @@ describe('RecipeDiscoveryCard (web)', () => {
             const card = screen.getByRole('article', { name: 'Lamb Shoulder' });
 
             expect(card.getAttribute('data-card-variant')).toBe(variant);
-            expect(within(card).getByText('@braise.club')).toBeTruthy();
+            // The byline (plan 2026-10-15-010 D11): "@username (Display Name)" on both variants; the disc only on grid.
+            expect(within(card).getByText(`${isolate('@braise')} (${isolate('Eliza Moreno')})`)).toBeTruthy();
+            expect(within(card).queryByText('B') !== null).toBe(variant === 'grid');
             expect(within(card).getByRole('button', { name: 'Save a copy of Lamb Shoulder' })).toBeTruthy();
         },
     );
@@ -86,7 +90,7 @@ describe('RecipeDiscoveryCard (web)', () => {
     });
 
     it('says an imported recipe’s source when it has no author', () => {
-        renderCard({ authorDisplayName: undefined, sourceAttribution: 'Serious Eats' });
+        renderCard({ authorUsername: undefined, authorDisplayName: undefined, sourceAttribution: 'Serious Eats' });
 
         expect(screen.getByText('From Serious Eats')).toBeTruthy();
     });

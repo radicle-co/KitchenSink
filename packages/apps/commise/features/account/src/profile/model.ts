@@ -66,6 +66,15 @@ export function formatNameCounter(template: string, counter: NameCounter): strin
     return template.replace('{count}', String(counter.count)).replace('{max}', String(counter.max));
 }
 
+/**
+ * @param template - The localized username line, with `{username}` (`profileMessages.usernameValue`).
+ * @param username - The Clerk username.
+ * @returns The line the header shows, such as `@braise`. Pure.
+ */
+export function formatUsername(template: string, username: string): string {
+    return template.replace('{username}', () => username);
+}
+
 /** The slice of a Clerk `UserResource` the prefill reads; both Clerk SDKs (`@clerk/nextjs`, `@clerk/expo`) fit it. */
 export interface GivenNameSource {
     readonly firstName?: string | null | undefined;
@@ -127,12 +136,20 @@ export function canSaveDisplayName(input: { readonly draft: string; readonly sav
 export type ProfileRead =
     | { readonly status: 'loading' }
     | { readonly status: 'failed' }
-    | { readonly status: 'ready'; readonly displayName: string; readonly email: string };
+    | {
+          readonly status: 'ready';
+          readonly displayName: string;
+          readonly email: string;
+          /** The Clerk username, shown read-only — Clerk owns it (plan 2026-10-15-010 D12) — or `null`. */
+          readonly username: string | null;
+      };
 
 /** The slice of a profile query this reads. */
 export interface ProfileQueryState {
     readonly isError: boolean;
-    readonly data?: { readonly user: { readonly displayName: string; readonly email: string } } | undefined;
+    readonly data?:
+        | { readonly user: { readonly displayName: string; readonly email: string; readonly username: string | null } }
+        | undefined;
 }
 
 /**
@@ -142,7 +159,12 @@ export interface ProfileQueryState {
  */
 export function profileReadOf(query: ProfileQueryState): ProfileRead {
     if (query.data !== undefined) {
-        return { status: 'ready', displayName: query.data.user.displayName.trim(), email: query.data.user.email };
+        return {
+            status: 'ready',
+            displayName: query.data.user.displayName.trim(),
+            email: query.data.user.email,
+            username: query.data.user.username,
+        };
     }
 
     return { status: query.isError ? 'failed' : 'loading' };

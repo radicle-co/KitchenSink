@@ -25,6 +25,9 @@ import {
     type DetailNativeLayout,
 } from './model.js';
 import { isStandInName } from './lineName.js';
+import { bylineOf } from '../byline/bylineOf.js';
+import { bylineText } from '../byline/bylineText.js';
+import type { BylineMessages } from '../byline/messages.js';
 
 /** A recipe's stated difficulty. */
 type DifficultyLevel = NonNullable<RecipeDetail['difficulty']>;
@@ -95,17 +98,21 @@ export function detailStatCells(
 }
 
 /**
- * The meta line above the title: the cuisine, then — on another cook's recipe — "by @handle".
+ * The meta line above the title: the cuisine, then — on another cook's recipe — "by {byline}" (plan 2026-10-15-010
+ * D11: "by @username (Display Name)", "by Display Name", or "by a former member"). An imported recipe with no author
+ * gets no "by" item; its source line says where it came from.
  *
  * @param recipe - The recipe.
  * @param viewerIsOwner - Whether the viewer owns it; the viewer is never named as their own recipe's author.
  * @param detail - The detail copy.
+ * @param byline - The byline copy.
  * @returns The items, in order.
  */
 export function detailMetaItems(
-    recipe: Pick<RecipeDetail, 'cuisine' | 'authorDisplayName'>,
+    recipe: Pick<RecipeDetail, 'cuisine' | 'authorDisplayName' | 'authorUsername'>,
     viewerIsOwner: boolean,
     detail: RecipeDetailMessages,
+    byline: BylineMessages,
 ): readonly string[] {
     const items: string[] = [];
 
@@ -113,8 +120,19 @@ export function detailMetaItems(
         items.push(recipe.cuisine);
     }
 
-    if (!viewerIsOwner && recipe.authorDisplayName !== undefined && recipe.authorDisplayName !== '') {
-        items.push(fillTemplate(detail.byAuthor, { handle: recipe.authorDisplayName }));
+    const author = viewerIsOwner
+        ? undefined
+        : bylineText(
+              bylineOf({
+                  ...(recipe.authorUsername === undefined ? {} : { username: recipe.authorUsername }),
+                  ...(recipe.authorDisplayName === undefined ? {} : { displayName: recipe.authorDisplayName }),
+              }),
+              byline,
+              'sentence',
+          );
+
+    if (author !== undefined) {
+        items.push(fillTemplate(detail.byAuthor, { byline: author }));
     }
 
     return items;

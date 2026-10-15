@@ -43,6 +43,7 @@ export const RecipeBrowseRailResults: FC<RecipeBrowseRailResultsProps> = ({
                         recipe={toRecipeCardModel(entry.recipe)}
                         variant="grid"
                         headingLevel={3}
+                        authorUsername={entry.recipe.authorUsername}
                         authorDisplayName={entry.recipe.authorDisplayName}
                         sourceAttribution={entry.recipe.sourceAttribution}
                         saveCopy={saveCopy.stateOf(entry.recipe.id)}

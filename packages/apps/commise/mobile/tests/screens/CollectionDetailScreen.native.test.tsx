@@ -121,7 +121,9 @@ function makeCopyOfCollection(): CollectionWithRecipes {
     return {
         ...makeCollectionWithRecipes([], { id: 'col_1', name: 'Dinners', sourceCollectionId: 'col_src' }),
         sourceCollectionName: 'Origin dinners',
-        sourceOwnerDisplayName: 'sourcechef',
+        // The wire carries both halves of the source owner's byline (plan 2026-10-15-010 D7).
+        sourceOwnerUsername: 'sourcechef',
+        sourceOwnerDisplayName: 'Source Chef',
     };
 }
 
@@ -280,7 +282,11 @@ describe('CollectionDetailScreen — populated', () => {
         const onViewSource = vi.fn();
 
         renderOver(<CollectionDetailScreen {...props} onViewSource={onViewSource} />);
-        fireEvent.click(await screen.findByRole('button', { name: 'Copied from @sourcechef' }));
+        fireEvent.click(
+            await screen.findByRole('button', {
+                name: 'Copied from \u2068@sourcechef\u2069 (\u2068Source Chef\u2069)',
+            }),
+        );
 
         expect(onViewSource).toHaveBeenCalledWith('col_src');
     });

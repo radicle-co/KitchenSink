@@ -29,6 +29,8 @@ import { fillTemplate } from '../format/fillTemplate.js';
 import { collectionMenuItems, type CollectionHeaderProps } from './detailModel.js';
 import { recipeMessages } from '../messages.js';
 import { collectionMessages } from './messages.js';
+import { bylineMessages } from '../byline/messages.js';
+import { sourceOwnerBylineText } from './sourceOwnerByline.js';
 import { formatCollectionDate } from './model.js';
 
 /**
@@ -49,6 +51,7 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
     recipeCount,
     sourceCollectionName,
     sourceOwnerDisplayName,
+    sourceOwnerUsername,
     sourceCollectionId,
     lastPulledAt,
     actionsPlacement,
@@ -66,6 +69,7 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
     onDelete,
 }) => {
     const { detail, list, menu: copy, header } = useMessages(collectionMessages);
+    const bylineCopy = useMessages(bylineMessages);
     const { card } = useMessages(recipeMessages);
     const locale = useLocale();
     const isPublic = visibility === RecipeVisibility.PUBLIC;
@@ -73,9 +77,17 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
     // A retry from the refresh notice that succeeds removes the button the viewer pressed, so focus goes to the name.
     const focusSignal = headingFocusSignal + (refreshNotice?.recoveries ?? 0);
 
+    const owner = sourceOwnerBylineText(
+        {
+            ...(sourceOwnerUsername === undefined ? {} : { sourceOwnerUsername }),
+            ...(sourceOwnerDisplayName === undefined ? {} : { sourceOwnerDisplayName }),
+        },
+        bylineCopy,
+        'sentence',
+    );
     const copiedFrom =
-        sourceOwnerDisplayName !== undefined
-            ? fillTemplate(detail.copiedFrom, { handle: sourceOwnerDisplayName })
+        owner !== undefined
+            ? fillTemplate(detail.copiedFrom, { byline: owner })
             : sourceCollectionName !== undefined
               ? fillTemplate(detail.copiedFromNamed, { name: sourceCollectionName })
               : detail.copiedFromUnknown;

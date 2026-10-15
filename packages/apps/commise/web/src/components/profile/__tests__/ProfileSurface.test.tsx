@@ -48,9 +48,9 @@ vi.mock('@/components/auth/AccountEraseForm', () => ({
 
 const { ProfileSurface } = await import('../ProfileSurface');
 
-const ready = (displayName: string) => ({
+const ready = (displayName: string, username: string | null = 'braise') => ({
     isError: false,
-    data: { user: { displayName, email: 'eliza@example.com' } },
+    data: { user: { displayName, email: 'eliza@example.com', username } },
 });
 
 const mount = (): void => {
@@ -92,6 +92,23 @@ describe('ProfileSurface — the page', () => {
         expect(screen.getAllByText('Eliza Moreno').length).toBeGreaterThan(0);
         expect(screen.getAllByText('eliza@example.com')).toHaveLength(2);
         expect(screen.getByRole('button', { name: /Display name/ })).toBeTruthy();
+    });
+
+    // Plan 2026-10-15-010 D12: the username is read-only (Clerk owns it), in the header and as a plain Account row.
+    it('shows the username in the header and as a read-only Account row with no way to edit it', () => {
+        mount();
+
+        expect(screen.getAllByText('@braise')).toHaveLength(2);
+        expect(screen.getByText('Username')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /Username/u })).toBeNull();
+    });
+
+    it('shows no username anywhere for a cook without one', () => {
+        profileQuery.current = ready('Eliza Moreno', null);
+        mount();
+
+        expect(screen.queryByText('Username')).toBeNull();
+        expect(screen.queryByText(/^@/u)).toBeNull();
     });
 
     it('offers Food data sources as a link to the sources page', async () => {

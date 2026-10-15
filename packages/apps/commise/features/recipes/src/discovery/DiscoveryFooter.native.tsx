@@ -15,18 +15,30 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { recipeActionMessages } from '../actions/messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
+import { bylineInitial, bylineOf } from '../byline/bylineOf.js';
+import { bylineText } from '../byline/bylineText.js';
+import { bylineMessages } from '../byline/messages.js';
 import { discoveryMessages } from './messages.js';
 import type { DiscoveryFooterProps } from './model.js';
 
 export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
     title,
+    authorUsername,
     authorDisplayName,
     sourceAttribution,
+    avatar,
     state,
     onSave,
 }) => {
     const copy = useMessages(recipeActionMessages).saveCopy;
     const discovery = useMessages(discoveryMessages);
+    const bylineCopy = useMessages(bylineMessages);
+    const byline = bylineOf({
+        ...(authorUsername === undefined ? {} : { username: authorUsername }),
+        ...(authorDisplayName === undefined ? {} : { displayName: authorDisplayName }),
+        ...(sourceAttribution === undefined ? {} : { sourceAttribution }),
+    });
+    const initial = avatar === 'shown' ? bylineInitial(byline) : undefined;
     const { colors } = useTheme();
     const inert = state.kind === 'saving' || state.kind === 'saved';
     const name = fillTemplate(
@@ -34,19 +46,17 @@ export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
         { title },
     );
     const by =
-        authorDisplayName !== undefined
-            ? fillTemplate(discovery.authorDisplayName, { handle: authorDisplayName })
-            : sourceAttribution === undefined
-              ? undefined
-              : fillTemplate(discovery.attribution, { source: sourceAttribution });
+        byline.kind === 'source'
+            ? fillTemplate(discovery.attribution, { source: byline.attribution })
+            : bylineText(byline, bylineCopy, 'standalone');
 
     return (
         <View style={styles.stack}>
             <View style={styles.row}>
-                {authorDisplayName === undefined ? null : (
+                {initial === undefined ? null : (
                     <View style={[styles.avatar, { backgroundColor: colors.selectedFill }]}>
                         <Text accessible={false} style={[styles.overline, { color: colors.actionText }]}>
-                            {authorDisplayName.slice(0, 1).toUpperCase()}
+                            {initial}
                         </Text>
                     </View>
                 )}

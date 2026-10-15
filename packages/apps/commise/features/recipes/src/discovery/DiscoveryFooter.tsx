@@ -18,6 +18,9 @@ import type { FC } from 'react';
 
 import { recipeActionMessages } from '../actions/messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
+import { bylineInitial, bylineOf } from '../byline/bylineOf.js';
+import { bylineText } from '../byline/bylineText.js';
+import { bylineMessages } from '../byline/messages.js';
 import { discoveryMessages } from './messages.js';
 import type { DiscoveryFooterProps } from './model.js';
 
@@ -28,34 +31,41 @@ const BUTTON =
 
 export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
     title,
+    authorUsername,
     authorDisplayName,
     sourceAttribution,
+    avatar,
     state,
     onSave,
 }) => {
     const copy = useMessages(recipeActionMessages).saveCopy;
     const discovery = useMessages(discoveryMessages);
+    const bylineCopy = useMessages(bylineMessages);
+    const byline = bylineOf({
+        ...(authorUsername === undefined ? {} : { username: authorUsername }),
+        ...(authorDisplayName === undefined ? {} : { displayName: authorDisplayName }),
+        ...(sourceAttribution === undefined ? {} : { sourceAttribution }),
+    });
+    const initial = avatar === 'shown' ? bylineInitial(byline) : undefined;
     const inert = state.kind === 'saving' || state.kind === 'saved';
     const name = fillTemplate(
         state.kind === 'saving' ? copy.saving : state.kind === 'saved' ? copy.done : copy.button,
         { title },
     );
     const by =
-        authorDisplayName !== undefined
-            ? fillTemplate(discovery.authorDisplayName, { handle: authorDisplayName })
-            : sourceAttribution === undefined
-              ? undefined
-              : fillTemplate(discovery.attribution, { source: sourceAttribution });
+        byline.kind === 'source'
+            ? fillTemplate(discovery.attribution, { source: byline.attribution })
+            : bylineText(byline, bylineCopy, 'standalone');
 
     return (
         <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
-                {authorDisplayName === undefined ? null : (
+                {initial === undefined ? null : (
                     <span
                         aria-hidden="true"
                         className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-selected-fill text-overline text-action-text"
                     >
-                        {authorDisplayName.slice(0, 1).toUpperCase()}
+                        {initial}
                     </span>
                 )}
                 <span className="min-w-0 flex-1 truncate text-meta text-ink-muted">{by}</span>

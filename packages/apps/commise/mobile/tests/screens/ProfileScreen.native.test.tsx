@@ -109,7 +109,13 @@ type ProfileQuery = ReturnType<typeof useUserProfile>;
 
 /** A settled profile read. */
 function ready(
-    over: { displayName?: string; email?: string; avatarUrl?: string; status?: 'active' | 'suspended' } = {},
+    over: {
+        displayName?: string;
+        email?: string;
+        avatarUrl?: string;
+        status?: 'active' | 'suspended';
+        username?: string | null;
+    } = {},
 ): ProfileQuery {
     return {
         data: {
@@ -117,6 +123,8 @@ function ready(
                 id: 'usr_1',
                 displayName: over.displayName ?? 'Eliza Moreno',
                 email: over.email ?? 'eliza@example.com',
+                // The wire's required-nullable username (plan 2026-10-15-010 D9).
+                username: over.username === undefined ? 'braise' : over.username,
                 avatarUrl: over.avatarUrl ?? '',
                 status: over.status ?? 'active',
             },
@@ -188,6 +196,20 @@ describe('ProfileScreen — the one page (§9.1)', () => {
         expect(account.textContent).toContain('Eliza Moreno');
         expect(screen.getAllByText('eliza@example.com')).toHaveLength(1);
         expect(screen.queryByText(t.email)).toBeNull();
+    });
+
+    // Plan 2026-10-15-010 D12: the header carries the username, read-only; native has no Account row for it.
+    it('shows the username once, read-only, in the header', () => {
+        renderProfile();
+
+        expect(screen.getAllByText('@braise')).toHaveLength(1);
+    });
+
+    it('shows no username line for a cook without one', () => {
+        useUserProfileMock.mockReturnValue(ready({ username: null }));
+        renderProfile();
+
+        expect(screen.queryByText(/^@/u)).toBeNull();
     });
 
     it('draws ONE avatar: the photo control stands in the header, with no “Profile photo” card or initials disc', () => {

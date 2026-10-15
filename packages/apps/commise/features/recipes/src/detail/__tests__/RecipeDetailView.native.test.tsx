@@ -119,6 +119,26 @@ describe('RecipeDetailView (native)', () => {
         expect(screen.getByText('Mediterranean')).toBeTruthy();
     });
 
+    // Plan 2026-10-15-010 D11 — the same byline the web meta line shows, from the one shared rule.
+    it.each([
+        [
+            '@username (Display Name)',
+            { authorUsername: 'braise', authorDisplayName: 'Eliza Moreno' },
+            'by ⁨@braise⁩ (⁨Eliza Moreno⁩)',
+        ],
+        ['the display name alone', { authorDisplayName: 'Eliza Moreno' }, 'by ⁨Eliza Moreno⁩'],
+        ['a former member', { authorDisplayName: 'user_01J9ZK8N7QF3B2X4M6T0V5C1AB' }, 'by a former member'],
+    ])('names another cook’s recipe’s author as %s', (_case, author, expected) => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ cuisine: undefined, ...author })}
+            />,
+        );
+
+        expect(screen.getByText(expected)).toBeTruthy();
+    });
+
     it('renders meta times and servings', () => {
         render(
             <RecipeDetailView

@@ -13,6 +13,7 @@ import { describe, it, expect } from 'vitest';
 import {
     ERASURE_QUEUE_MESSAGE_KINDS,
     erasureQueueMessageKind,
+    isPseudonymizedAuthorHandle,
     pseudonymizedAuthorHandle,
     type AccountErasureMessage,
     type ErasureQueueMessage,
@@ -105,5 +106,30 @@ describe('pseudonymizedAuthorHandle', () => {
         // The ULID is the identifier GDPR-legitimately retains on recipes.owner_id; the handle carries
         // nothing else (no display name / email / Clerk handle).
         expect(pseudonymizedAuthorHandle(OWNER_A)).toContain(OWNER_A);
+    });
+});
+
+/**
+ * The client's question "was this author erased?" (plan 2026-10-15-010 D11) — asked of the display name alone, because
+ * a clone's source owner id never reaches the client. It must be the exact INVERSE of the derivation above: true for
+ * everything it produces, false for every name a real cook can have.
+ */
+describe('isPseudonymizedAuthorHandle', () => {
+    it.each(['01J9ZK8N7QF3B2X4M6T0V5C1AB', '01HZZZZZZZZZZZZZZZZZZZZZZU', '00000000000000000000000000'])(
+        'recognises the pseudonym derived from %s',
+        (ownerId) => {
+            expect(isPseudonymizedAuthorHandle(pseudonymizedAuthorHandle(ownerId))).toBe(true);
+        },
+    );
+
+    it.each([
+        ['a real display name', 'Ada Lovelace'],
+        ['a username-looking name', 'user_ada'],
+        ['the prefix alone', 'user_'],
+        ['a lower-cased id', `user_${'01j9zk8n7qf3b2x4m6t0v5c1ab'}`],
+        ['an id one character short', `user_${'01J9ZK8N7QF3B2X4M6T0V5C1A'}`],
+        ['surrounding text', `by user_01J9ZK8N7QF3B2X4M6T0V5C1AB`],
+    ])('does not mistake %s for one', (_case, name) => {
+        expect(isPseudonymizedAuthorHandle(name)).toBe(false);
     });
 });

@@ -27,6 +27,7 @@ import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeDiscoveryResults } from '../RecipeDiscoveryResults.native.js';
 import type { RecipeDiscoveryResultsProps } from '../model.js';
+import { isolate } from '../../byline/bylineText.js';
 
 afterEach(() => {
     cleanup();
@@ -186,14 +187,15 @@ describe('RecipeDiscoveryResults (native) — populated', () => {
                 makeSearchResult({
                     id: 'rec_x',
                     title: 'Ribollita',
-                    authorDisplayName: 'tuscan_cook',
+                    authorUsername: 'tuscan_cook',
+                    authorDisplayName: 'Tuscan Cook',
                     cuisine: 'Tuscan',
                 }),
             ],
             cardVariant: 'grid',
         });
 
-        expect(screen.getByText('@tuscan_cook')).toBeTruthy();
+        expect(screen.getByText(`${isolate('@tuscan_cook')} (${isolate('Tuscan Cook')})`)).toBeTruthy();
         expect(screen.getByText('Tuscan')).toBeTruthy();
         expect(screen.queryByText('0 cal')).toBeNull();
         expect(screen.getByRole('button', { name: 'Save a copy of Ribollita' })).toBeTruthy();

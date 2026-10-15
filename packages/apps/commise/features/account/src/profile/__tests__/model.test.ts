@@ -113,15 +113,34 @@ describe('profileReadOf', () => {
 
     it('is ready with the name and email, trimmed, once there is data', () => {
         expect(
-            profileReadOf({ isError: false, data: { user: { displayName: ' Eliza ', email: 'e@example.com' } } }),
-        ).toEqual({ status: 'ready', displayName: 'Eliza', email: 'e@example.com' });
+            profileReadOf({
+                isError: false,
+                data: { user: { displayName: ' Eliza ', email: 'e@example.com', username: null } },
+            }),
+        ).toEqual({ status: 'ready', displayName: 'Eliza', email: 'e@example.com', username: null });
+    });
+
+    // Plan 2026-10-15-010 D12: the Clerk username shows read-only beside the name; Clerk owns it, so no rename.
+    it('carries the Clerk username when the cook has one', () => {
+        expect(
+            profileReadOf({
+                isError: false,
+                data: { user: { displayName: 'Eliza', email: 'e@example.com', username: 'braise' } },
+            }),
+        ).toEqual({ status: 'ready', displayName: 'Eliza', email: 'e@example.com', username: 'braise' });
     });
 
     it('stays ready when a background refetch fails but the cached profile is still there', () => {
-        expect(profileReadOf({ isError: true, data: { user: { displayName: '', email: 'e@example.com' } } })).toEqual({
+        expect(
+            profileReadOf({
+                isError: true,
+                data: { user: { displayName: '', email: 'e@example.com', username: null } },
+            }),
+        ).toEqual({
             status: 'ready',
             displayName: '',
             email: 'e@example.com',
+            username: null,
         });
     });
 });

@@ -27,6 +27,8 @@ import { formatRecipeCount } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { collectionMessages } from './messages.js';
+import { bylineMessages } from '../byline/messages.js';
+import { sourceOwnerBylineText } from './sourceOwnerByline.js';
 import {
     COLLECTION_SEARCH_FROM,
     cardCoverOf,
@@ -184,6 +186,8 @@ const CollectionCard: FC<{ readonly collection: CollectionCardSource; readonly o
     onSelect,
 }) => {
     const { list, detail } = useMessages(collectionMessages);
+    // A copy's credit: its source owner through the one byline rule (plan 2026-10-15-010 D11).
+    const copiedFrom = sourceOwnerBylineText(collection, useMessages(bylineMessages), 'sentence');
     const { card } = useMessages(recipeMessages);
     const { colors } = useTheme();
     const locale = useLocale();
@@ -232,9 +236,9 @@ const CollectionCard: FC<{ readonly collection: CollectionCardSource; readonly o
                             />
                             <Text style={[styles.metaText, { color: colors.inkMuted }]}>{visibility}</Text>
                         </View>
-                        {collection.sourceOwnerDisplayName === undefined ? null : (
+                        {copiedFrom === undefined ? null : (
                             <Text numberOfLines={1} style={[styles.caption, { color: colors.inkMuted }]}>
-                                {fillTemplate(list.copiedFrom, { handle: collection.sourceOwnerDisplayName })}
+                                {fillTemplate(list.copiedFrom, { byline: copiedFrom })}
                             </Text>
                         )}
                     </View>

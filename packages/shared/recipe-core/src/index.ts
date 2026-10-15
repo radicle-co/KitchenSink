@@ -157,6 +157,7 @@ export {
     ACCOUNT_ALREADY_ERASED_CODE,
     ERASURE_QUEUE_MESSAGE_KINDS,
     erasureQueueMessageKind,
+    isPseudonymizedAuthorHandle,
     pseudonymizedAuthorHandle,
 } from './accountErasure.js';
 export type {

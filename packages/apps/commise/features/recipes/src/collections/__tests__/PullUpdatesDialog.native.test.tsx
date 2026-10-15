@@ -39,7 +39,8 @@ function baseProps(overrides: Partial<PullUpdatesDialogProps> = {}): PullUpdates
         open: true,
         isLoadingPreview: false,
         isCommitting: false,
-        sourceOwnerDisplayName: 'mealplan_clara',
+        sourceOwnerUsername: 'mealplan_clara',
+        sourceOwnerDisplayName: 'Clara Oswald',
         sourceCollectionName: 'Keto Staples',
         onCancel: noop,
         onConfirm: noop,
@@ -69,7 +70,7 @@ describe('PullUpdatesDialog (native) — populated diff', () => {
     it('shows the source attribution, the counts, and the protection note', () => {
         render(<PullUpdatesDialog {...baseProps({ diff: populatedDiff })} />);
 
-        expect(screen.getByText('@mealplan_clara / Keto Staples')).toBeTruthy();
+        expect(screen.getByText('\u2068@mealplan_clara\u2069 (\u2068Clara Oswald\u2069) / Keto Staples')).toBeTruthy();
         expect(screen.getByText('2 new public recipes will be added')).toBeTruthy();
         expect(screen.getByText('0 recipes removed from source')).toBeTruthy();
         expect(screen.getByText('1 already in this collection (no changes)')).toBeTruthy();

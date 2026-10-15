@@ -45,7 +45,7 @@ describe('ProfileHeader (native)', () => {
     it('shows the name and the email once ready, with the initials decorative', () => {
         render(
             <ProfileHeader
-                read={{ status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com' }}
+                read={{ status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com', username: null }}
                 initials="EM"
                 onRetry={noop}
             />,
@@ -58,11 +58,42 @@ describe('ProfileHeader (native)', () => {
 
     it('shows only the email for a cook with no name yet — the page never invents one', () => {
         render(
-            <ProfileHeader read={{ status: 'ready', displayName: '', email: 'a@b.co' }} initials="" onRetry={noop} />,
+            <ProfileHeader
+                read={{ status: 'ready', displayName: '', email: 'a@b.co', username: null }}
+                initials=""
+                onRetry={noop}
+            />,
         );
 
         expect(screen.getByText('a@b.co')).toBeTruthy();
         expect(screen.queryByText('Add your name')).toBeNull();
+    });
+
+    // Plan 2026-10-15-010 D12: the public "@username" under the display name, read-only (Clerk owns it).
+    it('shows the username under the name, read-only, when the cook has one', () => {
+        render(
+            <ProfileHeader
+                read={{ status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com', username: 'braise' }}
+                initials="EM"
+                onRetry={noop}
+            />,
+        );
+
+        expect(screen.getByText('@braise')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /username/iu })).toBeNull();
+    });
+
+    it('shows no username line for a cook without one — never a “Not set” with no way to set it', () => {
+        render(
+            <ProfileHeader
+                read={{ status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com', username: null }}
+                initials="EM"
+                onRetry={noop}
+            />,
+        );
+
+        expect(screen.queryByText(/^@/u)).toBeNull();
+        expect(screen.getByText('eliza@example.com')).toBeTruthy();
     });
 
     it('reports a failed read with a Try again control that retries', async () => {
@@ -79,7 +110,7 @@ describe('ProfileHeader (native)', () => {
 });
 
 describe('ProfileHeader (native) — the avatar slot (A-025)', () => {
-    const ready = { status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com' } as const;
+    const ready = { status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com', username: null } as const;
 
     it('draws the host’s avatar INSTEAD of the initials disc, so the page has one avatar', () => {
         render(<ProfileHeader read={ready} initials="EM" onRetry={noop} avatar={<span>Photo control</span>} />);
@@ -265,7 +296,7 @@ describe('DisplayNameSheet (native)', () => {
     it('labels the field “Display name” and says where the name shows', () => {
         render(<DisplayNameSheet {...sheet()} />);
 
-        expect(screen.getByText('Shown on recipes you publish.')).toBeTruthy();
+        expect(screen.getByText('Shown next to your username on recipes you publish.')).toBeTruthy();
         expect(screen.getAllByText('Display name').length).toBeGreaterThan(0);
     });
 
@@ -412,7 +443,7 @@ describe('DisplayNameSheet (native) — the length counter (W-26)', () => {
         render(withDraft('x'.repeat(85)));
 
         const shown = screen.getByText('85/100');
-        const plain = screen.getByText('Shown on recipes you publish.');
+        const plain = screen.getByText('Shown next to your username on recipes you publish.');
 
         expect(shown.style.color).toBe(plain.style.color);
     });
@@ -427,7 +458,7 @@ describe('DisplayNameSheet (native) — the length counter (W-26)', () => {
         render(withDraft('x'.repeat(DISPLAY_NAME_MAX_LENGTH)));
 
         expect(screen.getByText('100/100').style.color).not.toBe(
-            screen.getByText('Shown on recipes you publish.').style.color,
+            screen.getByText('Shown next to your username on recipes you publish.').style.color,
         );
         expect(document.querySelector('[aria-live="polite"]')?.textContent).toBe(
             'That is the longest name we can take.',

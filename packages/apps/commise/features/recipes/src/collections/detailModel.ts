@@ -136,8 +136,10 @@ export interface CollectionHeaderProps extends CollectionMenuActions {
     readonly recipeCount: number;
     /** The source collection's name, present only for a copy. */
     readonly sourceCollectionName?: string;
-    /** The source owner's handle; may be absent even for a copy. */
+    /** The source owner's display name, frozen at clone time; may be absent even for a copy. */
     readonly sourceOwnerDisplayName?: string;
+    /** The source owner's CURRENT username, resolved when the copy is read (plan 2026-10-15-010 D7). */
+    readonly sourceOwnerUsername?: string;
     /** The source collection's id, which makes "Copied from …" a way to open the original. */
     readonly sourceCollectionId?: string;
     /** ISO 8601 time of the last pull from the original; absent if never pulled. */

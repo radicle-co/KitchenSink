@@ -6,11 +6,11 @@
     "coverage": {
         "components": 135,
         "implementations": 241,
-        "props": 1155,
+        "props": 1165,
         "documentedComponents": 135,
         "implementationsWithModuleDoc": 241,
         "implementationsWithComponentDoc": 141,
-        "documentedProps": 899,
+        "documentedProps": 909,
         "classifiedComponents": 117,
         "componentsWithPatternTag": 61,
         "crossPlatformComponents": 106
@@ -1157,7 +1157,16 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The source owner's handle; may be absent even for a copy.",
+                            "description": "The source owner's display name, frozen at clone time; may be absent even for a copy.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
+                            "name": "sourceOwnerUsername",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The source owner's CURRENT username, resolved when the copy is read (plan 2026-10-15-010 D7).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         },
                         {
@@ -1381,7 +1390,16 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The source owner's handle; may be absent even for a copy.",
+                            "description": "The source owner's display name, frozen at clone time; may be absent even for a copy.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
+                            "name": "sourceOwnerUsername",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The source owner's CURRENT username, resolved when the copy is read (plan 2026-10-15-010 D7).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         },
                         {
@@ -2037,7 +2055,7 @@
                         },
                         {
                             "name": "member",
-                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 21 more ...; deletedAt?: string | undefined; }>",
+                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 22 more ...; deletedAt?: string | undefined; }>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2124,7 +2142,7 @@
                         },
                         {
                             "name": "member",
-                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 21 more ...; deletedAt?: string | undefined; }>",
+                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 22 more ...; deletedAt?: string | undefined; }>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2235,7 +2253,7 @@
                         },
                         {
                             "name": "members",
-                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 21 more ...; deletedAt?: string | undefined; }>[]",
+                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 22 more ...; deletedAt?: string | undefined; }>[]",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2366,7 +2384,7 @@
                         },
                         {
                             "name": "members",
-                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 21 more ...; deletedAt?: string | undefined; }>[]",
+                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 22 more ...; deletedAt?: string | undefined; }>[]",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -3611,7 +3629,16 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The source collection owner's display handle, frozen at clone time; may be absent (unresolved owner).",
+                            "description": "The source collection owner's display name, frozen at clone time; may be absent (unresolved owner).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
+                        },
+                        {
+                            "name": "sourceOwnerUsername",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The source owner's CURRENT username, resolved when the copy is read (plan 2026-10-15-010 D7).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         }
                     ],
@@ -3724,7 +3751,16 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The source collection owner's display handle, frozen at clone time; may be absent (unresolved owner).",
+                            "description": "The source collection owner's display name, frozen at clone time; may be absent (unresolved owner).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
+                        },
+                        {
+                            "name": "sourceOwnerUsername",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The source owner's CURRENT username, resolved when the copy is read (plan 2026-10-15-010 D7).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         }
                     ],
@@ -8348,7 +8384,28 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The author's handle, when the recipe carries one.",
+                            "description": "The author's display name, shown beside the username, when the recipe carries one.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
+                        },
+                        {
+                            "name": "authorUsername",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The author's Clerk username — the \"@handle\" — when the recipe carries one.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
+                        },
+                        {
+                            "name": "avatar",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"hidden\"",
+                                "\"shown\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the avatar disc is drawn. A display choice only: a compact card at 320 px leaves the byline 30–40 px with\nthe disc, so it drops the decoration and keeps the words (§1.1 rung 1, re-lay out first).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
                         },
                         {
@@ -8366,7 +8423,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Human-readable provenance (e.g. `Serious Eats`) for an imported recipe with no author handle.",
+                            "description": "Human-readable provenance (e.g. `Serious Eats`) for an imported recipe with no author.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
                         },
                         {
@@ -8418,7 +8475,28 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The author's handle, when the recipe carries one.",
+                            "description": "The author's display name, shown beside the username, when the recipe carries one.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
+                        },
+                        {
+                            "name": "authorUsername",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The author's Clerk username — the \"@handle\" — when the recipe carries one.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
+                        },
+                        {
+                            "name": "avatar",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"hidden\"",
+                                "\"shown\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the avatar disc is drawn. A display choice only: a compact card at 320 px leaves the byline 30–40 px with\nthe disc, so it drops the decoration and keeps the words (§1.1 rung 1, re-lay out first).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
                         },
                         {
@@ -8436,7 +8514,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Human-readable provenance (e.g. `Serious Eats`) for an imported recipe with no author handle.",
+                            "description": "Human-readable provenance (e.g. `Serious Eats`) for an imported recipe with no author.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
                         },
                         {
@@ -9424,7 +9502,16 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The author's handle (`@handle`), when the recipe carries one.",
+                            "description": "The author's display name, when the recipe carries one.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
+                        },
+                        {
+                            "name": "authorUsername",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The author's Clerk username, when the recipe carries one.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
                         },
                         {
@@ -9549,7 +9636,16 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The author's handle (`@handle`), when the recipe carries one.",
+                            "description": "The author's display name, when the recipe carries one.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
+                        },
+                        {
+                            "name": "authorUsername",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The author's Clerk username, when the recipe carries one.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
                         },
                         {

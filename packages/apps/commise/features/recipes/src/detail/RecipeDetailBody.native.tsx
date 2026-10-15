@@ -36,6 +36,7 @@ import type { FC, ReactElement } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
+import { bylineMessages } from '../byline/messages.js';
 import { AmbiguityReview } from './AmbiguityReview.native.js';
 import { DetailDescription } from './DetailDescription.native.js';
 import { detailMetaItems, detailRatingLine, detailStatCells } from './detailFacts.js';
@@ -81,6 +82,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     bind,
 }) => {
     const { detail, duration, card } = useMessages(recipeMessages);
+    const bylineCopy = useMessages(bylineMessages);
     const locale = useLocale();
     const { colors } = useTheme();
     const host = useScrollHost();
@@ -94,7 +96,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
         unreachableRetry,
     );
     const scaled = scaleRecipeForServings(recipe, servings);
-    const meta = detailMetaItems(recipe, owner, detail);
+    const meta = detailMetaItems(recipe, owner, detail, bylineCopy);
     const tags = [...recipe.dietaryFlags, ...recipe.tags];
     const twoColumns = layout.columns === 'two';
     const muted = { color: colors.inkMuted };

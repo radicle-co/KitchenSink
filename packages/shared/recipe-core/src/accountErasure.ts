@@ -122,6 +122,12 @@ export function erasureQueueMessageKind(body: unknown): ErasureQueueMessageKind 
     return ERASURE_QUEUE_MESSAGE_KINDS.find((known) => known === kind);
 }
 
+/** The prefix {@link pseudonymizedAuthorHandle} writes. */
+const PSEUDONYM_PREFIX = 'user_';
+
+/** A ULID as identity mints it: 26 upper-case base-32 characters. */
+const ULID_SHAPE = /^[0-9A-Z]{26}$/;
+
 /**
  * Render the stable, pseudonymous author handle a KEPT (truly-public / donated) recipe carries after its
  * owner is erased (CR-002 / U3b — author-handle residue).
@@ -144,5 +150,20 @@ export function erasureQueueMessageKind(body: unknown): ErasureQueueMessageKind 
  * @returns The pseudonymous author handle for the owner's kept recipes. Pure.
  */
 export function pseudonymizedAuthorHandle(ownerId: string): string {
-    return `user_${ownerId}`;
+    return `${PSEUDONYM_PREFIX}${ownerId}`;
+}
+
+/**
+ * Whether a display name is the pseudonym erasure wrote — the inverse of {@link pseudonymizedAuthorHandle}, defined
+ * beside it so the two cannot drift (plan 2026-10-15-010 D11).
+ *
+ * The client asks it of a display name ALONE, because a clone's source owner id never reaches it, so the bylines can
+ * say "a former member" instead of printing `user_01J…` — which reads like a username, and is a legal one. A real
+ * display name is first + last name, so it is never `user_` followed by a bare 26-character id.
+ *
+ * @param displayName - A stored display name.
+ * @returns True for exactly the strings the derivation produces from a ULID. Pure.
+ */
+export function isPseudonymizedAuthorHandle(displayName: string): boolean {
+    return displayName.startsWith(PSEUDONYM_PREFIX) && ULID_SHAPE.test(displayName.slice(PSEUDONYM_PREFIX.length));
 }

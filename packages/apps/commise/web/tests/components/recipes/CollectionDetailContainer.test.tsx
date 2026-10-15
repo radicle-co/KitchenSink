@@ -82,7 +82,9 @@ function makeClonedCollection(overrides: Partial<ReturnType<typeof makeCollectio
         id: 'col_9',
         sourceCollectionId: 'col_src',
         sourceCollectionName: 'Origin dinners',
-        sourceOwnerDisplayName: 'sourcechef',
+        // The wire carries both halves of the source owner's byline (plan 2026-10-15-010 D7).
+        sourceOwnerUsername: 'sourcechef',
+        sourceOwnerDisplayName: 'Source Chef',
         ...overrides,
     });
 }
@@ -492,7 +494,7 @@ describe('CollectionDetailContainer — rename, delete and Save a copy', () => {
 
         expect(await screen.findByRole('heading', { name: 'Pull Updates from Source Collection' })).toBeInTheDocument();
         expect(preview).toHaveBeenCalledWith('col_9');
-        expect(screen.getByText('Copied from @sourcechef')).toBeInTheDocument();
+        expect(screen.getByText('Copied from \u2068@sourcechef\u2069 (\u2068Source Chef\u2069)')).toBeInTheDocument();
     });
 
     it('draws no Pull updates for an original collection', async () => {
@@ -509,7 +511,11 @@ describe('CollectionDetailContainer — rename, delete and Save a copy', () => {
         const client = clientSeededWith(makeClonedCollection());
 
         renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
-        await user.click(await screen.findByRole('button', { name: 'Copied from @sourcechef' }));
+        await user.click(
+            await screen.findByRole('button', {
+                name: 'Copied from \u2068@sourcechef\u2069 (\u2068Source Chef\u2069)',
+            }),
+        );
 
         expect(pushMock).toHaveBeenCalledWith('/en/collections/col_src');
     });

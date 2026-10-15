@@ -46,7 +46,7 @@ export interface CollectionListMessages {
     readonly cardLabel: string;
     /** A card's name when the read carried the recipe count (contains `{name}`, `{count}` and `{visibility}`). */
     readonly cardLabelCounted: string;
-    /** A copy's attribution (contains `{handle}`). */
+    /** A copy's attribution (contains `{byline}`, from `sourceOwnerBylineText`). */
     readonly copiedFrom: string;
     readonly visibilityPublic: string;
     readonly visibilityPrivate: string;
@@ -124,7 +124,7 @@ export interface CollectionDetailMessages {
     /** Client-side member-list load-more template naming how many more are hidden (contains `{count}`,
      *  W5/C7 — "Load more (4 more)" in the collection-view wireframe). */
     readonly loadMore: string;
-    /** A copy's attribution on the meta line (contains `{handle}`). */
+    /** A copy's attribution on the meta line (contains `{byline}`, from `sourceOwnerBylineText`). */
     readonly copiedFrom: string;
     /** A copy's attribution when the source's owner is unknown (contains `{name}`). */
     readonly copiedFromNamed: string;
@@ -302,7 +302,7 @@ export interface CollectionHeaderMessages {
 export interface PullUpdatesDialogMessages {
     /** Dialog heading. */
     readonly title: string;
-    /** Source attribution template with a resolved owner handle (contains `{handle}` and `{name}`). */
+    /** Source attribution with a known owner (contains `{byline}` and `{name}`). */
     readonly attribution: string;
     /** Source attribution template with no resolved owner handle (contains `{name}`). */
     readonly attributionNoHandle: string;
@@ -374,7 +374,7 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             noMatch: 'No collections match “{query}”.',
             cardLabel: '{name}, {visibility}',
             cardLabelCounted: '{name}, {count}, {visibility}',
-            copiedFrom: 'Copied from @{handle}',
+            copiedFrom: 'Copied from {byline}',
             visibilityPublic: 'Public',
             visibilityPrivate: 'Private',
             needRecipes: 'Add a few recipes first.',
@@ -454,7 +454,7 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             refreshError: 'We couldn’t refresh this collection.',
             refreshRetry: 'Try again',
             loadMore: 'Load more ({count} more)',
-            copiedFrom: 'Copied from @{handle}',
+            copiedFrom: 'Copied from {byline}',
             copiedFromNamed: 'Copied from “{name}”',
             copiedFromUnknown: 'Copied from another collection',
             recipeCountOne: '{count} recipe',
@@ -511,7 +511,7 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
         },
         pull: {
             title: 'Pull Updates from Source Collection',
-            attribution: '@{handle} / {name}',
+            attribution: '{byline} / {name}',
             attributionNoHandle: '{name}',
             loadingLabel: 'Loading pull preview',
             addedCount: '{count} new public recipes will be added',

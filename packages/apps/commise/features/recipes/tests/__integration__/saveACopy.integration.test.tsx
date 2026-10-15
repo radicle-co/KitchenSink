@@ -60,7 +60,12 @@ const Card: FC<{ readonly onEdit: (copyId: string) => void }> = ({ onEdit }) => 
     const saveCopy = useSaveCopy(onEdit);
 
     return (
-        <DiscoveryFooter title="Sunday Roast" state={saveCopy.stateOf(SOURCE)} onSave={() => saveCopy.save(SOURCE)} />
+        <DiscoveryFooter
+            title="Sunday Roast"
+            avatar="shown"
+            state={saveCopy.stateOf(SOURCE)}
+            onSave={() => saveCopy.save(SOURCE)}
+        />
     );
 };
 

@@ -17,6 +17,7 @@ import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { profileMessages } from './messages.js';
+import { formatUsername } from './model.js';
 import type { ProfileHeaderProps } from './props.js';
 
 /** The identity block. */
@@ -73,6 +74,11 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({ read, initials, onRetry,
                         {read.displayName === '' ? null : (
                             <Text style={[styles.name, { color: colors.ink }]}>{read.displayName}</Text>
                         )}
+                        {read.username === null ? null : (
+                            <Text style={[styles.username, { color: colors.ink }]}>
+                                {formatUsername(t.usernameValue, read.username)}
+                            </Text>
+                        )}
                         <Text style={[styles.email, { color: colors.inkMuted }]}>{read.email}</Text>
                     </View>
                 </View>
@@ -94,5 +100,6 @@ const styles = StyleSheet.create({
     skeletonText: { gap: nativeTokens.spacing[2] },
     line: { height: 16, borderRadius: nativeTokens.radius.sm },
     name: { ...nativeTokens.type.sectionTitle },
+    username: { ...nativeTokens.type.meta },
     email: { ...nativeTokens.type.meta },
 });

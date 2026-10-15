@@ -29,7 +29,8 @@ function baseProps(overrides: Partial<PullUpdatesDialogProps> = {}): PullUpdates
         open: true,
         isLoadingPreview: false,
         isCommitting: false,
-        sourceOwnerDisplayName: 'mealplan_clara',
+        sourceOwnerUsername: 'mealplan_clara',
+        sourceOwnerDisplayName: 'Clara Oswald',
         sourceCollectionName: 'Keto Staples',
         onCancel: noop,
         onConfirm: noop,
@@ -60,7 +61,7 @@ describe('PullUpdatesDialog (web) — populated diff', () => {
     it('shows the source attribution', () => {
         render(<PullUpdatesDialog {...baseProps({ diff: populatedDiff })} />);
 
-        expect(screen.getByText('@mealplan_clara / Keto Staples')).toBeTruthy();
+        expect(screen.getByText('\u2068@mealplan_clara\u2069 (\u2068Clara Oswald\u2069) / Keto Staples')).toBeTruthy();
     });
 
     it('shows the added/removed/unchanged counts and the protection note', () => {

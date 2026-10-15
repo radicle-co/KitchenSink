@@ -277,6 +277,7 @@ recipes:recipes/pinnedActionBar
 recipes:recipes/photos
 recipes:recipes/accessibility
 auth:dataSources
+auth:profileUsername
 auth:accountDangerZone
 recipes:recipes/delete
 auth:accountErasure"

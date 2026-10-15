@@ -31,7 +31,7 @@ describe('ProfileHeader (web)', () => {
     it('shows the name and the email once ready, with the initials decorative', () => {
         render(
             <ProfileHeader
-                read={{ status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com' }}
+                read={{ status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com', username: null }}
                 initials="EM"
                 onRetry={noop}
             />,
@@ -44,10 +44,41 @@ describe('ProfileHeader (web)', () => {
 
     it('lets an unbroken email wrap anywhere instead of overflowing 320 px', () => {
         render(
-            <ProfileHeader read={{ status: 'ready', displayName: '', email: 'a@b.co' }} initials="" onRetry={noop} />,
+            <ProfileHeader
+                read={{ status: 'ready', displayName: '', email: 'a@b.co', username: null }}
+                initials=""
+                onRetry={noop}
+            />,
         );
 
         expect(screen.getByText('a@b.co').className).toContain('[overflow-wrap:anywhere]');
+    });
+
+    // Plan 2026-10-15-010 D12: the public "@username" under the display name, read-only (Clerk owns it).
+    it('shows the username under the name, read-only, when the cook has one', () => {
+        render(
+            <ProfileHeader
+                read={{ status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com', username: 'braise' }}
+                initials="EM"
+                onRetry={noop}
+            />,
+        );
+
+        expect(screen.getByText('@braise')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /username/iu })).toBeNull();
+    });
+
+    it('shows no username line for a cook without one — never a “Not set” with no way to set it', () => {
+        render(
+            <ProfileHeader
+                read={{ status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com', username: null }}
+                initials="EM"
+                onRetry={noop}
+            />,
+        );
+
+        expect(screen.queryByText(/^@/u)).toBeNull();
+        expect(screen.getByText('eliza@example.com')).toBeTruthy();
     });
 
     it('reports a failed read with a Try again control that retries', async () => {
@@ -210,7 +241,7 @@ describe('DisplayNameSheet (web)', () => {
     it('labels the field “Display name” and says where the name shows', () => {
         render(<DisplayNameSheet {...sheet()} />);
 
-        expect(screen.getByText('Shown on recipes you publish.')).toBeTruthy();
+        expect(screen.getByText('Shown next to your username on recipes you publish.')).toBeTruthy();
         expect(screen.getAllByText('Display name').length).toBeGreaterThan(0);
     });
 

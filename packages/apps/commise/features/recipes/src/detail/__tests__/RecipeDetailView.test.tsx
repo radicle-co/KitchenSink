@@ -125,14 +125,18 @@ describe('RecipeDetailView (web) — header', () => {
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
-                recipe={makeRecipeDetail({ cuisine: 'Moroccan', authorDisplayName: 'braise.club' })}
+                recipe={makeRecipeDetail({
+                    cuisine: 'Moroccan',
+                    authorUsername: 'braise',
+                    authorDisplayName: 'Eliza Moreno',
+                })}
             />,
         );
 
         // The no-photo band repeats the cuisine as its overline, hidden from assistive tech; the meta line says it.
         const exposed = screen.getAllByText('Moroccan').filter((node) => node.closest('[aria-hidden="true"]') === null);
         expect(exposed).toHaveLength(1);
-        expect(screen.getByText('by @braise.club')).toBeTruthy();
+        expect(screen.getByText('by \u2068@braise\u2069 (\u2068Eliza Moreno\u2069)')).toBeTruthy();
     });
 
     // F8 (`evaluateFinal.md`): the recipe title is Playfair `largeTitle` (§1.5). `text-large-title` alone sets no face.

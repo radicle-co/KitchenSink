@@ -761,8 +761,15 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
         // CONFIRMS the erasure, where `accountDangerZone` deliberately cancels. Both must select together:
         // they are the same surface, and an auth-attributed change that ran only the cancelling half would
         // leave the destructive path unproven behind a green job. `dataSources` (curated U25) walks the same
-        // avatar → Profile path to the Data sources sheet, so an account-surface change runs it too.
-        expect(selection.flows).toEqual(['auth/loginFlow', 'dataSources', 'accountDangerZone', 'accountErasure']);
+        // avatar → Profile path to the Data sources sheet, so an account-surface change runs it too, and so does
+        // `profileUsername` (plan 2026-10-15-010 D12), which reads the Profile header's username.
+        expect(selection.flows).toEqual([
+            'auth/loginFlow',
+            'dataSources',
+            'profileUsername',
+            'accountDangerZone',
+            'accountErasure',
+        ]);
         // What did NOT run is reported, in full, so a narrowed run can never be mistaken for a complete one.
         expect(selection.skipped.length).toBe(ALL_FLOWS.length - selection.flows.length);
         expect(selection.skipped).toContain('recipes/collectionsPagination');

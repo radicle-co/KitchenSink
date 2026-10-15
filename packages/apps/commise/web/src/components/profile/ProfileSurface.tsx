@@ -22,6 +22,7 @@ import { profileMutations } from '@commise/features-account';
 import { initialsFor } from '@commise/features-core';
 import {
     DisplayNameSheet,
+    formatUsername,
     ProfileGroup,
     ProfileHeader,
     ProfileRow,
@@ -97,6 +98,9 @@ export const ProfileSurface: FC = () => {
                         chevron
                         onPress={editor.openSheet}
                     />
+                    {read.username === null ? null : (
+                        <ProfileValueRow label={t.username} value={formatUsername(t.usernameValue, read.username)} />
+                    )}
                     <ProfileValueRow label={t.email} value={read.email} />
                 </ProfileGroup>
             ) : null}

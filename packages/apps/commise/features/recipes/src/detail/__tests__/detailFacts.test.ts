@@ -9,6 +9,7 @@ import { FoodResolutionStatus, RecipeStatus, RecipeVisibility } from '@kitchensi
 import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
 import { recipeFormMessages } from '../../form/messages.js';
 import { recipeMessages } from '../../messages.js';
+import { bylineMessages } from '../../byline/messages.js';
 import {
     ingredientGroupRuns,
     nutritionCells,
@@ -51,23 +52,56 @@ describe('detailStatCells', () => {
     });
 });
 
-describe('detailMetaItems', () => {
-    it('shows the cuisine and, on another cook’s recipe, the author', () => {
-        const recipe = makeRecipeDetail({ cuisine: 'Moroccan', authorDisplayName: 'braise.club' });
+const byline = bylineMessages.en;
 
-        expect(detailMetaItems(recipe, false, detail)).toEqual(['Moroccan', 'by @braise.club']);
+describe('detailMetaItems', () => {
+    const iso = (text: string): string => `\u2068${text}\u2069`;
+
+    it('shows the cuisine and, on another cook’s recipe, “by @username (Display Name)”', () => {
+        const recipe = makeRecipeDetail({
+            cuisine: 'Moroccan',
+            authorUsername: 'braise',
+            authorDisplayName: 'Eliza Moreno',
+        });
+
+        expect(detailMetaItems(recipe, false, detail, byline)).toEqual([
+            'Moroccan',
+            `by ${iso('@braise')} (${iso('Eliza Moreno')})`,
+        ]);
+    });
+
+    it('says “by Display Name”, never prefixed “@”, for an author with no username', () => {
+        const recipe = makeRecipeDetail({ cuisine: undefined, authorDisplayName: 'Eliza Moreno' });
+
+        expect(detailMetaItems(recipe, false, detail, byline)).toEqual([`by ${iso('Eliza Moreno')}`]);
+    });
+
+    it('says “by a former member” for an erased author — never the pseudonym', () => {
+        const recipe = makeRecipeDetail({ cuisine: undefined, authorDisplayName: 'user_01J9ZK8N7QF3B2X4M6T0V5C1AB' });
+
+        expect(detailMetaItems(recipe, false, detail, byline)).toEqual(['by a former member']);
     });
 
     it('never names the viewer as the author of their own recipe', () => {
-        const recipe = makeRecipeDetail({ cuisine: 'Moroccan', authorDisplayName: 'me' });
+        const recipe = makeRecipeDetail({ cuisine: 'Moroccan', authorUsername: 'me', authorDisplayName: 'Me' });
 
-        expect(detailMetaItems(recipe, true, detail)).toEqual(['Moroccan']);
+        expect(detailMetaItems(recipe, true, detail, byline)).toEqual(['Moroccan']);
     });
 
-    it('is empty with neither a cuisine nor a handle', () => {
+    it('adds no “by” item for an imported recipe — its source line says where it came from', () => {
+        const recipe = makeRecipeDetail({
+            cuisine: undefined,
+            authorDisplayName: undefined,
+            sourceAttribution: 'Serious Eats',
+        });
+
+        expect(detailMetaItems(recipe, false, detail, byline)).toEqual([]);
+    });
+
+    it('is empty with neither a cuisine nor an author', () => {
         const recipe = makeRecipeDetail({ cuisine: undefined, authorDisplayName: undefined });
 
-        expect(detailMetaItems(recipe, false, detail)).toEqual([]);
+        expect(detailMetaItems(recipe, false, detail, byline)).toEqual([]);
     });
 });
 

@@ -89,8 +89,23 @@ describe('CollectionHeader (web) — what it says', () => {
     });
 
     it('says a copy’s source: by handle, by name alone, or in general — and nothing for an original', () => {
-        renderHeader({ sourceCollectionName: 'Dinners', sourceOwnerDisplayName: 'clara' });
-        expect(screen.getByText('Copied from @clara')).toBeTruthy();
+        renderHeader({
+            sourceCollectionName: 'Dinners',
+            sourceOwnerUsername: 'clara',
+            sourceOwnerDisplayName: 'Clara Oswald',
+        });
+        expect(screen.getByText('Copied from \u2068@clara\u2069 (\u2068Clara Oswald\u2069)')).toBeTruthy();
+    });
+
+    // Plan 2026-10-15-010 D11: the source owner's byline is the same rule every surface renders.
+    it('says “Copied from Display Name”, never prefixed “@”, when the source owner has no username', () => {
+        renderHeader({ sourceCollectionName: 'Dinners', sourceOwnerDisplayName: 'Clara Oswald' });
+        expect(screen.getByText('Copied from \u2068Clara Oswald\u2069')).toBeTruthy();
+    });
+
+    it('says “Copied from a former member” when the source owner was erased — never the pseudonym', () => {
+        renderHeader({ sourceCollectionName: 'Dinners', sourceOwnerDisplayName: 'user_01J9ZK8N7QF3B2X4M6T0V5C1AB' });
+        expect(screen.getByText('Copied from a former member')).toBeTruthy();
         cleanup();
 
         renderHeader({ sourceCollectionName: 'Dinners' });
@@ -110,12 +125,12 @@ describe('CollectionHeader (web) — what it says', () => {
         const onViewSource = vi.fn();
         renderHeader({
             sourceCollectionName: 'Dinners',
-            sourceOwnerDisplayName: 'clara',
+            sourceOwnerUsername: 'clara',
             sourceCollectionId: 'col_9',
             onViewSource,
         });
 
-        await user.click(screen.getByRole('button', { name: 'Copied from @clara' }));
+        await user.click(screen.getByRole('button', { name: 'Copied from \u2068@clara\u2069' }));
 
         expect(onViewSource).toHaveBeenCalledExactlyOnceWith('col_9');
     });

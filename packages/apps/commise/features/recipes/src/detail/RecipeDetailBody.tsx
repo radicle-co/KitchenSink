@@ -37,6 +37,7 @@ import { useId, type ComponentProps, type FC } from 'react';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
+import { bylineMessages } from '../byline/messages.js';
 import { AmbiguityReview } from './AmbiguityReview.js';
 import { DetailEmptySection } from './DetailEmptySection.js';
 import {
@@ -168,6 +169,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     currentSection,
 }) => {
     const { detail, duration, card } = useMessages(recipeMessages);
+    const bylineCopy = useMessages(bylineMessages);
     const locale = useLocale();
     const owner = viewerIsOwner === true;
     const noPhoto = recipe.photos.length === 0;
@@ -197,7 +199,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     // ONE derivation of what the chosen serving count means; cook time and step timers stay as stored.
     const scaled = scaleRecipeForServings(recipe, servings);
     const stats = detailStatCells(scaled, recipe.difficulty, { detail, duration, card });
-    const meta = detailMetaItems(recipe, owner, detail);
+    const meta = detailMetaItems(recipe, owner, detail, bylineCopy);
     const nutrition = nutritionCells(recipe.nutrition, recipe.ingredients, detail, locale);
     const statusLine = nutritionStatusLine(
         { noneCounted: nutrition.noneCounted, isComplete: recipe.nutrition.isComplete, reviewNotice },

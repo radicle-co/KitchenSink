@@ -31,6 +31,7 @@ import { makeRecipe } from '../../__fixtures__/index.js';
 import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 import { RecipeDiscoveryResults } from '../RecipeDiscoveryResults.js';
 import type { RecipeDiscoveryResultsProps } from '../model.js';
+import { isolate } from '../../byline/bylineText.js';
 
 afterEach(cleanup);
 
@@ -248,13 +249,14 @@ describe('RecipeDiscoveryResults (web) — populated', () => {
                 makeSearchResult({
                     id: 'rec_x',
                     title: 'Ribollita',
-                    authorDisplayName: 'tuscan_cook',
+                    authorUsername: 'tuscan_cook',
+                    authorDisplayName: 'Tuscan Cook',
                     cuisine: 'Tuscan',
                 }),
             ],
         });
 
-        expect(screen.getByText('@tuscan_cook')).toBeTruthy();
+        expect(screen.getByText(`${isolate('@tuscan_cook')} (${isolate('Tuscan Cook')})`)).toBeTruthy();
         expect(screen.getByText('Tuscan')).toBeTruthy();
         expect(screen.queryByText('0 cal')).toBeNull();
         expect(screen.getByRole('button', { name: 'Save a copy of Ribollita' })).toBeTruthy();

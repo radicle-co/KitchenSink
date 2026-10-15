@@ -345,7 +345,7 @@ export interface RecipeDetailMessages {
     readonly refreshRetry: string;
     /** The stat strip's difficulty cell label. */
     readonly difficultyLabel: string;
-    /** The author in the meta line of another cook's recipe (contains `{handle}`). */
+    /** The author in the meta line of another cook's recipe (contains `{byline}`, from `byline/bylineText`). */
     readonly byAuthor: string;
     /** The serving count beside the Ingredients heading (contains `{count}`). */
     readonly ingredientsFor: string;
@@ -1013,7 +1013,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             scaledTimingCaveat:
                 'Cook times and step timers are shown unchanged: cooking time does not scale with batch size. Check for doneness.',
             difficultyLabel: 'Difficulty',
-            byAuthor: 'by @{handle}',
+            byAuthor: 'by {byline}',
             ingredientsFor: 'for {count}',
             scaledFrom: 'Amounts scaled from {original} servings.',
             resetScale: 'Reset',

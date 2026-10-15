@@ -91,11 +91,12 @@ describe('CollectionListResults (native) — populated state', () => {
     it('credits a copy, and shows the search from six collections', () => {
         const six = Array.from({ length: 6 }, (_unused, index) => ({
             ...makeCollection({ id: `c${index}`, name: `C ${index}` }),
-            sourceOwnerDisplayName: 'clara',
+            sourceOwnerUsername: 'clara',
+            sourceOwnerDisplayName: 'Clara Oswald',
         }));
         renderList({ collections: six });
 
-        expect(screen.getAllByText('Copied from @clara')).toHaveLength(6);
+        expect(screen.getAllByText('Copied from \u2068@clara\u2069 (\u2068Clara Oswald\u2069)')).toHaveLength(6);
         expect(screen.getByLabelText('Search your collections')).toBeTruthy();
     });
 });

@@ -699,7 +699,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileHeader.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileHeader — the Profile page's identity block (web): a 72 px avatar\ndisc, the display name and the email (`buildSpec.md` §9.1, §3.8).\n\nThree states, never a blocked page: loading is a skeleton (the groups under it still render), ready is the name and\nemail, and failed shows the `user` glyph and says so with a Try again control. A cook with no name yet sees only the\nemail: the page never invents one.",
+                    "moduleDoc": "@commise/features-account/profile/ProfileHeader — the Profile page's identity block (web): a 72 px avatar\ndisc, the display name, the \"@username\" (read-only — Clerk owns it; plan 2026-10-15-010 D12) and the email\n(`buildSpec.md` §9.1, §3.8). A cook with no username sees no username line, never a \"Not set\" they cannot act on.\n\nThree states, never a blocked page: loading is a skeleton (the groups under it still render), ready is the name and\nemail, and failed shows the `user` glyph and says so with a Try again control. A cook with no name yet sees only the\nemail: the page never invents one.",
                     "moduleTags": [
                         {
                             "name": "module",

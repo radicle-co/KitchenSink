@@ -95,10 +95,16 @@ describe('CollectionListResults (web) — populated state', () => {
 
     it('credits a copy to its source', () => {
         renderList({
-            collections: [{ ...makeCollection({ id: 'col_9', name: 'Borrowed' }), sourceOwnerDisplayName: 'clara' }],
+            collections: [
+                {
+                    ...makeCollection({ id: 'col_9', name: 'Borrowed' }),
+                    sourceOwnerUsername: 'clara',
+                    sourceOwnerDisplayName: 'Clara Oswald',
+                },
+            ],
         });
 
-        expect(screen.getByText('Copied from @clara')).toBeTruthy();
+        expect(screen.getByText('Copied from \u2068@clara\u2069 (\u2068Clara Oswald\u2069)')).toBeTruthy();
     });
 
     it('makes each card one link when the host gives an href, reporting a plain click', async () => {

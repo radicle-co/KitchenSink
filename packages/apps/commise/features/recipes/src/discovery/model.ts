@@ -331,10 +331,17 @@ export interface RecipeDiscoverySortControl {
 export interface DiscoveryFooterProps {
     /** The recipe's title, so the control is named for the recipe it copies. */
     readonly title: string;
-    /** The author's handle, when the recipe carries one. */
+    /** The author's Clerk username — the "@handle" — when the recipe carries one. */
+    readonly authorUsername?: string;
+    /** The author's display name, shown beside the username, when the recipe carries one. */
     readonly authorDisplayName?: string;
-    /** Human-readable provenance (e.g. `Serious Eats`) for an imported recipe with no author handle. */
+    /** Human-readable provenance (e.g. `Serious Eats`) for an imported recipe with no author. */
     readonly sourceAttribution?: string;
+    /**
+     * Whether the avatar disc is drawn. A display choice only: a compact card at 320 px leaves the byline 30–40 px with
+     * the disc, so it drops the decoration and keeps the words (§1.1 rung 1, re-lay out first).
+     */
+    readonly avatar: 'shown' | 'hidden';
     readonly state: SaveCopyState;
     /** Make a copy; the card does not call it while a copy is saving or saved. */
     readonly onSave: () => void;
@@ -351,7 +358,9 @@ export interface RecipeDiscoveryCardProps {
     readonly variant: 'grid' | 'compact';
     /** The title's heading level: 2 under the page's title (results), 3 under a rail's heading. */
     readonly headingLevel: 2 | 3;
-    /** The author's handle (`@handle`), when the recipe carries one. */
+    /** The author's Clerk username, when the recipe carries one. */
+    readonly authorUsername?: string;
+    /** The author's display name, when the recipe carries one. */
     readonly authorDisplayName?: string;
     /** Human-readable provenance for an imported recipe, when present. */
     readonly sourceAttribution?: string;

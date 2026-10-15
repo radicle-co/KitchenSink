@@ -34,6 +34,8 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { collectionMessages } from './messages.js';
+import { bylineMessages } from '../byline/messages.js';
+import { sourceOwnerBylineText } from './sourceOwnerByline.js';
 import type { PullUpdatesDialogProps } from './model.js';
 
 export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
@@ -43,11 +45,13 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
     isCommitting,
     error,
     sourceOwnerDisplayName,
+    sourceOwnerUsername,
     sourceCollectionName,
     onCancel,
     onConfirm,
 }) => {
     const { pull } = useMessages(collectionMessages);
+    const bylineCopy = useMessages(bylineMessages);
     const { colors } = useTheme();
     const muted = { color: colors.inkMuted };
 
@@ -55,9 +59,17 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
         return null;
     }
 
+    const owner = sourceOwnerBylineText(
+        {
+            ...(sourceOwnerUsername === undefined ? {} : { sourceOwnerUsername }),
+            ...(sourceOwnerDisplayName === undefined ? {} : { sourceOwnerDisplayName }),
+        },
+        bylineCopy,
+        'standalone',
+    );
     const attribution =
-        sourceOwnerDisplayName !== undefined && sourceCollectionName !== undefined
-            ? fillTemplate(pull.attribution, { handle: sourceOwnerDisplayName, name: sourceCollectionName })
+        owner !== undefined && sourceCollectionName !== undefined
+            ? fillTemplate(pull.attribution, { byline: owner, name: sourceCollectionName })
             : sourceCollectionName !== undefined
               ? fillTemplate(pull.attributionNoHandle, { name: sourceCollectionName })
               : undefined;

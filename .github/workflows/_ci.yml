@@ -2711,6 +2711,7 @@ jobs:
                           - 'packages/apps/commise/mobile/.maestro/accountDangerZone.yaml'
                           - 'packages/apps/commise/mobile/.maestro/accountErasure.yaml'
                           - 'packages/apps/commise/mobile/.maestro/dataSources.yaml'
+                          - 'packages/apps/commise/mobile/.maestro/profileUsername.yaml'
                           - 'packages/apps/commise/features/recipes/src/dataSources/**'
                           - 'packages/services/recipe-service/src/account/**'
                       # `features/core` is NOT uniformly Home-scoped, so it is attributed PER MODULE rather

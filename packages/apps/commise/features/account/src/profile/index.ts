@@ -16,6 +16,7 @@ export {
     DISPLAY_NAME_MAX_LENGTH,
     canSaveDisplayName,
     displayNameDraftOf,
+    formatUsername,
     givenNameOf,
     profileReadOf,
 } from './model.js';

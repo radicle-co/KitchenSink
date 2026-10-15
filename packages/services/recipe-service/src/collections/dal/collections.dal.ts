@@ -29,6 +29,7 @@ import {
     type RecipeCollectionAddedVia,
     type RecipeCollectionRow,
 } from '../../database/schema/collections.js';
+import { authorHandles } from '../../database/schema/authorHandles.js';
 import { recipes, type RecipeRow } from '../../database/schema/recipes.js';
 import { coverPhotoLateral } from '../../recipes/dal/coverPhotoSql.js';
 import { activeRecipe, readableBy } from '../../recipes/dal/recipePredicates.js';
@@ -125,6 +126,29 @@ export class CollectionsDal {
     }
 
     /** Look up a collection by id, or `undefined` when it does not exist. */
+    /**
+     * The CURRENT Clerk username of each source collection's owner, read from the byline read model (plan
+     * 2026-10-15-010 D7). A clone freezes its source owner's display name but never the username, so a clone's
+     * byline joins its source → that source's owner → `author_handles` whenever it is read.
+     *
+     * @param sourceCollectionIds - The `source_collection_id`s of the collections being answered.
+     * @returns Source collection id → username, for each source that still exists and whose owner has one.
+     * @sideEffect Reads `collections` and `author_handles`.
+     */
+    public async sourceOwnerUsernames(sourceCollectionIds: readonly string[]): Promise<ReadonlyMap<string, string>> {
+        if (sourceCollectionIds.length === 0) {
+            return new Map();
+        }
+
+        const rows = await this.db
+            .select({ sourceId: collections.id, username: authorHandles.username })
+            .from(collections)
+            .innerJoin(authorHandles, eq(authorHandles.userId, collections.ownerId))
+            .where(and(inArray(collections.id, [...sourceCollectionIds]), sql`${authorHandles.username} IS NOT NULL`));
+
+        return new Map(rows.flatMap((row) => (row.username === null ? [] : [[row.sourceId, row.username] as const])));
+    }
+
     public async findById(id: string): Promise<CollectionRow | undefined> {
         const rows = await this.db.select().from(collections).where(eq(collections.id, id)).limit(1);
 

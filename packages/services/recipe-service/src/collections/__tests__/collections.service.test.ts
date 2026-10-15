@@ -42,6 +42,7 @@ function makeDal(): DalMock {
         listRecipes: vi.fn(),
         previewMembershipIds: vi.fn(),
         memberSummaries: vi.fn().mockResolvedValue(new Map()),
+        sourceOwnerUsernames: vi.fn().mockResolvedValue(new Map()),
         touchLastPulled: vi.fn(),
         // Not exercised outside `cloneCollection`/`pullFromSource` here — runs `fn` against a stub tx.
         transaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})),
@@ -50,7 +51,7 @@ function makeDal(): DalMock {
 
 /** Not exercised outside `cloneCollection` here — a stub resolving to `undefined` is sufficient. */
 function makeAuthorHandlesDal(): { [K in keyof AuthorHandlesDal]: ReturnType<typeof vi.fn> } {
-    return { findHandle: vi.fn().mockResolvedValue(undefined) };
+    return { findByline: vi.fn().mockResolvedValue(undefined) };
 }
 
 /** U3: the save-capture collaborator — `capture` is sync-void fire-and-forget, so one mock suffices. */
@@ -494,5 +495,35 @@ describe('CollectionsService.updateCollection', () => {
 
         expect(dal.update).toHaveBeenCalledWith('c1', { name: 'Renamed' });
         expect(result.name).toBe('Renamed');
+    });
+});
+
+describe('source owner usernames (plan 2026-10-15-010 D7)', () => {
+    it('answers each clone’s source owner username in a list, from ONE batched lookup', async () => {
+        const dal = makeDal();
+        dal.listByOwner.mockResolvedValue({
+            rows: [
+                makeCollectionRow({ id: 'c-clone', sourceCollectionId: 'src-1', sourceOwnerDisplayName: 'Clara' }),
+                makeCollectionRow({ id: 'c-own' }),
+            ],
+            total: 2,
+        });
+        dal.sourceOwnerUsernames.mockResolvedValue(new Map([['src-1', 'clara']]));
+
+        const page = await makeService(dal).listCollections(OWNER, { page: 1, pageSize: 20 });
+
+        expect(dal.sourceOwnerUsernames).toHaveBeenCalledTimes(1);
+        expect(dal.sourceOwnerUsernames).toHaveBeenCalledWith(['src-1']);
+        expect(page.data.find((item) => item.id === 'c-clone')?.sourceOwnerUsername).toBe('clara');
+        expect(page.data.find((item) => item.id === 'c-own')).not.toHaveProperty('sourceOwnerUsername');
+    });
+
+    it('asks nothing when no listed collection is a clone', async () => {
+        const dal = makeDal();
+        dal.listByOwner.mockResolvedValue({ rows: [makeCollectionRow({ id: 'c-own' })], total: 1 });
+
+        await makeService(dal).listCollections(OWNER, { page: 1, pageSize: 20 });
+
+        expect(dal.sourceOwnerUsernames).not.toHaveBeenCalled();
     });
 });

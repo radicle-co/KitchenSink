@@ -37,6 +37,7 @@ function makeDal(overrides: Partial<DalMock> = {}): DalMock {
         listRecipes: vi.fn(),
         previewMembershipIds: vi.fn(),
         memberSummaries: vi.fn().mockResolvedValue(new Map()),
+        sourceOwnerUsernames: vi.fn().mockResolvedValue(new Map()),
         touchLastPulled: vi.fn(),
         // Not exercised by visibility toggles — runs `fn` against a stub tx.
         transaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})),
@@ -46,7 +47,7 @@ function makeDal(overrides: Partial<DalMock> = {}): DalMock {
 
 /** Visibility toggles never touch `AuthorHandlesDal` — a stub resolving to `undefined` is sufficient. */
 function makeAuthorHandlesDal(): AuthorHandlesDal {
-    return { findHandle: vi.fn().mockResolvedValue(undefined) } as unknown as AuthorHandlesDal;
+    return { findByline: vi.fn().mockResolvedValue(undefined) } as unknown as AuthorHandlesDal;
 }
 
 const OWNER = 'owner-1';

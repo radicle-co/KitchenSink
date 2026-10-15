@@ -80,6 +80,7 @@ function toRecipeVersion(row: RecipeVersionRow): RecipeVersion {
         ...(row.changeSummary !== null ? { changeSummary: row.changeSummary } : {}),
         // Editor handle (W8-a.2) — the "by @handle" attribution; OMITTED when NULL (falls back to the ULID).
         ...(row.editorDisplayName !== null ? { editorDisplayName: row.editorDisplayName } : {}),
+        ...(row.editorUsername !== null ? { editorUsername: row.editorUsername } : {}),
         createdAt: row.createdAt.toISOString(),
     };
 }

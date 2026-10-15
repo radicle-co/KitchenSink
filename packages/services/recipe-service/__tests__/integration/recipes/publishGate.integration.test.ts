@@ -18,6 +18,7 @@ import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 import { recipeApiErrorSchema } from '../../../src/common/apiError.schema.js';
 import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
+import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import type { RecipeRow } from '../../../src/database/schema/index.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
@@ -151,6 +152,8 @@ beforeAll(async () => {
                 },
             },
             { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
+            // The byline read model (plan 2026-10-15-010 D8): a cook it has never seen, so writes use the claims.
+            { provide: AuthorHandlesDal, useValue: { findByline: async () => undefined } },
         ],
     });
 });

@@ -24,12 +24,23 @@
                             "userId": {
                                 "minLength": 1,
                                 "type": "string"
+                            },
+                            "username": {
+                                "anyOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
                             }
                         },
                         "readOnly": true,
                         "required": [
                             "userId",
                             "displayName",
+                            "username",
                             "sourceTimestamp"
                         ],
                         "type": "object"
@@ -319,6 +330,16 @@
                                     }
                                 ]
                             },
+                            "authorUsername": {
+                                "anyOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
                             "averageRating": {
                                 "anyOf": [
                                     {
@@ -524,6 +545,7 @@
                             "dietaryFlags",
                             "tags",
                             "authorDisplayName",
+                            "authorUsername",
                             "currentVersion",
                             "deletedAt",
                             "createdAt",
@@ -578,6 +600,16 @@
                                     }
                                 ]
                             },
+                            "editorUsername": {
+                                "anyOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
                             "id": {
                                 "minLength": 1,
                                 "type": "string"
@@ -613,6 +645,7 @@
                             "createdBy",
                             "changeSummary",
                             "editorDisplayName",
+                            "editorUsername",
                             "createdAt"
                         ],
                         "type": "object"
@@ -733,12 +766,23 @@
                 "userId": {
                     "minLength": 1,
                     "type": "string"
+                },
+                "username": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
                 }
             },
             "readOnly": true,
             "required": [
                 "userId",
                 "displayName",
+                "username",
                 "sourceTimestamp"
             ],
             "type": "object"
@@ -947,6 +991,10 @@
                     "minLength": 1,
                     "type": "string"
                 },
+                "sourceOwnerUsername": {
+                    "minLength": 1,
+                    "type": "string"
+                },
                 "updatedAt": {
                     "format": "date-time",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
@@ -1033,6 +1081,10 @@
                                 "minLength": 1,
                                 "type": "string"
                             },
+                            "sourceOwnerUsername": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
                             "updatedAt": {
                                 "format": "date-time",
                                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
@@ -1102,6 +1154,10 @@
                     "type": "string"
                 },
                 "authorDisplayName": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "authorUsername": {
                     "minLength": 1,
                     "type": "string"
                 },
@@ -1391,6 +1447,10 @@
                     "minLength": 1,
                     "type": "string"
                 },
+                "sourceOwnerUsername": {
+                    "minLength": 1,
+                    "type": "string"
+                },
                 "updatedAt": {
                     "format": "date-time",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
@@ -1463,6 +1523,10 @@
                                 "type": "string"
                             },
                             "authorDisplayName": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "authorUsername": {
                                 "minLength": 1,
                                 "type": "string"
                             },
@@ -1658,6 +1722,10 @@
                     "type": "string"
                 },
                 "sourceOwnerDisplayName": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "sourceOwnerUsername": {
                     "minLength": 1,
                     "type": "string"
                 },
@@ -4049,6 +4117,10 @@
                             "minLength": 1,
                             "type": "string"
                         },
+                        "sourceOwnerUsername": {
+                            "minLength": 1,
+                            "type": "string"
+                        },
                         "updatedAt": {
                             "format": "date-time",
                             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
@@ -5388,6 +5460,10 @@
                     "minLength": 1,
                     "type": "string"
                 },
+                "authorUsername": {
+                    "minLength": 1,
+                    "type": "string"
+                },
                 "averageRating": {
                     "maximum": 5,
                     "minimum": 1,
@@ -5948,6 +6024,16 @@
                         }
                     ]
                 },
+                "authorUsername": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
                 "averageRating": {
                     "anyOf": [
                         {
@@ -6153,6 +6239,7 @@
                 "dietaryFlags",
                 "tags",
                 "authorDisplayName",
+                "authorUsername",
                 "currentVersion",
                 "deletedAt",
                 "createdAt",
@@ -6533,6 +6620,10 @@
             "additionalProperties": false,
             "properties": {
                 "authorDisplayName": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "authorUsername": {
                     "minLength": 1,
                     "type": "string"
                 },
@@ -7037,6 +7128,10 @@
                                         "minLength": 1,
                                         "type": "string"
                                     },
+                                    "authorUsername": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
                                     "averageRating": {
                                         "maximum": 5,
                                         "minimum": 1,
@@ -7326,6 +7421,10 @@
                     "type": "string"
                 },
                 "editorDisplayName": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "editorUsername": {
                     "minLength": 1,
                     "type": "string"
                 },
@@ -7626,6 +7725,10 @@
                     "additionalProperties": false,
                     "properties": {
                         "authorDisplayName": {
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "authorUsername": {
                             "minLength": 1,
                             "type": "string"
                         },
@@ -9168,6 +9271,16 @@
                         }
                     ]
                 },
+                "editorUsername": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
                 "id": {
                     "minLength": 1,
                     "type": "string"
@@ -9203,6 +9316,7 @@
                 "createdBy",
                 "changeSummary",
                 "editorDisplayName",
+                "editorUsername",
                 "createdAt"
             ],
             "type": "object"

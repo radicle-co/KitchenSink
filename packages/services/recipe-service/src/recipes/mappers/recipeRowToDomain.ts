@@ -69,6 +69,7 @@ export interface RecipeRowInput {
     dietaryFlags: string[];
     tags: string[];
     authorDisplayName: string | null;
+    authorUsername: string | null;
     currentVersion: number;
     averageRating: string | null;
     ratingCount: number;
@@ -144,6 +145,7 @@ export function recipeRowToDomain(row: RecipeRowInput): Recipe {
         ...(row.averageRating !== null ? { averageRating: Number(row.averageRating) } : {}),
         // Denormalized headline per-serving calories — OMITTED when NULL (no accounted nutrition), never 0.
         ...(row.authorDisplayName !== null ? { authorDisplayName: row.authorDisplayName } : {}),
+        ...(row.authorUsername !== null ? { authorUsername: row.authorUsername } : {}),
         ...(row.sourceUrl !== null ? { sourceUrl: row.sourceUrl } : {}),
         ...(row.sourceAttribution !== null ? { sourceAttribution: row.sourceAttribution } : {}),
         ...(row.clonedFromId !== null ? { clonedFromId: row.clonedFromId } : {}),

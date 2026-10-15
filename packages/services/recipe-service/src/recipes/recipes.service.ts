@@ -14,7 +14,6 @@
 import * as Sentry from '@sentry/nestjs';
 import { createHash } from 'node:crypto';
 import { forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { deriveDisplayName } from '@kitchensink/identity-core';
 import { quantitiesEqual, type RecipeSnapshot, type VersionConflictSide } from '@kitchensink/recipe-core';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
 import { PROVISIONAL_VERIFICATION_THRESHOLDS } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
@@ -79,6 +78,8 @@ import { foodRefOf, isStrangerToPrivateFood, privateFoodOwnerOf } from '../datab
 import type { IngredientRow, RecipeRow, RecipeStepRow } from '../database/schema/index.js';
 import type { RecipeTx } from '../database/unitOfWork.js';
 import { isPremiumPrincipal, type Principal } from '../auth/principal.js';
+import { AuthorHandlesDal } from '../authors/dal/authorHandles.dal.js';
+import { resolveByline, type Byline } from '../authors/domain/bylinePolicy.js';
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { NutritionReadBudget } from '../ingredients/foodNutrition.gateway.js';
 import { RECIPES_DAL, RECIPES_SHADOW_RNG, RECIPE_PHOTOS_CDN_URL, RECIPE_RATINGS_DAL } from './recipes.tokens.js';
@@ -369,6 +370,17 @@ export interface GetRecipeRequest {
     readonly budget: NutritionReadBudget;
 }
 
+/**
+ * The recipe row's two byline columns for a resolved byline — each omitted when unknown, so its column stays NULL
+ * rather than holding `''`. Pure.
+ */
+function bylineColumnsOf(byline: Byline): { authorDisplayName?: string; authorUsername?: string } {
+    return {
+        ...(byline.displayName !== undefined ? { authorDisplayName: byline.displayName } : {}),
+        ...(byline.username !== undefined ? { authorUsername: byline.username } : {}),
+    };
+}
+
 @Injectable()
 export class RecipesService {
     public constructor(
@@ -420,11 +432,26 @@ export class RecipesService {
         // falling back to Math.random — the coin needs no cryptographic strength, only an unbiased rate.
         // ⚠️ Token-injected: a bare `() => number` param emits `Function` into design:paramtypes, which
         // Nest cannot resolve.
+        // Plan 2026-10-15-010 D8 — the read model a write's byline is resolved from. Required like the others.
+        // ⚠️ Token-injected with a VALUE import: the `Pick` type emits `Object` into design:paramtypes.
+        @Inject(AuthorHandlesDal) private readonly authorHandles: Pick<AuthorHandlesDal, 'findByline'>,
         @Optional() @Inject(RECIPES_SHADOW_RNG) private readonly rng?: () => number,
     ) {}
 
     /** One logger for the producer — a queue that is refusing work must be visible, never silent. */
     private readonly logger = new Logger(RecipesService.name);
+
+    /**
+     * The caller's byline for a write, read-model-first (plan 2026-10-15-010 D8).
+     *
+     * @param tx - The write's transaction — the read locks the read-model row `FOR SHARE` inside it.
+     * @param principal - The verified caller.
+     * @returns The byline to store.
+     * @sideEffect Reads `author_handles` inside `tx`.
+     */
+    private async bylineIn(tx: RecipeTx, principal: Principal): Promise<Byline> {
+        return resolveByline(await this.authorHandles.findByline(principal.userId, tx), principal);
+    }
 
     /*
      * ⛔ `leadCaloriesFor` DELETED (plan U10). It computed the headline per-serving calories at WRITE time
@@ -470,7 +497,7 @@ export class RecipesService {
         identities: LineIdentities,
         ownerId: string,
         changeSummary: string,
-        editorDisplayName?: string,
+        editor: Byline,
         baseVersion?: number,
     ): Promise<void> {
         if (!recordsVersion(aggregate.recipe)) {
@@ -484,8 +511,9 @@ export class RecipesService {
                 snapshot: aggregateToSnapshot(aggregate, identities),
                 createdBy: ownerId,
                 changeSummary,
-                // Editor handle (W8-a.2) — the version editor's denormalized display name; omitted → NULL.
-                ...(editorDisplayName !== undefined ? { editorDisplayName } : {}),
+                // The version editor's byline (W8-a.2 + plan 2026-10-15-010) — each half omitted → NULL.
+                ...(editor.displayName !== undefined ? { editorDisplayName: editor.displayName } : {}),
+                ...(editor.username !== undefined ? { editorUsername: editor.username } : {}),
                 // The version this write was restored FROM, when it was a restore. Absent otherwise.
                 ...(baseVersion !== undefined ? { baseVersion } : {}),
             },
@@ -565,14 +593,12 @@ export class RecipesService {
 
         // OUTSIDE the transaction: the plan reads the bindings and asks food for their names.
         const plan = await this.planner.plan(caller, dto.ingredients);
-        // Denormalized author handle (W8-a.2 / decision 6): the initial value from the token claims via the
-        // ONE shared rule. The handle-sync consumer keeps every owned recipe/version current thereafter.
-        const authorDisplayName = deriveDisplayName(principal) || undefined;
-
         // ⛔ ONE TRANSACTION: the recipe and its version row commit together or not at all (owner ruling
         // 2026-09-06). Everything above stays OUTSIDE — reads, policy and pure derivation — and so does
         // everything below, because a Postgres transaction must never be held across a network call.
         const aggregate = await this.dal.transaction(async (tx) => {
+            // The author's byline (plan 2026-10-15-010 D8): the read model first, read INSIDE this transaction.
+            const byline = await this.bylineIn(tx, principal);
             const created = await this.dal.create(
                 {
                     ownerId: principal.userId,
@@ -602,15 +628,15 @@ export class RecipesService {
                     sourceUrl: provenance.sourceUrl,
                     sourceAttribution: provenance.sourceAttribution,
                     ingredientNamesText: plan.namesText,
-                    // Denormalized author handle (W8-a.2) — absent → column stays NULL until the fan-out fills it.
-                    ...(authorDisplayName !== undefined ? { authorDisplayName } : {}),
+                    // Denormalized byline (W8-a.2) — each half absent → its column stays NULL until the fan-out fills it.
+                    ...bylineColumnsOf(byline),
                     ingredients: plan.inputs,
                     steps: dto.steps.map(toStepInput),
                 },
                 tx,
             );
 
-            await this.recordSnapshotIn(tx, created, plan.identities, principal.userId, 'Created', authorDisplayName);
+            await this.recordSnapshotIn(tx, created, plan.identities, principal.userId, 'Created', byline);
 
             return created;
         });
@@ -1092,10 +1118,9 @@ export class RecipesService {
                 return undefined;
             }
 
-            // Editor handle (W8-a.2) — the version's "by @handle" attribution. Derived from the editor's
-            // token claims via the ONE shared rule create uses; `author_handles` is deliberately NOT the
-            // source here (it is seeded only by rename events, so it is NULL for any un-renamed user).
-            const editorDisplayName = deriveDisplayName(principal) || undefined;
+            // The version's attribution: the editor's byline, read-model-first inside this transaction (plan
+            // 2026-10-15-010 D8). `author_handles` is now seeded when a cook is created, so it is the source here too.
+            const editor = await this.bylineIn(tx, principal);
 
             await this.recordSnapshotIn(
                 tx,
@@ -1103,7 +1128,7 @@ export class RecipesService {
                 identities,
                 ownerId,
                 options.snapshot?.changeSummary ?? 'Updated',
-                editorDisplayName,
+                editor,
                 options.snapshot?.baseVersion,
             );
 
@@ -1234,12 +1259,10 @@ export class RecipesService {
         );
         const hiddenCount = countHiddenFromViewer(source.ingredients, identities, ownerId);
 
-        // Editor handle (W8-a.2) — derived from the cloner's token claims via the ONE shared rule. Pure,
-        // so it is computed OUTSIDE the transaction with every other derivation.
-        const editorDisplayName = deriveDisplayName(principal) || undefined;
-
         // ⛔ ONE TRANSACTION, exactly as `create` — the clone and its first version row commit together.
         const created = await this.dal.transaction(async (tx) => {
+            // The CLONER's byline: the clone is theirs, so they are its author and its first version's editor.
+            const byline = await this.bylineIn(tx, principal);
             const cloned = await this.dal.create(
                 {
                     ownerId,
@@ -1262,6 +1285,7 @@ export class RecipesService {
                     sourceAttribution: attribution,
                     clonedFromId: source.recipe.id,
                     hasSubstantiveEdit: false,
+                    ...bylineColumnsOf(byline),
                     ingredientNamesText: ingredientNamesText(
                         source.ingredients.map((row) => row.foodLookupId),
                         identities,
@@ -1272,14 +1296,7 @@ export class RecipesService {
                 tx,
             );
 
-            await this.recordSnapshotIn(
-                tx,
-                cloned,
-                identities,
-                ownerId,
-                `Cloned from ${source.recipe.id}`,
-                editorDisplayName,
-            );
+            await this.recordSnapshotIn(tx, cloned, identities, ownerId, `Cloned from ${source.recipe.id}`, byline);
 
             return cloned;
         });

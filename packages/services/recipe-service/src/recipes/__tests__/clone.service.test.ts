@@ -294,6 +294,19 @@ describe('RecipesService.clone', () => {
         expect(create.mock.calls[0]?.[0]).toMatchObject({ visibility: 'private' });
     });
 
+    it('stores the CLONER’s byline on the clone — they are its author now', async () => {
+        const { dal, create } = fakeDal(sourceAggregate());
+        const svc = makeRecipesService({
+            dal,
+            foodNutrition: nutritionGatewayDouble,
+            authorHandles: { findByline: vi.fn().mockResolvedValue({ displayName: 'Rose T.', username: 'rose' }) },
+        });
+
+        await svc.clone({ ...CLONER_PRINCIPAL, firstName: 'Rose', lastName: 'Tyler' }, 'src-1', undefined);
+
+        expect(create.mock.calls[0]?.[0]).toMatchObject({ authorDisplayName: 'Rose T.', authorUsername: 'rose' });
+    });
+
     it("records the cloner's editor handle (deriveDisplayName) on the clone snapshot (W6 attribution)", async () => {
         const { dal } = fakeDal(sourceAggregate());
         const versions = makeFakeVersionsService();

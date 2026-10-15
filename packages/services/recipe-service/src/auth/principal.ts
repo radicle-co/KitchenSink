@@ -31,6 +31,8 @@ export interface Principal extends ContainmentSubject {
     readonly firstName?: string;
     /** Customized last-name claim, when present. */
     readonly lastName?: string;
+    /** The Clerk username — the public byline (owner ruling 2026-10-13) — when the token carries one. */
+    readonly username?: string;
     /** Customized avatar/picture claim, when present. */
     readonly picture?: string;
     /** Authorization scopes from the token's signed `public_metadata` (empty = no privilege). */

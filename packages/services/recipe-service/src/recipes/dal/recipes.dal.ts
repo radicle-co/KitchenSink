@@ -91,6 +91,8 @@ export interface CreateRecipeInput {
      * backfill fills it later. Kept current thereafter by the consumer.
      */
     authorDisplayName?: string;
+    /** The author's denormalized Clerk username (0055) — resolved like the display name; absent → NULL. */
+    authorUsername?: string;
     /** The recipe's lines, persisted in the same transaction as the recipe. */
     ingredients: readonly IngredientLineInput[];
     steps: StepInput[];
@@ -263,6 +265,7 @@ export class RecipesDal {
                     ingredientNamesText: input.ingredientNamesText,
                     // Denormalized author handle (W8-a.2) — omitted → NULL until the fan-out/backfill fills it.
                     ...(input.authorDisplayName !== undefined ? { authorDisplayName: input.authorDisplayName } : {}),
+                    ...(input.authorUsername !== undefined ? { authorUsername: input.authorUsername } : {}),
                     // Provenance is only present when cloning; omit otherwise so the column defaults apply.
                     ...(input.sourceType !== undefined ? { sourceType: input.sourceType } : {}),
                     ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),

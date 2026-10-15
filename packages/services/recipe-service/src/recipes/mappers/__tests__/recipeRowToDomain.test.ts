@@ -117,6 +117,11 @@ describe('recipeRowToDomain', () => {
         expect(recipeRowToDomain(row())).not.toHaveProperty('hasPartialNutrition');
     });
 
+    it('maps authorUsername when present and OMITS it when NULL (the byline’s "@handle", plan 2026-10-15-010)', () => {
+        expect(recipeRowToDomain(row({ authorUsername: 'chef' })).authorUsername).toBe('chef');
+        expect(recipeRowToDomain(row({ authorUsername: null }))).not.toHaveProperty('authorUsername');
+    });
+
     it('maps authorDisplayName when present and OMITS it when NULL', () => {
         expect(recipeRowToDomain(row({ authorDisplayName: '@chef' })).authorDisplayName).toBe('@chef');
         expect(recipeRowToDomain(row({ authorDisplayName: null }))).not.toHaveProperty('authorDisplayName');

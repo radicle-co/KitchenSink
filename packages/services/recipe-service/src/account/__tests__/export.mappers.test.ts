@@ -66,6 +66,9 @@ describe('mapRecipe', () => {
             dietaryFlags: ['vegetarian'],
             tags: ['dinner'],
             averageRating: '4.50',
+            // The byline's username is the caller's data too (plan 2026-10-15-010), so the export carries it.
+            authorDisplayName: 'chef-anna',
+            authorUsername: 'chef_anna',
             createdAt: '2026-01-15T12:00:00.000Z',
             updatedAt: '2026-02-20T09:30:00.000Z',
         });
@@ -203,6 +206,7 @@ describe('mapVersion', () => {
             createdBy: expect.any(String),
             changeSummary: 'Initial version',
             editorDisplayName: 'chef-anna',
+            editorUsername: 'chef_anna',
             createdAt: '2026-01-15T12:00:00.000Z',
         });
         expect(result).not.toHaveProperty('snapshot');
@@ -216,6 +220,7 @@ describe('mapAuthorHandle', () => {
         expect(result).toEqual({
             userId: expect.any(String),
             displayName: 'Chef Anna',
+            username: 'chef_anna',
             sourceTimestamp: '2026-02-20T09:30:00.000Z',
         });
     });

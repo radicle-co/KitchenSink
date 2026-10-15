@@ -234,6 +234,57 @@ describe('RecipesService.create', () => {
         );
     });
 
+    // Plan 2026-10-15-010 D8: the read model — identity's latest byline, applied by the handle-sync consumer — wins
+    // over a token claim up to a minute stale, and it is read INSIDE the write's transaction (FOR SHARE), so a
+    // fan-out either waits for this write or sees it.
+    it('stores the READ MODEL’s byline, read inside the write’s transaction, over the token claims', async () => {
+        const versions = makeFakeVersionsService();
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })) });
+        const findByline = vi.fn().mockResolvedValue({ displayName: 'Chef Ada', username: 'ada_cooks' });
+        const service = makeRecipesService({
+            dal,
+            versions,
+            foodNutrition: nutritionGatewayDouble,
+            authorHandles: { findByline },
+        });
+
+        await service.create(
+            principal({ firstName: 'Ada', lastName: 'Lovelace', username: 'ada' }),
+            CREATE_DTO,
+            undefined,
+        );
+
+        expect(findByline).toHaveBeenCalledWith(OWNER, FAKE_TX);
+        expect(dal.create).toHaveBeenCalledWith(
+            expect.objectContaining({ authorDisplayName: 'Chef Ada', authorUsername: 'ada_cooks' }),
+            FAKE_TX,
+        );
+        expect(versions.createSnapshot).toHaveBeenCalledWith(
+            expect.objectContaining({ editorDisplayName: 'Chef Ada', editorUsername: 'ada_cooks' }),
+            FAKE_TX,
+        );
+    });
+
+    it('falls back to the token’s username when the read model has no row yet', async () => {
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })) });
+        const service = makeRecipesService({
+            dal,
+            foodNutrition: nutritionGatewayDouble,
+            authorHandles: { findByline: vi.fn().mockResolvedValue(undefined) },
+        });
+
+        await service.create(
+            principal({ firstName: 'Ada', lastName: 'Lovelace', username: 'ada' }),
+            CREATE_DTO,
+            undefined,
+        );
+
+        expect(dal.create).toHaveBeenCalledWith(
+            expect.objectContaining({ authorDisplayName: 'Ada Lovelace', authorUsername: 'ada' }),
+            FAKE_TX,
+        );
+    });
+
     it('omits the author handle when the claims yield no derivable name (→ column NULL) (W8-a.2)', async () => {
         const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate()) });
 
@@ -1298,6 +1349,29 @@ describe('RecipesService.update', () => {
 
         expect(versions.createSnapshot).toHaveBeenCalledWith(
             expect.objectContaining({ editorDisplayName: 'Clara Oswald' }),
+            FAKE_TX,
+        );
+    });
+
+    it('records the editor’s byline from the READ MODEL on the update snapshot', async () => {
+        const versions = makeFakeVersionsService();
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(publishable({ currentVersion: 1 })),
+            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
+        });
+        const findByline = vi.fn().mockResolvedValue({ displayName: 'Clara O.', username: 'clara' });
+        const service = makeRecipesService({
+            dal,
+            versions,
+            foodNutrition: nutritionGatewayDouble,
+            authorHandles: { findByline },
+        });
+
+        await service.update(principal({ firstName: 'Clara', lastName: 'Oswald' }), 'r-1', patch, undefined);
+
+        expect(findByline).toHaveBeenCalledWith(OWNER, FAKE_TX);
+        expect(versions.createSnapshot).toHaveBeenCalledWith(
+            expect.objectContaining({ editorDisplayName: 'Clara O.', editorUsername: 'clara' }),
             FAKE_TX,
         );
     });

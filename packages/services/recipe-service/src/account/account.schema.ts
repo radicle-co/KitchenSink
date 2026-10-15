@@ -251,6 +251,8 @@ export const recipeExportSchema = z
         tags: z.array(z.string()).readonly(),
         /** Denormalized headline per-serving calories (`numeric` → string), `null` when unaccounted. */
         authorDisplayName: z.string().nullable(),
+        /** The author's Clerk username as this recipe stores it (migration 0055), or `null`. */
+        authorUsername: z.string().nullable(),
         currentVersion: z.number().int(),
         /** Soft-delete tombstone, or `null` when active. Present so an export is a faithful mirror. */
         deletedAt: exportTimestampSchema.nullable(),
@@ -367,6 +369,8 @@ export const versionExportSchema = z
         createdBy: exportIdSchema,
         changeSummary: z.string().nullable(),
         editorDisplayName: z.string().nullable(),
+        /** The editor's Clerk username as this version stores it (migration 0055), or `null`. */
+        editorUsername: z.string().nullable(),
         createdAt: exportTimestampSchema,
     })
     .readonly();
@@ -380,6 +384,8 @@ export const authorHandleExportSchema = z
         /** The owner's app-user ULID (`author_handles.user_id`) — always the caller. */
         userId: exportIdSchema,
         displayName: z.string(),
+        /** The Clerk username identity last published for the owner, or `null`. */
+        username: z.string().nullable(),
         /** The source timestamp the monotonic handle-sync guard compares. */
         sourceTimestamp: exportTimestampSchema,
     })

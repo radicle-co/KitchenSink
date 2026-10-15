@@ -61,7 +61,11 @@ export const MAX_COLLECTIONS_PER_OWNER = 50;
  * `COLLECTION_VISIBILITIES … satisfies readonly RecipeVisibility[]` in the drizzle schema, so a divergence
  * fails the build there rather than silently here.
  */
-function toCollectionResponse(row: CollectionRow, recipeCount?: number): CollectionResponse {
+function toCollectionResponse(
+    row: CollectionRow,
+    sourceOwnerUsernames: ReadonlyMap<string, string>,
+    recipeCount?: number,
+): CollectionResponse {
     const response: CollectionResponse = {
         id: row.id,
         ownerId: row.ownerId,
@@ -76,10 +80,18 @@ function toCollectionResponse(row: CollectionRow, recipeCount?: number): Collect
         ...(row.description !== null ? { description: row.description } : {}),
         ...(row.sourceCollectionId !== null ? { sourceCollectionId: row.sourceCollectionId } : {}),
         ...(row.sourceOwnerDisplayName !== null ? { sourceOwnerDisplayName: row.sourceOwnerDisplayName } : {}),
+        ...usernameOf(row, sourceOwnerUsernames),
         ...(row.sourceCollectionName !== null ? { sourceCollectionName: row.sourceCollectionName } : {}),
         ...(row.lastPulledAt !== null ? { lastPulledAt: row.lastPulledAt.toISOString() } : {}),
         ...(recipeCount !== undefined ? { recipeCount } : {}),
     };
+}
+
+/** The `sourceOwnerUsername` field for one row, when its source owner has one. Pure. */
+function usernameOf(row: CollectionRow, usernames: ReadonlyMap<string, string>): { sourceOwnerUsername?: string } {
+    const username = row.sourceCollectionId === null ? undefined : usernames.get(row.sourceCollectionId);
+
+    return username === undefined ? {} : { sourceOwnerUsername: username };
 }
 
 @Injectable()
@@ -128,7 +140,21 @@ export class CollectionsService {
             MAX_COLLECTIONS_PER_OWNER,
         );
 
-        return toCollectionResponse(row);
+        return toCollectionResponse(row, await this.sourceUsernamesOf([row]));
+    }
+
+    /**
+     * The source owners' current usernames for the clones among `rows`, in ONE lookup — and none at all when no row
+     * is a clone, which is every collection a cook made themselves.
+     *
+     * @sideEffect Reads the database through the DAL when any row has a source.
+     */
+    private async sourceUsernamesOf(rows: readonly CollectionRow[]): Promise<ReadonlyMap<string, string>> {
+        const sourceIds = [
+            ...new Set(rows.flatMap((row) => (row.sourceCollectionId === null ? [] : [row.sourceCollectionId]))),
+        ];
+
+        return sourceIds.length === 0 ? new Map() : this.dal.sourceOwnerUsernames(sourceIds);
     }
 
     /** List the caller's own collections as a paginated envelope (newest first). */
@@ -141,11 +167,12 @@ export class CollectionsService {
             rows.map((row) => row.id),
             ownerId,
         );
+        const usernames = await this.sourceUsernamesOf(rows);
         const data = rows.map((row): CollectionListItem => {
             const summary = summaries.get(row.id);
 
             return {
-                ...toCollectionResponse(row),
+                ...toCollectionResponse(row, usernames),
                 recipeCount: summary?.recipeCount ?? 0,
                 coverPhotoUrls: (summary?.coverKeys ?? [])
                     .slice(0, COLLECTION_COVER_LIMIT)
@@ -177,7 +204,10 @@ export class CollectionsService {
             addedVia: row.addedVia,
         }));
 
-        return { ...toCollectionResponse(collection, recipes.length), recipes };
+        return {
+            ...toCollectionResponse(collection, await this.sourceUsernamesOf([collection]), recipes.length),
+            recipes,
+        };
     }
 
     /** Update an owned collection (name/description/visibility). Rejects an invalid visibility (FR-010). */
@@ -203,7 +233,7 @@ export class CollectionsService {
             throw new NotFoundException('Collection not found');
         }
 
-        return toCollectionResponse(row);
+        return toCollectionResponse(row, await this.sourceUsernamesOf([row]));
     }
 
     /**
@@ -226,7 +256,7 @@ export class CollectionsService {
             throw new NotFoundException('Collection not found');
         }
 
-        return toCollectionResponse(row);
+        return toCollectionResponse(row, await this.sourceUsernamesOf([row]));
     }
 
     /** Delete an owned collection. No-cascade: the collection's recipes are not deleted. */
@@ -297,7 +327,7 @@ export class CollectionsService {
      * source edits reach it only through an explicit {@link pullFromSource}.
      *
      * **Source attribution is FROZEN at clone time** (W5 Task 2): the source's name and its owner's
-     * CURRENT display handle (resolved once, here, via {@link AuthorHandlesDal.findHandle}) are copied
+     * CURRENT display name (resolved once, here, via {@link AuthorHandlesDal.findByline}) are copied
      * onto the clone row and never resynced — a later rename of the source owner does NOT propagate
      * (CR-003: this is deliberate, not a missed sync). When the handle cannot be resolved yet (no
      * `author_handles` row for that owner), attribution degrades gracefully to the name only.
@@ -335,7 +365,7 @@ export class CollectionsService {
         const seedRecipes = await this.dal.listRecipes(sourceId, clonerId);
         // Frozen attribution (W5 Task 2): resolved ONCE, at clone time, from the CURRENT read model —
         // never re-read on a later source-owner rename (CR-003).
-        const sourceOwnerDisplayName = await this.authorHandles.findHandle(source.ownerId);
+        const sourceOwnerDisplayName = (await this.authorHandles.findByline(source.ownerId))?.displayName;
 
         // S-R1: the create + the bulk membership seed run in ONE transaction — a mid-seed failure (a
         // constraint violation, a dropped connection) must roll back the collection insert too, never
@@ -367,7 +397,7 @@ export class CollectionsService {
             return created;
         });
 
-        return toCollectionResponse(clone, seedRecipes.length);
+        return toCollectionResponse(clone, await this.sourceUsernamesOf([clone]), seedRecipes.length);
     }
 
     /**
@@ -427,7 +457,11 @@ export class CollectionsService {
         });
 
         return {
-            collection: toCollectionResponse(touched, cloneIds.length + diff.added.length),
+            collection: toCollectionResponse(
+                touched,
+                await this.sourceUsernamesOf([touched]),
+                cloneIds.length + diff.added.length,
+            ),
             addedRecipeIds: diff.added,
         };
     }

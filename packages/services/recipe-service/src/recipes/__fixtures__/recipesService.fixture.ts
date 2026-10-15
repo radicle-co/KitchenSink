@@ -60,6 +60,7 @@ import { fakePhotosDal, RECIPE_PHOTOS_CDN } from './photosDal.fixture.js';
 import { fakeRatingsDal } from './ratingsDal.fixture.js';
 import { fakeRecipesDal } from './recipesDal.fixture.js';
 import { fakeVerificationQueue } from './verificationQueue.fixture.js';
+import type { AuthorHandlesDal } from '../../authors/dal/authorHandles.dal.js';
 import { makeFakeVersionsService } from './versions.fixture.js';
 
 /** Every collaborator `RecipesService` takes, by NAME rather than by position. */
@@ -93,6 +94,8 @@ export interface RecipesServiceCollaborators {
     readonly photosDal: PhotosDal;
     readonly foodNutrition: FoodNutritionGateway;
     readonly lineVerificationsDal: LineVerificationsDal;
+    /** The byline read model. Defaults to one that has never seen the cook, so writes fall back to the claims. */
+    readonly authorHandles: Pick<AuthorHandlesDal, 'findByline'>;
     readonly rng?: () => number;
 }
 
@@ -117,6 +120,7 @@ export function makeRecipesService(overrides: Partial<RecipesServiceCollaborator
         photosDal: fakePhotosDal(),
         foodNutrition: emptyFoodNutrition(),
         lineVerificationsDal: fakeLineVerificationsDal(new Map()),
+        authorHandles: { findByline: async () => undefined },
         ...overrides,
     };
 
@@ -144,6 +148,7 @@ export function makeRecipesService(overrides: Partial<RecipesServiceCollaborator
         collaborators.resolutionBands,
         collaborators.verificationRedrive,
         detailAssembler,
+        collaborators.authorHandles,
         collaborators.rng,
     );
 }

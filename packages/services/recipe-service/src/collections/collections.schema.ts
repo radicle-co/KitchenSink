@@ -224,6 +224,12 @@ export type PullFromSourceRequest = z.infer<typeof pullFromSourceRequestSchema>;
  */
 const collectionResponseShape = collectionSchema.extend({
     sourceOwnerDisplayName: z.string().min(1).optional(),
+    /**
+     * The source owner's CURRENT Clerk username, resolved from the read model when the clone is read — never frozen
+     * (plan 2026-10-15-010 D7: a username is a reusable identifier, so a frozen copy could come to name somebody
+     * else). Absent when the source is gone or its owner has none.
+     */
+    sourceOwnerUsername: z.string().min(1).optional(),
     sourceCollectionName: z.string().min(1).optional(),
     lastPulledAt: isoDateTimeSchema.optional(),
 });

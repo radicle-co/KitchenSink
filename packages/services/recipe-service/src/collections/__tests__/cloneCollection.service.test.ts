@@ -57,6 +57,7 @@ function makeDal(): DalMock {
         listRecipes: vi.fn(),
         previewMembershipIds: vi.fn(),
         memberSummaries: vi.fn().mockResolvedValue(new Map()),
+        sourceOwnerUsernames: vi.fn().mockResolvedValue(new Map()),
         touchLastPulled: vi.fn(),
         // S-R1: runs `fn` against FAKE_TX, mirroring the real DAL's `db.transaction(fn)` — so
         // `cloneCollection`'s `create`/`addRecipes` calls inside the callback actually execute.
@@ -64,10 +65,10 @@ function makeDal(): DalMock {
     };
 }
 
-/** Defaults `findHandle` to `undefined` (no resolvable handle) — the common case across the pre-W5-Task-2 tests. */
+/** Defaults `findByline` to `undefined` (no resolvable handle) — the common case across the pre-W5-Task-2 tests. */
 function makeAuthorHandlesDal(overrides: Partial<AuthorHandlesMock> = {}): AuthorHandlesMock {
     return {
-        findHandle: vi.fn().mockResolvedValue(undefined),
+        findByline: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
 }
@@ -282,13 +283,15 @@ describe('CollectionsService.cloneCollection — source attribution (W5 Task 2, 
                 sourceCollectionName: 'Keto Staples',
             }),
         );
-        const authorHandles = makeAuthorHandlesDal({ findHandle: vi.fn().mockResolvedValue('clara') });
+        const authorHandles = makeAuthorHandlesDal({
+            findByline: vi.fn().mockResolvedValue({ displayName: 'clara', username: 'clara_cooks' }),
+        });
         const service = makeService(dal, authorHandles);
 
         const result = await service.cloneCollection(makeCollectionsActor(CLONER), SOURCE_ID);
 
         // Resolved for the SOURCE owner, not the cloner.
-        expect(authorHandles.findHandle).toHaveBeenCalledWith(SOURCE_OWNER);
+        expect(authorHandles.findByline).toHaveBeenCalledWith(SOURCE_OWNER);
         expect(dal.create).toHaveBeenCalledWith(
             expect.objectContaining({ sourceOwnerDisplayName: 'clara', sourceCollectionName: 'Keto Staples' }),
             FAKE_TX,
@@ -296,6 +299,38 @@ describe('CollectionsService.cloneCollection — source attribution (W5 Task 2, 
         expect(result.sourceOwnerDisplayName).toBe('clara');
         expect(result.sourceCollectionName).toBe('Keto Staples');
         expect(result.sourceCollectionId).toBe(SOURCE_ID);
+    });
+
+    // Plan 2026-10-15-010 D7: the display name is FROZEN at clone time (a label), the username is NOT (a reusable
+    // identifier Clerk lets a user change) — it is resolved from the read model whenever the clone is read.
+    it('answers the source owner’s CURRENT username from the read-time lookup, never a frozen copy', async () => {
+        const dal = makeDal();
+        dal.findById.mockResolvedValue(attributionSource());
+        dal.listRecipes.mockResolvedValue([]);
+        dal.create.mockResolvedValue(
+            makeCollectionRow({
+                id: CLONE_ID,
+                ownerId: CLONER,
+                name: 'Keto Staples',
+                sourceCollectionId: SOURCE_ID,
+                sourceOwnerDisplayName: 'clara',
+                sourceCollectionName: 'Keto Staples',
+            }),
+        );
+        dal.sourceOwnerUsernames.mockResolvedValue(new Map([[SOURCE_ID, 'clara_now']]));
+        const service = makeService(
+            dal,
+            makeAuthorHandlesDal({
+                findByline: vi.fn().mockResolvedValue({ displayName: 'clara', username: 'clara_then' }),
+            }),
+        );
+
+        const result = await service.cloneCollection(makeCollectionsActor(CLONER), SOURCE_ID);
+
+        expect(dal.sourceOwnerUsernames).toHaveBeenCalledWith([SOURCE_ID]);
+        expect(result.sourceOwnerUsername).toBe('clara_now');
+        // Nothing username-shaped was written onto the clone row.
+        expect(JSON.stringify(dal.create.mock.calls[0]?.[0])).not.toContain('clara_then');
     });
 
     it('degrades to name-only attribution when the source owner has no resolvable handle yet', async () => {
@@ -312,7 +347,7 @@ describe('CollectionsService.cloneCollection — source attribution (W5 Task 2, 
                 sourceCollectionName: 'Keto Staples',
             }),
         );
-        const authorHandles = makeAuthorHandlesDal({ findHandle: vi.fn().mockResolvedValue(undefined) });
+        const authorHandles = makeAuthorHandlesDal({ findByline: vi.fn().mockResolvedValue(undefined) });
         const service = makeService(dal, authorHandles);
 
         const result = await service.cloneCollection(makeCollectionsActor(CLONER), SOURCE_ID);

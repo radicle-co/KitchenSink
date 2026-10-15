@@ -4806,6 +4806,9 @@ components:
         authorDisplayName:
           type: string
           minLength: 1
+        authorUsername:
+          type: string
+          minLength: 1
         currentVersion:
           type: integer
           minimum: 0
@@ -4944,6 +4947,9 @@ components:
             type: string
             minLength: 1
         authorDisplayName:
+          type: string
+          minLength: 1
+        authorUsername:
           type: string
           minLength: 1
         currentVersion:
@@ -6622,6 +6628,9 @@ components:
         editorDisplayName:
           type: string
           minLength: 1
+        editorUsername:
+          type: string
+          minLength: 1
         createdAt:
           type: string
           format: date-time
@@ -6789,6 +6798,9 @@ components:
         sourceOwnerDisplayName:
           type: string
           minLength: 1
+        sourceOwnerUsername:
+          type: string
+          minLength: 1
         sourceCollectionName:
           type: string
           minLength: 1
@@ -6843,6 +6855,9 @@ components:
                 type: integer
                 minimum: 0
               sourceOwnerDisplayName:
+                type: string
+                minLength: 1
+              sourceOwnerUsername:
                 type: string
                 minLength: 1
               sourceCollectionName:
@@ -6978,6 +6993,9 @@ components:
         authorDisplayName:
           type: string
           minLength: 1
+        authorUsername:
+          type: string
+          minLength: 1
         currentVersion:
           type: integer
           minimum: 0
@@ -7068,6 +7086,9 @@ components:
           type: integer
           minimum: 0
         sourceOwnerDisplayName:
+          type: string
+          minLength: 1
+        sourceOwnerUsername:
           type: string
           minLength: 1
         sourceCollectionName:
@@ -7295,6 +7316,9 @@ components:
               authorDisplayName:
                 nullable: true
                 type: string
+              authorUsername:
+                nullable: true
+                type: string
               currentVersion:
                 type: integer
               deletedAt:
@@ -7332,6 +7356,7 @@ components:
               - dietaryFlags
               - tags
               - authorDisplayName
+              - authorUsername
               - currentVersion
               - deletedAt
               - createdAt
@@ -7512,6 +7537,9 @@ components:
               editorDisplayName:
                 nullable: true
                 type: string
+              editorUsername:
+                nullable: true
+                type: string
               createdAt:
                 type: string
                 minLength: 1
@@ -7524,6 +7552,7 @@ components:
               - createdBy
               - changeSummary
               - editorDisplayName
+              - editorUsername
               - createdAt
         authorHandles:
           type: array
@@ -7535,12 +7564,16 @@ components:
                 minLength: 1
               displayName:
                 type: string
+              username:
+                nullable: true
+                type: string
               sourceTimestamp:
                 type: string
                 minLength: 1
             required:
               - userId
               - displayName
+              - username
               - sourceTimestamp
       required:
         - exportedAt

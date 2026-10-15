@@ -52,13 +52,14 @@ function harness() {
         listRecipes: vi.fn().mockResolvedValue([]),
         previewMembershipIds: vi.fn(),
         memberSummaries: vi.fn().mockResolvedValue(new Map()),
+        sourceOwnerUsernames: vi.fn().mockResolvedValue(new Map()),
         touchLastPulled: vi.fn(),
         transaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})),
     } satisfies DalMock;
     const analytics = { capture: vi.fn() };
     const service = new CollectionsService(
         dal as unknown as CollectionsDal,
-        { findHandle: vi.fn().mockResolvedValue(undefined) } as unknown as AuthorHandlesDal,
+        { findByline: vi.fn().mockResolvedValue(undefined) } as unknown as AuthorHandlesDal,
         analytics as unknown as AnalyticsService,
         'https://cdn.test',
     );

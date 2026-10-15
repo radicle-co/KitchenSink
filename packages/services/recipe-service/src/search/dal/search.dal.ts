@@ -85,7 +85,7 @@ const RECIPE_COLUMNS = sql`
     -- ⛔ NO has_partial_nutrition / lead_calories_per_serving (U10, migration 0019). Selecting a dropped
     -- column does not fail a type-check or a mocked unit test — it 500s every search and list request at
     -- runtime, which is exactly how this was found (searchContract.integration.test.ts).
-    recipes.author_handle, recipes.current_version, recipes.ingredient_names_text,
+    recipes.author_handle, recipes.author_username, recipes.current_version, recipes.ingredient_names_text,
     recipes.deleted_at, recipes.created_at, recipes.updated_at`;
 
 /** Everything the DAL needs to build one ranked, filtered, paginated search. */
@@ -163,6 +163,7 @@ interface RawRecipeSearchRow {
     dietary_flags: string[];
     tags: string[];
     author_handle: string | null;
+    author_username: string | null;
     current_version: number;
     ingredient_names_text: string;
     deleted_at: Date | string | null;
@@ -216,6 +217,7 @@ function toRecipeRowInput(row: RawRecipeSearchRow): RecipeRowInput {
         dietaryFlags: row.dietary_flags,
         tags: row.tags,
         authorDisplayName: row.author_handle,
+        authorUsername: row.author_username,
         currentVersion: row.current_version,
         averageRating: row.average_rating,
         ratingCount: row.rating_count,

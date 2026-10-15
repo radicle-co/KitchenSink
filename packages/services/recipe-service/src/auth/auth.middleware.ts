@@ -171,6 +171,7 @@ export class AuthMiddleware implements NestMiddleware {
             email: claims.email,
             firstName: claims.firstName,
             lastName: claims.lastName,
+            username: claims.username,
             picture: claims.picture,
             scopes: claims.scopes,
             permissions: claims.permissions,

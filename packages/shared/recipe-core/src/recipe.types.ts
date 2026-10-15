@@ -277,12 +277,17 @@ export interface Recipe {
      * detail's figure is `RecipeDetail.nutrition`, a card's is the batch endpoint, and there is no third.
      */
     /**
-     * The recipe author's display name (W8-a.2 / decision 6) — the "by @handle" cards render. DENORMALIZED
-     * from the identity service's `profiles.displayName` at write time (no cross-service read); kept current
-     * by the handle-sync fan-out. ABSENT for a pre-feature recipe until its next write / the backfill — the
-     * UI falls back to a neutral label rather than fabricating. Never an authz/join key; `ownerId` stays that.
+     * The recipe author's display name (W8-a.2 / decision 6) — shown beside the username in the byline. DENORMALIZED
+     * from the identity service's `profiles.displayName` at write time (no cross-service read); kept current by the
+     * handle-sync fan-out. ABSENT when unknown — the UI renders that state rather than fabricating. Never an
+     * authz/join key; `ownerId` stays that.
      */
     authorDisplayName?: string;
+    /**
+     * The recipe author's Clerk username — the public "@handle" byline (owner ruling 2026-10-13). Denormalized and
+     * kept current exactly like {@link authorDisplayName}; ABSENT when the author has none (or was erased).
+     */
+    authorUsername?: string;
     currentVersion: number;
     /**
      * Mean of this recipe's ratings, 1–5 (FR-013a). READ-ONLY — maintained by a database trigger and
@@ -381,6 +386,7 @@ export const recipeSchema = z.object({
     // ⛔ No `leadCaloriesPerServing` — see the `Recipe` interface above. A card's calorie figure comes from
     // `POST /api/v1/recipes/nutrition-batch`; the detail's comes from `RecipeDetail.nutrition`.
     authorDisplayName: z.string().min(1).optional(),
+    authorUsername: z.string().min(1).optional(),
     currentVersion: positiveIntSchema,
     // 1..5 mean; absent (not 0) when ratingCount is 0 — see the Recipe.averageRating docstring.
     averageRating: z.number().finite().min(1).max(5).optional(),
@@ -1024,6 +1030,8 @@ export interface RecipeVersion {
      * the editor is `createdBy` (the ULID), always the authoritative identity.
      */
     editorDisplayName?: string;
+    /** The version editor's Clerk username, kept current like {@link editorDisplayName}; absent when none. */
+    editorUsername?: string;
     createdAt: IsoDateTimeString;
 }
 
@@ -1040,6 +1048,7 @@ export const recipeVersionSchema = z.object({
     createdBy: idSchema,
     changeSummary: z.string().min(1).optional(),
     editorDisplayName: z.string().min(1).optional(),
+    editorUsername: z.string().min(1).optional(),
     createdAt: isoDateTimeStringSchema,
 });
 

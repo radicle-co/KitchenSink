@@ -71,6 +71,7 @@ function makeDal(): DalMock {
         listRecipes: vi.fn(),
         previewMembershipIds: vi.fn(),
         memberSummaries: vi.fn().mockResolvedValue(new Map()),
+        sourceOwnerUsernames: vi.fn().mockResolvedValue(new Map()),
         touchLastPulled: vi.fn(),
         transaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})),
     };
@@ -80,7 +81,7 @@ function makeService(dal: DalMock): CollectionsService {
     return new CollectionsService(
         dal as unknown as CollectionsDal,
         {
-            findHandle: vi.fn().mockResolvedValue('chef-anon'),
+            findByline: vi.fn().mockResolvedValue({ displayName: 'chef-anon', username: null }),
         } as unknown as AuthorHandlesDal,
         { capture: vi.fn() } as unknown as AnalyticsService,
         'https://cdn.test',
@@ -311,11 +312,17 @@ describe('drift 4 — the collection body COMPOSES recipe-core rather than re-de
         expect(published).toEqual(expect.arrayContaining(inherited));
     });
 
-    it('adds EXACTLY the three recipe-service response-only projections and nothing else', () => {
+    // Four since plan 2026-10-15-010: `sourceOwnerUsername` is read-time (never frozen), so it is a projection too.
+    it('adds EXACTLY the four recipe-service response-only projections and nothing else', () => {
         const inherited = new Set(Object.keys(collectionSchema.shape));
         const added = Object.keys(collectionResponseSchema.def.innerType.shape).filter((key) => !inherited.has(key));
 
-        expect(added.sort()).toEqual(['lastPulledAt', 'sourceCollectionName', 'sourceOwnerDisplayName']);
+        expect(added.sort()).toEqual([
+            'lastPulledAt',
+            'sourceCollectionName',
+            'sourceOwnerDisplayName',
+            'sourceOwnerUsername',
+        ]);
     });
 
     it('recipe-core’s `collectionSchema` DOES own `visibility` and `recipeCount` — the stale comment claiming otherwise is gone', () => {

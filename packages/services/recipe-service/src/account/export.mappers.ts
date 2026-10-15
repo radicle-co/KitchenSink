@@ -62,6 +62,7 @@ export function mapRecipe(row: RecipeExportRow): RecipeExport {
         // were derived from food's data and stored here, so exporting them shipped the user a value frozen
         // at its last pre-migration write — a stale number presented as their record.
         authorDisplayName: row.authorDisplayName,
+        authorUsername: row.authorUsername,
         currentVersion: row.currentVersion,
         deletedAt: toIsoStringOrNull(row.deletedAt),
         createdAt: toIsoString(row.createdAt),
@@ -150,6 +151,7 @@ export function mapVersion(row: VersionMetadataRow): VersionExport {
         createdBy: row.createdBy,
         changeSummary: row.changeSummary,
         editorDisplayName: row.editorDisplayName,
+        editorUsername: row.editorUsername,
         createdAt: toIsoString(row.createdAt),
     };
 }
@@ -159,6 +161,7 @@ export function mapAuthorHandle(row: AuthorHandleRow): AuthorHandleExport {
     return {
         userId: row.userId,
         displayName: row.displayName,
+        username: row.username,
         sourceTimestamp: toIsoString(row.sourceTimestamp),
     };
 }

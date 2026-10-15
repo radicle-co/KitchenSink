@@ -57,6 +57,7 @@ export interface VersionMetadataRow {
     readonly createdBy: string;
     readonly changeSummary: string | null;
     readonly editorDisplayName: string | null;
+    readonly editorUsername: string | null;
     readonly createdAt: Date | string;
 }
 
@@ -164,6 +165,7 @@ export class AccountExportDal {
                 createdBy: recipeVersions.createdBy,
                 changeSummary: recipeVersions.changeSummary,
                 editorDisplayName: recipeVersions.editorDisplayName,
+                editorUsername: recipeVersions.editorUsername,
                 createdAt: recipeVersions.createdAt,
             })
             .from(recipeVersions)

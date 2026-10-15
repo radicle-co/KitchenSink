@@ -1,7 +1,7 @@
 ---
 title: Live per-line parse statuses
 type: feat
-status: draft
+status: built
 date: 2026-10-15
 ---
 
@@ -137,18 +137,114 @@ where a compiled constant moves both sides in one commit. Precedent: `PARSE_JOB_
 - **Visitor** — exhaustive switches in `pastedLinesOf` and `PastedReadingRow`.
 - **Shared state holder** — `pasteHold` (unchanged).
 
-## UX specification
+## UX specification (staff-ux-engineer, SPECIFY, 2026-10-15)
 
-_To be filled from the staff-ux-engineer SPECIFY run._
+### Row states
+
+Each pasted row keeps its text (2-line clamp), then a state line (16 px glyph + caption), then at most ONE action on
+its own line, so nothing wraps inside a control at 320 px. Glyphs carry four meanings: `refreshCw` working, `clock`
+waiting, `check` already read, `triangleAlert` needs you. Two client-only states close a gap the blueprint's list
+missed: a line already read but waiting behind an earlier one has `progress: null`, so it needs its own honest state.
+
+| State          | State line (key)                                               | Glyph / tone                  | Row action (label key → a11y-name key)                                                  |
+| -------------- | -------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------- |
+| `queued`       | Waiting to be read (`rowStateQueued`)                          | clock / inkMuted              | —                                                                                       |
+| `reading`      | Reading… (`rowStateReading`)                                   | refreshCw, static             | —                                                                                       |
+| `retrying`     | Reading again… (`rowStateRetrying`)                            | refreshCw, static             | —                                                                                       |
+| `delayed`      | Waiting to try again (`rowStateDelayed`)                       | clock / inkMuted              | —                                                                                       |
+| `stalled`      | Taking longer than usual (`rowStateStalled`)                   | clock / inkMuted, NEVER alert | Add as written (`statusActionAddAsWritten` → `statusActionAddAsWrittenLabel`, `{line}`) |
+| `retryable`    | Couldn't read this line (`rowStateRetryable`)                  | triangleAlert / attention     | Add as written (same keys); Try again lives on the progress block                       |
+| `ready`        | Read. Joins in paste order. (`rowStateJoinsInOrder`)           | check / inkMuted              | —                                                                                       |
+| `joining`      | Looking it up… (`rowStateLookingUp`)                           | refreshCw, static             | —                                                                                       |
+| `waiting`      | Reads when you're back online (`rowStateWaitingForConnection`) | clock / inkMuted              | —                                                                                       |
+| `lookupFailed` | Couldn't look up (`rowStateLookupFailed`)                      | triangleAlert / attention     | Try again (`statusActionRetry` → `statusActionRetryLookupLabel`)                        |
+
+Precedence: `lookupFailed` > `waiting` > the line's own state. "Add as written", not "Add as typed": the cook pasted
+the text. `{line}` is the raw line, because a pasted line is not a food yet.
+
+### The progress block — one per paste, directly ABOVE the first pasted row
+
+- Title: `pasteProgressCount` (`PluralText`) "Added {done} of {count} line(s)" — lines IN the recipe, so it never
+  goes backward.
+- Status line, first match wins: needs-you count (`pasteProgressNeedsYou`, attention) → offline
+  (`pasteProgressOffline`) → every pending line stalled (`pasteProgressStalled` + `pasteProgressStalledHint`) → the
+  head line's step, by its 1-based position: `pasteProgressReading` / `pasteProgressRetrying` / `pasteProgressDelayed`
+  / `pasteProgressQueued` / `pasteProgressLookingUp`.
+- Actions (ghost buttons, wrap between buttons, never inside one):
+    - **Try again** — once, job-wide, when ≥ 1 line is `retryable`: it re-drives every retryable line, so a per-row
+      button would describe an action it does not perform. A11y name `pasteRetryAllLabel` (`PluralText`).
+    - **Add the rest as written** — when ≥ 2 lines are `stalled` or `retryable`: 200 per-row taps is not a way out.
+      Applies to every line not yet read; lines already `ready` keep their parse. A11y name `pasteAddRestAsWrittenLabel`.
+
+### Accessibility and motion
+
+- ONE polite live region per paste, separate from the visible block (which is not live). It speaks only at
+  milestones — started (`pasteProgressStarted`), first line needs the cook, all stalled, moving again
+  (`pasteProgressResumed`), offline — at most once every 10 s, newest wins. Row and count changes announce nothing.
+  The finish is the existing `pasteAdded` region's.
+- Focus never drops to `body`: after an action, focus moves to the progress block (web `useFocusOnSignal`, native
+  `useScreenReaderFocusOnSignal`).
+- **Nothing moves**, on either platform: WCAG 2.2.2's loading exemption needs the page to be unusable during the wait,
+  and here the editor stays usable through a read that can last 150 s. Activity is shown by the text changing.
+- Web list semantics: the pasted rows sit in their own list labelled "Lines not added yet" (`pasteReadingListLabel`).
 
 ## Concurrency measurement (non-prod, from code and config — nothing changed)
 
-_To be filled._
+Read from `recipe-workers/infra/lib/consumerConcurrency.ts` and `RecipeWorkersStack.ts` (ruling 5: measure, do not
+raise). Derived from the code; a synth was not run (the infra workspace's CDK install is separate).
 
-## Build order and test tiers
+| Setting                                      | Non-prod (`sandbox`, `pr-{N}`)                                  | Prod |
+| -------------------------------------------- | --------------------------------------------------------------- | ---- |
+| `reservedConcurrentExecutions` (parse fn)    | **1**                                                           | 5    |
+| Event-source `maxConcurrency`                | unset (AWS's minimum is 2, so 1 is expressed by leaving it out) | 5    |
+| `batchSize`                                  | 1 (one message is one line)                                     | 1    |
+| Handler timeout = claim lease                | 150 s (`PARSE_LINE_DELIVERY.leaseSeconds`)                      | same |
+| Queue visibility timeout                     | 180 s                                                           | same |
+| `maxReceiveCount`                            | ceil(9 h / 180 s) + 1 = **181**                                 | same |
+| Claim allowance (`PARSE_DELIVERY_ALLOWANCE`) | 20 claims                                                       | same |
+| Lease wait for a refused caller              | 1.5 s                                                           | same |
+| Memory                                       | 512 MB                                                          | same |
+| CRF Lambda (`ingredient-parser`)             | no reserved concurrency, 60 s, 1,024 MB                         | same |
+| Local consumer (`parseQueueConsumer.ts`)     | `MaxNumberOfMessages: 1`, 20 s long poll                        | —    |
 
-_To be filled._
+So a non-prod stage drains **one line at a time, shared by every cook on that stage**: a 200-line paste is 200
+sequential invocations, each up to 4 parse + 8 validator Bedrock calls plus one CRF invoke. This is the main source of
+a non-prod paste reading `queued` for a long time, and of a paste behind another cook's reading `stalled`.
 
-## Open questions
+⚠️ No parse-duration metric exists (`parseLine.ts`' own note on `PARSE_LEASE_WAIT_MS`), so THROUGHPUT is not measured:
+the numbers above bound concurrency, not lines per minute. To measure before raising: CloudWatch `AWS/Lambda` Duration
+(p50/p95/max), Throttles and ConcurrentExecutions for `RecipeParseLineFunction`, and SQS
+`ApproximateAgeOfOldestMessage` on `kitchensink-recipe-parse-{stage}`.
 
-_To be filled._
+⚠️ A stale comment found while measuring: the parse queue's `deadLetterQueue` comment still argues for
+`maxReceiveCount: 20`, while the code computes 181 from `receivesBeforeParking`. Not changed here.
+
+## Build order and test tiers (as built)
+
+| Commit                           | What                                                                                         | Tiers (red first, then green)                                                                                               |
+| -------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| C1 `feat(recipe-core)`           | `PARSE_LINE_DELIVERY`; the workers stack builds its Durations from it                        | recipe-core unit; stack synth parity (red with the constant moved and the stack literal)                                    |
+| C2 `feat(recipe-service)`        | `lineProgressOf`, DAL facts, `progress` on the wire, contracts regenerated                   | policy table; schema; service unit; mocked HTTP integration (red on the stale published copy); LOCAL e2e                    |
+| C3 `feat(recipe-service-client)` | `parseJobPollIntervalOf` back-off; stale self-heal docs corrected                            | queries unit table                                                                                                          |
+| C4 `feat(features-recipes)`      | `appHidden` releases the paste hold; ADR-0057 amended in place                               | policy table row rewritten; editor hook case (red with the old release set)                                                 |
+| C5 `feat(features-recipes)`      | row states, progress block, polite region, Add as written, Try again; 3-minute limit deleted | projection, progress and copy tables; hook tests; component tests for every state on web and native; paste-list integration |
+| C6 `test(e2e)`                   | Playwright cases, Maestro flows, k6 `pollProgress`                                           | written, not run                                                                                                            |
+| C7 `test(recipe-service)`        | the DAL's ages asserted as numbers                                                           | LOCAL e2e (red with the cast dropped)                                                                                       |
+
+Playwright, Maestro and k6 were written and not run. The recipe-service LOCAL e2e suites for parse jobs were run on
+throwaway Postgres 18 + LocalStack containers.
+
+## Open questions and residual risk
+
+1. **The 24-hour TTL still expires a job.** "No time limit" is read as the client's limit; retention is untouched. A
+   paste left stalled for a day expires and its unread lines join through the reader at the deadline.
+2. **A paste queued behind another cook's reads `stalled`.** Rows cannot see the queue. The copy promises nothing, and
+   the phase moves back when work resumes. Exact only if a later fact (queue position) is added to `progress`.
+3. **`queueCheckReads.ts`' `claimed_too_long`** uses the same lease test as `delayed`, so the operator backstop reports
+   every between-attempts line as `stuck`. Follow-up for the queue backstop, not changed here.
+4. **Try again (job-wide) shows no failure** when the retry itself is refused (for example `409` on an expired job): the
+   lines stay retryable and the block keeps saying they need the cook.
+5. **Focus after Add as written** moves to the progress block, not to the next waiting row's button as the UX spec
+   prefers; the row-level target would need a ref per row.
+6. **iOS `inactive`** (Control Center, the app switcher) releases the paste hold, because it already raises `appHidden`.
+7. **Publish blocked by lines still joining** may need its reason named in the action bar (UX open question).

@@ -250,163 +250,180 @@ const isTeardown = (file: string, jobId: string): boolean =>
 
 const jobKey = (file: string, jobId: string): string => `${path.posix.basename(file)}::${jobId}`;
 
+/** Whether a job grants itself `id-token: write` at JOB level, the only grant `awsAuth` can sign in with. */
+const grantsIdToken = (job: Job): boolean =>
+    typeof job.permissions === 'object' &&
+    job.permissions !== null &&
+    (job.permissions as Record<string, unknown>)['id-token'] === 'write';
+
+/** The `missing-timeout` rule: a job that signs in states a numeric `timeout-minutes`. */
+const timeoutRule = (job: Job): readonly RuleHit[] =>
+    typeof job['timeout-minutes'] === 'number'
+        ? []
+        : [['missing-timeout', 'runs awsAuth without a numeric `timeout-minutes`']];
+
+/** The `session-shorter-than-job` rule for ONE sign-in step: a number, within the role's ceiling, that outlasts the job. */
+function sessionRule(step: Step, timeout: unknown): readonly RuleHit[] {
+    const sessionText = scalarText(step.with?.['session-minutes'], String(DEFAULT_SESSION_MINUTES));
+    const session = /^\d+$/u.test(sessionText) ? Number(sessionText) : Number.NaN;
+
+    if (Number.isNaN(session) || session > MAX_SESSION_MINUTES) {
+        return [
+            [
+                'session-shorter-than-job',
+                `session-minutes '${sessionText}' is not a number of at most ${MAX_SESSION_MINUTES}`,
+            ],
+        ];
+    }
+
+    return typeof timeout === 'number' && session < timeout
+        ? [['session-shorter-than-job', `a ${session}-minute session cannot outlive a ${timeout}-minute job`]]
+        : [];
+}
+
+/** The `unknown-tier`, `tier-environment` and `teardown-prod-tier` rules for ONE way a sign-in step can run. */
+function runRules(file: string, jobId: string, run: PossibleRun): readonly RuleHit[] {
+    if (run.tier === undefined || !(GITHUB_OIDC_TIERS as readonly string[]).includes(run.tier)) {
+        return [['unknown-tier', `tier resolves to '${run.tier ?? '(an expression this guard cannot resolve)'}'`]];
+    }
+
+    const hits: RuleHit[] = [];
+    const required = REQUIRED_ENVIRONMENT[run.tier];
+
+    if (run.environment === undefined) {
+        hits.push(['tier-environment', 'its environment is an expression this guard cannot resolve']);
+    } else if (required === undefined ? run.environment === PRODUCTION_ENVIRONMENT : run.environment !== required) {
+        hits.push(['tier-environment', `tier '${run.tier}' can run bound to environment '${run.environment}'`]);
+    }
+
+    if (isTeardown(file, jobId) && run.tier !== 'nonprod') {
+        hits.push(['teardown-prod-tier', `a reclamation job signs in on tier '${run.tier}'`]);
+    }
+
+    return hits;
+}
+
+/** A rule a job breaks, and why: `[rule, detail]`. The caller adds where. */
+type RuleHit = readonly [RuleId, string];
+
 function jobViolations(file: string, jobId: string, job: Job): Violation[] {
     const where = `${file}::${jobId}`;
-    const violations: Violation[] = [];
     const steps = job.steps ?? [];
-
-    const add = (rule: RuleId, detail: string): void => {
-        violations.push({ rule, where, detail });
-    };
+    const signInIndexes = steps.flatMap((step, index) => (step.uses === AWS_AUTH ? [index] : []));
+    const hits: RuleHit[] = [];
 
     if (STATIC_KEY.test(JSON.stringify(job))) {
-        add('static-key', 'references an AWS access-key secret; sign in through awsAuth instead');
+        hits.push(['static-key', 'references an AWS access-key secret; sign in through awsAuth instead']);
     }
 
     if (steps.some(isSignIn)) {
-        add('unfederated-sign-in', 'calls configure-aws-credentials directly; only awsAuth may');
+        hits.push(['unfederated-sign-in', 'calls configure-aws-credentials directly; only awsAuth may']);
     }
-
-    const signInIndexes = steps.flatMap((step, index) => (step.uses === AWS_AUTH ? [index] : []));
 
     steps.forEach((step, index) => {
         if (step.uses === LOAD_SECRETS && !signInIndexes.some((signIn) => signIn < index)) {
-            add('secrets-before-sign-in', `load-secrets at step ${index} has no awsAuth step before it`);
+            hits.push(['secrets-before-sign-in', `load-secrets at step ${index} has no awsAuth step before it`]);
         }
     });
 
-    if (signInIndexes.length === 0) {
-        return violations;
-    }
-
-    const permissions = job.permissions;
-
-    if (
-        typeof permissions !== 'object' ||
-        permissions === null ||
-        (permissions as Record<string, unknown>)['id-token'] !== 'write'
-    ) {
-        add('missing-id-token', 'runs awsAuth without a job-level `id-token: write`');
-    }
-
-    const timeout = job['timeout-minutes'];
-
-    if (typeof timeout !== 'number') {
-        add('missing-timeout', 'runs awsAuth without a numeric `timeout-minutes`');
-    }
-
-    for (const index of signInIndexes) {
-        const step = steps[index] as Step;
-        const sessionText = scalarText(step.with?.['session-minutes'], String(DEFAULT_SESSION_MINUTES));
-        const session = /^\d+$/u.test(sessionText) ? Number(sessionText) : Number.NaN;
-
-        if (Number.isNaN(session) || session > MAX_SESSION_MINUTES) {
-            add(
-                'session-shorter-than-job',
-                `session-minutes '${sessionText}' is not a number of at most ${MAX_SESSION_MINUTES}`,
-            );
-        } else if (typeof timeout === 'number' && session < timeout) {
-            add('session-shorter-than-job', `a ${session}-minute session cannot outlive a ${timeout}-minute job`);
+    if (signInIndexes.length > 0) {
+        if (!grantsIdToken(job)) {
+            hits.push(['missing-id-token', 'runs awsAuth without a job-level `id-token: write`']);
         }
 
-        for (const run of possibleRuns(job, step)) {
-            if (run.tier === undefined || !(GITHUB_OIDC_TIERS as readonly string[]).includes(run.tier)) {
-                add('unknown-tier', `tier resolves to '${run.tier ?? '(an expression this guard cannot resolve)'}'`);
-                continue;
-            }
+        hits.push(...timeoutRule(job));
 
-            const required = REQUIRED_ENVIRONMENT[run.tier];
+        for (const index of signInIndexes) {
+            const step = steps[index] as Step;
 
-            if (run.environment === undefined) {
-                add('tier-environment', 'its environment is an expression this guard cannot resolve');
-            } else if (
-                required === undefined ? run.environment === PRODUCTION_ENVIRONMENT : run.environment !== required
-            ) {
-                add('tier-environment', `tier '${run.tier}' can run bound to environment '${run.environment}'`);
-            }
+            hits.push(...sessionRule(step, job['timeout-minutes']));
 
-            if (isTeardown(file, jobId) && run.tier !== 'nonprod') {
-                add('teardown-prod-tier', `a reclamation job signs in on tier '${run.tier}'`);
+            for (const run of possibleRuns(job, step)) {
+                hits.push(...runRules(file, jobId, run));
             }
+        }
+    }
+
+    return hits.map(([rule, detail]) => ({ rule, where, detail }));
+}
+
+const KEY_INPUTS = ['aws-access-key-id', 'aws-secret-access-key', 'aws-session-token'] as const;
+
+/** The `cdk-bootstrap` rule over a shell script, and over every step of a workflow or action. */
+function bootstrapViolations(file: string, text: string, doc: Doc | undefined): Violation[] {
+    if (doc === undefined) {
+        return BOOTSTRAP.test(withoutCommentLines(text))
+            ? [{ rule: 'cdk-bootstrap', where: file, detail: 'a script runs cdk bootstrap' }]
+            : [];
+    }
+
+    const steps = [...(doc.runs?.steps ?? []), ...Object.values(doc.jobs ?? {}).flatMap((job) => job.steps ?? [])];
+
+    return steps
+        .filter((step) => BOOTSTRAP.test(withoutCommentLines(scalarText(step.run))))
+        .map((step) => ({
+            rule: 'cdk-bootstrap',
+            where: `${file}::${step.name ?? '(unnamed)'}`,
+            detail: 'runs cdk bootstrap',
+        }));
+}
+
+/** The `static-key` and `unfederated-sign-in` rules over a composite action. */
+function actionViolations(file: string, text: string, steps: readonly Step[]): Violation[] {
+    const violations: Violation[] = STATIC_KEY.test(text)
+        ? [{ rule: 'static-key', where: file, detail: 'an action references an AWS access-key secret' }]
+        : [];
+
+    for (const step of steps) {
+        const keyInput = KEY_INPUTS.some((key) => step.with?.[key] !== undefined);
+
+        if (isSignIn(step) && (file !== AWS_AUTH_ACTION || keyInput)) {
+            violations.push({
+                rule: 'unfederated-sign-in',
+                where: file,
+                detail: keyInput ? 'signs in with a key input' : 'only awsAuth may call configure-aws-credentials',
+            });
         }
     }
 
     return violations;
 }
 
-/** Every violation over the given sources, keyed and deduplicated. Pure. */
-function violationsOf(sources: readonly Source[]): readonly Violation[] {
-    const violations: Violation[] = [];
+/** The `workflow-id-token` rule, and every job's own rules, over a workflow. */
+function workflowViolations(file: string, doc: Doc): Violation[] {
+    const permissions = doc.permissions;
+    const grantsIdTokenToEveryJob =
+        permissions === 'write-all' ||
+        (typeof permissions === 'object' &&
+            permissions !== null &&
+            (permissions as Record<string, unknown>)['id-token'] === 'write');
 
-    for (const { file, text } of sources) {
-        if (BOOTSTRAP.test(file.endsWith('.sh') ? withoutCommentLines(text) : '')) {
-            violations.push({ rule: 'cdk-bootstrap', where: file, detail: 'a script runs cdk bootstrap' });
-        }
+    return [
+        ...(grantsIdTokenToEveryJob
+            ? [{ rule: 'workflow-id-token' as const, where: file, detail: 'grants id-token at workflow level' }]
+            : []),
+        ...Object.entries(doc.jobs ?? {}).flatMap(([jobId, job]) => jobViolations(file, jobId, job)),
+    ];
+}
 
-        if (file.endsWith('.sh')) {
-            continue;
-        }
-
-        const doc = (parse(text) ?? {}) as Doc;
-        const steps = [...(doc.runs?.steps ?? []), ...Object.values(doc.jobs ?? {}).flatMap((job) => job.steps ?? [])];
-
-        for (const step of steps) {
-            if (BOOTSTRAP.test(withoutCommentLines(scalarText(step.run)))) {
-                violations.push({
-                    rule: 'cdk-bootstrap',
-                    where: `${file}::${step.name ?? '(unnamed)'}`,
-                    detail: 'runs cdk bootstrap',
-                });
-            }
-        }
-
-        if (doc.runs !== undefined) {
-            if (STATIC_KEY.test(text)) {
-                violations.push({
-                    rule: 'static-key',
-                    where: file,
-                    detail: 'an action references an AWS access-key secret',
-                });
-            }
-
-            for (const step of doc.runs.steps ?? []) {
-                const keyInput = ['aws-access-key-id', 'aws-secret-access-key', 'aws-session-token'].some(
-                    (key) => step.with?.[key] !== undefined,
-                );
-
-                if (isSignIn(step) && (file !== AWS_AUTH_ACTION || keyInput)) {
-                    violations.push({
-                        rule: 'unfederated-sign-in',
-                        where: file,
-                        detail: keyInput
-                            ? 'signs in with a key input'
-                            : 'only awsAuth may call configure-aws-credentials',
-                    });
-                }
-            }
-
-            continue;
-        }
-
-        const workflowPermissions = doc.permissions;
-
-        if (
-            workflowPermissions === 'write-all' ||
-            (typeof workflowPermissions === 'object' &&
-                workflowPermissions !== null &&
-                (workflowPermissions as Record<string, unknown>)['id-token'] === 'write')
-        ) {
-            violations.push({ rule: 'workflow-id-token', where: file, detail: 'grants id-token at workflow level' });
-        }
-
-        for (const [jobId, job] of Object.entries(doc.jobs ?? {})) {
-            violations.push(...jobViolations(file, jobId, job));
-        }
+/** Every rule one file breaks. A script is judged for `cdk bootstrap` alone; an action and a workflow for the rest. */
+function sourceViolations({ file, text }: Source): Violation[] {
+    if (file.endsWith('.sh')) {
+        return bootstrapViolations(file, text, undefined);
     }
 
+    const doc = (parse(text) ?? {}) as Doc;
+    const rest =
+        doc.runs === undefined ? workflowViolations(file, doc) : actionViolations(file, text, doc.runs.steps ?? []);
+
+    return [...bootstrapViolations(file, text, doc), ...rest];
+}
+
+/** Every violation over the given sources, keyed and deduplicated. Pure. */
+function violationsOf(sources: readonly Source[]): readonly Violation[] {
     const seen = new Set<string>();
 
-    return violations.filter((violation) => {
+    return sources.flatMap(sourceViolations).filter((violation) => {
         const key = `${violation.rule} ${violation.where} ${violation.detail}`;
         const fresh = !seen.has(key);
         seen.add(key);

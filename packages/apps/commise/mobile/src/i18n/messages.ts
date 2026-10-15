@@ -131,6 +131,44 @@ export interface MobileMessages {
         readonly additionalVerification: string;
         /** Contextual caption + accessible name of the spinner shown while the session is being resolved. */
         readonly sessionLoading: string;
+        /**
+         * The Google button's label on BOTH auth screens (plan 012 D9): the same tap may sign in or create an account.
+         * The Apple button's label is the system's own (`AppleAuthenticationButton`), so it has no key.
+         */
+        readonly continueWithGoogle: string;
+        /** The word between the provider buttons and the email form. */
+        readonly orDivider: string;
+        /** Polite status under the provider buttons while a provider sheet or the Clerk exchange is in flight. */
+        readonly socialBusy: string;
+        /** Google's SDK cannot run on this device (Play services missing or outdated). */
+        readonly googleUnavailable: string;
+        /** Sign in with Apple is not set up on this device. */
+        readonly appleUnavailable: string;
+        /** Any other provider failure. `{provider}` is the brand name, never translated. */
+        readonly socialFailed: string;
+        /** H1 of the step that asks for what Google / Apple did not supply. */
+        readonly finishTitle: string;
+        /** The line under that H1. */
+        readonly finishPrompt: string;
+        /** Says which address the account is for — Apple's relay address included. Contains `{email}`. */
+        readonly finishSigningUpAs: string;
+        /** Visible label for the first-name field. */
+        readonly firstNameLabel: string;
+        /** Visible label for the last-name field. */
+        readonly lastNameLabel: string;
+        /** Visible label for the username field. */
+        readonly usernameLabel: string;
+        /**
+         * What the username is FOR (plan 012 D11). Its length rule is not restated: Clerk's bound is customisable per
+         * instance, so Clerk's own error states it.
+         */
+        readonly usernameHint: string;
+        /** Said when the first name is left empty. */
+        readonly firstNameRequired: string;
+        /** Said when the last name is left empty. */
+        readonly lastNameRequired: string;
+        /** Said when the username is left empty. */
+        readonly usernameRequired: string;
     };
     /**
      * Copy for the mobile impersonation notice. Administrator impersonation is deliberately unavailable in
@@ -364,6 +402,24 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             sendCodeFailed: 'We couldn’t send a verification code. Please try again.',
             additionalVerification: 'Additional verification is required to finish signing in.',
             sessionLoading: 'Checking your session…',
+            continueWithGoogle: 'Continue with Google',
+            orDivider: 'or',
+            socialBusy: 'Signing you in…',
+            googleUnavailable:
+                'Google sign-in needs an up-to-date Google Play services on this device. Update it, or use your email.',
+            appleUnavailable:
+                'Sign in with Apple isn’t set up on this device. Sign in to your Apple Account in Settings, or use your email.',
+            socialFailed: 'We couldn’t sign you in with {provider}. Try again, or use your email.',
+            finishTitle: 'Finish creating your account',
+            finishPrompt: 'We need these to set up your account.',
+            finishSigningUpAs: 'Signing up as {email}',
+            firstNameLabel: 'First name',
+            lastNameLabel: 'Last name',
+            usernameLabel: 'Username',
+            usernameHint: 'Your public name on recipes you publish.',
+            firstNameRequired: 'Enter your first name.',
+            lastNameRequired: 'Enter your last name.',
+            usernameRequired: 'Choose a username.',
         },
         impersonation: {
             title: 'Impersonation blocked on mobile',

@@ -17,6 +17,15 @@ import { FIELD_CLASS } from './fieldClass.js';
 import type { InputProps } from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 
+/** The HTML `autocorrect` value for a boolean, absent when the caller left it to the platform. Pure. */
+function autoCorrectAttribute(autoCorrect: boolean | undefined): 'on' | 'off' | undefined {
+    if (autoCorrect === undefined) {
+        return undefined;
+    }
+
+    return autoCorrect ? 'on' : 'off';
+}
+
 /** The web design-system one-line text field. */
 export const Input: FC<InputProps> = ({
     id,
@@ -26,6 +35,7 @@ export const Input: FC<InputProps> = ({
     describedBy,
     placeholder,
     autoCapitalize,
+    autoCorrect,
     disabled = false,
     inputMode,
     autoComplete,
@@ -55,6 +65,7 @@ export const Input: FC<InputProps> = ({
             aria-describedby={describedBy}
             placeholder={placeholder}
             autoCapitalize={autoCapitalize}
+            autoCorrect={autoCorrectAttribute(autoCorrect)}
             disabled={disabled}
             inputMode={inputMode}
             autoComplete={autoComplete}

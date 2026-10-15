@@ -17,7 +17,15 @@ export type InputMode = 'text' | 'email' | 'numeric' | 'decimal' | 'tel' | 'url'
 
 /** The autofill a field offers. */
 export type InputAutoComplete =
-    'off' | 'email' | 'name' | 'username' | 'current-password' | 'new-password' | 'one-time-code';
+    | 'off'
+    | 'email'
+    | 'name'
+    | 'given-name'
+    | 'family-name'
+    | 'username'
+    | 'current-password'
+    | 'new-password'
+    | 'one-time-code';
 
 /** What the keyboard's return key says. */
 export type EnterKeyHint = 'done' | 'go' | 'next' | 'search' | 'send';
@@ -56,6 +64,8 @@ export interface InputProps extends FieldCommon {
     readonly inputMode?: InputMode;
     /** The autofill to offer. */
     readonly autoComplete?: InputAutoComplete;
+    /** Whether the keyboard corrects spelling. Absent, the platform decides; `false` for a value that is not a word. */
+    readonly autoCorrect?: boolean;
     /** What the return key says. */
     readonly enterKeyHint?: EnterKeyHint;
     /** Hide what is typed (a password). */

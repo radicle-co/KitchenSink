@@ -30,6 +30,7 @@ export const Input: FC<InputProps> = ({
     describedBy,
     placeholder,
     autoCapitalize,
+    autoCorrect,
     disabled = false,
     inputMode,
     autoComplete,
@@ -56,6 +57,7 @@ export const Input: FC<InputProps> = ({
             placeholder={placeholder}
             placeholderTextColor={theme.colors.inkMuted}
             autoCapitalize={autoCapitalize}
+            autoCorrect={autoCorrect}
             editable={!disabled}
             inputMode={inputMode}
             autoComplete={autoComplete}

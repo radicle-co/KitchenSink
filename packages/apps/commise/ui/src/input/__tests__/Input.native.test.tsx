@@ -113,6 +113,21 @@ describe('Input + FieldLabel (native)', () => {
         expect(field.getAttribute('enterkeyhint')).toBe('next');
     });
 
+    it.each(['given-name', 'family-name'] as const)(
+        'offers the %s autofill a sign-up name field needs (WCAG 2.2 SC 1.3.5)',
+        (autoComplete) => {
+            render(<LabelledInput autoComplete={autoComplete} />);
+
+            expect(screen.getByRole('textbox', { name: 'Email' }).getAttribute('autocomplete')).toBe(autoComplete);
+        },
+    );
+
+    it('turns autocorrect off when asked (a username is not a word)', () => {
+        render(<LabelledInput autoCorrect={false} />);
+
+        expect(screen.getByRole('textbox', { name: 'Email' }).getAttribute('autocorrect')).toBe('off');
+    });
+
     it('cannot be edited when disabled, and dims to 40%', () => {
         render(<LabelledInput disabled />);
 

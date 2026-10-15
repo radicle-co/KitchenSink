@@ -106,6 +106,18 @@ describe('Input + FieldLabel (web)', () => {
         expect(field.getAttribute('enterkeyhint')).toBe('next');
     });
 
+    it.each(['given-name', 'family-name'] as const)('offers the %s autofill (WCAG 2.2 SC 1.3.5)', (autoComplete) => {
+        render(<Input id="name" value="" onChangeText={vi.fn()} autoComplete={autoComplete} />);
+
+        expect(screen.getByRole('textbox').getAttribute('autocomplete')).toBe(autoComplete);
+    });
+
+    it('turns autocorrect off when asked', () => {
+        render(<Input id="username" value="" onChangeText={vi.fn()} autoCorrect={false} />);
+
+        expect(screen.getByRole('textbox').getAttribute('autocorrect')).toBe('off');
+    });
+
     it('is a password field when secret', () => {
         const { container } = render(<Input id="password" value="" onChangeText={vi.fn()} secret />);
 

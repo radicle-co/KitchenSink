@@ -605,14 +605,7 @@ export class FoodServiceClient {
         ids: readonly string[],
         options: RequestOptions = {},
     ): Promise<FoodNutritionBatchResult> {
-        const res = await this.send(
-            'GET',
-            `/api/v1/foods/authored-nutrition?${canonicalNutritionQuery(ids)}`,
-            undefined,
-            options.signal,
-        );
-
-        return this.expect(res, 200, foodNutritionBatchResponseSchema);
+        return this.readNutritionBatch('authored-nutrition', ids, options);
     }
 
     /**
@@ -631,9 +624,25 @@ export class FoodServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async getNutrition(ids: readonly string[], options: RequestOptions = {}): Promise<FoodNutritionBatchResult> {
+        return this.readNutritionBatch('nutrition', ids, options);
+    }
+
+    /**
+     * The one read behind both nutrition doors, which answer the same shape and differ only in the route.
+     *
+     * @param route - The path segment under `/api/v1/foods/`.
+     * @param ids - The food ids, canonicalized into the query.
+     * @param options - `signal`: the caller's deadline.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    private async readNutritionBatch(
+        route: 'nutrition' | 'authored-nutrition',
+        ids: readonly string[],
+        options: RequestOptions,
+    ): Promise<FoodNutritionBatchResult> {
         const res = await this.send(
             'GET',
-            `/api/v1/foods/nutrition?${canonicalNutritionQuery(ids)}`,
+            `/api/v1/foods/${route}?${canonicalNutritionQuery(ids)}`,
             undefined,
             options.signal,
         );

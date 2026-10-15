@@ -31,6 +31,7 @@ import { isInfraFile, isTestFile, parse, presentFiles, repoRoot, visit, type Sou
 /** Every scope literal one file checks, by the four shapes above. Pure. */
 function checkedScopes(source: SourceFile): readonly string[] {
     const found: string[] = [];
+
     const literalArguments = (call: ts.CallExpression): void => {
         for (const argument of call.arguments) {
             if (ts.isStringLiteral(argument) || ts.isNoSubstitutionTemplateLiteral(argument)) {

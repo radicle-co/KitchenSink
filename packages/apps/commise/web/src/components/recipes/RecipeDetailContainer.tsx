@@ -22,12 +22,11 @@
  *
  * A single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from the recipe's `ownerId`
  * key — the app-user ULID read off Clerk's `external_id` session claim, the SAME claim the recipe service
- * uses as the owner key (see `IDENTITY_SYNC_PENDING_CODE`) — plus `useUserProfile`'s subscription tier. Every
- * ownership/clone/tier gate below reads from that ONE `Viewer` through the shared `isOwner`/`canClone`/
- * `canClone` policy predicates, the SAME predicates the mobile detail screen evaluates, so the two
- * platforms can never diverge on a gate (this closes D7, where the clone gate previously disagreed: web
- * ignored ownership while mobile checked it). Free-tier owners see the private option disabled with a
- * localized upgrade reason; the tier read fails safe (gated OFF) while the profile is still loading or absent.
+ * uses as the owner key (see `IDENTITY_SYNC_PENDING_CODE`). The ownership and clone gates read from that ONE
+ * `Viewer` through the shared `isOwner`/`canClone` policy predicates, the SAME predicates the mobile detail screen
+ * evaluates, so the two platforms can never diverge on a gate (this closes D7, where the clone gate previously
+ * disagreed: web ignored ownership while mobile checked it). Whether Private is offered comes from the profile's
+ * `account.paidFeatures` alone (`paidFeatureStateOf` / `knownPaidFeaturesOf`), decided in `useGatedPrivate`.
  *
  * The recipe page (build spec §6): the action row's primary — Edit recipe for the owner, Save a copy for another cook
  * who may clone; Back and the ⋯ menu, whose entries come from the shared `detailMenuOf` (Version history, Make

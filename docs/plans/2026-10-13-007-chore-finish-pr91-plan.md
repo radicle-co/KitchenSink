@@ -63,6 +63,9 @@ things out, but done."
 | Roles T3: the refusal message is a snackbar, the UX spec named an inline alert                                        | staff-ux-engineer re-check, then aligned                                         |
 | Roles: a forged `?done=published.final` link shows the refusal sentence on any recipe page                            | The sentence needs the real write outcome                                        |
 | Run `poolAdmin --apply` after the identity deploy with roles, so the pool users carry their roles                     | Pool provisioned; `paidFeatureRoles.spec.ts` passes                              |
+| `privateRefusalOf(...) ?? 'final'` is repeated in the web and mobile detail containers                                | `useServerRefusedPrivate` returns the refusal                                    |
+| `useServerRefusedPrivate` casts the mutation cache's variables twice and redeclares their shape                       | A typed selector exported beside the key                                         |
+| Owner ruling Q1: does the `admin` role carry `food:admin` (today's default, not yet ruled)?                           | Owner answers; code matches                                                      |
 | `readViewerAppId` in `web/tests/e2e/utils/recipeApi.ts` blames a claim that is present                                | The message names the real cause                                                 |
 | Whatever the first CI run with the iOS fixes shows                                                                    | Each failure fixed at its root                                                   |
 | CI on the OIDC roles, sandbox half (commit B)                                                                         | Plan 005. Proven on PR 91 by real runs                                           |

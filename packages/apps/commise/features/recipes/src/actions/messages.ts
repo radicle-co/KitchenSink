@@ -29,7 +29,7 @@ export interface RecipeDeleteDialogMessages {
  * states the cost plainly and per reason (`makePublicConsequence`), describes public recipes in general (a public DRAFT
  * is still the owner's alone), and offers nothing to buy: two verbs, no third choice.
  */
-export interface RecipeMakePublicDialogMessages {
+interface RecipeMakePublicDialogMessages {
     readonly title: string;
     /** Under hidden paid features: no copy mentions Premium. */
     readonly bodyFinal: string;

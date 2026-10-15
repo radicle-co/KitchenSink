@@ -18,7 +18,7 @@ import type { RecipeFormMessages } from './messages.js';
 import type { PasteMilestone, PasteProgress, PasteRowState } from './props.js';
 
 /** How a state line is marked: its glyph and whether it asks for attention. */
-export interface PasteMark {
+interface PasteMark {
     readonly icon: IconName;
     readonly tone: 'inkMuted' | 'attention';
 }

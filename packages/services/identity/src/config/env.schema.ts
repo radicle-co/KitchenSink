@@ -65,7 +65,7 @@ export function resolveTestPrincipalContainment(raw: string | undefined): TestPr
  * stack always emits one of the two explicitly, from the owner's GitHub variable, so boot validation REJECTS anything
  * else rather than guessing.
  */
-export const paidFeaturesGateSchema = z.enum(['true', 'false']);
+const paidFeaturesGateSchema = z.enum(['true', 'false']);
 
 /**
  * Whether this stage's paid-features gate is on, for a raw `PAID_FEATURES_GATE` value. Pure.

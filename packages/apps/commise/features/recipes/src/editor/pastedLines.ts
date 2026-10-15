@@ -44,10 +44,10 @@ export interface PastedRow {
 }
 
 /** A pending line's step, as the server reports it — every phase but `stalled`, which waits on the cook. */
-export type PastedReadingPhase = Exclude<ParseJobLinePhase, 'stalled'>;
+type PastedReadingPhase = Exclude<ParseJobLinePhase, 'stalled'>;
 
 /** Why a line waits on the cook: the paste has gone quiet (`stalled`), or the system stopped trying (`retryable`). */
-export type PastedAwaitCause = 'stalled' | 'retryable';
+type PastedAwaitCause = 'stalled' | 'retryable';
 
 /** One pasted line: still reading, waiting on the cook, or settled into its rows (none for a heading). */
 export type PastedLine =

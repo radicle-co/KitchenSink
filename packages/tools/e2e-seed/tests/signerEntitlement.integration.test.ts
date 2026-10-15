@@ -38,6 +38,7 @@ const profile = (paidFeatures: PaidFeatures) =>
             id: '01J0K6000000000000000000AA',
             email: 'test-signer+clerk_test@radcile.com',
             displayName: '',
+            username: 'test_signer',
             avatarUrl: null,
             status: 'active',
             createdAt: '2026-10-01T00:00:00.000Z',

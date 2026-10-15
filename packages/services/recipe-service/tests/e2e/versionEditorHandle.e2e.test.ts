@@ -99,12 +99,31 @@ describe('version editor_handle provenance (e2e, real DB)', () => {
         expect(history.find((v) => v.versionNumber === 2)?.editorDisplayName).toBe('Clara Oswald');
     });
 
-    it('stamps the cloner handle on the CLONE-created version', async () => {
+    /**
+     * Rewritten for the owner's 2026-10-13 decision that a copy is a DRAFT (ADR-0058: a never-published draft records
+     * NO version). The old assertion read a version 1 the clone no longer writes. The cloner's handle is now stamped
+     * on the version the clone records when it is FIRST PUBLISHED, and the clone itself is asserted to record none.
+     */
+    it('records no version for the CLONE draft, and stamps the cloner handle on its FIRST-PUBLISH version', async () => {
         const source = await recipes.create(EDITOR, CREATE_DTO, undefined);
 
         const clone = await recipes.clone(EDITOR, source.id, undefined);
 
-        expect(await editorHandleOf(clone.id, 1)).toBe('Clara Oswald');
+        expect(clone.status).toBe('draft');
+        const { rows } = await pool.query<{ n: string }>(
+            'SELECT count(*)::text AS n FROM recipe_versions WHERE recipe_id = $1',
+            [clone.id],
+        );
+        expect(rows[0]!.n).toBe('0');
+
+        const published = await recipes.update(
+            EDITOR,
+            clone.id,
+            { expectedVersion: clone.currentVersion, status: 'published' },
+            undefined,
+        );
+
+        expect(await editorHandleOf(clone.id, published.currentVersion)).toBe('Clara Oswald');
     });
 
     it('stamps the restorer handle on the RESTORE-created version', async () => {

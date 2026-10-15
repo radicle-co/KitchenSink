@@ -56,6 +56,7 @@ interface RecipeBody {
     title: string;
     visibility: string;
     currentVersion: number;
+    status: string;
     steps: { stepNumber: number; instruction: string }[];
     ingredients: {
         ingredientId: string;
@@ -96,14 +97,53 @@ async function seedRecipe(
     return row.id;
 }
 
-/** The first version's stored snapshot lines — what history froze, read from the row rather than a route. */
-async function firstVersionLines(pool: pg.Pool, recipeId: string): Promise<Record<string, unknown>[]> {
+/** A version's stored snapshot lines — what history froze, read from the row rather than a route. */
+async function versionLines(
+    pool: pg.Pool,
+    recipeId: string,
+    versionNumber: number,
+): Promise<Record<string, unknown>[]> {
     const { rows } = await pool.query<{ snapshot: { ingredients: Record<string, unknown>[] } }>(
-        'SELECT snapshot FROM recipe_versions WHERE recipe_id = $1 AND version_number = 1',
-        [recipeId],
+        'SELECT snapshot FROM recipe_versions WHERE recipe_id = $1 AND version_number = $2',
+        [recipeId, versionNumber],
     );
 
     return rows[0]?.snapshot.ingredients ?? [];
+}
+
+/** How many version rows a recipe holds. */
+async function versionCount(pool: pg.Pool, recipeId: string): Promise<number> {
+    const { rows } = await pool.query<{ n: string }>(
+        'SELECT count(*)::text AS n FROM recipe_versions WHERE recipe_id = $1',
+        [recipeId],
+    );
+
+    return Number(rows[0]?.n);
+}
+
+/**
+ * Publish a clone and return its first version's lines. A clone is a never-published draft (owner 2026-10-13,
+ * ADR-0058), so it holds NO version until this publish; asserting that here keeps the helper from reading a stale one.
+ */
+async function publishCloneAndReadFirstVersionLines(
+    pool: pg.Pool,
+    baseUrl: string,
+    clone: RecipeBody,
+    bearer: string,
+): Promise<Record<string, unknown>[]> {
+    expect(await versionCount(pool, clone.id), 'a draft clone must record no version').toBe(0);
+
+    const res = await fetch(`${baseUrl}/api/v1/recipes/${clone.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', authorization: bearer },
+        body: JSON.stringify({ expectedVersion: clone.currentVersion, status: 'published' }),
+    });
+    expect(res.status).toBe(200);
+
+    const published = (await res.json()) as RecipeBody;
+    expect(await versionCount(pool, clone.id)).toBe(1);
+
+    return versionLines(pool, clone.id, published.currentVersion);
 }
 
 /** Read one recipe row directly (for provenance columns absent from the wire response). */
@@ -180,13 +220,18 @@ describe('Clone + visibility US2 (integration)', () => {
         expect(clone.ingredients[0]?.ingredientId).toBe(FLOUR_ID);
         // user_created source → clone defaults to public.
         expect(clone.visibility).toBe('public');
+        // Owner 2026-10-13: a copy is a DRAFT until the cook edits and publishes it, whatever the source's status.
+        expect(clone.status).toBe('draft');
 
         // Provenance (not in the wire response) — read the row directly.
         const cloneRow = await readRow(db, clone.id);
         expect(cloneRow.clonedFromId).toBe(sourceId);
         expect(cloneRow.hasSubstantiveEdit).toBe(false);
-        // No source attribution on a user_created original → attribution recorded to the original author.
-        expect(cloneRow.sourceAttribution).toContain(AUTHOR);
+        // Rewritten for W-03: a user_created original has no attribution and NONE IS INVENTED. A stored "Cloned
+        // from <owner id>" put a raw user id on Discover cards and outlived the author's erasure, so provenance is
+        // `clonedFromId` alone (asserted above) and the clone's attribution stays null.
+        expect(cloneRow.sourceAttribution).toBeNull();
+        expect(cloneRow.status).toBe('draft');
 
         // Original is untouched.
         const originalRow = await readRow(db, sourceId);
@@ -444,12 +489,14 @@ describe('Clone + visibility US2 (integration)', () => {
         expect(searchText).toContain('Flour');
         expect(searchText.toLowerCase()).not.toContain('grandma');
 
-        const versionLines = await firstVersionLines(pool, clone.id);
+        // The clone is a draft and records no version until it is first published; the first version it then
+        // freezes is the one that must not carry the name.
+        const firstVersion = await publishCloneAndReadFirstVersionLines(pool, baseUrl, clone, bearerFor(CLONER));
 
-        expect(versionLines).toHaveLength(2);
-        expect(versionLines[0]).toMatchObject({ ingredientId: FLOUR_ID, ingredientName: 'Flour' });
-        expect(versionLines[1]).toMatchObject({ ingredientId: PRIVATE_FOOD.lookupId });
-        expect(versionLines[1]).not.toHaveProperty('ingredientName');
+        expect(firstVersion).toHaveLength(2);
+        expect(firstVersion[0]).toMatchObject({ ingredientId: FLOUR_ID, ingredientName: 'Flour' });
+        expect(firstVersion[1]).toMatchObject({ ingredientId: PRIVATE_FOOD.lookupId });
+        expect(firstVersion[1]).not.toHaveProperty('ingredientName');
     });
 
     /**
@@ -482,7 +529,16 @@ describe('Clone + visibility US2 (integration)', () => {
             expect(clone.ingredients[1]?.resolutionStatus).not.toBe('RESOLVED_UNAVAILABLE');
 
             expect((await searchTextOf(clone.id)).toLowerCase()).not.toContain('own blend');
-            expect((await firstVersionLines(pool, clone.id))[1]).not.toHaveProperty('ingredientName');
+            const firstVersion = await publishCloneAndReadFirstVersionLines(
+                pool,
+                closeAuthorApp.baseUrl,
+                clone,
+                bearerFor(AUTHOR),
+            );
+
+            expect(firstVersion).toHaveLength(2);
+            expect(firstVersion[1]).toMatchObject({ ingredientId: OWN_FOOD.lookupId });
+            expect(firstVersion[1]).not.toHaveProperty('ingredientName');
         } finally {
             await closeAuthorApp.close();
         }

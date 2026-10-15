@@ -95,8 +95,11 @@ describe('collections CRUD (e2e, assembled app)', () => {
         expect(createdBody.ownerId).toBe(OWNER);
         expect(createdBody.name).toBe('CRUD E2E collection');
         expect(createdBody.description).toBe('a description');
-        // Visibility defaults to private (FR-010) when not requested.
-        expect(createdBody.visibility).toBe('private');
+        // Owner 2026-10-13 (supersedes FR-010's private default): a private collection is a Premium feature, so a
+        // free-tier cook's collection defaults to PUBLIC. The dev-auth principal holds no premium entitlement, which
+        // makes this the free-tier path; the premium default and the refusal are proved against the real database in
+        // `collections/crud.e2e.test.ts`.
+        expect(createdBody.visibility).toBe('public');
         const id = createdBody.id;
 
         const got = await fetch(`${booted.baseUrl}/api/v1/collections/${id}`);

@@ -144,7 +144,15 @@ describe('a recipe save and its version row are atomic (integration)', () => {
         expect(row?.currentVersion, 'the version was bumped despite the failure').toBe(created.currentVersion);
     });
 
-    it('⛔ persists NO clone when its version row cannot be written', async () => {
+    /**
+     * Rewritten for the owner's 2026-10-13 decision that a copy is a DRAFT (ADR-0058): a clone records NO version, so
+     * "its version row cannot be written" no longer applies to the clone itself. This case now proves two things the
+     * old one could not. (1) The clone SUCCEEDS while version inserts are refused, because a never-published draft
+     * writes none; had the clone recorded a version it would answer 5xx here. (2) The write that DOES record the
+     * clone's first version, its first PUBLISH, is atomic with that row: refused version, so no status change, no
+     * `first_published_at`, no `current_version` bump.
+     */
+    it('⛔ a clone is a draft that records no version, and its FIRST PUBLISH is atomic with its version row', async () => {
         const sourceRes = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
@@ -153,7 +161,6 @@ describe('a recipe save and its version row are atomic (integration)', () => {
         expect(sourceRes.status).toBe(201);
 
         const source = (await sourceRes.json()) as { readonly id: string };
-        const before = await db.select({ id: recipes.id }).from(recipes);
 
         await breakVersionInserts();
 
@@ -163,10 +170,38 @@ describe('a recipe save and its version row are atomic (integration)', () => {
             body: JSON.stringify({}),
         });
 
-        expect(cloneRes.status).toBeGreaterThanOrEqual(500);
-        expect(await db.select({ id: recipes.id }).from(recipes), 'a clone survived the failure').toHaveLength(
-            before.length,
-        );
+        expect(cloneRes.status, 'a draft clone must not need a version row').toBe(201);
+
+        const clone = (await cloneRes.json()) as {
+            readonly id: string;
+            readonly status: string;
+            readonly currentVersion: number;
+        };
+        expect(clone.status).toBe('draft');
+
+        const publishRes = await fetch(`${baseUrl}/api/v1/recipes/${clone.id}`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ expectedVersion: clone.currentVersion, status: 'published' }),
+        });
+
+        expect(
+            publishRes.status,
+            'the first publish reported success while its version row was refused',
+        ).toBeGreaterThanOrEqual(500);
+
+        const [row] = await db
+            .select({
+                status: recipes.status,
+                firstPublishedAt: recipes.firstPublishedAt,
+                currentVersion: recipes.currentVersion,
+            })
+            .from(recipes)
+            .where(eq(recipes.id, clone.id));
+
+        expect(row?.status, 'the clone was published despite the failure').toBe('draft');
+        expect(row?.firstPublishedAt, 'first_published_at was set despite the failure').toBeNull();
+        expect(row?.currentVersion, 'the version was bumped despite the failure').toBe(clone.currentVersion);
     });
 
     it('⛔ persists NO recipe when the ARCHIVE OUTBOX row cannot be written', async () => {

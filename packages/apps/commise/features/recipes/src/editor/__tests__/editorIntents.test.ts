@@ -2,7 +2,7 @@
  * The editor's intents (`editorIntents.ts`): the recipe write a checkpoint submits, and what a Discard withdraws and
  * deletes — including code-reviewer High 1, a parked create that must never leave a delete waiting for it.
  */
-import { RecipeStatus } from '@kitchensink/recipe-core';
+import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FailureClass } from '@kitchensink/sync';
 import { describe, expect, it } from 'vitest';
 
@@ -31,7 +31,13 @@ describe('recipeWriteIntent', () => {
     const draft = { ...toRecipeFormValues(makeRecipeDetail({ id: 'rec_1' })), title: 'Soup' };
 
     it('a recipe the server has never stored is created under its local ref, as a draft unless it publishes', () => {
-        const intent = recipeWriteIntent({ server: unsaved, draft, ref: LOCAL, publish: false });
+        const intent = recipeWriteIntent({
+            server: unsaved,
+            draft,
+            ref: LOCAL,
+            publish: false,
+            privateRefusal: undefined,
+        });
 
         expect(intent).toMatchObject({
             entity: 'recipe',
@@ -41,20 +47,82 @@ describe('recipeWriteIntent', () => {
             dependsOn: [],
         });
         expect(intent.payload).toMatchObject({ input: { title: 'Soup', status: RecipeStatus.DRAFT } });
-        expect(recipeWriteIntent({ server: unsaved, draft, ref: LOCAL, publish: true }).payload).toMatchObject({
+        expect(
+            recipeWriteIntent({ server: unsaved, draft, ref: LOCAL, publish: true, privateRefusal: undefined }).payload,
+        ).toMatchObject({
             input: { status: RecipeStatus.PUBLISHED },
         });
     });
 
     it('a stored recipe is updated by its id at the version the editor holds; only a Publish states a status', () => {
-        const intent = recipeWriteIntent({ server: stored(), draft, ref: 'rec_1', publish: false });
+        const intent = recipeWriteIntent({
+            server: stored(),
+            draft,
+            ref: 'rec_1',
+            publish: false,
+            privateRefusal: undefined,
+        });
 
         expect(intent).toMatchObject({ intentKind: 'update', localId: 'rec_1', dependsOn: [] });
         expect(intent.payload).toMatchObject({ id: 'rec_1', input: { title: 'Soup', expectedVersion: 4 } });
         expect(intent.payload).not.toHaveProperty('input.status');
-        expect(recipeWriteIntent({ server: stored(), draft, ref: 'rec_1', publish: true }).payload).toMatchObject({
+        expect(
+            recipeWriteIntent({ server: stored(), draft, ref: 'rec_1', publish: true, privateRefusal: undefined })
+                .payload,
+        ).toMatchObject({
             input: { status: RecipeStatus.PUBLISHED },
         });
+    });
+});
+
+/**
+ * A create is the only queued write that carries visibility (an update never does: it follows through its own endpoint).
+ * A create carrying a Private the server is known to refuse parked behind a Try again that could never succeed — the
+ * stuck save. It goes out public instead: a draft is the owner's alone whatever its visibility, and the publish-time
+ * follow-up says why it stayed public. Try again builds a fresh intent from the draft, so a parked one heals too.
+ */
+describe('recipeWriteIntent — a create never carries a refused Private', () => {
+    const privateDraft = {
+        ...toRecipeFormValues(makeRecipeDetail({ id: 'rec_1' })),
+        visibility: RecipeVisibility.PRIVATE,
+    };
+
+    it.each(['final', 'premium'] as const)(
+        'under a %s refusal, a private draft is created public',
+        (privateRefusal) => {
+            const intent = recipeWriteIntent({
+                server: unsaved,
+                draft: privateDraft,
+                ref: LOCAL,
+                publish: false,
+                privateRefusal,
+            });
+
+            expect(intent.payload).toMatchObject({ input: { visibility: RecipeVisibility.PUBLIC } });
+        },
+    );
+
+    it('with no known refusal, a private draft is created private', () => {
+        const intent = recipeWriteIntent({
+            server: unsaved,
+            draft: privateDraft,
+            ref: LOCAL,
+            publish: false,
+            privateRefusal: undefined,
+        });
+
+        expect(intent.payload).toMatchObject({ input: { visibility: RecipeVisibility.PRIVATE } });
+    });
+
+    it('a public draft is created public under any refusal', () => {
+        const publicDraft = { ...privateDraft, visibility: RecipeVisibility.PUBLIC };
+
+        for (const privateRefusal of ['final', 'premium', undefined] as const) {
+            expect(
+                recipeWriteIntent({ server: unsaved, draft: publicDraft, ref: LOCAL, publish: true, privateRefusal })
+                    .payload,
+            ).toMatchObject({ input: { visibility: RecipeVisibility.PUBLIC } });
+        }
     });
 });
 

@@ -95,6 +95,7 @@ function mount(seed: EditorSeed = {}, pasteHold?: PasteHold, port = fakePort()) 
         (props: { readonly seed: EditorSeed; readonly pastePending?: boolean }) =>
             useRecipeEditor(props.seed, {
                 locale: 'en',
+                privateRefusal: undefined,
                 port,
                 drafts,
                 keep: 'disk',

@@ -10,7 +10,7 @@
  *
  * @pattern Adapter — route params and navigator intents → each screen's callback props
  */
-import { editorMessages, finishedNoticeOf, type FinishedOutcome } from '@commise/features-recipes';
+import { editorMessages, finishedNoticeOf, type EditorFinish } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { useSnackbar } from '@commise/ui/snackbar';
 import type { NativeStackScreenProps, createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -33,16 +33,17 @@ function useLeaveSubscription(
 }
 
 /**
- * Tell the cook how the editor finished (E8; build spec §7.8). The snackbar host sits above the stack, so the message
- * survives the editor leaving and shows over the recipe the cook lands on.
+ * Tell the cook how the editor finished (E8; build spec §7.8), or that the recipe stayed public when its Private was
+ * refused. The snackbar host sits above the stack, so the message survives the editor leaving and shows over the recipe
+ * the cook lands on.
  *
  * @returns A function to call with the outcome. @sideEffect Shows a snackbar.
  */
-function useFinishedNotice(): (outcome: FinishedOutcome) => void {
+function useFinishedNotice(): (finish: EditorFinish) => void {
     const { show } = useSnackbar();
     const copy = useMessages(editorMessages);
 
-    return useCallback((outcome) => show({ message: finishedNoticeOf(outcome, copy) }), [copy, show]);
+    return useCallback((finish) => show({ message: finishedNoticeOf(finish, copy) }), [copy, show]);
 }
 
 /**
@@ -61,12 +62,12 @@ function RecipeCreateRoute({ navigation, route }: TaskProps<'RecipeCreate'>): JS
         <RecipeEditorScreen
             {...(route.params?.section === undefined ? {} : { section: route.params.section })}
             openPaste={route.params?.paste === true}
-            onFinished={(recipeId, outcome) => {
+            onFinished={(recipeId, finish) => {
                 navigation.popTo('Tabs', {
                     screen: 'recipes',
                     params: { screen: 'RecipeDetail', params: { recipeId }, initial: false },
                 });
-                tell(outcome);
+                tell(finish);
             }}
             onClose={() => navigation.goBack()}
             onDiscarded={toRecipes}
@@ -84,9 +85,9 @@ function RecipeEditRoute({ navigation, route }: TaskProps<'RecipeEdit'>): JSX.El
         <RecipeEditorScreen
             recipeId={route.params.recipeId}
             {...(route.params.section === undefined ? {} : { section: route.params.section })}
-            onFinished={(_recipeId, outcome) => {
+            onFinished={(_recipeId, finish) => {
                 navigation.goBack();
-                tell(outcome);
+                tell(finish);
             }}
             onClose={() => navigation.goBack()}
             onDiscarded={() =>

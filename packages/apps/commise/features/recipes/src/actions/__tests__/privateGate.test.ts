@@ -16,6 +16,7 @@ import {
     privateChoice,
     privateIsFinal,
     privateNeedsPremium,
+    privateRefusalOf,
     showsPremiumBadge,
 } from '../privateGate.js';
 
@@ -129,5 +130,21 @@ describe('mayRestorePrivate — an Undo back to private', () => {
         ['loading', false],
     ] as const)('%s → %s', (state, expected) => {
         expect(mayRestorePrivate(state)).toBe(expected);
+    });
+});
+
+/**
+ * When the client KNOWS the server would refuse a change to private, it does not send one (the editor's create body and
+ * its visibility follow-up) and says why instead. Only a settled state knows: under `loading` the write goes out and the
+ * server decides, because withholding a private choice would leave the recipe public — failing open on privacy.
+ */
+describe('privateRefusalOf — a change to private the server is known to refuse', () => {
+    it.each([
+        ['hidden', 'final'],
+        ['upsell', 'premium'],
+        ['loading', undefined],
+        ['granted', undefined],
+    ] as const)('%s → %s', (state, expected) => {
+        expect(privateRefusalOf(state)).toBe(expected);
     });
 });

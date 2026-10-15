@@ -10,7 +10,8 @@
  *
  * - **The hand-offs, through a navigation port** ({@link EditorNavigation}): the editor says how it handed off, and each
  *   platform says where that goes (web pushes a route, native goes back or to the recipe). A Publish or Save changes
- *   first sends the visibility the write's answer lacks (`visibilityFollowUp`).
+ *   first sends the visibility the write's answer lacks (`visibilityFollowUp`) — never a Private the server is known to
+ *   refuse, which the finish reports instead.
  * - **A leave by another route than ×**: the exit checkpoint. Native hears Back and the swipe through `subscribeToLeave`
  *   (`beforeRemove`); on both platforms the editor UNMOUNTING is a leave too, because the web has no such event — browser
  *   Back or a shell link simply unmounts it.
@@ -26,6 +27,7 @@
  * @pattern Mediator — the editor, the row editor, the paste and the navigation port coordinated in one place
  * @pattern Port — {@link EditorNavigation}, the platform's router behind the editor's hand-offs
  */
+import type { PaidFeatureState } from '@commise/features-account';
 import type { ErrorReporter } from '@commise/features-core';
 import type { Locale } from '@commise/i18n';
 import type { RecipeDetail } from '@kitchensink/recipe-core';
@@ -38,6 +40,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 
+import { privateRefusalOf } from '../actions/privateGate.js';
 import type { LookupRetry, ObservedIngredientStatus, SettledAnswer } from '../form/ingredientStatus.js';
 import { rebindRequestOf } from '../hooks/lineCommit.js';
 import { useIngredientRowEditor, type IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
@@ -51,7 +54,7 @@ import {
     type UseRecipeEditorResult,
 } from '../hooks/useRecipeEditor.js';
 import type { DraftStore } from './draftStore.js';
-import { outcomeOfExit, type FinishedOutcome } from './finishedOutcome.js';
+import { outcomeOfExit, type EditorFinish, type FinishedOutcome } from './finishedOutcome.js';
 import { createPasteHold } from './pasteHold.js';
 import { previewRecipeOf } from './previewRecipe.js';
 import type { DraftKeep } from './saveStatus.js';
@@ -62,9 +65,9 @@ import { visibilityFollowUp } from './visibilityFollowUp.js';
 export interface EditorNavigation {
     /**
      * The recipe was published, or its changes saved: show it, and tell the cook which (E8: "Recipe published." or
-     * "Changes saved.", through `finishedNoticeOf`).
+     * "Changes saved.", or that it stayed public when its Private was refused, through `finishedNoticeOf`).
      */
-    readonly finished: (recipeId: string, outcome: FinishedOutcome) => void;
+    readonly finished: (recipeId: string, finish: EditorFinish) => void;
     /** The cook kept the server's copy, or discarded a published recipe's device changes: back to the recipe. */
     readonly leftForRecipe: (recipeId: string) => void;
     /** A recipe never published was discarded: go to My recipes. */
@@ -93,6 +96,11 @@ export interface UseRecipeEditorSessionOptions {
     readonly onRecipeRef?: (ref: string) => void;
     /** Open Paste a list at once: Home's first-run Paste ingredients (§7.5.4). */
     readonly openPaste: boolean;
+    /**
+     * The cook's paid-feature state (`paidFeatureStateOf`). REQUIRED: it decides whether a Private may go out at all — on
+     * a create, and after a publish or Save changes (`privateRefusalOf`).
+     */
+    readonly paidFeatures: PaidFeatureState;
 }
 
 /** The preview sheet's state and the recipe it shows. */
@@ -129,6 +137,7 @@ export interface RecipeEditorSession {
  */
 export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): RecipeEditorSession {
     const { seed, locale, keep, port, drafts, navigation, reportError, onRecipeRef, openPaste } = options;
+    const privateRefusal = privateRefusalOf(options.paidFeatures);
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
     const setVisibility = useSetRecipeVisibility();
@@ -137,15 +146,21 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
     // Made before the editor and the paste, which each need the other: the paste writes it, a checkpoint reads it.
     const [pasteHold] = useState(createPasteHold);
 
-    /** Published, or its changes saved: visibility follows its answer, then the recipe shows. @sideEffect */
+    /**
+     * Published, or its changes saved: visibility follows its answer, then the recipe shows. A Private the server is known
+     * to refuse is not sent, and the finish says so (`visibilityFollowUp`). @sideEffect
+     */
     const finished = (stored: RecipeDetail, outcome: FinishedOutcome): void => {
-        const visibility = visibilityFollowUp(editor.values.visibility, stored);
+        const followUp = visibilityFollowUp(editor.values.visibility, stored, privateRefusal);
 
-        if (visibility !== undefined) {
-            setVisibility.mutate({ id: stored.id, visibility });
+        if (followUp.kind === 'send') {
+            setVisibility.mutate({ id: stored.id, visibility: followUp.visibility });
         }
 
-        navigation.finished(stored.id, outcome);
+        navigation.finished(stored.id, {
+            outcome,
+            privateRefused: followUp.kind === 'refused' ? followUp.refusal : undefined,
+        });
     };
 
     const onExit = (exit: EditorExit): void => {
@@ -189,6 +204,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         // The outbox's cache observer writes each synced recipe write's answer here, so this is usually a cache read.
         readRecipe: (id) => queryClient.ensureQueryData(recipeQueries(client).detail(id)),
         pasteHold,
+        privateRefusal,
     });
 
     // Every way out of the editor does what × does (build spec §3.5, ADR-0057 §2): the exit checkpoint. × runs its own

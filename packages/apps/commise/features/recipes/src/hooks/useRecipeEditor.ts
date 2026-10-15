@@ -94,6 +94,7 @@ import {
     type CheckpointTrigger,
     type RecipeLifecycle,
 } from '../editor/checkpointPolicy.js';
+import type { PrivateRefusal } from '../actions/privateGate.js';
 import { toDraftValues, type DraftMemento, type DraftStore } from '../editor/draftStore.js';
 import {
     commandAddressOf,
@@ -248,6 +249,11 @@ export interface UseRecipeEditorOptions {
     readonly pasteHold?: PasteHold;
     /** The clock, for the draft's `savedAt`. */
     readonly now?: () => Date;
+    /**
+     * Why the server would refuse a change to private for this cook, if it is known to (`privateRefusalOf`): a create
+     * then never carries Private (`recipeWriteIntent`). REQUIRED, so no host can leave the stuck save reachable.
+     */
+    readonly privateRefusal: PrivateRefusal | undefined;
 }
 
 /** The resume notice: a published recipe has device changes from an earlier visit (build spec §7.3). */
@@ -623,7 +629,13 @@ function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: bo
         return;
     }
 
-    const intent = recipeWriteIntent({ server, draft, ref: ensureRef(ctx), publish: write.publish });
+    const intent = recipeWriteIntent({
+        server,
+        draft,
+        ref: ensureRef(ctx),
+        publish: write.publish,
+        privateRefusal: ctx.opts.privateRefusal,
+    });
     const kind = intent.intentKind === 'create' ? 'create' : 'update';
     const finishing = isFinishingTrigger(trigger);
 

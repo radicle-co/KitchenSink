@@ -3551,11 +3551,11 @@
                         },
                         {
                             "name": "onFinished",
-                            "type": "(recipeId: string, outcome: \"firstPublish\" | \"published\" | \"changesSaved\") => void",
+                            "type": "(recipeId: string, finish: EditorFinish) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The recipe was published, or its changes saved: show it, and say which (E8).",
+                            "description": "The recipe was published, or its changes saved: show it, and say which, or that it stayed public (E8).",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
                         },
                         {

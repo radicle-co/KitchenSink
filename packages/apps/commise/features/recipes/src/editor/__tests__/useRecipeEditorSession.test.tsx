@@ -6,6 +6,7 @@
  *
  * Real hooks over the type-checked fake client; the write port is the fake outbox the lifecycle suite uses.
  */
+import type { PaidFeatureState } from '@commise/features-account';
 import { makeQuietFoodClient } from '@commise/test-utils';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
@@ -56,6 +57,7 @@ function mount(
         readonly strict?: boolean;
         readonly drafts?: DraftStore;
         readonly onRecipeRef?: (ref: string) => void;
+        readonly paidFeatures?: PaidFeatureState;
     } = {},
 ) {
     const port = makeFakeEditorWritePort();
@@ -87,6 +89,7 @@ function mount(
                 navigation: nav,
                 reportError: vi.fn(),
                 openPaste: false,
+                paidFeatures: options.paidFeatures ?? 'granted',
                 ...(options.onRecipeRef === undefined ? {} : { onRecipeRef: options.onRecipeRef }),
             }),
         // ⚠️ `reactStrictMode`, not a `<StrictMode>` inside the wrapper: React replays effects only for a StrictMode the
@@ -135,7 +138,7 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
         await settle();
 
         // E8: the hand-off names how the editor finished, for the snackbar the next page shows.
-        expect(nav.finished).toHaveBeenCalledWith('rec_9', 'firstPublish');
+        expect(nav.finished).toHaveBeenCalledWith('rec_9', { outcome: 'firstPublish', privateRefused: undefined });
         await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE));
     });
 
@@ -155,7 +158,86 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
         });
         await settle();
 
-        expect(nav.finished).toHaveBeenCalledExactlyOnceWith('rec_9', 'changesSaved');
+        expect(nav.finished).toHaveBeenCalledExactlyOnceWith('rec_9', {
+            outcome: 'changesSaved',
+            privateRefused: undefined,
+        });
+    });
+
+    /**
+     * The stuck-save defect, at the hand-off: the editor opened on a private recipe that was made public elsewhere (a
+     * stale seed), so its draft still says Private when the save's answer says public. For a cook the server refuses
+     * Private, nothing is sent — it would be refused after the editor had gone — and the finish says why.
+     */
+    it.each([
+        ['hidden', 'final'],
+        ['upsell', 'premium'],
+    ] as const)('⛔ under %s, a refused Private is not sent, and the finish says so', async (paidFeatures, refusal) => {
+        const client = createFakeRecipeServiceClient();
+        const setVisibility = vi.spyOn(client, 'setRecipeVisibility');
+        const stored = complete({ status: RecipeStatus.PUBLISHED, visibility: RecipeVisibility.PRIVATE });
+        const { result, port, nav } = mount({ recipe: stored }, client, { paidFeatures });
+
+        act(() => {
+            result.current.editor.setField('description', 'Creamier.');
+        });
+        act(() => {
+            result.current.editor.saveChanges('');
+        });
+        await settle();
+        act(() => {
+            port.sync(port.lastSeq(), { ...stored, currentVersion: 2, visibility: RecipeVisibility.PUBLIC });
+        });
+        await settle();
+
+        expect(nav.finished).toHaveBeenCalledExactlyOnceWith('rec_9', {
+            outcome: 'changesSaved',
+            privateRefused: refusal,
+        });
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    it('⛔ while the paid features are still loading, the Private is sent and the server decides', async () => {
+        const client = createFakeRecipeServiceClient();
+        const setVisibility = vi.spyOn(client, 'setRecipeVisibility');
+        const stored = complete({ status: RecipeStatus.PUBLISHED, visibility: RecipeVisibility.PRIVATE });
+        const { result, port, nav } = mount({ recipe: stored }, client, { paidFeatures: 'loading' });
+
+        act(() => {
+            result.current.editor.setField('description', 'Creamier.');
+        });
+        act(() => {
+            result.current.editor.saveChanges('');
+        });
+        await settle();
+        act(() => {
+            port.sync(port.lastSeq(), { ...stored, currentVersion: 2, visibility: RecipeVisibility.PUBLIC });
+        });
+        await settle();
+
+        expect(nav.finished).toHaveBeenCalledExactlyOnceWith('rec_9', {
+            outcome: 'changesSaved',
+            privateRefused: undefined,
+        });
+        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE));
+    });
+
+    it('⛔ a new recipe`s create never carries a Private the server refuses: it goes out public', async () => {
+        const { result, port } = mount({}, createFakeRecipeServiceClient(), { paidFeatures: 'hidden' });
+
+        act(() => {
+            result.current.editor.setValues({
+                ...toRecipeFormValues(complete()),
+                visibility: RecipeVisibility.PRIVATE,
+                photos: [],
+            });
+        });
+        act(() => {
+            result.current.editor.publish('');
+        });
+        await settle();
+
+        expect(port.submitted.at(-1)?.payload).toMatchObject({ input: { visibility: RecipeVisibility.PUBLIC } });
     });
 
     it('a discarded never-published recipe goes to My recipes; a published one`s discarded changes, to the recipe', async () => {

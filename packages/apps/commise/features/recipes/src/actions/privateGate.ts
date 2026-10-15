@@ -109,6 +109,30 @@ export function privateIsFinal(state: PaidFeatureState, saved: RecipeVisibility)
     return state === 'hidden' && saved === RecipeVisibility.PRIVATE;
 }
 
+/** Why the server will refuse a change to private for this viewer: never again (`hidden`), or only with Premium. */
+export const PRIVATE_REFUSALS = ['final', 'premium'] as const;
+
+/** One of {@link PRIVATE_REFUSALS}. */
+export type PrivateRefusal = (typeof PRIVATE_REFUSALS)[number];
+
+/**
+ * Whether the server is KNOWN to refuse a change to private for this viewer, and why. Pure.
+ *
+ * Only a settled state knows. Under `loading` a write to private goes out and the server decides: withholding it would
+ * leave the recipe public, which fails open on privacy. A write this answers for is not sent (the editor's create body
+ * and its visibility follow-up); the cook is told why instead.
+ *
+ * @param state - The viewer's paid-feature state.
+ * @returns `final` under `hidden`, `premium` under `upsell`, otherwise `undefined`.
+ */
+export function privateRefusalOf(state: PaidFeatureState): PrivateRefusal | undefined {
+    if (state === 'hidden') {
+        return 'final';
+    }
+
+    return state === 'upsell' ? 'premium' : undefined;
+}
+
 /**
  * Whether an Undo back to private would be accepted. Pure.
  *

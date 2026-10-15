@@ -50,7 +50,7 @@ import {
     FINISHED_OUTCOME_PARAM,
     finishedNoticeOf,
     isUnreachableRecovery,
-    parseFinishedOutcome,
+    parseFinishedParam,
     ratingModeFor,
     recipeActionMessages,
     recipeMessages,
@@ -196,10 +196,10 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     const { detail: detailCopy } = useMessages(recipeMessages);
     const editorCopy = useMessages(editorMessages);
 
-    // E8: the editor finished and navigated here with `?done=<outcome>`; say it once. The parameter is the reader's to
-    // forge: only the three spellings count.
+    // E8: the editor finished and navigated here with `?done=<outcome>[.<refusal>]`; say it once. The parameter is the
+    // reader's to forge: only the exact spellings count.
     useAddressNotice(FINISHED_OUTCOME_PARAM, (value) => {
-        const finished = parseFinishedOutcome(value);
+        const finished = parseFinishedParam(value);
 
         return finished === undefined ? undefined : finishedNoticeOf(finished, editorCopy);
     });

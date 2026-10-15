@@ -39,7 +39,7 @@ import {
     type DraftStore,
     type EditorNavigation,
     type EditorSectionId,
-    type FinishedOutcome,
+    type EditorFinish,
 } from '@commise/features-recipes';
 import type { EditorSeed } from '@commise/features-recipes/hooks';
 import { useLocale, useMessages } from '@commise/i18n/react';
@@ -71,8 +71,8 @@ export interface RecipeEditorScreenProps {
     readonly section?: EditorSectionId;
     /** Open Paste a list at once: Home's first-run Paste ingredients (build spec §7.5.4). A new recipe only. */
     readonly openPaste?: boolean;
-    /** The recipe was published, or its changes saved: show it, and say which (E8). */
-    readonly onFinished: (recipeId: string, outcome: FinishedOutcome) => void;
+    /** The recipe was published, or its changes saved: show it, and say which, or that it stayed public (E8). */
+    readonly onFinished: (recipeId: string, finish: EditorFinish) => void;
     /** × , or the cook kept the server's copy: go back where the editor was opened. */
     readonly onClose: () => void;
     /** A never-published recipe was discarded: go to My recipes. */
@@ -196,6 +196,7 @@ function RecipeEditorSession({
     const locale = useLocale();
     const queue = useSyncQueue();
     const profile = useUserProfile();
+    const paidFeatures = paidFeatureStateOf(profile);
     // The session's navigation port, on the route's hand-offs: leaving for the recipe goes back where it was opened.
     const navigation: EditorNavigation = {
         finished: onFinished,
@@ -212,6 +213,7 @@ function RecipeEditorSession({
         navigation,
         reportError: reportErrorToSentry,
         openPaste,
+        paidFeatures,
     });
     const { editor, paste } = session;
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
@@ -219,7 +221,7 @@ function RecipeEditorSession({
     // under upsell, the plain statement when hidden or still loading. "Saved" is what the server held when the editor
     // opened (a new recipe is public), so a choice back to it needs no entitlement. The web editor reads the same.
     const privateChoice = usePrivateChoice({
-        state: paidFeatureStateOf(profile),
+        state: paidFeatures,
         saved: seed.recipe?.visibility ?? RecipeVisibility.PUBLIC,
         values: editor.values,
         onChange: editor.setValues,

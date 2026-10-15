@@ -174,6 +174,7 @@ function useEditForm(recipe: RecipeDetail, port: ReturnType<typeof makeOutboxPor
         { recipe },
         {
             locale: 'en',
+            privateRefusal: undefined,
             port,
             drafts: NO_DRAFTS,
             keep: 'disk',

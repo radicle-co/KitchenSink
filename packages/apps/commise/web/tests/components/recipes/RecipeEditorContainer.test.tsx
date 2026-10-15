@@ -208,6 +208,40 @@ describe('RecipeEditorContainer (web)', () => {
         await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1?done=changesSaved'));
     });
 
+    /**
+     * The stuck-save defect, end to end through the real outbox: the editor opened on a private recipe that had been made
+     * public elsewhere (a stale read), for a cook whose paid features are hidden. Save changes sends no Private the server
+     * would refuse after the editor had gone, and the recipe page is told the recipe stayed public.
+     */
+    it('⛔ a stale Private the server would refuse is not sent, and the recipe page is told it stayed public', async () => {
+        profile.paidFeatures = 'hidden';
+        const client = createFakeRecipeServiceClient();
+        const stored = makeRecipeDetail({
+            id: 'rec_1',
+            title: 'Stored Stew',
+            status: RecipeStatus.PUBLISHED,
+            visibility: RecipeVisibility.PRIVATE,
+            currentVersion: 2,
+        });
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(stored);
+        vi.spyOn(client, 'updateRecipe').mockResolvedValue({
+            ...stored,
+            visibility: RecipeVisibility.PUBLIC,
+            currentVersion: 3,
+        } as RecipeDetail);
+        const setVisibility = vi.spyOn(client, 'setRecipeVisibility');
+
+        renderEditor(client, 'rec_1');
+        const title = await screen.findByDisplayValue('Stored Stew');
+        await userEvent.type(title, ' Deluxe');
+        await act(async () => {
+            await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+        });
+
+        await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1?done=changesSaved.final'));
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
     it('a new recipe published private, that the server holds public, is made private', async () => {
         profile.paidFeatures = 'granted';
         const ref = 'local:recipe:visibility';

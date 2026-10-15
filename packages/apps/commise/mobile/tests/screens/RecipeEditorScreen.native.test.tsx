@@ -224,7 +224,12 @@ describe('RecipeEditorScreen (native)', () => {
 
         await waitFor(() => expect(update).toHaveBeenCalled());
         // E8: the hand-off says how the editor finished, for the snackbar over the recipe the cook lands on.
-        await waitFor(() => expect(handlers.onFinished).toHaveBeenCalledWith('rec_1', 'firstPublish'));
+        await waitFor(() =>
+            expect(handlers.onFinished).toHaveBeenCalledWith('rec_1', {
+                outcome: 'firstPublish',
+                privateRefused: undefined,
+            }),
+        );
         expect(update).toHaveBeenCalledTimes(1);
         expect(update.mock.calls[0]?.[1]).toMatchObject({ status: 'published', expectedVersion: 2 });
     });
@@ -260,8 +265,52 @@ describe('RecipeEditorScreen (native)', () => {
         });
 
         // E8: the hand-off says how the editor finished, for the snackbar over the recipe the cook lands on.
-        await waitFor(() => expect(handlers.onFinished).toHaveBeenCalledWith('rec_1', 'firstPublish'));
+        await waitFor(() =>
+            expect(handlers.onFinished).toHaveBeenCalledWith('rec_1', {
+                outcome: 'firstPublish',
+                privateRefused: undefined,
+            }),
+        );
         await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE));
+    });
+
+    /**
+     * The same stale read for a cook whose paid features are hidden: the Private would be refused after the editor had
+     * gone, so it is not sent, and the hand-off says the recipe stayed public (the stuck-save defect).
+     */
+    it('⛔ under hidden, sends no Private the server would refuse, and the hand-off says so', async () => {
+        profile.paidFeatures = 'hidden';
+        const client = createFakeRecipeServiceClient();
+        const draft = makeRecipeDetail({
+            id: 'rec_stale',
+            title: 'Ready Stew',
+            cuisine: 'Irish',
+            status: RecipeStatus.DRAFT,
+            visibility: RecipeVisibility.PRIVATE,
+            currentVersion: 2,
+        });
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(draft);
+        vi.spyOn(client, 'updateRecipe').mockResolvedValue({
+            ...draft,
+            status: RecipeStatus.PUBLISHED,
+            visibility: RecipeVisibility.PUBLIC,
+            currentVersion: 3,
+        } as RecipeDetail);
+        const setVisibility = vi.spyOn(client, 'setRecipeVisibility');
+        const handlers = renderScreen(client, { recipeId: 'rec_stale' });
+
+        await screen.findByRole('heading', { name: 'Edit recipe' });
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        });
+
+        await waitFor(() =>
+            expect(handlers.onFinished).toHaveBeenCalledWith('rec_stale', {
+                outcome: 'firstPublish',
+                privateRefused: 'final',
+            }),
+        );
+        expect(setVisibility).not.toHaveBeenCalled();
     });
 });
 

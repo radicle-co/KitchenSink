@@ -7,9 +7,10 @@
  * @pattern Command — each intent is a self-describing write the outbox sends later (ADR-0057)
  * @pattern Policy — {@link discardPlanOf}, one pure decision of what a Discard withdraws and deletes
  */
-import { RecipeStatus } from '@kitchensink/recipe-core';
+import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { isLocalRef, type FailureClass, type Intent } from '@kitchensink/sync';
 
+import type { PrivateRefusal } from '../actions/privateGate.js';
 import type { RecipeFormValues } from '../form/values.js';
 import { toCreateRecipeInput, toUpdateRecipeInput } from '../form/wire.js';
 import type { RecipeLifecycle } from './checkpointPolicy.js';
@@ -24,12 +25,21 @@ export interface RecipeWriteInput {
     readonly ref: string;
     /** Whether the write publishes. */
     readonly publish: boolean;
+    /**
+     * Why the server would refuse a change to private for this cook, if it is known to (`privateRefusalOf`). REQUIRED: a
+     * create is the one queued write that carries visibility, so every caller has to say whether a Private may go out.
+     */
+    readonly privateRefusal: PrivateRefusal | undefined;
 }
 
 /**
  * The recipe write for a checkpoint. ⛔ Updates start only once the create has answered; before that the create is
  * resent and the outbox coalesces. Each update names the version the editor holds (ADR-0057: the editor owns the CAS
  * token). Pure.
+ *
+ * ⛔ A create never carries a Private the server is known to refuse: it would park behind a Try again that cannot
+ * succeed. It goes out public — a draft is the owner's alone whatever its visibility — and the publish-time follow-up
+ * says why it stayed public (`visibilityFollowUp`). Try again builds a fresh intent, so a parked create heals the same way.
  *
  * @param input - What the server holds, the draft, the ref and whether to publish.
  * @returns The intent.
@@ -39,13 +49,17 @@ export function recipeWriteIntent(input: RecipeWriteInput): Intent {
     const status = input.publish ? RecipeStatus.PUBLISHED : undefined;
 
     if (server.kind !== 'stored') {
+        const create = toCreateRecipeInput(draft, status ?? RecipeStatus.DRAFT);
+
         return {
             entity: 'recipe',
             intentKind: 'create',
             localId: ref,
             produces: ref,
             dependsOn: [],
-            payload: { input: toCreateRecipeInput(draft, status ?? RecipeStatus.DRAFT) },
+            payload: {
+                input: input.privateRefusal === undefined ? create : { ...create, visibility: RecipeVisibility.PUBLIC },
+            },
         };
     }
 

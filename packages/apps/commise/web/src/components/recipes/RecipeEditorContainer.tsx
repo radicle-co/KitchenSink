@@ -30,6 +30,7 @@
 import {
     editorMessages,
     FINISHED_OUTCOME_PARAM,
+    finishedParamOf,
     IngredientsNutritionFoot,
     nextEditorOpening,
     pendingIngredientIds,
@@ -337,13 +338,14 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
     const router = useRouter();
     const queue = useSyncQueue();
     const profile = useUserProfile();
+    const paidFeatures = paidFeatureStateOf(profile);
     const [initialSection] = useState<EditorSectionId | undefined>(() => sectionFromHash(window.location.hash));
     // The session's navigation port, on the Next router.
     const navigation: EditorNavigation = {
         // E8: how the editor finished goes to the recipe page in a one-shot parameter (a snackbar raised here would die
         // with this page's shell). The page reads it, says it once, and removes it.
-        finished: (recipeId, outcome) =>
-            router.push(`/${locale}/recipes/${recipeId}?${FINISHED_OUTCOME_PARAM}=${outcome}` as Route),
+        finished: (recipeId, finish) =>
+            router.push(`/${locale}/recipes/${recipeId}?${FINISHED_OUTCOME_PARAM}=${finishedParamOf(finish)}` as Route),
         leftForRecipe: (recipeId) => router.push(`/${locale}/recipes/${recipeId}` as Route),
         discarded: () => router.push(`/${locale}/recipes` as Route),
     };
@@ -357,6 +359,7 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
         reportError: reportErrorToSentry,
         ...(mode === 'create' ? { onRecipeRef: (ref: string) => replaceUrlFor(locale, ref) } : {}),
         openPaste,
+        paidFeatures,
     });
     const { editor, paste } = session;
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
@@ -364,7 +367,7 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
     // under upsell, the plain statement when hidden or still loading. "Saved" is what the server held when the editor
     // opened (a new recipe is public), so a choice back to it needs no entitlement.
     const privateChoice = usePrivateChoice({
-        state: paidFeatureStateOf(profile),
+        state: paidFeatures,
         saved: seed.recipe?.visibility ?? RecipeVisibility.PUBLIC,
         values: editor.values,
         onChange: editor.setValues,

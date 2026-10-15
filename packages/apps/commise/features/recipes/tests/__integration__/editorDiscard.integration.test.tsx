@@ -56,6 +56,7 @@ function mountEditor(client: RecipeServiceClient, seed: EditorSeed = {}) {
     const view = renderHook(() =>
         useRecipeEditor(seed, {
             locale: 'en',
+            privateRefusal: undefined,
             port: outbox.port,
             drafts: NO_DRAFTS,
             keep: 'disk',

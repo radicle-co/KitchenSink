@@ -638,6 +638,24 @@ describe('RecipeDetailContainer', () => {
             expect((await screen.findByText(words)).closest('[role="status"]')).not.toBeNull();
         });
 
+        it.each([
+            [
+                'changesSaved.final',
+                "This recipe is public. Your other changes are saved, but it couldn't be made private.",
+            ],
+            [
+                'firstPublish.premium',
+                'This recipe is public. Your other changes are saved, but private recipes are part of Premium.',
+            ],
+        ])('⛔ says the recipe stayed public for “%s”, in place of how it finished', async (value, words) => {
+            arriveWith(`done=${value}`);
+
+            await renderDone();
+
+            expect((await screen.findByText(words)).closest('[role="status"]')).not.toBeNull();
+            expect(screen.queryByText(/changes saved\.|recipe published\./i)).not.toBeInTheDocument();
+        });
+
         it('removes the parameter from the address without a navigation, keeping any other', async () => {
             const replace = vi.spyOn(window.history, 'replaceState');
             arriveWith('tab=2&done=published');
@@ -649,7 +667,7 @@ describe('RecipeDetailContainer', () => {
             expect(pushMock).not.toHaveBeenCalled();
         });
 
-        it.each(['', 'done=', 'done=deleted', 'done=PUBLISHED', 'done=published%20'])(
+        it.each(['', 'done=', 'done=deleted', 'done=PUBLISHED', 'done=published%20', 'done=published.nope'])(
             'says nothing for the address “?%s”, which is the reader’s to forge',
             async (query) => {
                 arriveWith(query);

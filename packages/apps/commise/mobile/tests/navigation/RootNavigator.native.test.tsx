@@ -182,17 +182,20 @@ vi.mock('../../src/screens/RecipeEditorScreen.js', () => ({
         recipeId?: string;
         section?: string;
         openPaste?: boolean;
-        onFinished: (id: string, outcome: string) => void;
+        onFinished: (id: string, finish: { outcome: string; privateRefused: string | undefined }) => void;
         onClose: () => void;
     }) =>
         props.recipeId === undefined
             ? stub(props.openPaste === true ? `Create wizard, pasting at ${props.section ?? 'top'}` : 'Create wizard', {
-                  Publish: () => props.onFinished('fresh', 'firstPublish'),
+                  Publish: () => props.onFinished('fresh', { outcome: 'firstPublish', privateRefused: undefined }),
                   Cancel: props.onClose,
               })
             : stub(`Edit ${props.recipeId}`, {
                   'Cancel edit': props.onClose,
-                  'Save changes': () => props.onFinished(props.recipeId ?? '', 'changesSaved'),
+                  'Save changes': () =>
+                      props.onFinished(props.recipeId ?? '', { outcome: 'changesSaved', privateRefused: undefined }),
+                  'Save changes, Private refused': () =>
+                      props.onFinished(props.recipeId ?? '', { outcome: 'changesSaved', privateRefused: 'premium' }),
               }),
 }));
 vi.mock('../../src/screens/CollectionFormScreen.js', () => ({
@@ -401,6 +404,22 @@ describe('focused tasks', () => {
         press('Save changes');
 
         expect(screen.getByText('Changes saved.')).toBeTruthy();
+    });
+
+    it('⛔ says the recipe stayed public when the editor`s Private was refused, in place of "Changes saved."', () => {
+        renderRoot();
+
+        fireEvent.click(tab('Recipes'));
+        press('Open Pasta');
+        press('Save a copy');
+        press('Save changes, Private refused');
+
+        expect(
+            screen.getByText(
+                'This recipe is public. Your other changes are saved, but private recipes are part of Premium.',
+            ),
+        ).toBeTruthy();
+        expect(screen.queryByText('Changes saved.')).toBeNull();
     });
 
     it('says nothing for a plain ×: nothing was published or saved', () => {

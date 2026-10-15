@@ -101,6 +101,7 @@ function twoEditors(held: boolean) {
             useRecipeEditor(seed, {
                 onRecipeRef: (ref) => refs.push(ref),
                 locale: 'en',
+                privateRefusal: undefined,
                 port: outbox.port,
                 drafts: NO_DRAFTS,
                 keep: 'tabSession',

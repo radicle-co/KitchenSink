@@ -104,6 +104,9 @@ export function previewHostForRun(prToken: string, previewZone: string, webOrigi
     return host;
 }
 
+/** How long ONE Vercel read may take. The house figure for an outbound read (`deployedSmoke.ts`). */
+export const VERCEL_READ_DEADLINE_MS = 15_000;
+
 /**
  * GET one Vercel resource and parse it, turning every way that can fail into a reason.
  *
@@ -115,6 +118,7 @@ async function getParsed<T>(
     path: string,
     what: string,
     schema: z.ZodType<T>,
+    deadlineMs: number,
 ): Promise<{ readonly ok: true; readonly value: T } | { readonly ok: false; readonly reason: string }> {
     let status: number;
     let text: string;
@@ -123,6 +127,7 @@ async function getParsed<T>(
         const response = await http(vercelApiUrl(path, config), {
             method: 'GET',
             headers: { Authorization: `Bearer ${config.token}` },
+            signal: AbortSignal.timeout(deadlineMs),
         });
 
         status = response.status;
@@ -160,6 +165,7 @@ async function getParsed<T>(
  * @param config - Vercel token, project and team.
  * @param host - The `pr-{N}.<zone>` host — re-asserted here, never trusted.
  * @param previewZone - The zone the host must sit DIRECTLY under.
+ * @param deadlineMs - The bound on each of the two reads.
  * @returns The reading, or why it could not be made. Never throws for a Vercel failure.
  * @throws PreviewScopeError When `host` is not `pr-{N}` directly under `previewZone`.
  * @sideEffect Two HTTPS reads against the Vercel API.
@@ -169,10 +175,18 @@ export async function readServedDeployment(
     config: VercelProjectConfig,
     host: string,
     previewZone: string,
+    deadlineMs: number = VERCEL_READ_DEADLINE_MS,
 ): Promise<ServedDeploymentReading> {
     const scoped = requirePreviewHost(host, previewZone);
 
-    const alias = await getParsed(http, config, `/v4/aliases/${encodeURIComponent(scoped)}`, 'alias', aliasSchema);
+    const alias = await getParsed(
+        http,
+        config,
+        `/v4/aliases/${encodeURIComponent(scoped)}`,
+        'alias',
+        aliasSchema,
+        deadlineMs,
+    );
 
     if (!alias.ok) {
         return { kind: 'failed', reason: alias.reason };
@@ -184,6 +198,7 @@ export async function readServedDeployment(
         `/v13/deployments/${encodeURIComponent(alias.value.deploymentId)}`,
         'deployment',
         deploymentSchema,
+        deadlineMs,
     );
 
     if (!deployment.ok) {

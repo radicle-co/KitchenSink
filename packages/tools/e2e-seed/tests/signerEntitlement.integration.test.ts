@@ -32,7 +32,7 @@ let traffic: string[];
 let server: Server;
 let origin: string;
 
-const profile = (paidFeatures: PaidFeatures) =>
+const buildProfile = (paidFeatures: PaidFeatures) =>
     userProfileSchema.parse({
         user: {
             id: '01J0K6000000000000000000AA',
@@ -52,6 +52,18 @@ const profile = (paidFeatures: PaidFeatures) =>
             updatedAt: '2026-10-01T00:00:00.000Z',
         },
     });
+
+/**
+ * Every body the fake serves, built and checked ONCE at module load. A schema change that makes one invalid throws
+ * here, as a suite-level failure naming the zod issue — not inside the request handler, where a throw leaves the
+ * socket unanswered and the test hangs to its timeout.
+ */
+const PROFILE_BODIES: ReadonlyMap<PaidFeatures, string> = new Map(
+    (['granted', 'upsell', 'hidden'] as const).map((paidFeatures) => [
+        paidFeatures,
+        JSON.stringify(buildProfile(paidFeatures)),
+    ]),
+);
 
 beforeAll(async () => {
     server = createServer((request, response) => {
@@ -75,14 +87,15 @@ beforeAll(async () => {
         }
 
         const paidFeatures = ENTITLEMENTS.get(bearer);
+        const body = paidFeatures === undefined ? undefined : PROFILE_BODIES.get(paidFeatures);
 
-        if (paidFeatures === undefined) {
+        if (body === undefined) {
             response.writeHead(401, { 'content-type': 'application/json' }).end('{"message":"Unauthorized"}');
 
             return;
         }
 
-        response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(profile(paidFeatures)));
+        response.writeHead(200, { 'content-type': 'application/json' }).end(body);
     });
 
     await new Promise<void>((resolve) => {
@@ -107,10 +120,46 @@ beforeEach(() => {
 const check = (bearer: string) =>
     assertSignerEntitled(
         { identityOrigin: origin, signerEmail: `${bearer}@pool.test`, token: async () => bearer },
-        { retry: { retries: 2, intervalMs: 10 } },
+        { retry: { retries: 2, intervalMs: 10, attemptDeadlineMs: 1_000 } },
     );
 
 describe('the signer preflight, over a real socket', () => {
+    it('⛔ gives up on a server that accepts and never answers, within (retries + 1) x (deadline + interval)', async () => {
+        const silent = createServer(() => undefined);
+
+        await new Promise<void>((resolve) => {
+            silent.listen(0, '127.0.0.1', resolve);
+        });
+
+        const retry = { retries: 1, intervalMs: 20, attemptDeadlineMs: 150 };
+        const bound = (retry.retries + 1) * (retry.attemptDeadlineMs + retry.intervalMs);
+        const started = Date.now();
+
+        try {
+            const failure = await assertSignerEntitled(
+                {
+                    identityOrigin: `http://127.0.0.1:${(silent.address() as AddressInfo).port}`,
+                    signerEmail: 'silent@pool.test',
+                    token: async () => 'granted-signer',
+                },
+                { retry },
+            ).catch((error: unknown) => error);
+
+            expect(failure).toBeInstanceOf(Error);
+            expect(isSignerNotEntitledError(failure)).toBe(false);
+            expect((failure as Error).message).toMatch(/did not complete/u);
+            // Generous slack for a loaded CI box, still orders of magnitude under the ~300 s unbounded wait.
+            expect(Date.now() - started).toBeLessThan(bound + 2_000);
+        } finally {
+            silent.closeAllConnections();
+            await new Promise<void>((resolve) => {
+                silent.close(() => {
+                    resolve();
+                });
+            });
+        }
+    });
+
     it('passes an entitled signer, asking identity as that signer', async () => {
         await expect(check('granted-signer')).resolves.toBeUndefined();
         expect(traffic).toEqual(['granted-signer GET /api/v1/users/me']);

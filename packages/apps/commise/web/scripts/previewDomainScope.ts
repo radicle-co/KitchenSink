@@ -64,6 +64,8 @@ export type HttpSender = (
         readonly headers: Readonly<Record<string, string>>;
         /** JSON payload, for the Vercel calls that have one (domain binding, deployment alias). */
         readonly body?: string;
+        /** Bounds ONE attempt: without it a server that accepts and never answers holds the caller for minutes. */
+        readonly signal?: AbortSignal;
     },
 ) => Promise<HttpResponseLike>;
 

@@ -21,6 +21,14 @@ import { userProfileSchema, type PaidFeatures } from '@kitchensink/schema-identi
 import { withoutTrailingSlashes } from './env.js';
 import { isTransientStatus } from './transientStatus.js';
 
+/**
+ * The one field this check reads, DERIVED from identity's published profile (ADR-0014: derive, never redeclare).
+ * Parsing the whole profile would make an unrelated field's drift (a new `user` column) read as "not a profile".
+ */
+const signerEntitlementBodySchema = userProfileSchema
+    .pick({ account: true })
+    .extend({ account: userProfileSchema.shape.account.pick({ paidFeatures: true }) });
+
 /** What identity says about the signer. Only `entitled` lets `provision` seed. */
 export type SignerEntitlement =
     | { readonly kind: 'entitled' }
@@ -50,16 +58,18 @@ export function isSignerNotEntitledError(error: unknown): error is SignerNotEnti
 }
 
 /**
- * Judge a `GET /api/v1/users/me` body against identity's own published schema. Pure.
+ * Judge a `GET /api/v1/users/me` body against the part of identity's published schema this check reads. Pure.
  *
  * @param body - The parsed response body.
  * @returns `entitled` only for `account.paidFeatures === 'granted'`.
  */
 export function judgeSignerEntitlement(body: unknown): SignerEntitlement {
-    const parsed = userProfileSchema.safeParse(body);
+    const parsed = signerEntitlementBodySchema.safeParse(body);
 
     if (!parsed.success) {
-        return { kind: 'unreadable', reason: 'the body is not the profile identity publishes' };
+        const where = parsed.error.issues.map((issue) => `${issue.path.join('.') || '(body)'}: ${issue.message}`);
+
+        return { kind: 'unreadable', reason: `the body is not the profile identity publishes (${where.join('; ')})` };
     }
 
     const { paidFeatures } = parsed.data.account;
@@ -71,6 +81,8 @@ export function judgeSignerEntitlement(body: unknown): SignerEntitlement {
 export interface EntitlementRetry {
     readonly retries: number;
     readonly intervalMs: number;
+    /** Bounds ONE attempt: a server that accepts and never answers would otherwise hold it for minutes. */
+    readonly attemptDeadlineMs: number;
 }
 
 /** Injected so the unit tier needs no network and no timers. */
@@ -79,8 +91,11 @@ export interface EntitlementDeps {
     readonly retry?: EntitlementRetry;
 }
 
-/** Three retries, two seconds apart: the read is idempotent, and the only thing to wait for is a task to wake. */
-const DEFAULT_RETRY: EntitlementRetry = { retries: 3, intervalMs: 2_000 };
+/**
+ * Three retries, two seconds apart, each attempt bounded at 15 s (the house figure, `deployedSmoke.ts`): the read is
+ * idempotent, and the only thing to wait for is a task to wake.
+ */
+const DEFAULT_RETRY: EntitlementRetry = { retries: 3, intervalMs: 2_000, attemptDeadlineMs: 15_000 };
 
 /** A status the stage recovers from on its own. Anything else is identity's answer and is final. */
 class TransientIdentityFailure extends Error {
@@ -114,7 +129,10 @@ export async function assertSignerEntitled(
             let response: Response;
 
             try {
-                response = await fetch(url, { headers: { Authorization: `Bearer ${await input.token()}` } });
+                response = await fetch(url, {
+                    headers: { Authorization: `Bearer ${await input.token()}` },
+                    signal: AbortSignal.timeout(retry.attemptDeadlineMs),
+                });
             } catch (error) {
                 throw new TransientIdentityFailure(
                     `${asSigner} did not complete (${error instanceof Error ? error.message : String(error)})`,

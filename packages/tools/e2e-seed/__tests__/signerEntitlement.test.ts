@@ -46,10 +46,24 @@ describe('judgeSignerEntitlement — the decision, over every answer', () => {
         ['hidden (no paid role, gate off)', profile('hidden'), 'notEntitled'],
         ['a value identity does not publish', profile('premium'), 'unreadable'],
         ['no account', { user: profile('granted')['user'] }, 'unreadable'],
+        ['an account with no paidFeatures', { account: {} }, 'unreadable'],
         ['not an object', 'granted', 'unreadable'],
         ['null', null, 'unreadable'],
     ])('%s', (_label, body, kind) => {
         expect(judgeSignerEntitlement(body).kind).toBe(kind);
+    });
+
+    it('reads only account.paidFeatures: a body with no `user` half is still judged', () => {
+        expect(judgeSignerEntitlement({ account: { paidFeatures: 'granted' } }).kind).toBe('entitled');
+        expect(judgeSignerEntitlement({ account: { paidFeatures: 'upsell' } }).kind).toBe('notEntitled');
+    });
+
+    it('⛔ names the failing path in the reason, so a drifted field is found without a debugger', () => {
+        const verdict = judgeSignerEntitlement(profile('premium'));
+
+        expect(verdict.kind).toBe('unreadable');
+        expect((verdict as { reason: string }).reason).toContain('account.paidFeatures');
+        expect((judgeSignerEntitlement({ ok: true }) as { reason: string }).reason).toContain('account');
     });
 
     it('carries the value it saw when the signer is not entitled', () => {
@@ -77,10 +91,22 @@ function identity(...answers: readonly (Response | Error)[]) {
     return { fetch: fetch as unknown as typeof globalThis.fetch, calls };
 }
 
+/** A fetch double that keeps the `signal` each attempt carried. */
+function identityRecordingSignals(answer: Response) {
+    const signals: (AbortSignal | null | undefined)[] = [];
+    const fetch = vi.fn(async (_url: string, init?: RequestInit) => {
+        signals.push(init?.signal);
+
+        return answer.clone();
+    });
+
+    return { fetch: fetch as unknown as typeof globalThis.fetch, signals };
+}
+
 const json = (status: number, body: unknown): Response =>
     new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
-const NO_WAIT = { retries: 2, intervalMs: 0 };
+const NO_WAIT = { retries: 2, intervalMs: 0, attemptDeadlineMs: 1_000 };
 const input = { identityOrigin: ORIGIN, signerEmail: SIGNER, token: async () => 'signer-token' };
 
 describe('assertSignerEntitled — read the signer, refuse with the fix', () => {
@@ -141,6 +167,15 @@ describe('assertSignerEntitled — read the signer, refuse with the fix', () => 
 
         expect((failure as Error).message).toMatch(/answered 503/u);
         expect(calls).toHaveLength(NO_WAIT.retries + 1);
+    });
+
+    it('⛔ bounds each attempt with a signal, so a server that never answers cannot hold the read', async () => {
+        const { fetch, signals } = identityRecordingSignals(json(200, profile('granted')));
+
+        await assertSignerEntitled(input, { fetch, retry: NO_WAIT });
+
+        expect(signals).toHaveLength(1);
+        expect(signals[0]).toBeInstanceOf(AbortSignal);
     });
 
     it('drops trailing slashes from the origin', async () => {

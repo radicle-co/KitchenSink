@@ -3,14 +3,16 @@
 // where every existing import site expects them — but they are no longer DEFINED here, so the lifecycle
 // vocabulary a client compiles against and the one the service uses cannot drift apart.
 //
-// `UserId` stays a SERVER-SIDE brand and is deliberately NOT published: it exists so service code cannot pass
-// an account id where a user id belongs, an invariant a client can neither establish nor benefit from. It
-// remains assignable to the wire's plain `string`, so the handlers still satisfy the published shapes.
+// `UserId` is the SERVER-SIDE brand `@kitchensink/identity-db` declares (re-exported, not copied) and is
+// deliberately NOT published: it exists so service code cannot pass an account id where a user id belongs, an
+// invariant a client can neither establish nor benefit from. It remains assignable to the wire's plain `string`,
+// so the handlers still satisfy the published shapes.
 export type { UserStatus, UserUpdateInput } from '../users/users.schema.js';
+export type { UserId } from '@kitchensink/identity-db';
+
+import type { UserId } from '@kitchensink/identity-db';
 
 import type { UserStatus } from '../users/users.schema.js';
-
-export type UserId = string & { readonly __brand: 'UserId' };
 
 /** @implements REQ-001 REQ-005 REQ-006 REQ-009 REQ-039 REQ-040 REQ-CN-008 FR-001 FR-005 FR-006 FR-009 FR-039 FR-040 ARCH-001 ARCH-003 ARCH-024 MOD-001 MOD-003 MOD-024 */
 export type UserSub = UserId;

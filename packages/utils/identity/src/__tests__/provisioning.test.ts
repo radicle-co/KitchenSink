@@ -1,7 +1,13 @@
 import { sql } from 'drizzle-orm';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
-import { provisionCompleteUser, type ProvisionDeps, type ProvisioningSchema } from '../provisioning.js';
+import {
+    provisionCompleteUser,
+    type CreatedByline,
+    type ProvisionDeps,
+    type ProvisioningSchema,
+    type ProfilesTableShape,
+} from '../provisioning.js';
 
 // Sentinel table objects — the mock db keys behavior off `__t`; the `.name`/`.picture`/`.identityId`/`.status`/
 // `.deletedAt`/`.email` stand in for Drizzle columns referenced by the `sql\`case ...\`` conflict set (the SQL
@@ -134,6 +140,17 @@ function buildMockDb(opts: MockOpts = {}) {
 
     return { deps, insertedTables, valuesByTable, conflictSets, txStatements };
 }
+
+// The byline the profile insert returns is typed BY THE COLUMNS, not cast to its shape: a retyped column (a
+// `mode: 'string'` timestamp, a nullable display name) stops compiling here instead of reaching `toISOString()`.
+describe('ProfilesTableShape — the returned byline is typed by the columns', () => {
+    it('gives each column the data CreatedByline holds', () => {
+        expectTypeOf<ProfilesTableShape['displayName']['_']['data']>().toEqualTypeOf<CreatedByline['displayName']>();
+        expectTypeOf<ProfilesTableShape['username']['_']['data']>().toEqualTypeOf<string>();
+        expectTypeOf<ProfilesTableShape['updatedAt']['_']['data']>().toEqualTypeOf<CreatedByline['stampedAt']>();
+        expectTypeOf<ProfilesTableShape['username']['_']['notNull']>().toEqualTypeOf<false>();
+    });
+});
 
 describe('provisionCompleteUser', () => {
     it('upserts the user, then the account, then the profile (one complete unit)', async () => {

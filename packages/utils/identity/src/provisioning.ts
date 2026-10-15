@@ -1,4 +1,4 @@
-import { sql, type SQL } from 'drizzle-orm';
+import { sql, type ColumnBaseConfig, type SQL } from 'drizzle-orm';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 
@@ -41,11 +41,16 @@ export interface UsersTableShape extends PgTable {
     readonly updatedAt: PgColumn;
 }
 
-/** The `profiles` columns the routine reads back from the insert. */
+/**
+ * The `profiles` columns the routine reads back from the insert — typed with the data each one holds, so the
+ * `.returning` row IS a {@link CreatedByline} and needs no cast. `username` is nullable (a user may have none);
+ * `displayName` and `updatedAt` are NOT NULL, and `updatedAt` is a timestamp in `mode: 'date'` (drizzle's default),
+ * so the driver hands back a real `Date`.
+ */
 export interface ProfilesTableShape extends PgTable {
-    readonly displayName: PgColumn;
-    readonly username: PgColumn;
-    readonly updatedAt: PgColumn;
+    readonly displayName: PgColumn<ColumnBaseConfig<'string', string> & { data: string; notNull: true }>;
+    readonly username: PgColumn<ColumnBaseConfig<'string', string> & { data: string; notNull: false }>;
+    readonly updatedAt: PgColumn<ColumnBaseConfig<'date', string> & { data: Date; notNull: true }>;
 }
 
 /** The Drizzle table objects, injected so this package never imports a service schema (KTD2). */
@@ -373,5 +378,5 @@ async function ensureAccountAndProfile(
             stampedAt: schema.profiles.updatedAt,
         });
 
-    return created === undefined || !owesCreatedByline ? undefined : (created as unknown as CreatedByline);
+    return created === undefined || !owesCreatedByline ? undefined : created;
 }

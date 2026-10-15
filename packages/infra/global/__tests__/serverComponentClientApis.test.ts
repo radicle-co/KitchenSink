@@ -303,6 +303,7 @@ function serverEntries(): readonly string[] {
 function realTreeWalk(): ReturnType<typeof serverGraphViolations> {
     const options = webCompilerOptions();
     const cache = new Map<string, ModuleFacts>();
+
     const read = (file: string): ModuleFacts => {
         const known = cache.get(file);
 
@@ -315,6 +316,7 @@ function realTreeWalk(): ReturnType<typeof serverGraphViolations> {
 
         return facts;
     };
+
     const resolve = (specifier: string, from: string): string | undefined => {
         const resolved = ts.resolveModuleName(specifier, path.join(repoRoot, from), options, ts.sys).resolvedModule;
 

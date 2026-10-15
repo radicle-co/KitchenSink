@@ -213,6 +213,11 @@ const CONTAINMENT_DISPOSITION: {
                 'Re-parses one edited line of the caller’s own job through the shared LLM pool and parse cache; the ' +
                 'same ADR-0040 Residual risk entry covers it.',
         },
+        'ParseJobsController.withdrawLines': {
+            ownerScoped:
+                'Marks lines of the caller’s own parse job withdrawn; it starts no parse and spends nothing shared, ' +
+                'and the owner predicate is the authorization (a stranger gets 404).',
+        },
         'RecipesController.create': { reaches: ['publish', 'requestVerification'] },
         'RecipesController.getNutritionBatch': {
             ownerScoped: 'Writes nothing: a batched nutrition read issued as POST so the id list travels in the body.',

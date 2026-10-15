@@ -2,7 +2,7 @@
 title: 'feat: native Google sign-in and Sign in with Apple on mobile'
 type: feat
 date: 2026-10-15
-status: blueprinted — staff-architect BLUEPRINT and staff-ux-engineer SPECIFY (2026-10-15) folded in below
+status: built (2026-10-15) — staff-architect BLUEPRINT and staff-ux-engineer SPECIFY folded in below; Maestro written, not run
 ---
 
 # Native Google sign-in and Sign in with Apple
@@ -174,6 +174,19 @@ Preserved: ADR-0009's sign-out Command, `authFailureMessage`.
 | Playwright  | none — web code is unchanged                                                                            |
 
 Real OAuth cannot be automated: it needs a real Google / Apple account and the provider's own UI.
+
+## What the build changed from the blueprint
+
+- **`AuthGate`'s signed-out state moved into its own component** (`SignedOutSurfaces`). Kept in the gate, the finish
+  step would have outlived its session and reappeared after a sign-out; a red test pinned it first.
+- **Google's colours are tokens** (`@commise/ui/brands`, `googleSignIn`), not literals in the button: the colour-roles
+  guard admits no new raw colour, and a brand colour fixed by its owner is a token, not a role.
+- **`@commise/ui/button` exports `BUTTON_VISUAL_HEIGHT`**, so the brand button stands at the `lg` height without a
+  second copy of 52.
+- **`auth/socialCancel` is recorded in `KNOWN_UNRUN_FLOWS`, not planned**: it must start signed out, so each run would
+  pay one more Clerk email-code sign-in against the budget that suite pins. The spine asserts the buttons' presence.
+- **Android hardware Back on the finish step exits the app**, as it already did on sign-in and sign-up: the back
+  provider is mounted under the gate. Not changed here.
 
 ## Residual risks
 

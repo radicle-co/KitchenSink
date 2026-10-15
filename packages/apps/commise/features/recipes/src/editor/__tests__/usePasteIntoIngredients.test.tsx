@@ -329,6 +329,30 @@ describe('usePasteIntoIngredients — a lookup that fails', () => {
 
         expect(appended(dispatch).map((line) => line.name)).toEqual(['flour', 'salt']);
     });
+
+    it('⛔ Add as written merges into the session as it stands: it does not undo a Try again made in the same batch', async () => {
+        mocks.byName.mockRejectedValueOnce(new Error('down'));
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit('2 cups flour\n1 tsp salt'));
+        accept(makeParseJob());
+        mocks.job = makeParseJob({
+            status: 'complete',
+            lines: [parsed(0, '2 cups flour', 'flour'), parsed(1, '1 tsp salt', 'salt')],
+        });
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await settle();
+        expect(result.current.reading[0]?.state).toBe('lookupFailed');
+
+        // Both presses are handled by the one render's closures, before React renders in between.
+        act(() => {
+            result.current.retryLookup();
+            result.current.addAsWritten(1);
+        });
+        await settle();
+
+        // A closure-based merge writes the stale `failedAt` back over the retry, and line 0 stays failed forever.
+        expect(result.current.reading.map((row) => row.state)).not.toContain('lookupFailed');
+    });
 });
 
 /**

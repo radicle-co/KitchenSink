@@ -294,7 +294,13 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
         const last = Math.max(...lineIndexes);
         const nextWaiting = waiting.find((row) => row.lineIndex > last) ?? waiting[0];
 
-        setSession({ ...session, typedByCook: new Set([...session.typedByCook, ...lineIndexes]) });
+        // A functional update: merge into the session AS IT STANDS, so a Try again or a join landing in the same batch
+        // is not written back over. The closure is read only for the job id, which never changes within a session.
+        setSession((current) =>
+            current === undefined
+                ? current
+                : { ...current, typedByCook: new Set([...current.typedByCook, ...lineIndexes]) },
+        );
 
         if (nextWaiting === undefined) {
             setFocusRow(undefined);

@@ -30,7 +30,7 @@ import type { JSX } from 'react';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { signUpFailure, type SignUpErrorField } from '../auth/signUpFailure.js';
+import { signUpFailure, signUpFailureCopy, type SignUpErrorField } from '../auth/signUpFailure.js';
 import {
     normalizeSignUpValue,
     SOCIAL_FINISH_FIELDS,
@@ -74,19 +74,7 @@ export function CompleteSignUpScreen({
     const [focusField, setFocusField] = useState<SignUpFieldName | null>(null);
     const [busy, setBusy] = useState(false);
 
-    const copy = {
-        networkError: t.networkError,
-        emailRequired: t.emailRequired,
-        emailInvalid: t.emailInvalid,
-        fallback: t.signUpFailed,
-        required: {
-            first_name: t.firstNameRequired,
-            last_name: t.lastNameRequired,
-            username: t.usernameRequired,
-            email_address: t.emailRequired,
-            password: t.passwordRequired,
-        },
-    };
+    const copy = signUpFailureCopy(t, t.signUpFailed);
 
     function changeField(field: SignUpFieldName, text: string) {
         setValues((current) => ({ ...current, [field]: text }));

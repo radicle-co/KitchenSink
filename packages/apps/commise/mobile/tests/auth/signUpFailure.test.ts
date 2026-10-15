@@ -8,7 +8,8 @@
 import { ClerkAPIResponseError } from '@clerk/shared/error';
 import { describe, expect, it, vi } from 'vitest';
 
-import { signUpFailure, type SignUpErrorField } from '../../src/auth/signUpFailure.js';
+import { signUpFailure, signUpFailureCopy, type SignUpErrorField } from '../../src/auth/signUpFailure.js';
+import { mobileMessages } from '../../src/i18n/messages.js';
 
 vi.mock('@clerk/expo', async () => {
     const { isClerkAPIResponseError } = await import('@clerk/shared/error');
@@ -126,5 +127,25 @@ describe('signUpFailure', () => {
 
     it('falls back to the screen’s own words for a failure that says nothing', () => {
         expect(signUpFailure({ message: '' }, TYPED_FORM, copy)).toEqual({ fields: {}, form: 'FALLBACK' });
+    });
+});
+
+describe('signUpFailureCopy', () => {
+    it('adds each field’s required message to the shared auth words', () => {
+        const { auth } = mobileMessages.en;
+
+        expect(signUpFailureCopy(auth, 'SCREEN FALLBACK')).toEqual({
+            networkError: auth.networkError,
+            emailRequired: auth.emailRequired,
+            emailInvalid: auth.emailInvalid,
+            fallback: 'SCREEN FALLBACK',
+            required: {
+                first_name: auth.firstNameRequired,
+                last_name: auth.lastNameRequired,
+                username: auth.usernameRequired,
+                email_address: auth.emailRequired,
+                password: auth.passwordRequired,
+            },
+        });
     });
 });

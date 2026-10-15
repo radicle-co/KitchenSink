@@ -13,7 +13,9 @@
  */
 import { isClerkAPIResponseError } from '@clerk/expo';
 
-import { authFailureMessage, type AuthFailureCopy } from './authFailureMessage.js';
+import type { MobileMessages } from '../i18n/messages.js';
+
+import { authFailureCopy, authFailureMessage, type AuthFailureCopy } from './authFailureMessage.js';
 import type { SignUpFieldName } from './signUpFields.js';
 
 /** A field an error can sit under: a registry field, or the typed form's password. */
@@ -23,6 +25,24 @@ export type SignUpErrorField = SignUpFieldName | 'password';
 export interface SignUpFailureCopy extends AuthFailureCopy {
     /** What each field says when it was left empty. */
     readonly required: Readonly<Record<SignUpErrorField, string>>;
+}
+
+/**
+ * @param auth - The `auth` block of the mobile messages.
+ * @param fallback - What the screen says for a failure that carries no words of its own.
+ * @returns The copy `signUpFailure` routes with: the shared auth words plus each field's required message. Pure.
+ */
+export function signUpFailureCopy(auth: MobileMessages['auth'], fallback: string): SignUpFailureCopy {
+    return {
+        ...authFailureCopy(auth, fallback),
+        required: {
+            first_name: auth.firstNameRequired,
+            last_name: auth.lastNameRequired,
+            username: auth.usernameRequired,
+            email_address: auth.emailRequired,
+            password: auth.passwordRequired,
+        },
+    };
 }
 
 /** Where each message goes. */

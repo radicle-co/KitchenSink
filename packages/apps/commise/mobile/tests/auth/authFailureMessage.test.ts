@@ -6,7 +6,8 @@
 import { ClerkAPIResponseError } from '@clerk/shared/error';
 import { describe, expect, it, vi } from 'vitest';
 
-import { authFailureMessage } from '../../src/auth/authFailureMessage.js';
+import { authFailureCopy, authFailureMessage } from '../../src/auth/authFailureMessage.js';
+import { mobileMessages } from '../../src/i18n/messages.js';
 
 // `@clerk/expo` pulls in React Native, which a node test cannot load; its `isClerkAPIResponseError` IS the shared
 // package's, so the REAL predicate stands in and the fixtures below are REAL `ClerkAPIResponseError` instances.
@@ -92,5 +93,18 @@ describe('authFailureMessage', () => {
         ['undefined', undefined],
     ])('falls back to the localized message for %s', (_name, error) => {
         expect(authFailureMessage(error, copy)).toBe('FALLBACK');
+    });
+});
+
+describe('authFailureCopy', () => {
+    it('assembles the shared words from the auth messages plus the screen’s own fallback', () => {
+        const { auth } = mobileMessages.en;
+
+        expect(authFailureCopy(auth, 'SCREEN FALLBACK')).toEqual({
+            networkError: auth.networkError,
+            emailRequired: auth.emailRequired,
+            emailInvalid: auth.emailInvalid,
+            fallback: 'SCREEN FALLBACK',
+        });
     });
 });

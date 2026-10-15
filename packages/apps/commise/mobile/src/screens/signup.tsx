@@ -34,8 +34,8 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
-import { authFailureMessage } from '../auth/authFailureMessage.js';
-import { signUpFailure, type SignUpErrorField } from '../auth/signUpFailure.js';
+import { authFailureCopy, authFailureMessage } from '../auth/authFailureMessage.js';
+import { signUpFailure, signUpFailureCopy, type SignUpErrorField } from '../auth/signUpFailure.js';
 import { normalizeSignUpValue, SIGN_UP_FIELDS, type SignUpFieldName } from '../auth/signUpFields.js';
 import { AuthCodeActions } from '../components/auth/AuthCodeActions.js';
 import { AuthCodeFields } from '../components/auth/AuthCodeFields.js';
@@ -76,22 +76,9 @@ export function SignUpScreen({ onBack, onNeedsFields }: SignUpScreenProps): JSX.
     // One lock for the whole screen: the form, the provider group and the switch link (plan 012 D10).
     const locked = busy || social.busyProvider !== null;
 
-    const copyFor = (fallback: string) => ({
-        networkError: t.networkError,
-        emailRequired: t.emailRequired,
-        emailInvalid: t.emailInvalid,
-        fallback,
-    });
-    const failureCopy = {
-        ...copyFor(t.signUpFailed),
-        required: {
-            first_name: t.firstNameRequired,
-            last_name: t.lastNameRequired,
-            username: t.usernameRequired,
-            email_address: t.emailRequired,
-            password: t.passwordRequired,
-        },
-    };
+    const failureCopy = signUpFailureCopy(t, t.signUpFailed);
+    const sendCodeCopy = authFailureCopy(t, t.sendCodeFailed);
+    const verifyCopy = authFailureCopy(t, t.verifyFailed);
 
     function changeField(field: SignUpErrorField, text: string) {
         if (field === 'password') {
@@ -124,7 +111,7 @@ export function SignUpScreen({ onBack, onNeedsFields }: SignUpScreenProps): JSX.
         const sendResult = await signUp.verifications.sendEmailCode();
 
         if (sendResult.error) {
-            setError(authFailureMessage(sendResult.error, copyFor(t.sendCodeFailed)));
+            setError(authFailureMessage(sendResult.error, sendCodeCopy));
 
             return false;
         }
@@ -240,14 +227,14 @@ export function SignUpScreen({ onBack, onNeedsFields }: SignUpScreenProps): JSX.
             const result = await signUp.verifications.verifyEmailCode({ code });
 
             if (result.error) {
-                setError(authFailureMessage(result.error, copyFor(t.verifyFailed)));
+                setError(authFailureMessage(result.error, verifyCopy));
 
                 return;
             }
 
             await finishSignUp();
         } catch (e) {
-            setError(authFailureMessage(e, copyFor(t.verifyFailed)));
+            setError(authFailureMessage(e, verifyCopy));
         } finally {
             setBusy(false);
         }
@@ -260,7 +247,7 @@ export function SignUpScreen({ onBack, onNeedsFields }: SignUpScreenProps): JSX.
         try {
             await sendVerificationCode();
         } catch (e) {
-            setError(authFailureMessage(e, copyFor(t.sendCodeFailed)));
+            setError(authFailureMessage(e, sendCodeCopy));
         } finally {
             setBusy(false);
         }

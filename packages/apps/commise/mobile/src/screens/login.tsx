@@ -28,7 +28,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
-import { authFailureMessage } from '../auth/authFailureMessage.js';
+import { authFailureCopy, authFailureMessage } from '../auth/authFailureMessage.js';
 import { AuthCodeActions } from '../components/auth/AuthCodeActions.js';
 import { AuthCodeFields } from '../components/auth/AuthCodeFields.js';
 import { AuthHeader } from '../components/auth/AuthHeader.js';
@@ -60,15 +60,9 @@ export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.
     // One lock for the whole screen: the email form, the provider group and the switch link (plan 012 D10).
     const locked = busy || social.busyProvider !== null;
 
-    const copyFor = (fallback: string) => ({
-        networkError: t.networkError,
-        emailRequired: t.emailRequired,
-        emailInvalid: t.emailInvalid,
-        fallback,
-    });
-    const signInCopy = copyFor(t.signInFailed);
-
-    const codeCopy = copyFor(t.sendCodeFailed);
+    const signInCopy = authFailureCopy(t, t.signInFailed);
+    const codeCopy = authFailureCopy(t, t.sendCodeFailed);
+    const verifyCopy = authFailureCopy(t, t.verifyFailed);
 
     // Send the second-factor email code. Returns true when a code is on its way.
     async function sendSecondFactorCode(): Promise<boolean> {
@@ -202,14 +196,14 @@ export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.
             const result = await signIn.mfa.verifyEmailCode({ code });
 
             if (result.error) {
-                setError(authFailureMessage(result.error, copyFor(t.verifyFailed)));
+                setError(authFailureMessage(result.error, verifyCopy));
 
                 return;
             }
 
             await finishSignIn();
         } catch (e) {
-            setError(authFailureMessage(e, copyFor(t.verifyFailed)));
+            setError(authFailureMessage(e, verifyCopy));
         } finally {
             setBusy(false);
         }

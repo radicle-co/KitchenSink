@@ -31,6 +31,7 @@ import Constants from 'expo-constants';
 import { useState } from 'react';
 import { Platform } from 'react-native';
 
+import { authFailureCopy } from '../auth/authFailureMessage.js';
 import { readSocialAuthConfig, socialProvidersFor, type SocialProvider } from '../auth/socialAuthConfig.js';
 import { socialAuthFailure } from '../auth/socialAuthFailure.js';
 import type { SignUpFieldSpec } from '../auth/signUpFields.js';
@@ -75,10 +76,7 @@ export function useSocialSignIn(onNeedsFields: (pending: PendingSignUp) => void)
 
     const providers = socialProvidersFor(readSocialAuthConfig(Constants.expoConfig?.extra), Platform.OS);
     const copy = {
-        networkError: t.networkError,
-        emailRequired: t.emailRequired,
-        emailInvalid: t.emailInvalid,
-        fallback: t.signInFailed,
+        ...authFailureCopy(t, t.signInFailed),
         googleUnavailable: t.googleUnavailable,
         appleUnavailable: t.appleUnavailable,
         socialFailed: t.socialFailed,

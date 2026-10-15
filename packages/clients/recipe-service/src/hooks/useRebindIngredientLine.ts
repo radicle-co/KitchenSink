@@ -2,8 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import type { RebindIngredientLineRequest } from '@kitchensink/schema-recipe';
 
-import { recipeServiceKeys } from '../queries.js';
 import { useRecipeServiceClient } from './recipeServiceProvider.js';
+import { applyRecipeUpdated } from './recipeWriteCache.js';
 
 /**
  * `POST /api/v1/recipes/{id}/ingredients/{position}/rebind` — move one line to another food (plan 002 U5).
@@ -22,14 +22,6 @@ export function useRebindIngredientLine() {
     return useMutation({
         mutationFn: (vars: { id: string; position: number; body: RebindIngredientLineRequest }) =>
             client.rebindIngredientLine(vars.id, vars.position, vars.body),
-        onSuccess: async (data, vars) => {
-            // Cancel an in-flight detail GET first, so a stale fetch settling afterwards cannot overwrite the answer.
-            await queryClient.cancelQueries({ queryKey: recipeServiceKeys.recipe(vars.id) });
-            queryClient.setQueryData(recipeServiceKeys.recipe(vars.id), data);
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeVersions(vars.id) });
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collections });
-        },
+        onSuccess: (data) => applyRecipeUpdated(queryClient, data),
     });
 }

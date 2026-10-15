@@ -38,6 +38,8 @@ import {
     maestroErasureSlots,
     maestroSlotForShard,
     POOL_PASSWORD,
+    ROLE_LANE_IDS,
+    slotFor,
     type MaestroPlatform,
 } from '@kitchensink/e2e-fixtures/testPool';
 import { MAX_SEARCH_FOOD_FILTERS } from '@kitchensink/schema-recipe';
@@ -322,6 +324,12 @@ export const FIXTURE_ENV_KEYS = {
     privateFoodRecipe: 'E2E_RECIPE_PRIVATE_FOOD',
     privateFoodName: 'E2E_PRIVATE_FOOD_NAME',
     capFoodPrefix: 'E2E_CAP_FOOD_PREFIX',
+    // The `roles` tier's users (plan 2026-10-14-009 D12), for `recipes/paidFeaturesByRole.yaml`. Read-only users with
+    // no lease, so the same address on every run and shard; it comes from the roster, never a literal.
+    roleDefaultEmail: 'E2E_ROLE_DEFAULT_EMAIL',
+    rolePremiumEmail: 'E2E_ROLE_PREMIUM_EMAIL',
+    roleVipEmail: 'E2E_ROLE_VIP_EMAIL',
+    roleSuperuserEmail: 'E2E_ROLE_SUPERUSER_EMAIL',
 } as const;
 
 /** A key of {@link FIXTURE_ENV_KEYS}. */
@@ -452,5 +460,9 @@ export function manifestToEnvLines(manifest: FixtureManifest, erasureEmail: stri
         `${FIXTURE_ENV_KEYS.privateFoodRecipe}=${manifest.privateFoodRecipe.title}`,
         `${FIXTURE_ENV_KEYS.privateFoodName}=${manifest.privateFoodName}`,
         `${FIXTURE_ENV_KEYS.capFoodPrefix}=${manifest.capFoodPrefix}`,
+        `${FIXTURE_ENV_KEYS.roleDefaultEmail}=${slotFor('roles', ROLE_LANE_IDS.default).email}`,
+        `${FIXTURE_ENV_KEYS.rolePremiumEmail}=${slotFor('roles', ROLE_LANE_IDS.premium).email}`,
+        `${FIXTURE_ENV_KEYS.roleVipEmail}=${slotFor('roles', ROLE_LANE_IDS.vip).email}`,
+        `${FIXTURE_ENV_KEYS.roleSuperuserEmail}=${slotFor('roles', ROLE_LANE_IDS.superuser).email}`,
     ];
 }

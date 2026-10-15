@@ -42,6 +42,7 @@ import {
     RecipeIngredientsFields,
     RecipeInstructionsFields,
     RecipeVisibilityField,
+    RecipeVisibilityStatement,
     sectionFromHash,
     useDeviceDraft,
     usePrivateChoice,
@@ -55,7 +56,8 @@ import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { useSyncQueue } from '@commise/query/sync';
 import { useAuth } from '@clerk/nextjs';
-import { canGoPrivate, makeViewer } from '@kitchensink/recipe-core';
+import { paidFeatureStateOf } from '@commise/features-account';
+import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { isLocalRef, outboxMutatorFor } from '@kitchensink/sync';
@@ -335,9 +337,7 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
     const router = useRouter();
     const queue = useSyncQueue();
     const profile = useUserProfile();
-    const { userId } = useAuth();
     const [initialSection] = useState<EditorSectionId | undefined>(() => sectionFromHash(window.location.hash));
-    const viewer = makeViewer({ id: userId ?? undefined, subscriptionTier: profile.data?.account.subscriptionTier });
     // The session's navigation port, on the Next router.
     const navigation: EditorNavigation = {
         // E8: how the editor finished goes to the recipe page in a one-shot parameter (a snackbar raised here would die
@@ -360,12 +360,12 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
     });
     const { editor, paste } = session;
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
-    // E1: Private for a free-tier cook opens the Premium sheet; a profile still loading is not the free tier (§6.4 F8).
+    // E1 + plan 2026-10-14-009 D14: Private from the viewer's paid features alone — applied when granted, the Premium sheet
+    // under upsell, the plain statement when hidden or still loading. "Saved" is what the server held when the editor
+    // opened (a new recipe is public), so a choice back to it needs no entitlement.
     const privateChoice = usePrivateChoice({
-        profile:
-            profile.data !== undefined || profile.isError
-                ? { status: 'settled', mayGoPrivate: canGoPrivate(viewer) }
-                : { status: 'loading' },
+        state: paidFeatureStateOf(profile),
+        saved: seed.recipe?.visibility ?? RecipeVisibility.PUBLIC,
         values: editor.values,
         onChange: editor.setValues,
     });
@@ -413,12 +413,16 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
                         cuisine={editor.values.cuisine}
                     />
                 )}
-                <RecipeVisibilityField
-                    values={editor.values}
-                    onChange={editor.setValues}
-                    canGoPrivate={privateChoice.canGoPrivate}
-                    onPremiumRequired={privateChoice.onPremiumRequired}
-                />
+                {privateChoice.offersPrivate ? (
+                    <RecipeVisibilityField
+                        values={editor.values}
+                        onChange={editor.setValues}
+                        {...privateChoice.field}
+                        onPremiumRequired={privateChoice.onPremiumRequired}
+                    />
+                ) : (
+                    <RecipeVisibilityStatement />
+                )}
             </>
         ),
     };

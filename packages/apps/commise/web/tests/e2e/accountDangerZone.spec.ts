@@ -50,7 +50,7 @@ test.describe('account danger zone — closure vs erasure (CR-002/U4b)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [
                 // Owner-only (private) — OFFERED in the donate election.
                 makeRecipeDetail({

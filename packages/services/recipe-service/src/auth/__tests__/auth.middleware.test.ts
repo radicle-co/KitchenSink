@@ -30,6 +30,7 @@ const makeClaims = (overrides: Partial<VerifiedClerkClaims> = {}): VerifiedClerk
     picture: 'https://cdn.commise.app/a.png',
     scopes: [],
     permissions: [],
+    roles: ['vip'],
     testPrincipal: false,
     ...overrides,
 });
@@ -124,6 +125,8 @@ describe('AuthMiddleware', () => {
             picture: claims.picture,
             scopes: claims.scopes,
             permissions: claims.permissions,
+            // Carried verbatim from the verified claim (a non-empty fixture, so dropping them fails).
+            roles: ['vip'],
             principalKind: 'real',
             containment: 'enforce',
         });

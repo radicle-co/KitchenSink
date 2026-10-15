@@ -32,6 +32,7 @@ import {
     RecipeIngredientsFields,
     RecipeInstructionsFields,
     RecipeVisibilityField,
+    RecipeVisibilityStatement,
     useDeviceDraft,
     usePrivateChoice,
     useRecipeEditorSession,
@@ -46,7 +47,8 @@ import { QueryBoundary } from '@commise/query/boundary';
 import { useSyncQueue } from '@commise/query/sync';
 import { Button } from '@commise/ui/button';
 import { useAuth } from '@clerk/expo';
-import { canGoPrivate, makeViewer, type RecipeDetail } from '@kitchensink/recipe-core';
+import { paidFeatureStateOf } from '@commise/features-account';
+import { RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQuery } from '@tanstack/react-query';
@@ -194,7 +196,6 @@ function RecipeEditorSession({
     const locale = useLocale();
     const queue = useSyncQueue();
     const profile = useUserProfile();
-    const viewer = makeViewer({ subscriptionTier: profile.data?.account.subscriptionTier });
     // The session's navigation port, on the route's hand-offs: leaving for the recipe goes back where it was opened.
     const navigation: EditorNavigation = {
         finished: onFinished,
@@ -214,12 +215,12 @@ function RecipeEditorSession({
     });
     const { editor, paste } = session;
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
-    // E1: Private for a free-tier cook opens the Premium sheet; a profile still loading is not the free tier (§6.4 F8).
+    // E1 + plan 2026-10-14-009 D14: Private from the viewer's paid features alone — applied when granted, the Premium sheet
+    // under upsell, the plain statement when hidden or still loading. "Saved" is what the server held when the editor
+    // opened (a new recipe is public), so a choice back to it needs no entitlement. The web editor reads the same.
     const privateChoice = usePrivateChoice({
-        profile:
-            profile.data !== undefined || profile.isError
-                ? { status: 'settled', mayGoPrivate: canGoPrivate(viewer) }
-                : { status: 'loading' },
+        state: paidFeatureStateOf(profile),
+        saved: seed.recipe?.visibility ?? RecipeVisibility.PUBLIC,
         values: editor.values,
         onChange: editor.setValues,
     });
@@ -267,12 +268,16 @@ function RecipeEditorSession({
                         cuisine={editor.values.cuisine}
                     />
                 )}
-                <RecipeVisibilityField
-                    values={editor.values}
-                    onChange={editor.setValues}
-                    canGoPrivate={privateChoice.canGoPrivate}
-                    onPremiumRequired={privateChoice.onPremiumRequired}
-                />
+                {privateChoice.offersPrivate ? (
+                    <RecipeVisibilityField
+                        values={editor.values}
+                        onChange={editor.setValues}
+                        {...privateChoice.field}
+                        onPremiumRequired={privateChoice.onPremiumRequired}
+                    />
+                ) : (
+                    <RecipeVisibilityStatement />
+                )}
             </>
         ),
     };

@@ -51,7 +51,7 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
             ingredients: [...sauceLines],
         });
 
-        const store = await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [ambiguous] });
+        const store = await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [ambiguous] });
         const searches = await mockFoodApi(page, {
             catalog: () => [{ id: E2E_CATALOG_FOOD.foodId, name: E2E_CATALOG_FOOD.name, score: 0.9 }],
             authored: ownFoodLedger([{ id: 'food_mine_sauce', name: 'apple sauce, homemade', score: 0.8 }]),
@@ -118,7 +118,7 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
             ingredients: [...sauceLines],
         });
 
-        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [someoneElses] });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [someoneElses] });
 
         await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000004'));
         await expect(page.getByRole('heading', { name: 'Someone Else’s Probe' })).toBeVisible();
@@ -148,7 +148,7 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
             ],
         });
 
-        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [withPrivate] });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [withPrivate] });
 
         await page.goto(route('/recipes/ec000000-0000-4000-8000-00000000001a'));
         // The stand-in IS the line's name, and names the row's checkbox — never "undefined".

@@ -10,7 +10,7 @@ vi.mock('@kitchensink/identity-service/users/handle-sync-publisher', () => ({
 
 vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
 vi.mock('../../common/svix.js', () => ({ verifyWebhook: vi.fn() }));
-vi.mock('../../common/identityClient.js', () => ({ setExternalId: vi.fn() }));
+vi.mock('../../common/identityClient.js', () => ({ setExternalId: vi.fn(), ensureDefaultRole: vi.fn() }));
 vi.mock('../../common/provisioning.js', () => ({ buildProvisionDeps: vi.fn(() => ({})) }));
 vi.mock('@kitchensink/identity-utils', () => ({ provisionCompleteUser: vi.fn() }));
 
@@ -52,7 +52,7 @@ import { UserDAO, recordOnce, hasProcessedWebhookEvent } from '@kitchensink/iden
 
 import { handler as rawHandler } from '../identityWebhook.js';
 import { getDb } from '../../common/db.js';
-import { setExternalId } from '../../common/identityClient.js';
+import { ensureDefaultRole, setExternalId } from '../../common/identityClient.js';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
 import { captureProvisioningFailure, emitMetric, logger } from '../../common/observability.js';
 import { verifyWebhook } from '../../common/svix.js';
@@ -66,6 +66,7 @@ const mockVerifyWebhook = vi.mocked(verifyWebhook);
 const mockRecordOnce = vi.mocked(recordOnce);
 const mockHasProcessed = vi.mocked(hasProcessedWebhookEvent);
 const mockSetExternalId = vi.mocked(setExternalId);
+const mockEnsureDefaultRole = vi.mocked(ensureDefaultRole);
 const mockProvisionCompleteUser = vi.mocked(provisionCompleteUser);
 
 const makeContext = (): Context => ({ awsRequestId: 'test-req-id' }) as unknown as Context;
@@ -701,5 +702,85 @@ describe('identity-webhook handler', () => {
 
         expect(mockVerifyWebhook).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'whsec_test');
         expect(mockGetDb).toHaveBeenCalledWith();
+    });
+});
+
+/**
+ * The sign-up role writer (plan 2026-10-14-009 D10, owner ruling 2026-10-13): `default` is WRITTEN at sign-up. It
+ * runs for every `user.created` — whatever happened to the local row — because the role belongs to the Clerk user,
+ * and a failure fails the delivery so svix retries it (every step before it is idempotent).
+ */
+describe('identity-webhook handler — the default role', () => {
+    beforeEach(() => {
+        mockEnsureDefaultRole.mockReset();
+        mockEnsureDefaultRole.mockResolvedValue('written');
+        mockRecordOnce.mockClear();
+        mockHasProcessed.mockResolvedValue(false);
+        mockProvisionCompleteUser.mockResolvedValue({
+            kind: 'complete',
+            user: { id: 'usr_ulid', identityId: 'user_abc123', email: 'test@example.com' },
+        } as never);
+        mockSetExternalId.mockResolvedValue(undefined);
+    });
+
+    it('user.created gives the Clerk user its default role', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+
+        const result = await handler(
+            makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_role' }),
+            makeContext(),
+        );
+
+        expect(result.statusCode).toBe(200);
+        expect(mockEnsureDefaultRole).toHaveBeenCalledExactlyOnceWith('user_abc123');
+    });
+
+    it('⛔ a failed role write fails the delivery and is NOT recorded, so svix retries it', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        mockEnsureDefaultRole.mockRejectedValue(new Error('Clerk 503'));
+
+        await expect(
+            handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_role_fail' }), makeContext()),
+        ).rejects.toThrow('Clerk 503');
+        expect(mockRecordOnce).not.toHaveBeenCalled();
+    });
+
+    it('still writes the role when the email belongs to another identity (the local row is skipped)', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        mockProvisionCompleteUser.mockResolvedValue({ kind: 'incomplete', reason: 'email-collision' } as never);
+
+        await handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_role_collide' }), makeContext());
+
+        expect(mockEnsureDefaultRole).toHaveBeenCalledExactlyOnceWith('user_abc123');
+    });
+
+    it('a duplicate delivery writes nothing', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        mockHasProcessed.mockResolvedValue(true);
+
+        await handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_role_dup' }), makeContext());
+
+        expect(mockEnsureDefaultRole).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['user.updated', userUpdatedPayload],
+        ['user.deleted', userDeletedPayload],
+    ])('%s never writes a role', async (_type, payload) => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(payload as never);
+
+        await handler(makeEvent(JSON.stringify(payload), { 'svix-id': 'msg_role_other' }), makeContext());
+
+        expect(mockEnsureDefaultRole).not.toHaveBeenCalled();
     });
 });

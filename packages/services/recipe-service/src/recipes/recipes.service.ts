@@ -144,8 +144,6 @@ function storedLineToVerifiable(
     };
 }
 
-export { PREMIUM_PERMISSION } from '../auth/principal.js';
-
 /**
  * Refuse a write that would leave a recipe published without what Publish needs (`domain/publishPolicy.ts`).
  *
@@ -506,7 +504,7 @@ export class RecipesService {
      * set-visibility endpoint uses — now against the RESOLVED provenance: a free-tier caller requesting
      * `private` is rejected with `INVALID_VISIBILITY` (FR-003 — free-tier user_created recipes are
      * public-only), rather than silently persisting a `private` row the policy forbids. Premium is
-     * derived from the signed token's `permissions` (see `PREMIUM_PERMISSION` in `auth/principal.ts`).
+     * derived from the signed token's roles (`isPremiumPrincipal` in `auth/principal.ts`).
      */
     public async create(
         principal: Principal,
@@ -1301,7 +1299,7 @@ export class RecipesService {
     /**
      * Set a recipe's visibility (C-004 / T050), owner-only, gated by the pure {@link evaluateVisibility}
      * policy over `(sourceType, isPremium, hasSubstantiveEdit, requested)`. Premium is derived from the
-     * principal's `permissions` (see `PREMIUM_PERMISSION` in `auth/principal.ts`) — there is no tier field until 010. A
+     * principal's roles (`isPremiumPrincipal` in `auth/principal.ts`). A
      * denied transition throws `INVALID_VISIBILITY` (→ 400); an allowed one persists without bumping the
      * content version.
      */

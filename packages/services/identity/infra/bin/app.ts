@@ -104,8 +104,14 @@ new IdentitySchemaStack(app, `kitchensink-identity-schema-${stage}`, {
 // Enforced by `packages/infra/global/__tests__/alarmFeatureFlag.test.ts`.
 const alarmsEnabled = process.env['ALARMS_ENABLED'] === 'true';
 
+// ⛔ THE PAID-FEATURES GATE, RESOLVED AT SYNTH TIME, DEFAULT OFF (plan 2026-10-14-009 D9). The truth is the owner's
+// GitHub variable for this stage; `.github/scripts/resolvePaidFeaturesGate.sh` exports it, and only the exact string
+// `true` turns it on. Unset is `false`, which shows no upsell and never takes a paid feature from an entitled role.
+const paidFeaturesGate = process.env['PAID_FEATURES_GATE'] === 'true';
+
 new IdentityServiceStack(app, `IdentityService-${stage}`, {
     alarmsEnabled,
+    paidFeaturesGate,
     // R3.2 / U11 — the alarm recipient, per-stage config and never a committed literal.
     alertEmail: process.env['COST_ALERT_EMAIL'],
     env,

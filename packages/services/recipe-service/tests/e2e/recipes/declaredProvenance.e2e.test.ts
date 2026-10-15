@@ -75,6 +75,7 @@ function principal(grants: { scopes?: string[]; permissions?: string[] } = {}): 
         sub: `test:${CURATOR}`,
         scopes: grants.scopes ?? [],
         permissions: grants.permissions ?? [],
+        roles: [],
         principalKind: 'real',
         containment: 'enforce',
     };

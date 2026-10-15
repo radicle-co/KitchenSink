@@ -64,7 +64,7 @@ console.error(
         : `e2e-seed provision: erasure subject is pool slot ${erasure.slot.id}`,
 );
 
-// ⚠️ The SIGNER slot carries `premium` (the roster declares it), so the recipe service accepts the two PRIVATE
+// ⚠️ The SIGNER slot carries the `premium` ROLE (the roster declares it), so the recipe service accepts the two PRIVATE
 // recipes the seeded world contains. Without it `evaluateVisibility` denies a free-tier `user_created` private
 // create outright, and three of the flows' anchors would have to become public — changing what those flows prove.
 const signerSession = (

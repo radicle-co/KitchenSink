@@ -59,7 +59,7 @@ async function openProfile(
         await request.fulfill({
             json: {
                 user: makeUserProfileUser({ id: viewerId, displayName, email: options.email ?? 'eliza@example.com' }),
-                account: makeUserProfileAccount({ userId: viewerId, subscriptionTier: 'premium' }),
+                account: makeUserProfileAccount({ userId: viewerId, paidFeatures: 'granted' }),
             },
         });
     });

@@ -75,7 +75,13 @@ describe('FoodAuthGuard', () => {
     it('sets req.user from the verified sub and calls next once on success', async () => {
         // REWRITTEN for ADR-0040: the attached principal now carries the verified `testPrincipal` claim, so the
         // whole-object assertion pins it too — a guard that dropped the field would fail here, not compile past it.
-        mockVerify.mockResolvedValue({ sub: 'user_1', scopes: ['food:admin'], permissions: [], testPrincipal: false });
+        mockVerify.mockResolvedValue({
+            sub: 'user_1',
+            scopes: ['food:admin'],
+            permissions: [],
+            roles: [],
+            testPrincipal: false,
+        });
         const guard = new FoodAuthGuard();
         const req = makeReq({ authorization: 'Bearer good' });
         const next = vi.fn() as unknown as NextFunction;
@@ -99,6 +105,7 @@ describe('FoodAuthGuard', () => {
             userId: '01J9ZK8N7QF3B2X4M6T0V5C1AB',
             scopes: [],
             permissions: [],
+            roles: [],
             testPrincipal: true,
         });
         const guard = new FoodAuthGuard();
@@ -110,7 +117,13 @@ describe('FoodAuthGuard', () => {
     });
 
     it('ignores a forged testPrincipal header — only the verified claim reaches req.user (ADR-0040)', async () => {
-        mockVerify.mockResolvedValue({ sub: 'user_real', scopes: [], permissions: [], testPrincipal: false });
+        mockVerify.mockResolvedValue({
+            sub: 'user_real',
+            scopes: [],
+            permissions: [],
+            roles: [],
+            testPrincipal: false,
+        });
         const guard = new FoodAuthGuard();
         const req = makeReq({ authorization: 'Bearer real', 'x-test-principal': 'true' });
 
@@ -126,6 +139,7 @@ describe('FoodAuthGuard', () => {
             userId: ulid,
             scopes: [],
             permissions: [],
+            roles: [],
             testPrincipal: false,
         });
         const guard = new FoodAuthGuard();
@@ -138,7 +152,7 @@ describe('FoodAuthGuard', () => {
     });
 
     it('ignores a forged x-debug-sub / x-authorizer-context and trusts only the verified token', async () => {
-        mockVerify.mockResolvedValue({ sub: 'real_sub', scopes: [], permissions: [], testPrincipal: false });
+        mockVerify.mockResolvedValue({ sub: 'real_sub', scopes: [], permissions: [], roles: [], testPrincipal: false });
         const guard = new FoodAuthGuard();
         const req = makeReq({
             authorization: 'Bearer good',
@@ -161,7 +175,7 @@ describe('FoodAuthGuard', () => {
                 throw new ClerkVerificationError();
             }
 
-            return { sub: 'user_1', scopes: [], permissions: [], testPrincipal: false };
+            return { sub: 'user_1', scopes: [], permissions: [], roles: [], testPrincipal: false };
         });
         const guard = new FoodAuthGuard();
         const next = vi.fn() as unknown as NextFunction;
@@ -178,6 +192,7 @@ describe('FoodAuthGuard', () => {
             azp: 'svc-client-id',
             scopes: [],
             permissions: [],
+            roles: [],
             testPrincipal: false,
         });
         const guard = new FoodAuthGuard();
@@ -203,7 +218,7 @@ describe('FoodAuthGuard', () => {
             mockVerify.mockImplementation(async (_token, config) => {
                 captured = (config as { authorizedPartyPattern?: RegExp }).authorizedPartyPattern;
 
-                return { sub: 'u', scopes: [], permissions: [], testPrincipal: false };
+                return { sub: 'u', scopes: [], permissions: [], roles: [], testPrincipal: false };
             });
             await new FoodAuthGuard().use(makeReq({ authorization: 'Bearer good' }), {} as Response, vi.fn() as never);
 

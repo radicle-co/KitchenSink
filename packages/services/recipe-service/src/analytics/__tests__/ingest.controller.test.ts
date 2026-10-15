@@ -32,6 +32,7 @@ const OWNER = {
     sub: 'user_clerk',
     scopes: [],
     permissions: [],
+    roles: [],
     principalKind: 'real',
     containment: 'enforce',
 } as const satisfies Principal;

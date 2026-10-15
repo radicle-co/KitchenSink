@@ -25,7 +25,7 @@ test.describe('add-ingredient loop (plan U28, B8)', () => {
     test('the trailing field adds no row until a food is picked, and a pick completes the line', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         await mockFoodApi(page);
 
         await openNewRecipe(page);

@@ -136,6 +136,7 @@ describe('food CORS on the real routes (booted Nest, persistence doubled)', () =
             sub: 'user_cors_throttled',
             scopes: [],
             permissions: [],
+            roles: [],
             testPrincipal: false,
         }));
 

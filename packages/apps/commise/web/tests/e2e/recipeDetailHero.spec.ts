@@ -43,7 +43,7 @@ async function openRecipeWithPhotos(page: Page): Promise<void> {
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, {
         viewerId,
-        tier: 'premium',
+        paidFeatures: 'granted',
         recipes: [
             makeRecipeDetail({
                 id: 'ec000000-0000-4000-8000-00000000000f',
@@ -139,7 +139,7 @@ test.describe('recipe-detail hero', () => {
         // or a quick capture is in, which is why the fallback is a DESIGNED state and not an error path.
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [
                 makeRecipeDetail({
                     id: 'ec000000-0000-4000-8000-000000000006',

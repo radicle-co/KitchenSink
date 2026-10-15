@@ -35,7 +35,8 @@ const makeRecipeDetail = (...[overrides]: Parameters<typeof makeBaseRecipeDetail
 const { pushMock, replaceMock, profile, auth } = vi.hoisted(() => ({
     pushMock: vi.fn(),
     replaceMock: vi.fn(),
-    profile: { tier: undefined as string | undefined },
+    // `undefined` = the profile read is still pending; `'failed'` = it errored with no cached answer.
+    profile: { paidFeatures: undefined as 'granted' | 'upsell' | 'hidden' | 'failed' | undefined },
     auth: { userId: 'user_cook' },
 }));
 
@@ -45,9 +46,12 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('@clerk/nextjs', () => ({ useAuth: () => ({ userId: auth.userId }) }));
 vi.mock('@/hooks/useUserProfile', () => ({
-    useUserProfile: () => ({
-        data: profile.tier === undefined ? undefined : { account: { subscriptionTier: profile.tier } },
-    }),
+    useUserProfile: () =>
+        profile.paidFeatures === undefined
+            ? { status: 'pending', data: undefined }
+            : profile.paidFeatures === 'failed'
+              ? { status: 'error', data: undefined }
+              : { status: 'success', data: { account: { paidFeatures: profile.paidFeatures } } },
 }));
 // The photo uploader is its own container, covered by its own suite.
 // The spy records the props the editor hands it, so the empty-state cover test below can read them.
@@ -65,7 +69,7 @@ afterEach(() => {
     pushMock.mockReset();
     replaceMock.mockReset();
     vi.restoreAllMocks();
-    profile.tier = undefined;
+    profile.paidFeatures = undefined;
     auth.userId = 'user_cook';
     window.sessionStorage.clear();
     window.history.replaceState(null, '', '/');
@@ -205,7 +209,7 @@ describe('RecipeEditorContainer (web)', () => {
     });
 
     it('a new recipe published private, that the server holds public, is made private', async () => {
-        profile.tier = 'premium';
+        profile.paidFeatures = 'granted';
         const ref = 'local:recipe:visibility';
         // A draft keeps no photo picks (`DraftValues`).
         const { photos: _photos, ...values } = {
@@ -277,17 +281,21 @@ describe('RecipeEditorContainer (web)', () => {
  * local ref and then the server id; the new route, reopened on a recipe the server holds, goes to its edit route.
  */
 /**
- * E1 (build spec §6.4, §7.7 item 2): choosing Private did nothing for a free-tier cook, because no host passed
- * `onPremiumRequired` and no recipe upsell existed. It opens the Premium sheet now; a Premium cook gets Private; and a
- * profile that is still loading is not the free tier (§6.4 F8).
+ * E1 (build spec §6.4, §7.7 item 2) + plan 2026-10-14-009 D14: "Who can see it" renders from the viewer's paid features
+ * alone (owner ruling 2026-10-13). `upsell` opens the Premium sheet for Private; `granted` gets Private; `hidden`, a
+ * failed profile read and a profile still loading show the plain "Who can see it: Public" statement — no Private, no
+ * Premium, no upsell.
+ *
+ * REWRITTEN 2026-10-14: the loading case used to assert a Private tap that waited; loading now fails closed to the
+ * statement, so there is no Private to tap.
  */
-describe('RecipeEditorContainer (web) — Private (E1)', () => {
+describe('RecipeEditorContainer (web) — Private (E1, paid features)', () => {
     const choosePrivate = async (): Promise<void> => {
         await userEvent.click(await screen.findByRole('radio', { name: /^Private/u }));
     };
 
-    it('⛔ tells a free-tier cook why: the Premium sheet opens, and Public stays chosen', async () => {
-        profile.tier = 'free';
+    it('⛔ under upsell, the Premium sheet opens for Private, and Public stays chosen', async () => {
+        profile.paidFeatures = 'upsell';
         renderEditor(createFakeRecipeServiceClient());
 
         await choosePrivate();
@@ -298,7 +306,7 @@ describe('RecipeEditorContainer (web) — Private (E1)', () => {
     });
 
     it('Not now closes the sheet and leaves the recipe public', async () => {
-        profile.tier = 'free';
+        profile.paidFeatures = 'upsell';
         renderEditor(createFakeRecipeServiceClient());
         await choosePrivate();
 
@@ -308,25 +316,34 @@ describe('RecipeEditorContainer (web) — Private (E1)', () => {
         expect((screen.getByRole('radio', { name: /^Public/u }) as HTMLInputElement).checked).toBe(true);
     });
 
-    it('lets a Premium cook choose Private, with no sheet', async () => {
-        profile.tier = 'premium';
+    it('lets a granted cook choose Private, with no sheet and no Premium badge', async () => {
+        profile.paidFeatures = 'granted';
         renderEditor(createFakeRecipeServiceClient());
 
         await choosePrivate();
 
         expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
         expect(screen.queryByRole('dialog', { name: /Premium/u })).toBeNull();
+        expect(screen.queryByText('Premium')).toBeNull();
     });
 
-    it('⛔ never sends a loading profile to the upsell: no sheet until it settles', async () => {
-        profile.tier = undefined;
-        renderEditor(createFakeRecipeServiceClient());
+    it.each([
+        ['hidden', 'hidden'],
+        ['a failed profile read', 'failed'],
+        ['a profile still loading', undefined],
+    ] as const)(
+        '⛔ under %s, says "Who can see it: Public" and offers no Private and no Premium',
+        async (_label, state) => {
+            profile.paidFeatures = state;
+            renderEditor(createFakeRecipeServiceClient());
 
-        await choosePrivate();
-
-        expect(screen.queryByRole('dialog', { name: /Premium/u })).toBeNull();
-        expect((screen.getByRole('radio', { name: /^Public/u }) as HTMLInputElement).checked).toBe(true);
-    });
+            expect(await screen.findByText('Who can see it')).toBeTruthy();
+            expect(screen.queryByRole('radio', { name: /^Private/u })).toBeNull();
+            expect(screen.queryByRole('radio', { name: /^Public/u })).toBeNull();
+            expect(screen.queryByText('Premium')).toBeNull();
+            expect(screen.queryByRole('dialog', { name: /Premium/u })).toBeNull();
+        },
+    );
 });
 
 /**

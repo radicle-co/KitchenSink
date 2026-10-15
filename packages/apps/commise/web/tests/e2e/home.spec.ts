@@ -19,7 +19,7 @@ test.describe('Home widget surface (T104)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'free',
+            paidFeatures: 'upsell',
             recipes: [
                 makeRecipeDetail({
                     id: 'ec000000-0000-4000-8000-000000000010',

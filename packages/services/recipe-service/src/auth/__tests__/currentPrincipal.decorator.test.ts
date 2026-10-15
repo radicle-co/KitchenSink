@@ -16,7 +16,8 @@ const PRINCIPAL: Principal = {
     userId: '01J000000000000000000FREE0',
     sub: 'clerk_sub',
     scopes: [],
-    permissions: ['premium'],
+    permissions: [],
+    roles: ['premium'],
     principalKind: 'real',
     containment: 'enforce',
 };

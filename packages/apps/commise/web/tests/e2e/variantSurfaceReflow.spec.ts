@@ -145,7 +145,7 @@ async function seed(page: Page): Promise<void> {
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, {
         viewerId,
-        tier: 'premium',
+        paidFeatures: 'granted',
         recipes: [
             makeRecipeDetail({
                 id: RECIPE_ID,

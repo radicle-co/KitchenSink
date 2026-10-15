@@ -33,7 +33,7 @@ vi.mock('react-native-safe-area-context', async (importOriginal) => ({
 }));
 
 vi.mock('../../src/hooks/useUserProfile.js', () => ({
-    useUserProfile: () => ({ data: { account: { subscriptionTier: 'free' }, user: { displayName: 'Jane Doe' } } }),
+    useUserProfile: () => ({ data: { account: { paidFeatures: 'hidden' }, user: { displayName: 'Jane Doe' } } }),
 }));
 
 vi.mock('../../src/hooks/useDeleteAccount.js', () => ({

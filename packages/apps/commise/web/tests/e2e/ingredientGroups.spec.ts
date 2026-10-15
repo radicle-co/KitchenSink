@@ -36,7 +36,7 @@ test.describe('ingredient groups (build spec §7.5.5)', () => {
         const viewerId = await readViewerAppId(page);
         const store = await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [
                 makeRecipeDetail({
                     id: RECIPE_ID,
@@ -108,7 +108,7 @@ test.describe('ingredient groups (build spec §7.5.5)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [
                 makeRecipeDetail({
                     id: RECIPE_ID,
@@ -143,7 +143,7 @@ test.describe('ingredient groups (build spec §7.5.5)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [
                 makeRecipeDetail({
                     id: RECIPE_ID,

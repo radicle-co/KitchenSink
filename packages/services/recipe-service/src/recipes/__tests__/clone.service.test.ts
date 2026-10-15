@@ -45,6 +45,7 @@ const SOURCE_OWNER_PRINCIPAL: Principal = {
     sub: 'clerk_pro',
     scopes: [],
     permissions: [],
+    roles: [],
     principalKind: 'real',
     containment: 'enforce',
 };
@@ -53,6 +54,7 @@ const CLONER_PRINCIPAL: Principal = {
     sub: 'clerk_free',
     scopes: [],
     permissions: [],
+    roles: [],
     principalKind: 'real',
     containment: 'enforce',
 };

@@ -36,14 +36,23 @@ type NudgePhase =
  * trigger is a no-op for the session, so it can appear at most once regardless of how many gated taps occur.
  * Dismissing hides it without re-arming.
  *
+ * ⛔ It is an UPSELL, so it sits behind the paid-features gate (owner ruling 2026-10-13; plan 2026-10-14-009 D14): it is
+ * `offered` only while the viewer's paid-feature state is `upsell`. Otherwise a trigger does nothing and does NOT spend
+ * the nudge, and a nudge already showing is hidden the moment the state leaves `upsell`.
+ *
+ * @param offered - Whether the upsell may be shown: the viewer's paid-feature state is `upsell`.
  * @returns The nudge visibility plus its trigger/dismiss controls.
  */
-export function useOncePerSessionNudge(): OncePerSessionNudge {
+export function useOncePerSessionNudge(offered: boolean): OncePerSessionNudge {
     const [phase, setPhase] = useState<NudgePhase>('armed');
 
     // Functional updaters: two gated widgets tapping in the same batch must not both read `armed`.
-    const trigger = useCallback(() => setPhase((current) => (current === 'armed' ? 'showing' : current)), []);
+    const trigger = useCallback(() => {
+        if (offered) {
+            setPhase((current) => (current === 'armed' ? 'showing' : current));
+        }
+    }, [offered]);
     const dismiss = useCallback(() => setPhase((current) => (current === 'showing' ? 'spent' : current)), []);
 
-    return { visible: phase === 'showing', trigger, dismiss };
+    return { visible: offered && phase === 'showing', trigger, dismiss };
 }

@@ -33,7 +33,8 @@ const { profileRef } = vi.hoisted(() => ({
     profileRef: {
         current: {
             data: {
-                account: { subscriptionTier: 'free' as string | undefined },
+                // Plan 2026-10-14-009: the nudge is an upsell, offered only under `upsell`.
+                account: { paidFeatures: 'upsell' as 'granted' | 'upsell' | 'hidden' },
                 user: { displayName: 'Jane Doe' as string | undefined },
             },
         },
@@ -55,6 +56,7 @@ vi.mock('react-native-safe-area-context', async (importOriginal) => ({
 
 afterEach(() => {
     cleanup();
+    profileRef.current.data.account.paidFeatures = 'upsell';
     vi.useRealTimers();
 });
 
@@ -299,6 +301,30 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
         expect(screen.queryByText('Unlock Commise Pro')).toBeNull();
 
         fireEvent.click(gate);
+        expect(screen.queryByText('Unlock Commise Pro')).toBeNull();
+    });
+
+    // ── Plan 2026-10-14-009 D14 (owner ruling 2026-10-13): the nudge is an upsell, behind the paid-features gate.
+    it.each(['granted', 'hidden'] as const)('⛔ never shows the subscription nudge under %s', async (state) => {
+        profileRef.current.data.account.paidFeatures = state;
+
+        const GatedWidget: FC = (): JSX.Element => {
+            const { trigger } = useHomeNudge();
+
+            return (
+                <Pressable accessibilityRole="button" accessibilityLabel="gate" onPress={trigger}>
+                    <Text>gate</Text>
+                </Pressable>
+            );
+        };
+
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: GatedWidget },
+        });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'gate' }));
+
         expect(screen.queryByText('Unlock Commise Pro')).toBeNull();
     });
 });

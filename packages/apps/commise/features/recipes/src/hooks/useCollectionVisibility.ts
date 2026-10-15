@@ -4,14 +4,16 @@
  *
  * The change happens at once: the cached collection is rewritten before the server answers, a snackbar says so, and
  * Undo is a COMPENSATING `setVisibility` — safe because visibility carries no provenance, unlike a removed member. Both
- * calls share one `scope` per collection, so Undo is sent after the change it undoes. A cook without the premium plan
- * who chooses private gets the Premium sheet instead and nothing is sent; one who made a private collection public gets
- * no Undo, because the way back would be refused (`./collections/visibilityUndo.ts`). A refused change rolls back to
- * what it replaced.
+ * calls share one `scope` per collection, so Undo is sent after the change it undoes. What choosing private does is the
+ * shared Private rule over the viewer's paid-feature state (`privateChoice`; plan 2026-10-14-009 D14): applied under
+ * `granted`, the Premium sheet under `upsell`, nothing under `hidden` or while `loading`. A cook who made a private
+ * collection public gets no Undo unless the way back would be accepted (`./collections/visibilityUndo.ts`). A refused
+ * change rolls back to what it replaced.
  *
  * @pattern Command — the change and its compensating change
- * @pattern Policy — `visibilityChangeNeedsPremium` and `canUndoVisibilityChange` decide the sheet and the Undo
+ * @pattern Policy — `privateChoice` and `canUndoVisibilityChange` decide the change, the sheet and the Undo
  */
+import type { PaidFeatureState } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
 import { useSnackbar } from '@commise/ui/snackbar';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
@@ -25,7 +27,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { collectionMessages } from '../collections/messages.js';
-import { canUndoVisibilityChange, visibilityChangeNeedsPremium } from '../collections/visibilityUndo.js';
+import { privateChoice } from '../actions/privateGate.js';
+import { canUndoVisibilityChange } from '../collections/visibilityUndo.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 
 /** What one change asks for: where the collection is going and where it was. */
@@ -38,7 +41,7 @@ interface VisibilityChange {
 export interface CollectionVisibilityControl {
     /** Ask for a visibility. A no-op for the one the collection already has. */
     readonly change: (to: RecipeVisibility) => void;
-    /** The Premium sheet is open: the cook chose private without the plan. */
+    /** The Premium sheet is open: the cook chose private under `upsell`. Never open in any other state. */
     readonly upsellOpen: boolean;
     readonly closeUpsell: () => void;
     /** The last change was refused and rolled back. */
@@ -48,13 +51,13 @@ export interface CollectionVisibilityControl {
 /**
  * Visibility changes for one collection.
  *
- * @param collection - The collection, and whether the viewer may make things private.
+ * @param collection - The collection, and the viewer's paid-feature state (`paidFeatureStateOf`).
  * @returns The press, and the Premium sheet's state.
  * @sideEffect Rewrites the collection's cached detail, sends update requests and shows a snackbar.
  */
 export function useCollectionVisibility(collection: {
     readonly id: string;
-    readonly canGoPrivate: boolean;
+    readonly paidFeatures: PaidFeatureState;
 }): CollectionVisibilityControl {
     const { member: copy } = useMessages(collectionMessages);
     const snackbar = useSnackbar();
@@ -87,7 +90,8 @@ export function useCollectionVisibility(collection: {
     });
 
     return {
-        upsellOpen,
+        // Derived, never stored: a refetch that moves the state off `upsell` closes the sheet in the same render.
+        upsellOpen: upsellOpen && collection.paidFeatures === 'upsell',
         closeUpsell: () => setUpsellOpen(false),
         failed: mutation.isError,
         change: (to) => {
@@ -97,9 +101,15 @@ export function useCollectionVisibility(collection: {
                 return;
             }
 
-            if (visibilityChangeNeedsPremium(to, collection.canGoPrivate)) {
+            const outcome = privateChoice({ target: to, saved: from, state: collection.paidFeatures });
+
+            if (outcome === 'upsell') {
                 setUpsellOpen(true);
 
+                return;
+            }
+
+            if (outcome === 'none') {
                 return;
             }
 
@@ -110,7 +120,7 @@ export function useCollectionVisibility(collection: {
                     visibility:
                         to === RecipeVisibility.PRIVATE ? copy.visibilityPrivateWord : copy.visibilityPublicWord,
                 }),
-                ...(canUndoVisibilityChange({ from, canGoPrivate: collection.canGoPrivate })
+                ...(canUndoVisibilityChange({ from, state: collection.paidFeatures })
                     ? { action: { label: copy.undo, onAction: () => mutation.mutate({ to: from, from: to }) } }
                     : {}),
             });

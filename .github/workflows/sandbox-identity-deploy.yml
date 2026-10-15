@@ -161,6 +161,14 @@ jobs:
             - name: Resolve the alarm feature flag
               run: bash .github/scripts/resolveAlarmsEnabled.sh "${STAGE}"
 
+            # ⛔ Before the identity deploy: its CDK app reads PAID_FEATURES_GATE at synth, and an unset flag deploys
+            # `false` (`paidFeaturesGateWiring.test.ts`). The owner alone sets these variables; this only reads them.
+            - name: Resolve the paid-features gate
+              env:
+                  PAID_FEATURES_GATE_SANDBOX: ${{ vars.PAID_FEATURES_GATE_SANDBOX }}
+                  PAID_FEATURES_GATE_PROD: ${{ vars.PAID_FEATURES_GATE_PROD }}
+              run: bash .github/scripts/resolvePaidFeaturesGate.sh "${STAGE}"
+
             # ⛔ IS THE SANDBOX UP? (ADR-0060.) Nothing in CI starts it any more — only Sandbox Up does — so a pull
             # request that arrives while it is down must deploy NOTHING, and must not fail for it: "A job that needs
             # the sandbox SKIPS when it is down. It never fails for that reason" (owner ruling 2026-10-12). A down

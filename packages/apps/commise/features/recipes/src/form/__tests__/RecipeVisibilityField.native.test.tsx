@@ -19,6 +19,8 @@ vi.mock('react-native', async (importOriginal) => {
     return withSystemScheme(await importOriginal<typeof import('react-native')>());
 });
 
+import type { PaidFeatureState } from '@commise/features-account';
+import type { RecipeVisibility } from '@kitchensink/recipe-core';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { editorMessages } from '../../editor/messages.js';
 import { RecipeVisibilityField } from '../RecipeVisibilityField.native.js';
@@ -35,18 +37,22 @@ afterEach(() => {
 
 interface HarnessProps {
     readonly initial?: RecipeFormValues;
-    readonly canGoPrivate: boolean;
+    readonly paidFeatures: PaidFeatureState;
+    /** What the server holds; defaults to the initial draft's visibility. */
+    readonly saved?: RecipeVisibility;
     readonly onChange?: (next: RecipeFormValues) => void;
     readonly onPremiumRequired?: () => void;
 }
 
-const Harness: FC<HarnessProps> = ({ initial, canGoPrivate, onChange, onPremiumRequired }) => {
+const Harness: FC<HarnessProps> = ({ initial, paidFeatures, saved, onChange, onPremiumRequired }) => {
     const [values, setValues] = useState(initial ?? defaultRecipeFormValues());
+    const [savedVisibility] = useState(saved ?? values.visibility);
 
     return (
         <RecipeVisibilityField
             values={values}
-            canGoPrivate={canGoPrivate}
+            paidFeatures={paidFeatures}
+            savedVisibility={savedVisibility}
             {...(onPremiumRequired === undefined ? {} : { onPremiumRequired })}
             onChange={(next) => {
                 setValues(next);
@@ -64,7 +70,7 @@ const radio = (title: string): HTMLElement => screen.getByRole('radio', { name: 
 
 describe('RecipeVisibilityField (native)', () => {
     it('is a radio group named "Who can see it" of Public and Private, Public chosen by default', () => {
-        render(<Harness canGoPrivate />);
+        render(<Harness paidFeatures="granted" />);
 
         const group = screen.getByRole('radiogroup', { name: v.legend });
 
@@ -77,7 +83,7 @@ describe('RecipeVisibilityField (native)', () => {
 
     it.each(['light', 'dark'] as const)('paints the chosen card in the selected fill in the %s scheme', (scheme) => {
         systemScheme.current = scheme;
-        render(<Harness canGoPrivate />);
+        render(<Harness paidFeatures="granted" />);
         const theme = scheme === 'dark' ? roleDark : role;
 
         expect(getComputedStyle(radio(v.public)).backgroundColor).toBe(rgb(theme.selectedFill));
@@ -85,9 +91,9 @@ describe('RecipeVisibilityField (native)', () => {
         expect(getComputedStyle(radio(v.public)).minHeight).toBe('56px');
     });
 
-    it('a cook who can go private chooses Private, and back', () => {
+    it('a granted cook chooses Private, and back', () => {
         const onChange = vi.fn();
-        render(<Harness canGoPrivate onChange={onChange} />);
+        render(<Harness paidFeatures="granted" onChange={onChange} />);
 
         fireEvent.click(radio(v.private));
         expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'private' }));
@@ -98,10 +104,10 @@ describe('RecipeVisibilityField (native)', () => {
         expect(screen.queryByText(m.premiumBadge)).toBeNull();
     });
 
-    it('for a cook who cannot, Private shows Premium, asks for the upsell and leaves the value', () => {
+    it('under upsell, Private shows Premium, asks for the upsell and leaves the value', () => {
         const onChange = vi.fn();
         const onPremiumRequired = vi.fn();
-        render(<Harness canGoPrivate={false} onChange={onChange} onPremiumRequired={onPremiumRequired} />);
+        render(<Harness paidFeatures="upsell" onChange={onChange} onPremiumRequired={onPremiumRequired} />);
 
         expect(
             screen.getByRole('radio', {
@@ -121,7 +127,7 @@ describe('RecipeVisibilityField (native)', () => {
         render(
             <Harness
                 initial={{ ...defaultRecipeFormValues(), visibility: 'private' }}
-                canGoPrivate={false}
+                paidFeatures="upsell"
                 onChange={onChange}
             />,
         );
@@ -131,5 +137,40 @@ describe('RecipeVisibilityField (native)', () => {
         fireEvent.click(radio(v.public));
 
         expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'public' }));
+    });
+
+    // ── Plan 2026-10-14-009 D14: the field under each paid-feature state.
+    it('under upsell, a recipe already private shows no Premium badge', () => {
+        render(<Harness initial={{ ...defaultRecipeFormValues(), visibility: 'private' }} paidFeatures="upsell" />);
+
+        expect(radio(v.private).getAttribute('aria-checked')).toBe('true');
+        expect(screen.queryByText(m.premiumBadge)).toBeNull();
+    });
+
+    it('under hidden, a recipe already private stays private, shows no badge, and warns Public is final', () => {
+        const onChange = vi.fn();
+        render(
+            <Harness
+                initial={{ ...defaultRecipeFormValues(), visibility: 'private' }}
+                paidFeatures="hidden"
+                onChange={onChange}
+            />,
+        );
+
+        expect(screen.queryByText(m.premiumBadge)).toBeNull();
+        expect(
+            screen.getByRole('radio', {
+                name: new RegExp(`^${v.public}\\s*${v.publicHint}\\s*${v.publicIsFinal}$`, 'u'),
+            }),
+        ).toBeTruthy();
+
+        fireEvent.click(radio(v.public));
+        expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'public' }));
+    });
+
+    it('under granted, no note says Public is final', () => {
+        render(<Harness initial={{ ...defaultRecipeFormValues(), visibility: 'private' }} paidFeatures="granted" />);
+
+        expect(screen.queryByText(v.publicIsFinal)).toBeNull();
     });
 });

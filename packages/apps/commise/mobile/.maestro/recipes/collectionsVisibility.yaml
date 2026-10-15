@@ -7,7 +7,7 @@ appId: io.commise.mobile
 #
 # ⛔ WHY THIS DOES NOT ASSERT THE FREE-TIER GATE, and why that is not a weakening. The Maestro signer is the pool's `signer`
 # slot, which the roster declares `premium` (`packages/tools/e2e-fixtures/src/testPool.ts`,
-# `lane('signer', { premium: true, … })`) so the seeded world can hold its two PRIVATE recipes. A free-tier cook meets the
+# `lane('signer', { roles: ['premium'], … })`) so the seeded world can hold its two PRIVATE recipes. A free-tier cook meets the
 # Premium sheet for "Make private"; that gate stays covered by `CollectionDetailScreen.native.test.tsx` and the web
 # Playwright spec, because proving it here would take a second, free-tier device sign-in the fixture contract does not
 # provide.

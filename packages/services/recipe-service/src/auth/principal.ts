@@ -4,6 +4,7 @@
  * client-supplied header is ever trusted (the service is fronted by a public ALB, so any such header
  * would be forgeable, mirroring the identity service's PR #39 decision).
  */
+import { hasPaidFeatures, type Role } from '@kitchensink/clerk-verify';
 import type { Request } from 'express';
 
 import type { ContainmentSubject } from '../common/containmentPolicy.js';
@@ -36,6 +37,11 @@ export interface Principal extends ContainmentSubject {
     readonly scopes: string[];
     /** Authorization permissions from the token's signed `public_metadata` (empty = no privilege). */
     readonly permissions: string[];
+    /**
+     * The roles in the token's signed `public_metadata.roles` (`@kitchensink/clerk-verify` parses them). REQUIRED, so a
+     * construction site that forgot them cannot silently read as a user with no paid features.
+     */
+    readonly roles: readonly Role[];
     /*
      * ⛔ `principalKind` and `containment` arrive through `ContainmentSubject` (ADR-0040), REQUIRED rather than
      * optional: `principalKind` is `test` exactly when the verified token carries `public_metadata.testPrincipal ===
@@ -68,24 +74,26 @@ export interface AuthenticatedRequest extends Request {
 }
 
 /**
- * The permission string that marks a principal as premium-tier. There is deliberately NO tier field on the
- * {@link Principal}, so premium is derived from the signed session token's `permissions` claim. This and
- * {@link isPremiumPrincipal} are the ONE tier source every policy reads, so a later paid-feature gate or role set is
- * added here and nowhere else.
- */
-export const PREMIUM_PERMISSION = 'premium';
-
-/**
- * Whether a principal holds the premium entitlement. Pure.
+ * Whether a principal's roles carry the paid features. Pure.
+ *
+ * The ONE tier source every policy reads (`visibilityPolicy`, `collectionVisibilityPolicy`, through
+ * {@link tieredActingPrincipalOf}). Owner ruling 2026-10-13: `admin`, `superuser`, `vip` and `premium` get them — the
+ * shared `hasPaidFeatures` in `@kitchensink/clerk-verify`. The `premium` PERMISSION this read before grants nothing now.
+ *
+ * ⛔ The paid-features gate is NOT read here, and must never be: it decides only what a user without an entitled role
+ * is SHOWN (identity's `account.paidFeatures`). Who may make a recipe or collection private is decided by roles alone.
  *
  * @param principal - The verified principal.
- * @returns `true` when its signed `permissions` include {@link PREMIUM_PERMISSION}.
+ * @returns `true` when its roles include an entitled one.
  */
-export function isPremiumPrincipal(principal: Pick<Principal, 'permissions'>): boolean {
-    return principal.permissions.includes(PREMIUM_PERMISSION);
+export function isPremiumPrincipal(principal: Pick<Principal, 'roles'>): boolean {
+    return hasPaidFeatures(principal.roles);
 }
 
-/** An {@link ActingPrincipal} plus its tier, for the writes whose rule depends on it (a private collection). */
+/**
+ * An {@link ActingPrincipal} plus its tier, for the writes whose rule depends on it (a private collection). `isPremium`
+ * keeps its name (the policies and 015's plan speak it) and means "the principal's roles carry the paid features".
+ */
 export type TieredActingPrincipal = ActingPrincipal & { readonly isPremium: boolean };
 
 /**

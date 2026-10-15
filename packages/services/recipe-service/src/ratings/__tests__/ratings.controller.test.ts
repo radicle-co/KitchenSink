@@ -21,6 +21,7 @@ const PRINCIPAL = {
     sub: 'user_clerk',
     scopes: [],
     permissions: [],
+    roles: [],
     principalKind: 'test',
     containment: 'enforce',
 } as const satisfies Principal;

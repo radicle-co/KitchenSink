@@ -37,6 +37,7 @@
  * @pattern Registry — the roster, a typed `Record` over the tier union, so a tier nobody declared is a compile error
  * @pattern Allocator — a slot is its index in declared order, the shape `listenerPriority.ts` uses for ALB rules
  */
+import type { Role } from '@kitchensink/clerk-verify';
 
 /** The Clerk tenants a pool exists for. Sandbox only until the production tenant is signed off (ADR-0040 ruling 5). */
 export const POOL_TENANTS = ['sandbox'] as const;
@@ -65,8 +66,21 @@ export type PoolTenant = (typeof POOL_TENANTS)[number];
  *      intercepted in the browser, so there is no data to share, and nothing to reset.
  *
  * What concurrent stub runs DO share is Clerk's per-user sign-in rate — a flake risk, not a correctness one.
+ *
+ * `roles` (plan `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D12; owner ruling 2026-10-13) is one user
+ * per role, for the paid-feature specs and flows: a DEFAULT user proves only the upsell (or nothing) shows, and a
+ * premium / vip / superuser user proves the paid flow shows. It holds NO lease and gets NO reset, on the webStub
+ * argument, and that makes three rules binding on every spec or flow that signs in as one of its users:
+ *
+ *   1. **Sign in and READ only.** Never save, publish, toggle a visibility or write anything a reset would owe. Any
+ *      number of runs may hold one of these users at once.
+ *   2. **This is a safety rule, not only a reset rule.** `rolesuperuser` holds every curator scope (its role implies
+ *      them, `ROLE_SCOPES`), and containment is off on sandbox (ADR-0040): a write as it reaches GLOBAL data.
+ *   3. **End only your own session**, as the webStub tier does.
+ *
+ * A change that needs a write as one of these users needs a lease and resets first.
  */
-export const POOL_TIERS = ['web', 'webStub', 'maestro', 'k6', 'linkage'] as const;
+export const POOL_TIERS = ['web', 'webStub', 'maestro', 'k6', 'linkage', 'roles'] as const;
 
 /** One of {@link POOL_TIERS}. */
 export type PoolTier = (typeof POOL_TIERS)[number];
@@ -75,8 +89,12 @@ export type PoolTier = (typeof POOL_TIERS)[number];
 export interface PoolLane {
     /** Unique across the WHOLE roster; the address and username are derived from it. Lowercase alphanumerics. */
     readonly id: string;
-    /** Carries the `premium` permission the recipe service reads from signed `public_metadata`. */
-    readonly premium: boolean;
+    /**
+     * The roles written to signed `public_metadata.roles` (owner ruling 2026-10-13: `default` is written, never
+     * inferred). They decide the paid features (`hasPaidFeatures`) and imply scopes (`ROLE_SCOPES`). REQUIRED, so a
+     * lane cannot say nothing.
+     */
+    readonly roles: readonly Role[];
     /** Grants carried in signed `public_metadata.scopes`. */
     readonly scopes: readonly string[];
     /** Destroyed by the flow that uses it (a real erasure), so `poolAdmin` replenishes it. */
@@ -95,6 +113,7 @@ export interface PoolSlot extends PoolLane {
 /** What `poolAdmin` writes to a slot's Clerk `public_metadata`, by merge-PATCH. */
 export interface PoolSlotMetadata {
     readonly testPrincipal: true;
+    readonly roles: readonly Role[];
     readonly permissions: readonly string[];
     readonly scopes: readonly string[];
 }
@@ -110,7 +129,7 @@ export const POOL_PASSWORD = 'Commise-e2e-Test-9j2xQ!';
 
 const lane = (id: string, overrides: Partial<Omit<PoolLane, 'id'>> = {}): PoolLane => ({
     id,
-    premium: false,
+    roles: ['default'],
     scopes: [],
     consumable: false,
     signsInByPassword: false,
@@ -163,7 +182,7 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
     maestro: [
         // The signer owns the PRIVATE recipes of the seeded world, which the recipe service admits only for a
         // premium caller.
-        lane('signer', { premium: true, signsInByPassword: true }),
+        lane('signer', { roles: ['premium'], signsInByPassword: true }),
         lane('coauthor'),
         // Each real erasure destroys its subject for good (identity keeps it unresolvable), so the flow takes
         // the first erasure slot that still exists and `poolAdmin` replenishes the rest.
@@ -174,32 +193,53 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
         // `resetPool` hard-deletes every row the slot owns, so two shards on one signer would delete each
         // other's fixtures mid-flow and answer `423 ERASURE_IN_PROGRESS` while a purge is in flight.
         // `MAESTRO_PLATFORM_LANES` is the index; `maestroShardCapacity` is what bounds the matrix.
-        lane('signer02', { premium: true, signsInByPassword: true }),
+        lane('signer02', { roles: ['premium'], signsInByPassword: true }),
         lane('coauthor02'),
         // Shards 3 and 4 of Android, then iOS's own four shards, so the two platforms run side by side instead of
         // queueing on one lane's concurrency group (owner, 2026-10-13). Appended, for the reason above.
-        lane('signer03', { premium: true, signsInByPassword: true }),
+        lane('signer03', { roles: ['premium'], signsInByPassword: true }),
         lane('coauthor03'),
-        lane('signer04', { premium: true, signsInByPassword: true }),
+        lane('signer04', { roles: ['premium'], signsInByPassword: true }),
         lane('coauthor04'),
-        lane('iossigner01', { premium: true, signsInByPassword: true }),
+        lane('iossigner01', { roles: ['premium'], signsInByPassword: true }),
         lane('ioscoauthor01'),
-        lane('iossigner02', { premium: true, signsInByPassword: true }),
+        lane('iossigner02', { roles: ['premium'], signsInByPassword: true }),
         lane('ioscoauthor02'),
-        lane('iossigner03', { premium: true, signsInByPassword: true }),
+        lane('iossigner03', { roles: ['premium'], signsInByPassword: true }),
         lane('ioscoauthor03'),
-        lane('iossigner04', { premium: true, signsInByPassword: true }),
+        lane('iossigner04', { roles: ['premium'], signsInByPassword: true }),
         lane('ioscoauthor04'),
     ],
     k6: [
         // Premium so the load scenarios' writes can be PRIVATE — a public write is visible to real users.
-        ...K6_VU_IDS.map((id) => lane(id, { premium: true })),
+        ...K6_VU_IDS.map((id) => lane(id, { roles: ['premium'] })),
         lane('admin', { scopes: ['food:admin'] }),
     ],
     // Also the identity the deployed catalog seeder signs in as: it writes only food, which is shared by design.
     // The curator grant is for the deployed cookbook import suite, which runs in the linkage job as this lane and
     // declares `imported_public` (ADR-0023).
     linkage: [lane('linkage', { scopes: ['recipes:write', 'foods:read', 'recipes:import:public'] })],
+    // One user per role — read-only, no lease, no reset (the `POOL_TIERS` doc states the rules). Password sign-in,
+    // because the Maestro flows type it.
+    roles: [
+        lane('roledefault', { roles: ['default'], signsInByPassword: true }),
+        lane('roleadmin', { roles: ['admin'], signsInByPassword: true }),
+        lane('rolepremium', { roles: ['premium'], signsInByPassword: true }),
+        lane('rolesuperuser', { roles: ['superuser'], signsInByPassword: true }),
+        lane('rolevip', { roles: ['vip'], signsInByPassword: true }),
+    ],
+};
+
+/**
+ * The `roles` tier's lane for each role — the ONE place a spec or flow names the user it signs in as for a role.
+ * `testPool.test.ts` holds it equal to `POOL_ROSTER.roles`.
+ */
+export const ROLE_LANE_IDS: Readonly<Record<Role, string>> = {
+    default: 'roledefault',
+    admin: 'roleadmin',
+    premium: 'rolepremium',
+    superuser: 'rolesuperuser',
+    vip: 'rolevip',
 };
 
 /**
@@ -485,12 +525,16 @@ export function assertPoolMember(email: string): void {
  * The `public_metadata` a slot must carry. Pure.
  *
  * Every list is stated, empty included: `poolAdmin` writes it with Clerk's merge-PATCH, which replaces arrays
- * wholesale, so an empty list is what revokes a grant the roster no longer declares.
+ * wholesale, so an empty list is what revokes a grant the roster no longer declares. `roles` is written on EVERY slot,
+ * so the identity webhook's sign-up writer (which merges `default` only where no `roles` key exists) never touches one.
  */
 export function poolSlotMetadata(slot: PoolLane): PoolSlotMetadata {
     return {
         testPrincipal: true,
-        permissions: slot.premium ? ['premium'] : [],
+        roles: [...slot.roles],
+        // ⛔ Always EMPTY: premium is a role now, and the old `premium` permission grants nothing. Stating the list is
+        // what makes the merge-PATCH revoke it from a user that still carries it.
+        permissions: [],
         scopes: [...slot.scopes],
     };
 }

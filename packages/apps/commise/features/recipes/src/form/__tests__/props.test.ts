@@ -1194,18 +1194,26 @@ describe('splitAtCommas / addChips', () => {
     });
 });
 
-/** The "Who can see it" rule: Private without the plan asks for the upsell and never changes the value. */
+/**
+ * The "Who can see it" rule (plan 2026-10-14-009 D14): Private under `upsell` asks for the upsell and never changes the
+ * value; under `hidden` or `loading` it changes nothing; going back to a saved Private needs no entitlement.
+ */
 describe('visibilityChoice', () => {
     it.each([
-        ['public', 'private', true, { visibility: 'private' }],
-        ['private', 'public', true, { visibility: 'public' }],
-        ['private', 'public', false, { visibility: 'public' }],
-        ['public', 'private', false, 'premiumRequired'],
-        ['public', 'public', false, undefined],
-        ['private', 'private', false, undefined],
-        ['private', 'private', true, undefined],
-    ] as const)('from %s, choosing %s (can go private: %s) gives %o', (current, chosen, canGoPrivate, expected) => {
-        expect(visibilityChoice(current, chosen, canGoPrivate)).toEqual(expected);
+        // current, chosen, saved, state, expected
+        ['public', 'private', 'public', 'granted', { visibility: 'private' }],
+        ['public', 'private', 'public', 'upsell', 'premiumRequired'],
+        ['public', 'private', 'public', 'hidden', undefined],
+        ['public', 'private', 'public', 'loading', undefined],
+        ['private', 'public', 'private', 'hidden', { visibility: 'public' }],
+        ['private', 'public', 'public', 'upsell', { visibility: 'public' }],
+        // Back to what the server holds — no plan needed, whatever the state.
+        ['public', 'private', 'private', 'hidden', { visibility: 'private' }],
+        ['public', 'private', 'private', 'upsell', { visibility: 'private' }],
+        ['public', 'public', 'public', 'upsell', undefined],
+        ['private', 'private', 'private', 'granted', undefined],
+    ] as const)('from %s, choosing %s (saved %s, %s) gives %o', (current, chosen, saved, state, expected) => {
+        expect(visibilityChoice(current, chosen, saved, state)).toEqual(expected);
     });
 });
 

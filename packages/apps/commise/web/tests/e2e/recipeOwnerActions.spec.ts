@@ -91,7 +91,7 @@ async function openOwnRecipe(page: Page): Promise<void> {
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, {
         viewerId,
-        tier: 'premium',
+        paidFeatures: 'granted',
         recipes: [makeRecipeDetail({ id: RECIPE_ID, ownerId: viewerId, title: RECIPE_TITLE })],
     });
 
@@ -223,7 +223,7 @@ test.describe('recipe-detail owner actions', () => {
         // Someone else's PUBLIC recipe: readable by this viewer, owned by another account.
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [
                 makeRecipeDetail({
                     id: 'ec000000-0000-4000-8000-000000000033',

@@ -12,7 +12,7 @@ import {
     noopHandleSyncPublisher,
 } from '@kitchensink/identity-service/users/handle-sync-publisher';
 
-import { setExternalId } from '../common/identityClient.js';
+import { ensureDefaultRole, setExternalId } from '../common/identityClient.js';
 import { buildProvisionDeps } from '../common/provisioning.js';
 import { getWebhookConfig } from '../config/env.js';
 import { withDb, withVerifiedWebhook, type DbContext, type VerifiedWebhookContext } from '../common/handlerPipeline.js';
@@ -278,6 +278,12 @@ const idpWebhookHandlerCore = async (
     switch (payload.type) {
         case 'user.created': {
             await handleUserCreated(payload.data, db, requestId);
+            // ⛔ The `default` role is WRITTEN at sign-up (owner ruling 2026-10-13), for every created Clerk user,
+            // whatever happened to the local row above: the role belongs to the Clerk user. Last, and NOT
+            // best-effort: a failure propagates, the svix-id is not recorded, and svix retries the whole delivery —
+            // safe because everything before it is idempotent. `ensureDefaultRole` never overwrites a `roles` key.
+            const role = await ensureDefaultRole(payload.data.id);
+            logger.info('identity-webhook: default role checked', { requestId, identityId, role });
             break;
         }
 

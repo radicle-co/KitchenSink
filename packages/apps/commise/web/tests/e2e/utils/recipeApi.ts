@@ -36,7 +36,7 @@ import {
     type CollectionWithRecipesResponse as SchemaCollectionWithRecipesResponse,
 } from '@kitchensink/schema-recipe';
 import { makeUserProfileAccount, makeUserProfileUser } from '@commise/features-account/testing';
-import { SETTINGS_DEFAULTS } from '@kitchensink/schema-identity';
+import { SETTINGS_DEFAULTS, type PaidFeatures } from '@kitchensink/schema-identity';
 
 import type { OwnFoodLedger } from './foodApi';
 
@@ -944,8 +944,12 @@ export interface MockRecipeApiOptions {
      * "the viewer has nothing yet"; a convenient default is not a neutral one.
      */
     readonly recipes?: readonly RecipeDetail[];
-    /** The viewer's subscription tier surfaced at `/api/v1/users/me` (defaults to premium so private is enabled). */
-    readonly tier?: 'free' | 'premium';
+    /**
+     * The viewer's `account.paidFeatures` at `/api/v1/users/me` (plan 2026-10-14-009 D6). Defaults to `granted` so
+     * private is enabled. The stubbed recipe service follows it the way the real one follows roles: `granted` is a
+     * premium cook, `upsell` and `hidden` are not.
+     */
+    readonly paidFeatures?: PaidFeatures;
     /** The app-user id the viewer owns recipes as (matches the recipe `ownerId` so owner controls show). */
     readonly viewerId?: string;
     /** Collections to seed the store with (defaults to none — the collection list starts empty). */
@@ -1057,7 +1061,9 @@ export async function mockRecipeApi(
     await page.goto('about:blank');
 
     const viewerId = options.viewerId ?? 'usr_e2e';
-    const tier = options.tier ?? 'premium';
+    const paidFeatures = options.paidFeatures ?? 'granted';
+    // What the stubbed recipe service treats the viewer as — the real one decides from roles, which `granted` stands for.
+    const tier: 'free' | 'premium' = paidFeatures === 'granted' ? 'premium' : 'free';
     const authorHandles = options.authorHandles ?? {};
     const collectionsPageSize = options.collectionsPageSize ?? 20;
     const store = new Map<string, RecipeDetail>();
@@ -1245,7 +1251,7 @@ export async function mockRecipeApi(
         const body = (): Record<string, unknown> =>
             request.postData() ? JSON.parse(request.postData() as string) : {};
 
-        // Identity profile → drives the premium visibility gate. Built from the published contract's factories
+        // Identity profile → drives every paid-feature surface (`account.paidFeatures`). Built from the published contract's factories
         // rather than a literal: `ProfileServiceClient.getMe` PARSES this against `userProfileSchema`, so a body
         // short of its seven `user` / five `account` fields fails the query and silently re-gates the viewer to
         // free — which is how a hand-written literal here left the private-visibility control disabled.
@@ -1253,7 +1259,7 @@ export async function mockRecipeApi(
             return route.fulfill({
                 json: {
                     user: makeUserProfileUser({ id: viewerId, displayName: 'E2E', email: 'e2e@example.com' }),
-                    account: makeUserProfileAccount({ userId: viewerId, subscriptionTier: tier }),
+                    account: makeUserProfileAccount({ userId: viewerId, paidFeatures }),
                 },
             });
         }

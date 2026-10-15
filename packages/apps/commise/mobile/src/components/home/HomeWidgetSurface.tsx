@@ -31,7 +31,7 @@ import {
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
-import { makeViewer, type Tier } from '@kitchensink/recipe-core';
+import { paidFeatureStateOf, type PaidFeatureState } from '@commise/features-account';
 import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
@@ -55,16 +55,12 @@ import { useOncePerSessionNudge } from './useOncePerSessionNudge.js';
 import { SubscriptionNudge } from './SubscriptionNudge.js';
 
 /**
- * Map the shared {@link Tier} authority (`@kitchensink/recipe-core`, P4 — `free` | `premium`) onto the
- * Home-widget tier ladder (`free` | `pro`). The two vocabularies differ by origin (identity/access-policy vs.
- * the widget ladder), so this mapper still exists, but it now sources `'premium'` from the ONE `Tier`
- * authority instead of re-deriving its own "is this tier premium" check against a raw string.
- *
- * @param tier - The viewer's shared `Tier`.
- * @returns The corresponding Home-widget tier.
+ * Map the viewer's paid-feature state (identity's `account.paidFeatures`, plan 2026-10-14-009 D13) onto the Home-widget
+ * tier ladder (`free` | `pro`): only `granted` reaches a `pro` widget. A paid widget a viewer cannot use is curated out,
+ * and its upsell is the nudge, which is offered only under `upsell`.
  */
-function toWidgetTier(tier: Tier): string {
-    return tier === 'premium' ? 'pro' : 'free';
+function toWidgetTier(paidFeatures: PaidFeatureState): string {
+    return paidFeatures === 'granted' ? 'pro' : 'free';
 }
 
 /** Props for {@link HomeWidgetSurface}. `container`/`renderers` are injectable seams for tests. */
@@ -109,10 +105,11 @@ export function HomeWidgetSurface({
     const { home } = useMessages(mobileMessages);
     const { colors } = useTheme();
     const profile = useUserProfile();
-    const nudge = useOncePerSessionNudge();
 
-    // P4: the shared Tier authority — an absent/unrecognized subscription tier fails closed to `'free'`.
-    const tier = makeViewer({ subscriptionTier: profile.data?.account.subscriptionTier }).tier;
+    // Plan 2026-10-14-009 D13: the viewer's paid features alone decide the widget tier and whether the upsell nudge is
+    // offered (owner ruling 2026-10-13). While the profile loads, or if it failed, neither is.
+    const paidFeatures = paidFeatureStateOf(profile);
+    const nudge = useOncePerSessionNudge(paidFeatures === 'upsell');
     const cookName = profileEntryOf(profile).name;
 
     // B23/DA9 — a widget render throw must never be silent. Resolved from the injected `errorReporterToken`
@@ -147,12 +144,12 @@ export function HomeWidgetSurface({
     const curated = useMemo(() => {
         const ctx: HomeWidgetCurationContext = {
             liveCapabilities: [...LIVE_CAPABILITIES],
-            tier: toWidgetTier(tier),
+            tier: toWidgetTier(paidFeatures),
             // order/hidden personalization lives in the identity profile preferences (002); absent in v1.
         };
 
         return splitComingSoon(curateHomeWidgets(resolveHomeWidgets(container), ctx));
-    }, [container, tier]);
+    }, [container, paidFeatures]);
 
     /**
      * One widget: a live one through its bespoke slot, a placeholder through its loader seam.

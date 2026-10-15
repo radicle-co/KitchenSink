@@ -306,7 +306,7 @@ test.describe('home widget — deferred calorie figures', () => {
 
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'free',
+            paidFeatures: 'upsell',
             recipes: [
                 makeRecipeDetail({ id: RECIPE_ID.pasta, ownerId: viewerId, title: 'Weeknight Pasta' }),
                 makeRecipeDetail({ id: RECIPE_ID.roast, ownerId: viewerId, title: 'Sunday Roast' }),

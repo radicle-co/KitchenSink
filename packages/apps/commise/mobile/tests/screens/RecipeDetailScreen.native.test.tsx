@@ -99,11 +99,14 @@ function mutation<T>(overrides: Partial<T> = {}): T {
     return { mutate: vi.fn(), isPending: false, error: null, reset: vi.fn(), ...overrides } as unknown as T;
 }
 
-/** A `useUserProfile` double exposing only the viewer id + tier the screen reads. */
-function profile(id: string | undefined, tier: 'free' | 'premium' = 'free'): ReturnType<typeof useUserProfile> {
-    const data = id === undefined ? undefined : { user: { id }, account: { subscriptionTier: tier } };
+/** A `useUserProfile` double exposing only the viewer id + paid-feature state the screen reads. */
+function profile(
+    id: string | undefined,
+    paidFeatures: 'granted' | 'upsell' | 'hidden' = 'upsell',
+): ReturnType<typeof useUserProfile> {
+    const data = id === undefined ? undefined : { user: { id }, account: { paidFeatures } };
 
-    return { data } as unknown as ReturnType<typeof useUserProfile>;
+    return { status: data === undefined ? 'pending' : 'success', data } as unknown as ReturnType<typeof useUserProfile>;
 }
 
 afterEach(cleanup);
@@ -442,7 +445,7 @@ describe('RecipeDetailScreen — ready state', () => {
 describe('RecipeDetailScreen — owner actions', () => {
     beforeEach(() => {
         seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'private' }));
-        useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'granted'));
     });
 
     it('opens the editor (primary) and version history (in the ⋯ menu) from the owner actions', () => {
@@ -614,7 +617,7 @@ describe('RecipeDetailScreen — the ambiguity review is the owner’s alone', (
 describe('RecipeDetailScreen — owner actions are design-system controls (U8)', () => {
     beforeEach(() => {
         seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'private' }));
-        useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'granted'));
     });
 
     /**
@@ -677,10 +680,10 @@ describe('RecipeDetailScreen — owner actions are design-system controls (U8)',
 });
 
 describe('RecipeDetailScreen — visibility gating (C-004)', () => {
-    // Owner 2026-10-13 (B2 E1): Make private is offered to EVERY owner; Premium decides what it does.
-    it('offers a free-tier owner Make private, and tapping it opens the Premium sheet and sends nothing', () => {
+    // Plan 2026-10-14-009 D14, mirroring the web suite: Make private is offered under granted and upsell only.
+    it('under upsell, offers Make private, and tapping it opens the Premium sheet and sends nothing', () => {
         seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'public' }));
-        useUserProfileMock.mockReturnValue(profile('usr_1', 'free'));
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'upsell'));
         const mutate = vi.fn();
         useSetRecipeVisibilityMock.mockReturnValue(
             mutation<ReturnType<typeof useSetRecipeVisibility>>({ mutate: mutate as never }),
@@ -694,9 +697,9 @@ describe('RecipeDetailScreen — visibility gating (C-004)', () => {
         expect(mutate).not.toHaveBeenCalled();
     });
 
-    it('a premium owner who taps Make private makes it private, with no sheet', () => {
+    it('a granted owner who taps Make private makes it private, with no sheet', () => {
         seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'public' }));
-        useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'granted'));
         const mutate = vi.fn();
         useSetRecipeVisibilityMock.mockReturnValue(
             mutation<ReturnType<typeof useSetRecipeVisibility>>({ mutate: mutate as never }),
@@ -710,14 +713,37 @@ describe('RecipeDetailScreen — visibility gating (C-004)', () => {
         expect(screen.queryByRole('heading', { name: 'Private recipes are part of Premium.' })).toBeNull();
     });
 
-    it('offers a premium owner Make private', () => {
+    it('offers a granted owner Make private', () => {
         seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'public' }));
-        useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'granted'));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
 
         expect(screen.getByRole('menuitem', { name: 'Make private' })).toBeTruthy();
+    });
+
+    // (A failed profile read has no viewer id on native — the owner key comes from the profile — so it shows no owner
+    // menu at all; the web suite covers the failed read for an owner, whose key comes from the Clerk session.)
+    it('⛔ under hidden, offers no Make private', () => {
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'public' }));
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'hidden'));
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+
+        expect(screen.queryByRole('menuitem', { name: 'Make private' })).toBeNull();
+        expect(screen.getByRole('menuitem', { name: 'Version history' })).toBeTruthy();
+    });
+
+    it('under hidden, a private recipe still offers Make public', () => {
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'private' }));
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'hidden'));
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+
+        expect(screen.getByRole('menuitem', { name: 'Make public' })).toBeTruthy();
     });
 });
 
@@ -808,7 +834,7 @@ describe('RecipeDetailScreen — Save a copy', () => {
 
     it('does NOT render Save a copy for the viewer’s OWN public recipe (D7 parity — matches web)', () => {
         seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', visibility: 'public' }));
-        useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'granted'));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 

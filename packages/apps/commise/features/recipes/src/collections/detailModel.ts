@@ -8,11 +8,13 @@
  */
 import type { CardVariant, ListViewMode } from '../card/cardVariant.js';
 import type { RemovableMember } from '../hooks/useMemberRemoval.js';
-import type { Recipe, RecipeVisibility } from '@kitchensink/recipe-core';
+import type { ActionMenuItem } from '@commise/ui/action-menu';
+import { RecipeVisibility, type Recipe } from '@kitchensink/recipe-core';
 
 import type { RefreshNoticeControl } from '../refresh/model.js';
 import type { PickerSummary } from './pickerModel.js';
 import type { RenderRecipeNutrition } from '../nutrition/model.js';
+import type { CollectionMenuMessages } from './messages.js';
 import type { CollectionMemberRecipe } from './model.js';
 import type { ReactNode } from 'react';
 
@@ -68,12 +70,56 @@ export type CollectionActionsPlacement = 'title' | 'below';
 /** What the ⋯ menu's items ask for. */
 export interface CollectionMenuActions {
     readonly onRename: () => void;
-    /** Make the collection private (shown while it is public) or public (while it is private). */
-    readonly onToggleVisibility: () => void;
+    /**
+     * Make the collection private (shown while it is public) or public (while it is private). Absent leaves the item
+     * out: the host omits it when Private is not offered and the collection is public (plan 2026-10-14-009 D14).
+     */
+    readonly onToggleVisibility?: () => void;
     readonly onSaveCopy: () => void;
     /** Pull updates from the original; offered for a copy only. */
     readonly onPullUpdates: () => void;
     readonly onDelete: () => void;
+}
+
+/**
+ * The collection ⋯ menu's entries, in order, for both platforms' headers: Rename · Make private / Make public · Save a
+ * copy · Pull updates (a copy only). Delete is the menu's separate destructive item. Pure.
+ *
+ * The visibility entry is left out when `onToggleVisibility` is absent — the host gives none when Private is not
+ * offered (plan 2026-10-14-009 D14). Its glyph names the visibility the entry MOVES TO, as the meta line's names the one
+ * the collection has.
+ *
+ * @param input - The menu copy, the collection's visibility, whether it is a copy, and the actions.
+ * @returns The entries.
+ */
+export function collectionMenuItems(input: {
+    readonly copy: CollectionMenuMessages;
+    readonly visibility: RecipeVisibility;
+    readonly isCopy: boolean;
+    readonly actions: Omit<CollectionMenuActions, 'onDelete'>;
+}): readonly ActionMenuItem[] {
+    const { copy, visibility, isCopy, actions } = input;
+    const isPublic = visibility === RecipeVisibility.PUBLIC;
+    const items: ActionMenuItem[] = [
+        { id: 'rename', label: copy.rename, icon: 'pencilLine', onSelect: actions.onRename },
+    ];
+
+    if (actions.onToggleVisibility !== undefined) {
+        items.push({
+            id: 'visibility',
+            label: isPublic ? copy.makePrivate : copy.makePublic,
+            icon: isPublic ? 'lock' : 'globe',
+            onSelect: actions.onToggleVisibility,
+        });
+    }
+
+    items.push({ id: 'saveCopy', label: copy.saveCopy, icon: 'copyPlus', onSelect: actions.onSaveCopy });
+
+    if (isCopy) {
+        items.push({ id: 'pull', label: copy.pullUpdates, icon: 'refreshCw', onSelect: actions.onPullUpdates });
+    }
+
+    return items;
 }
 
 /**

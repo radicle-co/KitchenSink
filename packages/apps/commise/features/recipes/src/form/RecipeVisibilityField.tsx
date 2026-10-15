@@ -2,20 +2,22 @@
  * @module @commise/features-recipes/form — `RecipeVisibilityField` (web): "Who can see it"
  * (`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), a radio group of two cards, Public and Private.
  *
- * For a cook whose plan does not include private recipes, Private carries the Premium badge and choosing it calls
- * `onPremiumRequired` instead of changing the value: the upsell decides, and nothing is pre-selected for it
- * (`visibilityChoice`). A recipe that is already private stays private and shows so.
+ * The host renders it only when Private is offered (`offersPrivate`); otherwise `RecipeVisibilityStatement`. Under
+ * `upsell`, Private carries the Premium badge and choosing it calls `onPremiumRequired` instead of changing the value:
+ * the upsell decides, and nothing is pre-selected for it (`visibilityChoice`). A recipe that is already private stays
+ * private and shows so; under `hidden` the Public card says that choosing it is final (plan 2026-10-14-009 D14).
  *
  * Presentational and controlled. The native leaf is `./RecipeVisibilityField.native.tsx`.
  *
- * @pattern Policy — `visibilityChoice` decides what a choice does; `canGoPrivate` only derives the badge and that
- *     decision's input, it selects no second mode of the field
+ * @pattern Policy — `visibilityChoice` decides what a choice does; the paid-feature state only derives the badge, the
+ *     note and that decision's input, it selects no second mode of the field
  */
 import { useMessages } from '@commise/i18n/react';
 import { StatusBadge } from '@commise/ui/status-badge';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
+import { privateIsFinal, showsPremiumBadge } from '../actions/privateGate.js';
 import { editorMessages } from '../editor/messages.js';
 import { recipeFormMessages } from './messages.js';
 import { visibilityChoice, type RecipeVisibilityFieldProps } from './props.js';
@@ -31,14 +33,15 @@ const cardChosen = 'border-selected-edge bg-selected-fill';
 export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     values,
     onChange,
-    canGoPrivate,
+    paidFeatures,
+    savedVisibility,
     onPremiumRequired,
 }) => {
     const m = useMessages(recipeFormMessages);
     const { visibility: v } = useMessages(editorMessages);
 
     const choose = (chosen: RecipeVisibility): void => {
-        const next = visibilityChoice(values.visibility, chosen, canGoPrivate);
+        const next = visibilityChoice(values.visibility, chosen, savedVisibility, paidFeatures);
 
         if (next === 'premiumRequired') {
             onPremiumRequired?.();
@@ -47,9 +50,27 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
         }
     };
 
-    const options: readonly { value: RecipeVisibility; title: string; hint: string; premium: boolean }[] = [
-        { value: 'public', title: v.public, hint: v.publicHint, premium: false },
-        { value: 'private', title: v.private, hint: v.privateHint, premium: !canGoPrivate },
+    const options: readonly {
+        value: RecipeVisibility;
+        title: string;
+        hint: string;
+        note: string | undefined;
+        premium: boolean;
+    }[] = [
+        {
+            value: 'public',
+            title: v.public,
+            hint: v.publicHint,
+            note: privateIsFinal(paidFeatures, savedVisibility) ? v.publicIsFinal : undefined,
+            premium: false,
+        },
+        {
+            value: 'private',
+            title: v.private,
+            hint: v.privateHint,
+            note: undefined,
+            premium: showsPremiumBadge(paidFeatures, savedVisibility),
+        },
     ];
 
     return (
@@ -61,6 +82,12 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     const titleId = `recipe-visibility-${option.value}`;
                     const hintId = `${titleId}-hint`;
                     const badgeId = `${titleId}-badge`;
+                    const noteId = `${titleId}-note`;
+                    const describedBy = [
+                        hintId,
+                        ...(option.note === undefined ? [] : [noteId]),
+                        ...(option.premium ? [badgeId] : []),
+                    ].join(' ');
 
                     return (
                         <label key={option.value} className={`${card} ${chosen ? cardChosen : cardResting}`}>
@@ -71,7 +98,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                                 checked={chosen}
                                 onChange={() => choose(option.value)}
                                 aria-labelledby={titleId}
-                                aria-describedby={option.premium ? `${hintId} ${badgeId}` : hintId}
+                                aria-describedby={describedBy}
                                 className="size-5 shrink-0 accent-action"
                             />
                             <span className="flex min-w-0 flex-1 flex-col">
@@ -81,6 +108,11 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                                 <span id={hintId} className="text-meta text-ink-muted">
                                     {option.hint}
                                 </span>
+                                {option.note === undefined ? null : (
+                                    <span id={noteId} className="text-meta text-ink-muted">
+                                        {option.note}
+                                    </span>
+                                )}
                             </span>
                             {option.premium ? (
                                 <span id={badgeId} className="shrink-0">

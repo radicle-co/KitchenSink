@@ -36,6 +36,7 @@ const PRINCIPAL: Principal = {
     sub: 'user_clerk',
     scopes: [],
     permissions: [],
+    roles: [],
     principalKind: 'real',
     containment: 'enforce',
 };

@@ -79,7 +79,15 @@ const CURATOR = '01JU4LEXICAL00000000CURATR';
 
 /** A principal with the given grants. */
 function principal(userId: string, scopes: string[] = []): Principal {
-    return { userId, sub: `clerk_${userId}`, scopes, permissions: [], principalKind: 'real', containment: 'enforce' };
+    return {
+        userId,
+        sub: `clerk_${userId}`,
+        scopes,
+        permissions: [],
+        roles: [],
+        principalKind: 'real',
+        containment: 'enforce',
+    };
 }
 
 /** One food-service search row, in the wire spelling the gateway narrows. */

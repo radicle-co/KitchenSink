@@ -29,7 +29,7 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
     test('states a range, renders it, and re-opens the editor with BOTH bounds', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         await mockFoodApi(page);
 
         await page.goto(route('/recipes'));
@@ -88,7 +88,7 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
     test('states NO quantity, and the recipe stays editable and saveable (R40)', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         await mockFoodApi(page);
 
         await page.goto(route('/recipes'));

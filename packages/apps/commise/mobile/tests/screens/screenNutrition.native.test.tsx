@@ -169,7 +169,7 @@ beforeEach(() => {
         makeCollectionWithRecipes([makeRecipe({ id: RECIPE_ID, title: 'Weeknight Pasta' })]),
     );
     useUserProfileMock.mockReturnValue({
-        data: { user: { id: 'usr_1' }, account: { subscriptionTier: 'premium' } },
+        data: { user: { id: 'usr_1' }, account: { paidFeatures: 'granted' } },
         isLoading: false,
     } as unknown as ReturnType<typeof useUserProfile>);
 });

@@ -26,7 +26,7 @@ import { Module, type INestApplication, type MiddlewareConsumer, type NestModule
 import { ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_PIPE, NestFactory } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { ClerkVerificationError } from '@kitchensink/clerk-verify';
+import { ClerkVerificationError, type Role } from '@kitchensink/clerk-verify';
 import { ZodValidationPipe } from 'nestjs-zod';
 
 import { AUTHOR_ID, STRANGER_ID } from '../../src/foods/__fixtures__/foodRefFacts.js';
@@ -64,6 +64,7 @@ export interface MockPrincipal {
     readonly userId?: string;
     readonly scopes: string[];
     readonly permissions: string[];
+    readonly roles: readonly Role[];
     readonly testPrincipal: boolean;
 }
 
@@ -82,19 +83,34 @@ export interface MockPrincipal {
 export function principalFor(token: string): MockPrincipal {
     switch (token) {
         case 'author':
-            return { sub: 'user_author', userId: AUTHOR_ID, scopes: [], permissions: [], testPrincipal: false };
+            return {
+                sub: 'user_author',
+                userId: AUTHOR_ID,
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: false,
+            };
         case 'stranger':
-            return { sub: 'user_stranger', userId: STRANGER_ID, scopes: [], permissions: [], testPrincipal: false };
+            return {
+                sub: 'user_stranger',
+                userId: STRANGER_ID,
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: false,
+            };
         case 'service':
-            return { sub: 'svc_recipe', scopes: [], permissions: [], testPrincipal: false };
+            return { sub: 'svc_recipe', scopes: [], permissions: [], roles: [], testPrincipal: false };
         case 'unsynced':
-            return { sub: 'user_unsynced', scopes: [], permissions: [], testPrincipal: false };
+            return { sub: 'user_unsynced', scopes: [], permissions: [], roles: [], testPrincipal: false };
         case 'operator':
             return {
                 sub: 'user_operator',
                 userId: OPERATOR_ID,
                 scopes: ['food:admin'],
                 permissions: [],
+                roles: [],
                 testPrincipal: false,
             };
         default:

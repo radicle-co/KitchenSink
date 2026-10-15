@@ -35,7 +35,7 @@ function principal(
     permissions: string[] = [],
     subject: Pick<Principal, 'principalKind' | 'containment'> = { principalKind: 'real', containment: 'enforce' },
 ): Principal {
-    return { userId: AUTHOR, sub: 'user_clerk', scopes, permissions, ...subject };
+    return { userId: AUTHOR, sub: 'user_clerk', scopes, permissions, roles: [], ...subject };
 }
 
 /** No history at all — the virgin-phrase facts. */

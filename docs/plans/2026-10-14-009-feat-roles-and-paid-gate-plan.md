@@ -2,7 +2,7 @@
 title: 'feat: user roles and the paid-features gate — roles in Clerk public_metadata, one entitlement policy, account.paidFeatures'
 type: feat
 date: 2026-10-14
-status: draft — blueprint review pending
+status: built — 2026-10-15 (blueprint corrections below supersede D1, D7, D8, D10, D13, D15 where they differ)
 ---
 
 # User roles and the paid-features gate
@@ -76,6 +76,30 @@ status: draft — blueprint review pending
 | D14 | **Client surfaces** (states per the UX spec) — `useGatedPrivate` takes `paidFeatures` instead of `mayGoPrivate`; `privateNeedsPremium` stays the one "needs the upsell" rule; a new `offersPrivate(paidFeatures, current)` decides whether Private is shown at all. Editor visibility field, recipe ⋯ menu (`detailMenuOf` gains `paidFeatures`), collection ⋯ menu and `useCollectionVisibility`, both upsell sheets, Home nudge (`trigger` is a no-op unless `upsell`) and Home widget tier (`granted` → `pro`). Web and native in the same change.                                                                                                              |
 | D15 | **recipe-core** `canGoPrivate` / `Viewer.tier` lose their client callers. Decision deferred to the blueprint: delete them, or keep them for the server.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
+## Blueprint corrections, as built
+
+The `staff-architect` BLUEPRINT pass and one scaled `staff-ux-engineer` SPECIFY answer changed these decisions. Where a
+row above disagrees, this list wins.
+
+- **D1/D3 — the role vocabulary lives in `@kitchensink/clerk-verify/src/roles.ts`**, not identity-core: it is the
+  grammar of the signed claim, it imports nothing, and food depends only on clerk-verify. It is exported through the
+  package barrel (a `./roles` subpath was tried and removed: the house import rule admits only declared subpaths, and
+  no bundle needs the roles alone). The gate-aware `paidFeatureAccess` is identity-only
+  (`identity/src/users/domain/paidFeatureAccess.ts`) and returns the wire type, so no constant needs pinning (D7).
+- **D8 — the gate is read once at boot** through `paidFeaturesGateProvider`, never per request.
+- **D10 — a 404 converges.** A user Clerk no longer holds answers `absent` instead of failing every svix retry.
+- **D12 — the `roles` tier is read-only by rule**, stated in `POOL_TIERS`; `rolesuperuser` holds the global curator
+  scopes, so a write as it would reach global data.
+- **D13 — `paidFeatureStateOf(profile)`** returns one flat union: `loading | granted | upsell | hidden`.
+- **D14 — UX spec.** Loading FAILS CLOSED (the wait-then-decide branch is deleted). Under `hidden` or `loading` the
+  editor shows `RecipeVisibilityStatement` ("Who can see it: Public") in place of the radio group; the ⋯ menus leave
+  Make private out; a thing ALREADY private stays private, may go back to private, and under `hidden` its Public card
+  says the choice is final. The Home nudge is offered only under `upsell`. The collection menu is built once
+  (`collectionMenuItems`).
+- **D15 — deleted.** `canGoPrivate`, `Viewer.tier`, `Tier`, `tierSchema` and `rankTier` had client callers only.
+- **Maestro** — `recipes/paidFeaturesByRole.yaml` is written and recorded in `KNOWN_UNRUN_FLOWS`: its UI sign-ins
+  would spend up to five more Clerk email-code verifications per platform per run (Q3).
+
 ## Tests, by tier (each written red first)
 
 - **identity-core** unit: `parseRoles` partitions; `paidFeatureAccess` 5 roles × 2 gate values (table); `scopesForRoles`
@@ -105,12 +129,27 @@ status: draft — blueprint review pending
 - **Q1.** Which scopes does `admin` get? Default here: `admin:users` and `food:admin`; the curator scopes only through
   `superuser`.
 - **Q2.** Should the Clerk session-token templates (web and `commise-native`) be checked in the dashboard for a
-  whole-object `public_metadata` mapping? This change assumes it.
+  whole-object `public_metadata` mapping? This change assumes it. If either maps chosen keys, `roles` never arrives and
+  every check fails closed to no paid features.
+- **Q3.** May `recipes/paidFeaturesByRole.yaml` join the Maestro plan, spending up to five more email-code
+  verifications per platform per run?
+- **Q4.** GR-012 AC-012-c ("no feature other than 010 defines its own subscription tier check") and ADR-0017:73 predate
+  roles; the one shared check is now `hasPaidFeatures` in clerk-verify. Amend their text?
+- **Q5.** A downgraded owner who makes a private recipe public cannot make it private again. The UX spec recommends a
+  confirm dialog before that Make public; this change ships only the "You won't be able to make it private again."
+  note in the editor. Build the confirm?
+
+## Operations after merge (the owner's, not this change's)
+
+1. Deploy identity before the clients (`subscriptionTier` left the wire).
+2. Run `poolAdmin --apply`: it writes `roles` to every lane, revokes the old `premium` permission, and creates the
+   five `roles` users. Until then the signer and k6 lanes lose private writes.
+3. To flip a gate: set `PAID_FEATURES_GATE_SANDBOX` or `_PROD`, then dispatch the identity deploy.
 
 ## Pattern register
 
 - `@pattern Specification` — `paidFeatureAccess` / `hasPaidFeatures`, pure predicates over roles and the gate.
-- `@pattern Registry` — `ROLE_SCOPES`, a typed `Record` over the `Role` union (a role with no entry is a compile error).
+- `@pattern Parser` + `@pattern Registry` (clerk-verify `roles.ts`) — `ROLE_SCOPES`, a typed `Record` over the `Role` union (a role with no entry is a compile error).
 - `@pattern Parser` (parse, don't validate) — `parseRoles` at the token boundary, inside `verifyClerkToken`.
 - `@pattern Policy` — the unchanged `visibilityPolicy` / `collectionVisibilityPolicy`, fed by the new derivation.
 - `@pattern Adapter` — `paidFeatureAccessOf`, profile query → the surfaces' state.

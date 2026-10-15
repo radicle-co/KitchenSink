@@ -4,7 +4,7 @@
  * (plan `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D4; owner ruling 2026-10-13: "superuser → all
  * scopes").
  *
- * `ROLE_SCOPES` (`@kitchensink/clerk-verify/roles`) names scope literals the services OWN — identity's
+ * `ROLE_SCOPES` (`@kitchensink/clerk-verify`'s `roles.ts`) names scope literals the services OWN — identity's
  * `@RequireScopes('admin:users')`, food's `FOOD_ADMIN_SCOPE`, recipe's three curator scopes. A copy of a list cannot
  * detect that the list is incomplete, so the set the services check is DISCOVERED from their source, never written
  * down here, and compared in BOTH directions:
@@ -22,7 +22,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { ROLE_SCOPES } from '@kitchensink/clerk-verify/roles';
+import { ROLE_SCOPES } from '@kitchensink/clerk-verify';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 

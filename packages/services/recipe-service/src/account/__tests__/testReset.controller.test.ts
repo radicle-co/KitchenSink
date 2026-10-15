@@ -20,7 +20,8 @@ const PRINCIPAL: Principal = {
     userId: '01JZRESETCONTROLLERUSER001',
     sub: 'user_clerk',
     scopes: ['recipes:mappings:global'],
-    permissions: ['premium'],
+    permissions: [],
+    roles: ['premium'],
     principalKind: 'test',
     containment: 'enforce',
 };

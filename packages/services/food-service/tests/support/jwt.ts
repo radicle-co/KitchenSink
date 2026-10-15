@@ -38,6 +38,8 @@ export interface MintTokenOptions {
     readonly scopes?: readonly string[];
     /** Authorization permissions embedded in `public_metadata`. */
     readonly permissions?: readonly string[];
+    /** Roles embedded in `public_metadata.roles`; omitted leaves the key out entirely. */
+    readonly roles?: readonly string[];
     /** Seconds until expiry (default 3600). Use a negative value to mint an already-expired token. */
     readonly expiresInSeconds?: number;
 }
@@ -86,6 +88,7 @@ export function mintToken(privateKeyPem: string, options: MintTokenOptions): str
         public_metadata: {
             scopes: [...(options.scopes ?? [])],
             permissions: [...(options.permissions ?? [])],
+            ...(options.roles !== undefined ? { roles: [...options.roles] } : {}),
         },
     };
 

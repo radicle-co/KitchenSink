@@ -44,7 +44,7 @@ test.describe('recipe list — zero-row states', () => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         // The whole point: an EMPTY library. The mock's default seed (one recipe) is what hid this state.
-        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [] });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [] });
 
         // A successful load with nothing in it is the EMPTY state — not an error, and not a wait.
         await page.goto(route('/recipes'));
@@ -85,7 +85,7 @@ test.describe('recipe list — zero-row states', () => {
         // from the loaded rows.
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [
                 makeRecipeDetail({
                     id: 'ec000000-0000-4000-8000-000000000030',

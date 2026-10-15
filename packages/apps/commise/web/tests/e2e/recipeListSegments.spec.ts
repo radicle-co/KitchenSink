@@ -18,7 +18,7 @@ test.describe('Recipes segments — My recipes and Collections', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [
                 makeRecipeDetail({
                     id: 'ec000000-0000-4000-8000-00000000002d',
@@ -53,7 +53,7 @@ test.describe('Recipes segments — W-25: width by container', () => {
     test('take their content’s width on a wide screen, and fill the row on a phone', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [] });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [] });
 
         const widthOf = async (name: 'Recipes'): Promise<number> =>
             (await page.getByRole('navigation', { name }).locator('> div').boundingBox())?.width ?? 0;

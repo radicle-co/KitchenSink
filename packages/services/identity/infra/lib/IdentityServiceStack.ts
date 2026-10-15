@@ -64,6 +64,16 @@ export interface IdentityServiceStackProps extends StackProps {
      */
     readonly alarmsEnabled: boolean;
 
+    /**
+     * This stage's paid-features gate (plan `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D8/D9).
+     * Resolved at SYNTH time from `PAID_FEATURES_GATE`, which `.github/scripts/resolvePaidFeaturesGate.sh` exports
+     * from the owner's GitHub variable. It decides only whether a user with no entitled role is shown the upsell.
+     *
+     * ⛔ REQUIRED, and emitted as an explicit `'true'`/`'false'`: a call site cannot keep the old behaviour by saying
+     * nothing, and an absent container variable cannot be confused with a resolved `false`.
+     */
+    readonly paidFeaturesGate: boolean;
+
     readonly stage: string;
     readonly domainName: string;
     readonly imageTag: string;
@@ -303,6 +313,8 @@ export class IdentityServiceStack extends Stack {
                 // ENFORCE everywhere else — so `off` is emitted on EXACTLY `sandbox` and prod synthesizes the
                 // variable ABSENT. Gated on equality, never on "not prod", so a new stage inherits the safe default.
                 ...(stage === 'sandbox' ? { TEST_PRINCIPAL_CONTAINMENT: 'off' } : {}),
+                // The owner's paid-features gate for this stage (see the prop). Only identity reads it.
+                PAID_FEATURES_GATE: props.paidFeaturesGate ? 'true' : 'false',
                 DB_HOST: database.dbInstanceEndpointAddress,
                 DB_PORT: Fn.importValue(`kitchensink-data-${stage}:DatabasePort`),
                 DB_NAME: Fn.importValue(`kitchensink-data-${stage}:DatabaseName`),

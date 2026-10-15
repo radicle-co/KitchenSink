@@ -89,7 +89,7 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
     }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         const searches = await mockFoodApi(page, onlyUsda(USDA_PEPPER));
 
         await openNewRecipe(page);
@@ -208,7 +208,7 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
                 ambiguousLine('77777777-7777-4777-8777-777777777775', 2, 'tbsp'),
             ],
         });
-        const store = await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [recipe] });
+        const store = await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [recipe] });
         const searches = await mockFoodApi(page, onlyUsda(USDA_APPLESAUCE));
         const rebinds = await mockRebind(page, store, {
             foodNames: { [USDA_APPLESAUCE.rootId]: USDA_APPLESAUCE.name },
@@ -252,7 +252,7 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
                 ambiguousLine('77777777-7777-4777-8777-777777777777', 2, 'tbsp'),
             ],
         });
-        const store = await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [recipe] });
+        const store = await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [recipe] });
 
         await mockFoodApi(page, onlyUsda(USDA_APPLESAUCE));
         await mockRebind(page, store, { foodNames: { [USDA_APPLESAUCE.rootId]: USDA_APPLESAUCE.name } });
@@ -301,7 +301,7 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
         await page.setViewportSize({ width: 1280, height: 800 });
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         await mockFoodApi(page, onlyUsda(USDA_PEPPER));
         // The adopt waits until the cook is in Details, then food refuses it: the food is gone from its source.
         let refuse: () => void = () => undefined;

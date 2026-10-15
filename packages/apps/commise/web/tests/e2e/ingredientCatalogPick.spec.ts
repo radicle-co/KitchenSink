@@ -29,7 +29,7 @@ test.describe('the ingredient search — the cook’s foods and the catalog’s 
     }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         await mockFoodApi(page, { authored: ownFoodLedger([MY_PEPPER]) });
 
         await openNewRecipe(page);

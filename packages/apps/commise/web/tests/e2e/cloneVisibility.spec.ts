@@ -41,7 +41,7 @@ test.describe('clone + visibility (T080)', () => {
             title: 'My Public Dish',
             visibility: 'public',
         });
-        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [ownPublic] });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [ownPublic] });
 
         await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000017'));
         await expect(page.getByRole('heading', { name: 'My Public Dish' })).toBeVisible();
@@ -68,7 +68,7 @@ test.describe('clone + visibility (T080)', () => {
             title: 'My Free Dish',
             visibility: 'public',
         });
-        await mockRecipeApi(page, { viewerId, tier: 'free', recipes: [ownPublic] });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'upsell', recipes: [ownPublic] });
 
         await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000018'));
         await expect(page.getByRole('heading', { name: 'My Free Dish' })).toBeVisible();

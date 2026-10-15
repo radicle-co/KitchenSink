@@ -25,7 +25,7 @@ vi.mock('@kitchensink/clerk-verify', async (importOriginal) => {
     return { ...actual, verifyClerkToken: vi.fn() };
 });
 
-import { verifyClerkToken, ClerkVerificationError } from '@kitchensink/clerk-verify';
+import { verifyClerkToken, ClerkVerificationError, type Role } from '@kitchensink/clerk-verify';
 
 import { makeCatalogFood } from '../__fixtures__/catalogFood.js';
 import { makePool } from '../support/db.js';
@@ -40,10 +40,11 @@ function principalFor(token: string): {
     userId?: string;
     scopes: string[];
     permissions: string[];
+    roles: readonly Role[];
     testPrincipal: boolean;
 } {
     if (token === 'user') {
-        return { sub: 'user_1', userId: USER_ULID, scopes: [], permissions: [], testPrincipal: false };
+        return { sub: 'user_1', userId: USER_ULID, scopes: [], permissions: [], roles: [], testPrincipal: false };
     }
 
     throw new ClerkVerificationError();

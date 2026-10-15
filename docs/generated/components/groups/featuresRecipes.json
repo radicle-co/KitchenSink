@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 132,
-        "implementations": 236,
-        "props": 1123,
-        "documentedComponents": 132,
-        "implementationsWithModuleDoc": 236,
-        "implementationsWithComponentDoc": 136,
-        "documentedProps": 865,
-        "classifiedComponents": 114,
+        "components": 133,
+        "implementations": 238,
+        "props": 1125,
+        "documentedComponents": 133,
+        "implementationsWithModuleDoc": 238,
+        "implementationsWithComponentDoc": 138,
+        "documentedProps": 867,
+        "classifiedComponents": 115,
         "componentsWithPatternTag": 58,
-        "crossPlatformComponents": 104
+        "crossPlatformComponents": 105
     },
     "components": [
         {
@@ -992,11 +992,11 @@
                         },
                         {
                             "name": "onToggleVisibility",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Make the collection private (shown while it is public) or public (while it is private).",
+                            "description": "Make the collection private (shown while it is public) or public (while it is private). Absent leaves the item\nout: the host omits it when Private is not offered and the collection is public (plan 2026-10-14-009 D14).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         },
                         {
@@ -1216,11 +1216,11 @@
                         },
                         {
                             "name": "onToggleVisibility",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Make the collection private (shown while it is public) or public (while it is private).",
+                            "description": "Make the collection private (shown while it is public) or public (while it is private). Absent leaves the item\nout: the host omits it when Private is not offered and the collection is public (plan 2026-10-14-009 D14).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         },
                         {
@@ -15464,7 +15464,7 @@
             "dir": "packages/apps/commise/features/recipes/src/form",
             "kind": "presentational",
             "patterns": [
-                "Policy — `visibilityChoice` decides what a choice does; `canGoPrivate` only derives the badge and that\n    decision's input, it selects no second mode of the field"
+                "Policy — `visibilityChoice` decides what a choice does; the paid-feature state only derives the badge, the\n    note and that decision's input, it selects no second mode of the field"
             ],
             "platforms": [
                 "web",
@@ -15479,7 +15479,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeVisibilityField.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (web): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), a radio group of two cards, Public and Private.\n\nFor a cook whose plan does not include private recipes, Private carries the Premium badge and choosing it calls\n`onPremiumRequired` instead of changing the value: the upsell decides, and nothing is pre-selected for it\n(`visibilityChoice`). A recipe that is already private stays private and shows so.\n\nPresentational and controlled. The native leaf is `./RecipeVisibilityField.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (web): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), a radio group of two cards, Public and Private.\n\nThe host renders it only when Private is offered (`offersPrivate`); otherwise `RecipeVisibilityStatement`. Under\n`upsell`, Private carries the Premium badge and choosing it calls `onPremiumRequired` instead of changing the value:\nthe upsell decides, and nothing is pre-selected for it (`visibilityChoice`). A recipe that is already private stays\nprivate and shows so; under `hidden` the Public card says that choosing it is final (plan 2026-10-14-009 D14).\n\nPresentational and controlled. The native leaf is `./RecipeVisibilityField.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -15487,7 +15487,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Policy — `visibilityChoice` decides what a choice does; `canGoPrivate` only derives the badge and that\n    decision's input, it selects no second mode of the field"
+                            "text": "Policy — `visibilityChoice` decides what a choice does; the paid-feature state only derives the badge, the\n    note and that decision's input, it selects no second mode of the field"
                         }
                     ],
                     "description": "\"Who can see it\": Public or Private.",
@@ -15495,15 +15495,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "canGoPrivate",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Whether the cook may make a recipe private. When not, Private carries the Premium badge.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
-                        },
                         {
                             "name": "onChange",
                             "type": "(next: RecipeFormValues) => void",
@@ -15519,7 +15510,33 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Choosing Private without {@link canGoPrivate}: open the upsell. The value never changes for it.",
+                            "description": "Choosing Private under `upsell`: open the upsell. The value never changes for it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "paidFeatures",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"hidden\"",
+                                "\"loading\"",
+                                "\"granted\"",
+                                "\"upsell\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The viewer's paid-feature state. Under `upsell`, Private carries the Premium badge.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "savedVisibility",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"public\"",
+                                "\"private\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The visibility the server holds. Going back to it needs no entitlement.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -15544,7 +15561,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeVisibilityField.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (native): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), the React Native leaf of `./RecipeVisibilityField.tsx`, on the\nsame props and the same rule (`visibilityChoice`): a radio group of two 56 pt cards, and Private for a cook whose plan\ndoes not include it asks for the upsell instead of changing the value.\n\nA card is named by its whole text, so the Premium badge is read with it (an `aria-label` would replace it).\n\nColours come from the theme at render, so both colour schemes paint (owner D15).",
+                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (native): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), the React Native leaf of `./RecipeVisibilityField.tsx`, on the\nsame props and the same rule (`visibilityChoice`): a radio group of two 56 pt cards; under `upsell` Private asks for\nthe upsell instead of changing the value, and under `hidden` a private recipe's Public card says that choosing it is\nfinal (plan 2026-10-14-009 D14). The host renders `RecipeVisibilityStatement` instead when Private is not offered.\n\nA card is named by its whole text, so the Premium badge is read with it (an `aria-label` would replace it).\n\nColours come from the theme at render, so both colour schemes paint (owner D15).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -15552,7 +15569,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Policy — `visibilityChoice` decides what a choice does; `canGoPrivate` only derives the badge and that\n    decision's input, it selects no second mode of the field"
+                            "text": "Policy — `visibilityChoice` decides what a choice does; the paid-feature state only derives the badge, the\n    note and that decision's input, it selects no second mode of the field"
                         }
                     ],
                     "description": "\"Who can see it\": Public or Private.",
@@ -15560,15 +15577,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "canGoPrivate",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Whether the cook may make a recipe private. When not, Private carries the Premium badge.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
-                        },
                         {
                             "name": "onChange",
                             "type": "(next: RecipeFormValues) => void",
@@ -15584,7 +15592,33 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Choosing Private without {@link canGoPrivate}: open the upsell. The value never changes for it.",
+                            "description": "Choosing Private under `upsell`: open the upsell. The value never changes for it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "paidFeatures",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"hidden\"",
+                                "\"loading\"",
+                                "\"granted\"",
+                                "\"upsell\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The viewer's paid-feature state. Under `upsell`, Private carries the Premium badge.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "savedVisibility",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"public\"",
+                                "\"private\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The visibility the server holds. Going back to it needs no entitlement.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -15597,6 +15631,73 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         }
                     ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/form/RecipeVisibilityStatement",
+            "name": "RecipeVisibilityStatement",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/form",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeVisibilityStatement",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeVisibilityStatement.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityStatement` (web): \"Who can see it: Public\", what the editor\nshows in place of `RecipeVisibilityField` when Private is not offered (`offersPrivate` false: the paid features are\nhidden for this cook, or their state is still loading). Plan 2026-10-14-009 D14; owner ruling 2026-10-13.\n\nA statement, not a one-card radio group: a group with one option is not a choice, and a disabled Private card would\nitself be an upsell. Whether a recipe is public is still a fact the cook needs before publishing, so it is said.\n\nPresentational and pure. The native leaf is `./RecipeVisibilityStatement.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `RecipeVisibilityStatement` (web): \"Who can see it: Public\", what the editor"
+                        }
+                    ],
+                    "description": "\"Who can see it: Public\".",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "RecipeVisibilityStatement",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeVisibilityStatement.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityStatement` (native), the React Native leaf of\n`./RecipeVisibilityStatement.tsx`: \"Who can see it: Public\", shown in place of the visibility field when Private is\nnot offered (plan 2026-10-14-009 D14).\n\nONE accessible element, named by the whole sentence, so a screen reader reads it once rather than three fragments.\nColours come from the theme at render, so both colour schemes paint (owner D15).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `RecipeVisibilityStatement` (native), the React Native leaf of"
+                        }
+                    ],
+                    "description": "\"Who can see it: Public\".",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {

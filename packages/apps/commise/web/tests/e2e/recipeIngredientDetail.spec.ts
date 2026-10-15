@@ -33,7 +33,7 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
     test('states a preparation and a section, renders them, and re-opens the editor with both', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         await mockFoodApi(page);
 
         await page.goto(route('/recipes'));
@@ -94,7 +94,7 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
     test('⛔ an UNGROUPED recipe stays a flat list, with no section chrome anywhere', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         await mockFoodApi(page);
 
         await page.goto(route('/recipes'));
@@ -193,7 +193,7 @@ async function openRecipeWith(page: Page, ingredients: readonly RecipeIngredient
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, {
         viewerId,
-        tier: 'premium',
+        paidFeatures: 'granted',
         recipes: [
             makeRecipeDetail({
                 id: VARIANT_RECIPE_ID,

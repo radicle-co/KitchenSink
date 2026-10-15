@@ -37,7 +37,7 @@ async function openEditor(page: Page, over: Partial<typeof SEEDED> = {}): Promis
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
 
-    await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [{ ...SEEDED, ...over }] });
+    await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [{ ...SEEDED, ...over }] });
     await openRecipeEditor(page, 'ec000000-0000-4000-8000-000000000014');
     await expect(page.getByLabel('Title')).toBeVisible();
 }

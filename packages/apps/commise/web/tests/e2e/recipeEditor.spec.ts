@@ -100,7 +100,7 @@ for (const colorScheme of SCHEMES) {
             test(`a section jump puts its heading under the chrome and focuses it at ${width}`, async ({ page }) => {
                 await page.setViewportSize({ width, height: SHORT_VIEWPORT_HEIGHT });
                 const viewerId = await readViewerAppId(page);
-                await mockRecipeApi(page, { viewerId, tier: 'premium' });
+                await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
                 await page.goto(route('/recipes/new'));
                 await expect(page.getByRole('heading', { level: 1, name: 'New recipe' })).toBeVisible();
@@ -121,7 +121,7 @@ for (const colorScheme of SCHEMES) {
             await page.emulateMedia({ reducedMotion: 'reduce' });
             await page.setViewportSize({ width: 1280, height: SHORT_VIEWPORT_HEIGHT });
             const viewerId = await readViewerAppId(page);
-            await mockRecipeApi(page, { viewerId, tier: 'premium' });
+            await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
             await page.goto(route('/recipes/new'));
             await jumpTo(page, 'Steps');
@@ -135,7 +135,7 @@ for (const colorScheme of SCHEMES) {
         test('a focused field is never under the header or the action bar', async ({ page }) => {
             await page.setViewportSize({ width: 390, height: 844 });
             const viewerId = await readViewerAppId(page);
-            await mockRecipeApi(page, { viewerId, tier: 'premium' });
+            await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
             await page.goto(route('/recipes/new'));
             const title = page.getByLabel('Title');
@@ -153,7 +153,7 @@ for (const colorScheme of SCHEMES) {
             page,
         }) => {
             const viewerId = await readViewerAppId(page);
-            await mockRecipeApi(page, { viewerId, tier: 'premium' });
+            await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
             const writes = recipeWrites(page);
 
             await page.goto(route('/recipes/new'));
@@ -173,7 +173,7 @@ for (const colorScheme of SCHEMES) {
 
         test('a reload in the same tab keeps a new recipe`s draft (D7)', async ({ page }) => {
             const viewerId = await readViewerAppId(page);
-            await mockRecipeApi(page, { viewerId, tier: 'premium' });
+            await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
             await page.goto(route('/recipes/new'));
             await page.getByLabel('Description').fill('Kept through a reload.');
@@ -197,7 +197,7 @@ for (const colorScheme of SCHEMES) {
             page,
         }) => {
             const viewerId = await readViewerAppId(page);
-            await mockRecipeApi(page, { viewerId, tier: 'premium' });
+            await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
             const writes = recipeWrites(page);
             // The create never answers: it is on the wire when the tab reloads.
             await page.route('**/api/v1/recipes', async (request) => {
@@ -230,7 +230,7 @@ for (const colorScheme of SCHEMES) {
                 status: 'published',
                 currentVersion: 3,
             });
-            const store = await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [seed] });
+            const store = await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [seed] });
             const writes = recipeWrites(page);
 
             await page.goto(route('/recipes/ec000000-0000-4000-8000-00000000001c/edit'));
@@ -264,7 +264,7 @@ for (const colorScheme of SCHEMES) {
                 ingredients: [],
                 currentVersion: 1,
             });
-            const store = await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [seed] });
+            const store = await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [seed] });
 
             await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000011/edit'));
             await page.getByRole('button', { name: 'Publish', exact: true }).click();
@@ -311,7 +311,7 @@ for (const colorScheme of SCHEMES) {
                     },
                 ],
             });
-            const store = await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [seed] });
+            const store = await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [seed] });
 
             await page.goto(route(`/recipes/${id}/edit`));
 
@@ -331,7 +331,7 @@ for (const colorScheme of SCHEMES) {
         test('× never asks, and the action bar is never covered', async ({ page }) => {
             await page.setViewportSize({ width: 390, height: 844 });
             const viewerId = await readViewerAppId(page);
-            await mockRecipeApi(page, { viewerId, tier: 'premium' });
+            await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
             await page.goto(route('/recipes/new'));
             const publish = page.getByRole('button', { name: 'Publish', exact: true });
@@ -366,7 +366,7 @@ test.describe('leaving the one-page editor and coming back', () => {
 
     test('⛔ browser Back from a titled new recipe creates it: it is in My recipes', async ({ page }) => {
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         const writes = recipeWrites(page);
 
         await page.goto(route('/recipes'));
@@ -384,7 +384,7 @@ test.describe('leaving the one-page editor and coming back', () => {
 
     test('⛔ a reload after the first save opens the same recipe, never a blank one', async ({ page }) => {
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         const writes = recipeWrites(page);
 
         await page.goto(route('/recipes/new'));
@@ -407,7 +407,7 @@ test.describe('leaving the one-page editor and coming back', () => {
         page,
     }) => {
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         const writes = recipeWrites(page);
 
         await page.goto(route('/recipes/new'));
@@ -438,7 +438,7 @@ test.describe('leaving the one-page editor and coming back', () => {
         page,
     }) => {
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         const writes = recipeWrites(page);
         let release: () => void = () => undefined;
         const held = new Promise<void>((resolve) => {
@@ -487,7 +487,7 @@ test.describe('the editor Preview sheet at 1280', () => {
         await signInWithTicket(page);
         await page.setViewportSize({ width: 1280, height: 800 });
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
         await page.goto(route('/recipes/new'));
         await page.getByLabel('Title').fill('E2E Preview Soup');
@@ -513,7 +513,7 @@ test.describe('the editor form fields (A-007, A-008, A-009, E15, P3, P4)', () =>
     test.beforeEach(async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
     });
 
     test('A-007: the add-ingredient field has a visible label and hint, and is a rectangle, not an underline', async ({
@@ -649,7 +649,7 @@ test.describe('Discard leaves nothing syncing', () => {
     }) => {
         test.setTimeout(90_000);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         const writes = recipeWrites(page);
         const deletes: string[] = [];
         page.on('request', (request) => {
@@ -713,7 +713,7 @@ test.describe('Discard leaves nothing syncing', () => {
             status: 'published',
             currentVersion: 3,
         });
-        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [seed] });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [seed] });
         // Save changes is refused: the write parks, and the device keeps the changes.
         await page.route(`**/api/v1/recipes/${id}`, async (interception) => {
             if (interception.request().method() === 'PATCH') {

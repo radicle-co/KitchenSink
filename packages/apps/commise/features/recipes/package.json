@@ -23,6 +23,7 @@
         "fixtures:generate": "tsx scripts/generateSeedVariants.ts"
     },
     "dependencies": {
+        "@commise/features-account": "*",
         "@commise/features-core": "*",
         "@commise/i18n": "*",
         "@commise/ui": "*",

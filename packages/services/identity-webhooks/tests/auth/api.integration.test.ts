@@ -17,6 +17,7 @@ const mockFindByIdentityId = vi.fn();
 const mockRecordOnce = vi.fn();
 const mockHasProcessed = vi.fn().mockResolvedValue(false);
 const mockSetExternalId = vi.fn();
+const mockEnsureDefaultRole = vi.fn().mockResolvedValue('written');
 const mockProvisionCompleteUser = vi.mocked(provisionCompleteUser);
 const mockSqsSend = vi.fn().mockResolvedValue({});
 const mockDbInsertReturning = vi.fn().mockResolvedValue([{ id: 'profile-1' }]);
@@ -43,6 +44,7 @@ vi.mock('../../src/common/svix.js', () => ({
 }));
 vi.mock('../../src/common/identityClient.js', () => ({
     setExternalId: mockSetExternalId,
+    ensureDefaultRole: mockEnsureDefaultRole,
     getUser: vi.fn(),
     listUsers: vi.fn().mockResolvedValue([]),
     deleteUser: vi.fn().mockResolvedValue(undefined),
@@ -87,6 +89,7 @@ afterEach(() => {
     vi.clearAllMocks();
     mockSqsSend.mockResolvedValue({});
     mockDbInsertReturning.mockResolvedValue([{ id: 'profile-1' }]);
+    mockEnsureDefaultRole.mockResolvedValue('written');
 });
 
 beforeEach(() => {
@@ -162,6 +165,8 @@ describe('e2e: identityWebhook Lambda', () => {
             { onEmailCollision: 'signal-incomplete', emailIsReal: true },
         );
         expect(mockSetExternalId).toHaveBeenCalledWith('user_created_e2e', '01USERCREATED0000000000000');
+        // Owner ruling 2026-10-13: the default role is written at sign-up.
+        expect(mockEnsureDefaultRole).toHaveBeenCalledWith('user_created_e2e');
     });
 
     it('processes user.deleted → enqueues deletion job to SQS', async () => {

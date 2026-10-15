@@ -135,7 +135,7 @@ async function seed(page: Page, recipes: 'one' | 'none'): Promise<void> {
 
     await mockRecipeApi(page, {
         viewerId,
-        tier: 'premium',
+        paidFeatures: 'granted',
         recipes: recipes === 'one' ? [makeRecipeDetail({ id: RECIPE_ID, ownerId: viewerId, title: RECIPE_TITLE })] : [],
         collections: [makeCollection({ id: 'col_labels', ownerId: viewerId, name: 'Weeknight dinners' })],
     });

@@ -7,6 +7,7 @@
  * ingredient (the container owns the food-service typeahead). Every edit produces the next
  * {@link RecipeFormValues} and is handed back up via `onChange`.
  */
+import type { PaidFeatureState } from '@commise/features-account';
 import {
     classifyUnit,
     CUISINE_ALIASES,
@@ -22,7 +23,7 @@ import {
     type RecipeVisibility,
 } from '@kitchensink/recipe-core';
 
-import { privateNeedsPremium } from '../actions/privateGate.js';
+import { privateChoice } from '../actions/privateGate.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import type { DraftAction, ResolvedRecipeFormIngredient } from './draftAction.js';
 import {
@@ -70,35 +71,47 @@ export interface RecipeEditorSectionProps extends RecipeFormSectionProps {
 }
 
 /**
- * Props for the "Who can see it" field (`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2): the draft's slice, and
- * whether this cook's plan includes private recipes.
+ * Props for the "Who can see it" field (`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2): the draft's slice, and the
+ * facts the paid-feature rule decides from (owner ruling 2026-10-13; plan 2026-10-14-009 D14). The host renders this
+ * leaf only when Private is offered (`offersPrivate`), and `RecipeVisibilityStatement` otherwise.
  */
 export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps, 'errors'> {
-    /** Whether the cook may make a recipe private. When not, Private carries the Premium badge. */
-    readonly canGoPrivate: boolean;
-    /** Choosing Private without {@link canGoPrivate}: open the upsell. The value never changes for it. */
+    /** The viewer's paid-feature state. Under `upsell`, Private carries the Premium badge. */
+    readonly paidFeatures: PaidFeatureState;
+    /** The visibility the server holds. Going back to it needs no entitlement. */
+    readonly savedVisibility: RecipeVisibility;
+    /** Choosing Private under `upsell`: open the upsell. The value never changes for it. */
     readonly onPremiumRequired?: () => void;
 }
 
 /**
  * The visibility a choice in the "Who can see it" field leads to, or `undefined` when it changes nothing — the choice
- * already made, or Private for a cook whose plan does not include it, which asks for the upsell instead. Pure.
+ * already made, or Private that `privateChoice` refuses. Private under `upsell` asks for the upsell instead. Pure.
  *
  * @param current - The draft's visibility.
  * @param chosen - The choice the cook made.
- * @param canGoPrivate - Whether the cook may make a recipe private.
+ * @param saved - The visibility the server holds.
+ * @param state - The viewer's paid-feature state.
  * @returns `{ visibility }` to apply, `'premiumRequired'`, or `undefined`.
  */
 export const visibilityChoice = (
     current: RecipeVisibility,
     chosen: RecipeVisibility,
-    canGoPrivate: boolean,
+    saved: RecipeVisibility,
+    state: PaidFeatureState,
 ): { readonly visibility: RecipeVisibility } | 'premiumRequired' | undefined => {
     if (chosen === current) {
         return undefined;
     }
 
-    return privateNeedsPremium(chosen, canGoPrivate) ? 'premiumRequired' : { visibility: chosen };
+    switch (privateChoice({ target: chosen, saved, state })) {
+        case 'apply':
+            return { visibility: chosen };
+        case 'upsell':
+            return 'premiumRequired';
+        case 'none':
+            return undefined;
+    }
 };
 
 /**

@@ -11,6 +11,8 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type FC } from 'react';
 
+import type { PaidFeatureState } from '@commise/features-account';
+import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import { editorMessages } from '../../editor/messages.js';
 import { RecipeVisibilityField } from '../RecipeVisibilityField.js';
 import { recipeFormMessages } from '../messages.js';
@@ -23,18 +25,22 @@ afterEach(cleanup);
 
 interface HarnessProps {
     readonly initial?: RecipeFormValues;
-    readonly canGoPrivate: boolean;
+    readonly paidFeatures: PaidFeatureState;
+    /** What the server holds; defaults to the initial draft's visibility. */
+    readonly saved?: RecipeVisibility;
     readonly onChange?: (next: RecipeFormValues) => void;
     readonly onPremiumRequired?: () => void;
 }
 
-const Harness: FC<HarnessProps> = ({ initial, canGoPrivate, onChange, onPremiumRequired }) => {
+const Harness: FC<HarnessProps> = ({ initial, paidFeatures, saved, onChange, onPremiumRequired }) => {
     const [values, setValues] = useState(initial ?? defaultRecipeFormValues());
+    const [savedVisibility] = useState(saved ?? values.visibility);
 
     return (
         <RecipeVisibilityField
             values={values}
-            canGoPrivate={canGoPrivate}
+            paidFeatures={paidFeatures}
+            savedVisibility={savedVisibility}
             {...(onPremiumRequired === undefined ? {} : { onPremiumRequired })}
             onChange={(next) => {
                 setValues(next);
@@ -48,7 +54,7 @@ const radio = (name: string): HTMLInputElement => screen.getByRole<HTMLInputElem
 
 describe('RecipeVisibilityField (web)', () => {
     it('is a group named "Who can see it" holding Public and Private, each with its hint', () => {
-        render(<Harness canGoPrivate />);
+        render(<Harness paidFeatures="granted" />);
 
         const group = screen.getByRole('group', { name: v.legend });
 
@@ -63,14 +69,14 @@ describe('RecipeVisibilityField (web)', () => {
     });
 
     it('keeps today`s default: Public', () => {
-        render(<Harness canGoPrivate />);
+        render(<Harness paidFeatures="granted" />);
 
         expect(radio(v.public).checked).toBe(true);
         expect(radio(v.private).checked).toBe(false);
     });
 
     it('draws each choice as a card at least 56 px tall, the chosen one in the selected fill', () => {
-        render(<Harness canGoPrivate />);
+        render(<Harness paidFeatures="granted" />);
 
         const publicCard = radio(v.public).closest('label');
         const privateCard = radio(v.private).closest('label');
@@ -81,10 +87,10 @@ describe('RecipeVisibilityField (web)', () => {
         expect(privateCard?.className).not.toContain('bg-selected-fill');
     });
 
-    it('a cook who can go private chooses Private, and back to Public', async () => {
+    it('a granted cook chooses Private, and back to Public', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
-        render(<Harness canGoPrivate onChange={onChange} />);
+        render(<Harness paidFeatures="granted" onChange={onChange} />);
 
         await user.click(radio(v.private));
         expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'private' }));
@@ -94,14 +100,14 @@ describe('RecipeVisibilityField (web)', () => {
         expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'public' }));
     });
 
-    it('shows no Premium badge to a cook who can go private', () => {
-        render(<Harness canGoPrivate />);
+    it('shows no Premium badge to a granted cook', () => {
+        render(<Harness paidFeatures="granted" />);
 
         expect(screen.queryByText(m.premiumBadge)).toBeNull();
     });
 
-    it('for a cook who cannot, Private carries the Premium badge, described on the choice', () => {
-        render(<Harness canGoPrivate={false} />);
+    it('under upsell, Private carries the Premium badge, described on the choice', () => {
+        render(<Harness paidFeatures="upsell" />);
 
         const badge = screen.getByText(m.premiumBadge);
         const describedBy = radio(v.private).getAttribute('aria-describedby')?.split(' ') ?? [];
@@ -109,11 +115,11 @@ describe('RecipeVisibilityField (web)', () => {
         expect(describedBy.some((id) => document.getElementById(id)?.contains(badge) === true)).toBe(true);
     });
 
-    it('for a cook who cannot, choosing Private asks for the upsell and leaves the value', async () => {
+    it('under upsell, choosing Private asks for the upsell and leaves the value', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
         const onPremiumRequired = vi.fn();
-        render(<Harness canGoPrivate={false} onChange={onChange} onPremiumRequired={onPremiumRequired} />);
+        render(<Harness paidFeatures="upsell" onChange={onChange} onPremiumRequired={onPremiumRequired} />);
 
         await user.click(radio(v.private));
 
@@ -128,7 +134,7 @@ describe('RecipeVisibilityField (web)', () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
         const onPremiumRequired = vi.fn();
-        render(<Harness canGoPrivate={false} onChange={onChange} onPremiumRequired={onPremiumRequired} />);
+        render(<Harness paidFeatures="upsell" onChange={onChange} onPremiumRequired={onPremiumRequired} />);
 
         radio(v.public).focus();
         await user.keyboard('{ArrowDown}');
@@ -140,7 +146,7 @@ describe('RecipeVisibilityField (web)', () => {
     it('with no upsell wired, choosing Private does nothing', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
-        render(<Harness canGoPrivate={false} onChange={onChange} />);
+        render(<Harness paidFeatures="upsell" onChange={onChange} />);
 
         await user.click(radio(v.private));
 
@@ -148,13 +154,13 @@ describe('RecipeVisibilityField (web)', () => {
         expect(radio(v.public).checked).toBe(true);
     });
 
-    it('a recipe already private stays private for a cook who cannot go private, and can still go public', async () => {
+    it('a recipe already private stays private under upsell go private, and can still go public', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
         render(
             <Harness
                 initial={{ ...defaultRecipeFormValues(), visibility: 'private' }}
-                canGoPrivate={false}
+                paidFeatures="upsell"
                 onChange={onChange}
             />,
         );
@@ -164,5 +170,59 @@ describe('RecipeVisibilityField (web)', () => {
         await user.click(radio(v.public));
 
         expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'public' }));
+    });
+
+    // ── Plan 2026-10-14-009 D14: the field under each paid-feature state (the host renders the statement leaf instead
+    //    when Private is not offered, so these are the states in which this leaf is on screen).
+    it('under upsell, a recipe already private shows no Premium badge — going back to it is not a change', () => {
+        render(<Harness initial={{ ...defaultRecipeFormValues(), visibility: 'private' }} paidFeatures="upsell" />);
+
+        expect(radio(v.private).checked).toBe(true);
+        expect(screen.queryByText(m.premiumBadge)).toBeNull();
+    });
+
+    it('under hidden, a recipe already private stays private, shows no badge, and warns Public is final', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        render(
+            <Harness
+                initial={{ ...defaultRecipeFormValues(), visibility: 'private' }}
+                paidFeatures="hidden"
+                onChange={onChange}
+            />,
+        );
+
+        expect(radio(v.private).checked).toBe(true);
+        expect(screen.queryByText(m.premiumBadge)).toBeNull();
+        const finalNote = screen.getByText(v.publicIsFinal);
+        const describedBy = radio(v.public).getAttribute('aria-describedby')?.split(' ') ?? [];
+
+        expect(describedBy).toContain(finalNote.id);
+
+        await user.click(radio(v.public));
+        expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'public' }));
+    });
+
+    it('under hidden, after choosing Public on a saved-private recipe, Private can still be chosen back', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        render(
+            <Harness
+                initial={{ ...defaultRecipeFormValues(), visibility: 'private' }}
+                paidFeatures="hidden"
+                onChange={onChange}
+            />,
+        );
+
+        await user.click(radio(v.public));
+        await user.click(radio(v.private));
+
+        expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'private' }));
+    });
+
+    it('under granted, no note says Public is final', () => {
+        render(<Harness initial={{ ...defaultRecipeFormValues(), visibility: 'private' }} paidFeatures="granted" />);
+
+        expect(screen.queryByText(v.publicIsFinal)).toBeNull();
     });
 });

@@ -54,7 +54,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
             await page.setViewportSize({ width: 1280, height: 900 });
             await signInWithTicket(page);
             const viewerId = await readViewerAppId(page);
-            await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: seed(viewerId) });
+            await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: seed(viewerId) });
             await page.goto(route('/recipes'));
             const cards = page.getByRole('article');
             await expect(cards).toHaveCount(3);
@@ -103,7 +103,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
             await page.setViewportSize({ width: 390, height: 844 });
             await signInWithTicket(page);
             const viewerId = await readViewerAppId(page);
-            await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: seed(viewerId) });
+            await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: seed(viewerId) });
 
             await page.goto(route('/recipes'));
             const first = page.getByRole('article').first();
@@ -127,7 +127,7 @@ test.describe('recipe cards — W-06: a one-line meta row is exactly one line', 
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [
                 makeRecipeDetail({
                     id: 'ec000000-0000-4000-8000-000000000061',

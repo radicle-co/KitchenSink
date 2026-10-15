@@ -31,7 +31,7 @@ vi.mock('@kitchensink/clerk-verify', async (importOriginal) => {
     return { ...actual, verifyClerkToken: vi.fn() };
 });
 
-import { verifyClerkToken, ClerkVerificationError } from '@kitchensink/clerk-verify';
+import { verifyClerkToken, ClerkVerificationError, type Role } from '@kitchensink/clerk-verify';
 
 import { makeCatalogFood } from '../__fixtures__/catalogFood.js';
 import { makePool } from '../support/db.js';
@@ -51,19 +51,34 @@ function principalFor(token: string): {
     userId?: string;
     scopes: string[];
     permissions: string[];
+    roles: readonly Role[];
     testPrincipal: boolean;
 } {
     switch (token) {
         case 'pool':
-            return { sub: 'user_pool_1', userId: POOL_ULID, scopes: [], permissions: [], testPrincipal: true };
+            return {
+                sub: 'user_pool_1',
+                userId: POOL_ULID,
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: true,
+            };
         case 'poolUnsynced':
-            return { sub: 'user_pool_2', scopes: [], permissions: [], testPrincipal: true };
+            return { sub: 'user_pool_2', scopes: [], permissions: [], roles: [], testPrincipal: true };
         case 'poolService':
-            return { sub: 'svc_pool', userId: POOL_ULID, scopes: [], permissions: [], testPrincipal: true };
+            return { sub: 'svc_pool', userId: POOL_ULID, scopes: [], permissions: [], roles: [], testPrincipal: true };
         case 'real':
-            return { sub: 'user_real', userId: REAL_ULID, scopes: [], permissions: [], testPrincipal: false };
+            return {
+                sub: 'user_real',
+                userId: REAL_ULID,
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: false,
+            };
         case 'm2m':
-            return { sub: 'svc_import', scopes: ['food:admin'], permissions: [], testPrincipal: false };
+            return { sub: 'svc_import', scopes: ['food:admin'], permissions: [], roles: [], testPrincipal: false };
         default:
             throw new ClerkVerificationError();
     }

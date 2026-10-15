@@ -85,7 +85,7 @@ async function measureMain(page: Page): Promise<MainBox> {
 async function landOnHome(page: Page): Promise<void> {
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
-    await mockRecipeApi(page, { viewerId, tier: 'free', recipes: [] });
+    await mockRecipeApi(page, { viewerId, paidFeatures: 'upsell', recipes: [] });
     await page.goto(route('/'));
     await expect(page.getByRole('region', { name: 'Home' })).toBeVisible();
 }

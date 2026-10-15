@@ -108,6 +108,7 @@ beforeAll(() => {
         desiredCount: 1,
         vpcId: 'vpc-12345678',
         alarmsEnabled: true,
+        paidFeaturesGate: false,
     });
 
     // A prod-stage synth to pin the stage-gated azp env: prod stays exact-match list, non-prod uses the
@@ -121,6 +122,7 @@ beforeAll(() => {
         desiredCount: 1,
         vpcId: 'vpc-12345678',
         alarmsEnabled: true,
+        paidFeaturesGate: false,
     });
 
     // The ONE stage that switches ADR-0040 containment off. Constructed here, before any synth, for the same
@@ -133,6 +135,7 @@ beforeAll(() => {
         desiredCount: 1,
         vpcId: 'vpc-12345678',
         alarmsEnabled: true,
+        paidFeaturesGate: false,
     });
 
     serviceTemplate = Template.fromStack(service);
@@ -426,7 +429,7 @@ const identitySchemaTemplate = (stage: string): Template => {
     return Template.fromStack(stack);
 };
 
-const identityTemplate = (stage: string, alarmsEnabled = true): Template => {
+const identityTemplate = (stage: string, alarmsEnabled = true, paidFeaturesGate = false): Template => {
     const app = testApp({ context: { ...VPC_LOOKUP_CONTEXT } });
     const stack = new IdentityServiceStack(app, `IdentitySpot-${stage}`, {
         env,
@@ -436,6 +439,7 @@ const identityTemplate = (stage: string, alarmsEnabled = true): Template => {
         desiredCount: 1,
         vpcId: 'vpc-12345678',
         alarmsEnabled,
+        paidFeaturesGate,
     });
 
     return Template.fromStack(stack);
@@ -533,6 +537,7 @@ describe('Container Insights is off on every cluster (ADR-0007, amended 2026-08-
             desiredCount: 1,
             vpcId: 'vpc-12345678',
             alarmsEnabled: true,
+            paidFeaturesGate: false,
         });
 
         expect(insightsValue(Template.fromStack(prodService))).toBe('disabled');
@@ -751,6 +756,7 @@ describe('the U17 DNS cutover (prod only, ADR-0020)', () => {
                     desiredCount: 1,
                     vpcId: 'vpc-12345678',
                     alarmsEnabled: true,
+                    paidFeaturesGate: false,
                 }),
             );
         } finally {
@@ -1155,6 +1161,31 @@ describe('⛔ the alarm feature flag (default OFF)', () => {
     it('keeps the alarm topic in both states', () => {
         identityTemplate('pr-91', false).resourceCountIs('AWS::SNS::Topic', 1);
         identityTemplate('prod', true).resourceCountIs('AWS::SNS::Topic', 1);
+    });
+});
+
+/**
+ * ⛔ The paid-features gate (plan 2026-10-14-009 D8/D9). The owner's GitHub variable reaches the container as an
+ * EXPLICIT `true` or `false`, never absent: an absent value would be the service default, and a deploy path that
+ * forgot the flag would then look the same as one that resolved it to `false`.
+ */
+describe('⛔ the paid-features gate reaches the container explicitly', () => {
+    const gateValues = (template: Template): unknown[] =>
+        Object.values(template.findResources('AWS::ECS::TaskDefinition')).flatMap((task: any) =>
+            (task.Properties?.ContainerDefinitions ?? []).flatMap((container: any) =>
+                (container.Environment ?? [])
+                    .filter((variable: any) => variable.Name === 'PAID_FEATURES_GATE')
+                    .map((variable: any) => variable.Value),
+            ),
+        );
+
+    it.each([
+        ['prod', true, 'true'],
+        ['prod', false, 'false'],
+        ['sandbox', true, 'true'],
+        ['sandbox', false, 'false'],
+    ] as const)('%s with the gate %s emits %s', (stage, gate, expected) => {
+        expect(gateValues(identityTemplate(stage, true, gate))).toStrictEqual([expected]);
     });
 });
 

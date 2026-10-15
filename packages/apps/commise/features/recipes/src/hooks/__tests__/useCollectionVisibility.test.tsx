@@ -15,6 +15,8 @@ import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-clien
 import type { FC } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { PaidFeatureState } from '@commise/features-account';
+
 import { useCollectionVisibility } from '../useCollectionVisibility.js';
 
 afterEach(cleanup);
@@ -29,9 +31,9 @@ const detailOf = (visibility: RecipeVisibility): CollectionWithRecipes => ({
     recipes: [],
 });
 
-const Screen: FC<{ readonly canGoPrivate: boolean }> = ({ canGoPrivate }) => {
+const Screen: FC<{ readonly paidFeatures: PaidFeatureState }> = ({ paidFeatures }) => {
     const { data } = useQuery(collectionQueries(useRecipeServiceClient()).detail('col_1'));
-    const control = useCollectionVisibility({ id: 'col_1', canGoPrivate });
+    const control = useCollectionVisibility({ id: 'col_1', paidFeatures });
     const visibility = data?.visibility ?? RecipeVisibility.PRIVATE;
 
     return (
@@ -49,7 +51,7 @@ const Screen: FC<{ readonly canGoPrivate: boolean }> = ({ canGoPrivate }) => {
     );
 };
 
-async function setup(start: RecipeVisibility, canGoPrivate: boolean) {
+async function setup(start: RecipeVisibility, paidFeatures: PaidFeatureState) {
     const client = createFakeRecipeServiceClient();
     // A server that remembers what it was told, so the refetch after the last change agrees with the cache.
     let server = start;
@@ -65,7 +67,7 @@ async function setup(start: RecipeVisibility, canGoPrivate: boolean) {
         <QueryClientProvider client={queryClient}>
             <RecipeServiceProvider client={client}>
                 <SnackbarHost>
-                    <Screen canGoPrivate={canGoPrivate} />
+                    <Screen paidFeatures={paidFeatures} />
                 </SnackbarHost>
             </RecipeServiceProvider>
         </QueryClientProvider>,
@@ -81,7 +83,7 @@ const press = (name: string): void => {
 
 describe('useCollectionVisibility', () => {
     it('changes the cached collection at once, sends the change, and offers Undo', async () => {
-        const { update } = await setup(RecipeVisibility.PUBLIC, true);
+        const { update } = await setup(RecipeVisibility.PUBLIC, 'granted');
         update.mockReturnValue(new Promise(() => undefined));
 
         press('make private');
@@ -93,7 +95,7 @@ describe('useCollectionVisibility', () => {
     });
 
     it('Undo changes it back, as a second change after the first', async () => {
-        const { update } = await setup(RecipeVisibility.PUBLIC, true);
+        const { update } = await setup(RecipeVisibility.PUBLIC, 'granted');
 
         press('make private');
         await screen.findByText('now private');
@@ -104,8 +106,8 @@ describe('useCollectionVisibility', () => {
         expect(update).toHaveBeenLastCalledWith('col_1', { visibility: 'public' });
     });
 
-    it('opens the Premium sheet for a cook who may not go private, and sends nothing', async () => {
-        const { update } = await setup(RecipeVisibility.PUBLIC, false);
+    it('under upsell, opens the Premium sheet and sends nothing', async () => {
+        const { update } = await setup(RecipeVisibility.PUBLIC, 'upsell');
 
         press('make private');
 
@@ -114,18 +116,31 @@ describe('useCollectionVisibility', () => {
         expect(screen.getByText('now public')).toBeTruthy();
     });
 
-    it('offers no Undo when the way back would be refused (private → public for a cook without the plan)', async () => {
-        await setup(RecipeVisibility.PRIVATE, false);
+    it.each(['upsell', 'hidden'] as const)(
+        'offers no Undo when the way back would be refused (private → public, %s)',
+        async (state) => {
+            await setup(RecipeVisibility.PRIVATE, state);
 
-        press('make public');
+            press('make public');
 
-        await screen.findByText('now public');
-        expect(screen.getByRole('status').textContent).toContain('Collection is now public.');
-        expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+            await screen.findByText('now public');
+            expect(screen.getByRole('status').textContent).toContain('Collection is now public.');
+            expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+        },
+    );
+
+    it.each(['hidden', 'loading'] as const)('under %s, neither sends nor opens a sheet for private', async (state) => {
+        const { update } = await setup(RecipeVisibility.PUBLIC, state);
+
+        await act(async () => press('make private'));
+
+        expect(update).not.toHaveBeenCalled();
+        expect(screen.queryByText('upsell open')).toBeNull();
+        expect(screen.getByText('now public')).toBeTruthy();
     });
 
     it('rolls back and says so when the server refuses', async () => {
-        const { update } = await setup(RecipeVisibility.PUBLIC, true);
+        const { update } = await setup(RecipeVisibility.PUBLIC, 'granted');
         update.mockRejectedValue(new Error('nope'));
 
         press('make private');
@@ -135,7 +150,7 @@ describe('useCollectionVisibility', () => {
     });
 
     it('does nothing for a change to the visibility it already has', async () => {
-        const { update } = await setup(RecipeVisibility.PUBLIC, true);
+        const { update } = await setup(RecipeVisibility.PUBLIC, 'granted');
 
         await act(async () => press('make public'));
 

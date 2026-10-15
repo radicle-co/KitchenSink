@@ -29,7 +29,7 @@ test.describe('ingredient arrival (ingredientArrival.md)', () => {
     }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         await mockFoodApi(page);
 
         await openNewRecipe(page);

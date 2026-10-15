@@ -240,6 +240,18 @@ describe('CollectionHeader (web) — the ⋯ menu', () => {
         expect(glyph('Delete collection')).toContain('lucide-trash-2');
     });
 
+    /** Plan 2026-10-14-009 D14: the host leaves the visibility item out when Private is not offered (hidden, loading). */
+    it('offers no visibility item when the host gives no toggle', async () => {
+        const user = userEvent.setup();
+        renderHeader({ onToggleVisibility: undefined });
+
+        const menu = await open(user);
+
+        expect(menu.queryByRole('menuitem', { name: 'Make private' })).toBeNull();
+        expect(menu.queryByRole('menuitem', { name: 'Make public' })).toBeNull();
+        expect(menu.getByRole('menuitem', { name: 'Rename' })).toBeTruthy();
+    });
+
     it('draws the lock on Make private', async () => {
         const user = userEvent.setup();
         renderHeader({ visibility: RecipeVisibility.PUBLIC });

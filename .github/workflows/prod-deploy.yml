@@ -241,6 +241,14 @@ jobs:
             - name: Resolve the alarm feature flag
               run: bash .github/scripts/resolveAlarmsEnabled.sh "${STAGE}"
 
+            # ⛔ Before the identity deploy: its CDK app reads PAID_FEATURES_GATE at synth, and an unset flag deploys
+            # `false` (`paidFeaturesGateWiring.test.ts`). The owner alone sets these variables; this only reads them.
+            - name: Resolve the paid-features gate
+              env:
+                  PAID_FEATURES_GATE_SANDBOX: ${{ vars.PAID_FEATURES_GATE_SANDBOX }}
+                  PAID_FEATURES_GATE_PROD: ${{ vars.PAID_FEATURES_GATE_PROD }}
+              run: bash .github/scripts/resolvePaidFeaturesGate.sh "${STAGE}"
+
             # ⛔ THE HALF A PATH DIFF CANNOT SEE. `dorny/paths-filter` answers "did this leg's sources change";
             # it cannot answer "is the leg this one DEPENDS ON going to run". Those are different questions and
             # only the first was ever asked here.

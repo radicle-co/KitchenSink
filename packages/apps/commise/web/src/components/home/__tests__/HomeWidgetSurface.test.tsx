@@ -31,7 +31,8 @@ const { profileRef } = vi.hoisted(() => ({
     profileRef: {
         current: {
             data: {
-                account: { subscriptionTier: 'free' as string | undefined },
+                // Plan 2026-10-14-009: the nudge is an upsell, offered only under `upsell`.
+                account: { paidFeatures: 'upsell' as 'granted' | 'upsell' | 'hidden' },
                 user: { displayName: 'Jane Doe' as string | undefined },
             },
         },
@@ -58,6 +59,7 @@ const { RECENT_RECIPE_LIMIT } = await import('../RecipeWidgetSlot');
 
 afterEach(() => {
     cleanup();
+    profileRef.current.data.account.paidFeatures = 'upsell';
     vi.useRealTimers();
 });
 
@@ -347,6 +349,31 @@ describe('HomeWidgetSurface (web) — host composition', () => {
         expect(screen.queryByRole('dialog')).toBeNull();
 
         await user.click(gate);
+        expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    // ── Plan 2026-10-14-009 D14 (owner ruling 2026-10-13): the nudge is an upsell, behind the paid-features gate.
+    it.each(['granted', 'hidden'] as const)('⛔ never shows the subscription nudge under %s', async (state) => {
+        const user = userEvent.setup();
+        profileRef.current.data.account.paidFeatures = state;
+
+        const GatedWidget: FC = (): JSX.Element => {
+            const { trigger } = useHomeNudge();
+
+            return (
+                <button type="button" onClick={trigger}>
+                    gate
+                </button>
+            );
+        };
+
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: GatedWidget },
+        });
+
+        await user.click(await screen.findByRole('button', { name: 'gate' }));
+
         expect(screen.queryByRole('dialog')).toBeNull();
     });
 });

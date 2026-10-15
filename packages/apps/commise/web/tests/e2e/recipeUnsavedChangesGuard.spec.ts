@@ -22,7 +22,7 @@ async function openPublished(page: Page) {
     const viewerId = await readViewerAppId(page);
     const store = await mockRecipeApi(page, {
         viewerId,
-        tier: 'premium',
+        paidFeatures: 'granted',
         recipes: [
             makeRecipeDetail({
                 id: RECIPE_ID,

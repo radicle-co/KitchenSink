@@ -80,7 +80,7 @@ function clientSeededWith(collection: ReturnType<typeof makeCollectionWithRecipe
 
 beforeEach(() => {
     useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_1' } });
-    useUserProfileMock.mockReturnValue({ data: { account: { subscriptionTier: 'premium' } } });
+    useUserProfileMock.mockReturnValue({ status: 'success', data: { account: { paidFeatures: 'granted' } } });
 });
 
 afterEach(() => {

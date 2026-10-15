@@ -27,7 +27,7 @@ test.describe('the editor session', () => {
      */
     test('⛔ × leaves for My recipes when the create answers before the navigation commits', async ({ page }) => {
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         let holdNavigation = false;
         await page.route(
             (url) => url.pathname.endsWith('/recipes') && !url.pathname.includes('/api/'),
@@ -54,7 +54,7 @@ test.describe('the editor session', () => {
     }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
         await openNewRecipe(page);
 
@@ -79,7 +79,7 @@ test.describe('the editor session', () => {
         page,
     }) => {
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'free' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'upsell' });
 
         await openNewRecipe(page);
         await page.getByRole('radio', { name: /^Private/u }).click();
@@ -100,7 +100,7 @@ test.describe('the editor session', () => {
         page,
     }) => {
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
         await openNewRecipe(page);
         const description = page.getByRole('textbox', { name: 'Description' });
@@ -122,7 +122,7 @@ test.describe('the editor session', () => {
     /** E7 (build spec §7.8): focus goes to the first invalid field, not the section heading. */
     test('a refused Publish puts focus in the title field', async ({ page }) => {
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
         await openNewRecipe(page);
         await page.getByRole('button', { name: 'Publish', exact: true }).click();
@@ -134,7 +134,7 @@ test.describe('the editor session', () => {
     test('the action bar rests on the bottom edge at the end of the page', async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
         await openNewRecipe(page);
         await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
@@ -158,7 +158,7 @@ test.describe('the editor session', () => {
     test('an empty account opening the editor by URL sees no guided progress', async ({ page }) => {
         await page.setViewportSize({ width: 1280, height: 900 });
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [] });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [] });
 
         await page.goto(route('/recipes/new'));
 
@@ -170,7 +170,7 @@ test.describe('the editor session', () => {
     /** A-010b (build spec §7.7 item 3): the Ready line is always in Photos & publish. */
     test('Photos & publish always carries the Ready line: what to fix, then "Ready to publish."', async ({ page }) => {
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
         await openNewRecipe(page);
 

@@ -2,8 +2,8 @@
 
 /**
  * `useUserProfile` — the web client read of the signed-in viewer's identity profile (`GET /api/v1/users/me`),
- * exposing `account.subscriptionTier` so client components can gate premium-only capabilities (e.g. making a
- * recipe private, C-004). This mirrors the mobile hook (`apps/commise/mobile/src/hooks/useUserProfile.ts`)
+ * exposing `account.paidFeatures` — read through `paidFeatureStateOf` — so every paid feature and upsell renders from
+ * one answer (plan 2026-10-14-009 D13). This mirrors the mobile hook (`apps/commise/mobile/src/hooks/useUserProfile.ts`)
  * so web and mobile gate identically — the enforced cross-platform rule (CODING_STANDARDS §14).
  *
  * The bearer token is minted per fetch from Clerk's session (`useAuth().getToken`); the query is disabled
@@ -24,7 +24,7 @@ import { createProfileServiceClient } from '@/lib/identityServiceClient';
 /**
  * Read the signed-in viewer's identity profile via TanStack Query.
  *
- * @returns The query result; `data.account.subscriptionTier` drives premium gating. Idle while signed out.
+ * @returns The query result; `data.account.paidFeatures` drives every paid-feature surface. Idle while signed out.
  */
 export function useUserProfile(): UseQueryResult<UserProfile> {
     const { getToken, isSignedIn } = useAuth();

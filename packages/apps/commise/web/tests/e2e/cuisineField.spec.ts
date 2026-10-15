@@ -25,7 +25,7 @@ test.describe('the Cuisine field', () => {
 
     test('lists all 90 on focus, narrows to what the cook types, and offers the cook’s own words', async ({ page }) => {
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         await page.goto(route('/recipes/new'));
 
         const cuisine = page.getByRole('combobox', { name: 'Cuisine' });
@@ -52,7 +52,7 @@ test.describe('the Cuisine field', () => {
     }) => {
         const viewerId = await readViewerAppId(page);
         const seed = makeRecipeDetail({ id: DRAFT_ID, ownerId: viewerId, title: 'Green Curry', status: 'draft' });
-        const store = await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [seed] });
+        const store = await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [seed] });
 
         await page.goto(route(`/recipes/${DRAFT_ID}/edit`));
         const cuisine = page.getByRole('combobox', { name: 'Cuisine' });
@@ -67,7 +67,7 @@ test.describe('the Cuisine field', () => {
     test('refuses Publish without a cuisine: one thing to fix, focus on the field, nothing sent', async ({ page }) => {
         const viewerId = await readViewerAppId(page);
         const seed = makeRecipeDetail({ id: DRAFT_ID, ownerId: viewerId, title: 'Green Curry', status: 'draft' });
-        const store = await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [seed] });
+        const store = await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [seed] });
 
         await page.goto(route(`/recipes/${DRAFT_ID}/edit`));
         await page.getByRole('button', { name: 'Publish', exact: true }).click();

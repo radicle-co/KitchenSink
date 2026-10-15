@@ -1,10 +1,13 @@
 /**
  * POOL ADMIN — provision the fixed Clerk test pool, and report drift.
  *
- * ## ⛔ The only writer
+ * ## ⛔ The only writer in test tooling
  *
  * This is the ONLY code in test tooling that creates a Clerk user or writes `public_metadata`
- * (`runtimeUserCreation.test.ts` and `metadataSingleWriter.test.ts` hold every other file to that). A test LEASES a
+ * (`runtimeUserCreation.test.ts` and `metadataSingleWriter.test.ts` hold every other file to that). Outside test
+ * tooling exactly one other writer exists, by owner ruling 2026-10-13: the identity webhook merges `roles: ['default']`
+ * into a NEW user that has no `roles` key. It never touches a user this command created, because every slot is
+ * created with its `roles` in the same call (`poolSlotMetadata`). A test LEASES a
  * slot this command provisioned, and it fails — it does not self-heal — when the slot is absent or unmarked, because
  * a test that creates what it needs is the shape this pool replaced.
  *
@@ -26,7 +29,7 @@
  * ## What it does
  *
  * For every slot in scope: create the user if nobody holds the address (with the marker in the same call), or
- * merge-PATCH the marker, `permissions` and `scopes` if they have drifted. A consumed erasure slot is simply an
+ * merge-PATCH the marker, `roles`, `permissions` and `scopes` if they have drifted. A consumed erasure slot is simply an
  * absent user, so replenishing is the same "create". Every user this run creates is then waited on until the
  * identity webhook has backfilled its `external_id`, because a slot without one answers 401 everywhere. Then every
  * slot in scope is READ AGAIN and judged by the lease's own rule (`judgePoolSlot`): healthy means the next lease of
@@ -254,6 +257,7 @@ const sameList = (actual: unknown, desired: readonly string[]): boolean =>
 export function metadataSatisfies(actual: Readonly<Record<string, unknown>>, desired: PoolSlotMetadata): boolean {
     return (
         actual['testPrincipal'] === true &&
+        sameList(actual['roles'], desired.roles) &&
         sameList(actual['permissions'], desired.permissions) &&
         sameList(actual['scopes'], desired.scopes)
     );

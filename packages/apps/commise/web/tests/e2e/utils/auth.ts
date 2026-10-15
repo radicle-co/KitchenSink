@@ -1,5 +1,6 @@
 import { createClerkClient } from '@clerk/backend';
 import { setupClerkTestingToken } from '@clerk/testing/playwright';
+import { assertPoolMember } from '@kitchensink/e2e-fixtures/testPool';
 import { expect, type Page } from '@playwright/test';
 
 import { hasClerkSessionCookie } from './authState';
@@ -25,6 +26,13 @@ export interface SignInOptions {
      * reuses would otherwise short-circuit on the very state it is supposed to produce.
      */
     readonly force?: boolean;
+    /**
+     * Sign in as THIS test-pool address instead of the run's own slot — the `roles` tier's users (plan 2026-10-14-009
+     * D12), which a spec signs in as by role. Refused unless it is on the committed roster (`assertPoolMember`), for the
+     * reason `establishSession` refuses: a ticket signs in whoever it names. Only a spec with its OWN blank context
+     * (listed in `SESSION_OWNING_SPECS`) may use it, together with `force`.
+     */
+    readonly email?: string;
 }
 
 /**
@@ -75,8 +83,12 @@ export async function signInWithTicket(page: Page, options: SignInOptions = {}):
         return;
     }
 
+    const email = options.email ?? TEST_USER_EMAIL;
+
+    assertPoolMember(email);
+
     const clerk = client();
-    const { data } = await clerk.users.getUserList({ emailAddress: [TEST_USER_EMAIL] });
+    const { data } = await clerk.users.getUserList({ emailAddress: [email] });
     const userId = data[0]?.id;
 
     if (!userId) {
@@ -84,7 +96,7 @@ export async function signInWithTicket(page: Page, options: SignInOptions = {}):
         // provisioned (or was removed) on this Clerk instance — `globalSetup`'s own resolution should have refused
         // it first. The fix is `poolAdmin --apply`, never a user minted here.
         throw new Error(
-            `test-pool user ${TEST_USER_EMAIL} is missing — run poolAdmin --apply against this Clerk instance ` +
+            `test-pool user ${email} is missing — run poolAdmin --apply against this Clerk instance ` +
                 `(run key=${RUN_KEY})`,
         );
     }

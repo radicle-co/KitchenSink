@@ -335,7 +335,7 @@ test.describe('Add details on a new recipe (curated U15, decision 7: the draft r
         const variantAdmissions: unknown[] = [];
         let recipeWrites = 0;
 
-        await mockRecipeApi(page, { viewerId, tier: 'premium', foodNutrition: ROOT_HAS_VARIANTS });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', foodNutrition: ROOT_HAS_VARIANTS });
         await mockRootRead(page);
         // The catalog's hit is the root, and its admission binds the root (the double's own `by-food` admits only its
         // fixed foods).

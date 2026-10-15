@@ -90,7 +90,7 @@ async function openIngredients(
         ingredients: lines(),
     });
 
-    await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [recipe] });
+    await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [recipe] });
     await mockFoodApi(page, options);
     await openRecipeEditor(page, recipe.id);
 

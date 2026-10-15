@@ -1,6 +1,14 @@
 // @vitest-environment node
 /**
- * Repo-wide guard: exactly ONE module writes a Clerk user's `public_metadata` — `poolAdmin`.
+ * Repo-wide guard: exactly TWO modules write a Clerk user's `public_metadata` — `poolAdmin`, and the sign-up role writer
+ * in the identity webhook — and the second writes nothing but the `roles` key, by merge.
+ *
+ * ⛔ AMENDED by owner ruling 2026-10-13 (plan `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D10/D11):
+ * `default` is WRITTEN at sign-up by the Clerk webhook, never inferred from an absent `roles` key. That is a second
+ * writer by design. It is admitted on three conditions this guard pins: it merges (`updateUserMetadata`), it writes
+ * only `roles`, and it is the only metadata write in its module. Its "only where absent" rule is unit-tested beside
+ * it (`identityClient.test.ts`), because a second tool writing a key the first owns is exactly what this guard
+ * exists to stop.
  *
  * The 2026-10-08 amendment (recorded in `poolAdmin.ts`'s header) lets the Maestro job RUN that module, scoped to the
  * erasure subjects; it adds no writer, so this scan is unchanged. Which invocations of it CI may make is pinned by
@@ -29,8 +37,14 @@ import { describe, expect, it } from 'vitest';
 
 import { isUnitTestFile, repoRoot } from './serviceSources.js';
 
-/** THE writer. */
-const WRITER = 'packages/tools/e2e-fixtures/src/poolAdmin.ts';
+/** The pool provisioner: every grant and the test-principal marker. */
+const POOL_WRITER = 'packages/tools/e2e-fixtures/src/poolAdmin.ts';
+
+/** The sign-up role writer: `roles: ['default']`, by merge, only where no `roles` key exists. */
+const ROLE_WRITER = 'packages/services/identity-webhooks/src/common/identityClient.ts';
+
+/** Every admitted writer. */
+const WRITERS: ReadonlySet<string> = new Set([POOL_WRITER, ROLE_WRITER]);
 
 /** This guard names every pattern it hunts for, so it is not itself a writer. */
 const SELF = 'packages/infra/global/__tests__/metadataSingleWriter.test.ts';
@@ -88,13 +102,14 @@ function writers(): ReadonlyMap<string, readonly string[]> {
 describe('Clerk public_metadata has a single writer', () => {
     const found = writers();
 
-    it('finds the writer (non-vacuity)', () => {
-        expect(found.has(WRITER)).toBe(true);
+    it('finds both writers (non-vacuity)', () => {
+        expect(found.has(POOL_WRITER)).toBe(true);
+        expect(found.has(ROLE_WRITER)).toBe(true);
     });
 
     it('⛔ no other module writes public_metadata', () => {
         const others = [...found.entries()]
-            .filter(([file]) => file !== WRITER)
+            .filter(([file]) => !WRITERS.has(file))
             .map(([file, shapes]) => `${file}: ${shapes.join(', ')}`);
 
         expect(
@@ -102,6 +117,17 @@ describe('Clerk public_metadata has a single writer', () => {
             'a second metadata writer can erase the test-principal marker or a grant — declare the grant on the ' +
                 'pool roster and let poolAdmin write it',
         ).toStrictEqual([]);
+    });
+
+    it('⛔ the sign-up role writer only MERGES, and only the `roles` key', () => {
+        const source = code(readFileSync(path.join(repoRoot, ROLE_WRITER), 'utf8'));
+
+        expect(found.get(ROLE_WRITER)).toStrictEqual(['SDK metadata update']);
+        expect(source.match(/\.(?:update|replace)UserMetadata\(/gu)).toStrictEqual(['.updateUserMetadata(']);
+        // `roles` holding one array literal, and NOTHING after it before the object closes: a second key fails.
+        expect(source).toMatch(
+            /\.updateUserMetadata\(\s*userId,\s*\{\s*publicMetadata:\s*\{\s*roles:\s*\[[^\]]*\]\s*\}\s*\}\s*\)/u,
+        );
     });
 
     it('the matchers see each write shape and ignore a read (mutation check on the patterns)', () => {

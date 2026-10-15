@@ -38,6 +38,7 @@ const EDITOR: Principal = {
     lastName: 'Oswald',
     scopes: [],
     permissions: [],
+    roles: [],
     principalKind: 'real',
     containment: 'enforce',
 };

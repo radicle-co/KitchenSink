@@ -142,13 +142,13 @@ describe('SubscriptionNudge (web) — Radix a11y machinery (B6/CR-003)', () => {
  */
 describe('useOncePerSessionNudge (web)', () => {
     it('starts armed and invisible', () => {
-        const { result } = renderHook(() => useOncePerSessionNudge());
+        const { result } = renderHook(() => useOncePerSessionNudge(true));
 
         expect(result.current.visible).toBe(false);
     });
 
     it('the first trigger shows it', () => {
-        const { result } = renderHook(() => useOncePerSessionNudge());
+        const { result } = renderHook(() => useOncePerSessionNudge(true));
 
         act(() => result.current.trigger());
 
@@ -156,7 +156,7 @@ describe('useOncePerSessionNudge (web)', () => {
     });
 
     it('a repeat trigger while it is already showing keeps it showing and does not spend it', () => {
-        const { result } = renderHook(() => useOncePerSessionNudge());
+        const { result } = renderHook(() => useOncePerSessionNudge(true));
 
         act(() => result.current.trigger());
         act(() => result.current.trigger());
@@ -169,7 +169,7 @@ describe('useOncePerSessionNudge (web)', () => {
     });
 
     it('dismissing hides it WITHOUT re-arming: every later trigger is a no-op for the session', () => {
-        const { result } = renderHook(() => useOncePerSessionNudge());
+        const { result } = renderHook(() => useOncePerSessionNudge(true));
 
         act(() => result.current.trigger());
         act(() => result.current.dismiss());
@@ -179,8 +179,33 @@ describe('useOncePerSessionNudge (web)', () => {
         expect(result.current.visible).toBe(false);
     });
 
+    // ── Plan 2026-10-14-009 D14: the nudge is an upsell, behind the paid-features gate.
+    it('⛔ is never shown while not offered (granted or hidden), and a trigger then does not spend it', () => {
+        const { result, rerender } = renderHook(({ offered }) => useOncePerSessionNudge(offered), {
+            initialProps: { offered: false },
+        });
+
+        act(() => result.current.trigger());
+        expect(result.current.visible).toBe(false);
+
+        rerender({ offered: true });
+        act(() => result.current.trigger());
+        expect(result.current.visible).toBe(true);
+    });
+
+    it('hides a showing nudge the moment it stops being offered', () => {
+        const { result, rerender } = renderHook(({ offered }) => useOncePerSessionNudge(offered), {
+            initialProps: { offered: true },
+        });
+
+        act(() => result.current.trigger());
+        rerender({ offered: false });
+
+        expect(result.current.visible).toBe(false);
+    });
+
     it('a dismiss before anything triggered does not spend the nudge', () => {
-        const { result } = renderHook(() => useOncePerSessionNudge());
+        const { result } = renderHook(() => useOncePerSessionNudge(true));
 
         act(() => result.current.dismiss());
         act(() => result.current.trigger());

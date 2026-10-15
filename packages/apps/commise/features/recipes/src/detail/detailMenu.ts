@@ -3,9 +3,10 @@
  * platforms; each container maps the entries to its own routes and mutations.
  *
  * The owner: Version history · Make private or Make public · Clear checks · then Delete recipe, the one destructive
- * action. Another cook: Clear checks. Clear checks only while a mark is set. Make private is offered to EVERY owner (owner
- * 2026-10-13, B2 E1): a free-tier cook who chooses it gets the Premium sheet from the host (`useGatedPrivate`), so the
- * menu does not decide entitlement — the one place that does is `privateNeedsPremium`.
+ * action. Another cook: Clear checks. Clear checks only while a mark is set. Make private is offered whenever the host
+ * says Private is offered (`offersPrivate` — granted or upsell; owner rulings 2026-10-13: under `hidden` no paid feature
+ * and no upsell is visible). What choosing it does is the host's (`useGatedPrivate`): it applies, or opens the Premium
+ * sheet. Make public is always offered on a private recipe.
  *
  * @pattern Policy — one rule over the viewer and the recipe; the containers receive the decided entries
  */
@@ -25,6 +26,8 @@ export interface DetailMenuInput {
     readonly isPublic: boolean;
     /** Whether the cook has a check or a current step set on this recipe. */
     readonly hasMarks: boolean;
+    /** Whether Private is offered to this viewer (`offersPrivate` over their paid-feature state). */
+    readonly offersPrivate: boolean;
 }
 
 /**
@@ -33,7 +36,7 @@ export interface DetailMenuInput {
  * @param input - The viewer's and the recipe's facts.
  * @returns The entries, in order, and the destructive action.
  */
-export function detailMenuOf({ owner, isPublic, hasMarks }: DetailMenuInput): DetailMenu {
+export function detailMenuOf({ owner, isPublic, hasMarks, offersPrivate }: DetailMenuInput): DetailMenu {
     const items: DetailMenuItem[] = [];
 
     if (owner) {
@@ -41,7 +44,7 @@ export function detailMenuOf({ owner, isPublic, hasMarks }: DetailMenuInput): De
 
         if (!isPublic) {
             items.push('makePublic');
-        } else {
+        } else if (offersPrivate) {
             items.push('makePrivate');
         }
     }

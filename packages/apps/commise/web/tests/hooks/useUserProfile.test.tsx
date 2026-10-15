@@ -31,11 +31,11 @@ import { useUserProfile } from '@/hooks/useUserProfile';
  * `JSON.parse(text) as T`. So this suite asserted the outgoing `fetch` against a body the identity service
  * cannot send, and would have gone on passing had the response shape changed. Built from
  * `@commise/features-account`'s `makeUserProfile` factory, so there is one representation of a valid profile
- * rather than a literal per test file; `premium` is the one field these cases actually care about.
+ * rather than a literal per test file; `paidFeatures` is the one field these cases actually care about.
  */
 const premiumProfile = makeUserProfile({
     user: makeUserProfileUser({ id: 'usr_1', displayName: 'Ada', email: 'ada@example.com' }),
-    account: makeUserProfileAccount({ subscriptionTier: 'premium' }),
+    account: makeUserProfileAccount({ paidFeatures: 'granted' }),
 });
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -66,7 +66,7 @@ describe('useUserProfile (web)', () => {
 
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-        expect(result.current.data?.account.subscriptionTier).toBe('premium');
+        expect(result.current.data?.account.paidFeatures).toBe('granted');
         const [url, init] = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
         expect(url).toContain('/api/v1/users/me');
         expect(init.method).toBe('GET');

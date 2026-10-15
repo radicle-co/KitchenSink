@@ -11,7 +11,7 @@
  * @pattern Composite — the title, meta, description and actions of one collection
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { ActionMenu, type ActionMenuItem } from '@commise/ui/action-menu';
+import { ActionMenu } from '@commise/ui/action-menu';
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { LargeTitleHeader } from '@commise/ui/large-title-header';
@@ -24,7 +24,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatRecipeCount } from '../list/model.js';
 import { fillTemplate } from '../format/fillTemplate.js';
-import type { CollectionHeaderProps } from './detailModel.js';
+import { collectionMenuItems, type CollectionHeaderProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 import { formatCollectionDate } from './model.js';
 
@@ -70,24 +70,17 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
             {detail.addRecipeCta}
         </Button>
     );
-    const pullItem: ActionMenuItem = {
-        id: 'pull',
-        label: copy.pullUpdates,
-        icon: 'refreshCw',
-        onSelect: onPullUpdates,
-    };
-    const items: readonly ActionMenuItem[] = [
-        { id: 'rename', label: copy.rename, icon: 'pencilLine', onSelect: onRename },
-        {
-            id: 'visibility',
-            label: isPublic ? copy.makePrivate : copy.makePublic,
-            // The glyph names the visibility the item MOVES TO, as the meta line's names the one it has.
-            icon: isPublic ? 'lock' : 'globe',
-            onSelect: onToggleVisibility,
+    const items = collectionMenuItems({
+        copy,
+        visibility,
+        isCopy,
+        actions: {
+            onRename,
+            onSaveCopy,
+            onPullUpdates,
+            ...(onToggleVisibility === undefined ? {} : { onToggleVisibility }),
         },
-        { id: 'saveCopy', label: copy.saveCopy, icon: 'copyPlus', onSelect: onSaveCopy },
-        ...(isCopy ? [pullItem] : []),
-    ];
+    });
     const menu = (
         <ActionMenu
             triggerLabel={fillTemplate(copy.moreActions, { name })}

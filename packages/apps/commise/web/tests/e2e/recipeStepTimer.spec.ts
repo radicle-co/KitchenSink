@@ -28,7 +28,7 @@ async function openSteps(page: Page): Promise<void> {
     // carries one (the double's default seed does not).
     await mockRecipeApi(page, {
         viewerId,
-        tier: 'premium',
+        paidFeatures: 'granted',
         recipes: [
             makeRecipeDetail({
                 id: 'ec000000-0000-4000-8000-00000000002c',

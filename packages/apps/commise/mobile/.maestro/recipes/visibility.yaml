@@ -9,7 +9,7 @@ appId: io.commise.mobile
 #   This flow asserted that "Private" was DISABLED and showed "Upgrade to premium to make a recipe private."
 #   That was true only while the Maestro signer was a free-tier account. It is not free now: the signer is the
 #   Maestro pool's `signer` slot, declared `premium` (`packages/tools/e2e-fixtures/src/testPool.ts`,
-#   `lane('signer', { premium: true, … })`). It has to be premium, because the seeded world this flow opens
+#   `lane('signer', { roles: ['premium'], … })`). It has to be premium, because the seeded world this flow opens
 #   contains PRIVATE recipes, which the recipe service refuses to create for a free-tier `user_created` owner
 #   (`e2e-seed`'s `provision.ts`). Run 34863424203's hierarchy shows the private radio checked, ENABLED, and no
 #   upgrade copy. The old assertion described an identity this suite no longer signs in as.

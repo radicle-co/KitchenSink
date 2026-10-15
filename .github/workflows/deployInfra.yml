@@ -325,6 +325,14 @@ jobs:
                   account-id: ${{ vars.AWS_ACCOUNT_ID }}
                   region: ${{ vars.DEFAULT_AWS_REGION }}
                   session-minutes: '180'
+            # ⛔ Before the identity deploy: its CDK app reads PAID_FEATURES_GATE at synth, and an unset flag deploys
+            # `false` (`paidFeaturesGateWiring.test.ts`). The owner alone sets these variables; this only reads them.
+            # `STAGE` is the workflow-level env (`inputs.stage`).
+            - name: Resolve the paid-features gate
+              env:
+                  PAID_FEATURES_GATE_SANDBOX: ${{ vars.PAID_FEATURES_GATE_SANDBOX }}
+                  PAID_FEATURES_GATE_PROD: ${{ vars.PAID_FEATURES_GATE_PROD }}
+              run: bash .github/scripts/resolvePaidFeaturesGate.sh "${STAGE}"
             - uses: ./.github/actions/infra-package
               with:
                   directory: packages/services/identity/infra

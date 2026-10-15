@@ -75,12 +75,12 @@ describe('test-principal containment + self-purge over the wire (ADR-0040)', () 
     let food: FoodFake;
 
     /** A bearer for `userId`, marked as a test principal or not. */
-    function bearer(userId: string, testPrincipal: boolean, permissions: readonly string[] = ['premium']): string {
+    function bearer(userId: string, testPrincipal: boolean, roles: readonly string[] = ['premium']): string {
         return `Bearer ${mintToken(keypair.privateKeyPem, {
             sub: `user_${userId}`,
             azp: AZP,
             externalId: userId,
-            permissions,
+            roles,
             ...(testPrincipal ? { testPrincipal: true } : {}),
         })}`;
     }

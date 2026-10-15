@@ -95,9 +95,9 @@ vi.mock('@clerk/nextjs', () => ({
 const useSetRecipeRatingMock = vi.mocked(useSetRecipeRating);
 const useDeleteRecipeRatingMock = vi.mocked(useDeleteRecipeRating);
 
-/** Build a profile-query stub carrying only the tier the visibility gate reads. */
-function profileWithTier(subscriptionTier: 'free' | 'premium') {
-    return { data: { account: { subscriptionTier } } };
+/** Build a settled profile-query stub carrying only the paid-feature state the visibility gate reads. */
+function profileWith(paidFeatures: 'granted' | 'upsell' | 'hidden') {
+    return { status: 'success', data: { account: { paidFeatures } } };
 }
 
 /** The app-user ULID that matches the default fixture's `ownerId` — the signed-in owner. */
@@ -237,7 +237,7 @@ beforeEach(() => {
     deleteRatingInstances = 0;
     useAuthMock.mockReturnValue({ sessionClaims: { external_id: OWNER_ID } });
     // Default the viewer to the free tier; premium-specific tests override this.
-    useUserProfileMock.mockReturnValue(profileWithTier('free'));
+    useUserProfileMock.mockReturnValue(profileWith('upsell'));
     useSetRecipeRatingMock.mockReturnValue(setRatingResult());
     useDeleteRecipeRatingMock.mockReturnValue(deleteRatingResult());
 });
@@ -944,10 +944,11 @@ describe('RecipeDetailContainer', () => {
             ).toBeInTheDocument();
         });
 
-        // Owner 2026-10-13 (B2 E1): Make private is offered to EVERY owner. Premium decides what it does.
-        it.each(['premium', 'free'] as const)('offers Make private to a %s owner', async (tier) => {
+        // Plan 2026-10-14-009 D14: Make private is offered when Private is offered — granted or upsell. The paid features
+        // decide what it does. Under hidden, a failed profile read or a profile still loading it is not offered at all.
+        it.each(['granted', 'upsell'] as const)('offers Make private to a %s owner', async (state) => {
             const user = userEvent.setup();
-            useUserProfileMock.mockReturnValue(profileWithTier(tier));
+            useUserProfileMock.mockReturnValue(profileWith(state));
             renderOwnerDetail();
 
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
@@ -955,9 +956,39 @@ describe('RecipeDetailContainer', () => {
             expect(screen.getByRole('menuitem', { name: 'Make private' })).toBeInTheDocument();
         });
 
-        it('⛔ a free-tier owner who taps Make private meets the Premium sheet, and nothing is sent', async () => {
+        it.each([
+            ['hidden', profileWith('hidden')],
+            ['a failed profile read', { status: 'error', data: undefined }],
+            ['a profile still loading', { status: 'pending', data: undefined }],
+        ] as const)(
+            '⛔ under %s, offers no Make private (and still offers the rest of the menu)',
+            async (_label, stub) => {
+                const user = userEvent.setup();
+                useUserProfileMock.mockReturnValue(stub);
+                renderOwnerDetail();
+
+                await user.click(
+                    (await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement,
+                );
+
+                expect(screen.queryByRole('menuitem', { name: 'Make private' })).toBeNull();
+                expect(screen.getByRole('menuitem', { name: 'Version history' })).toBeInTheDocument();
+            },
+        );
+
+        it('under hidden, a private recipe still offers Make public', async () => {
             const user = userEvent.setup();
-            useUserProfileMock.mockReturnValue(profileWithTier('free'));
+            useUserProfileMock.mockReturnValue(profileWith('hidden'));
+            renderOwnerDetail(RecipeVisibility.PRIVATE);
+
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
+
+            expect(screen.getByRole('menuitem', { name: 'Make public' })).toBeInTheDocument();
+        });
+
+        it('⛔ under upsell, an owner who taps Make private meets the Premium sheet, and nothing is sent', async () => {
+            const user = userEvent.setup();
+            useUserProfileMock.mockReturnValue(profileWith('upsell'));
             const client = renderOwnerDetail();
             const setVisibilitySpy = vi.spyOn(client, 'setRecipeVisibility');
 
@@ -970,9 +1001,9 @@ describe('RecipeDetailContainer', () => {
             expect(setVisibilitySpy).not.toHaveBeenCalled();
         });
 
-        it('a premium owner who taps Make private makes the recipe private, with no sheet', async () => {
+        it('a granted owner who taps Make private makes the recipe private, with no sheet', async () => {
             const user = userEvent.setup();
-            useUserProfileMock.mockReturnValue(profileWithTier('premium'));
+            useUserProfileMock.mockReturnValue(profileWith('granted'));
             const client = renderOwnerDetail();
             const setVisibilitySpy = vi
                 .spyOn(client, 'setRecipeVisibility')
@@ -983,19 +1014,6 @@ describe('RecipeDetailContainer', () => {
 
             expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE);
             expect(screen.queryByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeNull();
-        });
-
-        it('⛔ never sends a cook to the upsell while the profile is still loading: the tap is held', async () => {
-            const user = userEvent.setup();
-            useUserProfileMock.mockReturnValue({ data: undefined });
-            const client = renderOwnerDetail();
-            const setVisibilitySpy = vi.spyOn(client, 'setRecipeVisibility');
-
-            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
-            await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
-
-            expect(screen.queryByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeNull();
-            expect(setVisibilitySpy).not.toHaveBeenCalled();
         });
     });
 

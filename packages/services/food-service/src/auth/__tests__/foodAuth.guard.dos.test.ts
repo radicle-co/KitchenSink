@@ -63,7 +63,13 @@ describe('FoodAuthGuard — per-source 401-rate load-shed (FR-052/SC-011)', () =
         expect(mockVerify).toHaveBeenCalledTimes(3); // verifier was protected — no new calls
 
         // A different source is unaffected: its valid token still verifies and passes.
-        mockVerify.mockResolvedValueOnce({ sub: 'user_ok', scopes: [], permissions: [], testPrincipal: false });
+        mockVerify.mockResolvedValueOnce({
+            sub: 'user_ok',
+            scopes: [],
+            permissions: [],
+            roles: [],
+            testPrincipal: false,
+        });
         const goodReq = makeReq('good', '1.1.1.1');
         await guard.use(goodReq, {} as Response, next);
         expect(goodReq.user?.sub).toBe('user_ok');
@@ -122,7 +128,13 @@ describe('FoodAuthGuard — the shed key cannot be spoofed (security review F8)'
             await guard.use(viaAlb('bad', '1.1.1.1', '9.9.9.9'), {} as Response, next).catch(() => undefined);
         }
 
-        mockVerify.mockResolvedValueOnce({ sub: 'user_ok', scopes: [], permissions: [], testPrincipal: false });
+        mockVerify.mockResolvedValueOnce({
+            sub: 'user_ok',
+            scopes: [],
+            permissions: [],
+            roles: [],
+            testPrincipal: false,
+        });
         const victim = viaAlb('good', '6.6.6.6', '1.1.1.1');
 
         await guard.use(victim, {} as Response, next);
@@ -144,7 +156,7 @@ describe('FoodAuthGuard — verification-concurrency bound (FR-052)', () => {
     });
 
     it('releases the slot after a verification so capacity recovers', async () => {
-        mockVerify.mockResolvedValue({ sub: 'user_1', scopes: [], permissions: [], testPrincipal: false });
+        mockVerify.mockResolvedValue({ sub: 'user_1', scopes: [], permissions: [], roles: [], testPrincipal: false });
         const shedder = new AuthLoadShedder({ maxConcurrent: 1, shedThreshold: 1000, shedWindowMs: 60_000 });
         const guard = new FoodAuthGuard(shedder);
 

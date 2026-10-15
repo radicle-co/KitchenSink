@@ -1,44 +1,32 @@
 /**
- * {@link useGatedPrivate} and {@link privateNeedsPremium} — the ONE place "may this cook go private, or do we show the
- * Premium sheet?" is decided (owner 2026-10-13: every upsell will sit behind a paid-features gate and roles, added here).
- * Every surface that offers Private — the editor's visibility field, the recipe page's ⋯ menu — asks this hook.
+ * {@link useGatedPrivate} — asking for Private, for every surface that offers it (the editor's visibility field, the
+ * recipe page's ⋯ menu). It applies, opens the Premium sheet, or does nothing, as `privateChoice` decides
+ * (owner ruling 2026-10-13; plan 2026-10-14-009 D14).
  *
- * The hazard (§6.4 F8) is the profile LOADING: a Premium cook who taps early must not be sent to an upsell for a plan
- * they have, so a request made while it loads waits and is decided when it settles.
+ * REWRITTEN 2026-10-14: it used to WAIT on a loading profile and decide once it settled. Loading now fails closed — no
+ * surface offers Private while the paid-feature state is unknown (UX spec in the plan), so a request made then does
+ * nothing, and the waiting branch is gone. The sheet opens only under `upsell`, and closes if the state leaves it.
  */
+import type { PaidFeatureState } from '@commise/features-account';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { privateNeedsPremium } from '../privateGate.js';
-import { useGatedPrivate, type PrivateChoiceProfile } from '../useGatedPrivate.js';
+import { useGatedPrivate } from '../useGatedPrivate.js';
 
-describe('privateNeedsPremium', () => {
-    it.each([
-        { target: RecipeVisibility.PRIVATE, mayGoPrivate: false, needs: true },
-        { target: RecipeVisibility.PRIVATE, mayGoPrivate: true, needs: false },
-        { target: RecipeVisibility.PUBLIC, mayGoPrivate: false, needs: false },
-        { target: RecipeVisibility.PUBLIC, mayGoPrivate: true, needs: false },
-    ])('$target with mayGoPrivate=$mayGoPrivate needs premium: $needs', ({ target, mayGoPrivate, needs }) => {
-        expect(privateNeedsPremium(target, mayGoPrivate)).toBe(needs);
-    });
-});
-
-function mount(profile: PrivateChoiceProfile) {
+function mount(state: PaidFeatureState, saved: RecipeVisibility = RecipeVisibility.PUBLIC) {
     const apply = vi.fn<() => void>();
     const view = renderHook(
-        (props: { readonly profile: PrivateChoiceProfile }) => useGatedPrivate({ ...props, apply }),
-        {
-            initialProps: { profile },
-        },
+        (props: { readonly state: PaidFeatureState }) => useGatedPrivate({ state: props.state, saved, apply }),
+        { initialProps: { state } },
     );
 
     return { ...view, apply };
 }
 
 describe('useGatedPrivate', () => {
-    it('applies Private at once for a cook who may, with no sheet', () => {
-        const { result, apply } = mount({ status: 'settled', mayGoPrivate: true });
+    it('applies Private at once for a granted cook, with no sheet', () => {
+        const { result, apply } = mount('granted');
 
         act(() => result.current.request());
 
@@ -46,8 +34,8 @@ describe('useGatedPrivate', () => {
         expect(result.current.sheet.open).toBe(false);
     });
 
-    it('⛔ opens the Premium sheet for a free-tier cook and applies nothing', () => {
-        const { result, apply } = mount({ status: 'settled', mayGoPrivate: false });
+    it('⛔ opens the Premium sheet under upsell and applies nothing', () => {
+        const { result, apply } = mount('upsell');
 
         act(() => result.current.request());
 
@@ -55,8 +43,29 @@ describe('useGatedPrivate', () => {
         expect(apply).not.toHaveBeenCalled();
     });
 
+    it.each(['hidden', 'loading'] as const)('⛔ under %s neither applies nor opens a sheet', (state) => {
+        const { result, apply } = mount(state);
+
+        act(() => result.current.request());
+
+        expect(result.current.sheet.open).toBe(false);
+        expect(apply).not.toHaveBeenCalled();
+    });
+
+    it.each(['hidden', 'loading', 'upsell'] as const)(
+        're-applies Private to a saved-private thing under %s',
+        (state) => {
+            const { result, apply } = mount(state, RecipeVisibility.PRIVATE);
+
+            act(() => result.current.request());
+
+            expect(apply).toHaveBeenCalledTimes(1);
+            expect(result.current.sheet.open).toBe(false);
+        },
+    );
+
     it('Not now and See Premium both close the sheet (the subscription surface is not built, 010)', () => {
-        const { result } = mount({ status: 'settled', mayGoPrivate: false });
+        const { result } = mount('upsell');
 
         act(() => result.current.request());
         act(() => result.current.sheet.onOpenChange(false));
@@ -67,47 +76,22 @@ describe('useGatedPrivate', () => {
         expect(result.current.sheet.open).toBe(false);
     });
 
-    it('⛔ never treats a loading profile as the free tier', () => {
-        const { result, apply } = mount({ status: 'loading' });
+    /** A refetch that changes the answer while the sheet is up: an upsell for a plan the cook now has must close. */
+    it('closes an open sheet when the state leaves upsell', () => {
+        const { result, rerender } = mount('upsell');
 
         act(() => result.current.request());
+        rerender({ state: 'granted' });
 
-        expect(result.current.sheet.open).toBe(false);
-        expect(apply).not.toHaveBeenCalled();
-    });
-
-    it('applies a request made while loading, once, when a Premium cook’s profile settles', () => {
-        const { result, rerender, apply } = mount({ status: 'loading' });
-
-        act(() => result.current.request());
-        rerender({ profile: { status: 'settled', mayGoPrivate: true } });
-        rerender({ profile: { status: 'settled', mayGoPrivate: true } });
-
-        expect(apply).toHaveBeenCalledTimes(1);
         expect(result.current.sheet.open).toBe(false);
     });
 
-    it('opens the sheet when a free-tier cook’s profile settles after a request made while loading', () => {
-        const { result, rerender, apply } = mount({ status: 'loading' });
-
-        act(() => result.current.request());
-        rerender({ profile: { status: 'settled', mayGoPrivate: false } });
-
-        expect(result.current.sheet.open).toBe(true);
-        expect(apply).not.toHaveBeenCalled();
-    });
-
-    it('decides nothing when nobody asked while it loaded', () => {
-        const { rerender, apply, result } = mount({ status: 'loading' });
-
-        rerender({ profile: { status: 'settled', mayGoPrivate: false } });
-
-        expect(result.current.sheet.open).toBe(false);
-        expect(apply).not.toHaveBeenCalled();
-    });
-
-    it('exposes whether the cook may go private, false until the profile says so', () => {
-        expect(mount({ status: 'loading' }).result.current.mayGoPrivate).toBe(false);
-        expect(mount({ status: 'settled', mayGoPrivate: true }).result.current.mayGoPrivate).toBe(true);
+    it.each([
+        ['loading', false],
+        ['granted', true],
+        ['upsell', true],
+        ['hidden', false],
+    ] as const)('offers Private for a public thing under %s: %s', (state, offers) => {
+        expect(mount(state).result.current.offersPrivate).toBe(offers);
     });
 });

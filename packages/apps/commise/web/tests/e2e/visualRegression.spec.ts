@@ -131,7 +131,7 @@ async function signInAndSeed(page: Page): Promise<void> {
 
     await mockRecipeApi(page, {
         viewerId,
-        tier: 'premium',
+        paidFeatures: 'granted',
         recipes: [
             makeRecipeDetail({
                 id: RECIPE_ID,

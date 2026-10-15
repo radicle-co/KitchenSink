@@ -51,15 +51,15 @@ vi.mock('@/hooks/useUserProfile', () => ({
     useUserProfile: useUserProfileMock,
 }));
 
-/** Build a profile-query stub carrying only the subscription tier the visibility gate reads. */
-function profileWithTier(subscriptionTier: 'free' | 'premium') {
-    return { data: { account: { subscriptionTier } } };
+/** Build a settled profile-query stub carrying only the paid-feature state the visibility gate reads. */
+function profileWith(paidFeatures: 'granted' | 'upsell' | 'hidden') {
+    return { status: 'success', data: { account: { paidFeatures } } };
 }
 
 beforeEach(() => {
-    // Signed-in viewer with a premium tier by default (so the premium gate is OPEN unless a test overrides it).
+    // Signed-in viewer whose paid features are granted by default (Private works unless a test overrides it).
     useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_1' } });
-    useUserProfileMock.mockReturnValue(profileWithTier('premium'));
+    useUserProfileMock.mockReturnValue(profileWith('granted'));
 });
 
 afterEach(() => {
@@ -329,9 +329,9 @@ describe('CollectionDetailContainer — visibility, with Undo and the Premium sh
         expect(await screen.findByText('Public')).toBeInTheDocument();
     });
 
-    it('opens the Premium sheet for a free-tier cook making a collection private, and sends nothing', async () => {
+    it('under upsell, opens the Premium sheet for making a collection private, and sends nothing', async () => {
         const user = userEvent.setup();
-        useUserProfileMock.mockReturnValue(profileWithTier('free'));
+        useUserProfileMock.mockReturnValue(profileWith('upsell'));
         const client = clientSeededWith(
             makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', visibility: 'public' }),
         );
@@ -347,6 +347,41 @@ describe('CollectionDetailContainer — visibility, with Undo and the Premium sh
         await user.click(within(sheet).getByRole('button', { name: 'Not now' }));
 
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    // Plan 2026-10-14-009 D14 (owner ruling 2026-10-13): no paid feature and no upsell under hidden, a failed read, or
+    // while the profile loads — the ⋯ menu has no visibility item for a public collection.
+    it.each([
+        ['hidden', profileWith('hidden')],
+        ['a failed profile read', { status: 'error', data: undefined }],
+        ['a profile still loading', { status: 'pending', data: undefined }],
+    ] as const)('⛔ under %s, a public collection’s menu offers no Make private', async (_label, stub) => {
+        const user = userEvent.setup();
+        useUserProfileMock.mockReturnValue(stub);
+        const client = clientSeededWith(
+            makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', visibility: 'public' }),
+        );
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        const menu = await openMenu(user, 'Dinners');
+
+        expect(menu.queryByRole('menuitem', { name: 'Make private' })).toBeNull();
+        expect(menu.getByRole('menuitem', { name: 'Rename' })).toBeInTheDocument();
+    });
+
+    it('under hidden, a private collection still offers Make public, with no Undo back to private', async () => {
+        const user = userEvent.setup();
+        useUserProfileMock.mockReturnValue(profileWith('hidden'));
+        const client = clientSeededWith(
+            makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', visibility: 'private' }),
+        );
+        vi.spyOn(client, 'updateCollection').mockResolvedValue(makeCollectionWithRecipes());
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Make public' }));
+
+        expect(await screen.findByText('Collection is now public.')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
     });
 });
 

@@ -18,9 +18,9 @@
  * `useCollectionVisibility` (changes at once, with a compensating Undo and the Premium sheet), `useCollectionPull` (the
  * preview → commit → drift machine) — and the only local state is which sheet is open and the picker's search.
  *
- * Premium gate (C1): a single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from Clerk's `external_id`
- * session claim + `useUserProfile`'s subscription tier — the SAME signals and the SAME `canGoPrivate` predicate the recipe
- * detail container and the mobile screen evaluate. It fails safe (gated OFF) while the profile loads/absent.
+ * Paid-feature gate (plan 2026-10-14-009 D14): the viewer's `paidFeatureStateOf` the profile — the SAME signal the recipe
+ * detail container and the mobile screen read — decides whether the ⋯ menu offers the visibility item and what choosing
+ * private does. While the profile loads, or if it failed, nothing private is offered.
  *
  * @pattern Facade — one screen over the removal, visibility, pull and picker hooks and the sheets they drive
  */
@@ -35,6 +35,7 @@ import {
     CollectionRecipePickerLoading,
     CollectionSheet,
     CollectionUpsellSheet,
+    offersPrivate,
     PullUpdatesDialog,
     RecipeNutritionSlot,
     cardVariantOf,
@@ -57,8 +58,8 @@ import {
 } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
-import { useAuth } from '@clerk/nextjs';
-import { canGoPrivate, makeViewer, type Recipe } from '@kitchensink/recipe-core';
+import { paidFeatureStateOf } from '@commise/features-account';
+import type { Recipe } from '@kitchensink/recipe-core';
 import { collectionQueries, isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import {
     useCloneCollection,
@@ -88,20 +89,6 @@ export interface CollectionDetailContainerProps {
     readonly locale: string;
     /** The cook's stored list/grid choice (the cookie the page read), so the server renders it. */
     readonly storedViewMode?: ListViewMode;
-}
-
-/**
- * Read the viewer's app-user ULID from Clerk's session claims (the `external_id` claim — the recipe
- * service's owner key). Returns `undefined` when the claim is absent so the premium gate stays deniably off.
- *
- * @param sessionClaims - Clerk's session claims (untyped for the custom `external_id` claim).
- * @returns The viewer's app-user ULID, or `undefined` when it is not present.
- */
-function readViewerId(sessionClaims: unknown): string | undefined {
-    const claims = sessionClaims as Record<string, unknown> | null;
-    const externalId = claims?.['external_id'];
-
-    return typeof externalId === 'string' ? externalId : undefined;
 }
 
 /**
@@ -217,7 +204,6 @@ const CollectionDetailView: FC<CollectionDetailContainerProps> = ({ id, locale, 
 
     const router = useRouter();
     const { member: copy, picker } = useMessages(collectionMessages);
-    const { sessionClaims } = useAuth();
     const profile = useUserProfile();
     const client = useRecipeServiceClient();
     const query = useSuspenseQuery(collectionQueries(client).detail(id));
@@ -230,14 +216,9 @@ const CollectionDetailView: FC<CollectionDetailContainerProps> = ({ id, locale, 
     const cloneCollection = useCloneCollection();
     const pull = useCollectionPull(id);
 
-    // P4: ONE Viewer value object, built from this platform's identity signals (Clerk's `external_id` claim + the
-    // profile's subscription tier), feeds the visibility gate through the shared `canGoPrivate` predicate. Fails safe
-    // (OFF) while the profile loads or is absent (`makeViewer` maps an absent/unrecognized tier to `'free'`).
-    const viewer = makeViewer({
-        id: readViewerId(sessionClaims),
-        subscriptionTier: profile.data?.account.subscriptionTier,
-    });
-    const visibility = useCollectionVisibility({ id, canGoPrivate: canGoPrivate(viewer) });
+    // Plan 2026-10-14-009 D14: private from the viewer's paid features alone (owner ruling 2026-10-13).
+    const paidFeatures = paidFeatureStateOf(profile);
+    const visibility = useCollectionVisibility({ id, paidFeatures });
     const removal = useMemberRemoval({ id, name: collection.name });
     const announcement = usePickerAnnouncement(id);
 
@@ -306,7 +287,12 @@ const CollectionDetailView: FC<CollectionDetailContainerProps> = ({ id, locale, 
                     updateCollection.reset();
                     setRenameOpen(true);
                 }}
-                onToggleVisibility={() => visibility.change(collection.visibility === 'public' ? 'private' : 'public')}
+                {...(offersPrivate(paidFeatures, collection.visibility)
+                    ? {
+                          onToggleVisibility: () =>
+                              visibility.change(collection.visibility === 'public' ? 'private' : 'public'),
+                      }
+                    : {})}
                 onSaveCopy={() =>
                     cloneCollection.mutate(
                         { id },

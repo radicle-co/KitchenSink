@@ -35,10 +35,12 @@ export interface MintTokenOptions {
      * case `AuthMiddleware` rejects with `IDENTITY_SYNC_PENDING_CODE`.
      */
     readonly externalId?: string;
-    /** Authorization scopes embedded in `public_metadata` (e.g. `['premium']`). */
+    /** Authorization scopes embedded in `public_metadata` (e.g. `['recipes:import:public']`). */
     readonly scopes?: readonly string[];
     /** Authorization permissions embedded in `public_metadata`. */
     readonly permissions?: readonly string[];
+    /** Roles embedded in `public_metadata.roles` (e.g. `['premium']`); omitted leaves the key out entirely. */
+    readonly roles?: readonly string[];
     /**
      * ADR-0040: when `true`, the SIGNED `public_metadata.testPrincipal` marker a test-pool member carries. Omitted
      * leaves the key out of the metadata entirely — the shape every real user's token has.
@@ -92,6 +94,7 @@ export function mintToken(privateKeyPem: string, options: MintTokenOptions): str
         public_metadata: {
             scopes: [...(options.scopes ?? [])],
             permissions: [...(options.permissions ?? [])],
+            ...(options.roles !== undefined ? { roles: [...options.roles] } : {}),
             ...(options.testPrincipal !== undefined ? { testPrincipal: options.testPrincipal } : {}),
         },
     };

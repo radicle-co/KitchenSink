@@ -1,7 +1,8 @@
 /**
- * Whether a visibility change can be undone (blueprint Part C, slice 5): undo is a COMPENSATING `setVisibility`, so it
- * is offered only when the reverse change would be accepted. Restoring "private" needs the premium plan; restoring
- * "public" never does. An Undo that the server then refused would be a control that lies.
+ * Whether a collection's visibility change opens the Premium sheet, and whether it can be undone (blueprint Part C,
+ * slice 5; plan 2026-10-14-009 D14). Undo is a COMPENSATING `setVisibility`, so it is offered only when the reverse
+ * change would be accepted: restoring "private" needs the paid features (`granted`); restoring "public" never does. An
+ * Undo the server then refused would be a control that lies.
  */
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
@@ -11,27 +12,34 @@ import { canUndoVisibilityChange, visibilityChangeNeedsPremium } from '../visibi
 const { PRIVATE, PUBLIC } = RecipeVisibility;
 
 describe('visibilityChangeNeedsPremium', () => {
-    it('needs the plan to make a collection private, and only for a viewer without it', () => {
-        expect(visibilityChangeNeedsPremium(PRIVATE, false)).toBe(true);
-        expect(visibilityChangeNeedsPremium(PRIVATE, true)).toBe(false);
+    it('opens the sheet only under upsell, making a public collection private', () => {
+        expect(visibilityChangeNeedsPremium(PRIVATE, PUBLIC, 'upsell')).toBe(true);
+
+        for (const state of ['granted', 'hidden', 'loading'] as const) {
+            expect(visibilityChangeNeedsPremium(PRIVATE, PUBLIC, state), state).toBe(false);
+        }
     });
 
     it('never needs the plan to make a collection public', () => {
-        expect(visibilityChangeNeedsPremium(PUBLIC, false)).toBe(false);
-        expect(visibilityChangeNeedsPremium(PUBLIC, true)).toBe(false);
+        for (const state of ['granted', 'upsell', 'hidden', 'loading'] as const) {
+            expect(visibilityChangeNeedsPremium(PUBLIC, PRIVATE, state), state).toBe(false);
+        }
     });
 });
 
 describe('canUndoVisibilityChange', () => {
-    it('can undo public → private, because the way back (public) is always allowed', () => {
-        expect(canUndoVisibilityChange({ from: PUBLIC, canGoPrivate: true })).toBe(true);
-    });
+    it.each(['granted', 'upsell', 'hidden', 'loading'] as const)(
+        'can undo public → private under %s, because the way back (public) is always allowed',
+        (state) => {
+            expect(canUndoVisibilityChange({ from: PUBLIC, state })).toBe(true);
+        },
+    );
 
-    it('can undo private → public for a viewer who may go private', () => {
-        expect(canUndoVisibilityChange({ from: PRIVATE, canGoPrivate: true })).toBe(true);
-    });
+    it('can undo private → public only under granted', () => {
+        expect(canUndoVisibilityChange({ from: PRIVATE, state: 'granted' })).toBe(true);
 
-    it('cannot undo private → public for a viewer who may not go private: the reverse would be refused', () => {
-        expect(canUndoVisibilityChange({ from: PRIVATE, canGoPrivate: false })).toBe(false);
+        for (const state of ['upsell', 'hidden', 'loading'] as const) {
+            expect(canUndoVisibilityChange({ from: PRIVATE, state }), state).toBe(false);
+        }
     });
 });

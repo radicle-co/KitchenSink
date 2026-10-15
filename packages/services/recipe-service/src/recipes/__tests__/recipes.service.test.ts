@@ -11,7 +11,7 @@ import { afterEach, describe, it, expect, vi } from 'vitest';
 
 import { RecipeErrorCode, RecipeVisibility, recipeIngredientViewSchema } from '@kitchensink/recipe-core';
 
-import { PREMIUM_PERMISSION, RecipesService } from '../recipes.service.js';
+import { RecipesService } from '../recipes.service.js';
 import { CURATOR_IMPORT_SCOPE } from '../recipes.schema.js';
 import type { RecipesDal, RecipeAggregate } from '../dal/recipes.dal.js';
 import type { IngredientRow } from '../../database/schema/index.js';
@@ -55,13 +55,14 @@ const nutritionGatewayDouble = {
 const OWNER = '01J000000000000000000FREE0';
 const OTHER = '01J00000000000000000OTHER0';
 
-/** A verified principal keyed on `userId` (the owner key). `permissions: ['premium']` marks premium-tier. */
+/** A verified principal keyed on `userId` (the owner key). `roles: ['premium']` marks premium-tier. */
 function principal(overrides: Partial<Principal> = {}): Principal {
     return {
         userId: OWNER,
         sub: 'user_clerk_free',
         scopes: [],
         permissions: [],
+        roles: [],
         principalKind: 'real',
         containment: 'enforce',
         ...overrides,
@@ -70,7 +71,7 @@ function principal(overrides: Partial<Principal> = {}): Principal {
 
 /** A signed test principal on an ENFORCING stage (ADR-0040) — premium, so C-004 alone would allow private. */
 function containedTestPrincipal(): Principal {
-    return principal({ permissions: [PREMIUM_PERMISSION], principalKind: 'test', containment: 'enforce' });
+    return principal({ roles: ['premium'], principalKind: 'test', containment: 'enforce' });
 }
 
 /** The code a thrown `apiError` carries, or `undefined` for anything else. */
@@ -84,9 +85,9 @@ function apiErrorCode(error: unknown): string | undefined {
     return typeof body === 'object' && body !== null && 'code' in body ? String(body.code) : undefined;
 }
 
-/** A premium principal — carries the `premium` permission the C-004 policy keys on. */
+/** A premium principal — carries the `premium` role the C-004 policy keys on (`isPremiumPrincipal`). */
 function premiumPrincipal(overrides: Partial<Principal> = {}): Principal {
-    return principal({ permissions: [PREMIUM_PERMISSION], ...overrides });
+    return principal({ roles: ['premium'], ...overrides });
 }
 
 /**
@@ -364,13 +365,13 @@ describe('RecipesService.create', () => {
         expect(response.visibility).toBe('private');
     });
 
-    it('marks premium off the permissions claim, not scopes (a premium scope must not unlock private)', async () => {
+    it('marks premium off the roles claim alone (a premium scope or permission must not unlock private)', async () => {
         const dal = fakeRecipesDal({ create: vi.fn() });
 
-        // `premium` sits in scopes, not permissions — the policy keys on permissions, so this is free-tier.
+        // `premium` sits in scopes and permissions, not roles — the policy keys on roles, so this is free-tier.
         const error = await catchError(
             newService(dal).create(
-                principal({ scopes: [PREMIUM_PERMISSION] }),
+                principal({ scopes: ['premium'], permissions: ['premium'] }),
                 {
                     ...CREATE_DTO,
                     visibility: 'private',
@@ -1860,10 +1861,10 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
             setVisibility,
         });
 
-        // `premium` in scopes, not permissions → still free-tier → denied.
+        // `premium` in scopes and permissions, not roles → still free-tier → denied.
         const error = await catchError(
             newService(dal).setVisibility(
-                principal({ scopes: [PREMIUM_PERMISSION] }),
+                principal({ scopes: ['premium'], permissions: ['premium'] }),
                 'r-1',
                 RecipeVisibility.PRIVATE,
                 undefined,

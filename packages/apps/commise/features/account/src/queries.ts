@@ -7,9 +7,9 @@
  * from {@link profileQueries}`(client).me(...)`, so the two platforms cannot hold independent copies of the
  * same cache-addressing decision.
  *
- * **staleTime — 2 minutes.** `account.subscriptionTier` is DERIVED from the signed token's `permissions`
- * (identity's `users/domain/subscriptionTier.ts`); there is no explicit upgrade/downgrade write, so the tier
- * changes when a token is re-minted with a different grant. That reaches the viewer within one token lifetime
+ * **staleTime — 2 minutes.** `account.paidFeatures` is DERIVED from the signed token's roles and the stage's gate
+ * (identity's `users/domain/paidFeatureAccess.ts`); there is no explicit upgrade/downgrade write, so the answer
+ * changes when a token is re-minted with a different role. That reaches the viewer within one token lifetime
  * either way, and refetching the profile more often than that would spend requests to learn nothing.
  */
 import { SETTINGS_DEFAULTS } from '@kitchensink/schema-identity';

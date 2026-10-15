@@ -18,9 +18,9 @@
  * `useCollectionPull` (the preview, commit and drift machine) and `useMemberToggle` (the picker's per-row mutations). The
  * only local state is which sheet is open, the picker's search and the list/grid choice.
  *
- * Premium gate (C1): a single `Viewer` (P4) is built from `useUserProfile` (app-user id + subscription tier) and the shared
- * `canGoPrivate` predicate — the SAME predicate the web container evaluates; it fails safe (gated OFF) while the profile
- * loads or is absent.
+ * Paid-feature gate (plan 2026-10-14-009 D14): the viewer's `paidFeatureStateOf` the profile — the SAME signal the web
+ * container reads — decides whether the ⋯ menu offers the visibility item and what choosing private does. While the
+ * profile loads, or if it failed, nothing private is offered.
  *
  * @pattern Facade — one screen over the removal, visibility, pull and picker hooks and the sheets they drive
  */
@@ -35,6 +35,7 @@ import {
     CollectionRecipePickerLoading,
     CollectionSheet,
     CollectionUpsellSheet,
+    offersPrivate,
     PullUpdatesDialog,
     RecipeNutritionSlot,
     cardVariantOf,
@@ -59,7 +60,8 @@ import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
-import { canGoPrivate, makeViewer, type Recipe } from '@kitchensink/recipe-core';
+import { paidFeatureStateOf } from '@commise/features-account';
+import type { Recipe } from '@kitchensink/recipe-core';
 import { collectionQueries, isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import {
     useCloneCollection,
@@ -251,11 +253,9 @@ function CollectionDetailView({
     const cloneCollection = useCloneCollection();
     const pull = useCollectionPull(collectionId);
 
-    // P4: ONE Viewer, built from the profile's app-user id + subscription tier, feeds the visibility gate through the shared
-    // `canGoPrivate` predicate — the SAME predicate the web container evaluates (C1). Fails safe (OFF) while the profile
-    // loads or is absent.
-    const viewer = makeViewer({ id: profile.data?.user.id, subscriptionTier: profile.data?.account.subscriptionTier });
-    const visibility = useCollectionVisibility({ id: collectionId, canGoPrivate: canGoPrivate(viewer) });
+    // Plan 2026-10-14-009 D14: private from the viewer's paid features alone (owner ruling 2026-10-13).
+    const paidFeatures = paidFeatureStateOf(profile);
+    const visibility = useCollectionVisibility({ id: collectionId, paidFeatures });
     const removal = useMemberRemoval({ id: collectionId, name: collection.name });
     const announcement = usePickerAnnouncement(collectionId);
 
@@ -323,7 +323,12 @@ function CollectionDetailView({
                     updateCollection.reset();
                     setRenameOpen(true);
                 }}
-                onToggleVisibility={() => visibility.change(collection.visibility === 'public' ? 'private' : 'public')}
+                {...(offersPrivate(paidFeatures, collection.visibility)
+                    ? {
+                          onToggleVisibility: () =>
+                              visibility.change(collection.visibility === 'public' ? 'private' : 'public'),
+                      }
+                    : {})}
                 onSaveCopy={() =>
                     cloneCollection.mutate({ id: collectionId }, { onSuccess: (created) => onCloned(created.id) })
                 }

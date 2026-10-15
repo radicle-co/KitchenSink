@@ -165,6 +165,7 @@ export { RecipeIngredientsFields } from './form/RecipeIngredientsFields.js';
 export { IngredientsNutritionFoot, type IngredientsNutritionFootProps } from './form/IngredientsNutritionFoot.js';
 export { RecipeInstructionsFields } from './form/RecipeInstructionsFields.js';
 export { RecipeVisibilityField } from './form/RecipeVisibilityField.js';
+export { RecipeVisibilityStatement } from './form/RecipeVisibilityStatement.js';
 export {
     pendingIngredientIds,
     settleIngredientLine,
@@ -207,8 +208,15 @@ export { RecipeDeleteDialog } from './actions/RecipeDeleteDialog.js';
 export { RecipeUpsellSheet } from './actions/RecipeUpsellSheet.js';
 export { usePrivateChoice } from './actions/usePrivateChoice.js';
 export { useGatedPrivate } from './actions/useGatedPrivate.js';
-export { privateNeedsPremium } from './actions/privateGate.js';
-export type { PrivateChoiceProfile } from './actions/usePrivateChoice.js';
+export {
+    mayRestorePrivate,
+    offersPrivate,
+    privateChoice,
+    privateIsFinal,
+    privateNeedsPremium,
+    showsPremiumBadge,
+} from './actions/privateGate.js';
+export type { PrivateChoiceInput, PrivateChoiceOutcome } from './actions/privateGate.js';
 export { recipeActionMessages } from './actions/messages.js';
 export type {
     RecipeActionMessages,

@@ -70,10 +70,11 @@ const useUserProfileMock = vi.mocked(useUserProfile);
 /** The fake client the current test renders against. */
 let client: RecipeServiceClient;
 
-/** A `useUserProfile` double exposing only the tier the premium gate reads. */
-function profile(tier: 'free' | 'premium' = 'premium'): ReturnType<typeof useUserProfile> {
+/** A `useUserProfile` double exposing only the paid-feature state the visibility gate reads. */
+function profile(paidFeatures: 'granted' | 'upsell' | 'hidden' = 'granted'): ReturnType<typeof useUserProfile> {
     return {
-        data: { user: { id: 'usr_1' }, account: { subscriptionTier: tier } },
+        status: 'success',
+        data: { user: { id: 'usr_1' }, account: { paidFeatures } },
         isLoading: false,
     } as unknown as ReturnType<typeof useUserProfile>;
 }
@@ -137,7 +138,7 @@ beforeEach(() => {
     vi.clearAllMocks();
     client = createFakeRecipeServiceClient();
     seed(makeCollectionWithRecipes([pasta, tacos], { id: 'col_1', name: 'Weeknight favourites' }));
-    useUserProfileMock.mockReturnValue(profile('premium'));
+    useUserProfileMock.mockReturnValue(profile('granted'));
     // react-native-web reports a screen reader as ON, which holds a snackbar open (SC 2.2.1); the timeout test needs it off.
     vi.spyOn(AccessibilityInfo, 'isScreenReaderEnabled').mockResolvedValue(false);
 });
@@ -351,8 +352,8 @@ describe('CollectionDetailScreen — visibility, with Undo and the Premium sheet
         await waitFor(() => expect(update).toHaveBeenLastCalledWith('col_1', { visibility: 'public' }));
     });
 
-    it('opens the Premium sheet for a free-tier cook making a collection private, and sends nothing', async () => {
-        useUserProfileMock.mockReturnValue(profile('free'));
+    it('under upsell, opens the Premium sheet for making a collection private, and sends nothing', async () => {
+        useUserProfileMock.mockReturnValue(profile('upsell'));
         seed(makeCollectionWithRecipes([], { id: 'col_1', name: 'Dinners', visibility: 'public' }));
         const update = vi.spyOn(client, 'updateCollection');
 
@@ -367,6 +368,35 @@ describe('CollectionDetailScreen — visibility, with Undo and the Premium sheet
         fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
 
         await waitFor(() => expect(screen.queryByText('Private collections are part of Premium.')).toBeNull());
+    });
+
+    // Plan 2026-10-14-009 D14, mirroring the web suite: no paid feature and no upsell under hidden or a failed read.
+    it.each([
+        ['hidden', profile('hidden')],
+        ['a failed profile read', { status: 'error', data: undefined, isLoading: false }],
+    ] as const)('⛔ under %s, a public collection’s menu offers no Make private', async (_label, stub) => {
+        useUserProfileMock.mockReturnValue(stub as unknown as ReturnType<typeof useUserProfile>);
+        seed(makeCollectionWithRecipes([], { id: 'col_1', name: 'Dinners', visibility: 'public' }));
+
+        renderOver(<CollectionDetailScreen {...props} />);
+        await screen.findByRole('heading', { name: 'Dinners' });
+        openMenu('Dinners');
+
+        expect(screen.queryByRole('menuitem', { name: 'Make private' })).toBeNull();
+        expect(screen.getByRole('menuitem', { name: 'Rename' })).toBeTruthy();
+    });
+
+    it('under hidden, a private collection still offers Make public, with no Undo back to private', async () => {
+        useUserProfileMock.mockReturnValue(profile('hidden'));
+        seed(makeCollectionWithRecipes([], { id: 'col_1', name: 'Dinners', visibility: 'private' }));
+        vi.spyOn(client, 'updateCollection').mockResolvedValue(makeCollectionWithRecipes([]));
+
+        renderOver(<CollectionDetailScreen {...props} />);
+        await screen.findByRole('heading', { name: 'Dinners' });
+        pressMenuItem('Dinners', 'Make public');
+
+        expect(await screen.findByText('Collection is now public.')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
     });
 });
 

@@ -36,7 +36,7 @@ test.describe('recipe detail — original source', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [
                 makeRecipeDetail({
                     id: RECIPE_ID.imported,
@@ -72,7 +72,7 @@ test.describe('recipe detail — original source', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [makeRecipeDetail({ id: RECIPE_ID.own, ownerId: viewerId, title: 'My Own Pasta' })],
         });
 
@@ -101,7 +101,7 @@ test.describe('recipe detail — configurable serving size', () => {
     test('opens at the author’s serving count and rescales the page from the control', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [scalable(viewerId)] });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [scalable(viewerId)] });
 
         await page.goto(route(`/recipes/${RECIPE_ID.scalable}`));
         await expect(page.getByRole('heading', { level: 1, name: 'Scalable Stew' })).toBeVisible();
@@ -126,7 +126,7 @@ test.describe('recipe detail — configurable serving size', () => {
     test('scales prep and total but NOT cook time, and says so', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [scalable(viewerId)] });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [scalable(viewerId)] });
 
         await page.goto(route(`/recipes/${RECIPE_ID.scalable}`));
         await expect(page.getByRole('heading', { level: 1, name: 'Scalable Stew' })).toBeVisible();
@@ -152,7 +152,7 @@ test.describe('recipe detail — configurable serving size', () => {
     test('scales back down to the count the recipe was created with', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [scalable(viewerId)] });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [scalable(viewerId)] });
 
         await page.goto(route(`/recipes/${RECIPE_ID.scalable}`));
         // The Stepper's group (F8): the count is its text, not a field's value.
@@ -174,7 +174,7 @@ test.describe('recipe detail — configurable serving size', () => {
     test('the scaled note’s Reset returns the amounts to the recipe’s own servings', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [scalable(viewerId)] });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [scalable(viewerId)] });
 
         await page.goto(route(`/recipes/${RECIPE_ID.scalable}`));
         // The Stepper's group (F8): the count is its text, not a field's value.
@@ -195,7 +195,7 @@ test.describe('recipe detail — configurable serving size', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [
                 makeRecipeDetail({
                     id: RECIPE_ID.scalable,

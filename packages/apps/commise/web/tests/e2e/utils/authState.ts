@@ -98,6 +98,8 @@ export const SESSION_OWNING_SPECS: readonly string[] = [
     'mockupFidelity.spec.ts',
     // REVOKES, then signs a second cook in on the same browser (ADR-0054).
     'sessionHandoff.spec.ts',
+    // SIGNS IN AS FIVE OTHER USERS — the `roles` tier, one per role (plan 2026-10-14-009 D12), each in a blank context.
+    'paidFeatureRoles.spec.ts',
 ];
 
 /** Glob form of {@link SESSION_OWNING_SPECS}, for Playwright's `testMatch` / `testIgnore`. */

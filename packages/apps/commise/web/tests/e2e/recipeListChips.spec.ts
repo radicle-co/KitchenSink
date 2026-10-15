@@ -41,7 +41,7 @@ test.describe('recipe list — timestamp + quick-filter chip (#2/#4)', () => {
             title: "Grandma's Pasta",
             totalTimeMinutes: 45,
         });
-        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [quick, slow] });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [quick, slow] });
 
         await page.goto(route('/recipes'));
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
@@ -75,7 +75,7 @@ test.describe('recipe list chips — labels, clearing and untimed recipes (W-10,
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [
                 makeRecipeDetail({
                     id: 'ec000000-0000-4000-8000-000000000041',
@@ -99,7 +99,7 @@ test.describe('recipe list chips — labels, clearing and untimed recipes (W-10,
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [
                 makeRecipeDetail({
                     id: 'ec000000-0000-4000-8000-000000000042',
@@ -130,7 +130,7 @@ test.describe('recipe list chips — labels, clearing and untimed recipes (W-10,
         const cuisines = ['Moroccan', 'Italian', 'Peruvian', 'Thai', 'Greek', 'Korean'];
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: cuisines.map((cuisine, index) =>
                 makeRecipeDetail({
                     id: `ec000000-0000-4000-8000-0000000000${String(50 + index)}`,

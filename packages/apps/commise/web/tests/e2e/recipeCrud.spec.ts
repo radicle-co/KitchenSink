@@ -22,7 +22,7 @@ test.describe('recipe CRUD (T079)', () => {
     test('create → view → edit → delete a recipe', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         await mockFoodApi(page);
 
         // The list surface renders with its chrome.

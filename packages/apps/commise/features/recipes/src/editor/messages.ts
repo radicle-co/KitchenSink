@@ -197,6 +197,11 @@ export interface EditorMessages {
         readonly legend: string;
         readonly public: string;
         readonly publicHint: string;
+        /**
+         * Under the Public card, for a cook whose private recipe could not be made private again (the paid features
+         * are hidden for them, plan 2026-10-14-009). No copy mentions Premium.
+         */
+        readonly publicIsFinal: string;
         readonly private: string;
         readonly privateHint: string;
     };
@@ -374,6 +379,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             legend: 'Who can see it',
             public: 'Public',
             publicHint: 'Anyone can find it in Discover',
+            publicIsFinal: "You won't be able to make it private again.",
             private: 'Private',
             privateHint: 'Only you can see it',
         },

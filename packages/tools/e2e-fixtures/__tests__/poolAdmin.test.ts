@@ -61,7 +61,7 @@ const marked = (slot: typeof alfa, overrides: Partial<ObservedPoolUser> = {}): O
     user(slot.email, { publicMetadata: { ...poolSlotMetadata(slot) }, ...overrides });
 
 describe('metadataSatisfies', () => {
-    it('is satisfied by exactly the marker, permissions and scopes the roster declares', () => {
+    it('is satisfied by exactly the marker, roles, permissions and scopes the roster declares', () => {
         expect(metadataSatisfies({ ...poolSlotMetadata(alfa) }, poolSlotMetadata(alfa))).toBe(true);
     });
 
@@ -69,13 +69,21 @@ describe('metadataSatisfies', () => {
         expect(metadataSatisfies({ ...poolSlotMetadata(alfa), unrelated: 1 }, poolSlotMetadata(alfa))).toBe(true);
     });
 
+    // `alfa` is a premium k6 VU: roles ['premium'], no permission, no scope.
     it.each([
-        ['no marker', { permissions: ['premium'], scopes: [] }],
-        ['a string marker', { testPrincipal: 'true', permissions: ['premium'], scopes: [] }],
-        ['a missing premium grant', { testPrincipal: true, permissions: [], scopes: [] }],
-        ['a stale extra grant', { testPrincipal: true, permissions: ['premium', 'admin'], scopes: [] }],
-        ['a stale scope', { testPrincipal: true, permissions: ['premium'], scopes: ['food:admin'] }],
-        ['permissions absent', { testPrincipal: true, scopes: [] }],
+        ['no marker', { roles: ['premium'], permissions: [], scopes: [] }],
+        ['a string marker', { testPrincipal: 'true', roles: ['premium'], permissions: [], scopes: [] }],
+        ['a missing premium role', { testPrincipal: true, roles: [], permissions: [], scopes: [] }],
+        ['roles absent', { testPrincipal: true, permissions: [], scopes: [] }],
+        ['a different role', { testPrincipal: true, roles: ['vip'], permissions: [], scopes: [] }],
+        ['a stale extra role', { testPrincipal: true, roles: ['premium', 'admin'], permissions: [], scopes: [] }],
+        // The OLD grant: a user still carrying the premium permission is re-marked, which revokes it.
+        [
+            'the old premium permission',
+            { testPrincipal: true, roles: ['premium'], permissions: ['premium'], scopes: [] },
+        ],
+        ['a stale scope', { testPrincipal: true, roles: ['premium'], permissions: [], scopes: ['food:admin'] }],
+        ['permissions absent', { testPrincipal: true, roles: ['premium'], scopes: [] }],
     ])('is NOT satisfied by %s', (_, actual) => {
         expect(metadataSatisfies(actual, poolSlotMetadata(alfa))).toBe(false);
     });

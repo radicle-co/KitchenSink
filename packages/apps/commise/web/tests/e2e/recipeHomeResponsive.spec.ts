@@ -109,7 +109,7 @@ async function seed(page: Page): Promise<void> {
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, {
         viewerId,
-        tier: 'premium',
+        paidFeatures: 'granted',
         recipes: [
             makeRecipeDetail({
                 id: RECIPE_ID,
@@ -151,7 +151,7 @@ async function seedTitled(page: Page, title: string): Promise<void> {
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, {
         viewerId,
-        tier: 'premium',
+        paidFeatures: 'granted',
         recipes: [makeRecipeDetail({ id: RECIPE_ID, ownerId: viewerId, title, currentVersion: 1 })],
     });
 }
@@ -419,7 +419,7 @@ async function seedQuickAndSlow(page: Page): Promise<void> {
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, {
         viewerId,
-        tier: 'premium',
+        paidFeatures: 'granted',
         recipes: [
             makeRecipeDetail({
                 id: 'ec000000-0000-4000-8000-00000000001d',

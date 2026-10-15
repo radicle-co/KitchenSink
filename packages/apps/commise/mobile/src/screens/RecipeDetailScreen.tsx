@@ -5,15 +5,16 @@
  * container. The settled view is keyed on `recipeId`, so a `replace`/deep-link that reuses this screen with a new id
  * remounts it: every mutation and the delete dialog start fresh, and nothing of the previous recipe can leak.
  * On top of the read view it composes the owner and viewer action blocks (T068 delete, T074 visibility,
- * T075 clone) plus edit (T067) and version-history (T069) entry points, gated by ownership and tier:
+ * T075 clone) plus edit (T067) and version-history (T069) entry points, gated by ownership and the paid features:
  *
- * - Owner actions (edit, version history, delete, visibility) render only for the recipe's owner. The
- *   private-visibility option is tier-gated (C-004): free-tier owners see it disabled with an upgrade reason.
+ * - Owner actions (edit, version history, delete, visibility) render only for the recipe's owner. Make private is a
+ *   paid feature (C-004): offered when granted or upsell (where it opens the Premium sheet), and not at all when the
+ *   paid features are hidden or the profile is loading (plan 2026-10-14-009 D14).
  * - The clone action renders for a PUBLIC recipe the viewer does not own (US2), copying it into their recipes.
  *
  * A single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from `useUserProfile` (the
- * viewer's app-user id + subscription tier); every ownership/clone/tier gate above reads from that ONE
- * `Viewer` through the shared `isOwner`/`canClone`/`canGoPrivate` policy predicates — the SAME predicates
+ * viewer's app-user id); every ownership/clone gate above reads from that ONE `Viewer` through the shared
+ * `isOwner`/`canClone` policy predicates, and the visibility gate from `paidFeatureStateOf` — the SAME predicates
  * the web detail container evaluates, so the two platforms can never diverge on a gate (this closes D7,
  * where the clone gate previously disagreed: web ignored ownership while mobile checked it). Every mutation
  * is owned here and reported upward so the navigator can route (back to the list after delete, to the new
@@ -66,7 +67,8 @@ import {
 } from '@kitchensink/recipe-service-client/hooks';
 import { NavigationContext } from '@react-navigation/native';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { RecipeVisibility, canClone, canGoPrivate, isOwner, makeViewer } from '@kitchensink/recipe-core';
+import { paidFeatureStateOf } from '@commise/features-account';
+import { RecipeVisibility, canClone, isOwner, makeViewer } from '@kitchensink/recipe-core';
 import type { JSX } from 'react';
 import { useContext, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -238,23 +240,16 @@ function SettledRecipeDetail({
     const deleteRating = useDeleteRecipeRating();
     const [deleteOpen, setDeleteOpen] = useState(false);
     const backLabel = useBackLabel();
-    // Make private is offered to every owner (owner 2026-10-13, B2 E1). Whether it applies or opens the Premium sheet is
-    // decided in ONE place, `useGatedPrivate`, which also holds a tap made while the profile still loads.
+    // Plan 2026-10-14-009 D14: whether Make private is offered, and whether it applies or opens the Premium sheet, is
+    // decided in ONE place, `useGatedPrivate`, from the viewer's paid features alone (owner ruling 2026-10-13).
     const privateGate = useGatedPrivate({
-        profile:
-            profile.data !== undefined || profile.isError
-                ? {
-                      status: 'settled',
-                      mayGoPrivate: canGoPrivate(
-                          makeViewer({ id: undefined, subscriptionTier: profile.data?.account.subscriptionTier }),
-                      ),
-                  }
-                : { status: 'loading' },
+        state: paidFeatureStateOf(profile),
+        saved: query.data.visibility,
         apply: () => setVisibility.mutate({ id: recipeId, visibility: RecipeVisibility.PRIVATE }),
     });
 
     // Wait for the viewer profile too before rendering the detail. Owner-gated UI (edit/delete/visibility actions)
-    // and the rating mode are derived from `profile` (the viewer id + tier); rendering before it lands would paint
+    // and the rating mode are derived from `profile` (the viewer id + paid features); rendering before it lands would paint
     // the detail WITHOUT the owner actions and then pop them in — shifting the layout mid-interaction. A signed-out
     // viewer's profile query is disabled, so its `isLoading` is false and this never hangs for a guest.
     if (profile.isLoading) {
@@ -263,10 +258,9 @@ function SettledRecipeDetail({
 
     const recipe = query.data;
     const viewerId = profile.data?.user.id;
-    // P4: ONE Viewer value object, built from this platform's identity signals (the profile's app-user id +
-    // subscription tier), feeds every gate below through the shared policy predicates — the SAME predicates
-    // the web detail container evaluates (D7).
-    const viewer = makeViewer({ id: viewerId, subscriptionTier: profile.data?.account.subscriptionTier });
+    // P4: ONE Viewer value object, built from this platform's identity signal (the profile's app-user id), feeds every
+    // gate below through the shared policy predicates — the SAME predicates the web detail container evaluates (D7).
+    const viewer = makeViewer({ id: viewerId });
     const viewerIsOwner = isOwner(recipe, viewer);
     // D7: a viewer may clone a PUBLIC recipe they do not own — the SAME `canClone` predicate web now
     // evaluates, closing the drift where web ignored ownership and mobile checked it.
@@ -292,6 +286,7 @@ function SettledRecipeDetail({
         owner: viewerIsOwner,
         isPublic: recipe.visibility === RecipeVisibility.PUBLIC,
         hasMarks: marks.hasMarks,
+        offersPrivate: privateGate.offersPrivate,
     });
 
     const menuItem = (item: DetailMenuItem): ActionMenuItem => {

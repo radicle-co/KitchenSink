@@ -196,9 +196,9 @@ export {
     userId,
 } from './ids.js';
 export type { FoodId, IngredientId, RecipeId, S3Key, UserId } from './ids.js';
-export { makeViewer, rankTier, tierSchema } from './viewer.js';
-export type { Tier, Viewer } from './viewer.js';
-export { canClone, canGoPrivate, canRate, isOwner } from './recipeAccessPolicy.js';
+export { makeViewer } from './viewer.js';
+export type { Viewer } from './viewer.js';
+export { canClone, canRate, isOwner } from './recipeAccessPolicy.js';
 export {
     ABSENT_QUANTITY,
     ingredientQuantitySchema,

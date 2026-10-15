@@ -36,7 +36,7 @@ const PUBLISHABLE_KEY = `pk_test_${Buffer.from('x.clerk.accounts.dev$').toString
 
 const provisioned = (overrides: Partial<PoolUserRecord> = {}): PoolUserRecord => ({
     id: 'user_alfa',
-    publicMetadata: { testPrincipal: true, permissions: ['premium'], scopes: [] },
+    publicMetadata: { testPrincipal: true, roles: ['premium'], permissions: [], scopes: [] },
     externalId: '01J00000000000000000000000',
     ...overrides,
 });

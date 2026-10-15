@@ -69,19 +69,24 @@ vi.mock('../../src/components/RecipePhotoUploader.js', () => ({
     },
 }));
 
-/** The viewer's plan: undefined while the profile loads (the default), or a tier. */
-const profile = vi.hoisted(() => ({ tier: undefined as string | undefined }));
+/** The viewer's paid features: undefined while the profile loads (the default), `failed` for a read that errored. */
+const profile = vi.hoisted(() => ({
+    paidFeatures: undefined as 'granted' | 'upsell' | 'hidden' | 'failed' | undefined,
+}));
 
 vi.mock('../../src/hooks/useUserProfile.js', () => ({
-    useUserProfile: () => ({
-        data: profile.tier === undefined ? undefined : { account: { subscriptionTier: profile.tier } },
-    }),
+    useUserProfile: () =>
+        profile.paidFeatures === undefined
+            ? { status: 'pending', data: undefined }
+            : profile.paidFeatures === 'failed'
+              ? { status: 'error', data: undefined }
+              : { status: 'success', data: { account: { paidFeatures: profile.paidFeatures } } },
 }));
 
 afterEach(() => {
     cleanup();
     auth.userId = 'user_cook';
-    profile.tier = undefined;
+    profile.paidFeatures = undefined;
 });
 
 /** Render the screen under the real outbox, sending with `client`. */
@@ -261,17 +266,19 @@ describe('RecipeEditorScreen (native)', () => {
 });
 
 /**
- * E1 (build spec §6.4, §7.7 item 2): choosing Private did nothing for a free-tier cook, because no host passed
- * `onPremiumRequired` and no recipe upsell existed. It opens the Premium sheet now; a Premium cook gets Private; and a
- * profile that is still loading is not the free tier (§6.4 F8).
+ * E1 (build spec §6.4, §7.7 item 2) + plan 2026-10-14-009 D14, mirroring the web suite: "Who can see it" renders from the
+ * viewer's paid features alone. `upsell` opens the Premium sheet for Private; `granted` gets Private; `hidden`, a failed
+ * profile read and a profile still loading show the plain statement — no Private, no Premium, no upsell.
+ *
+ * REWRITTEN 2026-10-14: the loading case used to tap a Private that waited; loading now fails closed to the statement.
  */
-describe('RecipeEditorScreen (native) — Private (E1)', () => {
+describe('RecipeEditorScreen (native) — Private (E1, paid features)', () => {
     const choosePrivate = (): void => {
         fireEvent.click(screen.getByRole('radio', { name: /^Private/u }));
     };
 
-    it('⛔ tells a free-tier cook why: the Premium sheet opens, and Public stays chosen', async () => {
-        profile.tier = 'free';
+    it('⛔ under upsell, the Premium sheet opens for Private, and Public stays chosen', async () => {
+        profile.paidFeatures = 'upsell';
         renderScreen(createFakeRecipeServiceClient());
         await screen.findByRole('heading', { name: 'New recipe' });
 
@@ -282,7 +289,7 @@ describe('RecipeEditorScreen (native) — Private (E1)', () => {
     });
 
     it('Not now closes the sheet and leaves the recipe public', async () => {
-        profile.tier = 'free';
+        profile.paidFeatures = 'upsell';
         renderScreen(createFakeRecipeServiceClient());
         await screen.findByRole('heading', { name: 'New recipe' });
         choosePrivate();
@@ -293,8 +300,8 @@ describe('RecipeEditorScreen (native) — Private (E1)', () => {
         expect(screen.getByRole('radio', { name: /^Public/u }).getAttribute('aria-checked')).toBe('true');
     });
 
-    it('lets a Premium cook choose Private, with no sheet', async () => {
-        profile.tier = 'premium';
+    it('lets a granted cook choose Private, with no sheet', async () => {
+        profile.paidFeatures = 'granted';
         renderScreen(createFakeRecipeServiceClient());
         await screen.findByRole('heading', { name: 'New recipe' });
 
@@ -304,15 +311,18 @@ describe('RecipeEditorScreen (native) — Private (E1)', () => {
         expect(screen.queryByRole('heading', { name: /Premium/u })).toBeNull();
     });
 
-    it('⛔ never sends a loading profile to the upsell: no sheet until it settles', async () => {
-        profile.tier = undefined;
+    it.each([
+        ['hidden', 'hidden'],
+        ['a failed profile read', 'failed'],
+        ['a profile still loading', undefined],
+    ] as const)('⛔ under %s, says "Who can see it: Public" and offers no Private', async (_label, state) => {
+        profile.paidFeatures = state;
         renderScreen(createFakeRecipeServiceClient());
         await screen.findByRole('heading', { name: 'New recipe' });
 
-        choosePrivate();
-
-        expect(screen.queryByRole('heading', { name: /Premium/u })).toBeNull();
-        expect(screen.getByRole('radio', { name: /^Public/u }).getAttribute('aria-checked')).toBe('true');
+        expect(screen.getByLabelText('Who can see it: Public. Anyone can find it in Discover.')).toBeTruthy();
+        expect(screen.queryByRole('radio', { name: /^Private/u })).toBeNull();
+        expect(screen.queryByText('Premium')).toBeNull();
     });
 });
 

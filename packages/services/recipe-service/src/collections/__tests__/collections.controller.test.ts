@@ -39,6 +39,7 @@ const PRINCIPAL: Principal = {
     sub: 'clerk_sub',
     scopes: [],
     permissions: [],
+    roles: [],
     principalKind: 'real',
     containment: 'enforce',
 };
@@ -102,7 +103,7 @@ describe('CollectionsController', () => {
     describe('tier', () => {
         it('hands the service a PREMIUM actor only when the signed permissions say so', async () => {
             service.createCollection.mockResolvedValue({ id: 'c1' });
-            const premium: Principal = { ...PRINCIPAL, permissions: ['premium'] };
+            const premium: Principal = { ...PRINCIPAL, roles: ['premium'] };
 
             await controller.create(reqWith(premium), { name: 'Dinners' });
 

@@ -44,7 +44,7 @@ vi.mock('@sentry/nestjs', () => ({
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-import { PREMIUM_PERMISSION, RecipesService } from '../recipes.service.js';
+import { RecipesService } from '../recipes.service.js';
 import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
 import type { RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
@@ -78,6 +78,7 @@ const OWNER_PRINCIPAL: Principal = {
     sub: 'user_clerk',
     scopes: [],
     permissions: [],
+    roles: [],
     principalKind: 'real',
     containment: 'enforce',
 };
@@ -291,7 +292,7 @@ describe('RecipesService.create — the verification producer', () => {
     });
 
     describe('ADR-0040 — a contained test principal asks the gate NOTHING', () => {
-        const PREMIUM_OWNER: Principal = { ...OWNER_PRINCIPAL, permissions: [PREMIUM_PERMISSION] };
+        const PREMIUM_OWNER: Principal = { ...OWNER_PRINCIPAL, roles: ['premium'] };
 
         // ⛔ The verification worker spends ADR-0024's shared production LLM pool and writes the GLOBAL
         // `ingredient_resolution_memos` tier, which carries no user column the test purge could reach. So on an

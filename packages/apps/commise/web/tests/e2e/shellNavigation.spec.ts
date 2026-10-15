@@ -26,7 +26,7 @@ async function signedIn(page: Page, count = 2): Promise<void> {
     const recipes = Array.from({ length: count }, (_unused, index) =>
         makeRecipeDetail({ id: `shell_${index}`, title: `Shell recipe ${index + 1}`, ownerId: viewerId }),
     );
-    await mockRecipeApi(page, { viewerId, tier: 'premium', recipes });
+    await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes });
 }
 
 /**

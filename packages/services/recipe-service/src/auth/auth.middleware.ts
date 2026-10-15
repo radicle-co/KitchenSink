@@ -81,6 +81,7 @@ function resolveDevBypass(containment: TestPrincipalContainment): Principal | un
         sub: `dev-bypass:${devUserId}`,
         scopes: [],
         permissions: [],
+        roles: [],
         // The bypass has no signed claim to read, so it can never be a test principal.
         principalKind: 'real',
         containment,
@@ -173,6 +174,8 @@ export class AuthMiddleware implements NestMiddleware {
             picture: claims.picture,
             scopes: claims.scopes,
             permissions: claims.permissions,
+            // The verified roles; `isPremiumPrincipal` derives the tier from them.
+            roles: claims.roles,
             // ADR-0040: the kind comes from the SIGNED claim alone (containment is fail-closed on it); the stage's
             // mode rides along so every policy call site reads both off the request it already holds.
             principalKind: claims.testPrincipal ? 'test' : 'real',

@@ -99,7 +99,7 @@ async function seedCommunity(page: Page): Promise<void> {
         });
     await mockRecipeApi(page, {
         viewerId,
-        tier: 'premium',
+        paidFeatures: 'granted',
         recipes: [
             other('ec000000-0000-4000-8000-0000000000b1', 'Seafood Paella', 'braise'),
             other('ec000000-0000-4000-8000-0000000000b2', 'Crispy Duck Legs', 'clara'),
@@ -153,7 +153,7 @@ async function seedLamb(page: Page): Promise<void> {
     });
     await mockRecipeApi(page, {
         viewerId,
-        tier: 'premium',
+        paidFeatures: 'granted',
         recipes: [
             makeRecipeDetail({
                 id: LAMB_ID,
@@ -179,7 +179,7 @@ async function seedLibrary(page: Page): Promise<void> {
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, {
         viewerId,
-        tier: 'premium',
+        paidFeatures: 'granted',
         recipes: [
             makeRecipeDetail({
                 id: 'ec000000-0000-4000-8000-0000000000a1',

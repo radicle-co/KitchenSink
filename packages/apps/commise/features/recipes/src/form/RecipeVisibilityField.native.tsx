@@ -1,15 +1,16 @@
 /**
  * @module @commise/features-recipes/form — `RecipeVisibilityField` (native): "Who can see it"
  * (`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), the React Native leaf of `./RecipeVisibilityField.tsx`, on the
- * same props and the same rule (`visibilityChoice`): a radio group of two 56 pt cards, and Private for a cook whose plan
- * does not include it asks for the upsell instead of changing the value.
+ * same props and the same rule (`visibilityChoice`): a radio group of two 56 pt cards; under `upsell` Private asks for
+ * the upsell instead of changing the value, and under `hidden` a private recipe's Public card says that choosing it is
+ * final (plan 2026-10-14-009 D14). The host renders `RecipeVisibilityStatement` instead when Private is not offered.
  *
  * A card is named by its whole text, so the Premium badge is read with it (an `aria-label` would replace it).
  *
  * Colours come from the theme at render, so both colour schemes paint (owner D15).
  *
- * @pattern Policy — `visibilityChoice` decides what a choice does; `canGoPrivate` only derives the badge and that
- *     decision's input, it selects no second mode of the field
+ * @pattern Policy — `visibilityChoice` decides what a choice does; the paid-feature state only derives the badge, the
+ *     note and that decision's input, it selects no second mode of the field
  */
 import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
@@ -19,6 +20,7 @@ import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { privateIsFinal, showsPremiumBadge } from '../actions/privateGate.js';
 import { editorMessages } from '../editor/messages.js';
 import { recipeFormMessages } from './messages.js';
 import { visibilityChoice, type RecipeVisibilityFieldProps } from './props.js';
@@ -27,7 +29,8 @@ import { visibilityChoice, type RecipeVisibilityFieldProps } from './props.js';
 export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     values,
     onChange,
-    canGoPrivate,
+    paidFeatures,
+    savedVisibility,
     onPremiumRequired,
 }) => {
     const m = useMessages(recipeFormMessages);
@@ -35,7 +38,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     const { colors } = useTheme();
 
     const choose = (chosen: RecipeVisibility): void => {
-        const next = visibilityChoice(values.visibility, chosen, canGoPrivate);
+        const next = visibilityChoice(values.visibility, chosen, savedVisibility, paidFeatures);
 
         if (next === 'premiumRequired') {
             onPremiumRequired?.();
@@ -44,9 +47,27 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
         }
     };
 
-    const options: readonly { value: RecipeVisibility; title: string; hint: string; premium: boolean }[] = [
-        { value: 'public', title: v.public, hint: v.publicHint, premium: false },
-        { value: 'private', title: v.private, hint: v.privateHint, premium: !canGoPrivate },
+    const options: readonly {
+        value: RecipeVisibility;
+        title: string;
+        hint: string;
+        note: string | undefined;
+        premium: boolean;
+    }[] = [
+        {
+            value: 'public',
+            title: v.public,
+            hint: v.publicHint,
+            note: privateIsFinal(paidFeatures, savedVisibility) ? v.publicIsFinal : undefined,
+            premium: false,
+        },
+        {
+            value: 'private',
+            title: v.private,
+            hint: v.privateHint,
+            note: undefined,
+            premium: showsPremiumBadge(paidFeatures, savedVisibility),
+        },
     ];
 
     return (
@@ -76,6 +97,9 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                             <View style={styles.words}>
                                 <Text style={[styles.title, { color: colors.ink }]}>{option.title}</Text>
                                 <Text style={[styles.hint, { color: colors.inkMuted }]}>{option.hint}</Text>
+                                {option.note === undefined ? null : (
+                                    <Text style={[styles.hint, { color: colors.inkMuted }]}>{option.note}</Text>
+                                )}
                             </View>
                             {option.premium ? <StatusBadge status="pro">{m.premiumBadge}</StatusBadge> : null}
                         </Pressable>

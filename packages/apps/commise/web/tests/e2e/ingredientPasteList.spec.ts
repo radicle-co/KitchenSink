@@ -31,7 +31,7 @@ for (const colorScheme of SCHEMES) {
         test('a new recipe’s empty section offers it; the lines read, then join the recipe', async ({ page }) => {
             await page.setViewportSize({ width: 390, height: 844 });
             const viewerId = await readViewerAppId(page);
-            await mockRecipeApi(page, { viewerId, tier: 'premium' });
+            await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
             await openNewRecipe(page);
             const ingredients = editorSection(page, 'Ingredients');
 
@@ -58,7 +58,7 @@ for (const colorScheme of SCHEMES) {
 
         test('the recipe’s create carries what each pasted line was read from (A5)', async ({ page }) => {
             const viewerId = await readViewerAppId(page);
-            await mockRecipeApi(page, { viewerId, tier: 'premium' });
+            await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
             await openNewRecipe(page);
             const ingredients = editorSection(page, 'Ingredients');
 
@@ -91,7 +91,7 @@ for (const colorScheme of SCHEMES) {
             const viewerId = await readViewerAppId(page);
             await mockRecipeApi(page, {
                 viewerId,
-                tier: 'premium',
+                paidFeatures: 'granted',
                 recipes: [
                     makeRecipeDetail({
                         id: 'ec000000-0000-4000-8000-000000000017',

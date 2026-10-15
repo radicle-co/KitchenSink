@@ -28,6 +28,7 @@ import {
     POOL_ROSTER,
     POOL_TIERS,
     poolSlotMetadata,
+    ROLE_LANE_IDS,
     rosterSlots,
     slotFor,
     slotForShard,
@@ -127,7 +128,7 @@ describe('slotForShard', () => {
 describe('k6VuLanes', () => {
     const lane = (id: string, scopes: readonly string[]): PoolLane => ({
         id,
-        premium: true,
+        roles: ['premium'],
         scopes,
         consumable: false,
         signsInByPassword: false,
@@ -207,11 +208,26 @@ describe('poolSlotMetadata', () => {
         }
     });
 
-    it('grants premium exactly where the roster declares it, and only as the premium permission', () => {
-        expect(poolSlotMetadata(slotFor('k6', 'alfa')).permissions).toEqual(['premium']);
-        expect(poolSlotMetadata(slotFor('maestro', 'signer')).permissions).toEqual(['premium']);
-        // A non-premium slot states an EMPTY list, so a merge-PATCH revokes a stale grant instead of keeping it.
-        expect(poolSlotMetadata(slotFor('maestro', 'coauthor')).permissions).toEqual([]);
+    /**
+     * REWRITTEN 2026-10-14 (plan 2026-10-14-009 D12): premium is a ROLE now (`public_metadata.roles`, owner ruling
+     * 2026-10-13), and the old `premium` permission grants nothing — so every slot states `permissions: []`, which
+     * is what makes `poolAdmin`'s merge-PATCH revoke the old grant from the users that still carry it.
+     */
+    it('grants premium exactly where the roster declares it, as the premium ROLE, and revokes the old permission', () => {
+        expect(poolSlotMetadata(slotFor('k6', 'alfa')).roles).toEqual(['premium']);
+        expect(poolSlotMetadata(slotFor('maestro', 'signer')).roles).toEqual(['premium']);
+        expect(poolSlotMetadata(slotFor('maestro', 'coauthor')).roles).toEqual(['default']);
+
+        for (const slot of rosterSlots()) {
+            expect(poolSlotMetadata(slot).permissions, slot.id).toEqual([]);
+        }
+    });
+
+    /** `default` is WRITTEN, never inferred from absence (owner ruling 2026-10-13), the pool included. */
+    it('states a role on every slot', () => {
+        for (const slot of rosterSlots()) {
+            expect(poolSlotMetadata(slot).roles.length, slot.id).toBeGreaterThan(0);
+        }
     });
 
     /**
@@ -250,7 +266,7 @@ describe('password-bearing slots', () => {
      * EITHER platform, types the password on its own device, so the claim is per (platform, shard). Comparing sorted
      * sets keeps the assertion about WHICH slots type a password, which is what `poolAdmin` acts on.
      */
-    it('are exactly the slots a flow types a password for: the web shards, every maestro signer, every erasure', () => {
+    it('are exactly the slots a flow types a password for: web shards, maestro signers, erasures and the role users', () => {
         const typed = rosterSlots()
             .filter((slot) => slot.signsInByPassword)
             .map((slot) => `${slot.tier}/${slot.id}`);
@@ -262,6 +278,7 @@ describe('password-bearing slots', () => {
                 ...POOL_ROSTER.webStub.map((lane) => `webStub/${lane.id}`),
                 ...signers.map((slot) => `maestro/${slot.id}`),
                 ...consumableSlots('maestro').map((slot) => `maestro/${slot.id}`),
+                ...POOL_ROSTER.roles.map((lane) => `roles/${lane.id}`),
             ].sort(),
         );
     });
@@ -279,7 +296,7 @@ describe('password-bearing slots', () => {
     it('⛔ gives EVERY shard’s signer `premium`, or its three PRIVATE seeded recipes are refused', () => {
         for (const { platform, shard } of everyShard()) {
             expect(
-                poolSlotMetadata(maestroSlotForShard('signer', platform, shard)).permissions,
+                poolSlotMetadata(maestroSlotForShard('signer', platform, shard)).roles,
                 `${platform} shard ${shard}`,
             ).toEqual(['premium']);
         }
@@ -457,5 +474,48 @@ describe('maestro erasure lane', () => {
         for (const platform of MAESTRO_PLATFORMS) {
             expect(ids(platform).length, platform).toBeGreaterThan(0);
         }
+    });
+});
+
+/**
+ * The `roles` tier (plan 2026-10-14-009 D12; owner ruling 2026-10-13): one user per role, so a paid-feature test can
+ * sign in as a DEFAULT user to prove only the upsell (or nothing) shows, and as premium / vip / superuser to prove the
+ * paid flow shows.
+ */
+describe('the roles tier', () => {
+    it('declares exactly one lane per role, each carrying that role', () => {
+        expect(POOL_ROSTER.roles.map((lane) => [lane.id, lane.roles])).toStrictEqual([
+            ['roledefault', ['default']],
+            ['roleadmin', ['admin']],
+            ['rolepremium', ['premium']],
+            ['rolesuperuser', ['superuser']],
+            ['rolevip', ['vip']],
+        ]);
+    });
+
+    it('names its lanes once, for the specs and flows that sign in as them', () => {
+        expect(ROLE_LANE_IDS).toStrictEqual({
+            default: 'roledefault',
+            admin: 'roleadmin',
+            premium: 'rolepremium',
+            superuser: 'rolesuperuser',
+            vip: 'rolevip',
+        });
+
+        for (const id of Object.values(ROLE_LANE_IDS)) {
+            expect(slotFor('roles', id).roles).toHaveLength(1);
+        }
+    });
+
+    it('signs in by password (the Maestro flows type it), holds no scope and is never consumed', () => {
+        for (const lane of POOL_ROSTER.roles) {
+            expect(lane.signsInByPassword, lane.id).toBe(true);
+            expect(lane.scopes, lane.id).toEqual([]);
+            expect(lane.consumable, lane.id).toBe(false);
+        }
+    });
+
+    it('is the LAST tier, so no existing lane is renumbered', () => {
+        expect(POOL_TIERS.at(-1)).toBe('roles');
     });
 });

@@ -18,7 +18,7 @@ test.describe('heading outline of the card lists (W-09)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [
                 makeRecipeDetail({ id: 'ec000000-0000-4000-8000-000000000031', ownerId: viewerId, title: 'Soup' }),
                 makeRecipeDetail({ id: 'ec000000-0000-4000-8000-000000000032', ownerId: viewerId, title: 'Pasta' }),
@@ -65,7 +65,7 @@ test.describe('heading outline of the card lists (W-09)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [],
             collections: [makeCollection({ id: 'col_dinners', ownerId: viewerId, name: 'Weeknight Dinners' })],
         });
@@ -81,7 +81,7 @@ test.describe('heading outline of the card lists (W-09)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'free',
+            paidFeatures: 'upsell',
             recipes: [
                 makeRecipeDetail({ id: 'ec000000-0000-4000-8000-000000000034', ownerId: viewerId, title: 'Soup' }),
             ],

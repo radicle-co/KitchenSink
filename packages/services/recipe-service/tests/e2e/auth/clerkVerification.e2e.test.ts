@@ -182,4 +182,65 @@ describe('ClerkAuthService real JWT verification (ARCH-001 integration)', () => 
         const listed = (await listRes.json()) as { data: RecipeBody[] };
         expect(listed.data.some((recipe) => recipe.id === created.id)).toBe(true);
     });
+
+    /**
+     * Roles reach the policy through the REAL chain (plan 2026-10-14-009 D3, D5; owner ruling 2026-10-13): a signed
+     * `public_metadata.roles` is parsed by `verifyClerkToken`, carried on `req.principal`, and read by
+     * `isPremiumPrincipal` in the C-004 visibility policy. A private recipe is a paid feature.
+     */
+    describe('a private recipe, by role', () => {
+        /** A distinct owner per role, so each write is its own. */
+        const ownerFor = (role: string): string => `01JROLE${role.toUpperCase().padEnd(19, '0')}`.slice(0, 26);
+
+        async function createPrivateAs(roles: readonly string[] | undefined, owner: string): Promise<Response> {
+            const token = mintToken(trustedKeypair.privateKeyPem, {
+                sub: `user_role_${owner}`,
+                azp: AUTHORIZED_AZP,
+                externalId: owner,
+                ...(roles === undefined ? {} : { roles }),
+            });
+
+            return fetch(`${baseUrl}/api/v1/recipes`, {
+                method: 'POST',
+                headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+                body: JSON.stringify({ ...MINIMAL_RECIPE_PAYLOAD, visibility: 'private' }),
+            });
+        }
+
+        it.each(['admin', 'superuser', 'vip', 'premium'])('%s may create one', async (role) => {
+            const res = await createPrivateAs([role], ownerFor(role));
+
+            expect(res.status).toBe(201);
+            expect(((await res.json()) as { visibility: string }).visibility).toBe('private');
+        });
+
+        it.each([
+            ['default', ['default']],
+            ['no roles key at all', undefined],
+            ['a wrong-case role', ['Premium']],
+        ] as const)('%s is refused with 400 INVALID_VISIBILITY', async (label, roles) => {
+            const res = await createPrivateAs(roles, ownerFor(label.replace(/[^a-z]/gu, '')));
+
+            expect(res.status).toBe(400);
+            expect(((await res.json()) as { code: string }).code).toBe('INVALID_VISIBILITY');
+        });
+
+        /** The old grant: a `premium` PERMISSION. Roles replaced it, so it alone grants nothing now. */
+        it('a bare premium permission is refused', async () => {
+            const owner = ownerFor('permission');
+            const token = mintToken(trustedKeypair.privateKeyPem, {
+                sub: `user_role_${owner}`,
+                azp: AUTHORIZED_AZP,
+                externalId: owner,
+                permissions: ['premium'],
+            });
+            const res = await fetch(`${baseUrl}/api/v1/recipes`, {
+                method: 'POST',
+                headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+                body: JSON.stringify({ ...MINIMAL_RECIPE_PAYLOAD, visibility: 'private' }),
+            });
+
+            expect(res.status).toBe(400);
+        });
+    });
 });

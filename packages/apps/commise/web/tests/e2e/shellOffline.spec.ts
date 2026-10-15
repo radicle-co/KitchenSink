@@ -14,7 +14,7 @@ test.describe('the offline notice', () => {
         await page.setViewportSize({ width: 1280, height: 800 });
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
         await page.goto(route('/recipes'));
         const sidebar = page.getByRole('navigation', { name: 'Main' }).first();

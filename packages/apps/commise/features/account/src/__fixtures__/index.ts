@@ -49,7 +49,7 @@ export function makeUserProfileAccount(overrides: Partial<UserProfileAccount> = 
     return {
         id: '01JQZX0000000000000000ACCT',
         userId: '01JQZX0000000000000000USER',
-        subscriptionTier: 'free',
+        paidFeatures: 'hidden',
         createdAt: FIXED_TIMESTAMP,
         updatedAt: FIXED_TIMESTAMP,
         ...overrides,

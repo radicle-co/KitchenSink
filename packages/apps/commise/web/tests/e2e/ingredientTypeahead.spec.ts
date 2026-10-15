@@ -21,7 +21,7 @@ test.describe('ingredient typeahead trigger + partial-nutrition disclosure (REQ-
     }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         await mockFoodApi(page);
 
         await openNewRecipe(page);
@@ -106,7 +106,7 @@ test.describe('ingredient typeahead trigger + partial-nutrition disclosure (REQ-
     test('a food picked while the autosave create answers still lands on the recipe', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         await mockFoodApi(page);
 
         let releaseCreate: () => void = () => undefined;

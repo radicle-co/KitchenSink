@@ -246,6 +246,7 @@ describe('VersionsService.restore', () => {
         sub: 'clerk_sub',
         scopes: [],
         permissions: [],
+        roles: [],
         principalKind: 'real',
         containment: 'enforce',
     };

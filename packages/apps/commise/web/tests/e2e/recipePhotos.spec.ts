@@ -42,7 +42,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
     test('pick a photo → busy affordance → uploaded photo appears', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
         await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
@@ -77,7 +77,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
     test('Add photos is a button the keyboard reaches, and Enter opens the file dialog', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
         await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
@@ -119,7 +119,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
     }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
         for (const width of [390, 1280]) {
             await page.setViewportSize({ width, height: 900 });
@@ -173,7 +173,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
     test('an oversized file is rejected client-side, before any upload starts', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
         await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
@@ -201,7 +201,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
     test('a disallowed file type is rejected client-side, before any upload starts', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
         await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
@@ -237,7 +237,7 @@ test.describe('recipe photo replace (U6)', () => {
     async function openEditorWithOnePhoto(page: import('@playwright/test').Page) {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
 
         await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
@@ -328,7 +328,7 @@ test.describe('recipe photo upload on a NEW recipe (slice 7)', () => {
     }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
         await mockFoodApi(page);
 
         const photosRegion = await createByCheckpoint(page);
@@ -368,7 +368,7 @@ test.describe('recipe photo upload on a NEW recipe (slice 7)', () => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         // Every presign fails, so the upload can never be made to succeed — the state this case is about.
-        await mockRecipeApi(page, { viewerId, tier: 'premium', failPhotoUploads: Number.MAX_SAFE_INTEGER });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', failPhotoUploads: Number.MAX_SAFE_INTEGER });
         await mockFoodApi(page);
 
         await createByCheckpoint(page);

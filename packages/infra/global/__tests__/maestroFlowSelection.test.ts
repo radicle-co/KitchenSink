@@ -266,6 +266,13 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // co-author's pool lane has no password sign-in (`POOL_ROSTER` in `@kitchensink/e2e-fixtures`), so the flow cannot
     // sign in as them until the owner gives that lane one (`poolAdmin --apply`). Promote it to FLOW_PLAN then.
     'sessionHandoff',
+    // The paid features by role (plan 2026-10-14-009 D12): four UI sign-ins as the `roles` tier's users, each after a
+    // `clearState`, plus the next flow's sign-in back as the signer. That spends up to FIVE more Clerk email-code
+    // verifications per platform per run against the budget the describe below pins to two, so planning it is the
+    // owner's call on that budget, and it has never run on a device. Promote it to FLOW_PLAN with that ruling, and add it
+    // to the budget assertion with its reason. The same roles are proven against the real identity on web by
+    // `paidFeatureRoles.spec.ts` (ticket sign-in, no email code).
+    'recipes/paidFeaturesByRole',
     'homeRecentRecipeTap',
     // Slice 3: the iOS edge swipe needs the iOS Simulator, which does not run on Linux (blueprint Q4); it runs by name on
     // a Mac until an iOS lane exists.

@@ -425,7 +425,7 @@ test.describe('collections (T109)', () => {
     /**
      * Visibility, premium-gated (FR-010, C1; `buildSpec.md` §5.2). The menu's "Make private" changes the collection AT
      * ONCE and says so in a snackbar with Undo, which changes it back; a free-tier cook gets the Premium sheet and
-     * nothing is sent. The mocked viewer profile defaults to `tier: 'premium'` (`utils/recipeApi`'s `mockRecipeApi`).
+     * nothing is sent. The mocked viewer profile defaults to `paidFeatures: 'granted'` (`utils/recipeApi`'s `mockRecipeApi`).
      */
     test('a premium viewer makes a collection private at once, and Undo changes it back', async ({ page }) => {
         await signInWithTicket(page);
@@ -436,7 +436,7 @@ test.describe('collections (T109)', () => {
             name: 'Weeknight dinners',
             visibility: 'public',
         });
-        await mockRecipeApi(page, { viewerId, tier: 'premium', collections: [collection] });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', collections: [collection] });
 
         await page.goto(route('/collections/col_dinners'));
         await expect(page.getByRole('heading', { level: 1, name: 'Weeknight dinners' })).toBeVisible();
@@ -461,7 +461,7 @@ test.describe('collections (T109)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'free',
+            paidFeatures: 'upsell',
             collections: [
                 makeCollection({
                     id: 'col_dinners',
@@ -552,7 +552,7 @@ test.describe('collections list — W-11: the card says how many recipes it hold
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'premium',
+            paidFeatures: 'granted',
             recipes: [
                 makeRecipeDetail({ id: 'ec000000-0000-4000-8000-000000000081', ownerId: viewerId, title: 'Soup' }),
             ],

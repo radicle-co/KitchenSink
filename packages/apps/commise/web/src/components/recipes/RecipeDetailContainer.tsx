@@ -24,7 +24,7 @@
  * key — the app-user ULID read off Clerk's `external_id` session claim, the SAME claim the recipe service
  * uses as the owner key (see `IDENTITY_SYNC_PENDING_CODE`) — plus `useUserProfile`'s subscription tier. Every
  * ownership/clone/tier gate below reads from that ONE `Viewer` through the shared `isOwner`/`canClone`/
- * `canGoPrivate` policy predicates, the SAME predicates the mobile detail screen evaluates, so the two
+ * `canClone` policy predicates, the SAME predicates the mobile detail screen evaluates, so the two
  * platforms can never diverge on a gate (this closes D7, where the clone gate previously disagreed: web
  * ignored ownership while mobile checked it). Free-tier owners see the private option disabled with a
  * localized upgrade reason; the tier read fails safe (gated OFF) while the profile is still loading or absent.
@@ -65,7 +65,8 @@ import { Button, buttonSurfaceClass, GHOST_EDGE_CLASS } from '@commise/ui/button
 import { HeroButton } from '@commise/ui/hero-button';
 import { Icon } from '@commise/ui/icon';
 import { ScrollHost, useScrollHost } from '@commise/ui/scroll-host';
-import { RecipeVisibility, canClone, canGoPrivate, isOwner, makeViewer } from '@kitchensink/recipe-core';
+import { paidFeatureStateOf } from '@commise/features-account';
+import { RecipeVisibility, canClone, isOwner, makeViewer } from '@kitchensink/recipe-core';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
@@ -204,27 +205,19 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     });
 
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    // Make private is offered to every owner (owner 2026-10-13, B2 E1). Whether it applies or opens the Premium sheet is
-    // decided in ONE place, `useGatedPrivate`, which also holds a tap made while the profile still loads.
-    const privateGate = useGatedPrivate({
-        profile:
-            profile.data !== undefined || profile.isError
-                ? {
-                      status: 'settled',
-                      mayGoPrivate: canGoPrivate(
-                          makeViewer({ id: undefined, subscriptionTier: profile.data?.account.subscriptionTier }),
-                      ),
-                  }
-                : { status: 'loading' },
-        apply: () => setVisibility.mutate({ id: id, visibility: RecipeVisibility.PRIVATE }),
-    });
 
     const recipe = query.data;
+    // Plan 2026-10-14-009 D14: whether Make private is offered, and whether it applies or opens the Premium sheet, is
+    // decided in ONE place, `useGatedPrivate`, from the viewer's paid features alone (owner ruling 2026-10-13).
+    const privateGate = useGatedPrivate({
+        state: paidFeatureStateOf(profile),
+        saved: recipe.visibility,
+        apply: () => setVisibility.mutate({ id: id, visibility: RecipeVisibility.PRIVATE }),
+    });
     const viewerId = readViewerId(sessionClaims);
-    // P4: ONE Viewer value object, built from this platform's identity signals (Clerk's `external_id` claim
-    // + the profile's subscription tier), feeds every gate below through the shared policy predicates — the
-    // SAME predicates the mobile detail screen evaluates (D7).
-    const viewer = makeViewer({ id: viewerId, subscriptionTier: profile.data?.account.subscriptionTier });
+    // P4: ONE Viewer value object, built from this platform's identity signal (Clerk's `external_id` claim), feeds every
+    // gate below through the shared policy predicates — the SAME predicates the mobile detail screen evaluates (D7).
+    const viewer = makeViewer({ id: viewerId });
     const viewerIsOwner = isOwner(recipe, viewer);
     // D7: a viewer may clone a PUBLIC recipe they do not own — the SAME `canClone` predicate mobile now
     // evaluates, closing the drift where web ignored ownership and mobile checked it.
@@ -259,6 +252,7 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
         owner: viewerIsOwner,
         isPublic: recipe.visibility === RecipeVisibility.PUBLIC,
         hasMarks: marks.hasMarks,
+        offersPrivate: privateGate.offersPrivate,
     });
     const versionsHref = `/${locale}/recipes/${id}/versions`;
 

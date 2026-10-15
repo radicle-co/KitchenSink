@@ -41,6 +41,13 @@
  * Concurrent stub runs share only Clerk's per-user sign-in rate, which is a flake risk rather than a correctness one.
  * A change to that tier that breaks either invariant needs a lease and resets like every subject below.
  *
+ * ## The `roles` tier is not a subject either
+ *
+ * One user per role, for the paid-feature specs and flows (plan 2026-10-14-009 D12). It is signed into from inside the
+ * deployed web and Maestro jobs, under THEIR leases, and holds none of its own, on the same argument as the stub tier
+ * and one rule more: its users only sign in and READ — they never save, publish or toggle anything a reset would owe
+ * (`POOL_TIERS` in `testPool.ts` states the rules, and why `rolesuperuser` makes the read-only rule a safety one).
+ *
  * ## The Maestro erasure refill (owner ruling 2026-10-08, recorded in `poolAdmin.ts`)
  *
  * The Maestro jobs top the erasure subjects up through `poolAdmin` right before they provision. The last suite pins

@@ -31,7 +31,7 @@ test.describe('Home recent-recipes card grid', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            tier: 'free',
+            paidFeatures: 'upsell',
             recipes: [
                 makeRecipeDetail({
                     id: 'ec000000-0000-4000-8000-00000000000c',
@@ -87,7 +87,7 @@ test.describe('Home recent-recipes card grid', () => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         // An explicitly EMPTY library (not the mock's default seed) — the state most new viewers land in.
-        await mockRecipeApi(page, { viewerId, tier: 'free', recipes: [] });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'upsell', recipes: [] });
 
         await page.goto(route('/'));
 
@@ -125,7 +125,7 @@ test.describe('Home recent-recipes card grid', () => {
             const viewerId = await readViewerAppId(page);
             await mockRecipeApi(page, {
                 viewerId,
-                tier: 'free',
+                paidFeatures: 'upsell',
                 recipes: ['a', 'b', 'c', 'd', 'e'].map((id) =>
                     makeRecipeDetail({
                         id: `ec300000-0000-4000-8000-00000000000${id}`,

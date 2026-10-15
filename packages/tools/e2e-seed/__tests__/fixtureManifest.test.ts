@@ -9,6 +9,7 @@ import {
     maestroShardCapacity,
     maestroSlotForShard,
     POOL_PASSWORD,
+    ROLE_LANE_IDS,
     slotFor,
 } from '@kitchensink/e2e-fixtures/testPool';
 import { createRecipeRequestSchema, MAX_SEARCH_FOOD_FILTERS } from '@kitchensink/schema-recipe';
@@ -379,6 +380,22 @@ describe('manifestToEnvLines', () => {
         expect(manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE)).toContain(
             `${FIXTURE_ENV_KEYS.privateFoodName}=${PRIVATE_FOOD_NAME}`,
         );
+    });
+
+    /**
+     * The `roles` tier's users (plan 2026-10-14-009 D12), whom `recipes/paidFeaturesByRole.yaml` signs in as. The SAME
+     * address on every run and every shard: the users are read-only and need no lease, and the address comes from the
+     * roster (`slotFor`), never a literal.
+     */
+    it.each([
+        ['roleDefaultEmail', 'default'],
+        ['rolePremiumEmail', 'premium'],
+        ['roleVipEmail', 'vip'],
+        ['roleSuperuserEmail', 'superuser'],
+    ] as const)('carries %s, the %s role user’s pool address', (key, role) => {
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE);
+
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS[key]}=${slotFor('roles', ROLE_LANE_IDS[role]).email}`);
     });
 
     it('carries the co-author’s email, which the session handoff flow signs in as second', () => {

@@ -25,7 +25,7 @@ test.describe('create your own food from the trailing add row (U16, B8)', () => 
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const ownFoods = ownFoodLedger();
-        await mockRecipeApi(page, { viewerId, tier: 'premium', ownFoods });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', ownFoods });
         await mockFoodApi(page, { authored: ownFoods });
 
         await openNewRecipe(page);
@@ -83,7 +83,7 @@ test.describe('create your own food from the trailing add row (U16, B8)', () => 
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const ownFoods = ownFoodLedger();
-        await mockRecipeApi(page, { viewerId, tier: 'premium', ownFoods });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', ownFoods });
         await mockFoodApi(page, { authored: ownFoods });
 
         await openNewRecipe(page);
@@ -119,7 +119,7 @@ test.describe('create your own food from the trailing add row (U16, B8)', () => 
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const ownFoods = ownFoodLedger();
-        await mockRecipeApi(page, { viewerId, tier: 'premium', ownFoods });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', ownFoods });
         await mockFoodApi(page, { authored: ownFoods });
 
         await openNewRecipe(page);

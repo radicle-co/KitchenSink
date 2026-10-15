@@ -28,7 +28,7 @@ for (const colorScheme of SCHEMES) {
             const viewerId = await readViewerAppId(page);
             await mockRecipeApi(page, {
                 viewerId,
-                tier: 'premium',
+                paidFeatures: 'granted',
                 recipes: [
                     makeRecipeDetail({
                         id: 'ec000000-0000-4000-8000-000000000017',
@@ -57,7 +57,7 @@ for (const colorScheme of SCHEMES) {
             const viewerId = await readViewerAppId(page);
             await mockRecipeApi(page, {
                 viewerId,
-                tier: 'premium',
+                paidFeatures: 'granted',
                 recipes: [
                     makeRecipeDetail({
                         id: 'ec000000-0000-4000-8000-000000000017',
@@ -79,7 +79,7 @@ for (const colorScheme of SCHEMES) {
             const viewerId = await readViewerAppId(page);
             await mockRecipeApi(page, {
                 viewerId,
-                tier: 'premium',
+                paidFeatures: 'granted',
                 recipes: [
                     makeRecipeDetail({
                         id: 'ec000000-0000-4000-8000-000000000017',
@@ -102,7 +102,7 @@ for (const colorScheme of SCHEMES) {
         }) => {
             await page.setViewportSize({ width: 390, height: 844 });
             const viewerId = await readViewerAppId(page);
-            await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [] });
+            await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [] });
 
             await page.goto(route('/'));
             // §3.4: the first run's own buttons take the floating button's place.

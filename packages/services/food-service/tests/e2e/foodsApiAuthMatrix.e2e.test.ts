@@ -15,6 +15,8 @@ import 'reflect-metadata';
 
 import type { AddressInfo } from 'node:net';
 
+import type { Role } from '@kitchensink/clerk-verify';
+
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import pg from 'pg';
@@ -104,27 +106,43 @@ function principalFor(token: string): {
     azp?: string;
     scopes: string[];
     permissions: string[];
+    roles: readonly Role[];
     testPrincipal: boolean;
 } {
     switch (token) {
         case 'user':
-            return { sub: 'user_1', userId: USER_ULID, scopes: [], permissions: [], testPrincipal: false };
+            return { sub: 'user_1', userId: USER_ULID, scopes: [], permissions: [], roles: [], testPrincipal: false };
         case 'admin':
             return {
                 sub: 'admin_1',
                 userId: ADMIN_ULID,
                 scopes: ['food:admin'],
                 permissions: [],
+                roles: [],
                 testPrincipal: false,
             };
         case 'm2m':
-            return { sub: 'svc_import', azp: 'svc-client', scopes: [], permissions: [], testPrincipal: false };
+            return {
+                sub: 'svc_import',
+                azp: 'svc-client',
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: false,
+            };
         case 'flooder':
-            return { sub: 'flooder_clerk', userId: FLOODER_ULID, scopes: [], permissions: [], testPrincipal: false };
+            return {
+                sub: 'flooder_clerk',
+                userId: FLOODER_ULID,
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: false,
+            };
         case 'user_nosync':
             // A verified user token whose external_id has not been backfilled yet (first-token race):
             // no `userId`, and the sub is not `svc_*` → the enqueue paths DEFER (CR-002/U1).
-            return { sub: 'user_2', scopes: [], permissions: [], testPrincipal: false };
+            return { sub: 'user_2', scopes: [], permissions: [], roles: [], testPrincipal: false };
         default:
             throw new ClerkVerificationError();
     }

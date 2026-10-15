@@ -146,6 +146,78 @@ describe('verifyClerkToken', () => {
         expect((await verifyClerkToken('tok', CONFIG)).testPrincipal).toBe(false);
     });
 
+    /**
+     * Roles (plan 2026-10-14-009 D3): read from the signed `public_metadata.roles` only, and expanded into scopes HERE,
+     * once, so identity, recipe, food and the edge all see the same effective scopes.
+     */
+    describe('roles', () => {
+        it('reads roles from public_metadata.roles', async () => {
+            mockVerify.mockResolvedValue({
+                sub: 'user_1',
+                azp: 'https://app.example.com',
+                public_metadata: { roles: ['vip', 'default'] },
+            } as never);
+
+            expect((await verifyClerkToken('tok', CONFIG)).roles).toStrictEqual(['vip', 'default']);
+        });
+
+        it.each([
+            ['absent public_metadata', {}],
+            ['an unknown role', { public_metadata: { roles: ['owner'] } }],
+            ['a wrong-case role', { public_metadata: { roles: ['Superuser'] } }],
+            ['a bare string', { public_metadata: { roles: 'superuser' } }],
+            // A user can write unsafe_metadata from the browser — it must never grant a role.
+            ['unsafe_metadata.roles', { unsafe_metadata: { roles: ['superuser'] } }],
+            // A top-level claim can be mapped from unsafe_metadata by a session-token template.
+            ['a top-level roles claim', { roles: ['superuser'] }],
+        ])('⛔ grants no role and no scope for %s', async (_label, extra) => {
+            mockVerify.mockResolvedValue({ sub: 'user_1', azp: 'https://app.example.com', ...extra } as never);
+
+            const claims = await verifyClerkToken('tok', CONFIG);
+
+            expect(claims.roles).toStrictEqual([]);
+            expect(claims.scopes).toStrictEqual([]);
+        });
+
+        it('expands a superuser into every scope the services authorize on', async () => {
+            mockVerify.mockResolvedValue({
+                sub: 'user_1',
+                azp: 'https://app.example.com',
+                public_metadata: { roles: ['superuser'] },
+            } as never);
+
+            expect([...(await verifyClerkToken('tok', CONFIG)).scopes].sort()).toStrictEqual([
+                'admin:users',
+                'food:admin',
+                'recipes:import:public',
+                'recipes:mappings:global',
+                'recipes:parses:global',
+            ]);
+        });
+
+        it('keeps explicit scopes and adds the role-implied ones, each once', async () => {
+            mockVerify.mockResolvedValue({
+                sub: 'user_1',
+                azp: 'https://app.example.com',
+                public_metadata: { roles: ['admin'], scopes: ['recipes:write', 'food:admin'] },
+            } as never);
+
+            const { scopes } = await verifyClerkToken('tok', CONFIG);
+
+            expect([...scopes].sort()).toStrictEqual(['admin:users', 'food:admin', 'recipes:write']);
+        });
+
+        it('gives a premium user no scope (a paid feature is not a privilege)', async () => {
+            mockVerify.mockResolvedValue({
+                sub: 'user_1',
+                azp: 'https://app.example.com',
+                public_metadata: { roles: ['premium'] },
+            } as never);
+
+            expect((await verifyClerkToken('tok', CONFIG)).scopes).toStrictEqual([]);
+        });
+    });
+
     it('fails closed (throws ClerkVerificationError) and never calls verifyToken when the key is absent', async () => {
         await expect(verifyClerkToken('tok', { jwtKey: undefined, authorizedParties: [] })).rejects.toSatisfy(
             isClerkVerificationError,

@@ -18,3 +18,15 @@ export {
 export type { VerifiedClerkClaims, ClerkVerifyConfig } from './clerkVerify.js';
 export { resolveCorsPolicy } from './corsPolicy.js';
 export type { AppCorsOptions, CorsOriginMode, CorsPolicy, CorsPolicyInput } from './corsPolicy.js';
+export {
+    DEFAULT_ROLE_METADATA,
+    ENTITLED_ROLES,
+    ROLES,
+    ROLES_METADATA_KEY,
+    ROLE_SCOPES,
+    hasPaidFeatures,
+    needsDefaultRole,
+    parseRoles,
+    scopesForRoles,
+} from './roles.js';
+export type { Role } from './roles.js';

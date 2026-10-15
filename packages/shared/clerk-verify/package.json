@@ -6,7 +6,8 @@
     "main": "./src/index.ts",
     "types": "./src/index.ts",
     "exports": {
-        ".": "./src/index.ts"
+        ".": "./src/index.ts",
+        "./roles": "./src/roles.ts"
     },
     "dependencies": {
         "@clerk/backend": "^3.16.12"
@@ -14,6 +15,7 @@
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",

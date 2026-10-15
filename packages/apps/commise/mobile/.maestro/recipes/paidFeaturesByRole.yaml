@@ -1,0 +1,74 @@
+# The paid features by ROLE, on a device, against the real identity service (plan 2026-10-14-009 D12; owner ruling
+# 2026-10-13: "tests of premium features use DEFAULT users to verify they see only upsell flows, and premium/vip/superuser
+# users to verify they see premium flows"). The mobile twin of `web/tests/e2e/paidFeatureRoles.spec.ts`.
+#
+# Signs in as the pool's `roles` tier users — one per role, provisioned by `poolAdmin` with their roles in signed
+# `public_metadata` — and opens the new-recipe editor's "Who can see it". READ-ONLY by the pool's own rules (no lease, no
+# reset — `POOL_TIERS` in `testPool.ts`): it types no title, so the editor saves nothing, and it leaves by ×.
+#
+# ⚠️ The stage's gate is the OWNER's (both variables stay `false` until the owner flips them), so the DEFAULT leg accepts
+# EITHER answer and asserts what that answer requires: under `upsell` Private opens the Premium sheet, under `hidden` the
+# editor says "Who can see it: Public" and offers no Private at all. The entitled legs are gate-free: Private is always a
+# real choice, with no sheet. Every state is pinned deterministically by the component suites and `paidFeatureGate.spec.ts`.
+#
+# The addresses come from `@kitchensink/e2e-seed`'s manifest (`FIXTURE_ENV_KEYS`), never literals. Each cook is signed
+# in on a CLEARED device (`clearState`), because `signinHome.yaml` skips the form when any session is persisted; the
+# device is cleared again in `onFlowComplete`, pass or fail, so the next flow signs in as the shard's signer.
+#
+# ⚠️ The editor's radios carry a hint under the title, so their accessible name is BOTH texts (`visibility.yaml` says
+# why), and the statement is ONE element named by its whole sentence (`RecipeVisibilityStatement.native.tsx`).
+
+appId: io.commise.mobile
+onFlowComplete:
+    - launchApp:
+          clearState: true
+---
+# ── DEFAULT: never granted; shows only what the stage's gate allows ─────────────────────────────────────────────────
+- launchApp:
+      clearState: true
+- runFlow:
+      file: ../auth/signinHome.yaml
+      env:
+          E2E_SIGNIN_EMAIL: ${E2E_ROLE_DEFAULT_EMAIL}
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- scrollUntilVisible:
+      element: 'Who can see it.*'
+      direction: DOWN
+      timeout: 30000
+# Gate off: the plain statement — no Private and no Premium.
+- runFlow:
+      when:
+          visible: 'Who can see it: Public\. Anyone can find it in Discover\.'
+      commands:
+          - assertNotVisible: 'Private, Only you can see it.*'
+          - assertNotVisible: '.*Premium.*'
+# Gate on: Private carries the Premium badge, and choosing it opens the Premium sheet, never Private itself.
+- runFlow:
+      when:
+          notVisible: 'Who can see it: Public\. Anyone can find it in Discover\.'
+      commands:
+          - tapOn: 'Private, Only you can see it.*'
+          - assertVisible: 'Private recipes are part of Premium.'
+          - tapOn: 'Not now'
+- tapOn: 'Close editor'
+
+# ── PREMIUM, VIP, SUPERUSER: always granted — Private is a real choice, with no Premium sheet ─────────────────────────
+- launchApp:
+      clearState: true
+- runFlow:
+      file: common/privateIsAChoice.yaml
+      env:
+          E2E_SIGNIN_EMAIL: ${E2E_ROLE_PREMIUM_EMAIL}
+- launchApp:
+      clearState: true
+- runFlow:
+      file: common/privateIsAChoice.yaml
+      env:
+          E2E_SIGNIN_EMAIL: ${E2E_ROLE_VIP_EMAIL}
+- launchApp:
+      clearState: true
+- runFlow:
+      file: common/privateIsAChoice.yaml
+      env:
+          E2E_SIGNIN_EMAIL: ${E2E_ROLE_SUPERUSER_EMAIL}

@@ -1698,6 +1698,11 @@ jobs:
             # file modes, which no in-memory stand-in reproduces. No Docker, no network, no database.
             - name: Run db-schema-guard integration tests
               run: npm run test:integration --workspace=@kitchensink/db-schema-guard
+            # Token verification over the REAL `@clerk/backend` verifier, with tokens signed by a throwaway local key
+            # (plan 2026-10-14-009 D3): roles parsed from signed `public_metadata` only, and expanded into scopes once.
+            # No Docker, no network, no Clerk instance.
+            - name: Run clerk-verify integration tests
+              run: npm run test:integration --workspace=@kitchensink/clerk-verify
             # The curated cookbook importer. Its integration tier drives the REAL `POST /api/v1/recipes` and the
             # REAL ingredient-resolution endpoints, and SKIPS (rather than fails) when `COOKBOOK_IMPORT_RECIPE_URL`
             # is unset — mirroring how the recipe service's own DB-backed tiers guard on `DATABASE_URL`. The step

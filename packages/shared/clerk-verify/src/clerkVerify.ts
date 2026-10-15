@@ -16,6 +16,8 @@
  */
 import { verifyToken } from '@clerk/backend';
 
+import { ROLES_METADATA_KEY, parseRoles, scopesForRoles, type Role } from './roles.js';
+
 /** The subset of Clerk session/M2M-token claims consumers read. */
 export interface VerifiedClerkClaims {
     /** The Clerk subject (the authenticated principal id). */
@@ -37,8 +39,18 @@ export interface VerifiedClerkClaims {
     readonly lastName?: string;
     /** Customized avatar/picture claim, when present. */
     readonly picture?: string;
-    /** Authorization scopes from `public_metadata` (empty = no privilege). */
+    /**
+     * Authorization scopes: the explicit `public_metadata.scopes` UNION the scopes {@link roles} imply
+     * (`scopesForRoles`, plan 2026-10-14-009 D3), each once. Expanded HERE, once, so every service and the edge
+     * read the same effective scopes and none re-derives them. Empty = no privilege.
+     */
     readonly scopes: string[];
+    /**
+     * The roles in the signed `public_metadata.roles`, parsed strictly by `parseRoles` (unknown, wrong-case and
+     * non-list values grant nothing). Never read from a top-level claim or `unsafe_metadata`, for the reason
+     * `scopes` is not.
+     */
+    readonly roles: readonly Role[];
     /** Authorization permissions from `public_metadata` (empty = no privilege). */
     readonly permissions: string[];
     /**
@@ -346,6 +358,7 @@ export async function verifyClerkToken(token: string, config: ClerkVerifyConfig)
     }
 
     const publicMetadata = asRecord(payload['public_metadata']);
+    const roles = parseRoles(publicMetadata[ROLES_METADATA_KEY]);
 
     return {
         sub,
@@ -355,7 +368,8 @@ export async function verifyClerkToken(token: string, config: ClerkVerifyConfig)
         firstName: asNonEmptyString(payload['first_name']),
         lastName: asNonEmptyString(payload['last_name']),
         picture: asNonEmptyString(payload['image_url']) ?? asNonEmptyString(payload['picture']),
-        scopes: asStringArray(publicMetadata['scopes']),
+        scopes: [...new Set([...asStringArray(publicMetadata['scopes']), ...scopesForRoles(roles)])],
+        roles,
         permissions: asStringArray(publicMetadata['permissions']),
         // ⛔ Strict `=== true`, never truthiness: a stringly-typed `'true'` written by a careless admin script
         // must not be read as a marker any more than a forged top-level claim is (ADR-0040).

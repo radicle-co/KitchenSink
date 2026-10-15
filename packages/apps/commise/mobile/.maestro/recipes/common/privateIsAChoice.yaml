@@ -1,0 +1,35 @@
+# Reusable sub-flow for `paidFeaturesByRole.yaml`: sign in as `${E2E_SIGNIN_EMAIL}` (the caller overrides it with an
+# entitled role's pool address), open the new-recipe editor, and prove Private is a REAL choice — it selects, with no
+# Premium badge and no Premium sheet. Read-only: it types no title, so nothing is saved, and it leaves by ×.
+#
+# The caller clears the device first; this sub-flow does not, so the caller decides whose session it replaces.
+
+appId: io.commise.mobile
+---
+- runFlow: ../../auth/signinHome.yaml
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- scrollUntilVisible:
+      element: 'Private, Only you can see it'
+      direction: DOWN
+      timeout: 30000
+- assertNotVisible: '.*Premium.*'
+- tapOn: 'Private, Only you can see it'
+- assertNotVisible: 'Private recipes are part of Premium.'
+# Maestro reads `checked` on iOS only from a switch's `1`/`0` value; a React Native radio's value is the phrase
+# `radio button, checked` (`visibility.yaml`). So iOS asserts that phrase on the radio below Public.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'Private, Only you can see it'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'radio button, checked'
+                below: 'Public, Anyone can find it in Discover'
+- tapOn: 'Close editor'

@@ -389,6 +389,7 @@ describe('manifestToEnvLines', () => {
      */
     it.each([
         ['roleDefaultEmail', 'default'],
+        ['roleAdminEmail', 'admin'],
         ['rolePremiumEmail', 'premium'],
         ['roleVipEmail', 'vip'],
         ['roleSuperuserEmail', 'superuser'],

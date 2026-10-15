@@ -12,6 +12,7 @@
  *   - membership is the ONLY thing that lets a ticket be minted, so a real person's account can never be
  *     signed into by the tooling.
  */
+import { hasPaidFeatures } from '@kitchensink/clerk-verify';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -478,9 +479,9 @@ describe('maestro erasure lane', () => {
 });
 
 /**
- * The `roles` tier (plan 2026-10-14-009 D12; owner ruling 2026-10-13): one user per role, so a paid-feature test can
- * sign in as a DEFAULT user to prove only the upsell (or nothing) shows, and as premium / vip / superuser to prove the
- * paid flow shows.
+ * The `roles` tier (plan 2026-10-14-009 D12; owner rulings 2026-10-13 and 2026-10-15): one user per role, so a
+ * paid-feature test can sign in as a DEFAULT or an ADMIN user to prove only the upsell (or nothing) shows, and as
+ * premium / vip / superuser to prove the paid flow shows.
  */
 describe('the roles tier', () => {
     it('declares exactly one lane per role, each carrying that role', () => {
@@ -505,6 +506,14 @@ describe('the roles tier', () => {
         for (const id of Object.values(ROLE_LANE_IDS)) {
             expect(slotFor('roles', id).roles).toHaveLength(1);
         }
+    });
+
+    it('⛔ splits into the users the gate decides for (default, admin) and the users it never does', () => {
+        const entitled = POOL_ROSTER.roles.filter((lane) => hasPaidFeatures(lane.roles)).map((lane) => lane.id);
+        const gated = POOL_ROSTER.roles.filter((lane) => !hasPaidFeatures(lane.roles)).map((lane) => lane.id);
+
+        expect(entitled).toStrictEqual(['rolepremium', 'rolesuperuser', 'rolevip']);
+        expect(gated).toStrictEqual(['roledefault', 'roleadmin']);
     });
 
     it('signs in by password (the Maestro flows type it), holds no scope and is never consumed', () => {

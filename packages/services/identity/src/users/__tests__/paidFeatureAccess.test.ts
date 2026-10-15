@@ -1,9 +1,9 @@
 /**
  * What identity tells a client about the paid features (plan 2026-10-14-009 D2, D6).
  *
- * Owner ruling 2026-10-13: a user who is not admin, superuser, vip or premium, with the gate off, sees no paid feature
- * and no upsell (`hidden`); with the gate on, they see the upsell (`upsell`); an entitled role always gets the paid
- * features (`granted`), whatever the gate says.
+ * Owner rulings 2026-10-13 and 2026-10-15: a user who is not superuser, vip or premium — an admin included — sees no
+ * paid feature and no upsell with the gate off (`hidden`), and the upsell with the gate on (`upsell`); an entitled role
+ * always gets the paid features (`granted`), whatever the gate says.
  *
  * It replaces `subscriptionTier.ts`, whose `premium` PERMISSION no longer grants anything: roles do.
  */
@@ -15,8 +15,8 @@ import { paidFeaturesSchema, type PaidFeatures } from '../users.schema.js';
 
 describe('paidFeatureAccess — every role against both gate values', () => {
     const table: readonly (readonly [Role | 'none', boolean, PaidFeatures])[] = [
-        ['admin', false, 'granted'],
-        ['admin', true, 'granted'],
+        ['admin', false, 'hidden'],
+        ['admin', true, 'upsell'],
         ['superuser', false, 'granted'],
         ['superuser', true, 'granted'],
         ['vip', false, 'granted'],

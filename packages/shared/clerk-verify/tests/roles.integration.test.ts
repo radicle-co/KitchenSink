@@ -61,6 +61,23 @@ describe('verifyClerkToken — roles from a really signed token', () => {
         expect([...claims.scopes].sort()).toStrictEqual([...ROLE_SCOPES.superuser].sort());
     });
 
+    it('expands an admin into every scope as well (owner ruling 2026-10-15)', async () => {
+        const claims = await verifyClerkToken(
+            sign(trusted.privatePem, { public_metadata: { roles: ['admin'] } }),
+            config,
+        );
+
+        expect(claims.roles).toStrictEqual(['admin']);
+        expect([...claims.scopes].sort()).toStrictEqual([...ROLE_SCOPES.superuser].sort());
+        expect([...claims.scopes].sort()).toStrictEqual([
+            'admin:users',
+            'food:admin',
+            'recipes:import:public',
+            'recipes:mappings:global',
+            'recipes:parses:global',
+        ]);
+    });
+
     it('keeps an explicit scope beside the role-implied ones', async () => {
         const claims = await verifyClerkToken(
             sign(trusted.privatePem, { public_metadata: { roles: ['premium'], scopes: ['recipes:import:public'] } }),

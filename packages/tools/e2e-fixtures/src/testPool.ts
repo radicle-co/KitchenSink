@@ -67,10 +67,11 @@ export type PoolTenant = (typeof POOL_TENANTS)[number];
  *
  * What concurrent stub runs DO share is Clerk's per-user sign-in rate — a flake risk, not a correctness one.
  *
- * `roles` (plan `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D12; owner ruling 2026-10-13) is one user
- * per role, for the paid-feature specs and flows: a DEFAULT user proves only the upsell (or nothing) shows, and a
- * premium / vip / superuser user proves the paid flow shows. It holds NO lease and gets NO reset, on the webStub
- * argument, and that makes three rules binding on every spec or flow that signs in as one of its users:
+ * `roles` (plan `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D12; owner rulings 2026-10-13 and
+ * 2026-10-15) is one user per role, for the paid-feature specs and flows: a DEFAULT or an ADMIN user proves only the
+ * upsell (or nothing) shows, and a premium / vip / superuser user proves the paid flow shows. The admin and superuser
+ * users also carry every scope a service checks, through their role. It holds NO lease and gets NO reset, on the
+ * webStub argument, and that makes three rules binding on every spec or flow that signs in as one of its users:
  *
  *   1. **Sign in and READ only.** Never save, publish, toggle a visibility or write anything a reset would owe. Any
  *      number of runs may hold one of these users at once.

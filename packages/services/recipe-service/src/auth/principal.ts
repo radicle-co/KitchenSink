@@ -79,8 +79,9 @@ export interface AuthenticatedRequest extends Request {
  * Whether a principal's roles carry the paid features. Pure.
  *
  * The ONE tier source every policy reads (`visibilityPolicy`, `collectionVisibilityPolicy`, through
- * {@link tieredActingPrincipalOf}). Owner ruling 2026-10-13: `admin`, `superuser`, `vip` and `premium` get them — the
- * shared `hasPaidFeatures` in `@kitchensink/clerk-verify`. The `premium` PERMISSION this read before grants nothing now.
+ * {@link tieredActingPrincipalOf}). Owner ruling 2026-10-15: `superuser`, `vip` and `premium` get them, `admin` does
+ * not — the shared `hasPaidFeatures` in `@kitchensink/clerk-verify`. The `premium` PERMISSION this read before grants
+ * nothing now.
  *
  * ⛔ The paid-features gate is NOT read here, and must never be: it decides only what a user without an entitled role
  * is SHOWN (identity's `account.paidFeatures`). Who may make a recipe or collection private is decided by roles alone.

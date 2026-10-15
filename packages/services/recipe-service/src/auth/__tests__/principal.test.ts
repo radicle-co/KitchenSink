@@ -1,7 +1,7 @@
 /**
  * The ONE tier source every recipe-service policy reads (plan 2026-10-14-009 D5).
  *
- * Owner ruling 2026-10-13: admin, superuser, vip and premium get the paid features; default does not. The roles come
+ * Owner ruling 2026-10-15: superuser, vip and premium get the paid features; admin and default do not. The roles come
  * from the verified token's `public_metadata.roles`. The paid-features GATE plays no part here: it decides only what a
  * user without an entitled role is shown, and only identity reads it.
  */
@@ -25,7 +25,7 @@ function principal(overrides: Partial<Principal> = {}): Principal {
 
 describe('isPremiumPrincipal — from roles', () => {
     const table: readonly (readonly [Role, boolean])[] = [
-        ['admin', true],
+        ['admin', false],
         ['superuser', true],
         ['vip', true],
         ['premium', true],

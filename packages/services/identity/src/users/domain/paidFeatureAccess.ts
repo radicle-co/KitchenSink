@@ -2,9 +2,9 @@
  * What identity tells a client about the paid features: `account.paidFeatures` (plan
  * `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D2, D6).
  *
- * Owner ruling 2026-10-13: an entitled role (`hasPaidFeatures`, from the signed `public_metadata.roles`) always gets
- * the paid features. Anyone else sees the upsell only while this stage's paid-features gate is on, and nothing at all
- * while it is off.
+ * Owner rulings 2026-10-13 and 2026-10-15: an entitled role (`hasPaidFeatures` — superuser, vip or premium, from the
+ * signed `public_metadata.roles`) always gets the paid features. Anyone else — an admin included — sees the upsell only
+ * while this stage's paid-features gate is on, and nothing at all while it is off.
  *
  * ⛔ THE GATE CHANGES WHAT IS SHOWN, NEVER WHO IS ALLOWED. This is the only reader of the gate in the system, and it
  * answers a presentation question. recipe-service authorizes a paid write from the roles alone (`isPremiumPrincipal`),

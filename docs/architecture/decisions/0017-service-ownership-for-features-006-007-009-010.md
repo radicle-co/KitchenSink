@@ -73,8 +73,9 @@ Consequences that follow immediately and are not separate decisions:
 3. **The paid-features check lives wherever the entitlement is read**, which is every gated service — so it is
    ONE **shared** predicate, `hasPaidFeatures(roles)` in `@kitchensink/clerk-verify`
    (`packages/shared/clerk-verify/src/roles.ts`), over the roles in the Clerk session token's signed
-   `public_metadata`, not an import from the identity service. 010's `@RequirePremium()` / `PlanGuard` wrap that
-   predicate; they do not restate it. Whether a cook without an entitled role is SHOWN an upsell is a separate,
+   `public_metadata`, not an import from the identity service. The entitled roles are `superuser`, `vip` and
+   `premium`; an `admin` holds every scope but sees the paid features as a default user does (owner ruling,
+   2026-10-15). 010's `@RequirePremium()` / `PlanGuard` wrap that predicate; they do not restate it. Whether a cook without an entitled role is SHOWN an upsell is a separate,
    display-only answer that identity alone gives (`account.paidFeatures`), and it never decides who may use a paid
    feature. An app or service importing `@kitchensink/identity-service` to gate a route would violate the boundary
    `packages/infra/global/__tests__/appServiceDependency.test.ts` already enforces.

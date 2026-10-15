@@ -8,7 +8,8 @@ import { route } from './utils/basePath';
 /**
  * The paid features by ROLE, against the real identity service (plan 2026-10-14-009 D12; owner ruling 2026-10-13: "tests
  * of premium features use DEFAULT users to verify they see only upsell flows, and premium/vip/superuser users to verify
- * they see premium flows").
+ * they see premium flows"; owner ruling 2026-10-15: an ADMIN sees paid features as a default user does — superuser is
+ * the admin who uses the whole app free).
  *
  * Signs in as the `roles` tier's users — one per role, provisioned by `poolAdmin` with their roles in signed
  * `public_metadata` — and reads what the deployed identity answers on `GET /api/v1/users/me`. Nothing here is mocked,
@@ -16,10 +17,11 @@ import { route } from './utils/basePath';
  * pool's own rules (no lease, no reset — `POOL_TIERS` in `testPool.ts`). Opening the new-recipe editor saves nothing
  * until a title is typed, and no title is typed.
  *
- * ⚠️ The stage's gate is the OWNER's (both variables stay `false` until the owner flips them), so a default user's
- * answer is `upsell` OR `hidden` here, and this spec asserts the UI that answer requires rather than assuming one. The
- * two gate-free invariants are asserted outright: a default user is NEVER granted, an entitled user ALWAYS is. Every
- * state of every surface is pinned deterministically by `paidFeatureGate.spec.ts` over a stubbed profile.
+ * ⚠️ The stage's gate is the OWNER's (both variables stay `false` until the owner flips them), so a default or admin
+ * user's answer is `upsell` OR `hidden` here, and this spec asserts the UI that answer requires rather than assuming
+ * one. The two gate-free invariants are asserted outright: a default or admin user is NEVER granted, an entitled user
+ * ALWAYS is. Every state of every surface is pinned deterministically by `paidFeatureGate.spec.ts` over a stubbed
+ * profile.
  *
  * Its own blank context per test (`SESSION_OWNING_SPECS`): it signs in as five different users.
  */
@@ -41,7 +43,7 @@ async function openEditorAs(page: Page, role: keyof typeof ROLE_LANE_IDS): Promi
 }
 
 test.describe('paid features by role (deployed identity)', () => {
-    for (const role of ['premium', 'vip', 'superuser', 'admin'] as const) {
+    for (const role of ['premium', 'vip', 'superuser'] as const) {
         test(`${role}: always granted — Private is a choice, with no Premium badge`, async ({ page }) => {
             expect(await openEditorAs(page, role)).toBe('granted');
 
@@ -50,22 +52,24 @@ test.describe('paid features by role (deployed identity)', () => {
         });
     }
 
-    test('⛔ default: never granted, and shows only what the stage’s gate allows', async ({ page }) => {
-        const paidFeatures = await openEditorAs(page, 'default');
+    for (const role of ['default', 'admin'] as const) {
+        test(`⛔ ${role}: never granted, and shows only what the stage’s gate allows`, async ({ page }) => {
+            const paidFeatures = await openEditorAs(page, role);
 
-        expect(['upsell', 'hidden']).toContain(paidFeatures);
+            expect(['upsell', 'hidden']).toContain(paidFeatures);
 
-        if (paidFeatures === 'upsell') {
-            // Gate on: the upsell, and only the upsell — Private carries the Premium badge and opens the sheet.
-            await expect(page.getByText('Premium', { exact: true })).toBeVisible();
-            await page.getByRole('radio', { name: 'Private' }).click();
-            await expect(page.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeVisible();
-            await expect(page.getByRole('radio', { name: 'Public', includeHidden: true })).toBeChecked();
-        } else {
-            // Gate off: no paid feature and no upsell at all.
-            await expect(page.getByText('Who can see it')).toBeVisible();
-            await expect(page.getByRole('radio', { name: 'Private' })).toHaveCount(0);
-            await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
-        }
-    });
+            if (paidFeatures === 'upsell') {
+                // Gate on: the upsell, and only the upsell — Private carries the Premium badge and opens the sheet.
+                await expect(page.getByText('Premium', { exact: true })).toBeVisible();
+                await page.getByRole('radio', { name: 'Private' }).click();
+                await expect(page.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeVisible();
+                await expect(page.getByRole('radio', { name: 'Public', includeHidden: true })).toBeChecked();
+            } else {
+                // Gate off: no paid feature and no upsell at all.
+                await expect(page.getByText('Who can see it')).toBeVisible();
+                await expect(page.getByRole('radio', { name: 'Private' })).toHaveCount(0);
+                await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
+            }
+        });
+    }
 });

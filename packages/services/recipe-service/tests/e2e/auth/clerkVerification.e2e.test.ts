@@ -184,7 +184,7 @@ describe('ClerkAuthService real JWT verification (ARCH-001 integration)', () => 
     });
 
     /**
-     * Roles reach the policy through the REAL chain (plan 2026-10-14-009 D3, D5; owner ruling 2026-10-13): a signed
+     * Roles reach the policy through the REAL chain (plan 2026-10-14-009 D3, D5; owner ruling 2026-10-15): a signed
      * `public_metadata.roles` is parsed by `verifyClerkToken`, carried on `req.principal`, and read by
      * `isPremiumPrincipal` in the C-004 visibility policy. A private recipe is a paid feature.
      */
@@ -207,7 +207,7 @@ describe('ClerkAuthService real JWT verification (ARCH-001 integration)', () => 
             });
         }
 
-        it.each(['admin', 'superuser', 'vip', 'premium'])('%s may create one', async (role) => {
+        it.each(['superuser', 'vip', 'premium'])('%s may create one', async (role) => {
             const res = await createPrivateAs([role], ownerFor(role));
 
             expect(res.status).toBe(201);
@@ -216,6 +216,7 @@ describe('ClerkAuthService real JWT verification (ARCH-001 integration)', () => 
 
         it.each([
             ['default', ['default']],
+            ['admin', ['admin']],
             ['no roles key at all', undefined],
             ['a wrong-case role', ['Premium']],
         ] as const)('%s is refused with 400 INVALID_VISIBILITY', async (label, roles) => {

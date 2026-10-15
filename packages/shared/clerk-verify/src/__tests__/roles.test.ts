@@ -2,8 +2,10 @@
  * The role vocabulary (plan 2026-10-14-009 D1, D3, D4, D10): which roles get the paid features, which scopes a role
  * implies, and when the sign-up webhook writes `default`.
  *
- * Owner ruling 2026-10-13: admin, superuser, vip and premium get the paid features; default does not. The gate is not
- * here — it changes only what identity tells a client, and that table lives beside `paidFeatureAccess`.
+ * Owner rulings 2026-10-13 and 2026-10-15: superuser, vip and premium get the paid features; admin and default do not.
+ * Admin carries every scope a service checks, as superuser does — superuser is the admin who also uses the whole app
+ * free (a developer). The gate is not here — it changes only what identity tells a client, and that table lives beside
+ * `paidFeatureAccess`.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -55,8 +57,12 @@ describe('hasPaidFeatures', () => {
         expect(hasPaidFeatures([role])).toBe(true);
     });
 
-    it('is false for default', () => {
-        expect(hasPaidFeatures(['default'])).toBe(false);
+    it.each([['default'], ['admin']] as const)('is false for %s', (role) => {
+        expect(hasPaidFeatures([role])).toBe(false);
+    });
+
+    it('⛔ is false for an admin: an admin sees paid features as a default user does (owner ruling 2026-10-15)', () => {
+        expect(hasPaidFeatures(['admin', 'default'])).toBe(false);
     });
 
     it('is false for no roles at all', () => {
@@ -71,8 +77,8 @@ describe('hasPaidFeatures', () => {
         expect([...ROLES].sort()).toStrictEqual(['admin', 'default', 'premium', 'superuser', 'vip']);
     });
 
-    it('names exactly the four entitled roles of the ruling', () => {
-        expect([...ENTITLED_ROLES].sort()).toStrictEqual(['admin', 'premium', 'superuser', 'vip']);
+    it('names exactly the three entitled roles of the ruling', () => {
+        expect([...ENTITLED_ROLES].sort()).toStrictEqual(['premium', 'superuser', 'vip']);
     });
 });
 
@@ -87,8 +93,14 @@ describe('scopesForRoles', () => {
         ]);
     });
 
-    it('gives admin the admin scopes only', () => {
-        expect([...scopesForRoles(['admin'])].sort()).toStrictEqual(['admin:users', 'food:admin']);
+    it('gives admin every scope too, the same set as superuser (owner ruling 2026-10-15)', () => {
+        expect([...scopesForRoles(['admin'])].sort()).toStrictEqual([
+            'admin:users',
+            'food:admin',
+            'recipes:import:public',
+            'recipes:mappings:global',
+            'recipes:parses:global',
+        ]);
     });
 
     it.each([['vip'], ['premium'], ['default']] as const)('gives %s no scope', (role) => {
@@ -106,10 +118,10 @@ describe('scopesForRoles', () => {
         expect(scopesForRoles([])).toStrictEqual([]);
     });
 
-    it('keeps admin inside superuser (superuser holds every admin power)', () => {
-        for (const scope of ROLE_SCOPES.admin) {
-            expect(ROLE_SCOPES.superuser).toContain(scope);
-        }
+    it('holds admin and superuser to the SAME scopes: they differ only in the paid features', () => {
+        expect(new Set(ROLE_SCOPES.admin)).toStrictEqual(new Set(ROLE_SCOPES.superuser));
+        expect(hasPaidFeatures(['superuser'])).toBe(true);
+        expect(hasPaidFeatures(['admin'])).toBe(false);
     });
 });
 

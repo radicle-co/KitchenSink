@@ -2,8 +2,10 @@
  * THE role vocabulary of the signed claim: which roles exist, which get the paid features, which scopes a role
  * implies, and when the sign-up webhook writes a role (plan `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md`).
  *
- * Owner ruling 2026-10-13. Roles live in the Clerk-signed `public_metadata.roles`. `admin`, `superuser`, `vip` and
- * `premium` get the paid features; `default` does not.
+ * Owner rulings 2026-10-13 and 2026-10-15. Roles live in the Clerk-signed `public_metadata.roles`. `superuser`, `vip`
+ * and `premium` get the paid features; `admin` and `default` do not. `admin` and `superuser` both carry every scope a
+ * service checks: a superuser is an admin who also uses the whole app free (a developer), while an admin sees the paid
+ * features as a default user does — the gate decides whether that is the upsell or nothing.
  *
  * It lives HERE, beside the parser of the claim it describes, for the reason `testPrincipal` does: every service and
  * the production edge verify through this package, and food depends on nothing else. It imports nothing, so it adds
@@ -31,26 +33,29 @@ export type Role = (typeof ROLES)[number];
 /** The `public_metadata` key roles live under. */
 export const ROLES_METADATA_KEY = 'roles';
 
-/** The roles that get the paid features, whatever the gate says. */
-export const ENTITLED_ROLES: readonly Role[] = ['admin', 'superuser', 'vip', 'premium'];
+/** The roles that get the paid features, whatever the gate says. Not `admin` (owner ruling 2026-10-15). */
+export const ENTITLED_ROLES: readonly Role[] = ['superuser', 'vip', 'premium'];
+
+/** Every scope a service checks — the set `admin` and `superuser` both hold. */
+const EVERY_CHECKED_SCOPE: readonly string[] = [
+    'admin:users',
+    'food:admin',
+    'recipes:import:public',
+    'recipes:mappings:global',
+    'recipes:parses:global',
+];
 
 /**
  * The scopes each role implies, applied once at token verification (`verifyClerkToken`) on top of any scope written
- * explicitly. The literals are owned by the services that check them; `roleScopesCoverage.test.ts` holds `superuser`
- * EQUAL to every scope a service checks, so superuser can neither miss one nor carry one nothing checks.
+ * explicitly. The literals are owned by the services that check them; `roleScopesCoverage.test.ts` holds `admin` and
+ * `superuser` each EQUAL to every scope a service checks, so neither can miss one nor carry one nothing checks.
  *
- * `admin` holds the admin scopes; `superuser` holds every in-app power. ⚠️ `admin`'s set is the plan's default (open
- * question Q1), not an owner ruling.
+ * `admin` and `superuser` hold the same scopes (owner ruling 2026-10-15); they differ only in the paid features
+ * ({@link ENTITLED_ROLES}).
  */
 export const ROLE_SCOPES: Readonly<Record<Role, readonly string[]>> = {
-    admin: ['admin:users', 'food:admin'],
-    superuser: [
-        'admin:users',
-        'food:admin',
-        'recipes:import:public',
-        'recipes:mappings:global',
-        'recipes:parses:global',
-    ],
+    admin: EVERY_CHECKED_SCOPE,
+    superuser: EVERY_CHECKED_SCOPE,
     vip: [],
     premium: [],
     default: [],

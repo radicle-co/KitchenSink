@@ -230,7 +230,14 @@ describe('verifyClerkToken', () => {
 
             const { scopes } = await verifyClerkToken('tok', CONFIG);
 
-            expect([...scopes].sort()).toStrictEqual(['admin:users', 'food:admin', 'recipes:write']);
+            expect([...scopes].sort()).toStrictEqual([
+                'admin:users',
+                'food:admin',
+                'recipes:import:public',
+                'recipes:mappings:global',
+                'recipes:parses:global',
+                'recipes:write',
+            ]);
         });
 
         it('gives a premium user no scope (a paid feature is not a privilege)', async () => {

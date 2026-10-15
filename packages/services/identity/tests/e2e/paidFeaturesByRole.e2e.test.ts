@@ -7,8 +7,8 @@
  * read-through user resolution (real rows, as `identity_service`) → `paidFeatureAccess` → `GET /api/v1/users/me`. The
  * paid-features gate is the env var the stack sets, read once at boot, so each gate value boots its own app.
  *
- * Owner ruling 2026-10-13: an entitled role (admin, superuser, vip, premium) is `granted` under both gate values; anyone
- * else is `upsell` with the gate on and `hidden` with it off.
+ * Owner rulings 2026-10-13 and 2026-10-15: an entitled role (superuser, vip, premium) is `granted` under both gate
+ * values; anyone else — an admin included — is `upsell` with the gate on and `hidden` with it off.
  */
 import 'reflect-metadata';
 
@@ -92,12 +92,12 @@ describe.each([
         return userProfileSchema.parse(await response.json()).account.paidFeatures;
     }
 
-    it.each(['admin', 'superuser', 'vip', 'premium'])('%s is granted', async (role) => {
+    it.each(['superuser', 'vip', 'premium'])('%s is granted', async (role) => {
         expect(await paidFeaturesOf(`user_${role}_${gate}`, [role])).toBe('granted');
     });
 
-    it(`default is ${others}`, async () => {
-        expect(await paidFeaturesOf(`user_default_${gate}`, ['default'])).toBe(others);
+    it.each(['admin', 'default'])(`%s is ${others}`, async (role) => {
+        expect(await paidFeaturesOf(`user_${role}_${gate}`, [role])).toBe(others);
     });
 
     it(`a token with no roles key is ${others} — never granted`, async () => {

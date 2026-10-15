@@ -327,6 +327,7 @@ export const FIXTURE_ENV_KEYS = {
     // The `roles` tier's users (plan 2026-10-14-009 D12), for `recipes/paidFeaturesByRole.yaml`. Read-only users with
     // no lease, so the same address on every run and shard; it comes from the roster, never a literal.
     roleDefaultEmail: 'E2E_ROLE_DEFAULT_EMAIL',
+    roleAdminEmail: 'E2E_ROLE_ADMIN_EMAIL',
     rolePremiumEmail: 'E2E_ROLE_PREMIUM_EMAIL',
     roleVipEmail: 'E2E_ROLE_VIP_EMAIL',
     roleSuperuserEmail: 'E2E_ROLE_SUPERUSER_EMAIL',
@@ -461,6 +462,7 @@ export function manifestToEnvLines(manifest: FixtureManifest, erasureEmail: stri
         `${FIXTURE_ENV_KEYS.privateFoodName}=${manifest.privateFoodName}`,
         `${FIXTURE_ENV_KEYS.capFoodPrefix}=${manifest.capFoodPrefix}`,
         `${FIXTURE_ENV_KEYS.roleDefaultEmail}=${slotFor('roles', ROLE_LANE_IDS.default).email}`,
+        `${FIXTURE_ENV_KEYS.roleAdminEmail}=${slotFor('roles', ROLE_LANE_IDS.admin).email}`,
         `${FIXTURE_ENV_KEYS.rolePremiumEmail}=${slotFor('roles', ROLE_LANE_IDS.premium).email}`,
         `${FIXTURE_ENV_KEYS.roleVipEmail}=${slotFor('roles', ROLE_LANE_IDS.vip).email}`,
         `${FIXTURE_ENV_KEYS.roleSuperuserEmail}=${slotFor('roles', ROLE_LANE_IDS.superuser).email}`,

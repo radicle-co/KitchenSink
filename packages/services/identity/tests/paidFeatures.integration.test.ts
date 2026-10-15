@@ -116,7 +116,9 @@ async function bootUsers(gate: 'true' | 'false'): Promise<{ app: INestApplicatio
     }
 }
 
-const ENTITLED: readonly Role[] = ['admin', 'superuser', 'vip', 'premium'];
+const ENTITLED: readonly Role[] = ['superuser', 'vip', 'premium'];
+/** The roles that are NOT entitled: an admin sees paid features as a default user does (owner ruling 2026-10-15). */
+const NOT_ENTITLED: readonly Role[] = ['admin', 'default'];
 
 describe.each([
     ['on', 'true', 'upsell'],
@@ -145,8 +147,8 @@ describe.each([
         expect((await me([role])).account.paidFeatures).toBe('granted');
     });
 
-    it(`default is ${notEntitled}`, async () => {
-        expect((await me(['default'])).account.paidFeatures).toBe(notEntitled);
+    it.each(NOT_ENTITLED.map((role) => [role]))(`%s is ${notEntitled}`, async (role) => {
+        expect((await me([role])).account.paidFeatures).toBe(notEntitled);
     });
 
     it(`no roles at all is ${notEntitled} (fails closed, never granted)`, async () => {
@@ -165,6 +167,6 @@ describe.each([
     });
 
     it('covers every role (non-vacuity)', () => {
-        expect(new Set([...ENTITLED, 'default'])).toStrictEqual(new Set(ROLES));
+        expect(new Set([...ENTITLED, ...NOT_ENTITLED])).toStrictEqual(new Set(ROLES));
     });
 });

@@ -7,9 +7,9 @@ status: built — 2026-10-15 (blueprint corrections below supersede D1, D7, D8, 
 
 # User roles and the paid-features gate
 
-## Owner rulings (2026-10-13)
+## Owner rulings (2026-10-13, amended 2026-10-15)
 
-- Every upsell and every paid feature sits behind a gate. A user who is NOT `admin`, `superuser`, `vip` or `premium`,
+- Every upsell and every paid feature sits behind a gate. A user who is NOT `superuser`, `vip` or `premium`,
   with the gate flag `false`, sees no paid feature and no upsell. With the flag `true`, such a user sees the upsell
   flows. An entitled role ALWAYS gets the paid features, whatever the flag says.
 - Two GitHub variables: `PAID_FEATURES_GATE_SANDBOX` and `PAID_FEATURES_GATE_PROD`. Both stay `false`. The owner
@@ -17,12 +17,15 @@ status: built — 2026-10-15 (blueprint corrections below supersede D1, D7, D8, 
 - Roles live in Clerk `public_metadata.roles`: `admin`, `superuser`, `vip`, `premium`, `default`.
 - `default` is WRITTEN at sign-up by the Clerk webhook on `user.created`. "Absent means default" was rejected. So a
   second `public_metadata` writer exists, and the single-writer guard is amended on purpose.
-- `admin`: the in-app admin features (not built yet), and later AWS/Sentry admin. `superuser`: every in-app admin power
-  plus every part of the site and app, never AWS/Sentry.
-- Roles imply scopes. `admin` → the admin scopes. `superuser` → every scope: `admin:users`, `food:admin`,
-  `recipes:import:public`, `recipes:mappings:global`, `recipes:parses:global`.
+- `admin`: the in-app admin features (not built yet), and later AWS/Sentry admin. It carries every scope but does NOT
+  get the paid features free: an admin sees them as a default user does, and the gate decides upsell or hidden (owner
+  ruling 2026-10-15). `superuser`: an admin who uses the entire app free (a developer) — every scope plus the paid
+  features, never AWS/Sentry. The paid features go to `superuser`, `vip` and `premium` only.
+- Roles imply scopes. `admin` and `superuser` → every scope: `admin:users`, `food:admin`, `recipes:import:public`,
+  `recipes:mappings:global`, `recipes:parses:global` (owner ruling 2026-10-15; this replaces the earlier default that
+  gave `admin` only the admin scopes).
 - The test pool holds `default`, `admin`, `premium`, `superuser` and `vip` users. A premium-feature test signs in as a
-  DEFAULT user to prove only the upsell shows, and as `premium`/`vip`/`superuser` to prove the paid flow shows.
+  DEFAULT or ADMIN user to prove only the upsell shows, and as `premium`/`vip`/`superuser` to prove the paid flow shows.
 
 ## Facts read from source
 
@@ -63,7 +66,7 @@ status: built — 2026-10-15 (blueprint corrections below supersede D1, D7, D8, 
 | D1  | **The entitlement policy** is `@kitchensink/identity-core/src/entitlement.ts`, pure, exported through the package's `index.ts`. It owns: `ROLES` (`admin`, `superuser`, `vip`, `premium`, `default`), `Role`, `parseRoles(unknown): readonly Role[]` (exact strings only; unknown, wrong-case, prefixed and non-array values are dropped, so it fails closed), `ENTITLED_ROLES`, `hasPaidFeatures(roles)`, `ROLE_SCOPES: Record<Role, readonly string[]>`, `scopesForRoles(roles)`, `PAID_FEATURE_ACCESS` (`granted`, `upsell`, `hidden`), `paidFeatureAccess({ roles, gate })`, and `DEFAULT_ROLE_METADATA` + `needsDefaultRole(publicMetadata)` for the webhook. |
 | D2  | **The gate changes what is SHOWN, never who is ALLOWED.** `paidFeatureAccess` = `granted` if `hasPaidFeatures(roles)`, else `upsell` if `gate`, else `hidden`. Server authorization reads roles only, under both gate values, so recipe-service never reads the flag.                                                                                                                                                                                                                                                                                                                                                                                              |
 | D3  | **Roles → scopes is applied ONCE, in `verifyClerkToken`.** `VerifiedClerkClaims` gains `roles: readonly Role[]`, and `scopes` becomes the explicit `public_metadata.scopes` UNION `scopesForRoles(roles)`. Every service and the edge get the expansion through the one parser, food included. New edge `clerk-verify → identity-core` (identity-core is `sideEffects: false`, depends on `zod` + `ulidx`). Explicit scopes keep working (the linkage lane relies on them).                                                                                                                                                                                        |
-| D4  | **`ROLE_SCOPES`** — `superuser` → all five scopes; `admin` → `admin:users`, `food:admin` (MY DEFAULT — open question Q1); `vip`, `premium`, `default` → none. A guard proves `superuser` covers every scope literal a service defines, found by searching the services' sources, not by a hand-kept list.                                                                                                                                                                                                                                                                                                                                                          |
+| D4  | **`ROLE_SCOPES`** — `admin` and `superuser` → all five scopes (owner ruling 2026-10-15, which answered Q1); `vip`, `premium`, `default` → none. A guard proves `admin` and `superuser` each EQUAL every scope literal a service defines, found by searching the services' sources, not by a hand-kept list. `ENTITLED_ROLES` is `superuser`, `vip`, `premium`: `admin` is not entitled.                                                                                                                                                                                                                                                                            |
 | D5  | **recipe-service** — `Principal` gains `roles`. `isPremiumPrincipal` becomes `hasPaidFeatures(principal.roles)`; `PREMIUM_PERMISSION` is deleted. The policies' `isPremium: boolean` inputs are unchanged (ADR-0023 shape: a policy takes facts, not a principal).                                                                                                                                                                                                                                                                                                                                                                                                 |
 | D6  | **identity** — `subscriptionTier.ts` and its `PREMIUM_PERMISSION` are deleted. `AuthorizerContext` gains `roles`. `GET` and `PATCH /users/me` return `account.paidFeatures` from `paidFeatureAccess({ roles: ctx.roles, gate: config.PAID_FEATURES_GATE })`. `account.subscriptionTier` is REMOVED from the wire (nothing displays it, and keeping it leaves clients a second thing to gate on). Server deploys before clients; nothing is live, so no expand step.                                                                                                                                                                                                |
 | D7  | **Wire contract** — `paidFeaturesSchema = z.enum(['granted','upsell','hidden'])` in `users.schema.ts` (import rule: zod only), copied by `contract:generate` to `@kitchensink/schema-identity`, `CONTRACT_HASH` + `openapi.yaml` regenerated. A unit test pins `paidFeaturesSchema.options` to identity-core's `PAID_FEATURE_ACCESS`.                                                                                                                                                                                                                                                                                                                              |
@@ -122,7 +125,7 @@ row above disagrees, this list wins.
 - **workflows**: resolver script truth table (the `resolveAlarmsEnabled.test.ts` shape) and the every-identity-deploy
   guard.
 - **recipe-service** unit + integration (mocked): every role on the private-recipe and private-collection writes
-  (`default` refused; `premium`/`vip`/`admin`/`superuser` allowed); a `premium` PERMISSION alone no longer grants.
+  (`default`/`admin` refused; `premium`/`vip`/`superuser` allowed); a `premium` PERMISSION alone no longer grants.
 - **food-service / identity admin / recipe curator**: a `superuser` token passes each scope check; a guard that each
   service's scope constant is in `ROLE_SCOPES.superuser`.
 - **identity-webhooks** unit + integration (mocked Clerk): writes `default` when `roles` absent; never overwrites;
@@ -130,14 +133,13 @@ row above disagrees, this list wins.
 - **e2e-fixtures** unit: roster roles, metadata, the new tier, `metadataSatisfies` on `roles`.
 - **UI** component tests for every surface × {loading, granted, upsell, hidden} + failed profile, web and native.
 - **Playwright**: mocked specs per state (`mockRecipeApi`'s `/users/me` serves `paidFeatures`); one deployed spec over
-  the `roles` tier asserting the UI matches what `/users/me` reports, plus the two gate-free invariants (`default` is
-  never `granted`; an entitled role is always `granted`). Written, not run.
-- **Maestro**: the same two flows (default, entitled) on the `roles` tier. Written, not run.
+  the `roles` tier asserting the UI matches what `/users/me` reports, plus the two gate-free invariants (`default` and
+  `admin` are never `granted`; an entitled role is always `granted`). Written, not run.
+- **Maestro**: the same two flows (default and admin, entitled) on the `roles` tier. Written, not run.
 
 ## Open questions for the owner
 
-- **Q1.** Which scopes does `admin` get? Default here: `admin:users` and `food:admin`; the curator scopes only through
-  `superuser`.
+- **Q1.** Answered (owner ruling 2026-10-15): `admin` gets every scope, as `superuser` does, and no paid features.
 - **Q2.** Should the Clerk session-token templates (web and `commise-native`) be checked in the dashboard for a
   whole-object `public_metadata` mapping? This change assumes it. If either maps chosen keys, `roles` never arrives and
   every check fails closed to no paid features.

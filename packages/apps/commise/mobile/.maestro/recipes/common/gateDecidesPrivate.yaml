@@ -1,0 +1,36 @@
+# Reusable sub-flow for `paidFeaturesByRole.yaml`: sign in as `${E2E_SIGNIN_EMAIL}` (the caller overrides it with a
+# NOT-entitled role's pool address — default, or admin, owner ruling 2026-10-15), open the new-recipe editor, and prove
+# the user is never granted Private and sees only what the stage's gate allows. Read-only: it types no title, so
+# nothing is saved, and it leaves by ×.
+#
+# ⚠️ The stage's gate is the OWNER's, so this accepts EITHER answer and asserts what that answer requires: under
+# `upsell` Private opens the Premium sheet, under `hidden` the editor says "Who can see it: Public" and offers no
+# Private at all.
+#
+# The caller clears the device first; this sub-flow does not, so the caller decides whose session it replaces.
+
+appId: io.commise.mobile
+---
+- runFlow: ../../auth/signinHome.yaml
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- scrollUntilVisible:
+      element: 'Who can see it.*'
+      direction: DOWN
+      timeout: 30000
+# Gate off: the plain statement — no Private and no Premium.
+- runFlow:
+      when:
+          visible: 'Who can see it: Public\. Anyone can find it in Discover\.'
+      commands:
+          - assertNotVisible: 'Private, Only you can see it.*'
+          - assertNotVisible: '.*Premium.*'
+# Gate on: Private carries the Premium badge, and choosing it opens the Premium sheet, never Private itself.
+- runFlow:
+      when:
+          notVisible: 'Who can see it: Public\. Anyone can find it in Discover\.'
+      commands:
+          - tapOn: 'Private, Only you can see it.*'
+          - assertVisible: 'Private recipes are part of Premium.'
+          - tapOn: 'Not now'
+- tapOn: 'Close editor'

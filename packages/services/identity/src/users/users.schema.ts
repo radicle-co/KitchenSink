@@ -52,7 +52,8 @@ export type UserStatus = z.infer<typeof userStatusSchema>;
 /**
  * What the viewer may see of the paid features (plan `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D6).
  *
- * - `granted` — the viewer's roles include `admin`, `superuser`, `vip` or `premium`: the paid features work.
+ * - `granted` — the viewer's roles include `superuser`, `vip` or `premium`: the paid features work. An `admin` is not
+ *   entitled (owner ruling 2026-10-15).
  * - `upsell` — no entitled role, and this stage's paid-features gate is on: offer Premium.
  * - `hidden` — no entitled role, and the gate is off: show no paid feature and no upsell.
  *

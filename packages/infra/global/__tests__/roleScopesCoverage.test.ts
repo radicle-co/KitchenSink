@@ -1,16 +1,16 @@
 // @vitest-environment node
 /**
- * Repo-wide guard: `superuser`'s scopes are EXACTLY the scopes the services check, and `admin`'s are among them
- * (plan `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D4; owner ruling 2026-10-13: "superuser → all
- * scopes").
+ * Repo-wide guard: `superuser`'s scopes AND `admin`'s are each EXACTLY the scopes the services check (plan
+ * `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D4; owner rulings 2026-10-13 "superuser → all scopes"
+ * and 2026-10-15 "admin carries all scopes"; the two roles differ only in the paid features).
  *
  * `ROLE_SCOPES` (`@kitchensink/clerk-verify`'s `roles.ts`) names scope literals the services OWN — identity's
  * `@RequireScopes('admin:users')`, food's `FOOD_ADMIN_SCOPE`, recipe's three curator scopes. A copy of a list cannot
  * detect that the list is incomplete, so the set the services check is DISCOVERED from their source, never written
  * down here, and compared in BOTH directions:
  *
- * - a new scope a service starts checking that superuser lacks fails (superuser would silently lose a power);
- * - a scope superuser carries that no service checks fails (a grant with no meaning, or a renamed literal left behind).
+ * - a new scope a service starts checking that superuser or admin lacks fails (the role would silently lose a power);
+ * - a scope either carries that no service checks fails (a grant with no meaning, or a renamed literal left behind).
  *
  * ## The shapes a scope check takes (read from the TypeScript AST of every non-test service source)
  *
@@ -105,13 +105,7 @@ describe('ROLE_SCOPES against the scopes the services check', () => {
         expect(discovered.size).toBeGreaterThanOrEqual(5);
     });
 
-    it('⛔ superuser holds EXACTLY every scope a service checks', () => {
-        expect(new Set(ROLE_SCOPES.superuser)).toStrictEqual(discovered);
-    });
-
-    it('admin holds only scopes a service checks', () => {
-        for (const scope of ROLE_SCOPES.admin) {
-            expect(discovered.has(scope), scope).toBe(true);
-        }
+    it.each([['superuser'], ['admin']] as const)('⛔ %s holds EXACTLY every scope a service checks', (role) => {
+        expect(new Set(ROLE_SCOPES[role])).toStrictEqual(discovered);
     });
 });

@@ -13,6 +13,8 @@
  * `never_received` is read as "nobody is coming", which is the escalation an operator drops everything for.
  */
 
+import { PARSE_LINE_DELIVERY } from '@kitchensink/recipe-core/parsing/parse-line-delivery';
+
 /** A class the backstop covers, and where its transport depth is read from. */
 export interface RecipeWorkClass {
     /** The closed-vocabulary name this class reports under. Never user input. */
@@ -20,14 +22,15 @@ export interface RecipeWorkClass {
     /** One statement returning exactly the five counts, parameterised by {@link RecipeWorkClass.params}. */
     readonly sql: string;
     /**
-     * The env names whose positive-integer values bind `$1`, `$2`, … in order.
+     * What binds `$1`, `$2`, … in order: a string is the env name of a positive-integer value, a number is a
+     * compiled constant taken from a shared authority (never an inline literal).
      *
      * ⛔ PER CLASS, never one shared lease. Parse and verification are configured with different leases and
      * different allowances by the stack that owns each function; measuring both against one number reports
      * rows as stuck that their consumer is about to finish, or misses rows it gave up on an hour ago — and
      * both readings look equally authoritative to whoever is paged.
      */
-    readonly params: readonly string[];
+    readonly params: readonly (string | number)[];
     /** Env name holding the queue URL, or `undefined` when this class has no transport. */
     readonly queueUrlEnv: string | undefined;
     /** Env name holding the dead-letter queue URL, or `undefined` when there is none. */
@@ -47,8 +50,13 @@ export const RECIPE_WORK_CLASSES: readonly RecipeWorkClass[] = [
                     AS never_received,
                 count(*) FILTER (WHERE l.status = 'failed_retryable' AND l.failure_code IS NOT NULL)::int
                     AS at_allowance,
+                -- ⛔ STUCK = the cook's stalled phase after a claim (lineProgressOf, one rule): the claim lapsed AND
+                -- nothing in the whole JOB moved for the stall window. A lapsed claim alone is delayed — a
+                -- line between two attempts — and is normal.
                 count(*) FILTER (
-                    WHERE l.status = 'pending' AND l.last_received_at < now() - ($1 || ' seconds')::interval
+                    WHERE l.status = 'pending'
+                      AND l.last_received_at < now() - ($1 || ' seconds')::interval
+                      AND q.quiet_seconds > $2
                 )::int AS claimed_too_long,
                 COALESCE(
                     MAX(EXTRACT(EPOCH FROM (now() - j.created_at))) FILTER (WHERE l.status = 'pending'),
@@ -56,9 +64,14 @@ export const RECIPE_WORK_CLASSES: readonly RecipeWorkClass[] = [
                 )::int AS oldest_owed_seconds
             FROM recipe_parse_job_lines l
             JOIN recipe_parse_jobs j ON j.id = l.job_id
+            JOIN (
+                SELECT job_id, EXTRACT(EPOCH FROM (now() - max(updated_at))) AS quiet_seconds
+                FROM recipe_parse_job_lines
+                GROUP BY job_id
+            ) q ON q.job_id = l.job_id
             WHERE j.expires_at > now()
         `,
-        params: ['PARSE_CLAIM_LEASE_SECONDS'],
+        params: ['PARSE_CLAIM_LEASE_SECONDS', PARSE_LINE_DELIVERY.stallSeconds],
         queueUrlEnv: 'RECIPE_PARSE_QUEUE_URL',
         dlqUrlEnv: 'RECIPE_PARSE_DLQ_URL',
     },

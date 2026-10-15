@@ -203,7 +203,9 @@ export async function readOnlyCounts(
         const counts: RecipeOwedCounts[] = [];
 
         for (const workClass of RECIPE_WORK_CLASSES) {
-            const params = workClass.params.map((name) => requirePositiveEnv(name, env));
+            const params = workClass.params.map((param) =>
+                typeof param === 'number' ? param : requirePositiveEnv(param, env),
+            );
             const result = await query(workClass.sql, params);
 
             // ⛔ NARROWED BY THE SHARED READER, never cast and never `?? 0` — see

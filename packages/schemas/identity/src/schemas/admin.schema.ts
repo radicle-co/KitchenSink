@@ -38,8 +38,8 @@
 import { z } from 'zod';
 
 /**
- * The `{userId}` path parameter shared by the five admin action routes
- * (`suspend` / `unsuspend` / `reactivate` / `impersonation/start` / `impersonation/stop`).
+ * The `{userId}` path parameter shared by the three admin action routes
+ * (`suspend` / `unsuspend` / `reactivate`).
  *
  * `z.ulid()` rather than `z.string()`: `users.id` is only ever written by `newUserId()` (`ulidx.ulid()`), so a
  * value that is not a ULID cannot name a row — it is a malformed request, and the honest answer is a `400` at
@@ -179,33 +179,3 @@ export const adminReactivateUserResponseSchema = z.object({
 
 /** Body for `POST /api/v1/admin/users/{userId}/reactivate`. */
 export type AdminReactivateUserResponse = z.infer<typeof adminReactivateUserResponseSchema>;
-
-/** Body for `POST /api/v1/admin/users/{userId}/impersonation/start`. */
-export const impersonationStartResponseSchema = z.object({
-    /** The acting admin's app ULID. */
-    impersonatorSub: z.string(),
-    /** The impersonated user's app ULID. */
-    impersonatedSub: z.string(),
-    /** The impersonation session's id, for correlating the audit trail. */
-    sessionId: z.string(),
-    /** ISO-8601 timestamp the session began. */
-    startedAt: z.string(),
-});
-
-/** Body for `POST /api/v1/admin/users/{userId}/impersonation/start`. */
-export type ImpersonationStartResponse = z.infer<typeof impersonationStartResponseSchema>;
-
-/** Body for `POST /api/v1/admin/users/{userId}/impersonation/stop`. */
-export const impersonationStopResponseSchema = z.object({
-    /** The acting admin's app ULID. */
-    impersonatorSub: z.string(),
-    /** The impersonated user's app ULID. */
-    impersonatedSub: z.string(),
-    /** ISO-8601 timestamp the session ended. */
-    stoppedAt: z.string(),
-    /** Human-readable acknowledgement. */
-    message: z.string(),
-});
-
-/** Body for `POST /api/v1/admin/users/{userId}/impersonation/stop`. */
-export type ImpersonationStopResponse = z.infer<typeof impersonationStopResponseSchema>;

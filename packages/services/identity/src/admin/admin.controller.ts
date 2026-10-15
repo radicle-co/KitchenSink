@@ -10,8 +10,6 @@ import {
     AdminSuspendUserResponseDto,
     AdminUnsuspendUserResponseDto,
     AdminReactivateUserResponseDto,
-    ImpersonationStartResponseDto,
-    ImpersonationStopResponseDto,
 } from './dto/admin.dto.js';
 
 // Controller-level (not global `APP_GUARD`): every route under `v1/admin/users` requires `admin:users`,
@@ -74,23 +72,5 @@ export class AdminController {
         @CurrentAuthorizerContext() ctx: AuthorizerContext,
     ): Promise<AdminReactivateUserResponseDto> {
         return this.adminService.reactivateUser(params.userId, ctx);
-    }
-
-    @Post(':userId/impersonation/start')
-    @HttpCode(HttpStatus.OK)
-    async startImpersonation(
-        @Param() params: AdminUserIdParamDto,
-        @CurrentAuthorizerContext() ctx: AuthorizerContext,
-    ): Promise<ImpersonationStartResponseDto> {
-        return this.adminService.startImpersonation(params.userId, ctx);
-    }
-
-    @Post(':userId/impersonation/stop')
-    @HttpCode(HttpStatus.OK)
-    async stopImpersonation(
-        @Param() params: AdminUserIdParamDto,
-        @CurrentAuthorizerContext() ctx: AuthorizerContext,
-    ): Promise<ImpersonationStopResponseDto> {
-        return this.adminService.stopImpersonation(params.userId, ctx);
     }
 }

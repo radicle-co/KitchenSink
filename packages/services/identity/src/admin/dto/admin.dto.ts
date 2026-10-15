@@ -19,8 +19,6 @@ import {
     adminReactivateUserResponseSchema,
     adminSuspendUserResponseSchema,
     adminUnsuspendUserResponseSchema,
-    impersonationStartResponseSchema,
-    impersonationStopResponseSchema,
 } from '../admin.schema.js';
 
 /** Response body for `POST /api/v1/admin/users/{userId}/suspend`. */
@@ -31,9 +29,3 @@ export class AdminUnsuspendUserResponseDto extends createZodDto(adminUnsuspendUs
 
 /** Response body for `POST /api/v1/admin/users/{userId}/reactivate`. */
 export class AdminReactivateUserResponseDto extends createZodDto(adminReactivateUserResponseSchema) {}
-
-/** Response body for `POST /api/v1/admin/users/{userId}/impersonation/start`. */
-export class ImpersonationStartResponseDto extends createZodDto(impersonationStartResponseSchema) {}
-
-/** Response body for `POST /api/v1/admin/users/{userId}/impersonation/stop`. */
-export class ImpersonationStopResponseDto extends createZodDto(impersonationStopResponseSchema) {}

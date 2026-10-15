@@ -150,8 +150,6 @@ describe('admin :userId path-parameter validation', () => {
         // file would go green having asserted nothing at all.
         expect(userIdRoutes.map((route) => route.method).sort()).toEqual([
             'reactivateUser',
-            'startImpersonation',
-            'stopImpersonation',
             'suspendUser',
             'unsuspendUser',
         ]);

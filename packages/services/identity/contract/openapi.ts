@@ -37,8 +37,6 @@ import {
     adminUnsuspendUserResponseSchema,
     adminUserIdParamSchema,
     adminUserListItemSchema,
-    impersonationStartResponseSchema,
-    impersonationStopResponseSchema,
 } from '../src/admin/admin.schema.js';
 import { healthStatusSchema } from '../src/health/health.schema.js';
 import { patchUserSettingsRequestSchema, userSettingsSchema } from '../src/settings/settings.schema.js';
@@ -59,8 +57,6 @@ const components = {
     AdminSuspendUserResponse: adminSuspendUserResponseSchema,
     AdminUnsuspendUserResponse: adminUnsuspendUserResponseSchema,
     AdminReactivateUserResponse: adminReactivateUserResponseSchema,
-    ImpersonationStartResponse: impersonationStartResponseSchema,
-    ImpersonationStopResponse: impersonationStopResponseSchema,
     HealthStatus: healthStatusSchema,
 } as const;
 
@@ -347,23 +343,6 @@ export const identityOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument(
                     'user cannot sign in to be verified — so a support agent verifies the owner out-of-band and ' +
                     'calls this. Clears the tombstone and writes the audit row in ONE transaction.',
                 'AdminReactivateUserResponse',
-            ),
-        },
-        '/api/v1/admin/users/{userId}/impersonation/start': {
-            post: adminAction(
-                'adminStartImpersonation',
-                'Begin an impersonation session (admin)',
-                'Audited. The returned `sessionId` correlates the audit trail; the impersonated session is ' +
-                    'itself BLOCKED from privileged surfaces on the client.',
-                'ImpersonationStartResponse',
-            ),
-        },
-        '/api/v1/admin/users/{userId}/impersonation/stop': {
-            post: adminAction(
-                'adminStopImpersonation',
-                'End an impersonation session (admin)',
-                'Audited counterpart to the start route.',
-                'ImpersonationStopResponse',
             ),
         },
         '/health': {

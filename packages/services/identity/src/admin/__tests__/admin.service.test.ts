@@ -130,8 +130,6 @@ describe('AdminService — a target that is no user id', () => {
         ['suspendUser', (service: AdminService) => service.suspendUser('usr_01', adminCtx)],
         ['unsuspendUser', (service: AdminService) => service.unsuspendUser('usr_01', adminCtx)],
         ['reactivateUser', (service: AdminService) => service.reactivateUser('usr_01', adminCtx)],
-        ['startImpersonation', (service: AdminService) => service.startImpersonation('usr_01', adminCtx)],
-        ['stopImpersonation', (service: AdminService) => service.stopImpersonation('usr_01', adminCtx)],
     ])('%s answers 404 without querying or writing', async (_name, act) => {
         const { service, db, sqs } = buildMocks({ id: TARGET, identityId: 'user_abc', status: 'tombstoned' });
 

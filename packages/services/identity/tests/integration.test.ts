@@ -420,21 +420,6 @@ describe('AdminService', () => {
         expect(result.status).toBe('active');
     });
 
-    it('startImpersonation returns session metadata', async () => {
-        const result = await adminService.startImpersonation('01HZZZZZZZZZZZZZZZZZZZZZZB', adminCtx);
-
-        expect(result.impersonatorSub).toBe('01HZZZZZZZZZZZZZZZZZZZZZZA');
-        expect(result.impersonatedSub).toBe('01HZZZZZZZZZZZZZZZZZZZZZZB');
-        expect(result.sessionId).toContain('imp-');
-    });
-
-    it('stopImpersonation returns stop metadata', async () => {
-        const result = await adminService.stopImpersonation('01HZZZZZZZZZZZZZZZZZZZZZZB', adminCtx);
-
-        expect(result.impersonatorSub).toBe('01HZZZZZZZZZZZZZZZZZZZZZZA');
-        expect(result.impersonatedSub).toBe('01HZZZZZZZZZZZZZZZZZZZZZZB');
-    });
-
     it('suspendUser throws when target missing', async () => {
         mockDb.select = vi.fn().mockReturnValue(makeChain([]));
 

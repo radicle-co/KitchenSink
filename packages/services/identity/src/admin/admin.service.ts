@@ -31,9 +31,9 @@ function userIdOrNotFound(raw: string): UserId {
 // `@RequireScopes('admin:users')` on `AdminController` — see that guard's JSDoc for the pattern. This
 // service therefore no longer performs its own `assertAdmin` check; a request cannot reach these methods
 // without having already satisfied the guard. `ctx: AuthorizerContext` is dropped from `listUsers` (its
-// only prior use was the authz check the guard now owns) but KEPT on the other four methods for ACTOR
-// identity — suspend/unsuspend log the acting admin's id for the audit trail, and impersonation also
-// needs it in the session id and response contract. None of these remaining uses are authorization.
+// only prior use was the authz check the guard now owns) but KEPT on the other three methods for ACTOR
+// identity — suspend/unsuspend/reactivate log the acting admin's id for the audit trail. None of these
+// remaining uses are authorization.
 @Injectable()
 export class AdminService {
     private readonly logger = createServiceLogger(AdminService.name);
@@ -201,49 +201,5 @@ export class AdminService {
         this.logger.warn('user reactivated', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 
         return { sub: targetSub, status: 'active', reactivatedAt: now.toISOString() };
-    }
-
-    async startImpersonation(
-        targetSub: string,
-        adminCtx: AuthorizerContext,
-    ): Promise<{ impersonatorSub: string; impersonatedSub: string; sessionId: string; startedAt: string }> {
-        await this.requireUser(targetSub);
-
-        const sessionId = `imp-${adminCtx.userId}-${targetSub}-${Date.now()}`;
-        const now = new Date();
-
-        this.logger.warn('impersonation started', {
-            impersonatorSub: adminCtx.userId,
-            impersonatedSub: targetSub,
-            sessionId,
-        });
-
-        return {
-            impersonatorSub: adminCtx.userId,
-            impersonatedSub: targetSub,
-            sessionId,
-            startedAt: now.toISOString(),
-        };
-    }
-
-    async stopImpersonation(
-        targetSub: string,
-        adminCtx: AuthorizerContext,
-    ): Promise<{ impersonatorSub: string; impersonatedSub: string; stoppedAt: string; message: string }> {
-        await this.requireUser(targetSub);
-
-        const now = new Date();
-
-        this.logger.warn('impersonation stopped', {
-            impersonatorSub: adminCtx.userId,
-            impersonatedSub: targetSub,
-        });
-
-        return {
-            impersonatorSub: adminCtx.userId,
-            impersonatedSub: targetSub,
-            stoppedAt: now.toISOString(),
-            message: 'Impersonation session ended',
-        };
     }
 }

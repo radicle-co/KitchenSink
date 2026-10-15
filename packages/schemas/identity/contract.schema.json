@@ -347,56 +347,6 @@
             ],
             "type": "object"
         },
-        "impersonationStartResponseSchema": {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "additionalProperties": false,
-            "properties": {
-                "impersonatedSub": {
-                    "type": "string"
-                },
-                "impersonatorSub": {
-                    "type": "string"
-                },
-                "sessionId": {
-                    "type": "string"
-                },
-                "startedAt": {
-                    "type": "string"
-                }
-            },
-            "required": [
-                "impersonatorSub",
-                "impersonatedSub",
-                "sessionId",
-                "startedAt"
-            ],
-            "type": "object"
-        },
-        "impersonationStopResponseSchema": {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "additionalProperties": false,
-            "properties": {
-                "impersonatedSub": {
-                    "type": "string"
-                },
-                "impersonatorSub": {
-                    "type": "string"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "stoppedAt": {
-                    "type": "string"
-                }
-            },
-            "required": [
-                "impersonatorSub",
-                "impersonatedSub",
-                "stoppedAt",
-                "message"
-            ],
-            "type": "object"
-        },
         "paidFeaturesSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "enum": [

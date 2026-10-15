@@ -74,7 +74,7 @@ Deliberately **excluded**, with reasons: `DELETE /api/v1/users/me` (account clos
 lifetime, destructive, and it tombstones the very principal presenting the token, so it cannot be
 repeated per VU; correctness is covered by the integration/e2e tiers); avatar presign (once per avatar
 change, and the object PUT goes to S3 directly, not through the service); admin
-suspend/unsuspend/reactivate/impersonation (operator actions at human rates); webhook processing (the
+suspend/unsuspend/reactivate (operator actions at human rates); webhook processing (the
 plan's third target — it lives in `@kitchensink/identity-webhooks`, a Lambda, not this HTTP service).
 
 ## Thresholds and where the numbers come from

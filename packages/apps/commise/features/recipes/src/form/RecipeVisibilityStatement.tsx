@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @module @commise/features-recipes/form — `RecipeVisibilityStatement` (web): "Who can see it: Public", what the editor
  * shows in place of `RecipeVisibilityField` when Private is not offered (`offersPrivate` false: the paid features are

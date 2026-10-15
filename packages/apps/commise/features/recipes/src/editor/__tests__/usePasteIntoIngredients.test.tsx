@@ -33,6 +33,8 @@ const mocks = vi.hoisted(() => ({
     polledId: vi.fn(),
     byName: vi.fn(),
     retryParse: vi.fn(),
+    withdraw: vi.fn(),
+    retryState: { isError: false },
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
@@ -51,7 +53,8 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
         };
     },
     useAddIngredientByName: () => ({ mutateAsync: mocks.byName, isPaused: false }),
-    useRetryParseJob: () => ({ mutate: mocks.retryParse }),
+    useRetryParseJob: () => ({ mutate: mocks.retryParse, ...mocks.retryState }),
+    useWithdrawParseJobLines: () => ({ mutate: mocks.withdraw }),
 }));
 
 import { usePasteIntoIngredients, type UsePasteIntoIngredientsOptions } from '../usePasteIntoIngredients.js';
@@ -115,6 +118,9 @@ beforeEach(() => {
     mocks.createState = { isPending: false, isError: false };
     mocks.job = undefined;
     mocks.jobError = undefined;
+    mocks.retryState = { isError: false };
+    mocks.retryParse.mockReset();
+    mocks.withdraw.mockReset();
     mocks.byName.mockImplementation(async (name: string) => ingredient(name));
 });
 
@@ -394,8 +400,174 @@ describe('usePasteIntoIngredients — no time limit; the cook decides', () => {
 
         act(() => result.current.retryParse());
 
-        expect(mocks.retryParse).toHaveBeenCalledWith(makeParseJob().id);
+        expect(mocks.retryParse).toHaveBeenCalledWith(makeParseJob().id, { onError: expect.any(Function) });
         expect(appended(dispatch)).toEqual([]);
+    });
+
+    /**
+     * Plan 2026-10-15-011, open question 8: Add as written must also take the line out of the parse on the server, or
+     * the worker still pays an engine for an answer this client discards.
+     */
+    it('⛔ Add as written withdraws that line from the parse job on the server', async () => {
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit('x'));
+        accept(
+            makeParseJob({
+                lines: [
+                    makeParseJobLine({ lineIndex: 0, sourceLine: '1 tsp salt', progress: { phase: 'stalled' } }),
+                    makeParseJobLine({ lineIndex: 1, sourceLine: OLIVE, progress: { phase: 'stalled' } }),
+                ],
+            }),
+        );
+        await settle();
+
+        act(() => result.current.addAsWritten(1));
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await settle();
+
+        expect(mocks.withdraw).toHaveBeenCalledTimes(1);
+        expect(mocks.withdraw).toHaveBeenCalledWith({ id: makeParseJob().id, lineIndexes: [1] });
+    });
+
+    it('⛔ Add the rest as written withdraws exactly the stalled and retryable lines, not the ones being read', async () => {
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit('x'));
+        accept(
+            makeParseJob({
+                lines: [
+                    makeParseJobLine({ lineIndex: 0, sourceLine: '2 cups flour', progress: { phase: 'reading' } }),
+                    makeParseJobLine({ lineIndex: 1, sourceLine: '1 tsp salt', progress: { phase: 'stalled' } }),
+                    makeParseJobLine({ lineIndex: 2, sourceLine: OLIVE, status: 'failed_retryable' }),
+                ],
+            }),
+        );
+        await settle();
+
+        act(() => result.current.addRestAsWritten());
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await settle();
+
+        expect(mocks.withdraw).toHaveBeenCalledWith({ id: makeParseJob().id, lineIndexes: [1, 2] });
+    });
+
+    it('a refused withdrawal never holds the line back: it still joins as written', async () => {
+        mocks.withdraw.mockImplementation((_variables: unknown, options?: { onError?: (error: Error) => void }) =>
+            options?.onError?.(new Error('refused')),
+        );
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit(OLIVE));
+        accept(makeParseJob({ lines: [makeParseJobLine({ sourceLine: OLIVE, progress: { phase: 'stalled' } })] }));
+        await settle();
+
+        act(() => result.current.addAsWritten(0));
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await settle();
+
+        expect(appended(dispatch)).toHaveLength(1);
+    });
+
+    /** Plan open question 4: a refused Try again used to show nothing at all. */
+    it('⛔ says so when Try again is refused, and moves focus back to the block that says it', async () => {
+        const { result } = render();
+        act(() => result.current.submit('x'));
+        accept(
+            makeParseJob({
+                status: 'partial',
+                lines: [makeParseJobLine({ lineIndex: 0, sourceLine: '2 cups flour', status: 'failed_retryable' })],
+            }),
+        );
+        await settle();
+
+        expect(result.current.retryFailed).toBe(false);
+
+        mocks.retryParse.mockImplementation((_id: string, options?: { onError?: (error: Error) => void }) =>
+            options?.onError?.(new Error('409')),
+        );
+        const signal = result.current.focusSignal;
+        act(() => result.current.retryParse());
+
+        // The press moves focus to the block (its control may go away); the refusal moves it again, to the failure.
+        expect(result.current.focusSignal).toBe(signal + 2);
+    });
+
+    it('reports a refused Try again from the mutation’s own error state', () => {
+        mocks.retryState = { isError: true };
+        const { result } = render();
+
+        expect(result.current.retryFailed).toBe(true);
+    });
+
+    /** Plan open question 5: the UX spec prefers the NEXT WAITING ROW's action to the progress block. */
+    it('⛔ after Add as written, focus goes to the next waiting row, not the block', async () => {
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit('x'));
+        accept(
+            makeParseJob({
+                lines: [
+                    makeParseJobLine({ lineIndex: 0, sourceLine: '2 cups flour', progress: { phase: 'stalled' } }),
+                    makeParseJobLine({ lineIndex: 1, sourceLine: '1 tsp salt', progress: { phase: 'stalled' } }),
+                    makeParseJobLine({ lineIndex: 2, sourceLine: OLIVE, progress: { phase: 'stalled' } }),
+                ],
+            }),
+        );
+        await settle();
+
+        const signal = result.current.focusSignal;
+        act(() => result.current.addAsWritten(0));
+
+        expect(result.current.focusRow).toBe(1);
+        expect(result.current.focusSignal).toBe(signal);
+
+        act(() => result.current.onRowFocusHandled());
+
+        expect(result.current.focusRow).toBeUndefined();
+
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await settle();
+    });
+
+    it('falls back to the earlier waiting row when none follows, and to the block when none waits', async () => {
+        const { result } = render();
+        act(() => result.current.submit('x'));
+        accept(
+            makeParseJob({
+                lines: [
+                    makeParseJobLine({ lineIndex: 0, sourceLine: '2 cups flour', progress: { phase: 'stalled' } }),
+                    makeParseJobLine({ lineIndex: 1, sourceLine: '1 tsp salt', progress: { phase: 'stalled' } }),
+                ],
+            }),
+        );
+        await settle();
+
+        act(() => result.current.addAsWritten(1));
+
+        expect(result.current.focusRow).toBe(0);
+
+        const signal = result.current.focusSignal;
+        act(() => result.current.addAsWritten(0));
+
+        expect(result.current.focusRow).toBeUndefined();
+        expect(result.current.focusSignal).toBe(signal + 1);
+    });
+
+    it('never aims focus at a row that is only being read: Add the rest as written falls back to the block', async () => {
+        const { result } = render();
+        act(() => result.current.submit('x'));
+        accept(
+            makeParseJob({
+                lines: [
+                    makeParseJobLine({ lineIndex: 0, sourceLine: '2 cups flour', progress: { phase: 'reading' } }),
+                    makeParseJobLine({ lineIndex: 1, sourceLine: '1 tsp salt', progress: { phase: 'stalled' } }),
+                ],
+            }),
+        );
+        await settle();
+
+        const signal = result.current.focusSignal;
+        act(() => result.current.addAsWritten(1));
+
+        expect(result.current.focusRow).toBeUndefined();
+        expect(result.current.focusSignal).toBe(signal + 1);
     });
 
     it('Add the rest as written joins every line waiting on the cook, and leaves read lines their parse', async () => {

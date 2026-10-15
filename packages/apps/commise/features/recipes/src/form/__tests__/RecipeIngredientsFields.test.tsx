@@ -963,6 +963,9 @@ describe('RecipeIngredientsFields (web) — pasted lines (build spec §7.5.1 "Re
         onAddAsWritten: noop,
         onAddRestAsWritten: noop,
         focusSignal: 0,
+        retryFailed: false,
+        focusRow: undefined,
+        onRowFocusHandled: noop,
         announcement: undefined,
         added: undefined,
         onOpen: undefined,
@@ -999,6 +1002,27 @@ describe('RecipeIngredientsFields (web) — pasted lines (build spec §7.5.1 "Re
         expect(ingredientList().compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(block.compareDocumentPosition(pastedList()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(screen.getByText('1 line needs you')).toBeTruthy();
+    });
+
+    it('⛔ puts the focus request on the matching waiting row, and says a refused Try again in the block', () => {
+        const onRowFocusHandled = vi.fn();
+        renderLeaf({
+            values: valuesWith([]),
+            paste: {
+                ...PASTE,
+                reading: [
+                    { key: 'j:0', lineIndex: 0, sourceLine: '2 cups flour', state: 'stalled' },
+                    { key: 'j:1', lineIndex: 1, sourceLine: '1 tsp salt', state: 'stalled' },
+                ],
+                focusRow: 1,
+                onRowFocusHandled,
+                retryFailed: true,
+            },
+        });
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add as written: 1 tsp salt' }));
+        expect(onRowFocusHandled).toHaveBeenCalled();
+        expect(screen.getByText(en.pasteRetryFailed)).toBeTruthy();
     });
 
     it('a line whose lookup failed offers Try again, named for its line', async () => {

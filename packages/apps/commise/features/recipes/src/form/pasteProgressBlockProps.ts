@@ -11,6 +11,8 @@ export interface PasteProgressBlockProps {
     readonly onRetryParse: () => void;
     /** Add every stalled and retryable line as written. */
     readonly onAddRestAsWritten: () => void;
+    /** Try again was refused: the block says so, in words, where the cook is looking. */
+    readonly retryFailed: boolean;
     /** Moves when the cook acted on the paste: focus goes to the block if the control that had it went away. */
     readonly focusSignal: number;
 }

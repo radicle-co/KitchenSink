@@ -10,6 +10,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { PasteProgressBlock } from '../PasteProgressBlock.js';
+import { recipeFormMessages } from '../messages.js';
 import type { PasteProgress } from '../props.js';
 
 afterEach(cleanup);
@@ -39,6 +40,7 @@ describe('PasteProgressBlock (web)', () => {
                 progress={progress({ status })}
                 onRetryParse={vi.fn()}
                 onAddRestAsWritten={vi.fn()}
+                retryFailed={false}
                 focusSignal={0}
             />,
         );
@@ -53,6 +55,7 @@ describe('PasteProgressBlock (web)', () => {
                 progress={progress({ status: { kind: 'stalled' } })}
                 onRetryParse={vi.fn()}
                 onAddRestAsWritten={vi.fn()}
+                retryFailed={false}
                 focusSignal={0}
             />,
         );
@@ -66,6 +69,7 @@ describe('PasteProgressBlock (web)', () => {
                 progress={progress()}
                 onRetryParse={vi.fn()}
                 onAddRestAsWritten={vi.fn()}
+                retryFailed={false}
                 focusSignal={0}
             />,
         );
@@ -82,6 +86,7 @@ describe('PasteProgressBlock (web)', () => {
                 progress={progress({ status: { kind: 'needsYou', count: 2 }, retryCount: 2, restCount: 3 })}
                 onRetryParse={onRetryParse}
                 onAddRestAsWritten={onAddRestAsWritten}
+                retryFailed={false}
                 focusSignal={0}
             />,
         );
@@ -99,6 +104,7 @@ describe('PasteProgressBlock (web)', () => {
                 progress={progress({ status: { kind: 'stalled' }, restCount: 1 })}
                 onRetryParse={vi.fn()}
                 onAddRestAsWritten={vi.fn()}
+                retryFailed={false}
                 focusSignal={0}
             />,
         );
@@ -108,11 +114,23 @@ describe('PasteProgressBlock (web)', () => {
 
     it('takes the focus when the cook acted and the focus was lost with the control', () => {
         const props = { progress: progress(), onRetryParse: vi.fn(), onAddRestAsWritten: vi.fn() };
-        const { rerender, container } = render(<PasteProgressBlock {...props} focusSignal={0} />);
+        const { rerender, container } = render(<PasteProgressBlock {...props} retryFailed={false} focusSignal={0} />);
 
         expect(document.activeElement).toBe(document.body);
-        rerender(<PasteProgressBlock {...props} focusSignal={1} />);
+        rerender(<PasteProgressBlock {...props} retryFailed={false} focusSignal={1} />);
 
         expect(document.activeElement).toBe(container.querySelector('[tabindex="-1"]'));
+    });
+
+    /** Plan open question 4: a refused Try again used to show nothing at all. */
+    it('⛔ says so, in words, when Try again was refused — and nothing when it was not', () => {
+        const props = { progress: progress(), onRetryParse: vi.fn(), onAddRestAsWritten: vi.fn(), focusSignal: 0 };
+        const { rerender } = render(<PasteProgressBlock {...props} retryFailed={false} />);
+
+        expect(screen.queryByText(recipeFormMessages.en.pasteRetryFailed)).toBeNull();
+
+        rerender(<PasteProgressBlock {...props} retryFailed />);
+
+        expect(screen.getByText(recipeFormMessages.en.pasteRetryFailed)).toBeTruthy();
     });
 });

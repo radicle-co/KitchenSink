@@ -239,6 +239,23 @@ describe('pastedLinesOf', () => {
         },
     );
 
+    /**
+     * A line the SERVER holds as `withdrawn` was kept as written by the cook (plan 2026-10-15-011, open question 8). It
+     * settles through the reader even when this client no longer remembers the choice (a remount), because no engine
+     * will ever answer for it.
+     */
+    it('a withdrawn line settles through the reader without the cook’s local choice', () => {
+        const job = makeParseJob({
+            lines: [
+                makeParseJobLine({ sourceLine: '2 tbsp olive oil, for frying', status: 'withdrawn', progress: null }),
+            ],
+        });
+
+        expect(pastedLinesOf(input({ job }))).toEqual([
+            { kind: 'settled', lineIndex: 0, sourceLine: '2 tbsp olive oil, for frying', rows: [OLIVE_OIL_FALLBACK] },
+        ]);
+    });
+
     it('an unreadable line settles through the add field’s own reader, and claims no phrase it did not parse', () => {
         const job = makeParseJob({
             status: 'complete',

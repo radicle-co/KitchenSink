@@ -17,7 +17,13 @@ import { pasteRowViewOf } from './pasteStatusCopy.js';
 import type { PastedReadingRowProps } from './pastedReadingRowProps.js';
 
 /** One pasted line still joining the recipe. */
-export const PastedReadingRow: FC<PastedReadingRowProps> = ({ row, onRetryLookup, onAddAsWritten }) => {
+export const PastedReadingRow: FC<PastedReadingRowProps> = ({
+    row,
+    onRetryLookup,
+    onAddAsWritten,
+    focusRequested,
+    onFocusRequestHandled,
+}) => {
     const m = useMessages(recipeFormMessages);
     const { colors } = useTheme();
     const view = pasteRowViewOf(row.state, m);
@@ -38,6 +44,8 @@ export const PastedReadingRow: FC<PastedReadingRowProps> = ({ row, onRetryLookup
                         variant="ghost"
                         size="sm"
                         icon="listPlus"
+                        focusRequested={focusRequested}
+                        onFocusRequestHandled={onFocusRequestHandled}
                         accessibilityLabel={fillTemplate(m.statusActionAddAsWrittenLabel, { line: row.sourceLine })}
                         onPress={() => onAddAsWritten(row.lineIndex)}
                     >

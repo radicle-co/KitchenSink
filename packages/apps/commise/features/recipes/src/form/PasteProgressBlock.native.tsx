@@ -26,15 +26,16 @@ export const PasteProgressBlock: FC<PasteProgressBlockProps> = ({
     progress,
     onRetryParse,
     onAddRestAsWritten,
+    retryFailed,
     focusSignal,
 }) => {
     const m = useMessages(recipeFormMessages);
     const locale = useLocale();
     const { colors } = useTheme();
-    const view = pasteProgressViewOf(progress, m, locale);
+    const view = pasteProgressViewOf(progress, m, locale, retryFailed);
     const block = useScreenReaderFocusOnSignal<View>(focusSignal);
     const color = view.tone === 'attention' ? colors.attention : colors.inkMuted;
-    const label = [view.title, view.status, view.hint].filter((part) => part !== undefined).join('. ');
+    const label = [view.title, view.status, view.hint, view.failure].filter((part) => part !== undefined).join('. ');
 
     return (
         <View style={styles.block}>
@@ -46,6 +47,12 @@ export const PasteProgressBlock: FC<PasteProgressBlockProps> = ({
                 </View>
                 {view.hint !== undefined && (
                     <Text style={[styles.caption, { color: colors.inkMuted }]}>{view.hint}</Text>
+                )}
+                {view.failure !== undefined && (
+                    <View style={styles.status}>
+                        <Icon name="triangleAlert" size={16} tone="attention" />
+                        <Text style={[styles.caption, { color: colors.attention }]}>{view.failure}</Text>
+                    </View>
                 )}
             </View>
             {(view.retryLabel !== undefined || view.addRestLabel !== undefined) && (

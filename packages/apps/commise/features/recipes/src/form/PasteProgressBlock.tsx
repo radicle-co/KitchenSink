@@ -26,11 +26,12 @@ export const PasteProgressBlock: FC<PasteProgressBlockProps> = ({
     progress,
     onRetryParse,
     onAddRestAsWritten,
+    retryFailed,
     focusSignal,
 }) => {
     const m = useMessages(recipeFormMessages);
     const locale = useLocale();
-    const view = pasteProgressViewOf(progress, m, locale);
+    const view = pasteProgressViewOf(progress, m, locale, retryFailed);
     const block = useFocusOnSignal<HTMLDivElement>(focusSignal);
     const toneText = view.tone === 'attention' ? 'text-attention' : 'text-ink-muted';
 
@@ -42,6 +43,12 @@ export const PasteProgressBlock: FC<PasteProgressBlockProps> = ({
                 <span className="text-caption">{view.status}</span>
             </span>
             {view.hint !== undefined && <span className="text-caption text-ink-muted">{view.hint}</span>}
+            {view.failure !== undefined && (
+                <span className="flex items-center gap-2 text-attention">
+                    <Icon name="triangleAlert" size={16} />
+                    <span className="text-caption">{view.failure}</span>
+                </span>
+            )}
             {(view.retryLabel !== undefined || view.addRestLabel !== undefined) && (
                 <span className="flex flex-wrap gap-2">
                     {view.retryLabel !== undefined && (

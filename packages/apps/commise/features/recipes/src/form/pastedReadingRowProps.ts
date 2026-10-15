@@ -11,4 +11,8 @@ export interface PastedReadingRowProps {
     readonly onRetryLookup: (() => void) | undefined;
     /** Add a line as the cook wrote it, by its `lineIndex`; absent, a waiting row offers no way out. */
     readonly onAddAsWritten: ((lineIndex: number) => void) | undefined;
+    /** Raised while this row's Add as written should take focus (the row after the one just added). */
+    readonly focusRequested: boolean;
+    /** The action took the focus it was asked for; lowers the request. */
+    readonly onFocusRequestHandled: (() => void) | undefined;
 }

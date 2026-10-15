@@ -16,6 +16,7 @@ vi.mock('react-native', async (importOriginal) => {
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PasteProgressBlock } from '../PasteProgressBlock.native.js';
+import { recipeFormMessages } from '../messages.js';
 import type { PasteProgress } from '../props.js';
 
 afterEach(cleanup);
@@ -45,6 +46,7 @@ describe('PasteProgressBlock (native)', () => {
                 progress={progress({ status })}
                 onRetryParse={vi.fn()}
                 onAddRestAsWritten={vi.fn()}
+                retryFailed={false}
                 focusSignal={0}
             />,
         );
@@ -59,6 +61,7 @@ describe('PasteProgressBlock (native)', () => {
                 progress={progress()}
                 onRetryParse={vi.fn()}
                 onAddRestAsWritten={vi.fn()}
+                retryFailed={false}
                 focusSignal={0}
             />,
         );
@@ -74,6 +77,7 @@ describe('PasteProgressBlock (native)', () => {
                 progress={progress({ status: { kind: 'needsYou', count: 2 }, retryCount: 2, restCount: 3 })}
                 onRetryParse={onRetryParse}
                 onAddRestAsWritten={onAddRestAsWritten}
+                retryFailed={false}
                 focusSignal={0}
             />,
         );
@@ -87,12 +91,23 @@ describe('PasteProgressBlock (native)', () => {
 
     it('moves the screen reader to the block when the cook acted', () => {
         const props = { progress: progress(), onRetryParse: vi.fn(), onAddRestAsWritten: vi.fn() };
-        const { rerender } = render(<PasteProgressBlock {...props} focusSignal={0} />);
+        const { rerender } = render(<PasteProgressBlock {...props} retryFailed={false} focusSignal={0} />);
 
         expect(focus.moved).not.toHaveBeenCalled();
-        rerender(<PasteProgressBlock {...props} focusSignal={1} />);
+        rerender(<PasteProgressBlock {...props} retryFailed={false} focusSignal={1} />);
 
         expect(focus.moved).toHaveBeenCalledTimes(1);
         expect(focus.moved.mock.calls[0]?.[1]).toBe('focus');
+    });
+
+    it('⛔ says so, in words, when Try again was refused — and nothing when it was not', () => {
+        const props = { progress: progress(), onRetryParse: vi.fn(), onAddRestAsWritten: vi.fn(), focusSignal: 0 };
+        const { rerender } = render(<PasteProgressBlock {...props} retryFailed={false} />);
+
+        expect(screen.queryByText(recipeFormMessages.en.pasteRetryFailed)).toBeNull();
+
+        rerender(<PasteProgressBlock {...props} retryFailed />);
+
+        expect(screen.getByText(recipeFormMessages.en.pasteRetryFailed)).toBeTruthy();
     });
 });

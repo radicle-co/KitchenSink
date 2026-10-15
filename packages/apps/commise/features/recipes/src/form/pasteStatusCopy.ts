@@ -73,6 +73,8 @@ export interface PasteProgressView extends PasteMark {
     readonly status: string;
     /** A second line under the status, for a stalled paste. */
     readonly hint: string | undefined;
+    /** Said when Try again itself was refused. */
+    readonly failure: string | undefined;
     /** Try again's accessible name, when it is offered. */
     readonly retryLabel: string | undefined;
     /** Add the rest as written's accessible name, when it is offered (two lines or more). */
@@ -120,12 +122,19 @@ function statusOf(
  * @param progress - The block's model.
  * @param m - The form's copy.
  * @param locale - For the plural forms.
+ * @param retryFailed - Whether Try again was refused.
  * @returns What the block draws. Pure.
  */
-export function pasteProgressViewOf(progress: PasteProgress, m: RecipeFormMessages, locale: string): PasteProgressView {
+export function pasteProgressViewOf(
+    progress: PasteProgress,
+    m: RecipeFormMessages,
+    locale: string,
+    retryFailed: boolean,
+): PasteProgressView {
     return {
         title: fillTemplate(pluralOf(m.pasteProgressCount, progress.count, locale), { done: String(progress.done) }),
         ...statusOf(progress, m, locale),
+        failure: retryFailed ? m.pasteRetryFailed : undefined,
         retryLabel: progress.retryCount > 0 ? pluralOf(m.pasteRetryAllLabel, progress.retryCount, locale) : undefined,
         addRestLabel:
             progress.restCount >= 2 ? pluralOf(m.pasteAddRestAsWrittenLabel, progress.restCount, locale) : undefined,

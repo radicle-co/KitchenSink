@@ -18,7 +18,8 @@ const LINE = '2 tbsp olive oil, for frying';
 
 afterEach(cleanup);
 
-function renderRow(state: PasteRowState) {
+function renderRow(state: PasteRowState, focus: { focusRequested?: boolean } = {}) {
+    const onFocusRequestHandled = vi.fn();
     const onRetryLookup = vi.fn();
     const onAddAsWritten = vi.fn();
 
@@ -28,11 +29,13 @@ function renderRow(state: PasteRowState) {
                 row={{ key: 'j:3', lineIndex: 3, sourceLine: LINE, state }}
                 onRetryLookup={onRetryLookup}
                 onAddAsWritten={onAddAsWritten}
+                focusRequested={focus.focusRequested ?? false}
+                onFocusRequestHandled={onFocusRequestHandled}
             />
         </ul>,
     );
 
-    return { onRetryLookup, onAddAsWritten };
+    return { onRetryLookup, onAddAsWritten, onFocusRequestHandled };
 }
 
 const STATES: readonly PasteRowState[] = [
@@ -89,5 +92,19 @@ describe('PastedReadingRow (web)', () => {
         renderRow('reading');
 
         expect(document.querySelector('[class*="animate-"]')).toBeNull();
+    });
+
+    it('⛔ puts focus on Add as written when a focus request is raised, then acknowledges it', () => {
+        const { onFocusRequestHandled } = renderRow('stalled', { focusRequested: true });
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: `Add as written: ${LINE}` }));
+        expect(onFocusRequestHandled).toHaveBeenCalledTimes(1);
+    });
+
+    it('moves no focus when no focus request is raised', () => {
+        const { onFocusRequestHandled } = renderRow('stalled');
+
+        expect(document.activeElement).toBe(document.body);
+        expect(onFocusRequestHandled).not.toHaveBeenCalled();
     });
 });

@@ -19,6 +19,8 @@
  *   doing. A line the server calls stalled, or that the system stopped trying, waits on the COOK: Add as written joins
  *   it through the add field's own reader, Add the rest as written does that for every such line, and Try again
  *   re-drives the whole paste. Only the server's own terminals (an expired or unreadable job) join without the cook.
+ *   Add as written also WITHDRAWS those lines from the parse job (`useWithdrawParseJobLines`), so the worker never
+ *   spends an engine on an answer this client discards; the call is best effort and never holds the join back.
  * - **One progress block and one polite region** over the rows (`pasteProgress.ts`, `usePasteAnnouncement.ts`).
  * - **A lookup that fails** holds its line, and the lines after it, so the order holds; Try again asks again.
  *
@@ -35,6 +37,7 @@ import {
     useCreateParseJob,
     useParseJob,
     useRetryParseJob,
+    useWithdrawParseJobLines,
 } from '@kitchensink/recipe-service-client/hooks';
 import { shouldRetryRecipeServiceFailure } from '@kitchensink/recipe-service-client';
 import { useMutation } from '@tanstack/react-query';
@@ -86,8 +89,13 @@ export interface PasteIntoIngredients {
     readonly addAsWritten: (lineIndex: number) => void;
     /** Join every line waiting on the cook as written. */
     readonly addRestAsWritten: () => void;
-    /** Moves each time the cook acts on the paste, so focus can follow to the progress block. */
+    /** Moves each time focus should land on the progress block: the cook acted and no waiting row remains. */
     readonly focusSignal: number;
+    /** The refused Try again, said in the block: the retry itself failed, so the lines are still not re-driven. */
+    readonly retryFailed: boolean;
+    /** The waiting row whose action takes focus next (a level the row lowers through `onRowFocusHandled`). */
+    readonly focusRow: number | undefined;
+    readonly onRowFocusHandled: () => void;
     /** What the polite region says, at milestones only. */
     readonly announcement: PasteAnnouncement | undefined;
     /** How many ingredients the last finished paste added, said politely, once per paste. */
@@ -147,7 +155,9 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
     const poll = useParseJob(session?.jobId ?? '');
     const byName = useAddIngredientByName();
     const retryJob = useRetryParseJob();
+    const withdraw = useWithdrawParseJobLines();
     const [focusSignal, setFocusSignal] = useState(0);
+    const [focusRow, setFocusRow] = useState<number | undefined>(undefined);
 
     // The deadline's clock: one timer per job, which fires as its `expiresAt` passes, so an expired job's unread lines
     // join (the server's terminal, not a client limit). A render-time `Date.now()` would not do: a poll whose job has not
@@ -267,14 +277,36 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
         progress === undefined ? 0 : progress.status.kind === 'needsYou' ? progress.status.count : progress.count,
     );
 
-    /** The cook chose to add these lines as written: each joins through the reader, and focus follows to the block. */
+    /**
+     * The cook chose to add these lines as written: each joins through the reader, the server is told to stop parsing
+     * them, and focus follows to the next waiting row (the UX spec's preference) or, with none, to the progress block.
+     *
+     * @sideEffect Withdraws the lines from the parse job; best effort, a refusal changes nothing the cook sees.
+     */
     const addAsWrittenAt = (lineIndexes: readonly number[]): void => {
-        setSession((current) =>
-            current === undefined
-                ? current
-                : { ...current, typedByCook: new Set([...current.typedByCook, ...lineIndexes]) },
+        if (session === undefined) {
+            return;
+        }
+
+        const waiting = reading.filter(
+            (row) => (row.state === 'stalled' || row.state === 'retryable') && !lineIndexes.includes(row.lineIndex),
         );
-        setFocusSignal((signal) => signal + 1);
+        const last = Math.max(...lineIndexes);
+        const nextWaiting = waiting.find((row) => row.lineIndex > last) ?? waiting[0];
+
+        setSession({ ...session, typedByCook: new Set([...session.typedByCook, ...lineIndexes]) });
+
+        if (nextWaiting === undefined) {
+            setFocusRow(undefined);
+            setFocusSignal((signal) => signal + 1);
+        } else {
+            setFocusRow(nextWaiting.lineIndex);
+        }
+
+        if (lineIndexes.length > 0) {
+            // Best effort: the choice stands whatever the server answers, so the only cost of a failure is a paid parse.
+            withdraw.mutate({ id: session.jobId, lineIndexes });
+        }
     };
 
     return {
@@ -290,7 +322,9 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
             setSession((current) => (current === undefined ? current : { ...current, failedAt: undefined })),
         retryParse: () => {
             if (session !== undefined) {
-                retryJob.mutate(session.jobId);
+                // The press moves focus to the block (the control may go away); a refusal moves it again, onto the
+                // failure the block now says.
+                retryJob.mutate(session.jobId, { onError: () => setFocusSignal((signal) => signal + 1) });
                 setFocusSignal((signal) => signal + 1);
             }
         },
@@ -302,6 +336,9 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
                     .map((row) => row.lineIndex),
             ),
         focusSignal,
+        retryFailed: retryJob.isError,
+        focusRow,
+        onRowFocusHandled: () => setFocusRow(undefined),
         announcement,
         added,
     };

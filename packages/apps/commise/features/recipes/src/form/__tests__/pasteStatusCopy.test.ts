@@ -39,8 +39,8 @@ describe('pasteProgressViewOf', () => {
     });
 
     it('counts the lines in the recipe against the paste, with the plural the count asks for', () => {
-        expect(pasteProgressViewOf(progress({}), m, 'en').title).toBe('Added 2 of 5 lines');
-        expect(pasteProgressViewOf(progress({ done: 0, count: 1 }), m, 'en').title).toBe('Added 0 of 1 line');
+        expect(pasteProgressViewOf(progress({}), m, 'en', false).title).toBe('Added 2 of 5 lines');
+        expect(pasteProgressViewOf(progress({ done: 0, count: 1 }), m, 'en', false).title).toBe('Added 0 of 1 line');
     });
 
     it.each<[PasteProgress['status'], string, string | undefined, string]>([
@@ -59,17 +59,19 @@ describe('pasteProgressViewOf', () => {
         [{ kind: 'step', step: 'queued', position: 3 }, 'Waiting to read line 3', undefined, 'inkMuted'],
         [{ kind: 'step', step: 'joining', position: 3 }, 'Looking up line 3', undefined, 'inkMuted'],
     ])('%o says “%s”', (status, text, hint, tone) => {
-        expect(pasteProgressViewOf(progress({ status }), m, 'en')).toMatchObject({ status: text, hint, tone });
+        expect(pasteProgressViewOf(progress({ status }), m, 'en', false)).toMatchObject({ status: text, hint, tone });
     });
 
     it('offers Try again once any line is retryable, named for how many it covers', () => {
-        expect(pasteProgressViewOf(progress({}), m, 'en').retryLabel).toBeUndefined();
-        expect(pasteProgressViewOf(progress({ retryCount: 2 }), m, 'en').retryLabel).toBe('Try again for 2 lines');
+        expect(pasteProgressViewOf(progress({}), m, 'en', false).retryLabel).toBeUndefined();
+        expect(pasteProgressViewOf(progress({ retryCount: 2 }), m, 'en', false).retryLabel).toBe(
+            'Try again for 2 lines',
+        );
     });
 
     it('offers Add the rest as written only for two lines or more: one line has its own button', () => {
-        expect(pasteProgressViewOf(progress({ restCount: 1 }), m, 'en').addRestLabel).toBeUndefined();
-        expect(pasteProgressViewOf(progress({ restCount: 2 }), m, 'en').addRestLabel).toBe(
+        expect(pasteProgressViewOf(progress({ restCount: 1 }), m, 'en', false).addRestLabel).toBeUndefined();
+        expect(pasteProgressViewOf(progress({ restCount: 2 }), m, 'en', false).addRestLabel).toBe(
             'Add the rest as written: 2 lines',
         );
     });

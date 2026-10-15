@@ -7,6 +7,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+const focus = vi.hoisted(() => ({ moved: vi.fn() }));
+
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: focus.moved } };
+});
+
 import { recipeFormMessages } from '../messages.js';
 import { pasteRowViewOf } from '../pasteStatusCopy.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -16,9 +24,13 @@ import type { PasteRowState } from '../props.js';
 const m = recipeFormMessages.en;
 const LINE = '2 tbsp olive oil, for frying';
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    focus.moved.mockClear();
+});
 
-function renderRow(state: PasteRowState) {
+function renderRow(state: PasteRowState, focus: { focusRequested?: boolean } = {}) {
+    const onFocusRequestHandled = vi.fn();
     const onRetryLookup = vi.fn();
     const onAddAsWritten = vi.fn();
 
@@ -27,10 +39,12 @@ function renderRow(state: PasteRowState) {
             row={{ key: 'j:3', lineIndex: 3, sourceLine: LINE, state }}
             onRetryLookup={onRetryLookup}
             onAddAsWritten={onAddAsWritten}
+            focusRequested={focus.focusRequested ?? false}
+            onFocusRequestHandled={onFocusRequestHandled}
         />,
     );
 
-    return { onRetryLookup, onAddAsWritten };
+    return { onRetryLookup, onAddAsWritten, onFocusRequestHandled };
 }
 
 const STATES: readonly PasteRowState[] = [
@@ -74,5 +88,19 @@ describe('PastedReadingRow (native)', () => {
         fireEvent.click(screen.getByRole('button', { name: `Try again for ${LINE}` }));
 
         expect(onRetryLookup).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ takes the screen-reader focus on Add as written when a focus request is raised, then acknowledges it', () => {
+        const { onFocusRequestHandled } = renderRow('stalled', { focusRequested: true });
+
+        expect(focus.moved).toHaveBeenCalledTimes(1);
+        expect(onFocusRequestHandled).toHaveBeenCalledTimes(1);
+    });
+
+    it('moves nothing when no focus request is raised', () => {
+        const { onFocusRequestHandled } = renderRow('stalled');
+
+        expect(focus.moved).not.toHaveBeenCalled();
+        expect(onFocusRequestHandled).not.toHaveBeenCalled();
     });
 });

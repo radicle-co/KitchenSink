@@ -266,6 +266,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                     progress={paste.progress}
                     onRetryParse={paste.onRetryParse}
                     onAddRestAsWritten={paste.onAddRestAsWritten}
+                    retryFailed={paste.retryFailed}
                     focusSignal={paste.focusSignal}
                 />
             )}
@@ -275,6 +276,8 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                     row={row}
                     onRetryLookup={paste?.onRetryLookup}
                     onAddAsWritten={paste?.onAddAsWritten}
+                    focusRequested={paste?.focusRow === row.lineIndex}
+                    onFocusRequestHandled={paste?.onRowFocusHandled}
                 />
             ))}
             {model.emptyGroups.map((group) => (

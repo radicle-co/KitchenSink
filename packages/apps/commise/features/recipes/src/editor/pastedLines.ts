@@ -155,7 +155,10 @@ function pastedLineOf(line: ParseJobLineView, stopped: boolean, typedByCook: boo
     switch (line.status) {
         case 'parsed':
             return line.proposal === null ? settled(readerRowsOf(sourceLine)) : settled(proposedRowsOf(line.proposal));
+        // `withdrawn` on the server: the cook kept it as written, so no engine will answer — settle it the same way
+        // even if this client no longer remembers the choice.
         case 'unparseable':
+        case 'withdrawn':
             return settled(readerRowsOf(sourceLine));
         case 'failed_retryable':
             return stopped

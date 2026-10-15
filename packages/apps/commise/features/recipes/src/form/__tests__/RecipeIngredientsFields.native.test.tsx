@@ -777,6 +777,9 @@ describe('RecipeIngredientsFields (native) — pasted lines (§7.5.1 "Reading", 
         onAddAsWritten: noop,
         onAddRestAsWritten: noop,
         focusSignal: 0,
+        retryFailed: false,
+        focusRow: undefined,
+        onRowFocusHandled: noop,
         announcement: undefined,
         added: undefined,
         onOpen: undefined,
@@ -791,6 +794,27 @@ describe('RecipeIngredientsFields (native) — pasted lines (§7.5.1 "Reading", 
             block.compareDocumentPosition(screen.getByText('2 cups flour')) & Node.DOCUMENT_POSITION_FOLLOWING,
         ).toBeTruthy();
         expect(screen.getByText('1 line needs you')).toBeTruthy();
+    });
+
+    it('⛔ raises the focus request on the matching waiting row only, and says a refused Try again in the block', () => {
+        const onRowFocusHandled = vi.fn();
+        renderLeaf({
+            values: valuesWith([]),
+            paste: {
+                ...PASTE,
+                reading: [
+                    { key: 'j:0', lineIndex: 0, sourceLine: '2 cups flour', state: 'stalled' },
+                    { key: 'j:1', lineIndex: 1, sourceLine: '1 tsp salt', state: 'stalled' },
+                ],
+                focusRow: 1,
+                onRowFocusHandled,
+                retryFailed: true,
+            },
+        });
+
+        // One row was asked, so exactly one acknowledgement comes back.
+        expect(onRowFocusHandled).toHaveBeenCalledTimes(1);
+        expect(screen.getByText(recipeFormMessages.en.pasteRetryFailed)).toBeTruthy();
     });
 
     it('a stalled line offers Add as written, named for its line', () => {

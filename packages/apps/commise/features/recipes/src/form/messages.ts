@@ -216,6 +216,8 @@ export interface RecipeFormMessages {
     readonly pasteAddRestAsWritten: string;
     /** Its accessible name. Holds `{count}`. */
     readonly pasteAddRestAsWrittenLabel: PluralText;
+    /** The block's failure line when Try again itself was refused (the lines are still not being re-read). */
+    readonly pasteRetryFailed: string;
     /** Said politely when a paste starts. Holds `{count}`. */
     readonly pasteProgressStarted: PluralText;
     /** Said politely when work moves again after a stall, an outage or a retry. */
@@ -644,6 +646,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         pasteProgressQueued: 'Waiting to read line {line}',
         pasteProgressLookingUp: 'Looking up line {line}',
         pasteRetryAllLabel: { one: 'Try again for {count} line', other: 'Try again for {count} lines' },
+        pasteRetryFailed: 'Couldn’t try again. Check your connection and try again, or add the lines as written.',
         pasteAddRestAsWritten: 'Add the rest as written',
         pasteAddRestAsWrittenLabel: {
             one: 'Add the rest as written: {count} line',

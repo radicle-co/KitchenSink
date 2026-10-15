@@ -312,8 +312,14 @@ export interface IngredientsPasteView {
     readonly onAddAsWritten: (lineIndex: number) => void;
     /** Add every stalled and retryable line as written. */
     readonly onAddRestAsWritten: () => void;
-    /** Moves when the cook acted on the paste: focus goes to the progress block. */
+    /** Moves when focus should land on the progress block: the cook acted and no waiting row remains. */
     readonly focusSignal: number;
+    /** Try again was refused: the block says so. */
+    readonly retryFailed: boolean;
+    /** The waiting row whose Add as written takes focus next, by its `lineIndex` (a level the row lowers). */
+    readonly focusRow: number | undefined;
+    /** The row took the focus it was asked for. */
+    readonly onRowFocusHandled: () => void;
     /** The milestone to say politely, once per occurrence; the leaf words it. */
     readonly announcement:
         { readonly milestone: PasteMilestone; readonly count: number; readonly occurrence: number } | undefined;

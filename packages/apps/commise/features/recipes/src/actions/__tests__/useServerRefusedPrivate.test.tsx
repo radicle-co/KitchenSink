@@ -8,7 +8,11 @@
 import type { PaidFeatureState } from '@commise/features-account';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { BadRequestError, ForbiddenError } from '@kitchensink/recipe-service-client';
-import { RecipeServiceProvider, useSetRecipeVisibility } from '@kitchensink/recipe-service-client/hooks';
+import {
+    RECIPE_VISIBILITY_MUTATION_KEY,
+    RecipeServiceProvider,
+    useSetRecipeVisibility,
+} from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
@@ -35,7 +39,7 @@ function mount(recipeId: string, known: PaidFeatureState | undefined = undefined
         },
     );
 
-    return { ...view, client };
+    return { ...view, client, queryClient };
 }
 
 describe('useServerRefusedPrivate', () => {
@@ -93,5 +97,30 @@ describe('useServerRefusedPrivate', () => {
         act(() => result.current.write.mutate({ id: 'rec_1', visibility: RecipeVisibility.PUBLIC }));
 
         await waitFor(() => expect(result.current.refused).toBeUndefined());
+    });
+
+    // The cache holds every mutation's variables as `unknown`; an entry under our key that is not our variables (a
+    // second writer, a stale shape) must read as "not ours", never throw and never count as a refusal.
+    it.each<[string, unknown]>([
+        ['no variables', undefined],
+        ['a non-object', 'rec_1'],
+        ['an id that is not a string', { id: 1, visibility: RecipeVisibility.PRIVATE }],
+        ['a visibility that is not one of ours', { id: 'rec_1', visibility: 'unlisted' }],
+        ['no visibility', { id: 'rec_1' }],
+    ])('ignores a cached write with %s', async (_label, variables) => {
+        const { result, queryClient } = mount('rec_1');
+
+        await act(async () => {
+            await queryClient
+                .getMutationCache()
+                .build(queryClient, {
+                    mutationKey: RECIPE_VISIBILITY_MUTATION_KEY,
+                    mutationFn: () => Promise.reject(REFUSED),
+                })
+                .execute(variables)
+                .catch(() => undefined);
+        });
+
+        expect(result.current.refused).toBeUndefined();
     });
 });

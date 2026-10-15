@@ -76,6 +76,10 @@ things out, but done."
 | The auth screen shell (safe area, keyboard, scroll) is copied a third time                                              | One auth screen frame                                                            |
 | `0054_parse_line_withdrawn.sql` drops the old CHECK with `IF EXISTS`                                                    | Kept: sandbox applies 0054, and `parseJobWithdraw.e2e` proves the name matched   |
 | `readViewerAppId` in `web/tests/e2e/utils/recipeApi.ts` blames a claim that is present                                  | The message names the real cause                                                 |
+| GATE 13: the paste join's `onSuccess` writes back a stale session copy                                                  | A functional updater, with a test that fails first                               |
+| GATE 13 minors: Apple dim literal, opacity token home, `UserId` column type, visibility parse, test stub docs           | Each fixed, one commit per item                                                  |
+| `discoverNoResults.spec.ts` was flaky in CI run 38816823405 (the heading missed its 5 s wait)                           | Root cause found and fixed                                                       |
+| Add as written during a paste join orphans the join, and the re-run looks the line up twice (found fixing GATE 13)      | Root cause proven by a failing test, then fixed                                  |
 | Whatever the first CI run with the iOS fixes shows                                                                      | Each failure fixed at its root                                                   |
 | CI on the OIDC roles, sandbox half (commit B)                                                                           | Plan 005. Proven on PR 91 by real runs                                           |
 | Faster iOS shards                                                                                                       | Plan 006. Savings shown in the run logs                                          |

@@ -6,14 +6,6 @@
     "notCodegen": "This document GENERATES NOTHING — no type, no zod, no client. It is not the type authority (the zod in ./src is), and it is not ADR-0014 §1’s rejected \"derive types through OpenAPI\": it exists only to be compared against its own previous version.",
     "regenerate": "npm run contract:generate --workspace=@kitchensink/identity-service",
     "schemas": {
-        "accountTierSchema": {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "enum": [
-                "free",
-                "premium"
-            ],
-            "type": "string"
-        },
         "adminListUsersQuerySchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -405,6 +397,15 @@
             ],
             "type": "object"
         },
+        "paidFeaturesSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "granted",
+                "upsell",
+                "hidden"
+            ],
+            "type": "string"
+        },
         "patchUserMeRequestSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -447,10 +448,11 @@
                 "id": {
                     "type": "string"
                 },
-                "subscriptionTier": {
+                "paidFeatures": {
                     "enum": [
-                        "free",
-                        "premium"
+                        "granted",
+                        "upsell",
+                        "hidden"
                     ],
                     "type": "string"
                 },
@@ -464,7 +466,7 @@
             "required": [
                 "id",
                 "userId",
-                "subscriptionTier",
+                "paidFeatures",
                 "createdAt",
                 "updatedAt"
             ],
@@ -483,10 +485,11 @@
                         "id": {
                             "type": "string"
                         },
-                        "subscriptionTier": {
+                        "paidFeatures": {
                             "enum": [
-                                "free",
-                                "premium"
+                                "granted",
+                                "upsell",
+                                "hidden"
                             ],
                             "type": "string"
                         },
@@ -500,7 +503,7 @@
                     "required": [
                         "id",
                         "userId",
-                        "subscriptionTier",
+                        "paidFeatures",
                         "createdAt",
                         "updatedAt"
                     ],

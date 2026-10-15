@@ -11,12 +11,14 @@ import {
     noopHandleSyncPublisher,
     type HandleSyncPublisher,
 } from './handleSync.publisher.js';
+import { paidFeaturesGateProvider } from './paidFeaturesGate.provider.js';
 
 @Module({
     controllers: [UsersController, AvatarUploadController],
     providers: [
         UsersService,
         ResolveUserService,
+        paidFeaturesGateProvider,
         {
             // Handle-sync producer (W8-a.2). SNS-backed when a topic is configured (deployed); a no-op in
             // local dev / tests (no topic), so a rename simply doesn't publish rather than failing. Reads

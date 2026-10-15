@@ -28,7 +28,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { userStatusEnum } from '@kitchensink/identity-db';
-import { accountTierSchema, patchUserMeRequestSchema, userProfileSchema, userStatusSchema } from '../users.schema.js';
+import { paidFeaturesSchema, patchUserMeRequestSchema, userProfileSchema, userStatusSchema } from '../users.schema.js';
 
 describe('userStatusSchema', () => {
     // The load-bearing assertion of this file.
@@ -55,13 +55,18 @@ describe('userStatusSchema', () => {
     });
 });
 
-describe('accountTierSchema', () => {
-    it('admits exactly the two tiers', () => {
-        expect([...accountTierSchema.options].sort()).toStrictEqual(['free', 'premium']);
+/**
+ * `account.paidFeatures` (plan 2026-10-14-009 D6/D7) — the ONE thing a client renders paid features and upsells from.
+ * A one-way door once a mobile build ships, so its values are pinned.
+ */
+describe('paidFeaturesSchema', () => {
+    it('admits exactly granted, upsell and hidden', () => {
+        expect([...paidFeaturesSchema.options]).toStrictEqual(['granted', 'upsell', 'hidden']);
     });
 
-    it('rejects an unknown tier rather than defaulting it', () => {
-        expect(accountTierSchema.safeParse('enterprise').success).toBe(false);
+    it('rejects anything else rather than defaulting it', () => {
+        expect(paidFeaturesSchema.safeParse('premium').success).toBe(false);
+        expect(paidFeaturesSchema.safeParse('Granted').success).toBe(false);
     });
 });
 
@@ -123,7 +128,7 @@ describe('userProfileSchema', () => {
         account: {
             id: '01JVYYYYYYYYYYYYYYYYYYYYYY',
             userId: '01JVXXXXXXXXXXXXXXXXXXXXXX',
-            subscriptionTier: 'free',
+            paidFeatures: 'hidden',
             createdAt: '2026-08-11T00:00:00.000Z',
             updatedAt: '2026-08-11T00:00:00.000Z',
         },
@@ -139,6 +144,23 @@ describe('userProfileSchema', () => {
         expect(
             userProfileSchema.safeParse({ ...profile, user: { ...profile.user, avatarUrl: undefined } }).success,
         ).toBe(false);
+    });
+
+    it('requires account.paidFeatures — a client cannot fall back to guessing', () => {
+        const { paidFeatures: _omitted, ...account } = profile.account;
+
+        expect(userProfileSchema.safeParse({ ...profile, account }).success).toBe(false);
+    });
+
+    /** One authority: the retired tier is not on the wire, so no client can gate on it again. */
+    it('carries no subscriptionTier', () => {
+        const parsed = userProfileSchema.parse({
+            ...profile,
+            account: { ...profile.account, subscriptionTier: 'premium' },
+        });
+
+        expect(parsed.account).not.toHaveProperty('subscriptionTier');
+        expect(Object.keys(userProfileSchema.shape.account.shape)).not.toContain('subscriptionTier');
     });
 
     it('rejects a profile missing the account half', () => {

@@ -62,6 +62,7 @@ function makeService(touches: string[]): UsersService {
         recorder('resolver', touches),
         noopHandleSyncPublisher,
         recorder('avatarStore', touches),
+        false,
     );
 }
 
@@ -73,6 +74,7 @@ function ctx(testPrincipal: boolean): AuthorizerContext {
         scopes: [],
         permissions: [],
         tokenType: 'user',
+        roles: [],
         testPrincipal,
     };
 }

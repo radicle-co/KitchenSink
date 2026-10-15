@@ -201,9 +201,16 @@ describe('0015_settings (real Postgres)', () => {
         let settingsService: SettingsService;
 
         beforeAll(() => {
-            usersService = new UsersService(db, { enqueueDeletion } as never, {} as never, noopHandleSyncPublisher, {
-                deleteAllForUser,
-            } as never);
+            usersService = new UsersService(
+                db,
+                { enqueueDeletion } as never,
+                {} as never,
+                noopHandleSyncPublisher,
+                {
+                    deleteAllForUser,
+                } as never,
+                false,
+            );
             settingsService = new SettingsService(settingsDao);
         });
 
@@ -220,6 +227,7 @@ describe('0015_settings (real Postgres)', () => {
                 lastName: 'Cook',
                 scopes: [],
                 permissions: [],
+                roles: [],
                 testPrincipal: false,
             });
 

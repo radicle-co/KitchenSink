@@ -12,7 +12,8 @@ import { AVATAR_OBJECT_STORE, type AvatarObjectStore } from './avatarObjectStore
 import { accounts, lifecycleEvents, profiles, users } from '@kitchensink/identity-db';
 import { DrizzleProvider } from '../database/database.module.js';
 import { SqsService } from '../queue/sqs.service.js';
-import { subscriptionTierFor } from './domain/subscriptionTier.js';
+import { paidFeatureAccess } from './domain/paidFeatureAccess.js';
+import { PAID_FEATURES_GATE } from './paidFeaturesGate.provider.js';
 import type { AuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
 import type { VerifiedClerkClaims } from '../auth/clerkAuth.service.js';
 import { ResolveUserService } from './resolveUser.js';
@@ -62,6 +63,7 @@ export class UsersService {
         private readonly resolver: ResolveUserService,
         @Inject(HANDLE_SYNC_PUBLISHER) private readonly handleSync: HandleSyncPublisher,
         @Inject(AVATAR_OBJECT_STORE) private readonly avatarStore: AvatarObjectStore,
+        @Inject(PAID_FEATURES_GATE) private readonly paidFeaturesGate: boolean,
     ) {}
 
     /** Dependency bundle for the shared provisioning routine (KTD2: schema-injected, db cast per repo convention). */
@@ -188,6 +190,8 @@ export class UsersService {
             // not from any client-suppliable header. Empty when the token grants nothing.
             scopes: claims.scopes ?? [],
             permissions: claims.permissions ?? [],
+            // The verified roles (`public_metadata.roles`); the paid-features answer is derived from them.
+            roles: claims.roles,
             tokenType: 'user',
             // ADR-0040: carried from the signed claim so the lifecycle actions can contain a test-pool member.
             testPrincipal: claims.testPrincipal,
@@ -212,11 +216,9 @@ export class UsersService {
             account: {
                 id: account.id,
                 userId: account.userId,
-                // ⛔ DERIVED from the signed token, not read from `account.subscriptionTier`. See
-                // `domain/subscriptionTier.ts`: the column is written by nothing, while recipe-service
-                // decides the same question from `permissions` — so the apps could never offer the
-                // private-recipe option to anyone the service would have accepted the write from.
-                subscriptionTier: subscriptionTierFor(ctx.permissions),
+                // ⛔ DERIVED per request from the verified roles and this stage's gate (`paidFeatureAccess`), never
+                // read from `accounts.subscription_tier`, which nothing writes. Clients render from this alone.
+                paidFeatures: paidFeatureAccess({ roles: ctx.roles, gate: this.paidFeaturesGate }),
                 createdAt: account.createdAt.toISOString(),
                 updatedAt: account.updatedAt.toISOString(),
             },
@@ -332,7 +334,7 @@ export class UsersService {
             account: {
                 id: updatedAccount?.id,
                 userId: updatedAccount?.userId,
-                subscriptionTier: subscriptionTierFor(ctx.permissions),
+                paidFeatures: paidFeatureAccess({ roles: ctx.roles, gate: this.paidFeaturesGate }),
                 createdAt: updatedAccount?.createdAt.toISOString(),
                 updatedAt: updatedAccount?.updatedAt.toISOString(),
             },

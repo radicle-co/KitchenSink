@@ -34,10 +34,11 @@ function makeService(db: NodePgDatabase, publisher: HandleSyncPublisher): UsersS
         {} as unknown as ResolveUserService,
         publisher,
         {} as never,
+        false,
     );
 }
 
-const CTX = { userId: USER_ID } as unknown as AuthorizerContext;
+const CTX = { userId: USER_ID, roles: [] } as unknown as AuthorizerContext;
 
 describe('patchUserMe handle-sync publish (W8-a.2)', () => {
     it('publishes the new displayName + persisted updatedAt as sourceTimestamp on a rename', async () => {

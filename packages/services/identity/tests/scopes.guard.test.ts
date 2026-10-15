@@ -18,6 +18,7 @@ function makeUser(overrides: Partial<AuthorizerContext> = {}): AuthorizerContext
         clerkUserId: 'user_admin',
         scopes: [],
         permissions: [],
+        roles: [],
         tokenType: 'user',
         testPrincipal: false,
         ...overrides,

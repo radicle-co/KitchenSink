@@ -30,6 +30,7 @@ export type {
 } from './schema/lifecycleEvents.js';
 
 export { AccountDAO } from './dao/account.dao.js';
+export type { AccountTier } from './dao/account.dao.js';
 export { SettingsDAO, type SettingsPatch } from './dao/settings.dao.js';
 export { UserDAO } from './dao/user.dao.js';
 export { hasProcessedWebhookEvent, recordOnce } from './dao/webhookEvents.dao.js';

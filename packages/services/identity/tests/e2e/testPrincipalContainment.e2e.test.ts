@@ -33,6 +33,7 @@ const claimsFor = (sub: string, testPrincipal: boolean): VerifiedClerkClaims => 
     lastName: 'Member',
     scopes: [],
     permissions: [],
+    roles: [],
     testPrincipal,
 });
 
@@ -60,9 +61,16 @@ describe('test-principal containment — lifecycle actions (integration)', () =>
     beforeAll(() => {
         pool = new pg.Pool({ connectionString: roleDb.appUrl });
         db = drizzle(pool);
-        service = new UsersService(db, { enqueueDeletion } as never, {} as never, noopHandleSyncPublisher, {
-            deleteAllForUser,
-        } as never);
+        service = new UsersService(
+            db,
+            { enqueueDeletion } as never,
+            {} as never,
+            noopHandleSyncPublisher,
+            {
+                deleteAllForUser,
+            } as never,
+            false,
+        );
     });
 
     afterAll(async () => {

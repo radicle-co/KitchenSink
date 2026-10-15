@@ -34,6 +34,7 @@ const adminCtx: AuthorizerContext = {
     tokenType: 'user',
     scopes: ['admin:users'],
     permissions: [],
+    roles: [],
     testPrincipal: false,
 };
 

@@ -36,7 +36,7 @@ describe('ClerkAuthService', () => {
     });
 
     it('delegates to the shared verifier with the configured jwtKey + parsed azp allowlist', async () => {
-        mockVerify.mockResolvedValue({ sub: 'user_1', scopes: [], permissions: [], testPrincipal: false });
+        mockVerify.mockResolvedValue({ sub: 'user_1', scopes: [], permissions: [], roles: [], testPrincipal: false });
 
         const claims = await new ClerkAuthService().verify('the-token');
 
@@ -49,7 +49,7 @@ describe('ClerkAuthService', () => {
 
     it('forwards an empty azp allowlist when the env var is unset (the shared verifier skips the azp check)', async () => {
         delete process.env['CLERK_AUTHORIZED_PARTIES'];
-        mockVerify.mockResolvedValue({ sub: 'user_2', scopes: [], permissions: [], testPrincipal: false });
+        mockVerify.mockResolvedValue({ sub: 'user_2', scopes: [], permissions: [], roles: [], testPrincipal: false });
 
         await new ClerkAuthService().verify('t');
 

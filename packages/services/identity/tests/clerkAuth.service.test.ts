@@ -57,6 +57,8 @@ describe('ClerkAuthService', () => {
             picture: 'https://img.example/a.png',
             scopes: [],
             permissions: [],
+            // No `public_metadata.roles` on this token, so no role.
+            roles: [],
             // ADR-0040: no `public_metadata.testPrincipal === true` on this token, so it is a real user.
             testPrincipal: false,
         });

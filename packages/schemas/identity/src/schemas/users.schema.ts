@@ -60,11 +60,20 @@ export const userStatusSchema = z.enum(['active', 'suspended', 'tombstoned', 'er
 /** Account lifecycle status. */
 export type UserStatus = z.infer<typeof userStatusSchema>;
 
-/** Subscription tier. */
-export const accountTierSchema = z.enum(['free', 'premium']);
+/**
+ * What the viewer may see of the paid features (plan `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D6).
+ *
+ * - `granted` — the viewer's roles include `admin`, `superuser`, `vip` or `premium`: the paid features work.
+ * - `upsell` — no entitled role, and this stage's paid-features gate is on: offer Premium.
+ * - `hidden` — no entitled role, and the gate is off: show no paid feature and no upsell.
+ *
+ * The ONE field a client renders paid features and upsells from (owner ruling 2026-10-13). Derived per request from the
+ * verified roles and the gate; it is not stored. The service still enforces every paid write itself, from roles.
+ */
+export const paidFeaturesSchema = z.enum(['granted', 'upsell', 'hidden']);
 
-/** Subscription tier. */
-export type AccountTier = z.infer<typeof accountTierSchema>;
+/** What the viewer may see of the paid features. */
+export type PaidFeatures = z.infer<typeof paidFeaturesSchema>;
 
 /** The `user` half of the viewer's profile — identity plus the display fields from their profile row. */
 export const userProfileUserSchema = z.object({
@@ -93,8 +102,8 @@ export const userProfileAccountSchema = z.object({
     id: z.string(),
     /** The owning user's ULID. */
     userId: z.string(),
-    /** Subscription tier. */
-    subscriptionTier: accountTierSchema,
+    /** What the viewer may see of the paid features — see {@link paidFeaturesSchema}. */
+    paidFeatures: paidFeaturesSchema,
     /** ISO-8601 creation timestamp. */
     createdAt: z.string(),
     /** ISO-8601 last-update timestamp. */

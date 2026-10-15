@@ -84,6 +84,7 @@ function userFromScopesHeader(header: string | undefined): AuthorizerContext | u
             .filter((scope) => scope.length > 0),
         permissions: [],
         tokenType: 'user',
+        roles: [],
         testPrincipal: false,
     };
 }

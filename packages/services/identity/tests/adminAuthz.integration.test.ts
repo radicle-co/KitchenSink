@@ -50,6 +50,7 @@ function userFromScopesHeader(header: string | undefined): AuthorizerContext | u
         scopes,
         permissions: [],
         tokenType: 'user',
+        roles: [],
         testPrincipal: false,
     };
 }

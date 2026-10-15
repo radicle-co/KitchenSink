@@ -78,6 +78,7 @@ describe('settings routes (controller + service + pipe, DAO stubbed)', () => {
                 scopes: [],
                 permissions: [],
                 tokenType: 'user',
+                roles: [],
                 testPrincipal: false,
             };
             next();

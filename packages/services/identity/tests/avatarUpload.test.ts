@@ -64,6 +64,7 @@ describe('avatar presign — POLICY (the controller)', () => {
         scopes: [],
         permissions: [],
         tokenType: 'user' as AuthorizerContext['tokenType'],
+        roles: [],
         testPrincipal: false,
     };
 

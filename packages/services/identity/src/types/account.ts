@@ -1,10 +1,12 @@
-import type { AccountTier } from '../users/users.schema.js';
+import type { AccountTier } from '@kitchensink/identity-db';
+
 import type { UserId } from './user.js';
 
 export type AccountId = string & { readonly __brand: 'AccountId' };
 
-// AUTHORED as zod in `../users/users.schema.ts` and published via `@kitchensink/schema-identity`
-// (CODING_STANDARDS §15.2). Imported once above and re-exported here for the DAO's existing import sites.
+// The `accounts.subscription_tier` column's type, owned by the DAO that declares it (`@kitchensink/identity-db`).
+// It is NOT on the wire: the column is written and read by nothing, and the viewer's paid features are
+// `account.paidFeatures`, derived from roles (plan 2026-10-14-009 D6). Re-exported for the existing import sites.
 export type { AccountTier };
 
 export interface AccountModel {
@@ -27,7 +29,6 @@ export interface UpdateAccountDto {
 export interface UserProfileAccountDto {
     readonly id: string;
     readonly userId: UserId;
-    subscriptionTier: AccountTier;
     readonly createdAt: string;
     updatedAt: string;
 }

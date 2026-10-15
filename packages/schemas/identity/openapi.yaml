@@ -639,11 +639,12 @@ components:
           type: string
         userId:
           type: string
-        subscriptionTier:
+        paidFeatures:
           type: string
           enum:
-            - free
-            - premium
+            - granted
+            - upsell
+            - hidden
         createdAt:
           type: string
         updatedAt:
@@ -651,7 +652,7 @@ components:
       required:
         - id
         - userId
-        - subscriptionTier
+        - paidFeatures
         - createdAt
         - updatedAt
     UserProfile:

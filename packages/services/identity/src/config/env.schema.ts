@@ -60,6 +60,25 @@ export function resolveTestPrincipalContainment(raw: string | undefined): TestPr
     return parsed.success ? parsed.data : 'enforce';
 }
 
+/**
+ * The paid-features gate's raw values (plan `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D8). The CDK
+ * stack always emits one of the two explicitly, from the owner's GitHub variable, so boot validation REJECTS anything
+ * else rather than guessing.
+ */
+export const paidFeaturesGateSchema = z.enum(['true', 'false']);
+
+/**
+ * Whether this stage's paid-features gate is on, for a raw `PAID_FEATURES_GATE` value. Pure.
+ *
+ * ⛔ FAILS CLOSED: only exactly `true` is on. Off shows no upsell, and never takes a paid feature from an entitled
+ * role — the gate decides what a user without one is SHOWN, not who may use a paid feature.
+ *
+ * @param raw - The raw environment value, if any.
+ */
+export function resolvePaidFeaturesGate(raw: string | undefined): boolean {
+    return raw === 'true';
+}
+
 const AppConfigSchema = z.object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     PORT: z.string().transform(Number).pipe(z.number().int().positive()).default(3001),
@@ -70,6 +89,7 @@ const AppConfigSchema = z.object({
     SENTRY_TRACES_SAMPLE_RATE: z.string().optional(),
     SENTRY_RELEASE: z.string().optional(),
     TEST_PRINCIPAL_CONTAINMENT: testPrincipalContainmentSchema.default('enforce'),
+    PAID_FEATURES_GATE: paidFeaturesGateSchema.default('false'),
 });
 
 // Clerk session-token verification (read-through auth). CLERK_JWT_KEY is the instance's *public*

@@ -35,6 +35,7 @@ const adminCtx = {
     tokenType: 'user' as const,
     scopes: ['admin:users'],
     permissions: [],
+    roles: [] as const,
     testPrincipal: false,
 };
 
@@ -45,6 +46,7 @@ const userCtx = {
     tokenType: 'user' as const,
     scopes: [],
     permissions: [],
+    roles: [] as const,
     testPrincipal: false,
 };
 
@@ -105,7 +107,7 @@ describe('UsersService', () => {
 
         const { UsersService } = await import('../src/users/users.service.js');
 
-        usersService = new UsersService(mockDb, mockSqs, mockResolver, noopHandleSyncPublisher, mockAvatarStore);
+        usersService = new UsersService(mockDb, mockSqs, mockResolver, noopHandleSyncPublisher, mockAvatarStore, false);
     });
 
     it('getUserMe returns aggregated profile', async () => {
@@ -131,7 +133,26 @@ describe('UsersService', () => {
         const result = await usersService.getUserMe(userCtx);
 
         expect(result.user.id).toBe('01HZZZZZZZZZZZZZZZZZZZZZZU');
-        expect(result.account.subscriptionTier).toBe('free');
+        // No role and the gate off (the suite's service is built with `false`): no paid feature, no upsell.
+        expect(result.account.paidFeatures).toBe('hidden');
+        expect(result.account).not.toHaveProperty('subscriptionTier');
+    });
+
+    it('getUserMe answers granted for an entitled role, from the verified roles', async () => {
+        mockDb.select = vi.fn().mockReturnValueOnce(makeChain([]));
+
+        const result = await usersService.getUserMe({ ...userCtx, roles: ['vip'] });
+
+        expect(result.account.paidFeatures).toBe('granted');
+    });
+
+    /** The old grant was a `premium` PERMISSION. Roles replaced it: the permission alone grants nothing now. */
+    it('getUserMe ignores a bare premium permission', async () => {
+        mockDb.select = vi.fn().mockReturnValueOnce(makeChain([]));
+
+        const result = await usersService.getUserMe({ ...userCtx, permissions: ['premium'] });
+
+        expect(result.account.paidFeatures).toBe('hidden');
     });
 
     it('getUserMe throws when user missing', async () => {
@@ -252,9 +273,11 @@ describe('UsersService', () => {
             set: () => ({ where: () => Promise.resolve() }),
         });
 
-        const result = await usersService.patchUserMe(userCtx, { displayName: 'New Name' });
+        const result = await usersService.patchUserMe({ ...userCtx, roles: ['premium'] }, { displayName: 'New Name' });
 
         expect(result.user.displayName).toBe('New Name');
+        // The PATCH response builds its account half separately; it must answer the same field.
+        expect(result.account.paidFeatures).toBe('granted');
     });
 
     /**

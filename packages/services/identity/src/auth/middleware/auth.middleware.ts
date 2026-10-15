@@ -70,6 +70,7 @@ function resolveDevBypass(): AuthorizerContext | undefined {
         clerkUserId: `dev-bypass:${devUserId}`,
         scopes: [],
         permissions: [],
+        roles: [],
         tokenType: 'user',
         // A synthetic local principal, not a Clerk test-pool member: there is no pool account behind it to ban or
         // delete, so ADR-0040 containment has nothing to protect and must not block the flows it drives.

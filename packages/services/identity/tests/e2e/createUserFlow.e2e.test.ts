@@ -31,6 +31,7 @@ const claimsFor = (sub: string): VerifiedClerkClaims => ({
     lastName: 'Current',
     scopes: [],
     permissions: [],
+    roles: [],
     testPrincipal: false,
 });
 
@@ -44,7 +45,7 @@ describe('create-user flow — idempotency under concurrency (integration)', () 
         // No schema option: the test uses explicit table operations (not relational `db.query.*`),
         // and this keeps the type aligned with UsersService's bare NodePgDatabase parameter.
         db = drizzle(pool);
-        usersService = new UsersService(db, {} as never, {} as never, noopHandleSyncPublisher, {} as never);
+        usersService = new UsersService(db, {} as never, {} as never, noopHandleSyncPublisher, {} as never, false);
     });
 
     afterAll(async () => {
@@ -136,7 +137,13 @@ describe('create-user flow — idempotency under concurrency (integration)', () 
         // A read-through with NO email/name claim would synthesize a placeholder email + empty name.
         // It must NOT overwrite the real values the webhook wrote (the cold-start race this feature
         // exists to handle).
-        await usersService.resolveOrCreateFromClaims({ sub, scopes: [], permissions: [], testPrincipal: false });
+        await usersService.resolveOrCreateFromClaims({
+            sub,
+            scopes: [],
+            permissions: [],
+            roles: [],
+            testPrincipal: false,
+        });
 
         const [row] = await db.select().from(users).where(eq(users.identityId, sub));
         expect(row?.email).toBe(`${sub}@example.com`); // real email preserved, not the placeholder
@@ -153,6 +160,7 @@ describe('create-user flow — idempotency under concurrency (integration)', () 
             email: 'shared@example.com',
             scopes: [],
             permissions: [],
+            roles: [],
             testPrincipal: false,
         });
 
@@ -164,6 +172,7 @@ describe('create-user flow — idempotency under concurrency (integration)', () 
             email: 'shared@example.com',
             scopes: [],
             permissions: [],
+            roles: [],
             testPrincipal: false,
         });
 
@@ -185,6 +194,7 @@ describe('create-user flow — idempotency under concurrency (integration)', () 
             lastName: 'One',
             scopes: [],
             permissions: [],
+            roles: [],
             testPrincipal: false,
         });
         await usersService.resolveOrCreateFromClaims({
@@ -193,6 +203,7 @@ describe('create-user flow — idempotency under concurrency (integration)', () 
             lastName: 'Two',
             scopes: [],
             permissions: [],
+            roles: [],
             testPrincipal: false,
         });
 

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { EnvironmentSchema, resolveTestPrincipalContainment } from '../src/config/env.schema.js';
+import {
+    EnvironmentSchema,
+    resolvePaidFeaturesGate,
+    resolveTestPrincipalContainment,
+} from '../src/config/env.schema.js';
 
 const base = {
     DATABASE_URL: 'postgres://user:pass@host:5432/db',
@@ -138,4 +142,30 @@ describe('TEST_PRINCIPAL_CONTAINMENT', () => {
             expect(resolveTestPrincipalContainment(raw)).toBe('enforce');
         },
     );
+});
+
+/**
+ * The paid-features gate (plan 2026-10-14-009 D8). Boot validation rejects a typo; the resolver turns the parsed value
+ * into the boolean the users module injects, and only the exact string `true` turns it on.
+ */
+describe('PAID_FEATURES_GATE', () => {
+    it('defaults to false when unset', () => {
+        expect(EnvironmentSchema.parse(base).PAID_FEATURES_GATE).toBe('false');
+    });
+
+    it.each(['true', 'false'] as const)('accepts %s', (value) => {
+        expect(EnvironmentSchema.parse({ ...base, PAID_FEATURES_GATE: value }).PAID_FEATURES_GATE).toBe(value);
+    });
+
+    it.each(['TRUE', 'True', '1', 'yes', '', ' true'])('rejects the unrecognised value %j at boot', (value) => {
+        expect(() => EnvironmentSchema.parse({ ...base, PAID_FEATURES_GATE: value })).toThrow();
+    });
+
+    it('resolves exactly `true` to on', () => {
+        expect(resolvePaidFeaturesGate('true')).toBe(true);
+    });
+
+    it.each([undefined, 'false', 'TRUE', '1', '', ' true'])('fails CLOSED: %j resolves to off', (raw) => {
+        expect(resolvePaidFeaturesGate(raw)).toBe(false);
+    });
 });

@@ -253,6 +253,10 @@ describe('describeVerdict — what the log says', () => {
         expect(text).toContain(HOST);
         expect(text).toContain('Sandbox Up');
         expect(text).toContain('ADR-0060');
+        // Vercel builds each push's head, and a build can fail (pr-91's newest, 1f7977313, ended in ERROR on
+        // 2026-10-15). Sandbox Up cannot alias a failed build, so the remedy has to say which case is which.
+        expect(text).toMatch(/READY/u);
+        expect(text).toMatch(/failed/u);
     });
 
     it('is an error, with the reason, when the preview cannot be checked', () => {

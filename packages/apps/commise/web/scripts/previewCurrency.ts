@@ -317,8 +317,9 @@ export function describeVerdict(verdict: PreviewCurrencyVerdict, prToken: string
                 `::error::the web preview https://${verdict.host} serves Vercel deployment ${verdict.deploymentId}, ` +
                 `built from ${verdict.servedSha}, but this run tests ${verdict.expectedSha}, so the deployed web tier ` +
                 `would prove nothing about this commit's UI. A push does not move the preview alias (ADR-0060): wait ` +
-                `for this commit's Vercel preview build to finish, press Sandbox Up for ${prToken} to point the alias ` +
-                `at it, then re-run this job.`
+                `for this commit's Vercel preview build to reach READY, press Sandbox Up for ${prToken} to point the ` +
+                `alias at it, then re-run this job. If that build failed, the build is the defect to fix first — ` +
+                `Sandbox Up cannot alias it.`
             );
         case 'unverifiable':
             return (

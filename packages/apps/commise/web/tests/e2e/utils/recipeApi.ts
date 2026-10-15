@@ -425,7 +425,7 @@ export function makeRecipeVersion(over: Partial<RecipeVersion> = {}): RecipeVers
 /**
  * The collection record the mock STORES. It is the service's `Collection` wire shape — the WIDENED
  * `@kitchensink/recipe-service-client` `Collection` (core `Collection` plus the pull-provenance projections
- * `sourceOwnerHandle`/`sourceCollectionName`/`lastPulledAt`, W5 Task 5) — with the MEMBERSHIP held alongside
+ * `sourceOwnerDisplayName`/`sourceCollectionName`/`lastPulledAt`, W5 Task 5) — with the MEMBERSHIP held alongside
  * as `recipeIds` — a join, exactly as the service holds one, rather than an embedded recipe array. `GET
  * /api/v1/collections/{id}` composes `recipes` from the recipe store at read time, so removing a member is
  * observable for the same reason it is in production.
@@ -978,7 +978,7 @@ export interface MockRecipeApiOptions {
     /**
      * Author handles resolved for a collection's source owner AT CLONE time (mirrors the service's
      * `AuthorHandlesDal.findHandle`, W5 Task 2) — keyed by app-user id. An owner with no entry here clones
-     * with `sourceOwnerHandle` OMITTED, exactly as the real service degrades when a handle hasn't resolved
+     * with `sourceOwnerDisplayName` OMITTED, exactly as the real service degrades when a handle hasn't resolved
      * yet (the attribution falls back to the collection name only).
      */
     readonly authorHandles?: Readonly<Record<string, string>>;
@@ -1951,7 +1951,7 @@ export async function mockRecipeApi(
                 memberAddedVia: seededAddedVia,
                 sourceCollectionId: sourceId,
                 ...(authorHandles[source.ownerId] !== undefined
-                    ? { sourceOwnerHandle: authorHandles[source.ownerId] }
+                    ? { sourceOwnerDisplayName: authorHandles[source.ownerId] }
                     : {}),
                 sourceCollectionName: source.name,
                 createdAt: ISO,

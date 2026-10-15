@@ -4803,7 +4803,7 @@ components:
           items:
             type: string
             minLength: 1
-        authorHandle:
+        authorDisplayName:
           type: string
           minLength: 1
         currentVersion:
@@ -4943,7 +4943,7 @@ components:
           items:
             type: string
             minLength: 1
-        authorHandle:
+        authorDisplayName:
           type: string
           minLength: 1
         currentVersion:
@@ -6619,7 +6619,7 @@ components:
         changeSummary:
           type: string
           minLength: 1
-        editorHandle:
+        editorDisplayName:
           type: string
           minLength: 1
         createdAt:
@@ -6786,7 +6786,7 @@ components:
         recipeCount:
           type: integer
           minimum: 0
-        sourceOwnerHandle:
+        sourceOwnerDisplayName:
           type: string
           minLength: 1
         sourceCollectionName:
@@ -6842,7 +6842,7 @@ components:
               recipeCount:
                 type: integer
                 minimum: 0
-              sourceOwnerHandle:
+              sourceOwnerDisplayName:
                 type: string
                 minLength: 1
               sourceCollectionName:
@@ -6975,7 +6975,7 @@ components:
           items:
             type: string
             minLength: 1
-        authorHandle:
+        authorDisplayName:
           type: string
           minLength: 1
         currentVersion:
@@ -7067,7 +7067,7 @@ components:
         recipeCount:
           type: integer
           minimum: 0
-        sourceOwnerHandle:
+        sourceOwnerDisplayName:
           type: string
           minLength: 1
         sourceCollectionName:
@@ -7292,7 +7292,7 @@ components:
                 type: array
                 items:
                   type: string
-              authorHandle:
+              authorDisplayName:
                 nullable: true
                 type: string
               currentVersion:
@@ -7331,7 +7331,7 @@ components:
               - cuisine
               - dietaryFlags
               - tags
-              - authorHandle
+              - authorDisplayName
               - currentVersion
               - deletedAt
               - createdAt
@@ -7362,7 +7362,7 @@ components:
                 nullable: true
                 type: string
                 minLength: 1
-              sourceOwnerHandle:
+              sourceOwnerDisplayName:
                 nullable: true
                 type: string
               sourceCollectionName:
@@ -7399,7 +7399,7 @@ components:
               - visibility
               - sourceCollectionId
               - lastPulledAt
-              - sourceOwnerHandle
+              - sourceOwnerDisplayName
               - sourceCollectionName
               - createdAt
               - updatedAt
@@ -7509,7 +7509,7 @@ components:
               changeSummary:
                 nullable: true
                 type: string
-              editorHandle:
+              editorDisplayName:
                 nullable: true
                 type: string
               createdAt:
@@ -7523,7 +7523,7 @@ components:
               - s3Key
               - createdBy
               - changeSummary
-              - editorHandle
+              - editorDisplayName
               - createdAt
         authorHandles:
           type: array

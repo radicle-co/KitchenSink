@@ -32,7 +32,7 @@ const clonedCollection: CollectionWithRecipes = {
     description: 'Fast weeknight cooking.',
     visibility: 'private',
     sourceCollectionId: 'col_src',
-    sourceOwnerHandle: 'alexk',
+    sourceOwnerDisplayName: 'alexk',
     sourceCollectionName: 'Alex — weeknights',
     lastPulledAt: '2026-04-18T09:00:00.000Z',
     createdAt: '2026-04-01T09:00:00.000Z',
@@ -63,7 +63,7 @@ describe('CollectionWithRecipes — contract parity', () => {
     it('accepts a fully-populated body, preserving the three response-only provenance fields', () => {
         const parsed = collectionWithRecipesResponseSchema.parse(clonedCollection);
 
-        expect(parsed.sourceOwnerHandle).toBe('alexk');
+        expect(parsed.sourceOwnerDisplayName).toBe('alexk');
         expect(parsed.sourceCollectionName).toBe('Alex — weeknights');
         expect(parsed.lastPulledAt).toBe('2026-04-18T09:00:00.000Z');
         expect(parsed.recipes).toHaveLength(1);
@@ -84,14 +84,14 @@ describe('CollectionWithRecipes — contract parity', () => {
     it('accepts a never-cloned collection — all three provenance fields are optional', () => {
         const {
             sourceCollectionId: _sourceCollectionId,
-            sourceOwnerHandle: _sourceOwnerHandle,
+            sourceOwnerDisplayName: _sourceOwnerHandle,
             sourceCollectionName: _sourceCollectionName,
             lastPulledAt: _lastPulledAt,
             ...ownCollection
         } = clonedCollection;
         const parsed = collectionWithRecipesResponseSchema.parse(ownCollection);
 
-        expect(parsed.sourceOwnerHandle).toBeUndefined();
+        expect(parsed.sourceOwnerDisplayName).toBeUndefined();
         expect(parsed.lastPulledAt).toBeUndefined();
     });
 });

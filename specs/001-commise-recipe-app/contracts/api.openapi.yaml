@@ -2344,7 +2344,7 @@ components:
                         If set, this collection was cloned from the referenced collection.
                         Used by `POST /api/v1/collections/{id}/pull-from-source` to add
                         recipes that were added to the source after the clone.
-                sourceOwnerHandle:
+                sourceOwnerDisplayName:
                     type: string
                     description: |
                         Display handle of the source collection's owner, frozen at clone time;
@@ -2603,7 +2603,7 @@ components:
                 tags: { type: array, items: { type: string } }
                 hasPartialNutrition: { type: boolean }
                 leadCaloriesPerServing: { type: string, nullable: true }
-                authorHandle: { type: string, nullable: true }
+                authorDisplayName: { type: string, nullable: true }
                 currentVersion: { type: integer }
                 deletedAt:
                     type: string
@@ -2624,7 +2624,7 @@ components:
                 visibility: { type: string, enum: [public, private] }
                 sourceCollectionId: { type: string, format: uuid, nullable: true }
                 lastPulledAt: { type: string, format: date-time, nullable: true }
-                sourceOwnerHandle: { type: string, nullable: true }
+                sourceOwnerDisplayName: { type: string, nullable: true }
                 sourceCollectionName: { type: string, nullable: true }
                 createdAt: { type: string, format: date-time }
                 updatedAt: { type: string, format: date-time }
@@ -2680,7 +2680,7 @@ components:
                 s3Key: { type: string, nullable: true }
                 createdBy: { type: string }
                 changeSummary: { type: string, nullable: true }
-                editorHandle: { type: string, nullable: true }
+                editorDisplayName: { type: string, nullable: true }
                 createdAt: { type: string, format: date-time }
 
         AccountExportAuthorHandle:

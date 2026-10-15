@@ -56,7 +56,7 @@ export interface VersionMetadataRow {
     readonly s3Key: string | null;
     readonly createdBy: string;
     readonly changeSummary: string | null;
-    readonly editorHandle: string | null;
+    readonly editorDisplayName: string | null;
     readonly createdAt: Date | string;
 }
 
@@ -163,7 +163,7 @@ export class AccountExportDal {
                 s3Key: recipeVersions.s3Key,
                 createdBy: recipeVersions.createdBy,
                 changeSummary: recipeVersions.changeSummary,
-                editorHandle: recipeVersions.editorHandle,
+                editorDisplayName: recipeVersions.editorDisplayName,
                 createdAt: recipeVersions.createdAt,
             })
             .from(recipeVersions)

@@ -39,7 +39,7 @@ export interface CreateSnapshotInput {
     baseVersion?: number;
     changeSummary?: string;
     /** The editor's denormalized display name (W8-a.2) — from the claim/read-model; omitted → NULL. */
-    editorHandle?: string;
+    editorDisplayName?: string;
     /** S3 archive key, when the snapshot is written with its archive already in place. */
     s3Key?: string;
 }
@@ -72,7 +72,7 @@ export class VersionsDal {
                 s3Key: input.s3Key ?? null,
                 createdBy: input.createdBy,
                 changeSummary: input.changeSummary ?? null,
-                editorHandle: input.editorHandle ?? null,
+                editorDisplayName: input.editorDisplayName ?? null,
             })
             .returning();
 

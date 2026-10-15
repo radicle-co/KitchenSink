@@ -125,7 +125,7 @@ describe('RecipeDetailView (web) — header', () => {
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
-                recipe={makeRecipeDetail({ cuisine: 'Moroccan', authorHandle: 'braise.club' })}
+                recipe={makeRecipeDetail({ cuisine: 'Moroccan', authorDisplayName: 'braise.club' })}
             />,
         );
 

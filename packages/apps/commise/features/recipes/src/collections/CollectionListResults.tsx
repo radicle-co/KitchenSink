@@ -150,9 +150,9 @@ const CollectionCard: FC<{
                         {visibility}
                     </span>
                 </p>
-                {collection.sourceOwnerHandle === undefined ? null : (
+                {collection.sourceOwnerDisplayName === undefined ? null : (
                     <p className="truncate text-caption text-ink-muted">
-                        {fillTemplate(list.copiedFrom, { handle: collection.sourceOwnerHandle })}
+                        {fillTemplate(list.copiedFrom, { handle: collection.sourceOwnerDisplayName })}
                     </p>
                 )}
             </div>

@@ -42,7 +42,7 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
     isLoadingPreview,
     isCommitting,
     error,
-    sourceOwnerHandle,
+    sourceOwnerDisplayName,
     sourceCollectionName,
     onCancel,
     onConfirm,
@@ -56,8 +56,8 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
     }
 
     const attribution =
-        sourceOwnerHandle !== undefined && sourceCollectionName !== undefined
-            ? fillTemplate(pull.attribution, { handle: sourceOwnerHandle, name: sourceCollectionName })
+        sourceOwnerDisplayName !== undefined && sourceCollectionName !== undefined
+            ? fillTemplate(pull.attribution, { handle: sourceOwnerDisplayName, name: sourceCollectionName })
             : sourceCollectionName !== undefined
               ? fillTemplate(pull.attributionNoHandle, { name: sourceCollectionName })
               : undefined;

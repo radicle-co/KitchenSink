@@ -53,7 +53,7 @@ export interface CreateCollectionRow {
      * source-owner rename — CR-003). `null`/absent when the source owner has no resolvable handle yet,
      * in which case attribution degrades to the name only.
      */
-    readonly sourceOwnerHandle?: string | null;
+    readonly sourceOwnerDisplayName?: string | null;
     /** W5 Task 2: the source collection's name, FROZEN at clone time. */
     readonly sourceCollectionName?: string | null;
 }
@@ -110,7 +110,7 @@ export class CollectionsDal {
                 description: input.description ?? null,
                 visibility: input.visibility,
                 sourceCollectionId: input.sourceCollectionId ?? null,
-                sourceOwnerHandle: input.sourceOwnerHandle ?? null,
+                sourceOwnerDisplayName: input.sourceOwnerDisplayName ?? null,
                 sourceCollectionName: input.sourceCollectionName ?? null,
             })
             .returning();

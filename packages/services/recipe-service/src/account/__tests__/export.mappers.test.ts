@@ -78,7 +78,7 @@ describe('mapRecipe', () => {
                 difficulty: null,
                 mealType: null,
                 cuisine: null,
-                authorHandle: null,
+                authorDisplayName: null,
             }),
         );
 
@@ -86,7 +86,7 @@ describe('mapRecipe', () => {
         expect(result.difficulty).toBeNull();
         expect(result.mealType).toBeNull();
         expect(result.cuisine).toBeNull();
-        expect(result.authorHandle).toBeNull();
+        expect(result.authorDisplayName).toBeNull();
     });
 
     // ⛔ A GDPR export that omits a stored field is a compliance defect, not a cosmetic one: it is data the
@@ -202,7 +202,7 @@ describe('mapVersion', () => {
             s3Key: null,
             createdBy: expect.any(String),
             changeSummary: 'Initial version',
-            editorHandle: 'chef-anna',
+            editorDisplayName: 'chef-anna',
             createdAt: '2026-01-15T12:00:00.000Z',
         });
         expect(result).not.toHaveProperty('snapshot');

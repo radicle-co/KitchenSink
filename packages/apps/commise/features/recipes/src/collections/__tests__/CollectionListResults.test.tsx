@@ -95,7 +95,7 @@ describe('CollectionListResults (web) — populated state', () => {
 
     it('credits a copy to its source', () => {
         renderList({
-            collections: [{ ...makeCollection({ id: 'col_9', name: 'Borrowed' }), sourceOwnerHandle: 'clara' }],
+            collections: [{ ...makeCollection({ id: 'col_9', name: 'Borrowed' }), sourceOwnerDisplayName: 'clara' }],
         });
 
         expect(screen.getByText('Copied from @clara')).toBeTruthy();

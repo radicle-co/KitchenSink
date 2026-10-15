@@ -117,9 +117,9 @@ describe('recipeRowToDomain', () => {
         expect(recipeRowToDomain(row())).not.toHaveProperty('hasPartialNutrition');
     });
 
-    it('maps authorHandle when present and OMITS it when NULL', () => {
-        expect(recipeRowToDomain(row({ authorHandle: '@chef' })).authorHandle).toBe('@chef');
-        expect(recipeRowToDomain(row({ authorHandle: null }))).not.toHaveProperty('authorHandle');
+    it('maps authorDisplayName when present and OMITS it when NULL', () => {
+        expect(recipeRowToDomain(row({ authorDisplayName: '@chef' })).authorDisplayName).toBe('@chef');
+        expect(recipeRowToDomain(row({ authorDisplayName: null }))).not.toHaveProperty('authorDisplayName');
     });
 
     it('OMITS sourceUrl / sourceAttribution / clonedFromId / cuisine when NULL', () => {

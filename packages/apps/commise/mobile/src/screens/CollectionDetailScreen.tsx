@@ -305,9 +305,9 @@ function CollectionDetailView({
                 {...(collection.sourceCollectionName === undefined
                     ? {}
                     : { sourceCollectionName: collection.sourceCollectionName })}
-                {...(collection.sourceOwnerHandle === undefined
+                {...(collection.sourceOwnerDisplayName === undefined
                     ? {}
-                    : { sourceOwnerHandle: collection.sourceOwnerHandle })}
+                    : { sourceOwnerDisplayName: collection.sourceOwnerDisplayName })}
                 {...(collection.sourceCollectionId === undefined
                     ? {}
                     : { sourceCollectionId: collection.sourceCollectionId })}
@@ -434,7 +434,7 @@ function CollectionDetailView({
                     isLoadingPreview={pull.isLoadingPreview}
                     isCommitting={pull.isCommitting}
                     error={pull.error}
-                    sourceOwnerHandle={collection.sourceOwnerHandle}
+                    sourceOwnerDisplayName={collection.sourceOwnerDisplayName}
                     sourceCollectionName={collection.sourceCollectionName}
                     onCancel={pull.cancel}
                     onConfirm={pull.confirm}

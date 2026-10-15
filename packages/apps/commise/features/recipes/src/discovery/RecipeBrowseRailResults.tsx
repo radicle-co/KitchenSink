@@ -43,7 +43,7 @@ export const RecipeBrowseRailResults: FC<RecipeBrowseRailResultsProps> = ({
                         recipe={toRecipeCardModel(entry.recipe)}
                         variant="grid"
                         headingLevel={3}
-                        authorHandle={entry.recipe.authorHandle}
+                        authorDisplayName={entry.recipe.authorDisplayName}
                         sourceAttribution={entry.recipe.sourceAttribution}
                         saveCopy={saveCopy.stateOf(entry.recipe.id)}
                         {...(hrefOf === undefined ? {} : { href: hrefOf(entry.recipe.id) })}

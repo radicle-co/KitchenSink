@@ -332,7 +332,7 @@ export interface DiscoveryFooterProps {
     /** The recipe's title, so the control is named for the recipe it copies. */
     readonly title: string;
     /** The author's handle, when the recipe carries one. */
-    readonly authorHandle?: string;
+    readonly authorDisplayName?: string;
     /** Human-readable provenance (e.g. `Serious Eats`) for an imported recipe with no author handle. */
     readonly sourceAttribution?: string;
     readonly state: SaveCopyState;
@@ -352,7 +352,7 @@ export interface RecipeDiscoveryCardProps {
     /** The title's heading level: 2 under the page's title (results), 3 under a rail's heading. */
     readonly headingLevel: 2 | 3;
     /** The author's handle (`@handle`), when the recipe carries one. */
-    readonly authorHandle?: string;
+    readonly authorDisplayName?: string;
     /** Human-readable provenance for an imported recipe, when present. */
     readonly sourceAttribution?: string;
     /** The Save a copy control's state for this recipe. */

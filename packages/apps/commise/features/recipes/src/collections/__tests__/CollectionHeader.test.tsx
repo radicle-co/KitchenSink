@@ -89,7 +89,7 @@ describe('CollectionHeader (web) — what it says', () => {
     });
 
     it('says a copy’s source: by handle, by name alone, or in general — and nothing for an original', () => {
-        renderHeader({ sourceCollectionName: 'Dinners', sourceOwnerHandle: 'clara' });
+        renderHeader({ sourceCollectionName: 'Dinners', sourceOwnerDisplayName: 'clara' });
         expect(screen.getByText('Copied from @clara')).toBeTruthy();
         cleanup();
 
@@ -110,7 +110,7 @@ describe('CollectionHeader (web) — what it says', () => {
         const onViewSource = vi.fn();
         renderHeader({
             sourceCollectionName: 'Dinners',
-            sourceOwnerHandle: 'clara',
+            sourceOwnerDisplayName: 'clara',
             sourceCollectionId: 'col_9',
             onViewSource,
         });

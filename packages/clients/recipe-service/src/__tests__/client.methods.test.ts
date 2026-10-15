@@ -520,7 +520,7 @@ describe('RecipeServiceClient — collections', () => {
         // unrecognized keys by default — this pins that the client's own `collectionResponseSchema`
         // extension is actually wired in, not just declared as dead code.
         const created = makeCollection({
-            sourceOwnerHandle: 'chef_amy',
+            sourceOwnerDisplayName: 'chef_amy',
             sourceCollectionName: 'Weeknight dinners (original)',
             lastPulledAt: '2026-07-20T00:00:00.000Z',
         });

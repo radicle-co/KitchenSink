@@ -121,7 +121,7 @@ function makeCopyOfCollection(): CollectionWithRecipes {
     return {
         ...makeCollectionWithRecipes([], { id: 'col_1', name: 'Dinners', sourceCollectionId: 'col_src' }),
         sourceCollectionName: 'Origin dinners',
-        sourceOwnerHandle: 'sourcechef',
+        sourceOwnerDisplayName: 'sourcechef',
     };
 }
 

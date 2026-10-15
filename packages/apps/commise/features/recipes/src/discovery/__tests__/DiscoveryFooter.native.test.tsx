@@ -20,7 +20,7 @@ function footer(state: SaveCopyState, over: Partial<React.ComponentProps<typeof 
 
     render(
         <LocaleProvider locale="en">
-            <DiscoveryFooter title="Pasta" authorHandle="braise.club" state={state} onSave={onSave} {...over} />
+            <DiscoveryFooter title="Pasta" authorDisplayName="braise.club" state={state} onSave={onSave} {...over} />
         </LocaleProvider>,
     );
 
@@ -43,20 +43,20 @@ describe('DiscoveryFooter (native) — the author', () => {
     });
 
     it('shows the source instead when the recipe was imported and has no author handle', () => {
-        footer({ kind: 'idle' }, { authorHandle: undefined, sourceAttribution: 'Serious Eats' });
+        footer({ kind: 'idle' }, { authorDisplayName: undefined, sourceAttribution: 'Serious Eats' });
 
         expect(screen.getByText('From Serious Eats')).toBeTruthy();
     });
 
     it('never says “From” without a source: a copy has neither a handle nor an attribution (W-03)', () => {
-        footer({ kind: 'idle' }, { authorHandle: undefined, sourceAttribution: undefined });
+        footer({ kind: 'idle' }, { authorDisplayName: undefined, sourceAttribution: undefined });
 
         expect(screen.queryByText(/From/u)).toBeNull();
         expect(screen.getByRole('button', { name: 'Save a copy of Pasta' })).toBeTruthy();
     });
 
     it('says nothing about an author it does not have, and still offers the button', () => {
-        footer({ kind: 'idle' }, { authorHandle: undefined });
+        footer({ kind: 'idle' }, { authorDisplayName: undefined });
 
         expect(screen.queryByText(/@/u)).toBeNull();
         expect(screen.getByRole('button', { name: 'Save a copy of Pasta' })).toBeTruthy();

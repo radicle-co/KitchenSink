@@ -279,7 +279,7 @@ describe('CollectionsService.cloneCollection — source attribution (W5 Task 2, 
                 ownerId: CLONER,
                 name: 'Keto Staples',
                 sourceCollectionId: SOURCE_ID,
-                sourceOwnerHandle: 'clara',
+                sourceOwnerDisplayName: 'clara',
                 sourceCollectionName: 'Keto Staples',
             }),
         );
@@ -291,10 +291,10 @@ describe('CollectionsService.cloneCollection — source attribution (W5 Task 2, 
         // Resolved for the SOURCE owner, not the cloner.
         expect(authorHandles.findHandle).toHaveBeenCalledWith(SOURCE_OWNER);
         expect(dal.create).toHaveBeenCalledWith(
-            expect.objectContaining({ sourceOwnerHandle: 'clara', sourceCollectionName: 'Keto Staples' }),
+            expect.objectContaining({ sourceOwnerDisplayName: 'clara', sourceCollectionName: 'Keto Staples' }),
             FAKE_TX,
         );
-        expect(result.sourceOwnerHandle).toBe('clara');
+        expect(result.sourceOwnerDisplayName).toBe('clara');
         expect(result.sourceCollectionName).toBe('Keto Staples');
         expect(result.sourceCollectionId).toBe(SOURCE_ID);
     });
@@ -309,7 +309,7 @@ describe('CollectionsService.cloneCollection — source attribution (W5 Task 2, 
                 ownerId: CLONER,
                 name: 'Keto Staples',
                 sourceCollectionId: SOURCE_ID,
-                sourceOwnerHandle: null,
+                sourceOwnerDisplayName: null,
                 sourceCollectionName: 'Keto Staples',
             }),
         );
@@ -319,11 +319,11 @@ describe('CollectionsService.cloneCollection — source attribution (W5 Task 2, 
         const result = await service.cloneCollection(makeCollectionsActor(CLONER), SOURCE_ID);
 
         expect(dal.create).toHaveBeenCalledWith(
-            expect.objectContaining({ sourceOwnerHandle: null, sourceCollectionName: 'Keto Staples' }),
+            expect.objectContaining({ sourceOwnerDisplayName: null, sourceCollectionName: 'Keto Staples' }),
             FAKE_TX,
         );
         // Omitted (not `null`) on the wire — the omit-null DTO convention (mirrors `sourceCollectionId`).
-        expect(result.sourceOwnerHandle).toBeUndefined();
+        expect(result.sourceOwnerDisplayName).toBeUndefined();
         expect(result.sourceCollectionName).toBe('Keto Staples');
     });
 });

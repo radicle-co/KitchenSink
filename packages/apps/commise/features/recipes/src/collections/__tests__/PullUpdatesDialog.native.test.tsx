@@ -39,7 +39,7 @@ function baseProps(overrides: Partial<PullUpdatesDialogProps> = {}): PullUpdates
         open: true,
         isLoadingPreview: false,
         isCommitting: false,
-        sourceOwnerHandle: 'mealplan_clara',
+        sourceOwnerDisplayName: 'mealplan_clara',
         sourceCollectionName: 'Keto Staples',
         onCancel: noop,
         onConfirm: noop,

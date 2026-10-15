@@ -307,7 +307,7 @@ describe('RecipesService.clone', () => {
         await svc.clone({ ...CLONER_PRINCIPAL, firstName: 'Rose', lastName: 'Tyler' }, 'src-1', undefined);
 
         expect(versions.createSnapshot).toHaveBeenCalledWith(
-            expect.objectContaining({ editorHandle: 'Rose Tyler' }),
+            expect.objectContaining({ editorDisplayName: 'Rose Tyler' }),
             FAKE_TX,
         );
     });

@@ -90,7 +90,7 @@ export interface CreateRecipeInput {
      * (or the `author_handles` read model). OMITTED when nothing is derivable; the handle-sync fan-out /
      * backfill fills it later. Kept current thereafter by the consumer.
      */
-    authorHandle?: string;
+    authorDisplayName?: string;
     /** The recipe's lines, persisted in the same transaction as the recipe. */
     ingredients: readonly IngredientLineInput[];
     steps: StepInput[];
@@ -262,7 +262,7 @@ export class RecipesDal {
                     dietaryFlags: input.dietaryFlags,
                     ingredientNamesText: input.ingredientNamesText,
                     // Denormalized author handle (W8-a.2) — omitted → NULL until the fan-out/backfill fills it.
-                    ...(input.authorHandle !== undefined ? { authorHandle: input.authorHandle } : {}),
+                    ...(input.authorDisplayName !== undefined ? { authorDisplayName: input.authorDisplayName } : {}),
                     // Provenance is only present when cloning; omit otherwise so the column defaults apply.
                     ...(input.sourceType !== undefined ? { sourceType: input.sourceType } : {}),
                     ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),

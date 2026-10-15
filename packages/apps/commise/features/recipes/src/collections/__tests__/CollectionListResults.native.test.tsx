@@ -91,7 +91,7 @@ describe('CollectionListResults (native) — populated state', () => {
     it('credits a copy, and shows the search from six collections', () => {
         const six = Array.from({ length: 6 }, (_unused, index) => ({
             ...makeCollection({ id: `c${index}`, name: `C ${index}` }),
-            sourceOwnerHandle: 'clara',
+            sourceOwnerDisplayName: 'clara',
         }));
         renderList({ collections: six });
 

@@ -53,19 +53,19 @@ describe('detailStatCells', () => {
 
 describe('detailMetaItems', () => {
     it('shows the cuisine and, on another cook’s recipe, the author', () => {
-        const recipe = makeRecipeDetail({ cuisine: 'Moroccan', authorHandle: 'braise.club' });
+        const recipe = makeRecipeDetail({ cuisine: 'Moroccan', authorDisplayName: 'braise.club' });
 
         expect(detailMetaItems(recipe, false, detail)).toEqual(['Moroccan', 'by @braise.club']);
     });
 
     it('never names the viewer as the author of their own recipe', () => {
-        const recipe = makeRecipeDetail({ cuisine: 'Moroccan', authorHandle: 'me' });
+        const recipe = makeRecipeDetail({ cuisine: 'Moroccan', authorDisplayName: 'me' });
 
         expect(detailMetaItems(recipe, true, detail)).toEqual(['Moroccan']);
     });
 
     it('is empty with neither a cuisine nor a handle', () => {
-        const recipe = makeRecipeDetail({ cuisine: undefined, authorHandle: undefined });
+        const recipe = makeRecipeDetail({ cuisine: undefined, authorDisplayName: undefined });
 
         expect(detailMetaItems(recipe, false, detail)).toEqual([]);
     });

@@ -78,7 +78,7 @@ const v1 = makeRecipeVersion({
     recipeId: RECIPE_ID,
     versionNumber: 1,
     snapshot: v1Snapshot,
-    editorHandle: 'chef_e2e',
+    editorDisplayName: 'chef_e2e',
     createdAt: '2026-01-01T00:00:00.000Z',
 });
 const v2 = makeRecipeVersion({
@@ -86,7 +86,7 @@ const v2 = makeRecipeVersion({
     recipeId: RECIPE_ID,
     versionNumber: 2,
     snapshot: v2Snapshot,
-    editorHandle: 'chef_e2e',
+    editorDisplayName: 'chef_e2e',
     createdAt: '2026-01-02T00:00:00.000Z',
 });
 const v3 = makeRecipeVersion({
@@ -94,7 +94,7 @@ const v3 = makeRecipeVersion({
     recipeId: RECIPE_ID,
     versionNumber: 3,
     snapshot: v3Snapshot,
-    editorHandle: 'chef_e2e',
+    editorDisplayName: 'chef_e2e',
     createdAt: '2026-01-03T00:00:00.000Z',
 });
 

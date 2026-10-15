@@ -103,7 +103,7 @@ export function detailStatCells(
  * @returns The items, in order.
  */
 export function detailMetaItems(
-    recipe: Pick<RecipeDetail, 'cuisine' | 'authorHandle'>,
+    recipe: Pick<RecipeDetail, 'cuisine' | 'authorDisplayName'>,
     viewerIsOwner: boolean,
     detail: RecipeDetailMessages,
 ): readonly string[] {
@@ -113,8 +113,8 @@ export function detailMetaItems(
         items.push(recipe.cuisine);
     }
 
-    if (!viewerIsOwner && recipe.authorHandle !== undefined && recipe.authorHandle !== '') {
-        items.push(fillTemplate(detail.byAuthor, { handle: recipe.authorHandle }));
+    if (!viewerIsOwner && recipe.authorDisplayName !== undefined && recipe.authorDisplayName !== '') {
+        items.push(fillTemplate(detail.byAuthor, { handle: recipe.authorDisplayName }));
     }
 
     return items;

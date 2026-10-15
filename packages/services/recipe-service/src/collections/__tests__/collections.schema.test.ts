@@ -94,7 +94,7 @@ function makeFullRow(): ReturnType<typeof makeCollectionRow> {
         description: 'Fast midweek meals',
         visibility: 'public',
         sourceCollectionId: SOURCE_ID,
-        sourceOwnerHandle: 'chef-anon',
+        sourceOwnerDisplayName: 'chef-anon',
         sourceCollectionName: 'Their Dinners',
         lastPulledAt: new Date('2026-02-02T00:00:00.000Z'),
     });
@@ -126,7 +126,7 @@ describe('the published collection body is TRUE of what CollectionsService emits
         // instead of using it bare. Parsed with the bare schema they would be silently STRIPPED, and the
         // wider TypeScript type would then be a lie about what `parse` returned.
         expect(parsed).toMatchObject({
-            sourceOwnerHandle: 'chef-anon',
+            sourceOwnerDisplayName: 'chef-anon',
             sourceCollectionName: 'Their Dinners',
             lastPulledAt: '2026-02-02T00:00:00.000Z',
         });
@@ -234,7 +234,7 @@ describe('the published collection body is TRUE of what CollectionsService emits
             makeCollectionRow({
                 id: SOURCE_ID,
                 sourceCollectionId: COLLECTION_ID,
-                sourceOwnerHandle: 'chef-anon',
+                sourceOwnerDisplayName: 'chef-anon',
                 sourceCollectionName: 'Weeknight Dinners',
             }),
         );
@@ -316,7 +316,7 @@ describe('drift 4 — the collection body COMPOSES recipe-core rather than re-de
         const inherited = new Set(Object.keys(collectionSchema.shape));
         const added = Object.keys(collectionResponseSchema.def.innerType.shape).filter((key) => !inherited.has(key));
 
-        expect(added.sort()).toEqual(['lastPulledAt', 'sourceCollectionName', 'sourceOwnerHandle']);
+        expect(added.sort()).toEqual(['lastPulledAt', 'sourceCollectionName', 'sourceOwnerDisplayName']);
     });
 
     it('recipe-core’s `collectionSchema` DOES own `visibility` and `recipeCount` — the stale comment claiming otherwise is gone', () => {

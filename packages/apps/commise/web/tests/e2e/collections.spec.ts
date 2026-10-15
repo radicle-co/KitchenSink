@@ -389,7 +389,7 @@ test.describe('collections (T109)', () => {
             recipeIds: [RECIPE_IDS.risotto, RECIPE_IDS.duck],
             memberAddedVia: { [RECIPE_IDS.risotto]: 'clone_seed', [RECIPE_IDS.duck]: 'clone_seed' },
             sourceCollectionId: 'col_source',
-            sourceOwnerHandle: 'chef_marco',
+            sourceOwnerDisplayName: 'chef_marco',
             sourceCollectionName: 'Weekend Picks',
         });
         await mockRecipeApi(page, { viewerId, recipes: [risotto, duck, tart], collections: [source, clone] });

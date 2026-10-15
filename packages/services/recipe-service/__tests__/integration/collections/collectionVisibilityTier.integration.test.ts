@@ -32,7 +32,7 @@ const createIfUnderCap = vi.fn(async (input: { ownerId: string; name: string; vi
     description: null,
     visibility: input.visibility,
     sourceCollectionId: null,
-    sourceOwnerHandle: null,
+    sourceOwnerDisplayName: null,
     sourceCollectionName: null,
     lastPulledAt: null,
     createdAt: NOW,

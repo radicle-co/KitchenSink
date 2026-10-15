@@ -67,7 +67,7 @@ function makeClonedCollection() {
         id: 'col_9',
         sourceCollectionId: 'col_src',
         sourceCollectionName: 'Origin dinners',
-        sourceOwnerHandle: 'sourcechef',
+        sourceOwnerDisplayName: 'sourcechef',
     });
 }
 

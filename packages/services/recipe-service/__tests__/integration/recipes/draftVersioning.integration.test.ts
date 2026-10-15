@@ -97,7 +97,7 @@ const createSnapshot = vi.fn(async (input: { readonly recipeId: string; readonly
     s3Key: null,
     createdBy: COOK,
     changeSummary: null,
-    editorHandle: null,
+    editorDisplayName: null,
     createdAt: PUBLISHED_AT,
 }));
 const findVersionsBeyondRetention = vi.fn(async () => []);

@@ -282,7 +282,7 @@ export interface Recipe {
      * by the handle-sync fan-out. ABSENT for a pre-feature recipe until its next write / the backfill — the
      * UI falls back to a neutral label rather than fabricating. Never an authz/join key; `ownerId` stays that.
      */
-    authorHandle?: string;
+    authorDisplayName?: string;
     currentVersion: number;
     /**
      * Mean of this recipe's ratings, 1–5 (FR-013a). READ-ONLY — maintained by a database trigger and
@@ -380,7 +380,7 @@ export const recipeSchema = z.object({
     tags: z.array(z.string().min(1)),
     // ⛔ No `leadCaloriesPerServing` — see the `Recipe` interface above. A card's calorie figure comes from
     // `POST /api/v1/recipes/nutrition-batch`; the detail's comes from `RecipeDetail.nutrition`.
-    authorHandle: z.string().min(1).optional(),
+    authorDisplayName: z.string().min(1).optional(),
     currentVersion: positiveIntSchema,
     // 1..5 mean; absent (not 0) when ratingCount is 0 — see the Recipe.averageRating docstring.
     averageRating: z.number().finite().min(1).max(5).optional(),
@@ -1023,7 +1023,7 @@ export interface RecipeVersion {
      * handle-sync fan-out (a mutable column, NOT frozen in the snapshot). ABSENT for a pre-feature version;
      * the editor is `createdBy` (the ULID), always the authoritative identity.
      */
-    editorHandle?: string;
+    editorDisplayName?: string;
     createdAt: IsoDateTimeString;
 }
 
@@ -1039,7 +1039,7 @@ export const recipeVersionSchema = z.object({
     s3Key: z.string().min(1).optional(),
     createdBy: idSchema,
     changeSummary: z.string().min(1).optional(),
-    editorHandle: z.string().min(1).optional(),
+    editorDisplayName: z.string().min(1).optional(),
     createdAt: isoDateTimeStringSchema,
 });
 

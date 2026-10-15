@@ -218,12 +218,12 @@ export type PullFromSourceRequest = z.infer<typeof pullFromSourceRequestSchema>;
  *
  * The three added fields are this service's response-only pull-provenance projections, added HERE rather than onto
  * `recipe-core`'s `Collection` because they are its read-model, not part of the domain entity every service
- * shares: `lastPulledAt` (last successful pull, W5 Task 3) and `sourceOwnerHandle` / `sourceCollectionName` (the
+ * shares: `lastPulledAt` (last successful pull, W5 Task 3) and `sourceOwnerDisplayName` / `sourceCollectionName` (the
  * source's attribution, FROZEN at clone time and never resynced on a later rename — W5 Task 2, CR-003). All three
  * are absent for a collection that was never cloned, and `lastPulledAt` for one never pulled.
  */
 const collectionResponseShape = collectionSchema.extend({
-    sourceOwnerHandle: z.string().min(1).optional(),
+    sourceOwnerDisplayName: z.string().min(1).optional(),
     sourceCollectionName: z.string().min(1).optional(),
     lastPulledAt: isoDateTimeSchema.optional(),
 });

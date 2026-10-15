@@ -45,7 +45,7 @@ export type { CollectionMemberRecipe } from '@kitchensink/schema-recipe';
  *    says "nothing you can see", and an absent key would have meant something the server cannot say. Declaring
  *    it optional invited a view to render "recipes not loaded" for an impossible case and forced a `?? []` on
  *    every read.
- *  - it omitted the three response-only provenance projections the wire body carries — `sourceOwnerHandle` /
+ *  - it omitted the three response-only provenance projections the wire body carries — `sourceOwnerDisplayName` /
  *    `sourceCollectionName` (the source's attribution, frozen at clone time) and `lastPulledAt` — so a
  *    container holding a real response had to widen or re-project to reach them.
  *
@@ -215,7 +215,7 @@ export interface PullUpdatesDialogProps {
      *  failure. Absent when the last attempt (if any) succeeded. */
     readonly error?: 'drift' | 'generic';
     /** The source collection owner's display handle, frozen at clone time; may be absent (unresolved owner). */
-    readonly sourceOwnerHandle?: string;
+    readonly sourceOwnerDisplayName?: string;
     /** The source collection's name, frozen at clone time. */
     readonly sourceCollectionName?: string;
     /** Invoked when Cancel is activated, or the dialog is dismissed via Escape/backdrop (one exit path). */

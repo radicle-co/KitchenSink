@@ -163,7 +163,7 @@ export const recipes = pgTable(
         // written at create/clone time so cards render "by @handle" without a cross-service call. NULLABLE:
         // a pre-feature row has none until its next write / the backfill; kept current by the handle-sync
         // consumer's fan-out. The owner_id ULID stays the join/authz key — never the handle.
-        authorHandle: text('author_handle'),
+        authorDisplayName: text('author_handle'),
 
         currentVersion: integer('current_version').notNull().default(1),
 

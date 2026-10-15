@@ -80,7 +80,7 @@ export interface DiscoveryMessages {
     /** Source-provenance template shown on a row (contains `{source}`). */
     readonly attribution: string;
     /** The author's handle on a result card (contains `{handle}`) — S1. */
-    readonly authorHandle: string;
+    readonly authorDisplayName: string;
     /** Previous / next on a rail, for a fine pointer. */
     readonly previous: string;
     readonly next: string;
@@ -156,7 +156,7 @@ export const discoveryMessages: LocalizedMessages<DiscoveryMessages> = {
         errorTitle: 'We couldn’t search right now.',
         retry: 'Try again',
         attribution: 'From {source}',
-        authorHandle: '@{handle}',
+        authorDisplayName: '@{handle}',
         previous: 'Previous',
         next: 'Next',
         railRegion: '{rail} recipes',

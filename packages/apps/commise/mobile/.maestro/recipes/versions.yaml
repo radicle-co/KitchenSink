@@ -11,8 +11,8 @@ appId: io.commise.mobile
 #
 # LIMITATION — editor/device attribution ("by @handle (from device)", W6 Task 2 row copy) is NOT asserted
 # here. `RecipesService.update` (recipe-service/src/recipes/recipes.service.ts) never passes an
-# `editorHandle` to `recordSnapshot` — only `create` does — so EVERY version an edit produces (the only kind
-# reachable through this flow; the seed itself records none) carries no `editorHandle`, and
+# `editorDisplayName` to `recordSnapshot` — only `create` does — so EVERY version an edit produces (the only kind
+# reachable through this flow; the seed itself records none) carries no `editorDisplayName`, and
 # `formatVersionAttribution` renders no attribution line at all when it is absent. There is no reachable
 # real-backend path to a version WITH attribution today. The attribution copy is covered end-to-end by the
 # web Playwright spec (`versions.spec.ts`, which controls the mock and injects it) and by

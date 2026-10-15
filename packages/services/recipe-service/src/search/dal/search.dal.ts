@@ -215,7 +215,7 @@ function toRecipeRowInput(row: RawRecipeSearchRow): RecipeRowInput {
         cuisine: row.cuisine,
         dietaryFlags: row.dietary_flags,
         tags: row.tags,
-        authorHandle: row.author_handle,
+        authorDisplayName: row.author_handle,
         currentVersion: row.current_version,
         averageRating: row.average_rating,
         ratingCount: row.rating_count,

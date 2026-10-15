@@ -78,7 +78,7 @@ describe('RecipeVersionList (native)', () => {
         renderList({
             versions: [
                 makeRecipeVersion({ versionNumber: 1 }),
-                makeRecipeVersion({ versionNumber: 2, editorHandle: 'chef', changeSummary: 'Updated' }),
+                makeRecipeVersion({ versionNumber: 2, editorDisplayName: 'chef', changeSummary: 'Updated' }),
             ],
             currentVersion: 2,
         });

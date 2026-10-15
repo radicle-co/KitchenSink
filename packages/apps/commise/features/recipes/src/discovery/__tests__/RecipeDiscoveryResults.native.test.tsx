@@ -183,7 +183,12 @@ describe('RecipeDiscoveryResults (native) — populated', () => {
     it('shows the author as @handle in the footer, and no fabricated 0 cal', () => {
         renderResults({
             results: [
-                makeSearchResult({ id: 'rec_x', title: 'Ribollita', authorHandle: 'tuscan_cook', cuisine: 'Tuscan' }),
+                makeSearchResult({
+                    id: 'rec_x',
+                    title: 'Ribollita',
+                    authorDisplayName: 'tuscan_cook',
+                    cuisine: 'Tuscan',
+                }),
             ],
             cardVariant: 'grid',
         });

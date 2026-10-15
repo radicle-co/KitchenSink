@@ -125,7 +125,7 @@ export const RecipeDiscoveryResults: FC<RecipeDiscoveryResultsProps> = ({
                                 recipe={toRecipeCardModel(result.recipe)}
                                 variant={cardVariant}
                                 headingLevel={2}
-                                authorHandle={result.recipe.authorHandle}
+                                authorDisplayName={result.recipe.authorDisplayName}
                                 sourceAttribution={result.recipe.sourceAttribution}
                                 saveCopy={saveCopy.stateOf(result.recipe.id)}
                                 {...(hrefOf === undefined ? {} : { href: hrefOf(result.recipe.id) })}

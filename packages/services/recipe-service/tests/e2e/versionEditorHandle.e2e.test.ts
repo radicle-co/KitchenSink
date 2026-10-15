@@ -2,7 +2,7 @@
  * W6 — end-to-end proof that EVERY version-creating write path stamps the editor's "by @handle"
  * attribution (`recipe_versions.editor_handle`) against the real Postgres harness, not just CREATE.
  *
- * The defect this pins: before the fix, only CREATE threaded `editorHandle`; UPDATE, CLONE and RESTORE
+ * The defect this pins: before the fix, only CREATE threaded `editorDisplayName`; UPDATE, CLONE and RESTORE
  * recorded their version snapshots with a NULL `editor_handle`, so W6's version-history "by @handle"
  * rendered EMPTY for every edit-created version in production. Here we boot the REAL Nest app against the
  * Docker DB, resolve the REAL services via DI (so we can drive them with a principal that carries name
@@ -96,7 +96,7 @@ describe('version editor_handle provenance (e2e, real DB)', () => {
         expect(await editorHandleOf(created.id, 2)).toBe('Clara Oswald');
         // And it surfaces on the read model the W6 UI consumes.
         const history = await versions.list(OWNER, created.id);
-        expect(history.find((v) => v.versionNumber === 2)?.editorHandle).toBe('Clara Oswald');
+        expect(history.find((v) => v.versionNumber === 2)?.editorDisplayName).toBe('Clara Oswald');
     });
 
     it('stamps the cloner handle on the CLONE-created version', async () => {

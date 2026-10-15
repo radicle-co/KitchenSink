@@ -224,9 +224,12 @@ describe('RecipesService.create', () => {
         // A principal carrying first/last-name claims → deriveDisplayName → "Ada Lovelace".
         await service.create(principal({ firstName: 'Ada', lastName: 'Lovelace' }), CREATE_DTO, undefined);
 
-        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ authorHandle: 'Ada Lovelace' }), FAKE_TX);
+        expect(dal.create).toHaveBeenCalledWith(
+            expect.objectContaining({ authorDisplayName: 'Ada Lovelace' }),
+            FAKE_TX,
+        );
         expect(versions.createSnapshot).toHaveBeenCalledWith(
-            expect.objectContaining({ editorHandle: 'Ada Lovelace' }),
+            expect.objectContaining({ editorDisplayName: 'Ada Lovelace' }),
             FAKE_TX,
         );
     });
@@ -238,7 +241,7 @@ describe('RecipesService.create', () => {
         await newService(dal).create(principal(), CREATE_DTO, undefined);
 
         const createArg = (dal.create as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0];
-        expect(createArg).not.toHaveProperty('authorHandle');
+        expect(createArg).not.toHaveProperty('authorDisplayName');
     });
 
     it('captures the FULL recipe content in the snapshot (faithful for restore)', async () => {
@@ -1294,7 +1297,7 @@ describe('RecipesService.update', () => {
         await service.update(principal({ firstName: 'Clara', lastName: 'Oswald' }), 'r-1', patch, undefined);
 
         expect(versions.createSnapshot).toHaveBeenCalledWith(
-            expect.objectContaining({ editorHandle: 'Clara Oswald' }),
+            expect.objectContaining({ editorDisplayName: 'Clara Oswald' }),
             FAKE_TX,
         );
     });
@@ -1316,7 +1319,7 @@ describe('RecipesService.update', () => {
         await service.update(principal(), 'r-1', patch, undefined);
 
         const input = vi.mocked(versions.createSnapshot).mock.calls[0]?.[0];
-        expect(input).not.toHaveProperty('editorHandle');
+        expect(input).not.toHaveProperty('editorDisplayName');
     });
 });
 

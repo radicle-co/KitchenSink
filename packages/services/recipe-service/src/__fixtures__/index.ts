@@ -52,7 +52,7 @@ export function makeRecipeRow(overrides: Partial<RecipeRow> = {}): RecipeRow {
         cuisine: 'italian',
         dietaryFlags: [],
         tags: ['dinner'],
-        authorHandle: null,
+        authorDisplayName: null,
         currentVersion: 1,
         ingredientNamesText: 'flour water salt',
         searchVector: null,
@@ -120,7 +120,7 @@ export function makeVersionRow(overrides: Partial<RecipeVersionRow> = {}): Recip
         s3Key: null,
         createdBy: '01J000000000000000000FREE0',
         changeSummary: null,
-        editorHandle: null,
+        editorDisplayName: null,
         createdAt: BASE_DATE,
         ...overrides,
     };

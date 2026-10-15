@@ -6,11 +6,11 @@
     "coverage": {
         "components": 135,
         "implementations": 241,
-        "props": 1149,
+        "props": 1155,
         "documentedComponents": 135,
         "implementationsWithModuleDoc": 241,
         "implementationsWithComponentDoc": 141,
-        "documentedProps": 893,
+        "documentedProps": 899,
         "classifiedComponents": 117,
         "componentsWithPatternTag": 61,
         "crossPlatformComponents": 106
@@ -1152,7 +1152,7 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         },
                         {
-                            "name": "sourceOwnerHandle",
+                            "name": "sourceOwnerDisplayName",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
@@ -1376,7 +1376,7 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         },
                         {
-                            "name": "sourceOwnerHandle",
+                            "name": "sourceOwnerDisplayName",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
@@ -3606,7 +3606,7 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         },
                         {
-                            "name": "sourceOwnerHandle",
+                            "name": "sourceOwnerDisplayName",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
@@ -3719,7 +3719,7 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         },
                         {
-                            "name": "sourceOwnerHandle",
+                            "name": "sourceOwnerDisplayName",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
@@ -8343,7 +8343,7 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "authorHandle",
+                            "name": "authorDisplayName",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
@@ -8413,7 +8413,7 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "authorHandle",
+                            "name": "authorDisplayName",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
@@ -9419,7 +9419,7 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "authorHandle",
+                            "name": "authorDisplayName",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
@@ -9544,7 +9544,7 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "authorHandle",
+                            "name": "authorDisplayName",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
@@ -14795,12 +14795,30 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Raised while this row's Add as written should take focus (the row after the one just added).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedReadingRowProps.ts"
+                        },
+                        {
                             "name": "onAddAsWritten",
                             "type": "((lineIndex: number) => void) | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "Add a line as the cook wrote it, by its `lineIndex`; absent, a waiting row offers no way out.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedReadingRowProps.ts"
+                        },
+                        {
+                            "name": "onFocusRequestHandled",
+                            "type": "(() => void) | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The action took the focus it was asked for; lowers the request.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedReadingRowProps.ts"
                         },
                         {
@@ -14847,12 +14865,30 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Raised while this row's Add as written should take focus (the row after the one just added).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedReadingRowProps.ts"
+                        },
+                        {
                             "name": "onAddAsWritten",
                             "type": "((lineIndex: number) => void) | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "Add a line as the cook wrote it, by its `lineIndex`; absent, a waiting row offers no way out.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedReadingRowProps.ts"
+                        },
+                        {
+                            "name": "onFocusRequestHandled",
+                            "type": "(() => void) | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The action took the focus it was asked for; lowers the request.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedReadingRowProps.ts"
                         },
                         {
@@ -15082,6 +15118,15 @@
                             "defaultValue": null,
                             "description": "The paste's count, the step it is at, and what its actions would cover (`pasteProgressOf`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteProgressBlockProps.ts"
+                        },
+                        {
+                            "name": "retryFailed",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again was refused: the block says so, in words, where the cook is looking.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteProgressBlockProps.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -15146,6 +15191,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The paste's count, the step it is at, and what its actions would cover (`pasteProgressOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteProgressBlockProps.ts"
+                        },
+                        {
+                            "name": "retryFailed",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again was refused: the block says so, in words, where the cook is looking.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteProgressBlockProps.ts"
                         }
                     ],

@@ -64,7 +64,7 @@ export const collections = pgTable(
         // W5 Task 1: pull-refresh provenance. NULLABLE, no default — populated on clone (Task 2) and on
         // each successful pull (Task 3); a pre-existing / never-pulled collection has none of these.
         lastPulledAt: timestamp('last_pulled_at', { withTimezone: true, mode: 'date' }),
-        sourceOwnerHandle: text('source_owner_handle'),
+        sourceOwnerDisplayName: text('source_owner_handle'),
         sourceCollectionName: text('source_collection_name'),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

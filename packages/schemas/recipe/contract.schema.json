@@ -125,7 +125,7 @@
                                     }
                                 ]
                             },
-                            "sourceOwnerHandle": {
+                            "sourceOwnerDisplayName": {
                                 "anyOf": [
                                     {
                                         "type": "string"
@@ -152,7 +152,7 @@
                             "visibility",
                             "sourceCollectionId",
                             "lastPulledAt",
-                            "sourceOwnerHandle",
+                            "sourceOwnerDisplayName",
                             "sourceCollectionName",
                             "createdAt",
                             "updatedAt",
@@ -309,7 +309,7 @@
                     "items": {
                         "additionalProperties": false,
                         "properties": {
-                            "authorHandle": {
+                            "authorDisplayName": {
                                 "anyOf": [
                                     {
                                         "type": "string"
@@ -523,7 +523,7 @@
                             "cuisine",
                             "dietaryFlags",
                             "tags",
-                            "authorHandle",
+                            "authorDisplayName",
                             "currentVersion",
                             "deletedAt",
                             "createdAt",
@@ -568,7 +568,7 @@
                                 "minLength": 1,
                                 "type": "string"
                             },
-                            "editorHandle": {
+                            "editorDisplayName": {
                                 "anyOf": [
                                     {
                                         "type": "string"
@@ -612,7 +612,7 @@
                             "s3Key",
                             "createdBy",
                             "changeSummary",
-                            "editorHandle",
+                            "editorDisplayName",
                             "createdAt"
                         ],
                         "type": "object"
@@ -856,7 +856,7 @@
                         }
                     ]
                 },
-                "sourceOwnerHandle": {
+                "sourceOwnerDisplayName": {
                     "anyOf": [
                         {
                             "type": "string"
@@ -883,7 +883,7 @@
                 "visibility",
                 "sourceCollectionId",
                 "lastPulledAt",
-                "sourceOwnerHandle",
+                "sourceOwnerDisplayName",
                 "sourceCollectionName",
                 "createdAt",
                 "updatedAt",
@@ -943,7 +943,7 @@
                     "minLength": 1,
                     "type": "string"
                 },
-                "sourceOwnerHandle": {
+                "sourceOwnerDisplayName": {
                     "minLength": 1,
                     "type": "string"
                 },
@@ -1029,7 +1029,7 @@
                                 "minLength": 1,
                                 "type": "string"
                             },
-                            "sourceOwnerHandle": {
+                            "sourceOwnerDisplayName": {
                                 "minLength": 1,
                                 "type": "string"
                             },
@@ -1101,7 +1101,7 @@
                     ],
                     "type": "string"
                 },
-                "authorHandle": {
+                "authorDisplayName": {
                     "minLength": 1,
                     "type": "string"
                 },
@@ -1387,7 +1387,7 @@
                     "minLength": 1,
                     "type": "string"
                 },
-                "sourceOwnerHandle": {
+                "sourceOwnerDisplayName": {
                     "minLength": 1,
                     "type": "string"
                 },
@@ -1462,7 +1462,7 @@
                                 ],
                                 "type": "string"
                             },
-                            "authorHandle": {
+                            "authorDisplayName": {
                                 "minLength": 1,
                                 "type": "string"
                             },
@@ -1657,7 +1657,7 @@
                     "minLength": 1,
                     "type": "string"
                 },
-                "sourceOwnerHandle": {
+                "sourceOwnerDisplayName": {
                     "minLength": 1,
                     "type": "string"
                 },
@@ -4045,7 +4045,7 @@
                             "minLength": 1,
                             "type": "string"
                         },
-                        "sourceOwnerHandle": {
+                        "sourceOwnerDisplayName": {
                             "minLength": 1,
                             "type": "string"
                         },
@@ -5384,7 +5384,7 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
-                "authorHandle": {
+                "authorDisplayName": {
                     "minLength": 1,
                     "type": "string"
                 },
@@ -5938,7 +5938,7 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
-                "authorHandle": {
+                "authorDisplayName": {
                     "anyOf": [
                         {
                             "type": "string"
@@ -6152,7 +6152,7 @@
                 "cuisine",
                 "dietaryFlags",
                 "tags",
-                "authorHandle",
+                "authorDisplayName",
                 "currentVersion",
                 "deletedAt",
                 "createdAt",
@@ -6532,7 +6532,7 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
-                "authorHandle": {
+                "authorDisplayName": {
                     "minLength": 1,
                     "type": "string"
                 },
@@ -7033,7 +7033,7 @@
                             "recipe": {
                                 "additionalProperties": false,
                                 "properties": {
-                                    "authorHandle": {
+                                    "authorDisplayName": {
                                         "minLength": 1,
                                         "type": "string"
                                     },
@@ -7325,7 +7325,7 @@
                     "minLength": 1,
                     "type": "string"
                 },
-                "editorHandle": {
+                "editorDisplayName": {
                     "minLength": 1,
                     "type": "string"
                 },
@@ -7625,7 +7625,7 @@
                 "recipe": {
                     "additionalProperties": false,
                     "properties": {
-                        "authorHandle": {
+                        "authorDisplayName": {
                             "minLength": 1,
                             "type": "string"
                         },
@@ -9158,7 +9158,7 @@
                     "minLength": 1,
                     "type": "string"
                 },
-                "editorHandle": {
+                "editorDisplayName": {
                     "anyOf": [
                         {
                             "type": "string"
@@ -9202,7 +9202,7 @@
                 "s3Key",
                 "createdBy",
                 "changeSummary",
-                "editorHandle",
+                "editorDisplayName",
                 "createdAt"
             ],
             "type": "object"

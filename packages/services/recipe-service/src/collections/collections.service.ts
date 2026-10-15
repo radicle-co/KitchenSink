@@ -75,7 +75,7 @@ function toCollectionResponse(row: CollectionRow, recipeCount?: number): Collect
         ...response,
         ...(row.description !== null ? { description: row.description } : {}),
         ...(row.sourceCollectionId !== null ? { sourceCollectionId: row.sourceCollectionId } : {}),
-        ...(row.sourceOwnerHandle !== null ? { sourceOwnerHandle: row.sourceOwnerHandle } : {}),
+        ...(row.sourceOwnerDisplayName !== null ? { sourceOwnerDisplayName: row.sourceOwnerDisplayName } : {}),
         ...(row.sourceCollectionName !== null ? { sourceCollectionName: row.sourceCollectionName } : {}),
         ...(row.lastPulledAt !== null ? { lastPulledAt: row.lastPulledAt.toISOString() } : {}),
         ...(recipeCount !== undefined ? { recipeCount } : {}),
@@ -335,7 +335,7 @@ export class CollectionsService {
         const seedRecipes = await this.dal.listRecipes(sourceId, clonerId);
         // Frozen attribution (W5 Task 2): resolved ONCE, at clone time, from the CURRENT read model —
         // never re-read on a later source-owner rename (CR-003).
-        const sourceOwnerHandle = await this.authorHandles.findHandle(source.ownerId);
+        const sourceOwnerDisplayName = await this.authorHandles.findHandle(source.ownerId);
 
         // S-R1: the create + the bulk membership seed run in ONE transaction — a mid-seed failure (a
         // constraint violation, a dropped connection) must roll back the collection insert too, never
@@ -351,7 +351,7 @@ export class CollectionsService {
                     // one, who cannot hold a private collection (owner 2026-10-13).
                     visibility: defaultCollectionVisibility(cloner),
                     sourceCollectionId: sourceId,
-                    sourceOwnerHandle: sourceOwnerHandle ?? null,
+                    sourceOwnerDisplayName: sourceOwnerDisplayName ?? null,
                     sourceCollectionName: source.name,
                 },
                 tx,

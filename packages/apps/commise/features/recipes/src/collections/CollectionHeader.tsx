@@ -48,7 +48,7 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
     visibility,
     recipeCount,
     sourceCollectionName,
-    sourceOwnerHandle,
+    sourceOwnerDisplayName,
     sourceCollectionId,
     lastPulledAt,
     actionsPlacement,
@@ -74,8 +74,8 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
     const focusSignal = headingFocusSignal + (refreshNotice?.recoveries ?? 0);
 
     const copiedFrom =
-        sourceOwnerHandle !== undefined
-            ? fillTemplate(detail.copiedFrom, { handle: sourceOwnerHandle })
+        sourceOwnerDisplayName !== undefined
+            ? fillTemplate(detail.copiedFrom, { handle: sourceOwnerDisplayName })
             : sourceCollectionName !== undefined
               ? fillTemplate(detail.copiedFromNamed, { name: sourceCollectionName })
               : detail.copiedFromUnknown;

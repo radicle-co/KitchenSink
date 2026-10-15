@@ -4,7 +4,7 @@
  *
  * Before this module existed, the SAME field rules — `description ?? ''`, the three time columns'
  * `?? 0` fallback, the derived `usesPremiumCapability`, the null-omit rules for `difficulty` /
- * `averageRating` / `authorHandle` / `sourceUrl` / `sourceAttribution` / `clonedFromId` / `cuisine` /
+ * `averageRating` / `authorDisplayName` / `sourceUrl` / `sourceAttribution` / `clonedFromId` / `cuisine` /
  * `deletedAt`, and the `Date | string → ISO` coercion — were independently re-encoded in THREE places,
  * free to drift:
  *
@@ -68,7 +68,7 @@ export interface RecipeRowInput {
     cuisine: string | null;
     dietaryFlags: string[];
     tags: string[];
-    authorHandle: string | null;
+    authorDisplayName: string | null;
     currentVersion: number;
     averageRating: string | null;
     ratingCount: number;
@@ -87,7 +87,7 @@ function toIsoString(value: Date | string): string {
  * row→domain Data Mapper (S-R4).
  *
  * Nulls are OMITTED (never a fabricated default) for every genuinely optional `Recipe` field
- * (`difficulty`, `averageRating`, `authorHandle`, `sourceUrl`, `sourceAttribution`, `clonedFromId`,
+ * (`difficulty`, `averageRating`, `authorDisplayName`, `sourceUrl`, `sourceAttribution`, `clonedFromId`,
  * `cuisine`, `deletedAt`). `description` and the three time columns fall back (`?? ''` / `?? 0`) because
  * `Recipe` requires them non-null — the time fallback is inert in practice (the columns are `NOT NULL` in
  * the schema) but preserved verbatim from the original mappers. `usesPremiumCapability` is derived via the
@@ -143,7 +143,7 @@ export function recipeRowToDomain(row: RecipeRowInput): Recipe {
         // Trigger-maintained aggregate: numeric average is a string|null from pg; OMITTED (not 0) when unrated.
         ...(row.averageRating !== null ? { averageRating: Number(row.averageRating) } : {}),
         // Denormalized headline per-serving calories — OMITTED when NULL (no accounted nutrition), never 0.
-        ...(row.authorHandle !== null ? { authorHandle: row.authorHandle } : {}),
+        ...(row.authorDisplayName !== null ? { authorDisplayName: row.authorDisplayName } : {}),
         ...(row.sourceUrl !== null ? { sourceUrl: row.sourceUrl } : {}),
         ...(row.sourceAttribution !== null ? { sourceAttribution: row.sourceAttribution } : {}),
         ...(row.clonedFromId !== null ? { clonedFromId: row.clonedFromId } : {}),

@@ -20,7 +20,7 @@ import type { DiscoveryFooterProps } from './model.js';
 
 export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
     title,
-    authorHandle,
+    authorDisplayName,
     sourceAttribution,
     state,
     onSave,
@@ -34,8 +34,8 @@ export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
         { title },
     );
     const by =
-        authorHandle !== undefined
-            ? fillTemplate(discovery.authorHandle, { handle: authorHandle })
+        authorDisplayName !== undefined
+            ? fillTemplate(discovery.authorDisplayName, { handle: authorDisplayName })
             : sourceAttribution === undefined
               ? undefined
               : fillTemplate(discovery.attribution, { source: sourceAttribution });
@@ -43,10 +43,10 @@ export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
     return (
         <View style={styles.stack}>
             <View style={styles.row}>
-                {authorHandle === undefined ? null : (
+                {authorDisplayName === undefined ? null : (
                     <View style={[styles.avatar, { backgroundColor: colors.selectedFill }]}>
                         <Text accessible={false} style={[styles.overline, { color: colors.actionText }]}>
-                            {authorHandle.slice(0, 1).toUpperCase()}
+                            {authorDisplayName.slice(0, 1).toUpperCase()}
                         </Text>
                     </View>
                 )}

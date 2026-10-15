@@ -83,21 +83,21 @@ export class AuthorHandlesDal {
 
             await tx
                 .update(recipes)
-                .set({ authorHandle: event.displayName })
+                .set({ authorDisplayName: event.displayName })
                 .where(
                     and(
                         eq(recipes.ownerId, event.userId),
-                        sql`${recipes.authorHandle} IS DISTINCT FROM ${event.displayName}`,
+                        sql`${recipes.authorDisplayName} IS DISTINCT FROM ${event.displayName}`,
                     ),
                 );
 
             await tx
                 .update(recipeVersions)
-                .set({ editorHandle: event.displayName })
+                .set({ editorDisplayName: event.displayName })
                 .where(
                     and(
                         eq(recipeVersions.createdBy, event.userId),
-                        sql`${recipeVersions.editorHandle} IS DISTINCT FROM ${event.displayName}`,
+                        sql`${recipeVersions.editorDisplayName} IS DISTINCT FROM ${event.displayName}`,
                     ),
                 );
 

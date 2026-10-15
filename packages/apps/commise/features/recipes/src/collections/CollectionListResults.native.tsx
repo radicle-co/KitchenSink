@@ -232,9 +232,9 @@ const CollectionCard: FC<{ readonly collection: CollectionCardSource; readonly o
                             />
                             <Text style={[styles.metaText, { color: colors.inkMuted }]}>{visibility}</Text>
                         </View>
-                        {collection.sourceOwnerHandle === undefined ? null : (
+                        {collection.sourceOwnerDisplayName === undefined ? null : (
                             <Text numberOfLines={1} style={[styles.caption, { color: colors.inkMuted }]}>
-                                {fillTemplate(list.copiedFrom, { handle: collection.sourceOwnerHandle })}
+                                {fillTemplate(list.copiedFrom, { handle: collection.sourceOwnerDisplayName })}
                             </Text>
                         )}
                     </View>

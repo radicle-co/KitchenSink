@@ -137,7 +137,7 @@ export interface CollectionHeaderProps extends CollectionMenuActions {
     /** The source collection's name, present only for a copy. */
     readonly sourceCollectionName?: string;
     /** The source owner's handle; may be absent even for a copy. */
-    readonly sourceOwnerHandle?: string;
+    readonly sourceOwnerDisplayName?: string;
     /** The source collection's id, which makes "Copied from …" a way to open the original. */
     readonly sourceCollectionId?: string;
     /** ISO 8601 time of the last pull from the original; absent if never pulled. */

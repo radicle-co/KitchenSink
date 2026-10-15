@@ -137,14 +137,14 @@ describe('account erasure pseudonymizes every denormalized handle (owner ruling 
     async function insertClone(
         clonerId: string,
         sourceId: string,
-        sourceOwnerHandle: string,
+        sourceOwnerDisplayName: string,
         sourceCollectionName: string,
     ): Promise<string> {
         const result = await db.execute<{ id: string }>(sql`
             INSERT INTO collections
                 (owner_id, name, visibility, source_collection_id, source_owner_handle, source_collection_name)
             VALUES (${clonerId}, ${sourceCollectionName}, 'private', ${sourceId},
-                    ${sourceOwnerHandle}, ${sourceCollectionName})
+                    ${sourceOwnerDisplayName}, ${sourceCollectionName})
             RETURNING id
         `);
 
@@ -152,12 +152,12 @@ describe('account erasure pseudonymizes every denormalized handle (owner ruling 
     }
 
     /** Insert one TRULY-PUBLIC recipe (so erasure KEEPS it) carrying a cleartext author handle. */
-    async function insertKeptRecipe(ownerId: string, title: string, authorHandle: string): Promise<string> {
+    async function insertKeptRecipe(ownerId: string, title: string, authorDisplayName: string): Promise<string> {
         const result = await db.execute<{ id: string }>(sql`
             INSERT INTO recipes
                 (owner_id, title, servings, prep_time_minutes, cook_time_minutes, total_time_minutes,
                  visibility, status, author_handle)
-            VALUES (${ownerId}, ${title}, 2, 5, 10, 15, 'public', 'published', ${authorHandle})
+            VALUES (${ownerId}, ${title}, 2, 5, 10, 15, 'public', 'published', ${authorDisplayName})
             RETURNING id
         `);
 

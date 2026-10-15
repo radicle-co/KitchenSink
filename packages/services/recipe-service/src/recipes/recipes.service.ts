@@ -470,7 +470,7 @@ export class RecipesService {
         identities: LineIdentities,
         ownerId: string,
         changeSummary: string,
-        editorHandle?: string,
+        editorDisplayName?: string,
         baseVersion?: number,
     ): Promise<void> {
         if (!recordsVersion(aggregate.recipe)) {
@@ -485,7 +485,7 @@ export class RecipesService {
                 createdBy: ownerId,
                 changeSummary,
                 // Editor handle (W8-a.2) — the version editor's denormalized display name; omitted → NULL.
-                ...(editorHandle !== undefined ? { editorHandle } : {}),
+                ...(editorDisplayName !== undefined ? { editorDisplayName } : {}),
                 // The version this write was restored FROM, when it was a restore. Absent otherwise.
                 ...(baseVersion !== undefined ? { baseVersion } : {}),
             },
@@ -567,7 +567,7 @@ export class RecipesService {
         const plan = await this.planner.plan(caller, dto.ingredients);
         // Denormalized author handle (W8-a.2 / decision 6): the initial value from the token claims via the
         // ONE shared rule. The handle-sync consumer keeps every owned recipe/version current thereafter.
-        const authorHandle = deriveDisplayName(principal) || undefined;
+        const authorDisplayName = deriveDisplayName(principal) || undefined;
 
         // ⛔ ONE TRANSACTION: the recipe and its version row commit together or not at all (owner ruling
         // 2026-09-06). Everything above stays OUTSIDE — reads, policy and pure derivation — and so does
@@ -603,14 +603,14 @@ export class RecipesService {
                     sourceAttribution: provenance.sourceAttribution,
                     ingredientNamesText: plan.namesText,
                     // Denormalized author handle (W8-a.2) — absent → column stays NULL until the fan-out fills it.
-                    ...(authorHandle !== undefined ? { authorHandle } : {}),
+                    ...(authorDisplayName !== undefined ? { authorDisplayName } : {}),
                     ingredients: plan.inputs,
                     steps: dto.steps.map(toStepInput),
                 },
                 tx,
             );
 
-            await this.recordSnapshotIn(tx, created, plan.identities, principal.userId, 'Created', authorHandle);
+            await this.recordSnapshotIn(tx, created, plan.identities, principal.userId, 'Created', authorDisplayName);
 
             return created;
         });
@@ -1095,7 +1095,7 @@ export class RecipesService {
             // Editor handle (W8-a.2) — the version's "by @handle" attribution. Derived from the editor's
             // token claims via the ONE shared rule create uses; `author_handles` is deliberately NOT the
             // source here (it is seeded only by rename events, so it is NULL for any un-renamed user).
-            const editorHandle = deriveDisplayName(principal) || undefined;
+            const editorDisplayName = deriveDisplayName(principal) || undefined;
 
             await this.recordSnapshotIn(
                 tx,
@@ -1103,7 +1103,7 @@ export class RecipesService {
                 identities,
                 ownerId,
                 options.snapshot?.changeSummary ?? 'Updated',
-                editorHandle,
+                editorDisplayName,
                 options.snapshot?.baseVersion,
             );
 
@@ -1236,7 +1236,7 @@ export class RecipesService {
 
         // Editor handle (W8-a.2) — derived from the cloner's token claims via the ONE shared rule. Pure,
         // so it is computed OUTSIDE the transaction with every other derivation.
-        const editorHandle = deriveDisplayName(principal) || undefined;
+        const editorDisplayName = deriveDisplayName(principal) || undefined;
 
         // ⛔ ONE TRANSACTION, exactly as `create` — the clone and its first version row commit together.
         const created = await this.dal.transaction(async (tx) => {
@@ -1278,7 +1278,7 @@ export class RecipesService {
                 identities,
                 ownerId,
                 `Cloned from ${source.recipe.id}`,
-                editorHandle,
+                editorDisplayName,
             );
 
             return cloned;

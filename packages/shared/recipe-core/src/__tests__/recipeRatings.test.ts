@@ -210,9 +210,11 @@ describe('recipeSchema — CR-001 rating aggregate + derived fields', () => {
         expect(Object.keys(parsed).filter((key) => key.toLowerCase().includes('calor'))).toStrictEqual([]);
     });
 
-    it('accepts the denormalized authorHandle (W8-a.2) and tolerates its absence', () => {
-        expect(recipeSchema.parse(makeRecipe({ authorHandle: 'Ada Lovelace' })).authorHandle).toBe('Ada Lovelace');
-        expect(recipeSchema.parse(makeRecipe()).authorHandle).toBeUndefined();
+    it('accepts the denormalized authorDisplayName (W8-a.2) and tolerates its absence', () => {
+        expect(recipeSchema.parse(makeRecipe({ authorDisplayName: 'Ada Lovelace' })).authorDisplayName).toBe(
+            'Ada Lovelace',
+        );
+        expect(recipeSchema.parse(makeRecipe()).authorDisplayName).toBeUndefined();
     });
 
     it('requires a valid status (W8-a.3) — draft|published only, never absent', () => {
@@ -263,11 +265,11 @@ describe('recipeVersionSchema — editor attribution (W8-a.2)', () => {
         expect(parsed.versionNumber).toBe(1);
     });
 
-    it('accepts the denormalized editorHandle (W8-a.2) and tolerates its absence', () => {
-        expect(recipeVersionSchema.parse(makeVersion({ editorHandle: 'Ada Lovelace' })).editorHandle).toBe(
+    it('accepts the denormalized editorDisplayName (W8-a.2) and tolerates its absence', () => {
+        expect(recipeVersionSchema.parse(makeVersion({ editorDisplayName: 'Ada Lovelace' })).editorDisplayName).toBe(
             'Ada Lovelace',
         );
-        expect(recipeVersionSchema.parse(makeVersion()).editorHandle).toBeUndefined();
+        expect(recipeVersionSchema.parse(makeVersion()).editorDisplayName).toBeUndefined();
     });
 });
 

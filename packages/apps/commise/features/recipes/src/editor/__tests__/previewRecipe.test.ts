@@ -67,10 +67,10 @@ describe('previewRecipeOf', () => {
     });
 
     it('keeps a stored recipe`s photos, author and ratings, and takes everything the draft says from the draft', () => {
-        const recipe = makeRecipeDetail({ id: 'rec_1', title: 'Old', ratingCount: 4, authorHandle: 'cook' });
+        const recipe = makeRecipeDetail({ id: 'rec_1', title: 'Old', ratingCount: 4, authorDisplayName: 'cook' });
         const preview = previewRecipeOf({ values: makeFilledRecipeFormValues({ title: 'New' }), recipe, now: NOW });
 
-        expect(preview).toMatchObject({ id: 'rec_1', title: 'New', ratingCount: 4, authorHandle: 'cook' });
+        expect(preview).toMatchObject({ id: 'rec_1', title: 'New', ratingCount: 4, authorDisplayName: 'cook' });
         expect(preview.photos).toBe(recipe.photos);
     });
 });

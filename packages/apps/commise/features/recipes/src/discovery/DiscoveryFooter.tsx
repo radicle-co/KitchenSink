@@ -28,7 +28,7 @@ const BUTTON =
 
 export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
     title,
-    authorHandle,
+    authorDisplayName,
     sourceAttribution,
     state,
     onSave,
@@ -41,8 +41,8 @@ export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
         { title },
     );
     const by =
-        authorHandle !== undefined
-            ? fillTemplate(discovery.authorHandle, { handle: authorHandle })
+        authorDisplayName !== undefined
+            ? fillTemplate(discovery.authorDisplayName, { handle: authorDisplayName })
             : sourceAttribution === undefined
               ? undefined
               : fillTemplate(discovery.attribution, { source: sourceAttribution });
@@ -50,12 +50,12 @@ export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
     return (
         <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
-                {authorHandle === undefined ? null : (
+                {authorDisplayName === undefined ? null : (
                     <span
                         aria-hidden="true"
                         className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-selected-fill text-overline text-action-text"
                     >
-                        {authorHandle.slice(0, 1).toUpperCase()}
+                        {authorDisplayName.slice(0, 1).toUpperCase()}
                     </span>
                 )}
                 <span className="min-w-0 flex-1 truncate text-meta text-ink-muted">{by}</span>

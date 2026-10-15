@@ -84,7 +84,7 @@ interface RecipeVisibilityOptions {
     readonly status?: 'draft' | 'published';
     readonly clonedFromId?: string;
     readonly deletedAt?: boolean;
-    readonly authorHandle?: string;
+    readonly authorDisplayName?: string;
 }
 
 describe('account-erasure worker — scoped erasure on the real schema (T137 integration)', () => {
@@ -146,7 +146,7 @@ describe('account-erasure worker — scoped erasure on the real schema (T137 int
                 (${ownerId}, ${title}, 2, 5, 10, 15,
                  ${options.visibility ?? 'private'}, ${options.status ?? 'published'},
                  ${options.clonedFromId ?? null}, ${options.deletedAt ? sql`now()` : sql`NULL`},
-                 ${options.authorHandle ?? null})
+                 ${options.authorDisplayName ?? null})
             RETURNING id
         `);
 
@@ -232,14 +232,14 @@ describe('account-erasure worker — scoped erasure on the real schema (T137 int
         const keptPublic = await insertRecipe(OWNER_A, 'Public Recipe', {
             visibility: 'public',
             status: 'published',
-            authorHandle: 'Alice Cleartext',
+            authorDisplayName: 'Alice Cleartext',
         });
 
         // A DONATED private recipe: elected to publish → flipped to public+published → KEPT.
         const donated = await insertRecipe(OWNER_A, 'Donated Recipe', {
             visibility: 'private',
             status: 'draft',
-            authorHandle: 'Alice Cleartext',
+            authorDisplayName: 'Alice Cleartext',
         });
 
         // ── OWNER_B's estate (all must survive) ───────────────────────────────────────────────────────

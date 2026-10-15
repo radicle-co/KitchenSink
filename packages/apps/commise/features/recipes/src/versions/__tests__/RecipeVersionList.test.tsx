@@ -145,7 +145,7 @@ describe('RecipeVersionList (web) — rows', () => {
         renderList({
             versions: [
                 makeRecipeVersion({ versionNumber: 1 }),
-                makeRecipeVersion({ versionNumber: 2, editorHandle: '<b>chef</b>', changeSummary: 'Updated' }),
+                makeRecipeVersion({ versionNumber: 2, editorDisplayName: '<b>chef</b>', changeSummary: 'Updated' }),
             ],
             currentVersion: 2,
         });

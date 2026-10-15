@@ -486,21 +486,21 @@ describe('recipe-service schema — inferred row types compile with correct null
 
     it('CollectionRow: W5 pull provenance columns are nullable', () => {
         expectTypeOf<CollectionRow['lastPulledAt']>().toEqualTypeOf<Date | null>();
-        expectTypeOf<CollectionRow['sourceOwnerHandle']>().toEqualTypeOf<string | null>();
+        expectTypeOf<CollectionRow['sourceOwnerDisplayName']>().toEqualTypeOf<string | null>();
         expectTypeOf<CollectionRow['sourceCollectionName']>().toEqualTypeOf<string | null>();
 
-        const fixture: Pick<CollectionRow, 'lastPulledAt' | 'sourceOwnerHandle' | 'sourceCollectionName'> = {
+        const fixture: Pick<CollectionRow, 'lastPulledAt' | 'sourceOwnerDisplayName' | 'sourceCollectionName'> = {
             lastPulledAt: null,
-            sourceOwnerHandle: null,
+            sourceOwnerDisplayName: null,
             sourceCollectionName: null,
         };
         expect(fixture.lastPulledAt).toBeNull();
 
-        const populated: Pick<CollectionRow, 'lastPulledAt' | 'sourceOwnerHandle' | 'sourceCollectionName'> = {
+        const populated: Pick<CollectionRow, 'lastPulledAt' | 'sourceOwnerDisplayName' | 'sourceCollectionName'> = {
             lastPulledAt: new Date('2026-07-24T00:00:00.000Z'),
-            sourceOwnerHandle: '@chef',
+            sourceOwnerDisplayName: '@chef',
             sourceCollectionName: 'Weeknight Dinners',
         };
-        expect(populated.sourceOwnerHandle).toBe('@chef');
+        expect(populated.sourceOwnerDisplayName).toBe('@chef');
     });
 });

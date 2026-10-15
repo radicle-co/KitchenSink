@@ -25,7 +25,7 @@ function renderCard(over: Partial<RecipeDiscoveryCardProps> = {}) {
         recipe: toRecipeCardModel(makeRecipe({ id: 'rec_1', title: 'Lamb Shoulder' })),
         variant: 'grid',
         headingLevel: 3,
-        authorHandle: 'braise.club',
+        authorDisplayName: 'braise.club',
         saveCopy: { kind: 'idle' },
         onSelect: vi.fn(),
         onSave: vi.fn(),
@@ -86,7 +86,7 @@ describe('RecipeDiscoveryCard (web)', () => {
     });
 
     it('says an imported recipe’s source when it has no author', () => {
-        renderCard({ authorHandle: undefined, sourceAttribution: 'Serious Eats' });
+        renderCard({ authorDisplayName: undefined, sourceAttribution: 'Serious Eats' });
 
         expect(screen.getByText('From Serious Eats')).toBeTruthy();
     });

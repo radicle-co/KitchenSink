@@ -250,7 +250,7 @@ export const recipeExportSchema = z
         dietaryFlags: z.array(z.string()).readonly(),
         tags: z.array(z.string()).readonly(),
         /** Denormalized headline per-serving calories (`numeric` → string), `null` when unaccounted. */
-        authorHandle: z.string().nullable(),
+        authorDisplayName: z.string().nullable(),
         currentVersion: z.number().int(),
         /** Soft-delete tombstone, or `null` when active. Present so an export is a faithful mirror. */
         deletedAt: exportTimestampSchema.nullable(),
@@ -294,7 +294,7 @@ export const collectionExportSchema = z
         sourceCollectionId: exportIdSchema.nullable(),
         /** Last pull-refresh time, or `null` if never pulled. */
         lastPulledAt: exportTimestampSchema.nullable(),
-        sourceOwnerHandle: z.string().nullable(),
+        sourceOwnerDisplayName: z.string().nullable(),
         sourceCollectionName: z.string().nullable(),
         createdAt: exportTimestampSchema,
         updatedAt: exportTimestampSchema,
@@ -366,7 +366,7 @@ export const versionExportSchema = z
         /** The version's author (`recipe_versions.created_by`, the app-user ULID) — always the caller. */
         createdBy: exportIdSchema,
         changeSummary: z.string().nullable(),
-        editorHandle: z.string().nullable(),
+        editorDisplayName: z.string().nullable(),
         createdAt: exportTimestampSchema,
     })
     .readonly();

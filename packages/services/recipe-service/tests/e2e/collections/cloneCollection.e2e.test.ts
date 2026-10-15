@@ -10,7 +10,7 @@
  *      seeded membership lands with `added_via = 'clone_seed'`, read back from the DB rather than
  *      inferred from a mock call.
  *   3. **Source attribution is frozen at clone time, for real** (W5 Task 2 / CR-003) — the clone's
- *      `sourceOwnerHandle`/`sourceCollectionName` are resolved from the live `author_handles` table at
+ *      `sourceOwnerDisplayName`/`sourceCollectionName` are resolved from the live `author_handles` table at
  *      clone time; a SUBSEQUENT rename of the source owner's handle in that table must NOT change what
  *      a re-read of the clone reports — the frozen columns, not a live join, are the source of truth.
  *
@@ -49,7 +49,7 @@ interface CollectionBody {
     ownerId: string;
     name: string;
     sourceCollectionId?: string;
-    sourceOwnerHandle?: string;
+    sourceOwnerDisplayName?: string;
     sourceCollectionName?: string;
     recipeCount?: number;
 }
@@ -127,7 +127,7 @@ describe('collection clone (FR-011 integration)', () => {
         // Frozen attribution (W5 Task 2): the source's name + its owner's handle, resolved via the real
         // `author_handles` table (not mocked).
         expect(clone.sourceCollectionName).toBe('Shared Favourites');
-        expect(clone.sourceOwnerHandle).toBe(SOURCE_OWNER_HANDLE);
+        expect(clone.sourceOwnerDisplayName).toBe(SOURCE_OWNER_HANDLE);
 
         const members = await db
             .select({ recipeId: recipeCollections.recipeId, addedVia: recipeCollections.addedVia })
@@ -163,7 +163,7 @@ describe('collection clone (FR-011 integration)', () => {
             const cloneRes = await fetch(`${baseUrl}/api/v1/collections/${sourceId}/clone`, { method: 'POST' });
             expect(cloneRes.status).toBe(201);
             const clone = (await cloneRes.json()) as CollectionBody;
-            expect(clone.sourceOwnerHandle).toBe(SOURCE_OWNER_HANDLE);
+            expect(clone.sourceOwnerDisplayName).toBe(SOURCE_OWNER_HANDLE);
             expect(clone.sourceCollectionName).toBe('Shared Favourites');
 
             // Rename the source owner's handle AFTER the clone exists.
@@ -177,8 +177,8 @@ describe('collection clone (FR-011 integration)', () => {
             const reread = (await getRes.json()) as CollectionBody;
 
             // Still the FROZEN handle from clone time — never the live/renamed value.
-            expect(reread.sourceOwnerHandle).toBe(SOURCE_OWNER_HANDLE);
-            expect(reread.sourceOwnerHandle).not.toBe('clara-renamed');
+            expect(reread.sourceOwnerDisplayName).toBe(SOURCE_OWNER_HANDLE);
+            expect(reread.sourceOwnerDisplayName).not.toBe('clara-renamed');
             expect(reread.sourceCollectionName).toBe('Shared Favourites');
             expect(reread.sourceCollectionId).toBe(sourceId);
 

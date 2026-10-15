@@ -22,7 +22,7 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
     recipe,
     variant,
     headingLevel,
-    authorHandle,
+    authorDisplayName,
     sourceAttribution,
     saveCopy,
     href,
@@ -40,7 +40,7 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
         footer={
             <DiscoveryFooter
                 title={recipe.title}
-                {...(authorHandle === undefined ? {} : { authorHandle })}
+                {...(authorDisplayName === undefined ? {} : { authorDisplayName })}
                 {...(sourceAttribution === undefined ? {} : { sourceAttribution })}
                 state={saveCopy}
                 onSave={() => onSave(recipe.id)}

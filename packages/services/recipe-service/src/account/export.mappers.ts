@@ -61,7 +61,7 @@ export function mapRecipe(row: RecipeExportRow): RecipeExport {
         // ⛔ `hasPartialNutrition` and `leadCaloriesPerServing` are GONE from the export (plan U10). Both
         // were derived from food's data and stored here, so exporting them shipped the user a value frozen
         // at its last pre-migration write — a stale number presented as their record.
-        authorHandle: row.authorHandle,
+        authorDisplayName: row.authorDisplayName,
         currentVersion: row.currentVersion,
         deletedAt: toIsoStringOrNull(row.deletedAt),
         createdAt: toIsoString(row.createdAt),
@@ -96,7 +96,7 @@ export function mapCollection(row: CollectionRow, memberships: readonly RecipeCo
         visibility: row.visibility,
         sourceCollectionId: row.sourceCollectionId,
         lastPulledAt: toIsoStringOrNull(row.lastPulledAt),
-        sourceOwnerHandle: row.sourceOwnerHandle,
+        sourceOwnerDisplayName: row.sourceOwnerDisplayName,
         sourceCollectionName: row.sourceCollectionName,
         createdAt: toIsoString(row.createdAt),
         updatedAt: toIsoString(row.updatedAt),
@@ -149,7 +149,7 @@ export function mapVersion(row: VersionMetadataRow): VersionExport {
         s3Key: row.s3Key,
         createdBy: row.createdBy,
         changeSummary: row.changeSummary,
-        editorHandle: row.editorHandle,
+        editorDisplayName: row.editorDisplayName,
         createdAt: toIsoString(row.createdAt),
     };
 }

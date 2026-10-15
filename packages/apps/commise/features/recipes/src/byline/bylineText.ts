@@ -33,6 +33,7 @@ export function bylineText(byline: Byline, copy: BylineMessages, form: 'standalo
                 ? handle
                 : fillTemplate(copy.handleWithName, { handle, displayName: isolate(byline.displayName) });
         }
+
         case 'name':
             return isolate(byline.displayName);
         case 'former':

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { makeUserProfileAccount, makeUserProfileUser } from '@commise/features-account/testing';
 
@@ -13,9 +13,17 @@ import { signInWithTicket } from './utils/auth';
  * member", never the `user_<ULID>` pseudonym; the cook's own Profile shows their username read-only.
  *
  * Role/label selectors only. The byline wraps each piece of user text in invisible bidi isolates, so text is matched
- * by its visible parts rather than as one exact string.
+ * by its visible parts rather than as one exact string. Discover shows the one recipe in every rail, so a card is read
+ * from the Trending rail alone.
  */
 const OTHER_COOK = 'usr_other';
+
+/** Any run of bidi isolates (U+2066–U+2069) the byline puts around user text. */
+const ISOLATES = '[\u2066-\u2069]*';
+
+function trendingCard(page: Page): Locator {
+    return page.getByLabel('Trending recipes').getByRole('article', { name: 'Seafood Paella' });
+}
 
 async function discoverWith(
     page: Page,
@@ -43,8 +51,9 @@ test.describe('the byline is the username', () => {
         await discoverWith(page, { authorUsername: 'braise', authorDisplayName: 'Eliza Moreno' });
         await page.goto(route('/discover'));
 
-        const card = page.getByRole('article', { name: 'Seafood Paella' });
-        await expect(card).toContainText('@braise (Eliza Moreno)');
+        await expect(trendingCard(page)).toContainText(
+            new RegExp(`${ISOLATES}@braise${ISOLATES} \\(${ISOLATES}Eliza Moreno${ISOLATES}\\)`, 'u'),
+        );
     });
 
     test('the recipe page names the author “by @username (Display Name)”', async ({ page }) => {
@@ -59,7 +68,7 @@ test.describe('the byline is the username', () => {
         await discoverWith(page, { authorDisplayName: 'Eliza Moreno' });
         await page.goto(route('/discover'));
 
-        const card = page.getByRole('article', { name: 'Seafood Paella' });
+        const card = trendingCard(page);
         await expect(card).toContainText('Eliza Moreno');
         await expect(card).not.toContainText('@');
     });
@@ -68,7 +77,7 @@ test.describe('the byline is the username', () => {
         await discoverWith(page, { authorDisplayName: 'user_01J9ZK8N7QF3B2X4M6T0V5C1AB' });
         await page.goto(route('/discover'));
 
-        const card = page.getByRole('article', { name: 'Seafood Paella' });
+        const card = trendingCard(page);
         await expect(card).toContainText('Former member');
         await expect(card).not.toContainText('user_');
     });

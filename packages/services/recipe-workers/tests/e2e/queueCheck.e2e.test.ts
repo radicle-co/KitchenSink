@@ -202,6 +202,42 @@ describe('the recipe queue backstop (integration)', () => {
     });
 
     /**
+     * ⛔ `claimed_too_long` IS THE COOK'S `stalled`, not "a claim older than the lease" (plan 2026-10-15-011,
+     * open question 3). A line between two attempts (claim lapsed, but its paste moved recently) is `delayed`, a
+     * normal state; only a paste that has been quiet past the stall window makes its lapsed-claim lines stuck.
+     */
+    it('⛔ reports a lapsed claim as stuck only when the whole paste has gone quiet', async () => {
+        const seedClaimed = async (quietSeconds: number): Promise<void> => {
+            const jobId = randomUUID();
+
+            await pool.query(
+                `INSERT INTO recipe_parse_jobs (id, owner_id, status, created_at, expires_at)
+                 VALUES ($1, $2, 'running', now() - interval '7200 seconds', now() + interval '3600 seconds')`,
+                [jobId, OWNER],
+            );
+            await pool.query(
+                `INSERT INTO recipe_parse_job_lines
+                     (job_id, line_index, source_line, line_digest, status, attempts, last_received_at, updated_at)
+                 VALUES ($1, 0, 'u12 stuck line', $2, 'pending', 1,
+                         now() - ($3 || ' seconds')::interval, now() - ($3 || ' seconds')::interval)`,
+                [jobId, `digest-${jobId}-0`, String(quietSeconds)],
+            );
+        };
+
+        // Claim lapsed (> 150 s) but the paste moved 200 s ago: between attempts, NOT stuck.
+        await seedClaimed(200);
+        const [between] = await withSession(async (session) => readOnlyCounts(session, PARAMS));
+
+        expect(between?.claimedTooLong).toBe(0);
+
+        // A second paste quiet for far longer than the stall window: stuck.
+        await seedClaimed(100_000);
+        const [stalled] = await withSession(async (session) => readOnlyCounts(session, PARAMS));
+
+        expect(stalled?.claimedTooLong).toBe(1);
+    });
+
+    /**
      * ⛔ An EXPIRED job's pending lines are not owed. The sweep discards whatever would land for them, so
      * counting them escalates work the system has correctly abandoned — forever, because nothing ever clears
      * an expired job's lines.

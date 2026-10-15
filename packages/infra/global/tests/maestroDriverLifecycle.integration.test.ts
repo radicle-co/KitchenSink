@@ -202,6 +202,131 @@ describe('maestro driver lifecycle', () => {
 });
 
 /**
+ * ⛔ A FAILED SEED RESET STOPS THE SHARD; A FAILED FLOW DOES NOT.
+ *
+ * A reset that fails is the ENVIRONMENT failing — the stage, identity, Clerk or the pool slot — not the flow it was
+ * about to run, and the next flow's reset meets the same cause. One run proved it: the pool signers had no roles, every
+ * reset answered `400 INVALID_VISIBILITY`, and the shard reported one red per flow for one missing `poolAdmin
+ * --apply`. So the loop stops at the FIRST reset failure and names the flows it did not run. A flow that fails after
+ * a good reset is that flow's own result, and every later flow still runs.
+ *
+ * Both directions are asserted, because either alone is satisfied by the wrong loop: "stops at a reset failure" by a
+ * loop that stops at every failure, and "keeps going after a flow failure" by the loop this replaces.
+ */
+describe('maestro flow loop — the first failed reset stops the shard, a failed flow does not', () => {
+    const FLOWS = ['recipes/collections', 'recipes/accessibility', 'recipes/addStepFocus'] as const;
+
+    /**
+     * Run the real loop over {@link FLOWS} with `failing` stubbed to exit 1 and every other tool to exit 0.
+     *
+     * @sideEffect Writes stubs and a manifest to a temp directory, spawns bash, removes the directory.
+     */
+    function runWith(failing: 'npx' | 'maestro'): { calls: string[]; output: string; status: number } {
+        const dir = mkdtempSync(join(tmpdir(), `maestro-${failing}-fails-`));
+
+        try {
+            const log = join(dir, 'calls.log');
+
+            writeFileSync(log, '', 'utf8');
+
+            for (const name of ['adb', 'maestro', 'node', 'npx']) {
+                stub(dir, name, log);
+            }
+
+            // The failing tool records its call like the others, then exits 1.
+            writeFileSync(
+                join(dir, failing),
+                `#!/usr/bin/env bash\n{ printf '%s' "${failing}"; printf '\\t%s' "$@"; printf '\\n'; } >> "${log}"\nexit 1\n`,
+                'utf8',
+            );
+            chmodSync(join(dir, failing), 0o755);
+
+            const manifestFile = join(dir, 'fixture.env');
+
+            writeFileSync(
+                manifestFile,
+                `${manifestToEnvLines(deriveFixtureManifest(RUN_KEY, 'android', 1), ERASURE_SUBJECT).join('\n')}\n`,
+                'utf8',
+            );
+
+            const result = spawnSync('bash', [SCRIPT, 'run-one', ...FLOWS], {
+                encoding: 'utf8',
+                env: {
+                    ...process.env,
+                    PATH: `${dir}:${process.env['PATH'] ?? ''}`,
+                    MAESTRO_FIXTURE_ENV_FILE: manifestFile,
+                },
+            });
+
+            return {
+                calls: readFileSync(log, 'utf8')
+                    .split('\n')
+                    .filter((line) => line.trim().length > 0),
+                output: `${result.stdout ?? ''}${result.stderr ?? ''}`,
+                status: result.status ?? -1,
+            };
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    }
+
+    const resets = (calls: readonly string[]) => calls.filter((call) => /^npx\t.*e2e-seed\/src\/reset\.ts/u.test(call));
+    const flowRuns = (calls: readonly string[]) => calls.filter((call) => /^maestro\t.*\btest\b/u.test(call));
+
+    describe('when the first reset fails', () => {
+        let run: ReturnType<typeof runWith>;
+
+        beforeAll(() => {
+            run = runWith('npx');
+        }, 60_000);
+
+        it('reached the loop at all (non-vacuity: the device check ran)', () => {
+            expect(
+                run.calls.some((call) => call.startsWith('adb')),
+                run.output,
+            ).toBe(true);
+        });
+
+        it('⛔ resets once, drives no flow, and fails the shard', () => {
+            expect(resets(run.calls), run.output).toHaveLength(1);
+            expect(flowRuns(run.calls)).toStrictEqual([]);
+            expect(run.status).not.toBe(0);
+        });
+
+        it('says the shard stopped, and names every flow it did not run', () => {
+            expect(run.output).toMatch(/::error::e2e-seed reset failed before recipes\/collections/u);
+            expect(run.output).toMatch(/::error::.*stopping this shard/u);
+
+            for (const flow of FLOWS) {
+                expect(run.output).toContain(flow);
+            }
+        });
+    });
+
+    describe('when every flow fails after a good reset', () => {
+        let run: ReturnType<typeof runWith>;
+
+        beforeAll(() => {
+            run = runWith('maestro');
+        }, 60_000);
+
+        it('⛔ still resets for, and drives, every flow', () => {
+            expect(resets(run.calls), run.output).toHaveLength(FLOWS.length);
+            expect(flowRuns(run.calls)).toHaveLength(FLOWS.length);
+        });
+
+        it('reports each flow failure, and fails the shard', () => {
+            for (const flow of FLOWS) {
+                expect(run.output).toContain(`FLOW FAILED: ${flow}`);
+            }
+
+            expect(run.output).not.toMatch(/stopping this shard/u);
+            expect(run.status).not.toBe(0);
+        });
+    });
+});
+
+/**
  * ⛔ THE LOOP REFUSES AN ERASING FLOW WHEN THE MANIFEST NAMES NO SUBJECT — before the reset, and before Maestro.
  *
  * Only the erasure shard leases a subject (`maestroErasureSlots`, testPool.ts), so every other shard's manifest is

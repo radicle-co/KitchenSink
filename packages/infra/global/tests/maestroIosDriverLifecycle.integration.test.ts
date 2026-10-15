@@ -244,18 +244,18 @@ describe('maestro iOS driver reuse - kept only after a flow that passed', () => 
         expect(flows[2]?.argv).not.toContain('--no-reinstall-driver');
     });
 
-    it('⛔ RESETS the runner for the flow after a flow that was SKIPPED (its world could not be reset)', () => {
-        // Call 1 resets home's world, call 2 dataSources's: dataSources is not run, so recipes/delete cannot trust the runner.
+    // ⚠️ REWRITTEN, not weakened. This case used to prove that the flow AFTER a flow whose world could not be reset got a
+    // fresh runner. That flow no longer runs: a failed reset now stops the shard, because it is the stage failing and the
+    // next reset meets the same cause (`runMaestroFlows.sh`, `maestroDriverLifecycle.integration.test.ts`). What is left
+    // to prove on iOS is that the stop happens here too, after the flow that passed and before anything else is driven.
+    it('⛔ STOPS the shard at a reset that fails mid-run, after the flow that passed and before any other', () => {
+        // Call 1 resets home's world, call 2 dataSources's: neither dataSources nor recipes/delete may run.
         const recorded = runWithStubs(['run-one', ...FLOWS], { ...IOS, MAESTRO_STUB_NPX_FAIL_CALL: '2' });
         const flows = perFlow(recorded);
 
         expect(recorded.status).not.toBe(0);
-        expect(flows.map((flow) => flow.argv.at(-1))).toEqual([
-            'packages/apps/commise/mobile/.maestro/home.yaml',
-            'packages/apps/commise/mobile/.maestro/recipes/delete.yaml',
-        ]);
-        expect(flows[1]?.teardowns).toBe(2);
-        expect(flows[1]?.argv).not.toContain('--no-reinstall-driver');
+        expect(flows.map((flow) => flow.argv.at(-1))).toEqual(['packages/apps/commise/mobile/.maestro/home.yaml']);
+        expect(recorded.output).toMatch(/stopping this shard\. Not run: dataSources recipes\/delete/u);
     });
 
     it('says, flow by flow, whether the runner was kept or reset - the CI comparison reads this line', () => {

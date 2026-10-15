@@ -1370,7 +1370,13 @@ maestro_run_flow_list() {
     # fail and back to 1 only on a pass, so no skip path can leave a stale 1 behind.
     local driver_trusted=0 runner_before='first flow of the run'
 
+    # The flows not yet started, space-padded so one name is removed whole. `not_run` is this flow and every one
+    # after it — what a stopped shard names as never driven.
+    local pending=" ${flows} " not_run
+
     for f in $flows; do
+        not_run="${pending}"
+        pending="${pending/ ${f} / }"
         echo "::group::maestro flow ${f}"
         echo "driver port ${MAESTRO_DRIVER_PORT} (pinned below the ephemeral range) for flow ${f}"
         # ${driver_args[@]+…}: an EMPTY array is an unbound variable under `set -u` on bash 3.2 (macOS's system bash).
@@ -1397,15 +1403,23 @@ maestro_run_flow_list() {
             *" ${f} "*) reseed_mode=empty ;;
             *) reseed_mode=seeded ;;
         esac
-        # ⛔ A FAILED RESET SKIPS ITS FLOW, and that is the lesson of run 101351873536. Every reset there
-        # failed (`ECONNREFUSED 127.0.0.1:5432`) and every flow ran anyway, against whatever state happened
-        # to exist — turning ONE root cause into twenty-four reds that each read like an app defect. A flow
-        # driven against an unknown world proves nothing, so it must not be driven at all.
+        # ⛔ A FAILED RESET IS NEVER FOLLOWED BY ITS FLOW, and that is the lesson of run 101351873536. Every reset
+        # there failed (`ECONNREFUSED 127.0.0.1:5432`) and every flow ran anyway, against whatever state happened to
+        # exist — turning ONE root cause into twenty-four reds that each read like an app defect.
+        # ⛔ AND IT STOPS THE SHARD. A reset fails for the stage, identity, Clerk or the pool slot, never for the flow
+        # it precedes, so the next reset meets the same cause: a later run's signers had no roles, every reset
+        # answered `400 INVALID_VISIBILITY`, and skipping flow by flow still reported one red per flow. A FLOW's
+        # failure below is that flow's own result and does not stop the loop. `maestroDriverLifecycle.integration.test.ts`
+        # holds both directions.
         if ! npx tsx packages/tools/e2e-seed/src/reset.ts --mode "$reseed_mode"; then
             echo "::error::e2e-seed reset failed before ${f} — the flow was NOT run"
-            rc=1
+            # `pending` is single-space padded, so trimming one space from each end leaves the list.
+            not_run="${not_run# }"
+            not_run="${not_run% }"
+            echo "::error::a failed reset is the stage failing, not ${f}, so the next reset would fail the same way — stopping this shard. Not run: ${not_run}"
             echo "::endgroup::"
-            continue
+
+            return 1
         fi
         maestro_load_fixture_env_args
         # `${a[@]+"${a[@]}"}` rather than a bare `"${a[@]}"`: under `set -u` an EMPTY array is an unbound

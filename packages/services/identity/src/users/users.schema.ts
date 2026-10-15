@@ -134,8 +134,13 @@ export type UserProfile = z.infer<typeof userProfileSchema>;
  * own presign route as an `https://` S3 URL.
  */
 export const patchUserMeRequestSchema = z.strictObject({
-    /** New display name, ≤100 characters. */
-    displayName: z.string().max(100).optional(),
+    /**
+     * New display name, ≤100 characters, and never blank (plan 2026-10-15-010 D6a): the handle-sync snapshot carries
+     * the display name on every byline change and its contract refuses a blank one, so a blank name saved here would
+     * make every later sync — a Clerk username change included — fail. The service stores it trimmed; the trim is
+     * server-side normalisation, so it is not part of the published shape.
+     */
+    displayName: z.string().max(100).regex(/\S/, { error: 'must not be blank' }).optional(),
     /** New avatar URL (absolute, with a scheme), or `null` to clear it. */
     avatarUrl: z.union([z.url(), z.null()]).optional(),
 });

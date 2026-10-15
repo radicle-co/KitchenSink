@@ -135,12 +135,34 @@ describe('handleSyncMessageSchema', () => {
     const handleSync = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
         userId: OWNER,
         displayName: 'Ada Lovelace',
+        username: 'ada',
         sourceTimestamp: '2026-08-12T10:00:00.000Z',
         ...overrides,
     });
 
-    it('accepts a well-formed rename event', () => {
-        expect(handleSyncMessageSchema.parse(handleSync()).displayName).toBe('Ada Lovelace');
+    it('accepts a well-formed byline snapshot', () => {
+        expect(handleSyncMessageSchema.parse(handleSync())).toEqual({
+            userId: OWNER,
+            displayName: 'Ada Lovelace',
+            username: 'ada',
+            sourceTimestamp: '2026-08-12T10:00:00.000Z',
+        });
+    });
+
+    // Plan 2026-10-15-010 D6: the message is a FULL snapshot, so the consumer can apply it monotonically on one
+    // timestamp. A message that left the username out would make "no username" and "not said" the same thing.
+    it('REQUIRES the username key — a null says "no username", an absent key is refused', () => {
+        expect(handleSyncMessageSchema.parse(handleSync({ username: null })).username).toBeNull();
+
+        const { username: _omitted, ...withoutUsername } = handleSync();
+
+        expect(() => handleSyncMessageSchema.parse(withoutUsername)).toThrow();
+    });
+
+    it('BOUNDS the username at Clerk’s maximum and keeps it exactly as sent', () => {
+        expect(handleSyncMessageSchema.parse(handleSync({ username: 'GoodFellow' })).username).toBe('GoodFellow');
+        expect(() => handleSyncMessageSchema.parse(handleSync({ username: 'u'.repeat(65) }))).toThrow();
+        expect(() => handleSyncMessageSchema.parse(handleSync({ username: '' }))).toThrow();
     });
 
     it('requires userId to be a ULID, not merely a non-blank string', () => {

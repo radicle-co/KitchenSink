@@ -97,6 +97,17 @@ describe('identity e2e — request validation + route surface', () => {
         ]);
     });
 
+    // Plan 2026-10-15-010 D6a: a blank display name would fail every later byline snapshot.
+    it.each([
+        ['empty', ''],
+        ['whitespace only', '   '],
+    ])('rejects a PATCH /api/v1/users/me displayName that is %s with 400 naming the field', async (_case, name) => {
+        const { status, envelope } = await patchMe(JSON.stringify({ displayName: name }));
+
+        expect(status).toBe(400);
+        expect(envelope.details?.['fields']).toEqual(['displayName: must not be blank']);
+    });
+
     it('rejects a PATCH /api/v1/users/me avatarUrl that is not a URL with 400 naming the field', async () => {
         const { status, envelope } = await patchMe(JSON.stringify({ avatarUrl: 'not-a-url' }));
 

@@ -80,6 +80,21 @@ describe('patchUserMeRequestSchema', () => {
         expect(patchUserMeRequestSchema.safeParse({ displayName: 'x'.repeat(101) }).success).toBe(false);
     });
 
+    // Plan 2026-10-15-010 D6a: the handle-sync message is a full snapshot whose displayName must be non-blank, so a
+    // blank name saved here would make EVERY later byline sync — a username change included — fail its own contract.
+    it.each([
+        ['empty', ''],
+        ['whitespace only', '   '],
+    ])('rejects a displayName that is %s', (_case, displayName) => {
+        expect(patchUserMeRequestSchema.safeParse({ displayName }).success).toBe(false);
+    });
+
+    // The trim is the service's (server-side normalisation is not part of the published shape), so the schema
+    // passes a padded name through and `patchUserMe` stores it trimmed.
+    it('accepts a padded displayName as sent', () => {
+        expect(patchUserMeRequestSchema.parse({ displayName: '  Ada  ' })).toStrictEqual({ displayName: '  Ada  ' });
+    });
+
     it('accepts an absolute URL for avatarUrl', () => {
         expect(patchUserMeRequestSchema.safeParse({ avatarUrl: 'https://img.example/x.png' }).success).toBe(true);
     });

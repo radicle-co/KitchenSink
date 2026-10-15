@@ -423,6 +423,7 @@
                 },
                 "displayName": {
                     "maxLength": 100,
+                    "pattern": "\\S",
                     "type": "string"
                 }
             },

@@ -267,11 +267,14 @@ describe('UsersService', () => {
         mockDb.select = vi
             .fn()
             .mockReturnValueOnce(makeChain([mockUser]))
-            .mockReturnValueOnce(makeChain([updatedProfile]))
             .mockReturnValueOnce(makeChain([updatedAccount]));
 
+        // The profile comes back from the UPDATE's own RETURNING (plan 2026-10-15-010 D6); the later settle of the
+        // handle-sync debt is a plain UPDATE … WHERE.
         mockDb.update = vi.fn().mockReturnValue({
-            set: () => ({ where: () => Promise.resolve() }),
+            set: () => ({
+                where: () => Object.assign(Promise.resolve(), { returning: () => Promise.resolve([updatedProfile]) }),
+            }),
         });
 
         const result = await usersService.patchUserMe({ ...userCtx, roles: ['premium'] }, { displayName: 'New Name' });

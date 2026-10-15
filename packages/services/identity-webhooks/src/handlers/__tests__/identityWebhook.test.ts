@@ -2,7 +2,9 @@ import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-l
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { handleSyncPublish } = vi.hoisted(() => ({ handleSyncPublish: vi.fn() }));
-vi.mock('@kitchensink/identity-service/users/handle-sync-publisher', () => ({
+vi.mock('@kitchensink/identity-service/users/handle-sync-publisher', async (importOriginal) => ({
+    // The REAL `publishOwedByline` — the publish-then-settle step is the behaviour under test, not a seam.
+    ...(await importOriginal<typeof import('@kitchensink/identity-service/users/handle-sync-publisher')>()),
     createSnsHandleSyncPublisher: vi.fn(),
     // No HANDLE_SYNC_TOPIC_ARN in tests → the handler uses the no-op; its publish is the spy we assert.
     noopHandleSyncPublisher: { publish: handleSyncPublish },
@@ -20,7 +22,7 @@ vi.mock('@kitchensink/identity-db', () => ({
             upsertByIdentityId: vi.fn(),
             findByIdentityId: vi.fn(),
             updateProfile: vi.fn(),
-            syncNameAndPicture: vi.fn().mockResolvedValue({ displayNameChanged: false }),
+            syncProviderFields: vi.fn().mockResolvedValue({}),
             // U9: a rename records a handle-sync debt, so the publish path settles it. A fake DAO without
             // this method makes every rename case throw — which is the claim landing, not a test problem.
             settleHandleSync: vi.fn().mockResolvedValue(undefined),
@@ -98,10 +100,14 @@ const userUpdatedPayload = {
         email_addresses: [{ id: 'email_1', email_address: 'updated@example.com' }],
         first_name: 'Jane',
         last_name: 'Doe',
+        username: 'janedoe',
         image_url: 'https://example.com/new-avatar.png',
     },
     object: 'event' as const,
 };
+
+/** The stamp a DAO write returned — far from "now", so a process clock cannot match it by accident. */
+const STAMPED = new Date('2026-01-02T03:04:05.678Z');
 
 const userDeletedPayload = {
     type: 'user.deleted' as const,
@@ -109,40 +115,43 @@ const userDeletedPayload = {
     object: 'event' as const,
 };
 
-/** Builds a `user.updated` payload for `user_abc123` carrying the given first/last name. */
-const makeUserUpdatedPayload = (firstName: string, lastName: string) => ({
+/** Builds a `user.updated` payload for `user_abc123` carrying the given first/last name and username. */
+const makeUserUpdatedPayload = (firstName: string, lastName: string, username: string | null = 'johndoe') => ({
     type: 'user.updated' as const,
     data: {
         id: 'user_abc123',
         email_addresses: [{ id: 'email_1', email_address: 'test@example.com' }],
         first_name: firstName,
         last_name: lastName,
+        username,
         image_url: 'https://example.com/avatar.png',
     },
     object: 'event' as const,
 });
 
 /**
- * A stateful `UserDAO` double whose `syncNameAndPicture` mirrors the REAL DAO's gate-on-`users`-mirror
- * behavior (S-I3, corrected): the gate compares the incoming Clerk name/picture against `users.name`/
- * `picture` (the Clerk MIRROR, tracked here as `mirror`) — NOT `profiles.displayName`/`avatarUrl` (the
- * EFFECTIVE, possibly self-service-overridden display, tracked here as `profile`). A field is written
- * to `profile` ONLY when that specific field's incoming value differs from `mirror`, so a self-service
- * override on a field Clerk did NOT touch this event survives. This lets handler-level tests drive the
- * exact A->B->A, self-service-preservation, and genuine-Clerk-change sequences and assert the
- * handler's publish-gating wiring reacts correctly, without needing a real database.
+ * A stateful `UserDAO` double whose `syncProviderFields` mirrors the REAL DAO (S-I3; plan 2026-10-15-010 D5): the name
+ * and picture are gated on the `users` MIRROR (`mirror`), never on the EFFECTIVE, possibly self-service-overridden
+ * profile (`profile`); the username is compared to the profile directly (Clerk is its only authority). It returns the
+ * byline SNAPSHOT — the PROFILE's display name and username after the write — only when either half changed, stamped
+ * with a strictly increasing clock as `profileClock` would. Lets handler-level tests drive A->B->A, self-service
+ * preservation and username-only changes without a database; `tests/e2e/bylineSnapshot.e2e.test.ts` (identity) proves
+ * the real DAO against one.
  */
 const makeStatefulUserDao = (initial: {
     mirrorName: string;
     mirrorPicture: string | null;
     profileDisplayName?: string;
     profileAvatarUrl?: string | null;
+    profileUsername?: string | null;
 }) => {
     let mirror = { name: initial.mirrorName, picture: initial.mirrorPicture };
     let profile = {
         displayName: initial.profileDisplayName ?? initial.mirrorName,
         avatarUrl: initial.profileAvatarUrl !== undefined ? initial.profileAvatarUrl : initial.mirrorPicture,
+        username: initial.profileUsername !== undefined ? initial.profileUsername : 'johndoe',
     };
+    let clock = Date.parse('2026-10-15T00:00:00.000Z');
     const existing = {
         id: 'usr_ulid',
         identityId: 'user_abc123',
@@ -155,25 +164,38 @@ const makeStatefulUserDao = (initial: {
         upsertByIdentityId: vi.fn(),
         updateProfile: vi.fn(),
         findByIdentityId: vi.fn().mockResolvedValue(existing),
-        // U9: a rename records a handle-sync debt and the publish path settles it. A fake DAO without this
-        // method makes every rename case throw — which is the claim landing, not a test problem.
+        // U9: a byline write records a handle-sync debt and the publish path settles it.
         settleHandleSync: vi.fn().mockResolvedValue(undefined),
-        syncNameAndPicture: vi.fn(
-            async (_userId: string, data: { name: string; picture: string | null; now: Date }) => {
+        syncProviderFields: vi.fn(
+            async (
+                _userId: string,
+                data: { name: string; picture: string | null; username: string | null; now: Date },
+            ) => {
                 const nameChanged = data.name !== mirror.name;
                 const pictureChanged = data.picture !== mirror.picture;
+                const usernameChanged = data.username !== profile.username;
 
-                if (!nameChanged && !pictureChanged) {
-                    return { displayNameChanged: false };
+                if (!nameChanged && !pictureChanged && !usernameChanged) {
+                    return {};
                 }
 
                 mirror = { name: data.name, picture: data.picture };
                 profile = {
                     displayName: nameChanged ? data.name : profile.displayName,
                     avatarUrl: pictureChanged ? data.picture : profile.avatarUrl,
+                    username: usernameChanged ? data.username : profile.username,
                 };
+                clock += 1;
 
-                return { displayNameChanged: nameChanged };
+                return nameChanged || usernameChanged
+                    ? {
+                          byline: {
+                              displayName: profile.displayName,
+                              username: profile.username,
+                              stampedAt: new Date(clock),
+                          },
+                      }
+                    : {};
             },
         ),
         getStoredDisplayName: () => profile.displayName,
@@ -380,7 +402,9 @@ describe('identity-webhook handler', () => {
                 picture: 'https://example.com/avatar.png',
             }),
             updateProfile: vi.fn(),
-            syncNameAndPicture: vi.fn().mockResolvedValue({ displayNameChanged: true }),
+            syncProviderFields: vi.fn().mockResolvedValue({
+                byline: { displayName: 'Jane Doe', username: 'janedoe', stampedAt: STAMPED },
+            }),
             settleHandleSync: vi.fn().mockResolvedValue(undefined),
         };
         vi.mocked(UserDAO).mockImplementation(function () {
@@ -400,15 +424,23 @@ describe('identity-webhook handler', () => {
         expect(whereUser).toHaveBeenCalledWith(expect.anything());
         // S-I3: name/picture sync goes through the coherent DAO method (one transaction, both tables),
         // not a raw `db.update(profiles)` gated on the stale `users.name` baseline.
-        expect(daoInstance.syncNameAndPicture).toHaveBeenCalledWith(
+        expect(daoInstance.syncProviderFields).toHaveBeenCalledWith(
             'usr_ulid',
-            expect.objectContaining({ name: 'Jane Doe', picture: 'https://example.com/new-avatar.png' }),
+            expect.objectContaining({
+                name: 'Jane Doe',
+                picture: 'https://example.com/new-avatar.png',
+                username: 'janedoe',
+            }),
         );
-        // W8-a.2: the DAO reported a real displayName change, so the webhook publishes a handle-sync
-        // rename carrying the app-user ULID (not the Clerk id) + the new name.
-        expect(handleSyncPublish).toHaveBeenCalledWith(
-            expect.objectContaining({ userId: 'usr_ulid', displayName: 'Jane Doe' }),
-        );
+        // The DAO returned a byline snapshot, so the webhook publishes it — the app-user ULID (not the Clerk id),
+        // both halves, and the stamp the DAO's statement returned (never a process clock) — then settles THAT debt.
+        expect(handleSyncPublish).toHaveBeenCalledWith({
+            userId: 'usr_ulid',
+            displayName: 'Jane Doe',
+            username: 'janedoe',
+            sourceTimestamp: STAMPED.toISOString(),
+        });
+        expect(daoInstance.settleHandleSync).toHaveBeenCalledWith('usr_ulid', STAMPED, null);
     });
 
     it('user.updated A -> B -> A: the revert is NOT silently dropped — both transitions write + publish', async () => {
@@ -544,6 +576,55 @@ describe('identity-webhook handler', () => {
         expect(result.statusCode).toBe(200);
         expect(daoInstance.getStoredDisplayName()).toBe('Same Name');
         expect(handleSyncPublish).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a USERNAME-ONLY Clerk change publishes the cook’s OWN display name beside the new username', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+
+        // The cook overrode their display name in Profile; Clerk's name is unchanged, only the username moves.
+        const daoInstance = makeStatefulUserDao({
+            mirrorName: 'John Doe',
+            mirrorPicture: 'https://example.com/avatar.png',
+            profileDisplayName: 'Chef John',
+            profileUsername: 'johndoe',
+        });
+        vi.mocked(UserDAO).mockImplementation(function () {
+            return daoInstance;
+        });
+        const payload = makeUserUpdatedPayload('John', 'Doe', 'john_cooks');
+        mockVerifyWebhook.mockReturnValue(payload as never);
+
+        const result = await handler(makeEvent(JSON.stringify(payload), { 'svix-id': 'msg_username' }), makeContext());
+
+        expect(result.statusCode).toBe(200);
+        // A delta that carried only the username would be correct here and lost under a later name-only delta; the
+        // snapshot carries both, and the name is the PROFILE's — Clerk's "John Doe" never overwrites "Chef John".
+        expect(handleSyncPublish).toHaveBeenCalledWith(
+            expect.objectContaining({ userId: 'usr_ulid', displayName: 'Chef John', username: 'john_cooks' }),
+        );
+        expect(daoInstance.getStoredDisplayName()).toBe('Chef John');
+    });
+
+    it('user.updated -> a failed publish leaves the debt with its failure code and still answers 200', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+
+        const daoInstance = makeStatefulUserDao({
+            mirrorName: 'Old Name',
+            mirrorPicture: 'https://example.com/avatar.png',
+        });
+        vi.mocked(UserDAO).mockImplementation(function () {
+            return daoInstance;
+        });
+        handleSyncPublish.mockRejectedValueOnce(new Error('sns down'));
+        const payload = makeUserUpdatedPayload('New', 'Name');
+        mockVerifyWebhook.mockReturnValue(payload as never);
+
+        const result = await handler(makeEvent(JSON.stringify(payload), { 'svix-id': 'msg_fail' }), makeContext());
+
+        expect(result.statusCode).toBe(200);
+        expect(daoInstance.settleHandleSync).toHaveBeenCalledWith('usr_ulid', expect.any(Date), 'publish_failed');
     });
 
     it('user.deleted -> enqueues SQS deletion message', async () => {

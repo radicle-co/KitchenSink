@@ -1,17 +1,11 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { and, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { provisionCompleteUser, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
-import {
-    buildHandleSyncMessage,
-    computeProfileScrub,
-    deriveDisplayName,
-    parseUsername,
-} from '@kitchensink/identity-core';
-import { eraseIdentityRow } from '@kitchensink/identity-db';
+import { computeProfileScrub, deriveDisplayName, parseUsername } from '@kitchensink/identity-core';
+import { eraseIdentityRow, profileClock, UserDAO } from '@kitchensink/identity-db';
 
-import { HANDLE_SYNC_PUBLISH_FAILED } from '@kitchensink/identity-core';
-import { HANDLE_SYNC_PUBLISHER, type HandleSyncPublisher } from './handleSync.publisher.js';
+import { HANDLE_SYNC_PUBLISHER, publishOwedByline, type HandleSyncPublisher } from './handleSync.publisher.js';
 import { AVATAR_OBJECT_STORE, type AvatarObjectStore } from './avatarObjectStore.js';
 
 import { accounts, lifecycleEvents, profiles, users } from '@kitchensink/identity-db';
@@ -235,52 +229,6 @@ export class UsersService {
         };
     }
 
-    /**
-     * Clear the owed marker after a successful publish — but ONLY for the rename that set it (U9/R21).
-     *
-     * ⛔ CONDITIONAL on the value it read. A second rename can land between this publish starting and
-     * finishing; clearing unconditionally would erase the NEWER debt and leave that second name un-synced
-     * with nothing recording it — the exact silence this marker exists to end, reintroduced by the
-     * successful path. Comparing the timestamp means a later rename's marker survives.
-     *
-     * @param userId - The renamed user.
-     * @param owedAt - The stamp this rename wrote.
-     * @sideEffect Updates `profiles`.
-     */
-    private async clearHandleSyncOwed(userId: string, owedAt: Date): Promise<void> {
-        await this.db
-            .update(profiles)
-            .set({ handleSyncOwedAt: null, handleSyncFailureCode: null })
-            .where(and(eq(profiles.userId, userId), eq(profiles.handleSyncOwedAt, owedAt)));
-    }
-
-    /**
-     * Record WHY the publish failed, leaving the debt in place for the backstop (U9/R25).
-     *
-     * ⚠️ A CODE, never the exception's message: an error text can carry the display name, and this column
-     * exists to make the failure visible without copying the user's words anywhere new. Guarded on the same
-     * stamp for the same reason as {@link clearHandleSyncOwed} — a newer rename's marker is not overwritten
-     * with an older attempt's verdict.
-     *
-     * ⚠️ Best-effort in its own right: if THIS write fails the rename still succeeded, and the row simply
-     * keeps the owed stamp with no code, which the backstop reads as owed-and-unexplained rather than
-     * nothing at all.
-     *
-     * @param userId - The renamed user.
-     * @param owedAt - The stamp this rename wrote.
-     * @sideEffect Updates `profiles`.
-     */
-    private async recordHandleSyncFailure(userId: string, owedAt: Date): Promise<void> {
-        try {
-            await this.db
-                .update(profiles)
-                .set({ handleSyncFailureCode: HANDLE_SYNC_PUBLISH_FAILED })
-                .where(and(eq(profiles.userId, userId), eq(profiles.handleSyncOwedAt, owedAt)));
-        } catch (error) {
-            this.logger.error('could not record the handle-sync failure code', { userId, error });
-        }
-    }
-
     async patchUserMe(ctx: AuthorizerContext, input: { displayName?: string; avatarUrl?: string | null }) {
         const userId = ctx.userId;
 
@@ -290,44 +238,52 @@ export class UsersService {
             throw new NotFoundException('User not found');
         }
 
-        const now = new Date();
-
-        if (input.displayName !== undefined || input.avatarUrl !== undefined) {
-            await this.db
-                .update(profiles)
-                .set({
-                    ...(input.displayName !== undefined ? { displayName: input.displayName } : {}),
-                    ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}),
-                    // ⛔ U9/R21: the OWED MARKER moves with the name, in this one statement. The publish
-                    // below happens after the commit and is deliberately best-effort, so before this marker
-                    // a failed fan-out left nothing behind: the name changed here, never changed on the
-                    // cook's recipes, and the only trace was the `logger.error` below. Writing it here
-                    // rather than as a second statement is what makes "outside the transaction" unwritable
-                    // — the same reason ADR-0034's outbox takes the transaction as a required parameter.
-                    //
-                    // ⚠️ Only on a NAME change: an avatar edit publishes nothing, so it owes nothing.
-                    ...(input.displayName !== undefined ? { handleSyncOwedAt: now, handleSyncFailureCode: null } : {}),
-                    updatedAt: now,
-                })
-                .where(eq(profiles.userId, userId));
-        }
-
-        const [updatedProfile] = await this.db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
+        const renamed = input.displayName !== undefined;
+        // The profile as THIS statement left it. ⛔ `RETURNING`, not a read-back: a second statement could see a
+        // concurrent webhook's later write, and the snapshot published below must be exactly the state this write's
+        // stamp keys (plan 2026-10-15-010 D6).
+        const [updatedProfile] =
+            input.displayName !== undefined || input.avatarUrl !== undefined
+                ? await this.db
+                      .update(profiles)
+                      .set({
+                          // Trimmed: one name has one stored form, and the consumer would trim it anyway.
+                          ...(input.displayName !== undefined ? { displayName: input.displayName.trim() } : {}),
+                          ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}),
+                          // ⛔ U9/R21: the OWED MARKER moves with the name, in this one statement and on the
+                          // database's clock (`profileClock`). The publish below happens after the commit and is
+                          // best-effort, so without the marker a failed fan-out left nothing behind.
+                          //
+                          // ⚠️ Only on a NAME change: an avatar edit changes no byline, so it owes nothing.
+                          ...(renamed ? { handleSyncOwedAt: profileClock, handleSyncFailureCode: null } : {}),
+                          updatedAt: profileClock,
+                      })
+                      .where(eq(profiles.userId, userId))
+                      .returning()
+                : await this.db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
         const [updatedAccount] = await this.db.select().from(accounts).where(eq(accounts.userId, userId)).limit(1);
 
-        // Handle-sync (W8-a.2): a displayName change publishes to the global topic so the recipe service
-        // corrects the denormalized author/editor handles. `sourceTimestamp` is the profiles.updatedAt
-        // (`now`) written above — the single monotonic clock shared with the webhook route. Best-effort: a
-        // failed publish must NOT fail the rename (the reconciliation/backfill backstops a missed event).
-        if (input.displayName !== undefined) {
-            try {
-                await this.handleSync.publish(
-                    buildHandleSyncMessage(userId, updatedProfile?.displayName ?? '', now.toISOString()),
-                );
-                await this.clearHandleSyncOwed(userId, now);
-            } catch (error) {
-                this.logger.error('handle-sync publish failed (rename still succeeded)', { userId, error });
-                await this.recordHandleSyncFailure(userId, now);
+        // Handle-sync (W8-a.2): a rename publishes the byline snapshot — the new display name AND the Clerk username
+        // the row already holds — keyed by the stamp the write returned. Best-effort: a failed publish must NOT fail
+        // the rename; the owed marker is the backstop's record of it.
+        if (renamed && updatedProfile !== undefined) {
+            const sync = await publishOwedByline(
+                this.handleSync,
+                (owner, owedAt, code) => new UserDAO(this.db).settleHandleSync(owner as UserId, owedAt, code),
+                userId,
+                {
+                    displayName: updatedProfile.displayName,
+                    username: updatedProfile.username,
+                    stampedAt: updatedProfile.updatedAt,
+                },
+            );
+
+            if (sync.outcome === 'owed') {
+                this.logger.error('handle-sync publish failed (rename still succeeded)', {
+                    userId,
+                    error: sync.error,
+                    settleError: sync.settleError,
+                });
             }
         }
 
@@ -340,7 +296,7 @@ export class UsersService {
                 avatarUrl: updatedProfile?.avatarUrl ?? null,
                 username: updatedProfile?.username ?? null,
                 createdAt: existing.createdAt.toISOString(),
-                updatedAt: now.toISOString(),
+                updatedAt: (updatedProfile?.updatedAt ?? existing.updatedAt).toISOString(),
             },
             account: {
                 id: updatedAccount?.id,

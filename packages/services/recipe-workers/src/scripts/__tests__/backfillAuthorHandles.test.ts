@@ -21,8 +21,13 @@ describe('backfillAuthorHandles', () => {
 
         const result = await backfillAuthorHandles(
             profiles([
-                { userId: 'u1', displayName: 'Ada Lovelace', updatedAt: at('2026-07-20T00:00:00.000Z') },
-                { userId: 'u2', displayName: 'Alan Turing', updatedAt: at('2026-07-19T00:00:00.000Z') },
+                {
+                    userId: 'u1',
+                    displayName: 'Ada Lovelace',
+                    username: 'ada',
+                    updatedAt: at('2026-07-20T00:00:00.000Z'),
+                },
+                { userId: 'u2', displayName: 'Alan Turing', username: null, updatedAt: at('2026-07-19T00:00:00.000Z') },
             ]),
             apply,
         );
@@ -31,15 +36,18 @@ describe('backfillAuthorHandles', () => {
         expect(apply).toHaveBeenNthCalledWith(1, {
             userId: 'u1',
             displayName: 'Ada Lovelace',
+            username: 'ada',
             sourceTimestamp: '2026-07-20T00:00:00.000Z',
         });
+        // A cook without a username is seeded as one, never skipped: the display name still attributes.
+        expect(apply).toHaveBeenNthCalledWith(2, expect.objectContaining({ userId: 'u2', username: null }));
     });
 
     it('skips a blank display name (nothing to attribute) without calling the applier', async () => {
         const apply = vi.fn().mockResolvedValue(true);
 
         const result = await backfillAuthorHandles(
-            profiles([{ userId: 'u1', displayName: '   ', updatedAt: at('2026-07-20T00:00:00.000Z') }]),
+            profiles([{ userId: 'u1', displayName: '   ', username: null, updatedAt: at('2026-07-20T00:00:00.000Z') }]),
             apply,
         );
 
@@ -52,7 +60,7 @@ describe('backfillAuthorHandles', () => {
         const apply = vi.fn().mockResolvedValue(false);
 
         const result = await backfillAuthorHandles(
-            profiles([{ userId: 'u1', displayName: 'Ada', updatedAt: at('2026-07-01T00:00:00.000Z') }]),
+            profiles([{ userId: 'u1', displayName: 'Ada', username: null, updatedAt: at('2026-07-01T00:00:00.000Z') }]),
             apply,
         );
 

@@ -92,10 +92,33 @@ describe('applyHandleRename (real Postgres)', () => {
         return rows[0]!.editor_handle;
     }
 
+    async function usernamesOf(id: string): Promise<{ author: string | null; editor: string | null }> {
+        const recipe = await pool.query<{ author_username: string | null }>(
+            'SELECT author_username FROM recipes WHERE id = $1',
+            [id],
+        );
+        const version = await pool.query<{ editor_username: string | null }>(
+            'SELECT editor_username FROM recipe_versions WHERE recipe_id = $1',
+            [id],
+        );
+
+        return { author: recipe.rows[0]!.author_username, editor: version.rows[0]!.editor_username };
+    }
+
+    async function readModelUsernameOf(userId: string): Promise<string | null | undefined> {
+        const { rows } = await pool.query<{ username: string | null }>(
+            'SELECT username FROM author_handles WHERE user_id = $1',
+            [userId],
+        );
+
+        return rows[0]?.username;
+    }
+
     it('applies an event and fans it out to the owner’s recipes + versions (not other users’)', async () => {
         const applied = await applyHandleRename(db, {
             userId: USER,
             displayName: 'New Name',
+            username: 'newname',
             sourceTimestamp: '2026-07-20T00:00:00.000Z',
         });
 
@@ -111,16 +134,23 @@ describe('applyHandleRename (real Postgres)', () => {
     });
 
     it('IGNORES an older-or-equal source_timestamp (monotonic guard)', async () => {
-        await applyHandleRename(db, { userId: USER, displayName: 'V2', sourceTimestamp: '2026-07-20T12:00:00.000Z' });
+        await applyHandleRename(db, {
+            userId: USER,
+            displayName: 'V2',
+            username: null,
+            sourceTimestamp: '2026-07-20T12:00:00.000Z',
+        });
 
         const stale = await applyHandleRename(db, {
             userId: USER,
             displayName: 'V1-late',
+            username: null,
             sourceTimestamp: '2026-07-20T06:00:00.000Z',
         });
         const equal = await applyHandleRename(db, {
             userId: USER,
             displayName: 'V2-again',
+            username: null,
             sourceTimestamp: '2026-07-20T12:00:00.000Z',
         });
 
@@ -132,15 +162,95 @@ describe('applyHandleRename (real Postgres)', () => {
 
     it('converges to the actual latest for A→B→A redelivered OUT OF ORDER', async () => {
         // Delivered out of order: the newest (back to "Ada") arrives first, then the older ones.
-        await applyHandleRename(db, { userId: USER, displayName: 'Ada', sourceTimestamp: '2026-07-20T03:00:00.000Z' });
-        await applyHandleRename(db, { userId: USER, displayName: 'Bob', sourceTimestamp: '2026-07-20T02:00:00.000Z' });
+        await applyHandleRename(db, {
+            userId: USER,
+            displayName: 'Ada',
+            username: null,
+            sourceTimestamp: '2026-07-20T03:00:00.000Z',
+        });
+        await applyHandleRename(db, {
+            userId: USER,
+            displayName: 'Bob',
+            username: null,
+            sourceTimestamp: '2026-07-20T02:00:00.000Z',
+        });
         await applyHandleRename(db, {
             userId: USER,
             displayName: 'Ada-old',
+            username: null,
             sourceTimestamp: '2026-07-20T01:00:00.000Z',
         });
 
         expect(await readModelOf(USER)).toBe('Ada');
         expect(await handleOf(recipeId)).toBe('Ada');
+    });
+
+    // Plan 2026-10-15-010 D6/D7: the snapshot carries the username too, and the fan-out writes it beside the name.
+    it('fans the USERNAME out to the read model, the owner’s recipes and their versions', async () => {
+        await applyHandleRename(db, {
+            userId: USER,
+            displayName: 'New Name',
+            username: 'newname',
+            sourceTimestamp: '2026-07-20T00:00:00.000Z',
+        });
+
+        expect(await readModelUsernameOf(USER)).toBe('newname');
+        expect(await usernamesOf(recipeId)).toEqual({ author: 'newname', editor: 'newname' });
+    });
+
+    it('applies a USERNAME-ONLY change — the display name is the same, the snapshot is newer', async () => {
+        await applyHandleRename(db, {
+            userId: USER,
+            displayName: 'Ada',
+            username: 'ada',
+            sourceTimestamp: '2026-07-20T01:00:00.000Z',
+        });
+
+        const applied = await applyHandleRename(db, {
+            userId: USER,
+            displayName: 'Ada',
+            username: 'ada_cooks',
+            sourceTimestamp: '2026-07-20T02:00:00.000Z',
+        });
+
+        expect(applied).toBe(true);
+        expect(await usernamesOf(recipeId)).toEqual({ author: 'ada_cooks', editor: 'ada_cooks' });
+        expect(await handleOf(recipeId)).toBe('Ada');
+    });
+
+    it('never lets an OLDER snapshot take the username back', async () => {
+        await applyHandleRename(db, {
+            userId: USER,
+            displayName: 'Ada',
+            username: 'new',
+            sourceTimestamp: '2026-07-20T03:00:00.000Z',
+        });
+        await applyHandleRename(db, {
+            userId: USER,
+            displayName: 'Ada',
+            username: 'old',
+            sourceTimestamp: '2026-07-20T01:00:00.000Z',
+        });
+
+        expect(await readModelUsernameOf(USER)).toBe('new');
+        expect(await usernamesOf(recipeId)).toEqual({ author: 'new', editor: 'new' });
+    });
+
+    it('clears the copies when the snapshot says the cook has NO username', async () => {
+        await applyHandleRename(db, {
+            userId: USER,
+            displayName: 'Ada',
+            username: 'ada',
+            sourceTimestamp: '2026-07-20T01:00:00.000Z',
+        });
+        await applyHandleRename(db, {
+            userId: USER,
+            displayName: 'Ada',
+            username: null,
+            sourceTimestamp: '2026-07-20T02:00:00.000Z',
+        });
+
+        expect(await readModelUsernameOf(USER)).toBeNull();
+        expect(await usernamesOf(recipeId)).toEqual({ author: null, editor: null });
     });
 });

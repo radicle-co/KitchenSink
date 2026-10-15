@@ -6,10 +6,10 @@ import { eq } from 'drizzle-orm';
 import { recordOnce, hasProcessedWebhookEvent, users } from '@kitchensink/identity-db';
 import type { UserRow, UserId } from '@kitchensink/identity-db';
 import { provisionCompleteUser, type ProvisionResult } from '@kitchensink/identity-utils';
-import { buildHandleSyncMessage, HANDLE_SYNC_PUBLISH_FAILED } from '@kitchensink/identity-core';
 import {
     createSnsHandleSyncPublisher,
     noopHandleSyncPublisher,
+    publishOwedByline,
 } from '@kitchensink/identity-service/users/handle-sync-publisher';
 
 import { ensureDefaultRole, setExternalId } from '../common/identityClient.js';
@@ -168,50 +168,35 @@ const handleUserUpdated = async (
         await db.update(users).set({ email, updatedAt: now }).where(eq(users.id, existing.id));
     }
 
-    // Coherent users/profiles sync (S-I3): gate on `users.name`/`users.picture` as the Clerk MIRROR,
-    // moving the mirror on every genuine Clerk-side change. This fires the `profiles` write only when
-    // Clerk's incoming value actually differs from the mirror (so an A->B->A rename still round-trips,
-    // since the mirror always tracks Clerk's last-seen value) while leaving `profiles` untouched on a
-    // non-name event (avatar-only change, redelivery), which preserves any self-service `PATCH /me`
-    // override. One transaction, both tables. Returns whether displayName actually changed, so the
-    // handle-sync publish below fires on every genuine transition, including a revert back to a prior
-    // value.
-    const newPicture = data.image_url ?? null;
-    const { displayNameChanged } = await userDao.syncNameAndPicture(existing.id as UserId, {
+    // Coherent users/profiles sync (S-I3; plan 2026-10-15-010 D5): the name and picture are gated on the Clerk MIRROR
+    // (`users.name`/`users.picture`), so an unrelated Clerk event never reverts a self-service display name; the
+    // username is compared to the profile directly (Clerk is its only authority). One transaction, both tables. It
+    // returns the byline SNAPSHOT only when the display name or the username actually changed — including a revert to
+    // a prior value — carrying the PROFILE's display name and the stamp its own statement wrote.
+    const { byline } = await userDao.syncProviderFields(existing.id as UserId, {
         name: displayName,
-        picture: newPicture,
+        picture: data.image_url ?? null,
+        username: data.username ?? null,
         now,
     });
 
-    // Handle-sync (W8-a.2): the SECOND producer route. When the display NAME actually changed, publish to
-    // the global topic so the recipe service corrects its denormalized author/editor handles.
-    // sourceTimestamp is the SAME `now` written in the coherent sync above — the SAME single monotonic
-    // clock the PATCH route uses, so the consumer's guard orders webhook and PATCH renames coherently.
-    // Best-effort: a failed publish is logged, never fails the webhook (the reconciliation/backfill
-    // backstops a missed event).
-    if (displayNameChanged) {
-        try {
-            await handleSyncPublisher.publish(buildHandleSyncMessage(existing.id, displayName, now.toISOString()));
-            // U9/R21: the debt is settled — but ONLY the one this rename recorded. A second rename can land
-            // between the publish starting and finishing, and clearing unconditionally would erase the newer
-            // debt, leaving that name un-synced with nothing recording it.
-            await userDao.settleHandleSync(existing.id as UserId, now, null);
-        } catch (error) {
-            // The debt STAYS, with a code saying why. Recording it is itself best-effort: if this write
-            // fails the row keeps the owed stamp and no code, which the backstop reads as owed-and-
-            // unexplained rather than as nothing at all.
-            await userDao
-                .settleHandleSync(existing.id as UserId, now, HANDLE_SYNC_PUBLISH_FAILED)
-                .catch((settleError: unknown) => {
-                    logger.error('identity-webhook: could not record the handle-sync failure code', {
-                        userId: existing.id,
-                        error: settleError,
-                    });
-                });
+    // Handle-sync (W8-a.2): a producer route. Publish the snapshot so the recipe service corrects its denormalized
+    // copies, then settle exactly the debt this write recorded. Best-effort: a failed publish is logged, never fails
+    // the webhook (the owed marker is the backstop's record of it).
+    if (byline !== undefined) {
+        const sync = await publishOwedByline(
+            handleSyncPublisher,
+            (userId, owedAt, code) => userDao.settleHandleSync(userId as UserId, owedAt, code),
+            existing.id,
+            byline,
+        );
+
+        if (sync.outcome === 'owed') {
             logger.error('identity-webhook: handle-sync publish failed (user.updated still processed)', {
                 requestId,
                 userId: existing.id,
-                error,
+                error: sync.error,
+                settleError: sync.settleError,
             });
         }
     }

@@ -1,10 +1,12 @@
+import type { BylineSnapshot } from '@kitchensink/identity-core';
 import { and, eq } from 'drizzle-orm';
 import type { IdentityWriter } from '../identityWriter.js';
+
+import { profileClock } from '../profileClock.js';
 
 import { accounts } from '../schema/accounts.js';
 import { profiles } from '../schema/profiles.js';
 import { users } from '../schema/users.js';
-import type { ProfileRow } from '../schema/profiles.js';
 import type { NewUserRow, UserRow } from '../schema/users.js';
 import { newUserId, type UserId } from '../ulid.js';
 
@@ -22,6 +24,12 @@ export interface UserDaoLogger {
 }
 
 const noopLogger: UserDaoLogger = { warn: () => {} };
+
+/** A byline snapshot with the `profileClock` stamp the statement that wrote it returned. */
+export interface StampedByline extends BylineSnapshot {
+    /** `profiles.updated_at` (= `handle_sync_owed_at`) as that statement stamped it — the snapshot's key. */
+    readonly stampedAt: Date;
+}
 
 /** @implements REQ-013 REQ-014 REQ-015 REQ-017 REQ-018 REQ-019 REQ-025 FR-013 FR-014 FR-015 FR-017 FR-018 FR-019 FR-025 ARCH-011 ARCH-012 MOD-011 MOD-012 */
 export class UserDAO {
@@ -85,98 +93,88 @@ export class UserDAO {
     }
 
     /**
-     * Coherent `users`/`profiles` sync for `user.updated` (S-I3, corrected). `users.name`/
-     * `users.picture` are the Clerk MIRROR — the last-synced Clerk value — and are the gate.
-     * `profiles.displayName`/`avatarUrl` is the EFFECTIVE value the app renders, which a user can
-     * override independent of Clerk via self-service `PATCH /api/v1/users/me`.
+     * Coherent `users`/`profiles` sync for `user.updated` (S-I3, corrected; plan 2026-10-15-010 D5). `users.name`/
+     * `users.picture` are the Clerk MIRROR — the last-synced Clerk value — and are the gate for the name and the
+     * avatar. `profiles.displayName`/`avatarUrl` is the EFFECTIVE value the app renders, which a user can override
+     * independent of Clerk via self-service `PATCH /api/v1/users/me`.
      *
-     * The ORIGINAL bug gated on `users.name`, which this webhook path never wrote — the baseline never
-     * moved, so an A→B→A Clerk rename froze `profiles.displayName` at B (the B→A revert compared
-     * against the stale, never-moved `users.name` and saw no difference).
+     * Gating on the mirror is what makes both of these hold at once:
+     *   - A genuine Clerk change (mirror ≠ incoming) moves the mirror AND syncs `profiles` (Clerk wins on a real
+     *     change — decision 6), so the mirror never goes stale and A→B→A still round-trips.
+     *   - A non-name Clerk event (avatar-only, a redelivery) leaves `profiles.displayName` untouched, preserving a
+     *     self-service override. Each field is gated INDEPENDENTLY.
      *
-     * Gating on `profiles` instead (the first attempted fix) traded that bug for a WORSE one: after a
-     * self-service rename set `profiles.displayName` to X while Clerk's name stayed Y, ANY subsequent
-     * `user.updated` (an avatar-only change, an email change, a svix redelivery) recomputed Clerk's
-     * unchanged Y, compared it to X, saw a "difference", and REVERTED the self-service edit — data loss
-     * on every unrelated webhook delivery.
+     * The USERNAME needs no mirror: Clerk is its only authority and the app has no rename, so the incoming value is
+     * compared to `profiles.username` directly.
      *
-     * Gating on `users.name`/`users.picture` (the Clerk mirror) — and moving the mirror on every real
-     * Clerk-side change — fixes both at once:
-     *   - A genuine Clerk change (mirror ≠ incoming) moves the mirror AND syncs `profiles` (Clerk wins
-     *     on a real change — decision 6), so the mirror never goes stale and A→B→A still round-trips.
-     *   - A non-name Clerk event (mirror name == incoming name, e.g. avatar-only or a redelivery)
-     *     leaves `profiles.displayName` untouched, preserving a self-service override. The two fields
-     *     are gated INDEPENDENTLY — an avatar-only event still moves `profiles.avatarUrl` (and the
-     *     mirror), it just never touches `displayName`.
+     * ⛔ Returns the BYLINE SNAPSHOT — present only when the display name OR the username changed — read back from the
+     * `RETURNING` of the statement that wrote it. So a username-only change publishes the PROFILE's display name (a
+     * cook's own override), never Clerk's, and the snapshot's stamp is the row's `profileClock`, which the same
+     * statement writes to `handle_sync_owed_at` as the debt the publish must settle.
      *
-     * Both tables are written together in one transaction so they can never drift into a stale
-     * duplicate baseline. Returns whether `displayName` (specifically) changed, so the caller can gate
-     * the handle-sync publish on a genuine Clerk-driven name change only.
+     * Both tables are written in one transaction, the user row locked first (`FOR UPDATE`) and then the profile.
      *
-     * @sideEffect updates `users.name`/`users.picture` and, per-field, `profiles.displayName`/
-     * `avatarUrl` — only for the field(s) that genuinely changed on Clerk's side.
+     * @sideEffect Updates `users.name`/`users.picture` and, per field, `profiles.displayName`/`avatarUrl`/`username`.
      */
-    async syncNameAndPicture(
+    async syncProviderFields(
         userId: UserId,
-        data: { name: string; picture: string | null; now: Date },
-    ): Promise<{ displayNameChanged: boolean }> {
+        data: { name: string; picture: string | null; username: string | null; now: Date },
+    ): Promise<{ readonly byline?: StampedByline }> {
         return this.db.transaction(async (tx) => {
-            const [user] = await tx.select().from(users).where(eq(users.id, userId));
+            const [user] = await tx.select().from(users).where(eq(users.id, userId)).for('update');
 
             if (!user) {
-                return { displayNameChanged: false };
+                return {};
+            }
+
+            const [profile] = await tx.select().from(profiles).where(eq(profiles.userId, userId)).for('update');
+
+            if (!profile) {
+                this.logger.warn(
+                    'UserDAO.syncProviderFields: users row exists but profiles row is missing (invariant violation)',
+                    { userId },
+                );
+
+                return {};
             }
 
             const nameChanged = data.name !== user.name;
             const pictureChanged = data.picture !== user.picture;
+            const usernameChanged = data.username !== profile.username;
+            const bylineChanged = nameChanged || usernameChanged;
 
-            if (!nameChanged && !pictureChanged) {
-                return { displayNameChanged: false };
+            if (!nameChanged && !pictureChanged && !usernameChanged) {
+                return {};
             }
 
-            const [profile] = await tx.select().from(profiles).where(eq(profiles.userId, userId));
-
-            if (!profile) {
-                this.logger.warn(
-                    'UserDAO.syncNameAndPicture: users row exists but profiles row is missing (invariant violation)',
-                    { userId },
-                );
-
-                return { displayNameChanged: false };
+            if (nameChanged || pictureChanged) {
+                await tx
+                    .update(users)
+                    .set({ name: data.name, picture: data.picture, updatedAt: data.now })
+                    .where(eq(users.id, userId));
             }
 
-            await tx
-                .update(users)
-                .set({ name: data.name, picture: data.picture, updatedAt: data.now })
-                .where(eq(users.id, userId));
-
-            const profilePatch: Partial<
-                Pick<ProfileRow, 'displayName' | 'avatarUrl' | 'handleSyncOwedAt' | 'handleSyncFailureCode'>
-            > = {};
-
-            if (nameChanged) {
-                profilePatch.displayName = data.name;
-                // ⛔ U9/R21: the OWED MARKER moves with the name, inside this transaction. The caller
-                // publishes to the handle-sync topic AFTER this commits and is deliberately best-effort, so
-                // without the marker a failed fan-out left nothing behind — the name changed here, never
-                // changed on the cook's recipes, and the only trace was one log line in the handler.
-                //
-                // ⚠️ Both columns, because a rename that re-owes a sync must not inherit the PREVIOUS
-                // attempt's failure code: the debt is new, and its verdict is not in yet.
-                profilePatch.handleSyncOwedAt = data.now;
-                profilePatch.handleSyncFailureCode = null;
-            }
-
-            if (pictureChanged) {
-                profilePatch.avatarUrl = data.picture;
-            }
-
-            await tx
+            const [written] = await tx
                 .update(profiles)
-                .set({ ...profilePatch, updatedAt: data.now })
-                .where(eq(profiles.userId, userId));
+                .set({
+                    ...(nameChanged ? { displayName: data.name } : {}),
+                    ...(pictureChanged ? { avatarUrl: data.picture } : {}),
+                    ...(usernameChanged ? { username: data.username } : {}),
+                    // ⛔ U9/R21: the OWED MARKER moves with the byline, inside this statement and on the same clock.
+                    // The publish happens after the commit and is best-effort, so without the marker a failed
+                    // fan-out left nothing behind. Both columns, because a new debt must not inherit the previous
+                    // attempt's failure code.
+                    ...(bylineChanged ? { handleSyncOwedAt: profileClock, handleSyncFailureCode: null } : {}),
+                    updatedAt: profileClock,
+                })
+                .where(eq(profiles.userId, userId))
+                .returning({
+                    displayName: profiles.displayName,
+                    username: profiles.username,
+                    stampedAt: profiles.updatedAt,
+                });
 
-            return { displayNameChanged: nameChanged };
+            return bylineChanged && written !== undefined ? { byline: written } : {};
         });
     }
 

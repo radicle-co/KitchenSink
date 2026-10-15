@@ -20,6 +20,8 @@ import type { HandleSyncMessage } from '../handlers/handleSyncWorker.js';
 export interface IdentityProfile {
     readonly userId: string;
     readonly displayName: string;
+    /** `profiles.username` — the Clerk username, or `null`. The snapshot carries it beside the name. */
+    readonly username: string | null;
     /** `profiles.updatedAt` — becomes the read model's `source_timestamp` (the monotonic clock). */
     readonly updatedAt: Date;
 }
@@ -59,6 +61,7 @@ export async function backfillAuthorHandles(
         const wasApplied = await apply({
             userId: profile.userId,
             displayName: profile.displayName,
+            username: profile.username,
             sourceTimestamp: profile.updatedAt.toISOString(),
         });
 

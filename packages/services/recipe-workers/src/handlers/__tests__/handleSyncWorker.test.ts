@@ -61,7 +61,12 @@ function record(body: unknown, messageId = 'm-1'): SQSRecord {
 
 /** A real app-user ULID: identity mints ULIDs, and `userId` is now ULID-validated (it is the predicate of three SQL statements). */
 const USER = '01J0000000000000000000WN00';
-const VALID = { userId: USER, displayName: 'Ada Lovelace', sourceTimestamp: '2026-07-20T00:00:00.000Z' };
+const VALID = {
+    userId: USER,
+    displayName: 'Ada Lovelace',
+    username: 'ada',
+    sourceTimestamp: '2026-07-20T00:00:00.000Z',
+};
 
 describe('parseHandleSyncMessage', () => {
     it('parses a raw-delivery body', () => {
@@ -86,6 +91,9 @@ describe('parseHandleSyncMessage', () => {
         ['displayName over the 100-char bound', { ...VALID, displayName: 'x'.repeat(101) }],
         ['displayName that is whitespace only', { ...VALID, displayName: '   ' }],
         ['displayName that is not a string', { ...VALID, displayName: { $ne: null } }],
+        // The snapshot is the whole byline (plan 2026-10-15-010 D6): an absent username is not "none".
+        ['a missing username key', { userId: USER, displayName: 'x', sourceTimestamp: VALID.sourceTimestamp }],
+        ['a username past Clerk’s bound', { ...VALID, username: 'u'.repeat(65) }],
         // A non-normalized instant would be compared against `source_timestamp` as-is, so it must be refused
         // rather than silently win or lose the monotonic guard.
         ['a date-only timestamp', { ...VALID, sourceTimestamp: '2026-07-20' }],
@@ -113,6 +121,13 @@ describe('applyHandleRename SQL', () => {
         expect(sql).toContain('author_handles.source_timestamp < excluded.source_timestamp'); // monotonic guard
         expect(sql).toContain('update recipes set author_handle');
         expect(sql).toContain('update recipe_versions set editor_handle');
+        // Both halves of the byline in every statement: the read model, then each fan-out.
+        expect(sql).toContain('insert into author_handles (user_id, display_name, username, source_timestamp)');
+        expect(sql).toContain('username = excluded.username');
+        expect(sql).toContain('author_username =');
+        expect(sql).toContain('editor_username =');
+        expect(sql).toContain('author_username is distinct from');
+        expect(sql).toContain('editor_username is distinct from');
     });
 
     it('reports NOT applied and does NOT fan out when the upsert guard rejects a stale event', async () => {

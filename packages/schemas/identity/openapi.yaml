@@ -675,6 +675,7 @@ components:
         displayName:
           type: string
           maxLength: 100
+          pattern: \S
         avatarUrl:
           anyOf:
             - type: string

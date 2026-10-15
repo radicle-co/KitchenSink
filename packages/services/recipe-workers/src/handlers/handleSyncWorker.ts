@@ -1,7 +1,7 @@
 /**
  * W8-a.2 — the handle-sync CONSUMER Lambda (recipe-workers). Subscribed (via a per-stack SQS queue) to the
- * global `handle-sync` SNS topic, it applies each `{ userId, displayName, sourceTimestamp }` rename to the
- * recipe DB's `author_handles` read model MONOTONICALLY and fans the new name out to the owner's recipes +
+ * global `handle-sync` SNS topic, it applies each `{ userId, displayName, username, sourceTimestamp }` byline
+ * snapshot to the recipe DB's `author_handles` read model MONOTONICALLY and fans it out to the owner's recipes +
  * versions — the read model's ONLY writer, in the raw-SQL idiom the recipe-workers Lambdas use over their
  * schema-less handle (mirroring account-erasure). Its real-database proof is `tests/e2e/handleSync/`.
  *
@@ -74,11 +74,15 @@ export const applyHandleRename = async (
     return db.transaction(async (tx) => {
         // Monotonic upsert: the ON CONFLICT guard applies a rename ONLY when strictly newer than the stored
         // source_timestamp, so an older or redelivered event can never clobber a newer name.
+        // ⛔ BOTH halves of the snapshot, every time (plan 2026-10-15-010 D6): the message is the whole byline, so a
+        // username-only change and a name-only change are the same write.
         const upserted = await tx.execute(sql`
-            INSERT INTO author_handles (user_id, display_name, source_timestamp)
-            VALUES (${message.userId}, ${message.displayName}, ${message.sourceTimestamp})
+            INSERT INTO author_handles (user_id, display_name, username, source_timestamp)
+            VALUES (${message.userId}, ${message.displayName}, ${message.username}, ${message.sourceTimestamp})
             ON CONFLICT (user_id) DO UPDATE
-                SET display_name = EXCLUDED.display_name, source_timestamp = EXCLUDED.source_timestamp
+                SET display_name = EXCLUDED.display_name,
+                    username = EXCLUDED.username,
+                    source_timestamp = EXCLUDED.source_timestamp
                 WHERE author_handles.source_timestamp < EXCLUDED.source_timestamp
             RETURNING user_id
         `);
@@ -88,12 +92,16 @@ export const applyHandleRename = async (
         }
 
         await tx.execute(sql`
-            UPDATE recipes SET author_handle = ${message.displayName}
-            WHERE owner_id = ${message.userId} AND author_handle IS DISTINCT FROM ${message.displayName}
+            UPDATE recipes SET author_handle = ${message.displayName}, author_username = ${message.username}
+            WHERE owner_id = ${message.userId}
+              AND (author_handle IS DISTINCT FROM ${message.displayName}
+                   OR author_username IS DISTINCT FROM ${message.username})
         `);
         await tx.execute(sql`
-            UPDATE recipe_versions SET editor_handle = ${message.displayName}
-            WHERE created_by = ${message.userId} AND editor_handle IS DISTINCT FROM ${message.displayName}
+            UPDATE recipe_versions SET editor_handle = ${message.displayName}, editor_username = ${message.username}
+            WHERE created_by = ${message.userId}
+              AND (editor_handle IS DISTINCT FROM ${message.displayName}
+                   OR editor_username IS DISTINCT FROM ${message.username})
         `);
 
         return true;

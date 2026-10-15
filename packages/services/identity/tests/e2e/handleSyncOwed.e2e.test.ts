@@ -70,23 +70,23 @@ describe('the handle-sync owed marker (integration)', () => {
 
     it('⛔ a rename through the WEBHOOK route sets the marker in the same transaction as the name', async () => {
         const userId = await provisionUser('user_owed_webhook', 'Original');
-        const now = new Date();
-
-        const { displayNameChanged } = await userDao.syncNameAndPicture(userId, {
+        const { byline } = await userDao.syncProviderFields(userId, {
             name: 'Renamed',
             picture: null,
-            now,
+            username: null,
+            now: new Date(),
         });
 
-        expect(displayNameChanged).toBe(true);
+        expect(byline).toBeDefined();
 
+        // The marker carries the stamp the statement returned — the database's clock, not the caller's.
         const after = await marker(userId);
-        expect(after.owedAt?.getTime()).toBe(now.getTime());
+        expect(after.owedAt?.getTime()).toBe(byline?.stampedAt.getTime());
         expect(after.code).toBeNull();
     });
 
     /**
-     * ⛔ The transaction claim itself. `syncNameAndPicture` writes `users` and `profiles` inside ONE
+     * ⛔ The transaction claim itself. `syncProviderFields` writes `users` and `profiles` inside ONE
      * transaction, so a failure after the name write must leave no marker either — otherwise the backstop
      * would chase a debt for a rename that never happened.
      */
@@ -95,9 +95,10 @@ describe('the handle-sync owed marker (integration)', () => {
 
         await expect(
             db.transaction(async (tx) => {
-                await new UserDAO(tx as unknown as NodePgDatabase<Record<string, never>>).syncNameAndPicture(userId, {
+                await new UserDAO(tx as unknown as NodePgDatabase<Record<string, never>>).syncProviderFields(userId, {
                     name: 'Renamed',
                     picture: null,
+                    username: null,
                     now: new Date(),
                 });
 
@@ -113,9 +114,10 @@ describe('the handle-sync owed marker (integration)', () => {
     it('an AVATAR-only change owes nothing — it publishes nothing', async () => {
         const userId = await provisionUser('user_owed_avatar', 'Original');
 
-        await userDao.syncNameAndPicture(userId, {
+        await userDao.syncProviderFields(userId, {
             name: 'Original',
             picture: 'https://example.com/new.png',
+            username: null,
             now: new Date(),
         });
 
@@ -124,23 +126,31 @@ describe('the handle-sync owed marker (integration)', () => {
 
     it('a SUCCESSFUL publish clears the marker', async () => {
         const userId = await provisionUser('user_owed_cleared', 'Original');
-        const now = new Date();
-        await userDao.syncNameAndPicture(userId, { name: 'Renamed', picture: null, now });
+        const { byline } = await userDao.syncProviderFields(userId, {
+            name: 'Renamed',
+            picture: null,
+            username: null,
+            now: new Date(),
+        });
 
-        await userDao.settleHandleSync(userId, now, null);
+        await userDao.settleHandleSync(userId, byline!.stampedAt, null);
 
         expect(await marker(userId)).toEqual({ owedAt: null, code: null });
     });
 
     it('a FAILED publish leaves the debt, with a code saying why', async () => {
         const userId = await provisionUser('user_owed_failed', 'Original');
-        const now = new Date();
-        await userDao.syncNameAndPicture(userId, { name: 'Renamed', picture: null, now });
+        const { byline } = await userDao.syncProviderFields(userId, {
+            name: 'Renamed',
+            picture: null,
+            username: null,
+            now: new Date(),
+        });
 
-        await userDao.settleHandleSync(userId, now, HANDLE_SYNC_PUBLISH_FAILED);
+        await userDao.settleHandleSync(userId, byline!.stampedAt, HANDLE_SYNC_PUBLISH_FAILED);
 
         const after = await marker(userId);
-        expect(after.owedAt?.getTime()).toBe(now.getTime());
+        expect(after.owedAt?.getTime()).toBe(byline!.stampedAt.getTime());
         expect(after.code).toBe(HANDLE_SYNC_PUBLISH_FAILED);
     });
 
@@ -152,17 +162,25 @@ describe('the handle-sync owed marker (integration)', () => {
      */
     it('⛔ a second rename during a failed publish keeps the NEWER owed stamp', async () => {
         const userId = await provisionUser('user_owed_race', 'Original');
-        const first = new Date('2026-09-16T10:00:00.000Z');
-        const second = new Date('2026-09-16T10:00:05.000Z');
-
-        await userDao.syncNameAndPicture(userId, { name: 'Second', picture: null, now: first });
-        await userDao.syncNameAndPicture(userId, { name: 'Third', picture: null, now: second });
+        const first = await userDao.syncProviderFields(userId, {
+            name: 'Second',
+            picture: null,
+            username: null,
+            now: new Date(),
+        });
+        const second = await userDao.syncProviderFields(userId, {
+            name: 'Third',
+            picture: null,
+            username: null,
+            now: new Date(),
+        });
 
         // The FIRST rename's publish now finishes — successfully — and must not settle the second's debt.
-        await userDao.settleHandleSync(userId, first, null);
+        await userDao.settleHandleSync(userId, first.byline!.stampedAt, null);
 
         const after = await marker(userId);
-        expect(after.owedAt?.getTime()).toBe(second.getTime());
+        expect(after.owedAt?.getTime()).toBe(second.byline!.stampedAt.getTime());
+        expect(second.byline!.stampedAt.getTime()).toBeGreaterThan(first.byline!.stampedAt.getTime());
     });
 
     /**
@@ -172,7 +190,7 @@ describe('the handle-sync owed marker (integration)', () => {
      */
     it('⛔ erasing the identity takes both columns with the row', async () => {
         const userId = await provisionUser('user_owed_erased', 'Original');
-        await userDao.syncNameAndPicture(userId, { name: 'Renamed', picture: null, now: new Date() });
+        await userDao.syncProviderFields(userId, { name: 'Renamed', picture: null, username: null, now: new Date() });
 
         await db.delete(users).where(eq(users.id, userId));
 

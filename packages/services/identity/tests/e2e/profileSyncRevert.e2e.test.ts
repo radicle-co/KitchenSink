@@ -11,7 +11,7 @@ import type { UserId } from '../../src/types/index.js';
 
 /**
  * Proves S-I3 against a REAL database: an A->B->A `user.updated` rename (as driven through
- * `UserDAO.syncNameAndPicture`, the coherent-write method `handleUserUpdated` calls) does NOT get
+ * `UserDAO.syncProviderFields`, the coherent-write method `handleUserUpdated` calls) does NOT get
  * silently stuck at B. The prior bug gated the `profiles` write on `users.name`, which the webhook
  * path never updates — so a revert back to A compared against the stale, never-moved `users.name`
  * baseline and looked like a no-op, dropping both the write and the handle-sync publish.
@@ -75,12 +75,13 @@ describe('user.updated A->B->A profile sync — coherent users/profiles (integra
         const userId = await provisionUser('user_revert_a', 'Original Name');
 
         // A -> B
-        const toB = await userDao.syncNameAndPicture(userId, {
+        const toB = await userDao.syncProviderFields(userId, {
             name: 'New Name',
             picture: 'https://example.com/avatar-b.png',
+            username: null,
             now: new Date(),
         });
-        expect(toB.displayNameChanged).toBe(true);
+        expect(toB.byline).toBeDefined();
 
         const [afterB] = await db.select().from(profiles).where(eq(profiles.userId, userId));
         const [userAfterB] = await db.select().from(users).where(eq(users.id, userId));
@@ -92,12 +93,13 @@ describe('user.updated A->B->A profile sync — coherent users/profiles (integra
         // webhook path never wrote) this would be silently dropped — `users.name` would still read
         // "Original Name" from before the FIRST rename, so the incoming "Original Name" would look
         // unchanged and neither table would be written nor the handle-sync published.
-        const toA = await userDao.syncNameAndPicture(userId, {
+        const toA = await userDao.syncProviderFields(userId, {
             name: 'Original Name',
             picture: 'https://example.com/avatar-a.png',
+            username: null,
             now: new Date(),
         });
-        expect(toA.displayNameChanged).toBe(true);
+        expect(toA.byline).toBeDefined();
 
         const [afterA] = await db.select().from(profiles).where(eq(profiles.userId, userId));
         const [userAfterA] = await db.select().from(users).where(eq(users.id, userId));
@@ -112,13 +114,14 @@ describe('user.updated A->B->A profile sync — coherent users/profiles (integra
     it('a no-op update (identical name and picture) writes nothing and reports no change', async () => {
         const userId = await provisionUser('user_revert_noop', 'Same Name');
 
-        const result = await userDao.syncNameAndPicture(userId, {
+        const result = await userDao.syncProviderFields(userId, {
             name: 'Same Name',
             picture: 'https://example.com/avatar-a.png',
+            username: null,
             now: new Date(),
         });
 
-        expect(result.displayNameChanged).toBe(false);
+        expect(result.byline).toBeUndefined();
 
         const [profile] = await db.select().from(profiles).where(eq(profiles.userId, userId));
         expect(profile?.displayName).toBe('Same Name');
@@ -127,13 +130,14 @@ describe('user.updated A->B->A profile sync — coherent users/profiles (integra
     it('a picture-only change writes both tables but reports displayName unchanged (no handle-sync)', async () => {
         const userId = await provisionUser('user_revert_avatar_only', 'Stable Name');
 
-        const result = await userDao.syncNameAndPicture(userId, {
+        const result = await userDao.syncProviderFields(userId, {
             name: 'Stable Name',
             picture: 'https://example.com/avatar-new.png',
+            username: null,
             now: new Date(),
         });
 
-        expect(result.displayNameChanged).toBe(false);
+        expect(result.byline).toBeUndefined();
 
         const [profile] = await db.select().from(profiles).where(eq(profiles.userId, userId));
         const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -160,13 +164,14 @@ describe('user.updated A->B->A profile sync — coherent users/profiles (integra
         // (gated on `profiles`, which now reads "Self Service Name") this looks like Clerk's "Clerk
         // Name" differs from the stored "Self Service Name" and WRONGLY reverts it — this assertion is
         // the one that fails against commit 6f9d43f2.
-        const result = await userDao.syncNameAndPicture(userId, {
+        const result = await userDao.syncProviderFields(userId, {
             name: 'Clerk Name',
             picture: 'https://example.com/avatar-new.png',
+            username: null,
             now: new Date(),
         });
 
-        expect(result.displayNameChanged).toBe(false);
+        expect(result.byline).toBeUndefined();
 
         const [profile] = await db.select().from(profiles).where(eq(profiles.userId, userId));
         const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -189,13 +194,14 @@ describe('user.updated A->B->A profile sync — coherent users/profiles (integra
 
         // Clerk's name genuinely changes this time ("Clerk Name" -> "New Clerk Name") — Clerk wins,
         // overwriting the self-service override (decision 6: displayName is Clerk-synced).
-        const result = await userDao.syncNameAndPicture(userId, {
+        const result = await userDao.syncProviderFields(userId, {
             name: 'New Clerk Name',
             picture: 'https://example.com/avatar-a.png',
+            username: null,
             now: new Date(),
         });
 
-        expect(result.displayNameChanged).toBe(true);
+        expect(result.byline).toBeDefined();
 
         const [profile] = await db.select().from(profiles).where(eq(profiles.userId, userId));
         const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -210,13 +216,14 @@ describe('user.updated A->B->A profile sync — coherent users/profiles (integra
         const warn = vi.fn();
         const daoWithLogger = new UserDAO(db, { warn });
 
-        const result = await daoWithLogger.syncNameAndPicture(userId, {
+        const result = await daoWithLogger.syncProviderFields(userId, {
             name: 'New Clerk Name',
             picture: 'https://example.com/avatar-a.png',
+            username: null,
             now: new Date(),
         });
 
-        expect(result.displayNameChanged).toBe(false);
+        expect(result.byline).toBeUndefined();
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('profiles row is missing'), { userId });
     });
 });

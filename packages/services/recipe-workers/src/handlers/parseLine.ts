@@ -45,6 +45,7 @@ import {
 } from '@kitchensink/recipe-import-core';
 import { createHash } from 'node:crypto';
 
+import { requirePositiveEnv } from '../common/config.js';
 import { isInvalidPayload, recordInvalidPayload } from '../common/invalidPayload.js';
 import { initObservability, withObservability } from '../common/observability.js';
 import { logger } from '../common/logger.js';
@@ -698,29 +699,6 @@ function productionDeps(stage: string, region: string): ParseLineDeps {
     };
 
     return cachedDeps;
-}
-
-/**
- * Read a positive integer from the environment, failing CLOSED.
- *
- * ⚠️ There is no default on purpose. Both callers describe infrastructure this process does not own, and a
- * fallback would let the handler run happily against a queue whose real numbers it had never been told —
- * the shape of defect `FOOD_LEASE_TIMEOUT_SECONDS` had when three copies of `30` outvoted the configured
- * one.
- *
- * @param name - The variable's name.
- * @returns The parsed value.
- * @throws When the variable is absent or not a positive integer.
- * @sideEffect Reads `process.env`.
- */
-function requirePositiveEnv(name: string): number {
-    const parsed = Number(process.env[name]);
-
-    if (!Number.isInteger(parsed) || parsed <= 0) {
-        throw new Error(`${name} must be a positive integer`);
-    }
-
-    return parsed;
 }
 
 /**

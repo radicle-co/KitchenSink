@@ -81,7 +81,7 @@ import {
 } from '@kitchensink/bedrock-client';
 import { createHash } from 'node:crypto';
 
-import { requireEnv } from '../common/config.js';
+import { requireEnv, requirePositiveEnv } from '../common/config.js';
 import { getRecipeDb, getRecipePool } from '../common/db.js';
 import { isInvalidPayload, recordInvalidPayload } from '../common/invalidPayload.js';
 import { captureHandled, initObservability, withObservability } from '../common/observability.js';
@@ -862,24 +862,6 @@ const rawHandler: SQSHandler = async (event) => {
 /** Parse one SQS record body. Throws on anything that is not a valid message — the DLQ is for poison. */
 function parseRecord(record: SQSRecord): VerifyIngredientLineMessage {
     return verifyIngredientLineMessageSchema.parse(JSON.parse(record.body));
-}
-
-/**
- * Read a positive integer from the environment, failing CLOSED.
- *
- * @param name - The variable's name.
- * @returns The parsed value.
- * @throws When the variable is absent or not a positive integer.
- * @sideEffect Reads `process.env`.
- */
-function requirePositiveEnv(name: string): number {
-    const parsed = Number(process.env[name]);
-
-    if (!Number.isInteger(parsed) || parsed <= 0) {
-        throw new Error(`${name} must be a positive integer`);
-    }
-
-    return parsed;
 }
 
 /** Cached across warm invocations, exactly as `getRecipeDb` is. */

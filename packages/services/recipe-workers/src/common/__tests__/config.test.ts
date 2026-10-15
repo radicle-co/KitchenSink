@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 
-import { isMissingConfigError, MissingConfigError, requireEnv } from '../config.js';
+import { isMissingConfigError, MissingConfigError, requireEnv, requirePositiveEnv } from '../config.js';
 
 const TEST_KEY = 'RECIPE_WORKERS_TEST_VAR';
 
@@ -54,5 +54,27 @@ describe('isMissingConfigError', () => {
         expect(isMissingConfigError(new Error('X'))).toBe(false);
         expect(isMissingConfigError('X')).toBe(false);
         expect(isMissingConfigError(undefined)).toBe(false);
+    });
+});
+
+describe('requirePositiveEnv', () => {
+    it('parses a positive integer from the given environment', () => {
+        expect(requirePositiveEnv(TEST_KEY, { [TEST_KEY]: '90' })).toBe(90);
+    });
+
+    it.each([undefined, '', '0', '-3', '1.5', 'abc'])('fails closed on %j', (value) => {
+        expect(() => requirePositiveEnv(TEST_KEY, { [TEST_KEY]: value })).toThrow(
+            `${TEST_KEY} must be a positive integer`,
+        );
+    });
+
+    it('reads process.env when no environment is given', () => {
+        process.env[TEST_KEY] = '7';
+
+        try {
+            expect(requirePositiveEnv(TEST_KEY)).toBe(7);
+        } finally {
+            delete process.env[TEST_KEY];
+        }
     });
 });

@@ -29,3 +29,26 @@ export const requireEnv = (name: string): string => {
 
     return value;
 };
+
+/**
+ * Read a positive integer from the environment, failing CLOSED.
+ *
+ * ⛔ THROWS rather than defaulting. Every caller describes infrastructure this process does not own (a lease,
+ * an allowance, a window), so a default here would be a second definition of a bound the stack owns, and the
+ * drift of a copy is silent.
+ *
+ * @param name - The variable's name.
+ * @param env - The environment to read; defaults to `process.env`.
+ * @returns The parsed value.
+ * @throws When the variable is absent or not a positive integer.
+ * @sideEffect Reads `process.env` when no environment is given.
+ */
+export const requirePositiveEnv = (name: string, env: NodeJS.ProcessEnv = process.env): number => {
+    const parsed = Number(env[name]);
+
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+        throw new Error(`${name} must be a positive integer`);
+    }
+
+    return parsed;
+};

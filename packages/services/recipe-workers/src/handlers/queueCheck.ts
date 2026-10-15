@@ -28,7 +28,7 @@ import {
 
 import { GetQueueAttributesCommand, SQSClient } from '@aws-sdk/client-sqs';
 
-import { requireEnv } from '../common/config.js';
+import { requireEnv, requirePositiveEnv } from '../common/config.js';
 import { getRecipePool } from '../common/db.js';
 import { initObservability, withObservability } from '../common/observability.js';
 import { checkInQueueCheck, escalate } from '../common/queueEscalation.js';
@@ -232,28 +232,6 @@ export async function readOnlyCounts(
         // it cannot see.
         await query('ROLLBACK').catch(() => undefined);
     }
-}
-
-/**
- * A positive integer from the environment.
- *
- * ⛔ THROWS rather than defaulting. A default here is a second definition of a bound the stack owns, and its
- * drift is silent: a backstop measuring staleness against a window nobody configured reports rows as stuck
- * that the consumer is about to finish. A missing value is a deploy fault, and the monitor's silence while
- * it is fixed is the correct signal.
- *
- * @param name - The env name.
- * @param env - The environment to read.
- * @returns The value. Pure apart from the read.
- */
-function requirePositiveEnv(name: string, env: NodeJS.ProcessEnv): number {
-    const value = Number(env[name]);
-
-    if (!Number.isInteger(value) || value <= 0) {
-        throw new Error(`${name} must be a positive integer`);
-    }
-
-    return value;
 }
 
 /**

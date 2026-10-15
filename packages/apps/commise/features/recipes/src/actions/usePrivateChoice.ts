@@ -6,6 +6,9 @@
  * {@link useGatedPrivate}, shared with the recipe page's ⋯ menu; this only supplies what applying Private means in the
  * editor — setting the draft's visibility — and what the visibility leaves render from.
  *
+ * Every decision is asked with {@link heldVisibility}, never the visibility the editor opened on: once the draft leaves
+ * Private, choosing it again is a change to private like any other.
+ *
  * The host picks the leaf: `offersPrivate` → `RecipeVisibilityField` (Public and Private); otherwise
  * `RecipeVisibilityStatement` (a plain "Who can see it: Public"). Never a mode prop on one leaf.
  *
@@ -16,13 +19,14 @@ import { RecipeVisibility } from '@kitchensink/recipe-core';
 
 import type { RecipeFormValues } from '../form/values.js';
 import type { RecipeUpsellSheetProps } from './model.js';
+import { heldVisibility } from './privateGate.js';
 import { useGatedPrivate } from './useGatedPrivate.js';
 
 /** Options for {@link usePrivateChoice}. */
 export interface UsePrivateChoiceOptions {
     /** The viewer's paid-feature state (`paidFeatureStateOf`). */
     readonly state: PaidFeatureState;
-    /** The visibility the server holds for this recipe (`public` for one never saved). */
+    /** The visibility the server held when the editor opened (`public` for a recipe never saved). */
     readonly saved: RecipeVisibility;
     readonly values: RecipeFormValues;
     readonly onChange: (next: RecipeFormValues) => void;
@@ -32,7 +36,7 @@ export interface UsePrivateChoiceOptions {
 export interface PrivateChoice {
     /** Render `RecipeVisibilityField` when true, `RecipeVisibilityStatement` when false. */
     readonly offersPrivate: boolean;
-    /** The facts `RecipeVisibilityField` decides its badge, hint and choices from. */
+    /** The facts `RecipeVisibilityField` decides its badge, hint and choices from (`savedVisibility` is the held one). */
     readonly field: { readonly paidFeatures: PaidFeatureState; readonly savedVisibility: RecipeVisibility };
     /** For `RecipeVisibilityField.onPremiumRequired`. */
     readonly onPremiumRequired: () => void;
@@ -48,7 +52,9 @@ export interface PrivateChoice {
  * @sideEffect Applying Private changes the draft through `onChange`.
  */
 export function usePrivateChoice(options: UsePrivateChoiceOptions): PrivateChoice {
-    const { state, saved, values, onChange } = options;
+    const { state, values, onChange } = options;
+    // ⛔ Not `options.saved`: a cook who has moved the draft off Private has given up the free return to it.
+    const saved = heldVisibility(options.saved, values.visibility);
     const gate = useGatedPrivate({
         state,
         saved,

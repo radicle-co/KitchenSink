@@ -10,6 +10,7 @@ import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
 
 import {
+    heldVisibility,
     mayRestorePrivate,
     offersPrivate,
     privateChoice,
@@ -89,6 +90,34 @@ describe('privateIsFinal — making a private thing public cannot be undone', ()
         for (const state of ['loading', 'granted', 'upsell'] as const) {
             expect(privateIsFinal(state, PRIVATE), state).toBe(false);
         }
+    });
+});
+
+/**
+ * The free return to Private lasts only while the draft keeps it. A downgraded owner who moves the editor's draft off
+ * Private has given it up: the next Private would be a change TO private, which the server refuses without an entitled
+ * role, so the gate must ask it as one (the stuck-save defect: Public, then Private again, then a refused write).
+ */
+describe('heldVisibility — what the editor may keep without an entitlement', () => {
+    it.each([
+        [PRIVATE, PRIVATE, PRIVATE],
+        [PRIVATE, PUBLIC, PUBLIC],
+        [PUBLIC, PRIVATE, PUBLIC],
+        [PUBLIC, PUBLIC, PUBLIC],
+    ] as const)('saved %s, draft %s → %s', (saved, draft, expected) => {
+        expect(heldVisibility(saved, draft)).toBe(expected);
+    });
+
+    it.each([
+        ['hidden', false, 'none'],
+        ['upsell', true, 'upsell'],
+        ['loading', false, 'none'],
+        ['granted', true, 'apply'],
+    ] as const)('once the draft left Private, %s: Private offered %s, choosing it → %s', (state, offered, outcome) => {
+        const held = heldVisibility(PRIVATE, PUBLIC);
+
+        expect(offersPrivate(state, held)).toBe(offered);
+        expect(privateChoice({ target: PRIVATE, saved: held, state })).toBe(outcome);
     });
 });
 

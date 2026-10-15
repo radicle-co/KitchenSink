@@ -34,6 +34,26 @@ export interface PrivateChoiceInput {
 }
 
 /**
+ * The visibility the editor may keep without an entitlement: what the server held when the editor opened, for only as
+ * long as the draft keeps it. Pure.
+ *
+ * A downgraded owner who moves the draft of a private recipe off Private has given that up (the editor confirms it
+ * first): the Public write may land before the next one, and Private would then be a change TO private, which the
+ * server refuses without an entitled role. Asking the gate with this instead of the opening visibility makes that
+ * Private an ordinary change to private — the Premium sheet under `upsell`, not offered under `hidden` — so a refused
+ * write cannot be queued from the editor.
+ *
+ * @param saved - The visibility the server held when the editor opened (`public` for a recipe never saved).
+ * @param draft - The draft's visibility.
+ * @returns `private` only when both are private.
+ */
+export function heldVisibility(saved: RecipeVisibility, draft: RecipeVisibility): RecipeVisibility {
+    return saved === RecipeVisibility.PRIVATE && draft === RecipeVisibility.PRIVATE
+        ? RecipeVisibility.PRIVATE
+        : RecipeVisibility.PUBLIC;
+}
+
+/**
  * Whether Private is offered at all. Pure.
  *
  * @param state - The viewer's paid-feature state.

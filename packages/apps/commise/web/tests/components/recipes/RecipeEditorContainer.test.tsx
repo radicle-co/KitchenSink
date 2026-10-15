@@ -327,6 +327,45 @@ describe('RecipeEditorContainer (web) — Private (E1, paid features)', () => {
         expect(screen.queryByText('Premium')).toBeNull();
     });
 
+    /**
+     * The stuck-save defect (plan 2026-10-14-009 Q5 follow-up): under `hidden` the owner of a private recipe could move
+     * it to Public and back to Private, and the server refused the second write. Once the draft leaves Private the
+     * editor offers it no more: the field gives way to the statement.
+     */
+    it('⛔ under hidden, a private recipe moved to Public is not offered Private again', async () => {
+        profile.paidFeatures = 'hidden';
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({ id: 'rec_1', title: 'Secret Stew', visibility: RecipeVisibility.PRIVATE }),
+        );
+        renderEditor(client, 'rec_1');
+
+        const privateRadio = (await screen.findByRole('radio', { name: /^Private/u })) as HTMLInputElement;
+        expect(privateRadio.checked).toBe(true);
+
+        await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+
+        expect(await screen.findByText('Who can see it')).toBeTruthy();
+        expect(screen.queryByRole('radio', { name: /^Private/u })).toBeNull();
+        expect(screen.queryByRole('radio', { name: /^Public/u })).toBeNull();
+        expect(screen.queryByText('Premium')).toBeNull();
+    });
+
+    it('⛔ under upsell, a private recipe moved to Public asks for Premium to go back', async () => {
+        profile.paidFeatures = 'upsell';
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({ id: 'rec_1', title: 'Secret Stew', visibility: RecipeVisibility.PRIVATE }),
+        );
+        renderEditor(client, 'rec_1');
+
+        await userEvent.click(await screen.findByRole('radio', { name: /^Public/u }));
+        await choosePrivate();
+
+        expect(await screen.findByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeTruthy();
+        expect((screen.getByRole('radio', { name: /^Public/u, hidden: true }) as HTMLInputElement).checked).toBe(true);
+    });
+
     it.each([
         ['hidden', 'hidden'],
         ['a failed profile read', 'failed'],

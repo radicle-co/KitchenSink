@@ -311,6 +311,46 @@ describe('RecipeEditorScreen (native) — Private (E1, paid features)', () => {
         expect(screen.queryByRole('heading', { name: /Premium/u })).toBeNull();
     });
 
+    /**
+     * Each case edits its own recipe: the device draft store is one memory store for the whole file, so a draft left
+     * under a shared id would reopen in a later case.
+     *
+     * The stuck-save defect: under `hidden` the owner of a private recipe could move it to Public and back to Private,
+     * and the server refused the second write. Once the draft leaves Private the editor offers it no more.
+     */
+    it('⛔ under hidden, a private recipe moved to Public is not offered Private again', async () => {
+        profile.paidFeatures = 'hidden';
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({ id: 'rec_secret_hidden', title: 'Secret Stew', visibility: RecipeVisibility.PRIVATE }),
+        );
+        renderScreen(client, { recipeId: 'rec_secret_hidden' });
+        await screen.findByRole('heading', { name: 'Edit recipe' });
+        expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-checked')).toBe('true');
+
+        fireEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+
+        expect(await screen.findByLabelText('Who can see it: Public. Anyone can find it in Discover.')).toBeTruthy();
+        expect(screen.queryByRole('radio', { name: /^Private/u })).toBeNull();
+        expect(screen.queryByText('Premium')).toBeNull();
+    });
+
+    it('⛔ under upsell, a private recipe moved to Public asks for Premium to go back', async () => {
+        profile.paidFeatures = 'upsell';
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({ id: 'rec_secret_upsell', title: 'Secret Stew', visibility: RecipeVisibility.PRIVATE }),
+        );
+        renderScreen(client, { recipeId: 'rec_secret_upsell' });
+        await screen.findByRole('heading', { name: 'Edit recipe' });
+
+        fireEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+        choosePrivate();
+
+        expect(await screen.findByRole('heading', { name: 'Private recipes are part of Premium.' })).toBeTruthy();
+        expect(screen.getByRole('radio', { name: /^Public/u, hidden: true }).getAttribute('aria-checked')).toBe('true');
+    });
+
     it.each([
         ['hidden', 'hidden'],
         ['a failed profile read', 'failed'],

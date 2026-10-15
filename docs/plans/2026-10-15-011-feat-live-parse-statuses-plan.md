@@ -244,17 +244,25 @@ throwaway Postgres 18 + LocalStack containers.
    paste left stalled for a day expires and its unread lines join through the reader at the deadline.
 2. **A paste queued behind another cook's reads `stalled`.** Rows cannot see the queue. The copy promises nothing, and
    the phase moves back when work resumes. Exact only if a later fact (queue position) is added to `progress`.
-3. **`queueCheckReads.ts`' `claimed_too_long`** uses the same lease test as `delayed`, so the operator backstop reports
-   every between-attempts line as `stuck`. Follow-up for the queue backstop, not changed here.
-4. **Try again (job-wide) shows no failure** when the retry itself is refused (for example `409` on an expired job): the
-   lines stay retryable and the block keeps saying they need the cook.
-5. **Focus after Add as written** moves to the progress block, not to the next waiting row's button as the UX spec
-   prefers; the row-level target would need a ref per row.
+3. **RESOLVED: the operator backstop's `claimed_too_long`** now counts a pending line only when its claim lapsed AND its
+   whole job has been quiet past `PARSE_LINE_DELIVERY.stallSeconds`, which is the cook's `stalled` (a line between two
+   attempts is `delayed` and no longer reported). The stall window is the shared constant, bound as `$2`.
+4. **RESOLVED: a refused Try again** now shows a localized failure line in the progress block (web and native), and
+   focus returns to the block that says it.
+5. **RESOLVED: focus after Add as written** goes to the next waiting row's action (the next stalled or retryable row after
+   it, else the first before it) through the Button's `focusRequested` level, and to the progress block only when no row
+   waits.
 6. **iOS `inactive`** (Control Center, the app switcher) releases the paste hold, because it already raises `appHidden`.
 7. **Publish blocked by lines still joining** may need its reason named in the action bar (UX open question).
-8. **Add as written does not cancel the server's parse.** The line's message stays queued, and when the worker reaches
-   it the engines are paid — Bedrock included — for an answer the client discards. After Add the rest as written on a
-   large stalled paste that is up to 200 lines. Given non-prod Bedrock spend so far, this deserves its own decision.
+8. **RESOLVED: Add as written withdraws the line server-side** (`POST /api/v1/recipe-parse-jobs/{id}/withdraw-lines`,
+   migration 0054 adds the terminal line status `withdrawn`). THE RULE: a withdrawal flips each still-open line
+   (`pending`, `failed_retryable`) under a row lock, and the worker's claim only takes a `pending` line under the same lock,
+   so a line is either claimed BEFORE the withdrawal or REFUSED after it. No engine is asked for a line after its
+   withdrawal commits. What it cannot recall: a delivery that claimed the line first may finish its one in-flight call; its
+   landing is refused (`status <> 'withdrawn'`), so it never overwrites the cook's choice. Nothing is removed from SQS.
+   The call is idempotent, owner-only (stranger and absent are one `404`, an expired job `409`), and best effort on the
+   client: a refusal never holds the join back. Residual: `withdrawn` is a new wire status and installed clients parse the
+   enum strictly, so only a cook polling the same job from an older build on a second device would see a failed parse.
 9. **A failed poll is not a give-up.** Only a failure the client's retry policy calls terminal (the job gone or refused)
    ends a paste; a transient one keeps the lines where they were. Fixed in this change after review; recorded because
    the earlier code silently added everything as written on any read failure.

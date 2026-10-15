@@ -102,8 +102,9 @@ row above disagrees, this list wins.
   Clerk email-code verifications per platform per run, which the budget guard names.
 - **Q5 — the make-public confirm.** A downgraded owner (`hidden`, `upsell`; `loading` too) confirms before a private
   recipe goes public, in the editor and on the recipe page's ⋯ menu (`useMakePublicConfirm`,
-  `RecipeMakePublicDialog`), and the Public card says beforehand what it costs (`makePublicConsequence`). Collections
-  are not covered yet: the UX pass recommends the same confirm there.
+  `RecipeMakePublicDialog`), and the Public card says beforehand what it costs (`makePublicConsequence`).
+- **A write decides from the profile's own answer** (`knownPaidFeaturesOf`), never the display state: a failed read
+  shows as `hidden` but is not a refusal, so the Private is sent and the server decides.
 - **The stuck save.** The editor asks the gate with `heldVisibility` (Private only while the draft keeps it), so a
   downgraded owner who leaves Private is not offered it back. A Private the server is known to refuse
   (`privateRefusalOf`: `hidden`, `upsell`) is never sent: a create goes out public, the publish follow-up is skipped,
@@ -144,6 +145,16 @@ row above disagrees, this list wins.
 - **Q4.** Answered: GR-012 AC-012-c (v3.5.1) and ADR-0017 consequence 3 name `hasPaidFeatures` as the one shared
   check.
 - **Q5.** Answered: the confirm is built for recipes (see the corrections above).
+
+## Follow-up tasks
+
+- **T1 — the collection make-public confirm.** A downgraded owner's ⋯ Make public on a private collection is one tap and
+  cannot be undone (`collections/detailModel.ts`). Give it the same confirm through `useMakePublicConfirm`, with its own
+  copy in `collections/messages.ts` ("Make this collection public?"), web and native; the UX SPECIFY pass recommends it.
+- **T2 — a downgraded-owner pool lane** (seeded `premium`, then downgraded by `poolAdmin`), so
+  `recipes/makePublicConfirm.yaml` can leave `KNOWN_UNRUN_FLOWS`, and a confirm → statement leg can be added to it.
+- **T3 — `staff-ux-engineer` EVALUATE** of the refusal notice: it is the finish snackbar, not the inline alert the
+  SPECIFY pass named, because the inline slot cannot receive state across the editor's hand-off.
 
 ## Operations after merge (the owner's, not this change's)
 

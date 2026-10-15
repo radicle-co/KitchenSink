@@ -24,10 +24,12 @@ import {
 } from '@kitchensink/recipe-core';
 
 import {
+    effectiveVisibility,
     makePublicConsequence,
     privateChoice,
     refusedDraftPrivate,
     showsPremiumBadge,
+    type PrivateRefusal,
 } from '../actions/privateGate.js';
 import type { EditorMessages } from '../editor/messages.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
@@ -86,9 +88,15 @@ export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps,
     readonly paidFeatures: PaidFeatureState;
     /**
      * The visibility the cook may keep without an entitlement (`heldVisibility`): what the server held when the editor
-     * opened, for as long as the draft keeps it.
+     * opened, for as long as the draft keeps it. The field applies `heldVisibility` again itself (it is idempotent), so
+     * a host that passes the opening visibility cannot bring back the free return to Private.
      */
-    readonly savedVisibility: RecipeVisibility;
+    readonly heldVisibility: RecipeVisibility;
+    /**
+     * Why the server refuses a change to private for this cook, if it is KNOWN to (`privateRefusalOf` over the
+     * profile's own answer). REQUIRED: a kept draft's Private is shown as Public, and why, only under a known refusal.
+     */
+    readonly privateRefusal: PrivateRefusal | undefined;
     /** Choosing Private under `upsell`: open the upsell. The value never changes for it. */
     readonly onPremiumRequired?: () => void;
     /**
@@ -130,17 +138,19 @@ export interface VisibilityFieldModel {
  * - Otherwise the Public card says what choosing it costs whenever that opens the make-public confirm
  *   (`makePublicConsequence`): WCAG 3.2.2 asks that the cook be told before the radio is used.
  *
- * @param input - The draft's visibility, what the cook may keep, the paid-feature state, and the field's copy.
+ * @param input - The draft's visibility, what the cook may keep, the paid-feature state, the known refusal, and the
+ *   field's copy.
  * @returns The chosen visibility and the two cards.
  */
 export function visibilityFieldOf(input: {
     readonly draft: RecipeVisibility;
     readonly saved: RecipeVisibility;
     readonly state: PaidFeatureState;
+    readonly refusal: PrivateRefusal | undefined;
     readonly messages: EditorMessages['visibility'];
 }): VisibilityFieldModel {
-    const { draft, saved, state, messages: v } = input;
-    const refused = refusedDraftPrivate(state, saved, draft);
+    const { draft, saved, state, refusal, messages: v } = input;
+    const refused = refusedDraftPrivate(refusal, saved, draft);
     const costNote = {
         none: undefined,
         final: v.publicIsFinal,
@@ -151,7 +161,7 @@ export function visibilityFieldOf(input: {
         refused === undefined ? undefined : { final: v.privateUnavailable, premium: v.privatePremiumOnly }[refused];
 
     return {
-        shown: refused === undefined ? draft : RecipeVisibility.PUBLIC,
+        shown: effectiveVisibility(refusal, saved, draft),
         options: [
             {
                 value: RecipeVisibility.PUBLIC,

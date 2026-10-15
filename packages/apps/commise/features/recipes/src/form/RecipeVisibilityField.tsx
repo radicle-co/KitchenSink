@@ -18,6 +18,7 @@ import { StatusBadge } from '@commise/ui/status-badge';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
+import { heldVisibility } from '../actions/privateGate.js';
 import { editorMessages } from '../editor/messages.js';
 import { recipeFormMessages } from './messages.js';
 import { visibilityChoice, visibilityFieldOf, type RecipeVisibilityFieldProps } from './props.js';
@@ -34,16 +35,20 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     values,
     onChange,
     paidFeatures,
-    savedVisibility,
+    heldVisibility: held,
+    privateRefusal,
     onPremiumRequired,
     onConfirmPublic,
 }) => {
     const m = useMessages(recipeFormMessages);
     const { visibility: v } = useMessages(editorMessages);
+    // Idempotent over a host that already passes the held value: the field enforces the rule rather than trusting it.
+    const savedVisibility = heldVisibility(held, values.visibility);
     const { shown, options } = visibilityFieldOf({
         draft: values.visibility,
         saved: savedVisibility,
         state: paidFeatures,
+        refusal: privateRefusal,
         messages: v,
     });
 

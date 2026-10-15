@@ -312,6 +312,42 @@ describe('RecipeEditorScreen (native)', () => {
         );
         expect(setVisibility).not.toHaveBeenCalled();
     });
+
+    // Review B1: a FAILED profile read is not the server's answer, so the Private is sent and the server decides.
+    it('⛔ after a failed profile read, the Private is still sent: an unknown state is not a refusal', async () => {
+        profile.paidFeatures = 'failed';
+        const client = createFakeRecipeServiceClient();
+        const draft = makeRecipeDetail({
+            id: 'rec_failed_read',
+            title: 'Ready Stew',
+            cuisine: 'Irish',
+            status: RecipeStatus.DRAFT,
+            visibility: RecipeVisibility.PRIVATE,
+            currentVersion: 2,
+        });
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(draft);
+        vi.spyOn(client, 'updateRecipe').mockResolvedValue({
+            ...draft,
+            status: RecipeStatus.PUBLISHED,
+            visibility: RecipeVisibility.PUBLIC,
+            currentVersion: 3,
+        } as RecipeDetail);
+        const setVisibility = vi.spyOn(client, 'setRecipeVisibility').mockResolvedValue(draft);
+        const handlers = renderScreen(client, { recipeId: 'rec_failed_read' });
+
+        await screen.findByRole('heading', { name: 'Edit recipe' });
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        });
+
+        await waitFor(() =>
+            expect(handlers.onFinished).toHaveBeenCalledWith('rec_failed_read', {
+                outcome: 'firstPublish',
+                privateRefused: undefined,
+            }),
+        );
+        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_failed_read', RecipeVisibility.PRIVATE));
+    });
 });
 
 /**

@@ -582,6 +582,22 @@ describe('RecipeDetailScreen — owner actions', () => {
         expect(mutate).not.toHaveBeenCalled();
     });
 
+    // Review S3: an earlier failure is not news to a confirm opened afresh — the request clears it.
+    it('opening the confirm clears an earlier failed change', () => {
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'hidden'));
+        const reset = vi.fn();
+        useSetRecipeVisibilityMock.mockReturnValue(
+            mutation<ReturnType<typeof useSetRecipeVisibility>>({ reset: reset as never }),
+        );
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+        reset.mockClear();
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Make public' }));
+
+        expect(reset).toHaveBeenCalled();
+    });
+
     it('surfaces a failed delete inside the dialog, not a silent stop (B17)', () => {
         useDeleteRecipeMock.mockReturnValue(
             mutation<ReturnType<typeof useDeleteRecipe>>({ error: new Error('network down') as never }),

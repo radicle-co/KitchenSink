@@ -155,23 +155,40 @@ export function privateRefusalOf(state: PaidFeatureState): PrivateRefusal | unde
 }
 
 /**
- * Whether the draft holds a Private the server is known to refuse: a draft kept from before the cook lost the paid
- * features, for a recipe that is not held private. The field then shows Public and says why, and no Private is sent
- * (the editor's create body and follow-up). Pure.
+ * Whether the draft holds a Private the server is KNOWN to refuse: a draft kept from before the cook lost the paid
+ * features, for a recipe that is not held private. Pure.
  *
- * @param state - The viewer's paid-feature state.
+ * ⛔ `refusal` is a known one — {@link privateRefusalOf} over the profile's own answer — never the display state, in
+ * which a failed profile read is `hidden`: "the client does not know" is not "the server said no".
+ *
+ * @param refusal - Why the server refuses a change to private for this cook, if it is known to.
  * @param held - The visibility the cook may keep without an entitlement ({@link heldVisibility}).
  * @param draft - The draft's visibility.
  * @returns The refusal's reason, or `undefined`.
  */
 export function refusedDraftPrivate(
-    state: PaidFeatureState,
+    refusal: PrivateRefusal | undefined,
     held: RecipeVisibility,
     draft: RecipeVisibility,
 ): PrivateRefusal | undefined {
-    return draft === RecipeVisibility.PRIVATE && held !== RecipeVisibility.PRIVATE
-        ? privateRefusalOf(state)
-        : undefined;
+    return draft === RecipeVisibility.PRIVATE && held !== RecipeVisibility.PRIVATE ? refusal : undefined;
+}
+
+/**
+ * The visibility the editor's draft actually stands for: Public in place of a draft Private the server is known to
+ * refuse ({@link refusedDraftPrivate}), else the draft's own. Pure. The ONE answer the field, the preview and the
+ * create body share; the draft keeps its value, so a Private returns if the state settles to `granted`.
+ *
+ * @param refusal - Why the server refuses a change to private for this cook, if it is known to.
+ * @param held - The visibility the cook may keep without an entitlement.
+ * @param draft - The draft's visibility.
+ */
+export function effectiveVisibility(
+    refusal: PrivateRefusal | undefined,
+    held: RecipeVisibility,
+    draft: RecipeVisibility,
+): RecipeVisibility {
+    return refusedDraftPrivate(refusal, held, draft) === undefined ? draft : RecipeVisibility.PUBLIC;
 }
 
 /**

@@ -10,6 +10,7 @@ import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
 
 import {
+    effectiveVisibility,
     heldVisibility,
     makePublicConsequence,
     mayRestorePrivate,
@@ -109,20 +110,30 @@ describe('makePublicConsequence — what making a private thing public costs the
  * A draft kept from before the cook lost the paid features can still say Private for a recipe the server does not hold
  * private. The server will refuse it, so the field shows Public and says why, and nothing private is sent.
  */
-describe('refusedDraftPrivate — a draft Private the server will refuse', () => {
-    it.each([
-        ['hidden', 'final'],
-        ['upsell', 'premium'],
-        ['loading', undefined],
-        ['granted', undefined],
-    ] as const)('a private draft of a recipe not held private, %s → %s', (state, expected) => {
-        expect(refusedDraftPrivate(state, PUBLIC, PRIVATE)).toBe(expected);
+/**
+ * REWRITTEN after the review (B1): the refusal is a KNOWN one (`privateRefusalOf` over the profile's own answer), never
+ * the display state, in which a failed profile read is `hidden`. One answer feeds the field, the preview and the create.
+ */
+describe('refusedDraftPrivate / effectiveVisibility — a draft Private the server will refuse', () => {
+    it.each(['final', 'premium'] as const)('a private draft of a recipe not held private, under %s', (refusal) => {
+        expect(refusedDraftPrivate(refusal, PUBLIC, PRIVATE)).toBe(refusal);
+        expect(effectiveVisibility(refusal, PUBLIC, PRIVATE)).toBe(PUBLIC);
     });
 
-    it.each(STATES.map((state) => [state]))('never for a recipe held private, or a public draft (%s)', (state) => {
-        expect(refusedDraftPrivate(state, PRIVATE, PRIVATE)).toBeUndefined();
-        expect(refusedDraftPrivate(state, PUBLIC, PUBLIC)).toBeUndefined();
+    it('⛔ with no KNOWN refusal, the draft`s Private stands', () => {
+        expect(refusedDraftPrivate(undefined, PUBLIC, PRIVATE)).toBeUndefined();
+        expect(effectiveVisibility(undefined, PUBLIC, PRIVATE)).toBe(PRIVATE);
     });
+
+    it.each([undefined, 'final', 'premium'] as const)(
+        'never for a recipe held private, or a public draft (%s)',
+        (refusal) => {
+            expect(refusedDraftPrivate(refusal, PRIVATE, PRIVATE)).toBeUndefined();
+            expect(refusedDraftPrivate(refusal, PUBLIC, PUBLIC)).toBeUndefined();
+            expect(effectiveVisibility(refusal, PRIVATE, PRIVATE)).toBe(PRIVATE);
+            expect(effectiveVisibility(refusal, PUBLIC, PUBLIC)).toBe(PUBLIC);
+        },
+    );
 });
 
 /**

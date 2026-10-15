@@ -7,8 +7,8 @@
  * {@link makePublicConsequence} chooses. The host says what applying Public means there, and when it is done: the
  * editor at once, the recipe page when its write succeeds (the dialog stays up, busy, until then).
  *
- * @pattern Command — `request` and the dialog's confirm both issue the host's `apply`; this decides only whether it is
- *     asked first
+ * @pattern Guard — a confirmation guard in front of the host's `apply` Command, the shape `useGatedPrivate` has for
+ *     Private
  */
 import type { PaidFeatureState } from '@commise/features-account';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';

@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { makeUserProfile, makeUserProfileAccount } from '../__fixtures__/index.js';
-import { paidFeatureStateOf } from '../paidFeatures.js';
+import { knownPaidFeaturesOf, paidFeatureStateOf } from '../paidFeatures.js';
 
 describe('paidFeatureStateOf', () => {
     it.each(['granted', 'upsell', 'hidden'] as const)('settles on the profile’s %s', (paidFeatures) => {
@@ -35,4 +35,24 @@ describe('paidFeatureStateOf', () => {
     it('defaults its fixture to hidden — the state of a default user with the gate off', () => {
         expect(makeUserProfileAccount().paidFeatures).toBe('hidden');
     });
+});
+
+/**
+ * What a WRITE may rely on (plan 2026-10-14-009 Q5 review): the profile's answer, or nothing. A failed read is `hidden`
+ * for display only — deciding a write from it withheld an entitled cook's Private and published the recipe.
+ */
+describe('knownPaidFeaturesOf', () => {
+    it.each(['granted', 'upsell', 'hidden'] as const)('is the profile’s %s once there is one', (paidFeatures) => {
+        const data = makeUserProfile({ account: makeUserProfileAccount({ paidFeatures }) });
+
+        expect(knownPaidFeaturesOf({ status: 'success', data })).toBe(paidFeatures);
+        expect(knownPaidFeaturesOf({ status: 'error', data })).toBe(paidFeatures);
+    });
+
+    it.each(['pending', 'error'] as const)(
+        '⛔ is unknown — never hidden — while the read is %s with no answer',
+        (status) => {
+            expect(knownPaidFeaturesOf({ status, data: undefined })).toBeUndefined();
+        },
+    );
 });

@@ -242,6 +242,39 @@ describe('RecipeEditorContainer (web)', () => {
         expect(setVisibility).not.toHaveBeenCalled();
     });
 
+    // Review B1: a FAILED profile read shows as `hidden`, but it is not the server's answer. The Private is sent, and the
+    // server — which would grant an entitled cook — decides; nothing claims the recipe stayed public.
+    it('⛔ after a failed profile read, the Private is still sent: an unknown state is not a refusal', async () => {
+        profile.paidFeatures = 'failed';
+        const client = createFakeRecipeServiceClient();
+        const stored = makeRecipeDetail({
+            id: 'rec_failed_read',
+            title: 'Stored Stew',
+            status: RecipeStatus.PUBLISHED,
+            visibility: RecipeVisibility.PRIVATE,
+            currentVersion: 2,
+        });
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(stored);
+        vi.spyOn(client, 'updateRecipe').mockResolvedValue({
+            ...stored,
+            visibility: RecipeVisibility.PUBLIC,
+            currentVersion: 3,
+        } as RecipeDetail);
+        const setVisibility = vi
+            .spyOn(client, 'setRecipeVisibility')
+            .mockResolvedValue({ ...stored, currentVersion: 3 } as RecipeDetail);
+
+        renderEditor(client, 'rec_failed_read');
+        const title = await screen.findByDisplayValue('Stored Stew');
+        await userEvent.type(title, ' Deluxe');
+        await act(async () => {
+            await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+        });
+
+        await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_failed_read?done=changesSaved'));
+        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_failed_read', RecipeVisibility.PRIVATE));
+    });
+
     it('a new recipe published private, that the server holds public, is made private', async () => {
         profile.paidFeatures = 'granted';
         const ref = 'local:recipe:visibility';

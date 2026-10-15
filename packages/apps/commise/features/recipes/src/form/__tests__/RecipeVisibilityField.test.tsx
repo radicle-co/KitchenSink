@@ -13,7 +13,7 @@ import { useState, type FC } from 'react';
 
 import type { PaidFeatureState } from '@commise/features-account';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
-import { heldVisibility } from '../../actions/privateGate.js';
+import { heldVisibility, privateRefusalOf } from '../../actions/privateGate.js';
 import { editorMessages } from '../../editor/messages.js';
 import { RecipeVisibilityField } from '../RecipeVisibilityField.js';
 import { recipeFormMessages } from '../messages.js';
@@ -52,7 +52,8 @@ const Harness: FC<HarnessProps> = ({ initial, paidFeatures, saved, onChange, onP
         <RecipeVisibilityField
             values={values}
             paidFeatures={paidFeatures}
-            savedVisibility={heldVisibility(opened, values.visibility)}
+            heldVisibility={heldVisibility(opened, values.visibility)}
+            privateRefusal={privateRefusalOf(paidFeatures)}
             {...(onPremiumRequired === undefined ? {} : { onPremiumRequired })}
             onConfirmPublic={onConfirmPublic ?? (() => change({ ...values, visibility: 'public' }))}
             onChange={change}

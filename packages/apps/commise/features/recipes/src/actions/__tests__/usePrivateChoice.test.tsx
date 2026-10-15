@@ -22,9 +22,11 @@ function mount(
     state: PaidFeatureState,
     saved: RecipeVisibility = RecipeVisibility.PUBLIC,
     values: RecipeFormValues = saved === RecipeVisibility.PRIVATE ? PRIVATE_DRAFT : PUBLIC_DRAFT,
+    // The profile's own answer: the state itself once settled, nothing while loading (a failed read passes `undefined`).
+    knownPaidFeatures: Exclude<PaidFeatureState, 'loading'> | undefined = state === 'loading' ? undefined : state,
 ) {
     const onChange = vi.fn<(next: RecipeFormValues) => void>();
-    const view = renderHook(() => usePrivateChoice({ state, saved, values, onChange }));
+    const view = renderHook(() => usePrivateChoice({ state, knownPaidFeatures, saved, values, onChange }));
 
     return { ...view, onChange };
 }
@@ -65,7 +67,8 @@ describe('usePrivateChoice', () => {
 
         expect(result.current.field).toStrictEqual({
             paidFeatures: 'upsell',
-            savedVisibility: RecipeVisibility.PRIVATE,
+            heldVisibility: RecipeVisibility.PRIVATE,
+            privateRefusal: 'premium',
         });
     });
 
@@ -87,7 +90,7 @@ describe('usePrivateChoice', () => {
 
         expect(result.current.sheet.open).toBe(true);
         expect(onChange).not.toHaveBeenCalled();
-        expect(result.current.field.savedVisibility).toBe(RecipeVisibility.PUBLIC);
+        expect(result.current.field.heldVisibility).toBe(RecipeVisibility.PUBLIC);
     });
 
     it('a granted cook still moves freely between the two', () => {
@@ -158,6 +161,34 @@ describe('usePrivateChoice', () => {
             expect(result.current.statement.privateUnavailable).toBe(expected);
         },
     );
+
+    /**
+     * Review B1: a FAILED profile read shows as `hidden`, but it is not a known refusal. A kept draft's Private then
+     * stands — it is what the create and the follow-up send — so the field shows it rather than a statement that says
+     * Public.
+     */
+    it('⛔ after a failed profile read, a kept draft`s Private stands and is shown as chosen', () => {
+        // Rendered directly: `mount`'s default would turn an explicit `undefined` back into the state.
+        const { result } = renderHook(() =>
+            usePrivateChoice({
+                state: 'hidden',
+                knownPaidFeatures: undefined,
+                saved: RecipeVisibility.PUBLIC,
+                values: PRIVATE_DRAFT,
+                onChange: vi.fn(),
+            }),
+        );
+
+        expect(result.current.offersPrivate).toBe(true);
+        expect(result.current.statement.privateUnavailable).toBe(false);
+        expect(result.current.field.privateRefusal).toBeUndefined();
+    });
+
+    it('under a known refusal, the field is told why a kept draft`s Private will not stand', () => {
+        expect(mount('upsell', RecipeVisibility.PUBLIC, PRIVATE_DRAFT).result.current.field.privateRefusal).toBe(
+            'premium',
+        );
+    });
 
     it('Not now closes the sheet, and so does See Premium (the subscription surface is not built, 010)', () => {
         const { result } = mount('upsell');

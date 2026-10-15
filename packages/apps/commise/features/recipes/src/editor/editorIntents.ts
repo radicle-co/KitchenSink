@@ -10,7 +10,7 @@
 import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { isLocalRef, type FailureClass, type Intent } from '@kitchensink/sync';
 
-import type { PrivateRefusal } from '../actions/privateGate.js';
+import { effectiveVisibility, type PrivateRefusal } from '../actions/privateGate.js';
 import type { RecipeFormValues } from '../form/values.js';
 import { toCreateRecipeInput, toUpdateRecipeInput } from '../form/wire.js';
 import type { RecipeLifecycle } from './checkpointPolicy.js';
@@ -57,8 +57,12 @@ export function recipeWriteIntent(input: RecipeWriteInput): Intent {
             localId: ref,
             produces: ref,
             dependsOn: [],
+            // A recipe the server has never stored holds nothing private, so the held visibility is Public.
             payload: {
-                input: input.privateRefusal === undefined ? create : { ...create, visibility: RecipeVisibility.PUBLIC },
+                input: {
+                    ...create,
+                    visibility: effectiveVisibility(input.privateRefusal, RecipeVisibility.PUBLIC, draft.visibility),
+                },
             },
         };
     }

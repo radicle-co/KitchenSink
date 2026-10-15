@@ -58,7 +58,7 @@ import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { useSyncQueue } from '@commise/query/sync';
 import { useAuth } from '@clerk/nextjs';
-import { paidFeatureStateOf } from '@commise/features-account';
+import { knownPaidFeaturesOf, paidFeatureStateOf } from '@commise/features-account';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
@@ -340,6 +340,8 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
     const queue = useSyncQueue();
     const profile = useUserProfile();
     const paidFeatures = paidFeatureStateOf(profile);
+    // What a WRITE may rely on: the profile's own answer, never the display's fail-closed `hidden` (review B1).
+    const knownPaidFeatures = knownPaidFeaturesOf(profile);
     const [initialSection] = useState<EditorSectionId | undefined>(() => sectionFromHash(window.location.hash));
     // The session's navigation port, on the Next router.
     const navigation: EditorNavigation = {
@@ -360,7 +362,7 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
         reportError: reportErrorToSentry,
         ...(mode === 'create' ? { onRecipeRef: (ref: string) => replaceUrlFor(locale, ref) } : {}),
         openPaste,
-        paidFeatures,
+        knownPaidFeatures,
     });
     const { editor, paste } = session;
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
@@ -369,6 +371,7 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
     // opened (a new recipe is public), so a choice back to it needs no entitlement.
     const privateChoice = usePrivateChoice({
         state: paidFeatures,
+        knownPaidFeatures,
         saved: seed.recipe?.visibility ?? RecipeVisibility.PUBLIC,
         values: editor.values,
         onChange: editor.setValues,

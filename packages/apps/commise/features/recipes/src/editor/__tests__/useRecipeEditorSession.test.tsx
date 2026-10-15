@@ -57,7 +57,7 @@ function mount(
         readonly strict?: boolean;
         readonly drafts?: DraftStore;
         readonly onRecipeRef?: (ref: string) => void;
-        readonly paidFeatures?: PaidFeatureState;
+        readonly knownPaidFeatures?: Exclude<PaidFeatureState, 'loading'> | undefined;
     } = {},
 ) {
     const port = makeFakeEditorWritePort();
@@ -89,7 +89,7 @@ function mount(
                 navigation: nav,
                 reportError: vi.fn(),
                 openPaste: false,
-                paidFeatures: options.paidFeatures ?? 'granted',
+                knownPaidFeatures: 'knownPaidFeatures' in options ? options.knownPaidFeatures : 'granted',
                 ...(options.onRecipeRef === undefined ? {} : { onRecipeRef: options.onRecipeRef }),
             }),
         // ⚠️ `reactStrictMode`, not a `<StrictMode>` inside the wrapper: React replays effects only for a StrictMode the
@@ -176,7 +176,7 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
         const client = createFakeRecipeServiceClient();
         const setVisibility = vi.spyOn(client, 'setRecipeVisibility');
         const stored = complete({ status: RecipeStatus.PUBLISHED, visibility: RecipeVisibility.PRIVATE });
-        const { result, port, nav } = mount({ recipe: stored }, client, { paidFeatures });
+        const { result, port, nav } = mount({ recipe: stored }, client, { knownPaidFeatures: paidFeatures });
 
         act(() => {
             result.current.editor.setField('description', 'Creamier.');
@@ -197,11 +197,13 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
         expect(setVisibility).not.toHaveBeenCalled();
     });
 
-    it('⛔ while the paid features are still loading, the Private is sent and the server decides', async () => {
+    // Review B1: a profile read still pending OR failed is UNKNOWN, never a refusal — the display's `hidden` for a failed
+    // read must not decide a write, or an entitled cook's Private is withheld and the recipe published.
+    it('⛔ while the paid features are unknown (loading, or a failed read), the Private is sent and the server decides', async () => {
         const client = createFakeRecipeServiceClient();
         const setVisibility = vi.spyOn(client, 'setRecipeVisibility');
         const stored = complete({ status: RecipeStatus.PUBLISHED, visibility: RecipeVisibility.PRIVATE });
-        const { result, port, nav } = mount({ recipe: stored }, client, { paidFeatures: 'loading' });
+        const { result, port, nav } = mount({ recipe: stored }, client, { knownPaidFeatures: undefined });
 
         act(() => {
             result.current.editor.setField('description', 'Creamier.');
@@ -223,7 +225,7 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
     });
 
     it('⛔ a new recipe`s create never carries a Private the server refuses: it goes out public', async () => {
-        const { result, port } = mount({}, createFakeRecipeServiceClient(), { paidFeatures: 'hidden' });
+        const { result, port } = mount({}, createFakeRecipeServiceClient(), { knownPaidFeatures: 'hidden' });
 
         act(() => {
             result.current.editor.setValues({
@@ -238,6 +240,21 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
         await settle();
 
         expect(port.submitted.at(-1)?.payload).toMatchObject({ input: { visibility: RecipeVisibility.PUBLIC } });
+    });
+
+    // Review S1: the preview shows what will be sent, as the field does — one answer (`effectiveVisibility`).
+    it('⛔ the preview shows a refused draft Private as Public, and an unrefused one as Private', () => {
+        const values = { ...toRecipeFormValues(complete()), visibility: RecipeVisibility.PRIVATE, photos: [] };
+        const refused = mount({}, createFakeRecipeServiceClient(), { knownPaidFeatures: 'hidden' });
+        const granted = mount({}, createFakeRecipeServiceClient(), { knownPaidFeatures: 'granted' });
+
+        act(() => {
+            refused.result.current.editor.setValues(values);
+            granted.result.current.editor.setValues(values);
+        });
+
+        expect(refused.result.current.preview.recipe.visibility).toBe(RecipeVisibility.PUBLIC);
+        expect(granted.result.current.preview.recipe.visibility).toBe(RecipeVisibility.PRIVATE);
     });
 
     it('a discarded never-published recipe goes to My recipes; a published one`s discarded changes, to the recipe', async () => {

@@ -177,6 +177,11 @@ test.describe('paid features — a downgraded owner making a private recipe publ
 
         await expect(dialog).toHaveCount(0);
         await expect(page.getByText('Who can see it')).toBeVisible();
+        // The statement takes the focus the unmounted Public radio had (WCAG 2.4.3) — real-browser order, which jsdom
+        // cannot prove.
+        await expect
+            .poll(() => page.evaluate(() => document.activeElement?.textContent ?? ''))
+            .toContain('Who can see it');
         await expect(page.getByRole('radio', { name: /^Private/u })).toHaveCount(0);
         await expect(page.getByRole('radio', { name: /^Public/u })).toHaveCount(0);
     });

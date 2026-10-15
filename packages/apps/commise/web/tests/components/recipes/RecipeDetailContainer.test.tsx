@@ -1039,6 +1039,32 @@ describe('RecipeDetailContainer', () => {
             );
         });
 
+        // Review S3: an earlier failure is not news to a confirm opened afresh.
+        it('a confirm opened again after a failure starts clean', async () => {
+            const user = userEvent.setup();
+            useUserProfileMock.mockReturnValue(profileWith('hidden'));
+            const client = renderOwnerDetail(RecipeVisibility.PRIVATE);
+            vi.spyOn(client, 'setRecipeVisibility').mockRejectedValue(new Error('network down'));
+
+            const openConfirm = async (): Promise<HTMLElement> => {
+                await user.click(
+                    (await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement,
+                );
+                await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
+
+                return screen.findByRole('alertdialog', { name: 'Make this recipe public?' });
+            };
+
+            const first = await openConfirm();
+            await user.click(within(first).getByRole('button', { name: 'Make public' }));
+            await within(first).findByText('We couldn’t change who can see this recipe. Please try again.');
+            await user.click(within(first).getByRole('button', { name: 'Keep private' }));
+
+            const second = await openConfirm();
+
+            expect(within(second).queryByRole('alert')).toBeNull();
+        });
+
         // Plan 2026-10-14-009 D14: Make private is offered when Private is offered — granted or upsell. The paid features
         // decide what it does. Under hidden, a failed profile read or a profile still loading it is not offered at all.
         it.each(['granted', 'upsell'] as const)('offers Make private to a %s owner', async (state) => {

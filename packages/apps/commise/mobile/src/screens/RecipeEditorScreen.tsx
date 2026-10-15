@@ -48,7 +48,7 @@ import { QueryBoundary } from '@commise/query/boundary';
 import { useSyncQueue } from '@commise/query/sync';
 import { Button } from '@commise/ui/button';
 import { useAuth } from '@clerk/expo';
-import { paidFeatureStateOf } from '@commise/features-account';
+import { knownPaidFeaturesOf, paidFeatureStateOf } from '@commise/features-account';
 import { RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
@@ -198,6 +198,8 @@ function RecipeEditorSession({
     const queue = useSyncQueue();
     const profile = useUserProfile();
     const paidFeatures = paidFeatureStateOf(profile);
+    // What a WRITE may rely on: the profile's own answer, never the display's fail-closed `hidden` (review B1).
+    const knownPaidFeatures = knownPaidFeaturesOf(profile);
     // The session's navigation port, on the route's hand-offs: leaving for the recipe goes back where it was opened.
     const navigation: EditorNavigation = {
         finished: onFinished,
@@ -214,7 +216,7 @@ function RecipeEditorSession({
         navigation,
         reportError: reportErrorToSentry,
         openPaste,
-        paidFeatures,
+        knownPaidFeatures,
     });
     const { editor, paste } = session;
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
@@ -223,6 +225,7 @@ function RecipeEditorSession({
     // opened (a new recipe is public), so a choice back to it needs no entitlement. The web editor reads the same.
     const privateChoice = usePrivateChoice({
         state: paidFeatures,
+        knownPaidFeatures,
         saved: seed.recipe?.visibility ?? RecipeVisibility.PUBLIC,
         values: editor.values,
         onChange: editor.setValues,

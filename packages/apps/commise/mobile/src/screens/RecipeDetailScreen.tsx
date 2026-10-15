@@ -320,7 +320,11 @@ function SettledRecipeDetail({
                     id: item,
                     label: detailActions.makePublic,
                     icon: 'globe',
-                    onSelect: makePublic.request,
+                    // A fresh confirm starts clean: an earlier failure is not news to it (review S3).
+                    onSelect: () => {
+                        setVisibility.reset();
+                        makePublic.request();
+                    },
                 };
             case 'clearChecks':
                 return { id: item, label: detailActions.clearChecks, icon: 'rotateCcw', onSelect: marks.clear };

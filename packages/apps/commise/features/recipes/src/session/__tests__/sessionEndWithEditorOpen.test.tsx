@@ -74,7 +74,7 @@ function Editor(props: {
     const session = useRecipeEditorSession({
         seed: {},
         locale: 'en',
-        paidFeatures: 'granted',
+        knownPaidFeatures: 'granted',
         keep: 'tabSession',
         port: offlinePort(store, subject),
         drafts: draftStoreFor(store, subject),

@@ -52,6 +52,7 @@
         },
         "./parsing/parse-job-text": "./dist/parsing/parseJobText.js",
         "./parsing/parse-job-aggregate": "./dist/parsing/parseJobAggregate.js",
+        "./parsing/parse-line-delivery": "./dist/parsing/parseLineDelivery.js",
         "./parsing/parse-retry-prompt": {
             "types": "./dist/parsing/parseRetryPrompt.d.ts",
             "default": "./dist/parsing/parseRetryPrompt.js"

@@ -12,7 +12,7 @@
         "implementationsWithComponentDoc": 43,
         "documentedProps": 145,
         "classifiedComponents": 35,
-        "componentsWithPatternTag": 24,
+        "componentsWithPatternTag": 23,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -625,9 +625,7 @@
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/components/auth",
             "kind": "presentational",
-            "patterns": [
-                "Decorator — wraps a screen's content in the safe-area, keyboard and scroll shell the three signed-out\n    screens used to copy"
-            ],
+            "patterns": [],
             "platforms": [
                 "web"
             ],
@@ -645,10 +643,6 @@
                         {
                             "name": "module",
                             "text": "components/auth/AuthScreenFrame — the shell every signed-out screen (sign-in, sign-up, the social finish"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Decorator — wraps a screen's content in the safe-area, keyboard and scroll shell the three signed-out\n    screens used to copy"
                         }
                     ],
                     "description": "The frame a signed-out screen stands in. Presentational: props → JSX, no state of its own.",

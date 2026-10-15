@@ -5,9 +5,6 @@
  *
  * The root is TRANSPARENT so the root `AppCanvas` beach-glow gradient shows through (issue #145); an opaque fill here
  * occludes the whole canvas and restores the flat page the wireframes never had.
- *
- * @pattern Decorator — wraps a screen's content in the safe-area, keyboard and scroll shell the three signed-out
- *     screens used to copy
  */
 import { KeyboardAvoider } from '@commise/ui/keyboard-avoider';
 import { nativeTokens } from '@commise/ui/native';

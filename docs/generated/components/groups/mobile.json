@@ -4,15 +4,15 @@
     "packageName": "@commise/mobile",
     "layer": "app",
     "coverage": {
-        "components": 52,
-        "implementations": 52,
-        "props": 129,
-        "documentedComponents": 51,
-        "implementationsWithModuleDoc": 50,
-        "implementationsWithComponentDoc": 38,
-        "documentedProps": 121,
-        "classifiedComponents": 30,
-        "componentsWithPatternTag": 21,
+        "components": 56,
+        "implementations": 56,
+        "props": 150,
+        "documentedComponents": 55,
+        "implementationsWithModuleDoc": 54,
+        "implementationsWithComponentDoc": 42,
+        "documentedProps": 142,
+        "classifiedComponents": 34,
+        "componentsWithPatternTag": 23,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -660,6 +660,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The screen is busy (a sign-in is in flight): the link takes no press.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthSwitchLink.tsx"
+                        },
+                        {
                             "name": "label",
                             "type": "string",
                             "typeDetail": null,
@@ -697,6 +706,310 @@
             ]
         },
         {
+            "id": "mobile/components/auth/GoogleSignInButton",
+            "name": "GoogleSignInButton",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/components/auth",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over Google's sign-in button branding guidelines — their palette, mark and proportions, at the design\n    system's `lg` height.",
+                "The `busy` boolean is DISPLAY DERIVATION, not a behaviour switch: it swaps the mark for a spinner in the same\n    slot, exactly as `Button`'s `busy` swaps its glyph; what the press DOES is the caller's."
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "GoogleSignInButton",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/components/auth/GoogleSignInButton.tsx",
+                    "dir": "packages/apps/commise/mobile/src/components/auth",
+                    "moduleDoc": "components/auth/GoogleSignInButton — \"Continue with Google\", drawn to Google's sign-in branding guidelines\n(plan 012 D9/D9a): the light theme in both colour schemes and the official four-colour G, never recoloured — the\nvalues are `@commise/ui/brands`' `googleSignIn`, the one place brand colours live.\n\nIt is not the design system's `Button` on purpose: `Button` paints its glyph in the label's colour, which is exactly\nthe recolouring Google forbids, and a brand control whose look its owner specifies is not a design-system tier. It\nstill stands at a `Button`'s `lg` height ({@link BUTTON_VISUAL_HEIGHT}) as a capsule, so the three sign-in controls\nshare one size and weight. ⚠️ The label uses the app's `label` type role (Inter), not Google Sans — the web Clerk\nbutton does the same; a recorded branding risk.\n\nThe mark is decorative (`aria-hidden`), so the accessible name is the visible label (WCAG 2.2 SC 2.5.3).\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/auth/GoogleSignInButton — \"Continue with Google\", drawn to Google's sign-in branding guidelines"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over Google's sign-in button branding guidelines — their palette, mark and proportions, at the design\n    system's `lg` height."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "The `busy` boolean is DISPLAY DERIVATION, not a behaviour switch: it swaps the mark for a spinner in the same\n    slot, exactly as `Button`'s `busy` swaps its glyph; what the press DOES is the caller's."
+                        }
+                    ],
+                    "description": "\"Continue with Google\": the official G and the label on Google's white capsule.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The label, the press handler and the lock / busy state."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The Google sign-in button."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "This provider's sheet is up: a spinner replaces the mark.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/GoogleSignInButton.tsx"
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Locks the control (another sign-in is in flight).",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/GoogleSignInButton.tsx"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The visible label, which is also the accessible name.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/GoogleSignInButton.tsx"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Starts the Google flow.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/GoogleSignInButton.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [
+                        "busy"
+                    ],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/components/auth/SignUpFields",
+            "name": "SignUpFields",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/components/auth",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "SignUpFields",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/components/auth/SignUpFields.tsx",
+                    "dir": "packages/apps/commise/mobile/src/components/auth",
+                    "moduleDoc": "components/auth/SignUpFields — the labelled profile fields a sign-up asks for (plan 012 D8): the typed\nsign-up form shows all of `SIGN_UP_FIELDS`; the finish step after a Google / Apple sign-up shows only those\nClerk still lists as missing. Each field carries its registry autofill and keyboard hints, and its error (ours for an\nempty field, Clerk's for a rejected one) sits UNDER it, named by the field's `describedBy` (WCAG 2.2 SC 3.3.1).\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/auth/SignUpFields — the labelled profile fields a sign-up asks for (plan 012 D8): the typed"
+                        }
+                    ],
+                    "description": "The labelled profile fields, in registry order.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The fields, their values and errors, and the change handler."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The labelled fields, each with its error under it."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Locks every field while a request is in flight.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/SignUpFields.tsx"
+                        },
+                        {
+                            "name": "errors",
+                            "type": "Readonly<Partial<Record<SignUpFieldName, string>>>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Each field's error, shown under it.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/SignUpFields.tsx"
+                        },
+                        {
+                            "name": "fields",
+                            "type": "readonly SignUpFieldSpec[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The fields to show, in order.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/SignUpFields.tsx"
+                        },
+                        {
+                            "name": "idPrefix",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Prefixes each field id, so two forms on one screen cannot collide.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/SignUpFields.tsx"
+                        },
+                        {
+                            "name": "onChange",
+                            "type": "(field: SignUpFieldName, text: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Called with the field and its new text on every change.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/SignUpFields.tsx"
+                        },
+                        {
+                            "name": "values",
+                            "type": "Readonly<Partial<Record<SignUpFieldName, string>>>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What each field holds.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/SignUpFields.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/components/auth/SocialSignInButtons",
+            "name": "SocialSignInButtons",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/components/auth",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "SocialSignInButtons",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/components/auth/SocialSignInButtons.tsx",
+                    "dir": "packages/apps/commise/mobile/src/components/auth",
+                    "moduleDoc": "components/auth/SocialSignInButtons — the provider group both signed-out screens draw above the email form\n(plan 012 D9, D10; buildSpec §8's order: brand line → providers → \"or\" → email form).\n\n- Apple then Google on iOS, Google alone on Android; with no provider (prod Android, an unknown Clerk instance) it\n  draws NOTHING — no group and no divider — so the email form follows the brand line directly.\n- Apple is the SYSTEM button (`AppleAuthenticationButton`: approved artwork, its own localisation and VoiceOver\n  label), `CONTINUE`, a capsule at the `lg` height; `WHITE_OUTLINE` on light, `WHITE` on dark, so it never outweighs\n  the white Google button beside it. The system button has no `disabled` prop: while locked it takes no touches\n  (`pointerEvents=\"none\"`) and presses are ignored.\n- One status slot under the group: a polite \"Signing you in…\" while a provider is busy (SC 4.1.3), or the\n  provider's failure as an alert.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/auth/SocialSignInButtons — the provider group both signed-out screens draw above the email form"
+                        }
+                    ],
+                    "description": "The provider group: the providers in order, the status slot, and the \"or\" divider.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The providers, the busy / locked state, the error and the press handler."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The provider group and the \"or\" divider, or nothing when there is no provider."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "busyProvider",
+                            "type": "SocialProvider | null",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The provider whose sheet is up, if any.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/SocialSignInButtons.tsx"
+                        },
+                        {
+                            "name": "error",
+                            "type": "string | null",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A provider's failure, shown in the status slot.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/SocialSignInButtons.tsx"
+                        },
+                        {
+                            "name": "locked",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Every control on the screen is locked (a provider, or the email form, is in flight).",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/SocialSignInButtons.tsx"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "(provider: SocialProvider) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Starts the named provider's flow.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/SocialSignInButtons.tsx"
+                        },
+                        {
+                            "name": "providers",
+                            "type": "readonly SocialProvider[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The providers to draw, in order (`socialProvidersFor`).",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/SocialSignInButtons.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "mobile/components/AuthGate",
             "name": "AuthGate",
             "group": "mobile",
@@ -717,7 +1030,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/AuthGate.tsx",
                     "dir": "packages/apps/commise/mobile/src/components",
-                    "moduleDoc": "components/AuthGate — the app-wide authentication gate (the root's render map).\n\nSelects the surface for the CURRENT `AuthState` derived by `@commise/features-account` (the same\nderivation web uses, so the two platforms cannot disagree on which sessions are blocked): a named loading\naffordance while the session resolves, the sign-in form when signed out, a localized notice for a blocked or\nfailed session, and the app itself once authenticated.\n\n⚠️ Owner decision, 2026-07-28: there is NO welcome/landing screen. A signed-out session used to open on a\nbranded welcome hero whose two CTAs led into sign-up and sign-in; that screen is deleted, here and on web\n(whose locale root now redirects a signed-out caller straight to `/sign-in`). Sign-UP stays reachable from\nthe sign-in form's own control, which is now its ONLY entry point on mobile.",
+                    "moduleDoc": "components/AuthGate — the app-wide authentication gate (the root's render map).\n\nSelects the surface for the CURRENT `AuthState` derived by `@commise/features-account` (the same\nderivation web uses, so the two platforms cannot disagree on which sessions are blocked): a named loading\naffordance while the session resolves, the sign-in form when signed out, a localized notice for a blocked or\nfailed session, and the app itself once authenticated.\n\n⚠️ Owner decision, 2026-07-28: there is NO welcome/landing screen. A signed-out session used to open on a\nbranded welcome hero whose two CTAs led into sign-up and sign-in; that screen is deleted, here and on web\n(whose locale root now redirects a signed-out caller straight to `/sign-in`). Sign-UP stays reachable from\nthe sign-in form's own control, which is now its ONLY entry point on mobile.\n\nPlan 012: either form's \"Continue with Apple / Google\" may end at a sign-up still missing fields the provider did not\nsupply (the username, and with Apple possibly the names). The gate then shows `CompleteSignUpScreen` with the sign-up\nthe provider hook RETURNED; \"Start over\" comes back to the sign-in form. It is a signed-out SURFACE, not a route.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3038,6 +3351,91 @@
             ]
         },
         {
+            "id": "mobile/screens/CompleteSignUpScreen",
+            "name": "CompleteSignUpScreen",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/screens",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter over the legacy `SignUpResource` the provider hook returned — its throwing `update` answered in the\n    screen's terms (a field error, the alert, the next fields, or a started session)."
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CompleteSignUpScreen",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/screens/CompleteSignUpScreen.tsx",
+                    "dir": "packages/apps/commise/mobile/src/screens",
+                    "moduleDoc": "screens/CompleteSignUpScreen — the step after a Google / Apple sign-up that asks ONLY for what the provider\ndid not supply (owner ruling 2026-10-13; plan 012 D6, D11).\n\nGoogle supplies the names and the email; Apple supplies the name only on the first authorization and may supply a\nprivate-relay address; neither supplies the username both Clerk instances require. So Clerk stops the sign-up at\n`missing_requirements` and `AuthGate` shows this step with the missing fields `classifySocialOutcome` planned. It\nnever asks for a password or an email (D11), and never derives the username from the name — an Apple user who hid\ntheir address would otherwise get a public byline made of their real name.\n\nIt acts on the sign-up the provider hook RETURNED — the legacy resource, whose `update` throws on failure — and,\nonce Clerk reports it complete, starts the session (`AuthGate` then shows the app). Should Clerk still list fields,\nit asks for the next ones; a status or field it cannot finish is said and reported, never a dead end. \"Start over\"\nmakes no call: the abandoned attempt simply expires at Clerk (and a retry with Apple asks for the names again,\nbecause Apple sends them once).\n\nOrchestration: owns the step's form state and issues `signUp.update` / `setActive`; renders through `SignUpFields`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "screens/CompleteSignUpScreen — the step after a Google / Apple sign-up that asks ONLY for what the provider"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the legacy `SignUpResource` the provider hook returned — its throwing `update` answered in the\n    screen's terms (a field error, the alert, the next fields, or a started session)."
+                        }
+                    ],
+                    "description": "The finish step: the missing fields, the address the account is for, \"Create account\" and \"Start over\".",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The returned sign-up, the fields to ask for first, and the way out."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The finish step."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "fields",
+                            "type": "readonly SignUpFieldSpec[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The missing fields to ask for first, in registry order.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/CompleteSignUpScreen.tsx"
+                        },
+                        {
+                            "name": "onStartOver",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Leaves the step for the sign-in form, abandoning the attempt.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/CompleteSignUpScreen.tsx"
+                        },
+                        {
+                            "name": "signUp",
+                            "type": "SignUpResource",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The sign-up the provider hook returned.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/CompleteSignUpScreen.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
             "id": "mobile/screens/HomeScreen",
             "name": "HomeScreen",
             "group": "mobile",
@@ -3175,7 +3573,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/login.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "screens/login — the mobile sign-in surface (U2 rebuild).\n\nA custom Clerk sign-in form (the app ships its own UI, not Clerk's hosted screens) built on the design\nsystem: the `@commise/ui` {@link Button} (with its real `busy` spinner) + tokenized {@link Input}, all copy\nfrom `mobileMessages` (no hard-coded English), every field label associated for assistive tech, and the\nform wrapped in a `SafeAreaView` + `KeyboardAvoider` so the keyboard never occludes the inputs.\n\nThe password is the FIRST factor and is always sent: ONE `signIn.password({ identifier, password })` call. A wrong\npassword fails there with Clerk's own message and no code is sent. Only after a correct password does Clerk\nanswer `needs_client_trust` (a new device) or `needs_second_factor`; the email code that follows is the SECOND\nfactor (`signIn.mfa.sendEmailCode` → a `oneTimeCode` field → `signIn.mfa.verifyEmailCode`) before `setActive`.\nThe passwordless first-factor strategy (`signIn.emailCode.*`) is deliberately never used: it signs a user in\nwith the mailbox alone (A-001).",
+                    "moduleDoc": "screens/login — the mobile sign-in surface (U2 rebuild).\n\nA custom Clerk sign-in form (the app ships its own UI, not Clerk's hosted screens) built on the design\nsystem: the `@commise/ui` {@link Button} (with its real `busy` spinner) + tokenized {@link Input}, all copy\nfrom `mobileMessages` (no hard-coded English), every field label associated for assistive tech, and the\nform wrapped in a `SafeAreaView` + `KeyboardAvoider` so the keyboard never occludes the inputs.\n\nThe password is the FIRST factor and is always sent: ONE `signIn.password({ identifier, password })` call. A wrong\npassword fails there with Clerk's own message and no code is sent. Only after a correct password does Clerk\nanswer `needs_client_trust` (a new device) or `needs_second_factor`; the email code that follows is the SECOND\nfactor (`signIn.mfa.sendEmailCode` → a `oneTimeCode` field → `signIn.mfa.verifyEmailCode`) before `setActive`.\nThe passwordless first-factor strategy (`signIn.emailCode.*`) is deliberately never used: it signs a user in\nwith the mailbox alone (A-001).\n\nAbove the email form sits the provider group (plan 012): \"Continue with Apple / Google\", the `useSocialSignIn`\ncommand. While a provider's sheet is up every control here locks; a provider sign-up that still needs fields is\nhanded up to `AuthGate` (`onNeedsFields`), which shows the finish step.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3187,6 +3585,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "onNeedsFields",
+                            "type": "(pending: PendingSignUp) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A provider's sign-up still needs fields: the gate shows the finish step with it.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/login.tsx"
+                        },
                         {
                             "name": "onSignUp",
                             "type": "() => void",
@@ -3803,7 +4210,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/signup.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "screens/signup — the mobile sign-up surface (U2 rebuild).\n\nThe sibling of `LoginScreen`: a custom Clerk sign-up form on the design system\n(`@commise/ui` {@link Button} with `busy` + tokenized {@link Input}), all copy from `mobileMessages`,\nassociated field labels, and a `SafeAreaView` + `KeyboardAvoider` shell. It runs `signUp.create` →\n`signUp.password`, and — when the instance verifies the email — an email-code step\n(`verifications.sendEmailCode` → a `oneTimeCode` field → `verifications.verifyEmailCode`) before `setActive`.\nAny other requirement the instance still has (a username, a name) is a field this form does not offer: it says so,\nand reports it to Sentry, rather than stranding the user on a form that cannot finish.\n\n`onBack` returns to the sign-in form, which is where this screen is always reached FROM: the signed-out gate\nopens on login, and login's own \"Create account\" control is the only route here (owner decision 2026-07-28\ndeleted the welcome hero that used to provide a \"Get started\" entry). So the existing back affordance — the\ninline \"Sign in\" link under `haveAccountPrompt` — still lands exactly where the user came from, and it\nis now the ONLY exit, which is why `AuthGate` keeps rendering it rather than a bare form.",
+                    "moduleDoc": "screens/signup — the mobile sign-up surface (U2 rebuild).\n\nThe sibling of `LoginScreen`: a custom Clerk sign-up form on the design system\n(`@commise/ui` {@link Button} with `busy` + tokenized {@link Input}), all copy from `mobileMessages`,\nassociated field labels, and a `SafeAreaView` + `KeyboardAvoider` shell. It asks for the four profile fields both\nClerk instances require — first name, last name, username, email (owner ruling 2026-10-13; the\n`SIGN_UP_FIELDS` registry, plan 012 D8) — and a password, then runs `signUp.create` → `signUp.password`, and — when\nthe instance verifies the email — an email-code step (`verifications.sendEmailCode` → a `oneTimeCode` field →\n`verifications.verifyEmailCode`) before `setActive`. An empty field is refused under that field without calling\nClerk; Clerk's rejection of a field (a taken username) is shown under the field it names. Any requirement the\ninstance still has after that is one this form does not offer: it says so, and reports it to Sentry, rather than\nstranding the user on a form that cannot finish.\n\nAbove the form sits the same provider group as sign-in (plan 012): \"Continue with Apple / Google\" may sign the\nperson in OR create the account, and a provider sign-up that still needs fields is handed up to `AuthGate`\n(`onNeedsFields`). While a provider's sheet is up every control here locks.\n\n`onBack` returns to the sign-in form, which is where this screen is always reached FROM: the signed-out gate\nopens on login, and login's own \"Create account\" control is the only route here (owner decision 2026-07-28\ndeleted the welcome hero that used to provide a \"Get started\" entry). So the existing back affordance — the\ninline \"Sign in\" link under `haveAccountPrompt` — still lands exactly where the user came from, and it\nis now the ONLY exit, which is why `AuthGate` keeps rendering it rather than a bare form.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3822,6 +4229,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/signup.tsx"
+                        },
+                        {
+                            "name": "onNeedsFields",
+                            "type": "(pending: PendingSignUp) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A provider's sign-up still needs fields: the gate shows the finish step with it.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/signup.tsx"
                         }
                     ],

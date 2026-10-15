@@ -20,6 +20,7 @@
         },
         "./theme.css": "./dist/theme.css",
         "./colors": "./src/tokens/colors.ts",
+        "./brands": "./src/tokens/brands.ts",
         "./clerk": "./src/clerk.ts",
         "./scale": "./src/tokens/scale.ts",
         "./native": "./src/tokens/native.ts",

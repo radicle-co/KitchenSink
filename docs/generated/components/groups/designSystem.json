@@ -6,11 +6,11 @@
     "coverage": {
         "components": 64,
         "implementations": 110,
-        "props": 638,
+        "props": 640,
         "documentedComponents": 64,
         "implementationsWithModuleDoc": 110,
         "implementationsWithComponentDoc": 102,
-        "documentedProps": 601,
+        "documentedProps": 603,
         "classifiedComponents": 57,
         "componentsWithPatternTag": 64,
         "crossPlatformComponents": 46
@@ -4772,6 +4772,8 @@
                                 "\"email\"",
                                 "\"off\"",
                                 "\"name\"",
+                                "\"given-name\"",
+                                "\"family-name\"",
                                 "\"username\"",
                                 "\"current-password\"",
                                 "\"new-password\"",
@@ -4780,6 +4782,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The autofill to offer.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "autoCorrect",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whether the keyboard corrects spelling. Absent, the platform decides; `false` for a value that is not a word.",
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
@@ -4977,6 +4988,8 @@
                                 "\"email\"",
                                 "\"off\"",
                                 "\"name\"",
+                                "\"given-name\"",
+                                "\"family-name\"",
                                 "\"username\"",
                                 "\"current-password\"",
                                 "\"new-password\"",
@@ -4985,6 +4998,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The autofill to offer.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "autoCorrect",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whether the keyboard corrects spelling. Absent, the platform decides; `false` for a value that is not a word.",
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {

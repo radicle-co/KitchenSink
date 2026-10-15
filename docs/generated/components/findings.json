@@ -2,7 +2,7 @@
     "schemaVersion": 1,
     "counts": {
         "ambiguous-layer-signal": 9,
-        "boolean-prop-selects-subtree": 7,
+        "boolean-prop-selects-subtree": 8,
         "cross-platform-props-diverge": 16,
         "missing-component-doc": 148,
         "missing-module-doc": 21,
@@ -4617,6 +4617,16 @@
             "sourcePath": "packages/apps/commise/mobile/src/components/auth/AuthSwitchLink.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
+        },
+        {
+            "rule": "boolean-prop-selects-subtree",
+            "severity": "review",
+            "component": "mobile/components/auth/GoogleSignInButton",
+            "sourcePath": "packages/apps/commise/mobile/src/components/auth/GoogleSignInButton.tsx",
+            "message": "a boolean prop selects between two rendered subtrees — behaviour switch, or display derivation?",
+            "evidence": [
+                "busy"
+            ]
         },
         {
             "rule": "unclassified-layer",

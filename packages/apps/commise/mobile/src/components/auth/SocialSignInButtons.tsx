@@ -41,10 +41,13 @@ export interface SocialSignInButtonsProps {
     readonly error: string | null;
     /** Every control on the screen is locked (a provider, or the email form, is in flight). */
     readonly locked: boolean;
+    /** Starts the named provider's flow. */
     readonly onPress: (provider: SocialProvider) => void;
 }
 
 /**
+ * The provider group: the providers in order, the status slot, and the "or" divider.
+ *
  * @param props - The providers, the busy / locked state, the error and the press handler.
  * @returns The provider group and the "or" divider, or nothing when there is no provider.
  */

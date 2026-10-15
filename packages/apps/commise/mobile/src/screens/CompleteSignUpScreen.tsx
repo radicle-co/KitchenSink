@@ -15,6 +15,9 @@
  * because Apple sends them once).
  *
  * Orchestration: owns the step's form state and issues `signUp.update` / `setActive`; renders through `SignUpFields`.
+ *
+ * @pattern Adapter over the legacy `SignUpResource` the provider hook returned — its throwing `update` answered in the
+ *     screen's terms (a field error, the alert, the next fields, or a started session).
  */
 import { useClerk } from '@clerk/expo';
 import type { SignUpResource } from '@clerk/shared/types';
@@ -51,6 +54,12 @@ export interface CompleteSignUpScreenProps {
     readonly onStartOver: () => void;
 }
 
+/**
+ * The finish step: the missing fields, the address the account is for, "Create account" and "Start over".
+ *
+ * @param props - The returned sign-up, the fields to ask for first, and the way out.
+ * @returns The finish step.
+ */
 export function CompleteSignUpScreen({
     signUp,
     fields: initialFields,

@@ -5,6 +5,13 @@ import { AccessibilityInfo, Platform } from 'react-native';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Button } from '../Button.native.js';
+import { BUTTON_DIMMED_OPACITY } from '../props.js';
+
+// A value no literal in the leaf could match: the dimmed opacity must be READ from the shared constant.
+vi.mock('../props.js', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../props.js')>()),
+    BUTTON_DIMMED_OPACITY: 0.25,
+}));
 import { role, roleDark } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
 
@@ -139,7 +146,7 @@ describe('Button (native)', () => {
         expect(onPress).toHaveBeenCalledOnce();
     });
 
-    it('does not fire onPress when disabled, and dims to 40%', () => {
+    it('does not fire onPress when disabled, and dims to the shared dimmed opacity', () => {
         const onPress = vi.fn();
         render(
             <Button icon="plus" onPress={onPress} disabled>
@@ -152,7 +159,9 @@ describe('Button (native)', () => {
 
         expect(onPress).not.toHaveBeenCalled();
         expect(button.getAttribute('aria-disabled')).toBe('true');
-        expect(getComputedStyle(pillOf(button)).opacity).toBe('0.4');
+        // The opacity comes from the shared constant (mocked to a different value below), never a literal here.
+        expect(getComputedStyle(pillOf(button)).opacity).toBe(String(BUTTON_DIMMED_OPACITY));
+        expect(BUTTON_DIMMED_OPACITY).toBe(0.25);
     });
 
     it('does not fire onPress when busy (in-flight guard), and announces busy', () => {

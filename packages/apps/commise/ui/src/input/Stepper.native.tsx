@@ -11,6 +11,7 @@ import { useState, type FC } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { visuallyHidden } from '../accessibility/visuallyHidden.native.js';
+import { BUTTON_DIMMED_OPACITY } from '../button/props.js';
 import { Icon } from '../icon/Icon.native.js';
 import type { IconName } from '../icon/props.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
@@ -97,7 +98,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         borderWidth: 1,
     },
-    unavailable: { opacity: 0.4 },
+    unavailable: { opacity: BUTTON_DIMMED_OPACITY },
     value: {
         ...nativeTokens.type.body,
         fontFamily: nativeTokens.fontFace.body.semibold,

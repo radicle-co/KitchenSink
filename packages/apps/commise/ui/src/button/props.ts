@@ -35,6 +35,12 @@ export type ButtonSize = 'lg' | 'md' | 'sm';
  */
 export const BUTTON_VISUAL_HEIGHT: Readonly<Record<ButtonSize, number>> = { lg: 52, md: 44, sm: 36 };
 
+/**
+ * How far a locked or unavailable native control dims (§1.10). One number for the `Button`, the stepper, and a control
+ * that cannot be a `Button` (the Google sign-in capsule), so the three never drift apart.
+ */
+export const BUTTON_DIMMED_OPACITY = 0.4;
+
 /** A destructive button's tone: a danger label inline, or the filled surface a confirm dialog's action takes. */
 export type DestructiveTone = 'inline' | 'confirm';
 

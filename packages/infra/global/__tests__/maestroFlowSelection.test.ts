@@ -287,6 +287,11 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // Row 7's shortlist on a device needs the same seeded gate-AMBIGUOUS fixture recipe as `ambiguityReview`, and the
     // same seeding step promotes it.
     'recipes/ingredientShortlist',
+    // Plan 012: the native Google sign-in's cancel (iOS) / no-Play-services error (Android) path. It must start signed
+    // OUT, so planning it costs one more Clerk email-code sign-in per platform per run (to restore the session the next
+    // flow needs) against the budget the describe below pins to two, and it has never run on a device. The buttons'
+    // PRESENCE is asserted by the spine (`auth/loginFlow`); the states are `useSocialSignIn.native.test.tsx`'s.
+    'auth/socialCancel',
 ];
 
 // ---------------------------------------------------------------------------------------------------------

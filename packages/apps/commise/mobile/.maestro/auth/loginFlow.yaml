@@ -43,12 +43,33 @@ appId: io.commise.mobile
 - assertNotVisible: 'Cook with confidence. Plan with ease.'
 - assertNotVisible: 'Get started'
 
+# Native social sign-in (plan 012): the CI test app is a SANDBOX build, whose Clerk instance has an Android Google client
+# registered and Sign in with Apple on iOS, so the provider group stands above the email form — Google on Android,
+# Apple and Google on iOS. Only PRESENCE is asserted here: a real Google or Apple sign-in needs a real account and the
+# provider's own UI, which cannot be automated, and the cancel / error path is `auth/socialCancel.yaml` (hand-run; see
+# its header for why it is not in the plan). Copy: mobile i18n `auth.continueWithGoogle`, `auth.orDivider`; the Apple
+# button's label is the system's own, so it is matched by its words, not by a key.
+- assertVisible: 'Continue with Google'
+- assertVisible: 'or'
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible: '.*with Apple'
+
 # Sign-UP is reachable from the sign-in form, and returns to it. This is the entry point the welcome hero used
 # to own, so it is asserted in both directions rather than assumed (web's `routeProtection.spec.ts` asserts the
 # same property via the sign-up link Clerk renders from `signUpUrl` — cross-platform parity). Copy comes from
 # mobile i18n `auth.signUpLink` / `createHeading` / `createAccountAction` / `haveAccountPrompt`.
 - tapOn: 'Create an account'
 - assertVisible: 'Create your account'
+# The sign-up form asks for first name, last name, username and email (owner ruling 2026-10-13) under the provider
+# group, so its submit and its return link can sit below the fold on a short screen: scroll to them, then assert.
+- assertVisible: 'First name'
+- assertVisible: 'Username'
+- scrollUntilVisible:
+      element: 'Already have an account?'
+      direction: DOWN
 - assertVisible: 'Create account'
 - assertVisible: 'Already have an account?'
 # The sign-up screen's return control. 'Sign in' is unambiguous HERE (this screen's submit is 'Create account'),

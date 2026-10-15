@@ -189,6 +189,15 @@ APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outpu
 #   - `recipes/systemBackGuard` sits between `createEntry` and `create`, at the head of the CREATE-editor block,
 #     for the reasons `createEntry` is there: it enters the editor, and it LEAVES THE LIBRARY AS FOUND — the draft
 #     its Back creates is discarded through the editor, and the edit leg's device changes are discarded too.
+#   - `recipes/paidFeaturesByRole` (plan 2026-10-14-009 D12) sits right after `recipes/visibility`, its premium-only
+#     sibling. It READS only (it types no title, so the editor saves nothing, and the `roles` tier is read-only by
+#     rule), so it leaves the library as found. It signs in four times — as the `roles` tier's default, premium, vip
+#     and superuser users — each after a `clearState`, and its `onFlowComplete` clears the device again so the next
+#     flow signs back in as the shard's signer. That spends up to FIVE Clerk email-code verifications per platform per
+#     run (the budget the guard in `maestroFlowSelection.test.ts` names). ⛔ It runs on BOTH platform lanes, not one:
+#     the only per-platform door is `MAESTRO_PLATFORM_EXCLUSIONS`, which `maestroPlatformExclusions.test.ts` holds
+#     EQUAL to the flows that reach an Android-only command, so an entry made to save sign-ins would fail that guard
+#     — and it would be the silent narrowing it exists to refuse: a green iOS lane over a role check nobody ran.
 #   - `recipes/editorSections` (slice 7) follows it: read-only (it types nothing, so nothing is saved), it proves
 #     the one-page editor's sections and the phone's section-index bar on a real layout.
 #     It is the only tier that can raise a real `KEYCODE_BACK`: `react-native-web`'s `BackHandler` is an inert
@@ -223,6 +232,7 @@ recipes:recipes/searchNavigation
 recipes:recipes/edit
 recipes:recipes/versions
 recipes:recipes/visibility
+recipes:recipes/paidFeaturesByRole
 discovery:recipes/discoverBrowse
 discovery:recipes/discoverRecentSearches
 discovery:recipes/discoverIngredientCap

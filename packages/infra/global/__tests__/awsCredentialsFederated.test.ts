@@ -250,11 +250,14 @@ const isTeardown = (file: string, jobId: string): boolean =>
 
 const jobKey = (file: string, jobId: string): string => `${path.posix.basename(file)}::${jobId}`;
 
+/** Whether a `permissions:` block names `id-token: write`, at whichever level it was written. */
+const permitsIdToken = (permissions: unknown): boolean =>
+    typeof permissions === 'object' &&
+    permissions !== null &&
+    (permissions as Record<string, unknown>)['id-token'] === 'write';
+
 /** Whether a job grants itself `id-token: write` at JOB level, the only grant `awsAuth` can sign in with. */
-const grantsIdToken = (job: Job): boolean =>
-    typeof job.permissions === 'object' &&
-    job.permissions !== null &&
-    (job.permissions as Record<string, unknown>)['id-token'] === 'write';
+const grantsIdToken = (job: Job): boolean => permitsIdToken(job.permissions);
 
 /** The `missing-timeout` rule: a job that signs in states a numeric `timeout-minutes`. */
 const timeoutRule = (job: Job): readonly RuleHit[] =>
@@ -349,14 +352,15 @@ function jobViolations(file: string, jobId: string, job: Job): Violation[] {
 
 const KEY_INPUTS = ['aws-access-key-id', 'aws-secret-access-key', 'aws-session-token'] as const;
 
-/** The `cdk-bootstrap` rule over a shell script, and over every step of a workflow or action. */
-function bootstrapViolations(file: string, text: string, doc: Doc | undefined): Violation[] {
-    if (doc === undefined) {
-        return BOOTSTRAP.test(withoutCommentLines(text))
-            ? [{ rule: 'cdk-bootstrap', where: file, detail: 'a script runs cdk bootstrap' }]
-            : [];
-    }
+/** The `cdk-bootstrap` rule over a shell script. */
+function scriptBootstrapViolations(file: string, text: string): Violation[] {
+    return BOOTSTRAP.test(withoutCommentLines(text))
+        ? [{ rule: 'cdk-bootstrap', where: file, detail: 'a script runs cdk bootstrap' }]
+        : [];
+}
 
+/** The `cdk-bootstrap` rule over every step of a workflow or action. */
+function stepBootstrapViolations(file: string, doc: Doc): Violation[] {
     const steps = [...(doc.runs?.steps ?? []), ...Object.values(doc.jobs ?? {}).flatMap((job) => job.steps ?? [])];
 
     return steps
@@ -392,11 +396,7 @@ function actionViolations(file: string, text: string, steps: readonly Step[]): V
 /** The `workflow-id-token` rule, and every job's own rules, over a workflow. */
 function workflowViolations(file: string, doc: Doc): Violation[] {
     const permissions = doc.permissions;
-    const grantsIdTokenToEveryJob =
-        permissions === 'write-all' ||
-        (typeof permissions === 'object' &&
-            permissions !== null &&
-            (permissions as Record<string, unknown>)['id-token'] === 'write');
+    const grantsIdTokenToEveryJob = permissions === 'write-all' || permitsIdToken(permissions);
 
     return [
         ...(grantsIdTokenToEveryJob
@@ -409,14 +409,14 @@ function workflowViolations(file: string, doc: Doc): Violation[] {
 /** Every rule one file breaks. A script is judged for `cdk bootstrap` alone; an action and a workflow for the rest. */
 function sourceViolations({ file, text }: Source): Violation[] {
     if (file.endsWith('.sh')) {
-        return bootstrapViolations(file, text, undefined);
+        return scriptBootstrapViolations(file, text);
     }
 
     const doc = (parse(text) ?? {}) as Doc;
     const rest =
         doc.runs === undefined ? workflowViolations(file, doc) : actionViolations(file, text, doc.runs.steps ?? []);
 
-    return [...bootstrapViolations(file, text, doc), ...rest];
+    return [...stepBootstrapViolations(file, doc), ...rest];
 }
 
 /** Every violation over the given sources, keyed and deduplicated. Pure. */

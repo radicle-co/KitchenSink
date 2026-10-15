@@ -360,4 +360,17 @@ describe('the Maestro jobs refill the erasure subjects through poolAdmin right b
             expect(Object.keys(refill?.env ?? {})).toStrictEqual(['SHARD_INDEX']);
         },
     );
+
+    // `provision` refuses to seed unless the signer is entitled, and asks identity (`signerEntitlement.ts`). Without
+    // the origin it throws at run time, on a deployed stage, fifty minutes in — so the step's env is pinned here.
+    it.each(maestro.map((subject) => [subject.label, subject] as const))(
+        '⛔ %s hands provisioning the stage’s identity origin, so it can check its signer first',
+        (_, subject) => {
+            const provision = subject.steps.find((step) => PROVISION.test(commandsOf(step)));
+
+            expect(scalarText(provision?.env?.['E2E_SEED_IDENTITY_URL'])).toBe(
+                '${{ needs.resolve-mobile-target.outputs.identity_origin }}',
+            );
+        },
+    );
 });

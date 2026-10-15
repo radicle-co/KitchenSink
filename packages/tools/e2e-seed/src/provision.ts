@@ -17,12 +17,12 @@
  *
  * @sideEffect Looks up pool users, signs two of them in, writes a credential file, authors foods, and creates recipes.
  */
-import { resolveRunKey } from '@kitchensink/e2e-fixtures';
+import { remintFromSession, resolveRunKey } from '@kitchensink/e2e-fixtures';
 import { clerkLeasePort, leaseErasureSubject, leaseSession } from '@kitchensink/e2e-fixtures/lease';
 import { maestroSlotForShard } from '@kitchensink/e2e-fixtures/testPool';
 
 import { clientFor, foodClientFor } from './client.js';
-import { readFoodOrigin, readSeedEnvironment } from './env.js';
+import { readFoodOrigin, readIdentityOrigin, readSeedEnvironment } from './env.js';
 import { deriveFixtureManifest, manifestToEnvLines } from './fixtureManifest.js';
 import {
     ensureCapFoods,
@@ -33,10 +33,14 @@ import {
 } from './recipeWorld.js';
 import { sessionStatePath, writeSessionState } from './sessionState.js';
 import { resolveMaestroPlatform, resolveShard } from './shard.js';
+import { assertSignerEntitled } from './signerEntitlement.js';
+import { memoizingTokenSource } from './tokenSource.js';
 
 const env = readSeedEnvironment(process.env);
 // The fixture foods are authored at food and bound at recipe (plan 002 S5), so provision needs both origins.
 const foodOrigin = readFoodOrigin(process.env);
+// And identity's, to check the signer is entitled before any of it is written (`signerEntitlement.ts`).
+const identityOrigin = readIdentityOrigin(process.env);
 // ⛔ THE SHARD IS RESOLVED FIRST, because everything below hangs off it: `resolveRunKey` reads the same
 // `COMMISE_E2E_SHARD` to scope this shard's fixture TITLES apart from its sibling's, and the three identities
 // leased below are the shard's own. An unsharded run is shard 1 and byte-identical to what ran before.
@@ -78,6 +82,15 @@ const signerSession = (
 // Per identity, timestamped, on stderr (stdout is the manifest contract) — so a refused sign-in is placed between
 // the last line printed and the error that names the next identity. Never the handle: it is a credential.
 console.error(`${new Date().toISOString()} e2e-seed provision: signed in ${manifest.signInEmail}`);
+
+// ⛔ BEFORE ANYTHING IS SEEDED: the signer must hold the paid role the roster declares, or every per-flow reset is
+// refused `400 INVALID_VISIBILITY` and the run reports one red per flow for a single missing `poolAdmin --apply`.
+await assertSignerEntitled({
+    identityOrigin,
+    signerEmail: manifest.signInEmail,
+    token: memoizingTokenSource(signerSession, { remint: remintFromSession }),
+});
+console.error(`e2e-seed provision: ${manifest.signInEmail} is entitled to the paid features`);
 const coAuthorSession = (
     await leaseSession({
         slot: maestroSlotForShard('coauthor', platform, shard),

@@ -38,6 +38,7 @@
         "node": "24.x"
     },
     "dependencies": {
+        "@kitchensink/schema-identity": "*",
         "@kitchensink/schema-recipe": "*",
         "@clerk/backend": "^3.16.12",
         "@kitchensink/e2e-fixtures": "*",

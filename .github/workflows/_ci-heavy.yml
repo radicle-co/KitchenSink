@@ -1079,6 +1079,9 @@ jobs:
                   E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
                   E2E_SEED_FOOD_URL: ${{ needs.resolve-mobile-target.outputs.food_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
+                  # Provision reads its signer's `GET /users/me` and refuses to seed unless the signer holds
+                  # the paid role the roster declares (`e2e-seed/src/signerEntitlement.ts`).
+                  E2E_SEED_IDENTITY_URL: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
                   MAESTRO_PLATFORM: android
               run: |
@@ -1715,6 +1718,9 @@ jobs:
                   E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
                   E2E_SEED_FOOD_URL: ${{ needs.resolve-mobile-target.outputs.food_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
+                  # Provision reads its signer's `GET /users/me` and refuses to seed unless the signer holds
+                  # the paid role the roster declares (`e2e-seed/src/signerEntitlement.ts`).
+                  E2E_SEED_IDENTITY_URL: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
                   MAESTRO_PLATFORM: ios
               run: |

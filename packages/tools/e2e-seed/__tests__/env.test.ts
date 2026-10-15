@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { readFoodOrigin, readSeedEnvironment } from '../src/env.js';
+import { readFoodOrigin, readIdentityOrigin, readSeedEnvironment } from '../src/env.js';
 
 const complete = {
     CLERK_SECRET_KEY: 'sk_test_x',
@@ -53,5 +53,24 @@ describe('readFoodOrigin', () => {
         ['blank', { E2E_SEED_FOOD_URL: '  ' }],
     ])('⛔ refuses a food origin that is %s — a command that needs food has no default stage to guess', (_, env) => {
         expect(() => readFoodOrigin(env)).toThrow(/E2E_SEED_FOOD_URL/u);
+    });
+});
+
+describe('readIdentityOrigin', () => {
+    it('reads the identity origin and trims its trailing slashes', () => {
+        expect(readIdentityOrigin({ E2E_SEED_IDENTITY_URL: 'https://identity.sandbox.commise.app/' })).toBe(
+            'https://identity.sandbox.commise.app',
+        );
+    });
+
+    it.each([
+        ['absent', {}],
+        ['blank', { E2E_SEED_IDENTITY_URL: '  ' }],
+    ])('⛔ refuses an identity origin that is %s — provision cannot check its signer without one', (_, env) => {
+        expect(() => readIdentityOrigin(env)).toThrow(/E2E_SEED_IDENTITY_URL/u);
+    });
+
+    it('is not required by the commands that never call identity', () => {
+        expect(() => readSeedEnvironment(complete)).not.toThrow();
     });
 });

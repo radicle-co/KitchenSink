@@ -80,10 +80,30 @@ const FOOD_ORIGIN = 'E2E_SEED_FOOD_URL';
  * @throws {Error} When the variable is absent or blank.
  */
 export function readFoodOrigin(env: Readonly<Record<string, string | undefined>>): string {
-    const origin = withoutTrailingSlashes((env[FOOD_ORIGIN] ?? '').trim());
+    return readCommandOrigin(env, FOOD_ORIGIN);
+}
+
+/** The identity origin variable — required only by `provision`, which checks its signer's entitlement. */
+const IDENTITY_ORIGIN = 'E2E_SEED_IDENTITY_URL';
+
+/**
+ * Read the stage's identity-service origin, for `provision`, which reads its signer's `GET /api/v1/users/me` before
+ * seeding. Kept out of {@link readSeedEnvironment} for {@link readFoodOrigin}'s reason. Pure over the env slice.
+ *
+ * @param env - The environment.
+ * @returns The origin, without trailing slashes.
+ * @throws {Error} When the variable is absent or blank.
+ */
+export function readIdentityOrigin(env: Readonly<Record<string, string | undefined>>): string {
+    return readCommandOrigin(env, IDENTITY_ORIGIN);
+}
+
+/** One command-specific origin, refused when absent. Pure. */
+function readCommandOrigin(env: Readonly<Record<string, string | undefined>>, name: string): string {
+    const origin = withoutTrailingSlashes((env[name] ?? '').trim());
 
     if (origin === '') {
-        throw new Error(`e2e-seed: missing required environment: ${FOOD_ORIGIN}`);
+        throw new Error(`e2e-seed: missing required environment: ${name}`);
     }
 
     return origin;

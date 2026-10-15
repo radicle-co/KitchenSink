@@ -7,12 +7,17 @@
  * watched, and to report a size for them through the observer's callback. This module is the one stub, so a test does
  * not carry a copy of its own.
  *
- * ⚠️ IMPORT IT FIRST, so the observer exists before any react-native-web module is evaluated. The named import below
- * is enough: importing the module installs the observer, and the import keeps the record in reach:
+ * ⚠️ IMPORT IT FIRST, so the observer exists before any react-native-web module is evaluated. Importing the module
+ * installs the observer. A test that reads the record imports the name, which keeps the record in reach:
  *
  * ```ts
  * import { resizeObserver } from '@commise/ui/testing/resize-observer';
  * ```
+ *
+ * A file that never reads the record (a setup file) writes the bare form,
+ * `import '@commise/ui/testing/resize-observer';`, as `mobile/tests/setup.native.ts` does.
+ * The bare form is required there: with `isolatedModules` and no `verbatimModuleSyntax`, a named import that is never
+ * used is dropped, and the module would then never be evaluated.
  *
  * The record is shared module state: clear `observed` in `afterEach`, because a node of one test is not a node of the
  * next. `callback` is the LAST observer constructed, which is not always react-native-web's: any other

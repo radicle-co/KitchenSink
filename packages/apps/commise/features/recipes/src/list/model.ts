@@ -204,18 +204,6 @@ export interface CreateButtonVisibility {
     readonly narrowed: boolean;
 }
 
-/** Props for a single recipe row in the list. */
-export interface RecipeListCardProps {
-    readonly recipe: RecipeListItem;
-    /** Invoked with the recipe id when the row is activated. */
-    readonly onSelect: (id: string) => void;
-    /**
-     * This recipe's per-serving nutrition, as an already-decided NODE for the card's meta row (the host
-     * closes over the page's ONE batch promise — see `RenderRecipeNutrition`). Absent ⇒ no nutrition line.
-     */
-    readonly nutrition?: ReactNode;
-}
-
 /**
  * Where creating starts, shared by the settled results and the load error: the create entry's one tap (build spec §3.4,
  * slice 8), and the first-run block's Paste ingredients.
@@ -412,16 +400,3 @@ export const sourceTabLabel = (
     value: RecipeListTab,
     labels: Pick<RecipeListMessages, 'tabMine' | 'tabCommunity'>,
 ): string => (value === 'mine' ? labels.tabMine : labels.tabCommunity);
-
-/**
- * The quick-filter chip control (L4): the available real facet values (dietary flags + cuisine present in the
- * library), the active subset, a per-facet toggle, and a clear-all. A leading "All" chip (pressed when nothing
- * is active) resets via {@link onClear}. The mockup's Favorites / AI-Generated chips are intentionally NOT
- * modelled — the product has no favorites feature and no AI-generated source, so they would be dead controls.
- */
-export interface RecipeListFilterControl {
-    readonly available: readonly string[];
-    readonly active: readonly string[];
-    readonly onToggle: (value: string) => void;
-    readonly onClear: () => void;
-}

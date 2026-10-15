@@ -415,6 +415,48 @@ export class ParseJobsDal implements ParseJobsDalPort {
         });
     }
 
+    /** @inheritdoc */
+    public async withdrawLines(
+        ownerId: string,
+        jobId: string,
+        lineIndexes: readonly number[],
+    ): Promise<ParseJobMutation<unknown>> {
+        const outcome = await this.db.transaction(async (tx) => {
+            const gate = await this.gateMutation(tx, ownerId, jobId);
+
+            if (gate !== 'ok') {
+                return gate;
+            }
+
+            // ⛔ ONLY A STILL-OPEN LINE. A landed line keeps its answer (the cook may already see it), and a
+            // withdrawn one is already done, so both are untouched and a repeat of this call changes nothing.
+            // The row lock this UPDATE takes is what the worker's claim (`status = 'pending'`) serialises against:
+            // see `ParseJobsService.withdrawLines` for the rule it yields.
+            await tx
+                .update(recipeParseJobLines)
+                .set({ status: 'withdrawn', updatedAt: sql`now()` })
+                .where(
+                    and(
+                        eq(recipeParseJobLines.jobId, jobId),
+                        inArray(recipeParseJobLines.lineIndex, [...lineIndexes]),
+                        inArray(recipeParseJobLines.status, ['pending', 'failed_retryable']),
+                    ),
+                );
+
+            return 'ok' as const;
+        });
+
+        if (outcome !== 'ok') {
+            return { kind: outcome };
+        }
+
+        // The same shared rule the worker applies after a landing: a job with no line pending (or retryable) is
+        // complete. Withdrawn is terminal, so it falls to the aggregate's ELSE arm.
+        await this.pool.query(PARSE_JOB_AGGREGATE_SQL, [jobId]);
+
+        return { kind: 'ok' };
+    }
+
     /**
      * Rule 1 + rule 2 of the module docstring, for mutations: `missing` for stranger/absent, `expired`
      * when the TTL has passed — whether or not the sweep already flipped the stored status.
@@ -454,7 +496,13 @@ export class ParseJobsDal implements ParseJobsDalPort {
 
     /** Narrow a stored line status. Pure. */
     private lineStatusOf(status: string): ParseJobRecord['lines'][number]['status'] {
-        if (status === 'pending' || status === 'parsed' || status === 'unparseable' || status === 'failed_retryable') {
+        if (
+            status === 'pending' ||
+            status === 'parsed' ||
+            status === 'unparseable' ||
+            status === 'failed_retryable' ||
+            status === 'withdrawn'
+        ) {
             return status;
         }
 

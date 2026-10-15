@@ -109,6 +109,7 @@ function makeDal(overrides: Partial<MockedDal> = {}): MockedDal {
             kind: 'ok' as const,
             line: { lineIndex: 0, sourceLine: '3 eggs', lineDigest: lineDigest('3 eggs', sha256Hex) },
         })),
+        withdrawLines: vi.fn<ParseJobsDalPort['withdrawLines']>(async () => ({ kind: 'ok' as const })),
         ...overrides,
     };
 }
@@ -473,5 +474,46 @@ describe('editLine', () => {
         await new ParseJobsService(dal, queue).editLine(OWNER, JOB_ID, 0, '3 eggs');
 
         expect(dal.markLinesFailedRetryable).toHaveBeenCalledWith(JOB_ID, [0]);
+    });
+});
+
+describe('withdrawLines', () => {
+    it('hands the owner, job and indexes to the DAL, enqueues nothing, and answers the job view', async () => {
+        const dal = makeDal();
+        const queue = makeQueue();
+
+        const view = await new ParseJobsService(dal, queue).withdrawLines(OWNER, JOB_ID, [0, 3]);
+
+        expect(dal.withdrawLines).toHaveBeenCalledWith(OWNER, JOB_ID, [0, 3]);
+        expect(queue.enqueue).not.toHaveBeenCalled();
+        expect(view.id).toBe(JOB_ID);
+    });
+
+    it('answers 404 for a stranger and 409 for an expired job', async () => {
+        const missing = makeDal({
+            withdrawLines: vi.fn<ParseJobsDalPort['withdrawLines']>(async () => ({ kind: 'missing' as const })),
+        });
+        const expired = makeDal({
+            withdrawLines: vi.fn<ParseJobsDalPort['withdrawLines']>(async () => ({ kind: 'expired' as const })),
+        });
+
+        await expect(
+            new ParseJobsService(missing, makeQueue()).withdrawLines(OWNER, JOB_ID, [0]),
+        ).rejects.toMatchObject({
+            code: RecipeErrorCode.PARSE_JOB_NOT_FOUND,
+        });
+        await expect(
+            new ParseJobsService(expired, makeQueue()).withdrawLines(OWNER, JOB_ID, [0]),
+        ).rejects.toMatchObject({
+            code: RecipeErrorCode.PARSE_JOB_EXPIRED,
+        });
+    });
+
+    it('collapses repeated indexes before they reach the DAL (idempotent by construction)', async () => {
+        const dal = makeDal();
+
+        await new ParseJobsService(dal, makeQueue()).withdrawLines(OWNER, JOB_ID, [2, 0, 2]);
+
+        expect(dal.withdrawLines).toHaveBeenCalledWith(OWNER, JOB_ID, [0, 2]);
     });
 });

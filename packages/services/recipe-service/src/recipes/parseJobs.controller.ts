@@ -36,6 +36,7 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import { ParseJobsService } from './parseJobs.service.js';
 import { CreateParseJobDto } from './dto/createParseJob.dto.js';
 import { EditParseJobLineDto } from './dto/editParseJobLine.dto.js';
+import { WithdrawParseJobLinesDto } from './dto/withdrawParseJobLines.dto.js';
 import type { ParseJobResponse } from './parseJobs.schema.js';
 import { OwnerId } from '../auth/currentPrincipal.decorator.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
@@ -87,5 +88,20 @@ export class ParseJobsController {
         @Body() body: EditParseJobLineDto,
     ): Promise<ParseJobResponse> {
         return this.parseJobsService.editLine(ownerId, id, lineIndex, body.sourceLine);
+    }
+
+    /**
+     * `POST /api/v1/recipe-parse-jobs/:id/withdraw-lines` — keep these lines as written: no engine will be asked for
+     * them. Answers `200` (nothing asynchronous starts), idempotent, owner-only (a stranger gets `404`).
+     */
+    @Post(':id/withdraw-lines')
+    @HttpCode(HttpStatus.OK)
+    @WriteRateLimit()
+    public async withdrawLines(
+        @OwnerId() ownerId: string,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() body: WithdrawParseJobLinesDto,
+    ): Promise<ParseJobResponse> {
+        return this.parseJobsService.withdrawLines(ownerId, id, body.lineIndexes);
     }
 }

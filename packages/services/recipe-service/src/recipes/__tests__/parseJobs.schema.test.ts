@@ -22,6 +22,7 @@ import {
     parseJobResponseSchema,
     parseProposalFoodSchema,
     parseProposalSchema,
+    withdrawParseJobLinesRequestSchema,
 } from '../parseJobs.schema.js';
 
 describe('createParseJobRequestSchema', () => {
@@ -176,5 +177,40 @@ describe('parseJobResponseSchema', () => {
         });
 
         expect(result.success).toBe(false);
+    });
+});
+
+describe('withdrawParseJobLinesRequestSchema', () => {
+    it('accepts distinct in-range line indexes', () => {
+        expect(withdrawParseJobLinesRequestSchema.safeParse({ lineIndexes: [0, 4, 199] }).success).toBe(true);
+    });
+
+    it.each([
+        ['empty', { lineIndexes: [] }],
+        ['negative', { lineIndexes: [-1] }],
+        ['fractional', { lineIndexes: [1.5] }],
+        ['past the job cap', { lineIndexes: [MAX_PARSE_JOB_LINES] }],
+        [
+            'more entries than a job can hold',
+            { lineIndexes: Array.from({ length: MAX_PARSE_JOB_LINES + 1 }, (_, i) => i % 5) },
+        ],
+        ['unknown key', { lineIndexes: [0], ownerId: 'sneaky' }],
+        ['missing', {}],
+    ])('rejects %s', (_name, body) => {
+        expect(withdrawParseJobLinesRequestSchema.safeParse(body).success).toBe(false);
+    });
+});
+
+describe('parseJobLineSchema — withdrawn', () => {
+    it('accepts a withdrawn line: terminal, no proposal, no progress', () => {
+        const result = parseJobLineSchema.safeParse({
+            lineIndex: 0,
+            sourceLine: '2 cups flour',
+            status: 'withdrawn',
+            proposal: null,
+            progress: null,
+        });
+
+        expect(result.success).toBe(true);
     });
 });

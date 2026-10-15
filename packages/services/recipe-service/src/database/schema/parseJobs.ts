@@ -12,7 +12,7 @@ import { check, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uui
 export const PARSE_JOB_STATUSES = ['running', 'partial', 'complete', 'expired'] as const;
 
 /** The per-line lifecycle, mirrored from the SQL CHECK. */
-export const PARSE_JOB_LINE_STATUSES = ['pending', 'parsed', 'unparseable', 'failed_retryable'] as const;
+export const PARSE_JOB_LINE_STATUSES = ['pending', 'parsed', 'unparseable', 'failed_retryable', 'withdrawn'] as const;
 
 export const recipeParseJobs = pgTable(
     'recipe_parse_jobs',
@@ -91,7 +91,7 @@ export const recipeParseJobLines = pgTable(
         primaryKey({ columns: [table.jobId, table.lineIndex] }),
         check(
             'recipe_parse_job_lines_status_check',
-            sql`${table.status} IN ('pending', 'parsed', 'unparseable', 'failed_retryable')`,
+            sql`${table.status} IN ('pending', 'parsed', 'unparseable', 'failed_retryable', 'withdrawn')`,
         ),
         // Serves the copy-forward candidate lookup. Partial on the query's own predicate — only a
         // worker-landed line carrying a proposal can ever be a source.

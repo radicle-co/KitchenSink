@@ -93,6 +93,7 @@ function makeDal(candidates: readonly CopyForwardCandidate[] = []): MockedDal {
         getJob: vi.fn<ParseJobsDalPort['getJob']>(async () => undefined),
         markLinesFailedRetryable: vi.fn<ParseJobsDalPort['markLinesFailedRetryable']>(async () => undefined),
         resetForRetry: vi.fn<ParseJobsDalPort['resetForRetry']>(async () => ({ kind: 'ok' as const, lines: [] })),
+        withdrawLines: vi.fn<ParseJobsDalPort['withdrawLines']>(async () => ({ kind: 'ok' as const })),
         editLine: vi.fn<ParseJobsDalPort['editLine']>(async () => ({
             kind: 'ok' as const,
             line: { lineIndex: 0, sourceLine: EGGS, lineDigest: digestOf(EGGS) },

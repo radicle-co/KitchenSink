@@ -3362,7 +3362,8 @@
                         "pending",
                         "parsed",
                         "unparseable",
-                        "failed_retryable"
+                        "failed_retryable",
+                        "withdrawn"
                     ],
                     "type": "string"
                 }
@@ -3382,7 +3383,8 @@
                 "pending",
                 "parsed",
                 "unparseable",
-                "failed_retryable"
+                "failed_retryable",
+                "withdrawn"
             ],
             "type": "string"
         },
@@ -3586,7 +3588,8 @@
                                     "pending",
                                     "parsed",
                                     "unparseable",
-                                    "failed_retryable"
+                                    "failed_retryable",
+                                    "withdrawn"
                                 ],
                                 "type": "string"
                             }
@@ -9201,6 +9204,26 @@
                 "changeSummary",
                 "editorHandle",
                 "createdAt"
+            ],
+            "type": "object"
+        },
+        "withdrawParseJobLinesRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "lineIndexes": {
+                    "items": {
+                        "maximum": 199,
+                        "minimum": 0,
+                        "type": "integer"
+                    },
+                    "maxItems": 200,
+                    "minItems": 1,
+                    "type": "array"
+                }
+            },
+            "required": [
+                "lineIndexes"
             ],
             "type": "object"
         }

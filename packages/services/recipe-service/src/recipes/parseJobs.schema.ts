@@ -24,6 +24,7 @@ import { z } from 'zod';
 import {
     ingredientQuantitySchema,
     PARSE_JOB_LINE_MAX_CHARS,
+    MAX_PARSE_JOB_LINES,
     PARSE_JOB_TEXT_MAX_CHARS,
     refuseParseJobLines,
     splitParseJobLines,
@@ -72,6 +73,29 @@ export const editParseJobLineRequestSchema = z.strictObject({
 
 export type EditParseJobLineRequest = z.infer<typeof editParseJobLineRequestSchema>;
 
+/**
+ * Body of `POST /api/v1/recipe-parse-jobs/{id}/withdraw-lines`: the lines the cook chose to keep as written.
+ *
+ * Withdrawing takes a line out of the parse job so no engine is asked for it (plan 2026-10-15-011, open question 8).
+ * The owner comes from the authenticated principal, never from this body. Indexes outside the job, or already
+ * landed, are a no-op rather than an error, so a retry of the same request answers the same way.
+ */
+export const withdrawParseJobLinesRequestSchema = z.strictObject({
+    /** Zero-based line positions. At most one job's worth; duplicates are collapsed by the service. */
+    lineIndexes: z
+        .array(
+            z
+                .number()
+                .int()
+                .min(0)
+                .max(MAX_PARSE_JOB_LINES - 1),
+        )
+        .min(1)
+        .max(MAX_PARSE_JOB_LINES),
+});
+
+export type WithdrawParseJobLinesRequest = z.infer<typeof withdrawParseJobLinesRequestSchema>;
+
 // ── Responses ────────────────────────────────────────────────────────────────────────────────────
 
 /** Job lifecycle. `expired` is the TTL sweep's terminal state; `partial` means some lines are retryable. */
@@ -79,8 +103,15 @@ export const parseJobStatusSchema = z.enum(['running', 'partial', 'complete', 'e
 
 export type ParseJobStatus = z.infer<typeof parseJobStatusSchema>;
 
-/** Per-line lifecycle. `unparseable` is terminal (R6: the validator loop exhausted); `failed_retryable` is not. */
-export const parseJobLineStatusSchema = z.enum(['pending', 'parsed', 'unparseable', 'failed_retryable']);
+/**
+ * Per-line lifecycle. `unparseable` is terminal (R6: the validator loop exhausted); `failed_retryable` is not.
+ * `withdrawn` is terminal too: the cook kept the line as written, so no engine will be asked for it.
+ *
+ * ⛔ Installed clients parse this enum strictly. Only a client that withdraws a line can cause one to be served, so
+ * the break is confined to a cook polling the same job from an older build on a second device (recorded in the
+ * plan, open question 8).
+ */
+export const parseJobLineStatusSchema = z.enum(['pending', 'parsed', 'unparseable', 'failed_retryable', 'withdrawn']);
 
 export type ParseJobLineStatus = z.infer<typeof parseJobLineStatusSchema>;
 

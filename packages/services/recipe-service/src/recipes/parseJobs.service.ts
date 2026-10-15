@@ -159,6 +159,15 @@ export interface ParseJobsDalPort {
         sourceLine: string,
         digest: string,
     ): Promise<ParseJobMutation<{ readonly line: ReenqueueableLine }>>;
+    /**
+     * Withdraw these lines from the job so no engine is asked for them — the cook kept them as written.
+     *
+     * Only a `pending` or `failed_retryable` line is withdrawn; a landed, already-withdrawn or absent index is a no-op
+     * (idempotent). The job aggregate is recomputed. The owner filter IS the authorization.
+     *
+     * @sideEffect Writes line statuses and the job aggregate.
+     */
+    withdrawLines(ownerId: string, jobId: string, lineIndexes: readonly number[]): Promise<ParseJobMutation<unknown>>;
 }
 
 /**
@@ -458,6 +467,38 @@ export class ParseJobsService {
         }
 
         await this.enqueueOrMark(jobId, [this.messageFor(jobId, ownerId, edited.line)]);
+
+        return this.get(ownerId, jobId);
+    }
+
+    /**
+     * Take lines out of the parse so no engine is asked for them ("Add as written", plan 2026-10-15-011, open
+     * question 8).
+     *
+     * ⛔ THE RULE, because "cancel" is the wrong word for a queue we cannot reach into. The DAL flips each still-open
+     * line to `withdrawn` under a row lock, and the worker's claim only takes a `pending` line under the same lock, so
+     * a line is either claimed BEFORE the withdrawal (one in-flight delivery, whose landing the worker then refuses)
+     * or REFUSED after it (nothing invoked). Nothing is recalled from SQS, nothing is enqueued here, and a duplicate or
+     * late request changes nothing.
+     *
+     * @throws `PARSE_JOB_NOT_FOUND` for a stranger or absent job (one answer), `PARSE_JOB_EXPIRED` once the TTL passed.
+     * @sideEffect Writes line statuses and the job aggregate.
+     */
+    public async withdrawLines(
+        ownerId: string,
+        jobId: string,
+        lineIndexes: readonly number[],
+    ): Promise<ParseJobResponse> {
+        const unique = [...new Set(lineIndexes)].sort((a, b) => a - b);
+        const withdrawn = await this.dal.withdrawLines(ownerId, jobId, unique);
+
+        if (withdrawn.kind === 'missing') {
+            throw parseJobNotFound(jobId);
+        }
+
+        if (withdrawn.kind === 'expired') {
+            throw parseJobExpired(jobId);
+        }
 
         return this.get(ownerId, jobId);
     }

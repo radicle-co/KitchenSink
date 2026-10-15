@@ -125,6 +125,7 @@ import {
     editParseJobLineRequestSchema,
     parseJobResponseSchema,
     parseProposalSchema,
+    withdrawParseJobLinesRequestSchema,
 } from '../src/recipes/parseJobs.schema.js';
 import {
     RECIPE_SEARCH_SCOPES,
@@ -181,6 +182,7 @@ export const openApiComponents = {
     ServiceFoodReferencesResponse: serviceFoodReferencesResponseSchema,
     CreateParseJobRequest: createParseJobRequestSchema,
     EditParseJobLineRequest: editParseJobLineRequestSchema,
+    WithdrawParseJobLinesRequest: withdrawParseJobLinesRequestSchema,
     ParseJob: parseJobResponseSchema,
     ParseProposal: parseProposalSchema,
     // Published as its OWN component rather than inlined in the response, so an integrator's generated
@@ -775,6 +777,28 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             parameters: [uuidPathParam('id', 'The job id.')],
             responses: {
                 '202': { description: 'The job, retryable lines pending again.', schema: 'ParseJob' },
+                '404': { description: 'No such job owned by the caller.', schema: 'ErrorResponse' },
+                '409': { description: 'The job expired; create a new one.', schema: 'ErrorResponse' },
+                ...sharedErrorResponses(),
+            },
+        },
+    },
+    '/api/v1/recipe-parse-jobs/{id}/withdraw-lines': {
+        post: {
+            operationId: 'withdrawParseJobLines',
+            summary: 'Keep these lines as written: take them out of the parse so no engine is asked for them.',
+            description:
+                'Idempotent. Only pending and failed_retryable lines are withdrawn; a landed, already-withdrawn or ' +
+                'out-of-range index is ignored. A delivery that claimed a line before this call may still finish its ' +
+                'in-flight work, but its answer is discarded.',
+            parameters: [uuidPathParam('id', 'The job id.')],
+            requestBody: {
+                description: 'The line indexes to withdraw.',
+                required: true,
+                schema: 'WithdrawParseJobLinesRequest',
+            },
+            responses: {
+                '200': { description: 'The job, withdrawn lines marked withdrawn.', schema: 'ParseJob' },
                 '404': { description: 'No such job owned by the caller.', schema: 'ErrorResponse' },
                 '409': { description: 'The job expired; create a new one.', schema: 'ErrorResponse' },
                 ...sharedErrorResponses(),

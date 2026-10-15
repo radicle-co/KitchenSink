@@ -44,8 +44,7 @@ test.describe('the byline is the username', () => {
         await page.goto(route('/discover'));
 
         const card = page.getByRole('article', { name: 'Seafood Paella' });
-        await expect(card.getByText('@braise')).toBeVisible();
-        await expect(card.getByText('Eliza Moreno')).toBeVisible();
+        await expect(card).toContainText('@braise (Eliza Moreno)');
     });
 
     test('the recipe page names the author “by @username (Display Name)”', async ({ page }) => {
@@ -53,7 +52,7 @@ test.describe('the byline is the username', () => {
         await page.goto(route(`/recipes/${E2E_RECIPE_IDS.paella}`));
 
         await expect(page.getByRole('heading', { level: 1, name: 'Seafood Paella' })).toBeVisible();
-        await expect(page.getByText(/by\s.*@braise.*Eliza Moreno/u)).toBeVisible();
+        await expect(page.getByRole('main')).toContainText(/by\s.*@braise.*Eliza Moreno/u);
     });
 
     test('an author with no username is named without an “@”', async ({ page }) => {
@@ -61,8 +60,8 @@ test.describe('the byline is the username', () => {
         await page.goto(route('/discover'));
 
         const card = page.getByRole('article', { name: 'Seafood Paella' });
-        await expect(card.getByText('Eliza Moreno')).toBeVisible();
-        await expect(card.getByText(/@/u)).toHaveCount(0);
+        await expect(card).toContainText('Eliza Moreno');
+        await expect(card).not.toContainText('@');
     });
 
     test('an erased author reads “Former member”, never the pseudonym', async ({ page }) => {
@@ -70,8 +69,8 @@ test.describe('the byline is the username', () => {
         await page.goto(route('/discover'));
 
         const card = page.getByRole('article', { name: 'Seafood Paella' });
-        await expect(card.getByText('Former member')).toBeVisible();
-        await expect(card.getByText(/user_/u)).toHaveCount(0);
+        await expect(card).toContainText('Former member');
+        await expect(card).not.toContainText('user_');
     });
 
     test('the cook’s own Profile shows their username, read-only', async ({ page }) => {
@@ -91,8 +90,9 @@ test.describe('the byline is the username', () => {
         await page.goto(route('/profile'));
 
         await expect(page.getByRole('heading', { level: 1, name: 'Profile' })).toBeVisible();
-        await expect(page.getByText('@braise').first()).toBeVisible();
-        await expect(page.getByRole('region', { name: 'Account' }).getByText('Username')).toBeVisible();
+        const account = page.getByRole('region', { name: 'Account' });
+        await expect(account).toContainText('Username');
+        await expect(page.getByRole('main')).toContainText('@braise');
         await expect(page.getByRole('button', { name: /Username/u })).toHaveCount(0);
     });
 });

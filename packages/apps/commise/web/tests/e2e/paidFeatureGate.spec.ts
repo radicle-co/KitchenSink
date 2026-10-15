@@ -7,7 +7,8 @@ import { makeCollection, makeRecipeDetail, mockRecipeApi, readViewerAppId } from
 /**
  * The paid-features gate on every paid surface, in every state (plan 2026-10-14-009 D14; owner ruling 2026-10-13: "If
  * the user is NOT admin, NOT superuser, NOT vip, NOT premium and the gate flag is false, no paid feature is accessible
- * and no upsell button is visible").
+ * and no upsell button is visible"; amended 2026-10-15: an admin is not entitled either, and is gated like any other
+ * user — only superuser, vip and premium get the paid features).
  *
  * Driven through the real web UI with the recipe-service contract and `/api/v1/users/me` intercepted
  * (`utils/recipeApi`), because the state under test is identity's `account.paidFeatures`, which a deployed sandbox

@@ -25,7 +25,14 @@ import { onlineManager } from '@tanstack/react-query';
 
 import type { RecipeServiceClient } from '../client.js';
 import { NotFoundError, ParseJobExpiredError } from '../errors.js';
-import { recipeServiceKeys, useCreateParseJob, useEditParseJobLine, useParseJob, useRetryParseJob } from '../hooks.js';
+import {
+    recipeServiceKeys,
+    useCreateParseJob,
+    useEditParseJobLine,
+    useParseJob,
+    useRetryParseJob,
+    useWithdrawParseJobLines,
+} from '../hooks.js';
 import {
     FIXTURE_OTHER_PARSE_JOB_UUID,
     FIXTURE_PARSE_JOB_UUID,
@@ -198,6 +205,32 @@ describe('useRetryParseJob', () => {
         // The failed write must not evict the good view the cook is still looking at.
         expect(queryClient.getQueryData(recipeServiceKeys.parseJob(FIXTURE_PARSE_JOB_UUID))).toEqual(stale);
         expect(probes()).toEqual([]);
+    });
+});
+
+describe('useWithdrawParseJobLines', () => {
+    it('withdraws through the client and writes the returned view through', async () => {
+        const after = makeParseJob({ lines: [makeParseJobLine({ status: 'withdrawn', progress: null })] });
+        const { result, client, queryClient } = renderParseHook(() => useWithdrawParseJobLines());
+        const withdraw = vi.spyOn(client, 'withdrawParseJobLines').mockResolvedValue(after);
+
+        act(() => result.current.mutate({ id: FIXTURE_PARSE_JOB_UUID, lineIndexes: [0] }));
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        expect(withdraw).toHaveBeenCalledWith(FIXTURE_PARSE_JOB_UUID, { lineIndexes: [0] });
+        expect(queryClient.getQueryData(recipeServiceKeys.parseJob(FIXTURE_PARSE_JOB_UUID))).toEqual(after);
+    });
+
+    it('surfaces a refusal and leaves the cached view alone', async () => {
+        const stale = makeParseJob({ status: 'running' });
+        const { result, client, queryClient } = renderParseHook(() => useWithdrawParseJobLines());
+        queryClient.setQueryData(recipeServiceKeys.parseJob(FIXTURE_PARSE_JOB_UUID), stale);
+        vi.spyOn(client, 'withdrawParseJobLines').mockRejectedValue(new ParseJobExpiredError());
+
+        act(() => result.current.mutate({ id: FIXTURE_PARSE_JOB_UUID, lineIndexes: [0] }));
+        await waitFor(() => expect(result.current.isError).toBe(true));
+
+        expect(queryClient.getQueryData(recipeServiceKeys.parseJob(FIXTURE_PARSE_JOB_UUID))).toEqual(stale);
     });
 });
 

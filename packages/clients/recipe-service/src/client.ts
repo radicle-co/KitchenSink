@@ -124,6 +124,7 @@ import {
     recipeApiErrorSchema,
     createParseJobRequestSchema,
     editParseJobLineRequestSchema,
+    withdrawParseJobLinesRequestSchema,
     parseJobResponseSchema,
     recipeNutritionRequestSchema,
     recipeNutritionResponseSchema,
@@ -142,6 +143,7 @@ import type {
     CreateParseJobRequest,
     CreateRecipeRequest,
     EditParseJobLineRequest,
+    WithdrawParseJobLinesRequest,
     IngredientFoodNutritionRequest,
     IngredientFoodNutritionResponse,
     ParseJobResponse,
@@ -809,6 +811,28 @@ export class RecipeServiceClient {
         );
 
         return this.expect(res, 202, parseJobResponseSchema);
+    }
+
+    /**
+     * `POST /api/v1/recipe-parse-jobs/{id}/withdraw-lines` — keep these lines as written: take them out of the
+     * parse so no engine is asked for them (`200`). Idempotent.
+     *
+     * @param id - The job id.
+     * @param input - The 0-based positions to withdraw (at least one).
+     * @returns The job view, the withdrawn lines marked `withdrawn`.
+     * @throws {InvalidRequestError} on an empty or out-of-range list (no request is sent);
+     *   {@link ParseJobExpiredError} when the TTL has passed; {@link NotFoundError} for an absent or another
+     *   user's job.
+     * @sideEffect Performs an authenticated HTTP request that rewrites line statuses.
+     */
+    public async withdrawParseJobLines(id: string, input: WithdrawParseJobLinesRequest): Promise<ParseJobResponse> {
+        const res = await this.send(
+            'POST',
+            `/api/v1/recipe-parse-jobs/${encodeURIComponent(id)}/withdraw-lines`,
+            this.request('withdrawParseJobLines', withdrawParseJobLinesRequestSchema, input),
+        );
+
+        return this.expect(res, 200, parseJobResponseSchema);
     }
 
     // ─── Versions ───────────────────────────────────────────────────────────────────────────────

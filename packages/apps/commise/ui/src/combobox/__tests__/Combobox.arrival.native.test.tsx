@@ -11,6 +11,7 @@
  * jsdom has, so the test records the observer and reports a layout through it (`BottomChromeFrame.native.test.tsx`'s
  * method). The observer stub is installed before any import, because react-native-web creates its one observer lazily.
  */
+import { resizeObserver as observer } from '../../testing/resizeObserver.js';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import type { FC } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -18,30 +19,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FieldRevealContext, type FieldRevealer } from '../../fieldReveal/fieldRevealContext.js';
 import { Combobox } from '../Combobox.native.js';
 import type { ComboboxProps } from '../props.js';
-
-const observer = vi.hoisted(() => {
-    const recorded = { callback: undefined as ResizeObserverCallback | undefined, observed: new Set<Element>() };
-
-    globalThis.ResizeObserver = class {
-        public constructor(callback: ResizeObserverCallback) {
-            recorded.callback = callback;
-        }
-
-        public observe(target: Element): void {
-            recorded.observed.add(target);
-        }
-
-        public unobserve(target: Element): void {
-            recorded.observed.delete(target);
-        }
-
-        public disconnect(): void {
-            recorded.observed.clear();
-        }
-    } as unknown as typeof ResizeObserver;
-
-    return recorded;
-});
 
 afterEach(() => {
     cleanup();

@@ -15,6 +15,7 @@
  * The lightbox is drawn edge to edge, so its Close and its photo sit inside the safe area: this file serves a sideways
  * phone's insets (a 3-button navigation bar on the right).
  */
+import { resizeObserver as observer } from '@commise/ui/testing/resize-observer';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createElement, type ComponentProps } from 'react';
@@ -25,31 +26,6 @@ import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-sc
 
 import { makePhoto } from '../../__fixtures__/index.js';
 import { PhotoCarousel } from '../PhotoCarousel.native.js';
-
-/** The one `ResizeObserver` react-native-web creates, recorded so a test can report layout through it. */
-const observer = vi.hoisted(() => {
-    const recorded = { callback: undefined as ResizeObserverCallback | undefined, observed: new Set<Element>() };
-
-    globalThis.ResizeObserver = class {
-        public constructor(callback: ResizeObserverCallback) {
-            recorded.callback = callback;
-        }
-
-        public observe(target: Element): void {
-            recorded.observed.add(target);
-        }
-
-        public unobserve(target: Element): void {
-            recorded.observed.delete(target);
-        }
-
-        public disconnect(): void {
-            recorded.observed.clear();
-        }
-    } as unknown as typeof ResizeObserver;
-
-    return recorded;
-});
 
 const state = vi.hoisted(() => ({ modal: undefined as ComponentProps<typeof ModalType> | undefined }));
 

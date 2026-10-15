@@ -10,6 +10,7 @@
  * react-native-web reports layout through one `ResizeObserver` and each node's `offsetHeight`, neither of which jsdom has,
  * so the test records the observer and reports a height through it (`BottomChromeFrame.native.test.tsx`'s method).
  */
+import { resizeObserver as observer } from '@commise/ui/testing/resize-observer';
 import { role } from '@commise/ui/colors';
 import { FieldRevealContext, type FieldRevealer } from '@commise/ui/field-reveal';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
@@ -24,30 +25,6 @@ import type { SettledRowCommit } from '../../hooks/useIngredientRowEditor.js';
 import { RecipeIngredientsFields } from '../RecipeIngredientsFields.native.js';
 import type { IngredientLineKey } from '../lineKey.js';
 import { defaultRecipeFormValues, type RecipeFormValues } from '../values.js';
-
-const observer = vi.hoisted(() => {
-    const recorded = { callback: undefined as ResizeObserverCallback | undefined, observed: new Set<Element>() };
-
-    globalThis.ResizeObserver = class {
-        public constructor(callback: ResizeObserverCallback) {
-            recorded.callback = callback;
-        }
-
-        public observe(target: Element): void {
-            recorded.observed.add(target);
-        }
-
-        public unobserve(target: Element): void {
-            recorded.observed.delete(target);
-        }
-
-        public disconnect(): void {
-            recorded.observed.clear();
-        }
-    } as unknown as typeof ResizeObserver;
-
-    return recorded;
-});
 
 afterEach(() => {
     cleanup();

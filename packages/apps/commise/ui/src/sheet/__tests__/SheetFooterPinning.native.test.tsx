@@ -10,6 +10,7 @@
  *
  * ⚠️ The on-device proof is the Maestro landscape flow, which types into the filter sheet with the keyboard up.
  */
+import { resizeObserver as observer } from '../../testing/resizeObserver.js';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { createElement, type ComponentProps, type JSX } from 'react';
 import { Text, type ScrollView as ScrollViewType } from 'react-native';
@@ -17,31 +18,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SheetProps } from '../props.js';
 import { Sheet } from '../Sheet.native.js';
-
-/** The one `ResizeObserver` react-native-web creates, recorded so a test can report layout through it. */
-const observer = vi.hoisted(() => {
-    const recorded = { callback: undefined as ResizeObserverCallback | undefined, observed: new Set<Element>() };
-
-    globalThis.ResizeObserver = class {
-        public constructor(callback: ResizeObserverCallback) {
-            recorded.callback = callback;
-        }
-
-        public observe(target: Element): void {
-            recorded.observed.add(target);
-        }
-
-        public unobserve(target: Element): void {
-            recorded.observed.delete(target);
-        }
-
-        public disconnect(): void {
-            recorded.observed.clear();
-        }
-    } as unknown as typeof ResizeObserver;
-
-    return recorded;
-});
 
 const state = vi.hoisted(() => ({ keyboardShown: false }));
 

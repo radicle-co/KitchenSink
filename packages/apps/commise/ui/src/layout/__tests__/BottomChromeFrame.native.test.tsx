@@ -11,6 +11,7 @@
  * react-native-web reports layout through one `ResizeObserver` and each node's `offsetHeight`, neither of which jsdom
  * has, so the test records the observer and reports a height through it (the `PhotoCarousel.native.test.tsx` method).
  */
+import { resizeObserver as observer } from '../../testing/resizeObserver.js';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import type { FC } from 'react';
 import { Text, View } from 'react-native';
@@ -26,30 +27,6 @@ vi.mock('react-native-safe-area-context', async () => {
     const stub = await import('../../testing/safeAreaContext.native.js');
 
     return { ...stub, useSafeAreaInsets: () => ({ ...stub.STUB_INSETS, ...insets }) };
-});
-
-const observer = vi.hoisted(() => {
-    const recorded = { callback: undefined as ResizeObserverCallback | undefined, observed: new Set<Element>() };
-
-    globalThis.ResizeObserver = class {
-        public constructor(callback: ResizeObserverCallback) {
-            recorded.callback = callback;
-        }
-
-        public observe(target: Element): void {
-            recorded.observed.add(target);
-        }
-
-        public unobserve(target: Element): void {
-            recorded.observed.delete(target);
-        }
-
-        public disconnect(): void {
-            recorded.observed.clear();
-        }
-    } as unknown as typeof ResizeObserver;
-
-    return recorded;
 });
 
 beforeEach(() => {

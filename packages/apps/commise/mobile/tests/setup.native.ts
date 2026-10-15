@@ -4,6 +4,8 @@
  */
 import { configureAsyncUtilBudget } from '@commise/test-utils/async-util-budget';
 import { installTextInputSelection } from '@commise/test-utils/text-input-selection';
+// Installs the recording `ResizeObserver` (see below).
+import '@commise/ui/testing/resize-observer';
 
 configureAsyncUtilBudget();
 installTextInputSelection();
@@ -28,11 +30,5 @@ if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
 
 // React Navigation's frame-size hook observes its container with `ResizeObserver` when it renders through
 // react-native-web, and jsdom implements none. jsdom lays nothing out, so an observer that never fires is the honest
-// stand-in: the navigator keeps the frame it was given (`initialWindowMetrics` from the safe-area stub).
-if (typeof globalThis.ResizeObserver !== 'function') {
-    globalThis.ResizeObserver = class {
-        observe(): void {}
-        unobserve(): void {}
-        disconnect(): void {}
-    };
-}
+// stand-in: the navigator keeps the frame it was given (`initialWindowMetrics` from the safe-area stub). The design
+// system's recording observer is that stand-in (it only reports a layout when a test asks it to), so there is one.

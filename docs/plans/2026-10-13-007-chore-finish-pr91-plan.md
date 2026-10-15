@@ -58,6 +58,11 @@ things out, but done."
 | Parse statuses: after "Add as written", focus goes to the progress block, not the next waiting row                    | Focus moves per the UX spec                                                      |
 | Parse statuses: the operator queue check calls every line between attempts "stuck"                                    | The check uses the same phase rule as the read                                   |
 | `sandboxStatusProbe` concurrent-deploy test flaked once under load                                                    | Timing made deterministic                                                        |
+| Roles T1: collections get the confirm before a downgraded owner makes one public                                      | Built on both apps                                                               |
+| Roles T2: a test user who is a downgraded owner of a private recipe, so `makePublicConfirm.yaml` can run              | Seeded and the flow runs                                                         |
+| Roles T3: the refusal message is a snackbar, the UX spec named an inline alert                                        | staff-ux-engineer re-check, then aligned                                         |
+| Roles: a forged `?done=published.final` link shows the refusal sentence on any recipe page                            | The sentence needs the real write outcome                                        |
+| Run `poolAdmin --apply` after the identity deploy with roles, so the pool users carry their roles                     | Pool provisioned; `paidFeatureRoles.spec.ts` passes                              |
 | `readViewerAppId` in `web/tests/e2e/utils/recipeApi.ts` blames a claim that is present                                | The message names the real cause                                                 |
 | Whatever the first CI run with the iOS fixes shows                                                                    | Each failure fixed at its root                                                   |
 | CI on the OIDC roles, sandbox half (commit B)                                                                         | Plan 005. Proven on PR 91 by real runs                                           |

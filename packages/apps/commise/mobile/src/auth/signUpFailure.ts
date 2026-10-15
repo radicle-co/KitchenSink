@@ -72,7 +72,8 @@ export function signUpFailure(
         return { fields: {}, form: authFailureMessage(error, copy) };
     }
 
-    const fields: Partial<Record<SignUpErrorField, string>> = {};
+    // A Map, not an object literal: the keys come from Clerk's answer (`prototypePollutionSinks`).
+    const fields = new Map<SignUpErrorField, string>();
     let form: string | undefined;
 
     for (const entry of error.errors) {
@@ -80,16 +81,18 @@ export function signUpFailure(
         const words = entry.longMessage ?? entry.message;
 
         if (field !== undefined) {
-            fields[field] = fieldMessage(field, entry.code, words, copy);
+            fields.set(field, fieldMessage(field, entry.code, words, copy));
         } else {
             form ??= words === '' ? copy.fallback : words;
         }
     }
 
     // An answer that lists no error at all still failed: say so rather than show nothing.
-    if (form === undefined && Object.keys(fields).length === 0) {
+    if (form === undefined && fields.size === 0) {
         form = copy.fallback;
     }
 
-    return form === undefined ? { fields } : { fields, form };
+    const routed = Object.fromEntries(fields);
+
+    return form === undefined ? { fields: routed } : { fields: routed, form };
 }

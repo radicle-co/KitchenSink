@@ -43,6 +43,17 @@ export class AdminService {
         private readonly sqs: SqsService,
     ) {}
 
+    private async requireUser(targetSub: string): Promise<typeof users.$inferSelect> {
+        const targetId = userIdOrNotFound(targetSub);
+        const [existing] = await this.db.select().from(users).where(eq(users.id, targetId)).limit(1);
+
+        if (!existing) {
+            throw new NotFoundException(`User ${targetSub} not found`);
+        }
+
+        return existing;
+    }
+
     async listUsers(filters: { email?: string; name?: string; sub?: string; limit?: number; offset?: number }) {
         // `containsPattern`, not a template literal: `%` and `_` in the caller's filter are ILIKE SYNTAX, and
         // they live inside the bound parameter's value where parameterisation cannot help. `?email=%` used to
@@ -81,19 +92,14 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ sub: string; status: 'suspended'; suspendedAt: string }> {
-        const targetId = userIdOrNotFound(targetSub);
-        const [existing] = await this.db.select().from(users).where(eq(users.id, targetId)).limit(1);
-
-        if (!existing) {
-            throw new NotFoundException(`User ${targetSub} not found`);
-        }
+        const existing = await this.requireUser(targetSub);
 
         const now = new Date();
         // U10/R26: the intent advances with the status (see `users.status_version`).
         await this.db
             .update(users)
             .set({ status: 'suspended', updatedAt: now, statusVersion: sql`${users.statusVersion} + 1` })
-            .where(eq(users.id, targetId));
+            .where(eq(users.id, existing.id));
 
         this.logger.warn('user suspended', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 
@@ -104,18 +110,13 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ sub: string; status: 'active'; unsuspendedAt: string }> {
-        const targetId = userIdOrNotFound(targetSub);
-        const [existing] = await this.db.select().from(users).where(eq(users.id, targetId)).limit(1);
-
-        if (!existing) {
-            throw new NotFoundException(`User ${targetSub} not found`);
-        }
+        const existing = await this.requireUser(targetSub);
 
         const now = new Date();
         await this.db
             .update(users)
             .set({ status: 'active', updatedAt: now, statusVersion: sql`${users.statusVersion} + 1` })
-            .where(eq(users.id, targetId));
+            .where(eq(users.id, existing.id));
 
         this.logger.warn('user unsuspended', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 
@@ -137,12 +138,7 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ sub: string; status: 'active'; reactivatedAt: string }> {
-        const targetId = userIdOrNotFound(targetSub);
-        const [existing] = await this.db.select().from(users).where(eq(users.id, targetId)).limit(1);
-
-        if (!existing) {
-            throw new NotFoundException(`User ${targetSub} not found`);
-        }
+        const existing = await this.requireUser(targetSub);
 
         if (existing.status !== 'tombstoned') {
             // Only a closed (tombstoned) account is recoverable: an `active` user is not closed, and an
@@ -163,7 +159,7 @@ export class AdminService {
                     updatedAt: now,
                     statusVersion: sql`${users.statusVersion} + 1`,
                 })
-                .where(eq(users.id, targetId));
+                .where(eq(users.id, existing.id));
 
             await tx.insert(lifecycleEvents).values({
                 userId: existing.id,
@@ -203,12 +199,7 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ impersonatorSub: string; impersonatedSub: string; sessionId: string; startedAt: string }> {
-        const targetId = userIdOrNotFound(targetSub);
-        const [existing] = await this.db.select().from(users).where(eq(users.id, targetId)).limit(1);
-
-        if (!existing) {
-            throw new NotFoundException(`User ${targetSub} not found`);
-        }
+        await this.requireUser(targetSub);
 
         const sessionId = `imp-${adminCtx.userId}-${targetSub}-${Date.now()}`;
         const now = new Date();
@@ -231,12 +222,7 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ impersonatorSub: string; impersonatedSub: string; stoppedAt: string; message: string }> {
-        const targetId = userIdOrNotFound(targetSub);
-        const [existing] = await this.db.select().from(users).where(eq(users.id, targetId)).limit(1);
-
-        if (!existing) {
-            throw new NotFoundException(`User ${targetSub} not found`);
-        }
+        await this.requireUser(targetSub);
 
         const now = new Date();
 

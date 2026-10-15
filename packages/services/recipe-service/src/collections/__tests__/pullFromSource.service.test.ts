@@ -65,7 +65,7 @@ function makeDal(): DalMock {
 
 /** `pullFromSource` never touches `AuthorHandlesDal` — a stub resolving to `undefined` is sufficient. */
 function makeAuthorHandlesDal(): { [K in keyof AuthorHandlesDal]: Mock } {
-    return { findHandle: vi.fn().mockResolvedValue(undefined), applyRename: vi.fn() };
+    return { findHandle: vi.fn().mockResolvedValue(undefined) };
 }
 
 function makeService(dal: DalMock): CollectionsService {

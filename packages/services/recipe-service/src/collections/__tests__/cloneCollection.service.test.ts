@@ -68,7 +68,6 @@ function makeDal(): DalMock {
 function makeAuthorHandlesDal(overrides: Partial<AuthorHandlesMock> = {}): AuthorHandlesMock {
     return {
         findHandle: vi.fn().mockResolvedValue(undefined),
-        applyRename: vi.fn(),
         ...overrides,
     };
 }

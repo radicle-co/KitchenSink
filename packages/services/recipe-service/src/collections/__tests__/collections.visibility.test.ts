@@ -46,7 +46,7 @@ function makeDal(overrides: Partial<DalMock> = {}): DalMock {
 
 /** Visibility toggles never touch `AuthorHandlesDal` — a stub resolving to `undefined` is sufficient. */
 function makeAuthorHandlesDal(): AuthorHandlesDal {
-    return { findHandle: vi.fn().mockResolvedValue(undefined), applyRename: vi.fn() } as unknown as AuthorHandlesDal;
+    return { findHandle: vi.fn().mockResolvedValue(undefined) } as unknown as AuthorHandlesDal;
 }
 
 const OWNER = 'owner-1';

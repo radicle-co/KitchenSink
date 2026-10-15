@@ -2,8 +2,8 @@
  * W8-a.2 — the handle-sync CONSUMER Lambda (recipe-workers). Subscribed (via a per-stack SQS queue) to the
  * global `handle-sync` SNS topic, it applies each `{ userId, displayName, sourceTimestamp }` rename to the
  * recipe DB's `author_handles` read model MONOTONICALLY and fans the new name out to the owner's recipes +
- * versions — the same semantics as `recipe-service`'s `AuthorHandlesDal.applyRename`, expressed here in the
- * raw-SQL idiom the recipe-workers Lambdas use over their schema-less handle (mirroring account-erasure).
+ * versions — the read model's ONLY writer, in the raw-SQL idiom the recipe-workers Lambdas use over their
+ * schema-less handle (mirroring account-erasure). Its real-database proof is `tests/e2e/handleSync/`.
  *
  * Idempotent + out-of-order safe: an older-or-equal `source_timestamp` is a no-op, so SQS redelivery and
  * cross-route races (the Clerk `user.updated` webhook AND identity's `PATCH /api/v1/users/me` both publish)

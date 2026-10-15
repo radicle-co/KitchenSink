@@ -50,7 +50,7 @@ function makeDal(): DalMock {
 
 /** Not exercised outside `cloneCollection` here — a stub resolving to `undefined` is sufficient. */
 function makeAuthorHandlesDal(): { [K in keyof AuthorHandlesDal]: ReturnType<typeof vi.fn> } {
-    return { findHandle: vi.fn().mockResolvedValue(undefined), applyRename: vi.fn() };
+    return { findHandle: vi.fn().mockResolvedValue(undefined) };
 }
 
 /** U3: the save-capture collaborator — `capture` is sync-void fire-and-forget, so one mock suffices. */

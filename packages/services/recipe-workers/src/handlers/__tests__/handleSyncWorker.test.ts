@@ -1,7 +1,6 @@
 /**
- * W8-a.2 — unit tests for the handle-sync consumer. Pins the two load-bearing behaviours the raw-SQL
- * worker owns (its DB semantics mirror the recipe-service `AuthorHandlesDal.applyRename`, which is proven
- * against a real database by that vertical's integration spec):
+ * W8-a.2 — unit tests for the handle-sync consumer. Pins the load-bearing behaviours the raw-SQL worker owns
+ * (its database semantics are proven against a real Postgres by `tests/e2e/handleSync/`):
  *
  *   1. **Message parsing** — unwrap the SNS `Notification` envelope (or a raw-delivery body), and DROP a
  *      structurally-invalid payload (bad JSON / missing fields / unparseable timestamp) rather than retry it.

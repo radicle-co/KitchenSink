@@ -58,7 +58,7 @@ function harness() {
     const analytics = { capture: vi.fn() };
     const service = new CollectionsService(
         dal as unknown as CollectionsDal,
-        { findHandle: vi.fn().mockResolvedValue(undefined), applyRename: vi.fn() } as unknown as AuthorHandlesDal,
+        { findHandle: vi.fn().mockResolvedValue(undefined) } as unknown as AuthorHandlesDal,
         analytics as unknown as AnalyticsService,
         'https://cdn.test',
     );

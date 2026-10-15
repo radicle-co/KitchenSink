@@ -1,35 +1,38 @@
 /**
- * W8-a.2 — integration proof of the handle-sync CONSUMER ({@link AuthorHandlesDal.applyRename}) against the
- * real Postgres harness. Drives the DAL directly (no HTTP) over a standalone Drizzle client, since the
- * consumer is invoked by an SQS event, not an endpoint. Pins the two properties the sync depends on:
+ * The handle-sync CONSUMER ({@link applyHandleRename}) against a real Postgres (LOCAL e2e, §7.1a).
  *
- *   - **Fan-out:** a rename updates the read model AND every owned recipes.author_handle +
- *     recipe_versions.editor_handle, in one transaction.
- *   - **Monotonic + out-of-order safety:** an older-or-equal source_timestamp is ignored; A→B→A redelivered
- *     out of order converges to the actual latest name — so redelivery / cross-route races can't corrupt it.
+ * Moved here from recipe-service's `authorHandles.e2e.test.ts`, which drove `AuthorHandlesDal.applyRename` — a
+ * second copy of this rule that nothing in production called. This file drives the copy that runs: the worker's.
  *
- * Skips when no test database is configured.
+ * Pins the properties the sync depends on, which only a real database answers:
+ *
+ *   - **Fan-out:** an applied event updates the read model AND every owned `recipes.author_handle` +
+ *     `recipe_versions.editor_handle`, in one transaction, and never another owner's rows.
+ *   - **Monotonic + out-of-order safety:** an older-or-equal `source_timestamp` is ignored; A→B→A redelivered out
+ *     of order converges to the actual latest, so redelivery and cross-route races cannot corrupt it.
+ *
+ * Connects as `recipe_app` (ADR-0039), the role the worker holds.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
-import { createRecipeDrizzle } from '../../src/database/client.js';
-import { AuthorHandlesDal } from '../../src/authors/dal/authorHandles.dal.js';
-import { recipeDb } from '../support/roleDb.js';
+import { applyHandleRename } from '../../../src/handlers/handleSyncWorker.js';
+import { recipeWorkersDb } from '../roleDb.js';
 
-const roleDb = recipeDb();
+const roleDb = recipeWorkersDb();
 
 const USER = '01JHANDLEE2E0000USER00000A';
 const OTHER = '01JHANDLEE2E000OTHER00000B';
 
-describe('handle-sync consumer (integration, real DB)', () => {
+describe('applyHandleRename (real Postgres)', () => {
     let pool: pg.Pool;
-    let dal: AuthorHandlesDal;
+    let db: NodePgDatabase<Record<string, never>>;
     let recipeId: string;
 
     beforeAll(() => {
         pool = new pg.Pool({ connectionString: roleDb.appUrl, max: 3 });
-        dal = new AuthorHandlesDal(createRecipeDrizzle(pool));
+        db = drizzle(pool);
     });
 
     afterAll(async () => {
@@ -62,6 +65,15 @@ describe('handle-sync consumer (integration, real DB)', () => {
         );
     });
 
+    async function readModelOf(userId: string): Promise<string | undefined> {
+        const { rows } = await pool.query<{ display_name: string }>(
+            'SELECT display_name FROM author_handles WHERE user_id = $1',
+            [userId],
+        );
+
+        return rows[0]?.display_name;
+    }
+
     async function handleOf(id: string): Promise<string | null> {
         const { rows } = await pool.query<{ author_handle: string | null }>(
             'SELECT author_handle FROM recipes WHERE id = $1',
@@ -80,18 +92,17 @@ describe('handle-sync consumer (integration, real DB)', () => {
         return rows[0]!.editor_handle;
     }
 
-    it('applies a rename and fans it out to the owner’s recipes + versions (not other users’)', async () => {
-        const applied = await dal.applyRename({
+    it('applies an event and fans it out to the owner’s recipes + versions (not other users’)', async () => {
+        const applied = await applyHandleRename(db, {
             userId: USER,
             displayName: 'New Name',
-            sourceTimestamp: new Date('2026-07-20T00:00:00.000Z'),
+            sourceTimestamp: '2026-07-20T00:00:00.000Z',
         });
 
         expect(applied).toBe(true);
-        expect(await dal.findHandle(USER)).toBe('New Name');
+        expect(await readModelOf(USER)).toBe('New Name');
         expect(await handleOf(recipeId)).toBe('New Name');
         expect(await editorOf(recipeId)).toBe('New Name');
-        // Another user's recipe is untouched.
         const { rows } = await pool.query<{ author_handle: string }>(
             'SELECT author_handle FROM recipes WHERE owner_id = $1',
             [OTHER],
@@ -100,31 +111,36 @@ describe('handle-sync consumer (integration, real DB)', () => {
     });
 
     it('IGNORES an older-or-equal source_timestamp (monotonic guard)', async () => {
-        await dal.applyRename({ userId: USER, displayName: 'V2', sourceTimestamp: new Date('2026-07-20T12:00:00Z') });
+        await applyHandleRename(db, { userId: USER, displayName: 'V2', sourceTimestamp: '2026-07-20T12:00:00.000Z' });
 
-        const staleApplied = await dal.applyRename({
+        const stale = await applyHandleRename(db, {
             userId: USER,
             displayName: 'V1-late',
-            sourceTimestamp: new Date('2026-07-20T06:00:00Z'), // older → must be ignored
+            sourceTimestamp: '2026-07-20T06:00:00.000Z',
+        });
+        const equal = await applyHandleRename(db, {
+            userId: USER,
+            displayName: 'V2-again',
+            sourceTimestamp: '2026-07-20T12:00:00.000Z',
         });
 
-        expect(staleApplied).toBe(false);
-        expect(await dal.findHandle(USER)).toBe('V2');
+        expect(stale).toBe(false);
+        expect(equal).toBe(false);
+        expect(await readModelOf(USER)).toBe('V2');
         expect(await handleOf(recipeId)).toBe('V2');
     });
 
     it('converges to the actual latest for A→B→A redelivered OUT OF ORDER', async () => {
-        const tA1 = new Date('2026-07-20T01:00:00Z');
-        const tB = new Date('2026-07-20T02:00:00Z');
-        const tA2 = new Date('2026-07-20T03:00:00Z'); // the true latest: back to "Ada"
+        // Delivered out of order: the newest (back to "Ada") arrives first, then the older ones.
+        await applyHandleRename(db, { userId: USER, displayName: 'Ada', sourceTimestamp: '2026-07-20T03:00:00.000Z' });
+        await applyHandleRename(db, { userId: USER, displayName: 'Bob', sourceTimestamp: '2026-07-20T02:00:00.000Z' });
+        await applyHandleRename(db, {
+            userId: USER,
+            displayName: 'Ada-old',
+            sourceTimestamp: '2026-07-20T01:00:00.000Z',
+        });
 
-        // Delivered out of order: the newest (tA2 "Ada") arrives first, then the older ones.
-        await dal.applyRename({ userId: USER, displayName: 'Ada', sourceTimestamp: tA2 });
-        await dal.applyRename({ userId: USER, displayName: 'Bob', sourceTimestamp: tB });
-        await dal.applyRename({ userId: USER, displayName: 'Ada-old', sourceTimestamp: tA1 });
-
-        // The monotonic guard kept the tA2 value regardless of arrival order.
-        expect(await dal.findHandle(USER)).toBe('Ada');
+        expect(await readModelOf(USER)).toBe('Ada');
         expect(await handleOf(recipeId)).toBe('Ada');
     });
 });

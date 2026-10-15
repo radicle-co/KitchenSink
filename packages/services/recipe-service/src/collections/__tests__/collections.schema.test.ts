@@ -81,7 +81,6 @@ function makeService(dal: DalMock): CollectionsService {
         dal as unknown as CollectionsDal,
         {
             findHandle: vi.fn().mockResolvedValue('chef-anon'),
-            applyRename: vi.fn(),
         } as unknown as AuthorHandlesDal,
         { capture: vi.fn() } as unknown as AnalyticsService,
         'https://cdn.test',

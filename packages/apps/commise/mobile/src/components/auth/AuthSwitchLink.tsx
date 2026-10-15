@@ -22,19 +22,21 @@ export interface AuthSwitchLinkProps {
     readonly label: string;
     /** Moves to the other screen. */
     readonly onPress: () => void;
+    /** The screen is busy (a sign-in is in flight): the link takes no press. */
+    readonly disabled?: boolean;
 }
 
 /**
  * @param props - The prompt, the link text and its handler.
  * @returns A wrapping row of the prompt and the link.
  */
-export function AuthSwitchLink({ prompt, label, onPress }: AuthSwitchLinkProps): JSX.Element {
+export function AuthSwitchLink({ prompt, label, onPress, disabled = false }: AuthSwitchLinkProps): JSX.Element {
     const { colors } = useTheme();
 
     return (
         <View style={styles.row}>
             <Text style={[nativeTokens.type.meta, { color: colors.inkMuted }]}>{prompt}</Text>
-            <PressScale accessibilityRole="link" accessibilityLabel={label} onPress={onPress}>
+            <PressScale accessibilityRole="link" accessibilityLabel={label} disabled={disabled} onPress={onPress}>
                 <View style={styles.target}>
                     <Text numberOfLines={1} style={[nativeTokens.type.meta, styles.link, { color: colors.actionText }]}>
                         {label}

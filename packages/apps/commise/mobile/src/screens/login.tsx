@@ -12,6 +12,10 @@
  * factor (`signIn.mfa.sendEmailCode` → a `oneTimeCode` field → `signIn.mfa.verifyEmailCode`) before `setActive`.
  * The passwordless first-factor strategy (`signIn.emailCode.*`) is deliberately never used: it signs a user in
  * with the mailbox alone (A-001).
+ *
+ * Above the email form sits the provider group (plan 012): "Continue with Apple / Google", the `useSocialSignIn`
+ * command. While a provider's sheet is up every control here locks; a provider sign-up that still needs fields is
+ * handed up to `AuthGate` (`onNeedsFields`), which shows the finish step.
  */
 import { useClerk, useSignIn } from '@clerk/expo';
 import { Button } from '@commise/ui/button';
@@ -31,13 +35,17 @@ import { AuthCodeActions } from '../components/auth/AuthCodeActions.js';
 import { AuthCodeFields } from '../components/auth/AuthCodeFields.js';
 import { AuthHeader } from '../components/auth/AuthHeader.js';
 import { AuthSwitchLink } from '../components/auth/AuthSwitchLink.js';
+import { SocialSignInButtons } from '../components/auth/SocialSignInButtons.js';
+import { useSocialSignIn, type PendingSignUp } from '../hooks/useSocialSignIn.js';
 import { mobileMessages } from '../i18n/messages.js';
 
 export interface LoginScreenProps {
     onSignUp: () => void;
+    /** A provider's sign-up still needs fields: the gate shows the finish step with it. */
+    onNeedsFields: (pending: PendingSignUp) => void;
 }
 
-export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
+export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.Element {
     const { auth: t } = useMessages(mobileMessages);
     const { colors } = useTheme();
     const { setActive } = useClerk();
@@ -49,6 +57,9 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
     const [step, setStep] = useState<'credentials' | 'code'>('credentials');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    const social = useSocialSignIn(onNeedsFields);
+    // One lock for the whole screen: the email form, the provider group and the switch link (plan 012 D10).
+    const locked = busy || social.busyProvider !== null;
 
     const copyFor = (fallback: string) => ({
         networkError: t.networkError,
@@ -214,6 +225,16 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
                     <AuthHeader title={t.signInTitle} />
 
                     {onCredentials ? (
+                        <SocialSignInButtons
+                            providers={social.providers}
+                            busyProvider={social.busyProvider}
+                            error={social.error}
+                            locked={locked}
+                            onPress={social.start}
+                        />
+                    ) : null}
+
+                    {onCredentials ? (
                         <View style={styles.fields}>
                             <View style={styles.field}>
                                 <FieldLabel forId="signin-email" label={t.emailLabel} />
@@ -226,7 +247,7 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
                                     autoCapitalize="none"
                                     autoComplete="email"
                                     enterKeyHint="next"
-                                    disabled={busy}
+                                    disabled={locked}
                                 />
                             </View>
                             <View style={styles.field}>
@@ -239,7 +260,7 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
                                     secret
                                     autoComplete="current-password"
                                     enterKeyHint="go"
-                                    disabled={busy}
+                                    disabled={locked}
                                     onSubmit={() => void handleSignIn()}
                                 />
                             </View>
@@ -262,15 +283,22 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
 
                     <Button
                         icon={onCredentials ? 'logIn' : 'check'}
+                        size="lg"
+                        width="fill"
                         busy={busy}
-                        disabled={!signIn}
+                        disabled={!signIn || social.busyProvider !== null}
                         onPress={() => void (onCredentials ? handleSignIn() : handleVerifyCode())}
                     >
                         {onCredentials ? t.signInAction : t.verifyAction}
                     </Button>
 
                     {onCredentials ? (
-                        <AuthSwitchLink prompt={t.noAccountPrompt} label={t.signUpLink} onPress={onSignUp} />
+                        <AuthSwitchLink
+                            prompt={t.noAccountPrompt}
+                            label={t.signUpLink}
+                            disabled={locked}
+                            onPress={onSignUp}
+                        />
                     ) : (
                         <AuthCodeActions
                             busy={busy}

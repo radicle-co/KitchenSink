@@ -28,6 +28,13 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
 /** The sizes (§1.6): 52, 44 and 36 visual px. `sm` keeps a 44 px hit area (48 dp on Android). */
 export type ButtonSize = 'lg' | 'md' | 'sm';
 
+/**
+ * The visual height of each size, in points (§1.6). On Android `md` IS the 48 dp touch floor, so the native leaf grows it
+ * there. Exported so a control that cannot be a `Button` — a third-party brand button whose look its owner specifies —
+ * can still stand at exactly a button's height beside one.
+ */
+export const BUTTON_VISUAL_HEIGHT: Readonly<Record<ButtonSize, number>> = { lg: 52, md: 44, sm: 36 };
+
 /** A destructive button's tone: a danger label inline, or the filled surface a confirm dialog's action takes. */
 export type DestructiveTone = 'inline' | 'confirm';
 

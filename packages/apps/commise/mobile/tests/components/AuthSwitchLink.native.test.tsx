@@ -40,6 +40,16 @@ describe('AuthSwitchLink', () => {
         expect(onPress).toHaveBeenCalledTimes(1);
     });
 
+    it('takes no press while the screen is busy (a sign-in is in flight, plan 012 D10)', () => {
+        const onPress = vi.fn();
+        render(<AuthSwitchLink prompt="New to Commise?" label="Create an account" onPress={onPress} disabled />);
+
+        fireEvent.click(screen.getByRole('link', { name: 'Create an account' }));
+
+        expect(onPress).not.toHaveBeenCalled();
+        expect(screen.getByRole('link', { name: 'Create an account' }).getAttribute('aria-disabled')).toBe('true');
+    });
+
     it('keeps the link text on ONE line, however narrow the row gets', () => {
         render(<AuthSwitchLink prompt="New to Commise?" label="Create an account" onPress={() => undefined} />);
 

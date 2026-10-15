@@ -12,4 +12,5 @@ export type {
     RefusedPressProps,
 } from './busyControlProps.js';
 export { buttonSurfaceClass, GHOST_EDGE_CLASS } from './surfaceClass.js';
-export type { ButtonProps, ButtonVariant } from './props.js';
+export { BUTTON_VISUAL_HEIGHT } from './props.js';
+export type { ButtonProps, ButtonSize, ButtonVariant } from './props.js';

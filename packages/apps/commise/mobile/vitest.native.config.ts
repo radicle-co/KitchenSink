@@ -107,6 +107,12 @@ export default defineConfig({
             // F1 — the analytics event-id minter's native leaf delegates to expo-crypto (Hermes has no
             // `crypto` global); the stub answers Node's own UUIDs so picker suites run un-networked.
             'expo-crypto': path.resolve(import.meta.dirname, 'tests/stubs/expoCrypto.ts'),
+            // Plan 012: the system Sign in with Apple button is a native view, and `expo-constants` reads the embedded
+            // manifest natively. Both stubs are inert until a suite configures them.
+            'expo-apple-authentication': path.resolve(import.meta.dirname, 'tests/stubs/expoAppleAuthentication.tsx'),
+            'expo-constants': path.resolve(import.meta.dirname, 'tests/stubs/expoConstants.ts'),
+            // The Google mark is drawn with `react-native-svg`, which has no react-native-web implementation.
+            'react-native-svg': path.resolve(import.meta.dirname, 'tests/stubs/reactNativeSvg.tsx'),
             // `react-native-safe-area-context` ships Flow-typed source that Vitest cannot parse at all
             // (`Unexpected token 'typeof'`), and bridges to a native module for the device's window insets.
             // The design system's `FullScreenSheet` (`@commise/ui/full-screen-sheet`) reads `useSafeAreaInsets`, so

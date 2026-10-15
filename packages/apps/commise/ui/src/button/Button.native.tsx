@@ -35,16 +35,13 @@ import { useTheme } from '../theme/useTheme.native.js';
 import type { Theme } from '../theme/themeFor.js';
 import { PressScale } from '../pressScale/index.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
-import { surfaceOf, type ButtonProps, type ButtonSize } from './props.js';
-
-/** The visual height of each size, in points (§1.6). */
-const VISUAL_HEIGHT: Readonly<Record<ButtonSize, number>> = { lg: 52, md: 44, sm: 36 };
+import { BUTTON_VISUAL_HEIGHT, surfaceOf, type ButtonProps, type ButtonSize } from './props.js';
 
 /** The touch floor: 44 pt on iOS, 48 dp on Android (§1.6, "every 44 in this file is 48 dp on Android"). */
 const touchFloor = (): number => (Platform.OS === 'android' ? 48 : 44);
 
 /** A size's visual height on this platform: `md` IS the touch floor, so it grows with it on Android. Pure. */
-const visualHeightOf = (size: ButtonSize): number => (size === 'md' ? touchFloor() : VISUAL_HEIGHT[size]);
+const visualHeightOf = (size: ButtonSize): number => (size === 'md' ? touchFloor() : BUTTON_VISUAL_HEIGHT[size]);
 
 /** The flat surfaces and the role each one's label and glyph share. */
 type Surface = 'primary' | 'secondary' | 'ghost' | 'destructiveInline' | 'destructiveConfirm';

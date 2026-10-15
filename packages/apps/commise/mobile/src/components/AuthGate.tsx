@@ -10,6 +10,10 @@
  * branded welcome hero whose two CTAs led into sign-up and sign-in; that screen is deleted, here and on web
  * (whose locale root now redirects a signed-out caller straight to `/sign-in`). Sign-UP stays reachable from
  * the sign-in form's own control, which is now its ONLY entry point on mobile.
+ *
+ * Plan 012: either form's "Continue with Apple / Google" may end at a sign-up still missing fields the provider did not
+ * supply (the username, and with Apple possibly the names). The gate then shows `CompleteSignUpScreen` with the sign-up
+ * the provider hook RETURNED; "Start over" comes back to the sign-in form. It is a signed-out SURFACE, not a route.
  */
 import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
@@ -20,6 +24,8 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '../hooks/useAuth';
 import { mobileMessages } from '../i18n/messages';
+import type { PendingSignUp } from '../hooks/useSocialSignIn';
+import { CompleteSignUpScreen } from '../screens/CompleteSignUpScreen';
 import { LoginScreen } from '../screens/login';
 import { SignUpScreen } from '../screens/signup';
 import { LoadingState } from './LoadingState';
@@ -31,11 +37,43 @@ interface AuthGateProps {
 }
 
 /**
- * The signed-out surfaces, which toggle between each other. The union deliberately has NO welcome/landing
- * member: with the hero deleted, "the app opens on a landing screen" is not a state this gate can represent,
- * so the decision is enforced by the type rather than only by the initial value below.
+ * The signed-out surfaces. The union deliberately has NO welcome/landing member: with the hero deleted, "the app opens
+ * on a landing screen" is not a state this gate can represent, so the decision is enforced by the type rather than only
+ * by the initial value below. The finish step carries the pending sign-up, so it cannot exist without one.
  */
-type Screen = 'login' | 'signup';
+type Screen =
+    | { readonly kind: 'login' }
+    | { readonly kind: 'signup' }
+    | { readonly kind: 'completeSignUp'; readonly pending: PendingSignUp };
+
+const LOGIN: Screen = { kind: 'login' };
+
+/**
+ * The signed-out surfaces: sign-in, sign-up, and the finish step a provider sign-up may need (plan 012).
+ *
+ * ⚠️ Its own component on purpose: which surface is up is SIGNED-OUT state, so it must not outlive a session. Mounted
+ * only while the gate is unauthenticated, it unmounts when a session starts and remounts on the sign-in form after a
+ * sign-out — so a finish step holding the last session's sign-up can never reappear.
+ */
+function SignedOutSurfaces(): JSX.Element {
+    const [screen, setScreen] = useState<Screen>(LOGIN);
+    const needsFields = (pending: PendingSignUp) => setScreen({ kind: 'completeSignUp', pending });
+
+    switch (screen.kind) {
+        case 'signup':
+            return <SignUpScreen onBack={() => setScreen(LOGIN)} onNeedsFields={needsFields} />;
+        case 'completeSignUp':
+            return (
+                <CompleteSignUpScreen
+                    signUp={screen.pending.signUp}
+                    fields={screen.pending.fields}
+                    onStartOver={() => setScreen(LOGIN)}
+                />
+            );
+        case 'login':
+            return <LoginScreen onSignUp={() => setScreen({ kind: 'signup' })} onNeedsFields={needsFields} />;
+    }
+}
 
 /**
  * The authentication gate.
@@ -46,7 +84,6 @@ type Screen = 'login' | 'signup';
 export function AuthGate({ children }: AuthGateProps): JSX.Element {
     const { auth, common } = useMessages(mobileMessages);
     const { state } = useAuth();
-    const [screen, setScreen] = useState<Screen>('login');
     const { colors } = useTheme();
     const title = [styles.title, { color: colors.ink }];
     const body = [styles.body, { color: colors.inkMuted }];
@@ -57,11 +94,7 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
             // ("Checking your session…") for assistive tech AND sighted viewers.
             return <LoadingState label={auth.sessionLoading} />;
         case 'unauthenticated':
-            if (screen === 'signup') {
-                return <SignUpScreen onBack={() => setScreen('login')} />;
-            }
-
-            return <LoginScreen onSignUp={() => setScreen('signup')} />;
+            return <SignedOutSurfaces />;
         case 'blocked':
             return (
                 <View style={styles.center}>

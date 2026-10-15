@@ -21,22 +21,46 @@ import { useAuth } from '../../src/hooks/useAuth.js';
 
 vi.mock('../../src/hooks/useAuth', () => ({ useAuth: vi.fn() }));
 // The signed-out surfaces are covered by their own suites; stub them so this suite asserts the ROUTING.
+/** What a provider hook handed back for the finish step (plan 012): a stand-in, compared by identity. */
+const PENDING = { signUp: { id: 'sua_1' }, fields: [{ name: 'username' }] };
+
+type NeedsFields = (pending: typeof PENDING) => void;
+
 vi.mock('../../src/screens/login', () => ({
-    LoginScreen: ({ onSignUp }: { onSignUp: () => void }) => (
+    LoginScreen: ({ onSignUp, onNeedsFields }: { onSignUp: () => void; onNeedsFields: NeedsFields }) => (
         <>
             <div>stub-login</div>
             <button type="button" onClick={onSignUp}>
                 stub-go-to-signup
             </button>
+            <button type="button" onClick={() => onNeedsFields(PENDING)}>
+                stub-login-social-needs-fields
+            </button>
         </>
     ),
 }));
 vi.mock('../../src/screens/signup', () => ({
-    SignUpScreen: ({ onBack }: { onBack: () => void }) => (
+    SignUpScreen: ({ onBack, onNeedsFields }: { onBack: () => void; onNeedsFields: NeedsFields }) => (
         <>
             <div>stub-signup</div>
             <button type="button" onClick={onBack}>
                 stub-back-to-login
+            </button>
+            <button type="button" onClick={() => onNeedsFields(PENDING)}>
+                stub-signup-social-needs-fields
+            </button>
+        </>
+    ),
+}));
+vi.mock('../../src/screens/CompleteSignUpScreen', () => ({
+    CompleteSignUpScreen: (props: { signUp: unknown; fields: unknown; onStartOver: () => void }) => (
+        <>
+            <div>
+                stub-complete-signup{' '}
+                {props.signUp === PENDING.signUp && props.fields === PENDING.fields ? 'same' : 'other'}
+            </div>
+            <button type="button" onClick={props.onStartOver}>
+                stub-start-over
             </button>
         </>
     ),
@@ -102,6 +126,65 @@ describe('AuthGate', () => {
 
         fireEvent.click(screen.getByText('stub-back-to-login'));
         expect(screen.getByText('stub-login')).toBeTruthy();
+    });
+
+    it.each(['stub-login-social-needs-fields', 'stub-signup-social-needs-fields'])(
+        'shows the finish step with exactly the sign-up and fields the provider handed back (%s), and nothing else',
+        (trigger) => {
+            useAuthMock.mockReturnValue(authState({ status: 'unauthenticated' }));
+            render(
+                <AuthGate>
+                    <Text>app</Text>
+                </AuthGate>,
+            );
+
+            if (trigger.startsWith('stub-signup')) {
+                fireEvent.click(screen.getByText('stub-go-to-signup'));
+            }
+
+            fireEvent.click(screen.getByText(trigger));
+
+            expect(screen.getByText('stub-complete-signup same')).toBeTruthy();
+            expect(screen.queryByText('stub-login')).toBeNull();
+            expect(screen.queryByText('stub-signup')).toBeNull();
+        },
+    );
+
+    it('returns from the finish step to the SIGN-IN form when the cook starts over', () => {
+        useAuthMock.mockReturnValue(authState({ status: 'unauthenticated' }));
+        render(
+            <AuthGate>
+                <Text>app</Text>
+            </AuthGate>,
+        );
+
+        fireEvent.click(screen.getByText('stub-go-to-signup'));
+        fireEvent.click(screen.getByText('stub-signup-social-needs-fields'));
+        fireEvent.click(screen.getByText('stub-start-over'));
+
+        expect(screen.getByText('stub-login')).toBeTruthy();
+    });
+
+    it('⛔ opens on the sign-in form again after a sign-out — never on a finish step left over from the last session', () => {
+        useAuthMock.mockReturnValue(authState({ status: 'unauthenticated' }));
+        // A fresh element per render: React skips re-rendering an element it was handed before.
+        const tree = () => (
+            <AuthGate>
+                <Text>app</Text>
+            </AuthGate>
+        );
+        const { rerender } = render(tree());
+
+        fireEvent.click(screen.getByText('stub-login-social-needs-fields'));
+        useAuthMock.mockReturnValue(authState({ status: 'authenticated' }));
+        rerender(tree());
+        expect(screen.getByText('app')).toBeTruthy();
+
+        useAuthMock.mockReturnValue(authState({ status: 'unauthenticated' }));
+        rerender(tree());
+
+        expect(screen.getByText('stub-login')).toBeTruthy();
+        expect(screen.queryByText(/stub-complete-signup/u)).toBeNull();
     });
 
     it('shows the shared block reason for a blocked session', () => {

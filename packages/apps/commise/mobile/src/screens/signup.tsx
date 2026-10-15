@@ -12,6 +12,10 @@
  * instance still has after that is one this form does not offer: it says so, and reports it to Sentry, rather than
  * stranding the user on a form that cannot finish.
  *
+ * Above the form sits the same provider group as sign-in (plan 012): "Continue with Apple / Google" may sign the
+ * person in OR create the account, and a provider sign-up that still needs fields is handed up to `AuthGate`
+ * (`onNeedsFields`). While a provider's sheet is up every control here locks.
+ *
  * `onBack` returns to the sign-in form, which is where this screen is always reached FROM: the signed-out gate
  * opens on login, and login's own "Create account" control is the only route here (owner decision 2026-07-28
  * deleted the welcome hero that used to provide a "Get started" entry). So the existing back affordance — the
@@ -37,14 +41,18 @@ import { AuthCodeActions } from '../components/auth/AuthCodeActions.js';
 import { AuthCodeFields } from '../components/auth/AuthCodeFields.js';
 import { AuthHeader } from '../components/auth/AuthHeader.js';
 import { AuthSwitchLink } from '../components/auth/AuthSwitchLink.js';
+import { SocialSignInButtons } from '../components/auth/SocialSignInButtons.js';
+import { useSocialSignIn, type PendingSignUp } from '../hooks/useSocialSignIn.js';
 import { SignUpFields, type SignUpErrors, type SignUpValues } from '../components/auth/SignUpFields.js';
 import { mobileMessages } from '../i18n/messages.js';
 
 export interface SignUpScreenProps {
     onBack: () => void;
+    /** A provider's sign-up still needs fields: the gate shows the finish step with it. */
+    onNeedsFields: (pending: PendingSignUp) => void;
 }
 
-export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
+export function SignUpScreen({ onBack, onNeedsFields }: SignUpScreenProps): JSX.Element {
     const { auth: t } = useMessages(mobileMessages);
     const { colors } = useTheme();
     const { setActive } = useClerk();
@@ -57,6 +65,9 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
     const [step, setStep] = useState<'credentials' | 'code'>('credentials');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    const social = useSocialSignIn(onNeedsFields);
+    // One lock for the whole screen: the form, the provider group and the switch link (plan 012 D10).
+    const locked = busy || social.busyProvider !== null;
 
     const copyFor = (fallback: string) => ({
         networkError: t.networkError,
@@ -265,6 +276,16 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
                     <AuthHeader title={t.createHeading} />
 
                     {onCredentials ? (
+                        <SocialSignInButtons
+                            providers={social.providers}
+                            busyProvider={social.busyProvider}
+                            error={social.error}
+                            locked={locked}
+                            onPress={social.start}
+                        />
+                    ) : null}
+
+                    {onCredentials ? (
                         <View style={styles.fields}>
                             <SignUpFields
                                 fields={SIGN_UP_FIELDS}
@@ -272,7 +293,7 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
                                 values={values}
                                 errors={fieldErrors}
                                 onChange={changeField}
-                                busy={busy}
+                                busy={locked}
                             />
                             <View style={styles.field}>
                                 <FieldLabel forId="signup-password" label={t.passwordLabel} />
@@ -284,7 +305,7 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
                                     secret
                                     autoComplete="new-password"
                                     enterKeyHint="go"
-                                    disabled={busy}
+                                    disabled={locked}
                                     onSubmit={() => void handleSignUp()}
                                 />
                             </View>
@@ -307,15 +328,22 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
 
                     <Button
                         icon={onCredentials ? 'userPlus' : 'check'}
+                        size="lg"
+                        width="fill"
                         busy={busy}
-                        disabled={!signUp}
+                        disabled={!signUp || social.busyProvider !== null}
                         onPress={() => void (onCredentials ? handleSignUp() : handleVerifyCode())}
                     >
                         {onCredentials ? t.createAccountAction : t.verifyAction}
                     </Button>
 
                     {onCredentials ? (
-                        <AuthSwitchLink prompt={t.haveAccountPrompt} label={t.signInLink} onPress={onBack} />
+                        <AuthSwitchLink
+                            prompt={t.haveAccountPrompt}
+                            label={t.signInLink}
+                            disabled={locked}
+                            onPress={onBack}
+                        />
                     ) : (
                         <AuthCodeActions
                             busy={busy}

@@ -23,6 +23,7 @@ vi.mock('../../src/hooks/useAuth', () => ({ useAuth: vi.fn() }));
 // The signed-out screens pull Clerk's native SDK; this suite reads only the gate's own blocked state.
 vi.mock('../../src/screens/login', () => ({ LoginScreen: () => null }));
 vi.mock('../../src/screens/signup', () => ({ SignUpScreen: () => null }));
+vi.mock('../../src/screens/CompleteSignUpScreen', () => ({ CompleteSignUpScreen: () => null }));
 
 import { AuthGate } from '../../src/components/AuthGate.js';
 import { HomeWidgetErrorNotice } from '../../src/components/home/HomeWidgetErrorNotice.js';

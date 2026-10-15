@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 import { useClerk, useSignUp } from '@clerk/expo';
+import { useSignInWithApple } from '@clerk/expo/apple';
+import { useSignInWithGoogle } from '@clerk/expo/google';
 import * as Sentry from '@sentry/react-native';
 
 import { role, roleDark } from '@commise/ui/colors';
@@ -16,6 +18,7 @@ import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { SignUpScreen } from '../../src/screens/signup.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
+import Constants from '../stubs/expoConstants.js';
 
 const { auth } = mobileMessages.en;
 
@@ -27,7 +30,13 @@ vi.mock('@clerk/expo', async () => {
 });
 
 // An unsupported requirement is reported to Sentry; the real SDK needs a native module.
-vi.mock('@sentry/react-native', () => ({ captureMessage: vi.fn() }));
+vi.mock('@sentry/react-native', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }));
+
+// The native provider flows (plan 012). Their behaviour is `useSocialSignIn`'s suite; here they only have to start.
+vi.mock('@clerk/expo/google', () => ({
+    useSignInWithGoogle: vi.fn(() => ({ startGoogleAuthenticationFlow: vi.fn() })),
+}));
+vi.mock('@clerk/expo/apple', () => ({ useSignInWithApple: vi.fn(() => ({ startAppleAuthenticationFlow: vi.fn() })) }));
 
 vi.mock('react-native-safe-area-context', () => ({
     useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
@@ -167,7 +176,7 @@ describe('SignUpScreen — chrome + design system', () => {
         const signUp = makeSignUp();
         useSignUpMock.mockReturnValue(partialHook({ signUp }));
         useClerkMock.mockReturnValue(partialHook({ setActive }));
-        render(<SignUpScreen onBack={() => undefined} />);
+        render(<SignUpScreen onBack={() => undefined} onNeedsFields={() => undefined} />);
 
         expect(screen.getByLabelText('keyboard-avoiding').getAttribute('data-behavior')).toBe('padding');
     });
@@ -176,7 +185,7 @@ describe('SignUpScreen — chrome + design system', () => {
         const signUp = makeSignUp();
         useSignUpMock.mockReturnValue(partialHook({ signUp }));
         useClerkMock.mockReturnValue(partialHook({ setActive }));
-        render(<SignUpScreen onBack={() => undefined} />);
+        render(<SignUpScreen onBack={() => undefined} onNeedsFields={() => undefined} />);
 
         expect(screen.getByText(auth.brand)).toBeTruthy();
         expect(screen.getByText(auth.createHeading)).toBeTruthy();
@@ -195,7 +204,7 @@ describe('SignUpScreen — chrome + design system', () => {
         const signUp = makeSignUp();
         useSignUpMock.mockReturnValue(partialHook({ signUp }));
         useClerkMock.mockReturnValue(partialHook({ setActive }));
-        render(<SignUpScreen onBack={onBack} />);
+        render(<SignUpScreen onBack={onBack} onNeedsFields={() => undefined} />);
 
         fireEvent.click(screen.getByRole('link', { name: auth.signInLink }));
 
@@ -206,7 +215,7 @@ describe('SignUpScreen — chrome + design system', () => {
         const signUp = makeSignUp('nothing', { create: vi.fn(() => new Promise<StepResult>(() => undefined)) });
         useSignUpMock.mockReturnValue(partialHook({ signUp }));
         useClerkMock.mockReturnValue(partialHook({ setActive }));
-        render(<SignUpScreen onBack={() => undefined} />);
+        render(<SignUpScreen onBack={() => undefined} onNeedsFields={() => undefined} />);
 
         submitCredentials();
 
@@ -223,7 +232,7 @@ describe('SignUpScreen — sign-up flow', () => {
         const signUp = makeSignUp(requirement, overrides);
         useSignUpMock.mockReturnValue(partialHook({ signUp }));
         useClerkMock.mockReturnValue(partialHook({ setActive }));
-        render(<SignUpScreen onBack={() => undefined} />);
+        render(<SignUpScreen onBack={() => undefined} onNeedsFields={() => undefined} />);
 
         return signUp;
     }
@@ -411,7 +420,7 @@ describe('SignUpScreen — Section 8 native: order, copy and field hints', () =>
     function setup(overrides: Record<string, unknown> = {}) {
         useSignUpMock.mockReturnValue(partialHook({ signUp: makeSignUp('nothing', overrides) }));
         useClerkMock.mockReturnValue(partialHook({ setActive }));
-        render(<SignUpScreen onBack={() => undefined} />);
+        render(<SignUpScreen onBack={() => undefined} onNeedsFields={() => undefined} />);
     }
 
     it('reads mark → H1 → the brand line → first, last, username, email → password → Create account → sign-in link', () => {
@@ -505,7 +514,7 @@ describe.each([
             signUp: makeSignUp('nothing', { create: vi.fn(async () => ({ error: { message: 'No' } })) }),
         } as unknown as ReturnType<typeof useSignUp>);
         useClerkMock.mockReturnValue(partialHook({ setActive }));
-        render(<SignUpScreen onBack={() => undefined} />);
+        render(<SignUpScreen onBack={() => undefined} onNeedsFields={() => undefined} />);
 
         const colour = (node: HTMLElement) => window.getComputedStyle(node).color;
 
@@ -516,5 +525,96 @@ describe.each([
 
         submitCredentials('pw');
         expect(colour(await screen.findByRole('alert'))).toBe(rgb(roles.dangerText));
+    });
+});
+
+/**
+ * Plan 012 — the provider group on this screen: drawn above the email form when the build offers providers, absent
+ * when it offers none, and EVERY control on the screen locked while a provider's sheet is up (D10). What a press then
+ * amounts to is `useSocialSignIn`'s suite; this one proves the screen wires it, and hands a pending sign-up up.
+ */
+describe('SignUpScreen — Continue with Apple / Google', () => {
+    const startGoogle = vi.fn();
+    const onNeedsFields = vi.fn();
+
+    function setupSocial(os: 'android' | 'ios' = 'ios') {
+        platform.os = os;
+        Constants.expoConfig.extra = {
+            EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID: '1-web.apps.googleusercontent.com',
+            EXPO_PUBLIC_CLERK_GOOGLE_IOS_CLIENT_ID: '1-ios.apps.googleusercontent.com',
+            EXPO_PUBLIC_CLERK_GOOGLE_IOS_URL_SCHEME: 'com.googleusercontent.apps.1-ios',
+            socialAuth: { googleIos: true, googleAndroid: true, appleIos: true },
+        };
+        vi.mocked(useSignInWithGoogle).mockReturnValue(partialHook({ startGoogleAuthenticationFlow: startGoogle }));
+        vi.mocked(useSignInWithApple).mockReturnValue(partialHook({ startAppleAuthenticationFlow: vi.fn() }));
+        useSignUpMock.mockReturnValue(partialHook({ signUp: makeSignUp() }));
+        useClerkMock.mockReturnValue(partialHook({ setActive }));
+        render(<SignUpScreen onBack={() => undefined} onNeedsFields={onNeedsFields} />);
+    }
+
+    afterEach(() => {
+        Constants.expoConfig.extra = undefined;
+    });
+
+    it('draws Apple and Google between the brand line and the email field, with the "or" divider', () => {
+        setupSocial('ios');
+
+        const ordered = [
+            screen.getByText(auth.brandLine),
+            screen.getByRole('button', { name: 'Continue with Apple' }),
+            screen.getByRole('button', { name: auth.continueWithGoogle }),
+            screen.getByText(auth.orDivider),
+            screen.getByLabelText(auth.emailLabel),
+        ];
+
+        ordered.slice(1).forEach((node, index) => {
+            expect(
+                (ordered[index] as HTMLElement).compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING,
+            ).toBeTruthy();
+        });
+    });
+
+    it('draws no provider group and no divider for a build that offers none', () => {
+        setupSocial('ios');
+        cleanup();
+        Constants.expoConfig.extra = undefined;
+        useSignUpMock.mockReturnValue(partialHook({ signUp: makeSignUp() }));
+        useClerkMock.mockReturnValue(partialHook({ setActive }));
+        render(<SignUpScreen onBack={() => undefined} onNeedsFields={onNeedsFields} />);
+
+        expect(screen.queryByRole('button', { name: auth.continueWithGoogle })).toBeNull();
+        expect(screen.queryByText(auth.orDivider)).toBeNull();
+    });
+
+    it('locks the email form while a provider sheet is up', async () => {
+        startGoogle.mockReturnValue(new Promise(() => undefined));
+        setupSocial('android');
+
+        fireEvent.click(screen.getByRole('button', { name: auth.continueWithGoogle }));
+
+        await screen.findByText(auth.socialBusy);
+        expect(screen.getByLabelText(auth.emailLabel).hasAttribute('readonly')).toBe(true);
+        expect(screen.getByLabelText(auth.passwordLabel).hasAttribute('readonly')).toBe(true);
+        expect(screen.getByRole('link').getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('hands a provider sign-up that still needs fields up to the gate', async () => {
+        const pending = {
+            id: 'sua_new',
+            status: 'missing_requirements',
+            missingFields: ['username'],
+            unverifiedFields: [],
+        };
+        startGoogle.mockResolvedValue({ createdSessionId: null, signUp: pending });
+        setupSocial('android');
+
+        fireEvent.click(screen.getByRole('button', { name: auth.continueWithGoogle }));
+
+        await waitFor(() =>
+            expect(onNeedsFields).toHaveBeenCalledWith({
+                signUp: pending,
+                fields: [expect.objectContaining({ name: 'username' })],
+            }),
+        );
     });
 });

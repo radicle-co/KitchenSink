@@ -7,6 +7,7 @@
  * presentational prop types. Each component fetches nothing and derives no remote state; the composing app
  * owns the mutations and feeds these props.
  */
+import type { MakePublicConsequence } from './privateGate.js';
 
 /**
  * Props for the delete-confirmation dialog (T068) — a controlled, presentational modal. Visibility is owned
@@ -26,6 +27,26 @@ export interface RecipeDeleteDialogProps {
     readonly onConfirm: () => void;
     /** Invoked when the user dismisses the dialog without deleting. */
     readonly onCancel: () => void;
+}
+
+/**
+ * Props for the make-public confirm (UX SPECIFY 2026-10-15) — controlled and presentational. The editor applies Public
+ * to the draft and closes it at once; the recipe page keeps it up, busy, while its change is in flight, and shows a
+ * failure inside it.
+ */
+export interface RecipeMakePublicDialogProps {
+    /** Whether the dialog is shown. When `false` the component renders nothing. */
+    readonly open: boolean;
+    /** Why going public costs the cook something: the body's words (`makePublicConsequence`, never `none` here). */
+    readonly consequence: Exclude<MakePublicConsequence, 'none'>;
+    /** The change is in flight: the confirm spins and cannot fire again. */
+    readonly busy?: boolean;
+    /** When true, the last change failed: a localized alert inside the dialog. */
+    readonly error?: boolean;
+    /** Make public: the cook accepted the cost. */
+    readonly onConfirm: () => void;
+    /** Keep private, Escape, and the Android Back button. */
+    readonly onKeep: () => void;
 }
 
 /**

@@ -20,10 +20,16 @@ import {
     type Cuisine,
     type FoodResolutionStatus,
     type RecipeMealType,
-    type RecipeVisibility,
+    RecipeVisibility,
 } from '@kitchensink/recipe-core';
 
-import { privateChoice } from '../actions/privateGate.js';
+import {
+    makePublicConsequence,
+    privateChoice,
+    refusedDraftPrivate,
+    showsPremiumBadge,
+} from '../actions/privateGate.js';
+import type { EditorMessages } from '../editor/messages.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import type { DraftAction, ResolvedRecipeFormIngredient } from './draftAction.js';
 import {
@@ -78,30 +84,116 @@ export interface RecipeEditorSectionProps extends RecipeFormSectionProps {
 export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps, 'errors'> {
     /** The viewer's paid-feature state. Under `upsell`, Private carries the Premium badge. */
     readonly paidFeatures: PaidFeatureState;
-    /** The visibility the server holds. Going back to it needs no entitlement. */
+    /**
+     * The visibility the cook may keep without an entitlement (`heldVisibility`): what the server held when the editor
+     * opened, for as long as the draft keeps it.
+     */
     readonly savedVisibility: RecipeVisibility;
     /** Choosing Private under `upsell`: open the upsell. The value never changes for it. */
     readonly onPremiumRequired?: () => void;
+    /**
+     * Choosing Public when it costs the cook something (`makePublicConsequence`): open the make-public confirm. The value
+     * never changes for it. REQUIRED, so no host can let a downgraded owner leave Private unasked.
+     */
+    readonly onConfirmPublic: () => void;
+}
+
+/** Props for `RecipeVisibilityStatement`, both platform leaves (`usePrivateChoice().statement`). */
+export interface RecipeVisibilityStatementProps {
+    /** A kept draft's Private the server will refuse: say the recipe will be public when it is published. */
+    readonly privateUnavailable: boolean;
+    /** It replaces the field the cook just used: take the focus that field had (web: only if focus is lost). */
+    readonly focusOnMount: boolean;
+}
+
+/** One card of the "Who can see it" field. */
+export interface VisibilityOption {
+    readonly value: RecipeVisibility;
+    readonly title: string;
+    readonly hint: string;
+    /** Under the card: what choosing Public costs, or why a kept Private will not be kept. */
+    readonly note: string | undefined;
+    /** Whether the card carries the Premium badge. */
+    readonly premium: boolean;
+}
+
+/** What the "Who can see it" field draws: the visibility it shows as chosen, and its two cards. */
+export interface VisibilityFieldModel {
+    readonly shown: RecipeVisibility;
+    readonly options: readonly [VisibilityOption, VisibilityOption];
+}
+
+/**
+ * What the "Who can see it" field draws, for both platform leaves. Pure.
+ *
+ * - A draft's Private the server will refuse (`refusedDraftPrivate`) is shown as Public, with a note saying why.
+ * - Otherwise the Public card says what choosing it costs whenever that opens the make-public confirm
+ *   (`makePublicConsequence`): WCAG 3.2.2 asks that the cook be told before the radio is used.
+ *
+ * @param input - The draft's visibility, what the cook may keep, the paid-feature state, and the field's copy.
+ * @returns The chosen visibility and the two cards.
+ */
+export function visibilityFieldOf(input: {
+    readonly draft: RecipeVisibility;
+    readonly saved: RecipeVisibility;
+    readonly state: PaidFeatureState;
+    readonly messages: EditorMessages['visibility'];
+}): VisibilityFieldModel {
+    const { draft, saved, state, messages: v } = input;
+    const refused = refusedDraftPrivate(state, saved, draft);
+    const costNote = {
+        none: undefined,
+        final: v.publicIsFinal,
+        premium: v.publicNeedsPremium,
+        unknown: v.publicMayBeFinal,
+    }[makePublicConsequence(state, saved)];
+    const refusedNote =
+        refused === undefined ? undefined : { final: v.privateUnavailable, premium: v.privatePremiumOnly }[refused];
+
+    return {
+        shown: refused === undefined ? draft : RecipeVisibility.PUBLIC,
+        options: [
+            {
+                value: RecipeVisibility.PUBLIC,
+                title: v.public,
+                hint: v.publicHint,
+                note: refusedNote ?? costNote,
+                premium: false,
+            },
+            {
+                value: RecipeVisibility.PRIVATE,
+                title: v.private,
+                hint: v.privateHint,
+                note: undefined,
+                premium: showsPremiumBadge(state, saved),
+            },
+        ],
+    };
 }
 
 /**
  * The visibility a choice in the "Who can see it" field leads to, or `undefined` when it changes nothing — the choice
- * already made, or Private that `privateChoice` refuses. Private under `upsell` asks for the upsell instead. Pure.
+ * already made, or Private that `privateChoice` refuses. Private under `upsell` asks for the upsell instead, and Public
+ * that costs the cook something (`makePublicConsequence`) asks to confirm instead. Pure.
  *
- * @param current - The draft's visibility.
+ * @param current - The visibility the field shows as chosen.
  * @param chosen - The choice the cook made.
- * @param saved - The visibility the server holds.
+ * @param saved - The visibility the cook may keep without an entitlement (`heldVisibility`).
  * @param state - The viewer's paid-feature state.
- * @returns `{ visibility }` to apply, `'premiumRequired'`, or `undefined`.
+ * @returns `{ visibility }` to apply, `'premiumRequired'`, `'confirmPublic'`, or `undefined`.
  */
 export const visibilityChoice = (
     current: RecipeVisibility,
     chosen: RecipeVisibility,
     saved: RecipeVisibility,
     state: PaidFeatureState,
-): { readonly visibility: RecipeVisibility } | 'premiumRequired' | undefined => {
+): { readonly visibility: RecipeVisibility } | 'premiumRequired' | 'confirmPublic' | undefined => {
     if (chosen === current) {
         return undefined;
+    }
+
+    if (chosen === RecipeVisibility.PUBLIC && makePublicConsequence(state, saved) !== 'none') {
+        return 'confirmPublic';
     }
 
     switch (privateChoice({ target: chosen, saved, state })) {

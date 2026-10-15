@@ -523,7 +523,8 @@ describe('RecipeDetailScreen — owner actions', () => {
         expect(screen.queryByText('Recipe deleted')).toBeNull();
     });
 
-    it('makes the owner’s private recipe public from the menu', () => {
+    it('makes a granted owner’s private recipe public from the menu, at once', () => {
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'granted'));
         const mutate = vi.fn();
         useSetRecipeVisibilityMock.mockReturnValue(
             mutation<ReturnType<typeof useSetRecipeVisibility>>({ mutate: mutate as never }),
@@ -533,7 +534,52 @@ describe('RecipeDetailScreen — owner actions', () => {
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
         fireEvent.click(screen.getByRole('menuitem', { name: 'Make public' }));
 
-        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'public' });
+        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'public' }, expect.anything());
+        expect(screen.queryByRole('heading', { name: 'Make this recipe public?' })).toBeNull();
+    });
+
+    // Plan 2026-10-14-009 Q5 (UX SPECIFY 2026-10-15): a downgraded owner confirms first, and nothing is sent until then.
+    it.each([
+        ['hidden', "Anyone can see a public recipe and save a copy. You won't be able to make this one private again."],
+        [
+            'upsell',
+            "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Premium.",
+        ],
+    ] as const)('⛔ under %s, Make public asks first and sends nothing until confirmed', (state, body) => {
+        useUserProfileMock.mockReturnValue(profile('usr_1', state));
+        const mutate = vi.fn();
+        useSetRecipeVisibilityMock.mockReturnValue(
+            mutation<ReturnType<typeof useSetRecipeVisibility>>({ mutate: mutate as never }),
+        );
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Make public' }));
+
+        expect(screen.getByRole('heading', { name: 'Make this recipe public?' })).toBeTruthy();
+        expect(screen.getByText(body)).toBeTruthy();
+        expect(mutate).not.toHaveBeenCalled();
+
+        const dialog = screen.getByRole('heading', { name: 'Make this recipe public?' }).closest('[role="alert"]');
+        fireEvent.click(within(dialog as HTMLElement).getByRole('button', { name: 'Make public' }));
+
+        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'public' }, expect.anything());
+    });
+
+    it('Keep private closes the confirm and sends nothing', () => {
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'hidden'));
+        const mutate = vi.fn();
+        useSetRecipeVisibilityMock.mockReturnValue(
+            mutation<ReturnType<typeof useSetRecipeVisibility>>({ mutate: mutate as never }),
+        );
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Make public' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Keep private' }));
+
+        expect(screen.queryByRole('heading', { name: 'Make this recipe public?' })).toBeNull();
+        expect(mutate).not.toHaveBeenCalled();
     });
 
     it('surfaces a failed delete inside the dialog, not a silent stop (B17)', () => {

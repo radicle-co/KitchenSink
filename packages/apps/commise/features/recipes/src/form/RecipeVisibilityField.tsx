@@ -5,7 +5,8 @@
  * The host renders it only when Private is offered (`offersPrivate`); otherwise `RecipeVisibilityStatement`. Under
  * `upsell`, Private carries the Premium badge and choosing it calls `onPremiumRequired` instead of changing the value:
  * the upsell decides, and nothing is pre-selected for it (`visibilityChoice`). A recipe that is already private stays
- * private and shows so; under `hidden` the Public card says that choosing it is final (plan 2026-10-14-009 D14).
+ * private and shows so. For a downgraded owner, choosing Public on it calls `onConfirmPublic` instead — the confirm
+ * decides — and the Public card says beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5).
  *
  * Presentational and controlled. The native leaf is `./RecipeVisibilityField.native.tsx`.
  *
@@ -17,10 +18,9 @@ import { StatusBadge } from '@commise/ui/status-badge';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
-import { privateIsFinal, showsPremiumBadge } from '../actions/privateGate.js';
 import { editorMessages } from '../editor/messages.js';
 import { recipeFormMessages } from './messages.js';
-import { visibilityChoice, type RecipeVisibilityFieldProps } from './props.js';
+import { visibilityChoice, visibilityFieldOf, type RecipeVisibilityFieldProps } from './props.js';
 
 // Layout and state-independent chrome only. The two state classes below are mutually exclusive, never layered on each
 // other: Tailwind's emission order, not the attribute's, decides between two utilities of one property.
@@ -36,49 +36,35 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     paidFeatures,
     savedVisibility,
     onPremiumRequired,
+    onConfirmPublic,
 }) => {
     const m = useMessages(recipeFormMessages);
     const { visibility: v } = useMessages(editorMessages);
+    const { shown, options } = visibilityFieldOf({
+        draft: values.visibility,
+        saved: savedVisibility,
+        state: paidFeatures,
+        messages: v,
+    });
 
     const choose = (chosen: RecipeVisibility): void => {
-        const next = visibilityChoice(values.visibility, chosen, savedVisibility, paidFeatures);
+        const next = visibilityChoice(shown, chosen, savedVisibility, paidFeatures);
 
         if (next === 'premiumRequired') {
             onPremiumRequired?.();
+        } else if (next === 'confirmPublic') {
+            onConfirmPublic();
         } else if (next !== undefined) {
             onChange({ ...values, ...next });
         }
     };
-
-    const options: readonly {
-        value: RecipeVisibility;
-        title: string;
-        hint: string;
-        note: string | undefined;
-        premium: boolean;
-    }[] = [
-        {
-            value: 'public',
-            title: v.public,
-            hint: v.publicHint,
-            note: privateIsFinal(paidFeatures, savedVisibility) ? v.publicIsFinal : undefined,
-            premium: false,
-        },
-        {
-            value: 'private',
-            title: v.private,
-            hint: v.privateHint,
-            note: undefined,
-            premium: showsPremiumBadge(paidFeatures, savedVisibility),
-        },
-    ];
 
     return (
         <fieldset className="flex flex-col gap-2">
             <legend className="mb-2 text-label text-ink-muted">{v.legend}</legend>
             <div className="grid grid-cols-1 gap-2 @regular/main:grid-cols-2">
                 {options.map((option) => {
-                    const chosen = values.visibility === option.value;
+                    const chosen = shown === option.value;
                     const titleId = `recipe-visibility-${option.value}`;
                     const hintId = `${titleId}-hint`;
                     const badgeId = `${titleId}-badge`;

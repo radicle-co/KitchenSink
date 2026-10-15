@@ -24,6 +24,26 @@ export interface RecipeDeleteDialogMessages {
     readonly error: string;
 }
 
+/**
+ * Copy for the confirm a downgraded owner sees before a private recipe goes public (UX SPECIFY 2026-10-15). The body
+ * states the cost plainly and per reason (`makePublicConsequence`), describes public recipes in general (a public DRAFT
+ * is still the owner's alone), and offers nothing to buy: two verbs, no third choice.
+ */
+export interface RecipeMakePublicDialogMessages {
+    readonly title: string;
+    /** Under hidden paid features: no copy mentions Premium. */
+    readonly bodyFinal: string;
+    /** Under the upsell. */
+    readonly bodyPremium: string;
+    /** While the paid-feature state loads: true in every state it can settle to. */
+    readonly bodyUnknown: string;
+    readonly confirm: string;
+    /** The safe action; focus opens on it. */
+    readonly keep: string;
+    /** Said politely while the recipe page's change is in flight. */
+    readonly busy: string;
+}
+
 /** Copy for the public/private visibility toggle (T074). */
 export interface RecipeVisibilityToggleMessages {
     /** Accessible group label for the toggle. */
@@ -53,6 +73,8 @@ export interface RecipeMoreMenuMessages {
 export interface RecipeActionMessages {
     /** Copy for the delete-confirmation dialog. */
     readonly deleteDialog: RecipeDeleteDialogMessages;
+    /** Copy for the make-public confirm. */
+    readonly makePublicDialog: RecipeMakePublicDialogMessages;
     /** Copy for the visibility toggle. */
     readonly visibility: RecipeVisibilityToggleMessages;
     /** Copy for the "More" overflow menu. */
@@ -120,6 +142,18 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             keep: 'Keep recipe',
             deletingLabel: 'Deleting…',
             error: 'We couldn’t delete this recipe. Try again.',
+        },
+        makePublicDialog: {
+            title: 'Make this recipe public?',
+            bodyFinal:
+                "Anyone can see a public recipe and save a copy. You won't be able to make this one private again.",
+            bodyPremium:
+                "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Premium.",
+            bodyUnknown:
+                'Anyone can see a public recipe and save a copy. You may not be able to make this one private again.',
+            confirm: 'Make public',
+            keep: 'Keep private',
+            busy: 'Making public…',
         },
         visibility: {
             groupLabel: 'Recipe visibility',

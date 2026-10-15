@@ -934,8 +934,9 @@ describe('RecipeDetailContainer', () => {
             await vi.waitFor(() => expect(row).toHaveAttribute('aria-checked', 'false'));
         });
 
-        it('makes the owner’s private recipe public from the menu', async () => {
+        it('makes a granted owner’s private recipe public from the menu, at once', async () => {
             const user = userEvent.setup();
+            useUserProfileMock.mockReturnValue(profileWith('granted'));
             const client = renderOwnerDetail(RecipeVisibility.PRIVATE);
             const setVisibilitySpy = vi
                 .spyOn(client, 'setRecipeVisibility')
@@ -947,10 +948,12 @@ describe('RecipeDetailContainer', () => {
             await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
 
             expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC);
+            expect(screen.queryByRole('alertdialog', { name: 'Make this recipe public?' })).toBeNull();
         });
 
         it('surfaces a failed visibility change rather than snapping back silently (B17)', async () => {
             const user = userEvent.setup();
+            useUserProfileMock.mockReturnValue(profileWith('granted'));
             const client = renderOwnerDetail(RecipeVisibility.PRIVATE);
             vi.spyOn(client, 'setRecipeVisibility').mockRejectedValue(new Error('network down'));
 
@@ -960,6 +963,80 @@ describe('RecipeDetailContainer', () => {
             expect(
                 await screen.findByText('We couldn’t change who can see this recipe. Please try again.'),
             ).toBeInTheDocument();
+        });
+
+        /**
+         * Plan 2026-10-14-009 Q5 (UX SPECIFY 2026-10-15): a downgraded owner cannot simply make the recipe private again,
+         * so Make public asks first, says what it costs, and sends nothing until confirmed.
+         */
+        it.each([
+            [
+                'hidden',
+                "Anyone can see a public recipe and save a copy. You won't be able to make this one private again.",
+            ],
+            [
+                'upsell',
+                "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Premium.",
+            ],
+        ] as const)('⛔ under %s, Make public asks first and sends nothing until confirmed', async (state, body) => {
+            const user = userEvent.setup();
+            useUserProfileMock.mockReturnValue(profileWith(state));
+            const client = renderOwnerDetail(RecipeVisibility.PRIVATE);
+            const setVisibilitySpy = vi
+                .spyOn(client, 'setRecipeVisibility')
+                .mockResolvedValue(
+                    makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
+                );
+
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
+            await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
+
+            const dialog = await screen.findByRole('alertdialog', { name: 'Make this recipe public?' });
+            expect(within(dialog).getByText(body)).toBeInTheDocument();
+            expect(setVisibilitySpy).not.toHaveBeenCalled();
+
+            await user.click(within(dialog).getByRole('button', { name: 'Make public' }));
+
+            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC);
+            await vi.waitFor(() =>
+                expect(screen.queryByRole('alertdialog', { name: 'Make this recipe public?' })).toBeNull(),
+            );
+        });
+
+        it('Keep private closes the confirm and sends nothing', async () => {
+            const user = userEvent.setup();
+            useUserProfileMock.mockReturnValue(profileWith('hidden'));
+            const client = renderOwnerDetail(RecipeVisibility.PRIVATE);
+            const setVisibilitySpy = vi.spyOn(client, 'setRecipeVisibility');
+
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
+            await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
+            await user.click(await screen.findByRole('button', { name: 'Keep private' }));
+
+            await vi.waitFor(() =>
+                expect(screen.queryByRole('alertdialog', { name: 'Make this recipe public?' })).toBeNull(),
+            );
+            expect(setVisibilitySpy).not.toHaveBeenCalled();
+        });
+
+        it('a confirmed change that fails is said inside the confirm, which stays up to try again', async () => {
+            const user = userEvent.setup();
+            useUserProfileMock.mockReturnValue(profileWith('hidden'));
+            const client = renderOwnerDetail(RecipeVisibility.PRIVATE);
+            vi.spyOn(client, 'setRecipeVisibility').mockRejectedValue(new Error('network down'));
+
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
+            await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
+            const dialog = await screen.findByRole('alertdialog', { name: 'Make this recipe public?' });
+            await user.click(within(dialog).getByRole('button', { name: 'Make public' }));
+
+            expect(
+                await within(dialog).findByText('We couldn’t change who can see this recipe. Please try again.'),
+            ).toBeInTheDocument();
+            // Said once, inside the confirm — not again under the page behind it.
+            expect(screen.getAllByText('We couldn’t change who can see this recipe. Please try again.')).toHaveLength(
+                1,
+            );
         });
 
         // Plan 2026-10-14-009 D14: Make private is offered when Private is offered — granted or upsell. The paid features

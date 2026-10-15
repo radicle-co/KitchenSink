@@ -2,8 +2,9 @@
  * @module @commise/features-recipes/form — `RecipeVisibilityField` (native): "Who can see it"
  * (`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), the React Native leaf of `./RecipeVisibilityField.tsx`, on the
  * same props and the same rule (`visibilityChoice`): a radio group of two 56 pt cards; under `upsell` Private asks for
- * the upsell instead of changing the value, and under `hidden` a private recipe's Public card says that choosing it is
- * final (plan 2026-10-14-009 D14). The host renders `RecipeVisibilityStatement` instead when Private is not offered.
+ * the upsell instead of changing the value, and for a downgraded owner Public on a private recipe asks to confirm
+ * (`onConfirmPublic`), its card saying beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5). The
+ * host renders `RecipeVisibilityStatement` instead when Private is not offered.
  *
  * A card is named by its whole text, so the Premium badge is read with it (an `aria-label` would replace it).
  *
@@ -20,10 +21,9 @@ import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { privateIsFinal, showsPremiumBadge } from '../actions/privateGate.js';
 import { editorMessages } from '../editor/messages.js';
 import { recipeFormMessages } from './messages.js';
-import { visibilityChoice, type RecipeVisibilityFieldProps } from './props.js';
+import { visibilityChoice, visibilityFieldOf, type RecipeVisibilityFieldProps } from './props.js';
 
 /** "Who can see it": Public or Private. */
 export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
@@ -32,43 +32,29 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     paidFeatures,
     savedVisibility,
     onPremiumRequired,
+    onConfirmPublic,
 }) => {
     const m = useMessages(recipeFormMessages);
     const { visibility: v } = useMessages(editorMessages);
     const { colors } = useTheme();
+    const { shown, options } = visibilityFieldOf({
+        draft: values.visibility,
+        saved: savedVisibility,
+        state: paidFeatures,
+        messages: v,
+    });
 
     const choose = (chosen: RecipeVisibility): void => {
-        const next = visibilityChoice(values.visibility, chosen, savedVisibility, paidFeatures);
+        const next = visibilityChoice(shown, chosen, savedVisibility, paidFeatures);
 
         if (next === 'premiumRequired') {
             onPremiumRequired?.();
+        } else if (next === 'confirmPublic') {
+            onConfirmPublic();
         } else if (next !== undefined) {
             onChange({ ...values, ...next });
         }
     };
-
-    const options: readonly {
-        value: RecipeVisibility;
-        title: string;
-        hint: string;
-        note: string | undefined;
-        premium: boolean;
-    }[] = [
-        {
-            value: 'public',
-            title: v.public,
-            hint: v.publicHint,
-            note: privateIsFinal(paidFeatures, savedVisibility) ? v.publicIsFinal : undefined,
-            premium: false,
-        },
-        {
-            value: 'private',
-            title: v.private,
-            hint: v.privateHint,
-            note: undefined,
-            premium: showsPremiumBadge(paidFeatures, savedVisibility),
-        },
-    ];
 
     return (
         <View style={styles.field}>
@@ -78,7 +64,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
             </Text>
             <View collapsable={false} role="radiogroup" aria-label={v.legend} style={styles.cards}>
                 {options.map((option) => {
-                    const chosen = values.visibility === option.value;
+                    const chosen = shown === option.value;
 
                     return (
                         <Pressable

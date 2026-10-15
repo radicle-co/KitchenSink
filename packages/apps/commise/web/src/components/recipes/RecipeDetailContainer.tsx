@@ -45,7 +45,9 @@ import {
     RecipeRatingInput,
     detailMenuOf,
     RecipeUpsellSheet,
+    RecipeMakePublicDialog,
     useGatedPrivate,
+    useMakePublicConfirm,
     editorMessages,
     FINISHED_OUTCOME_PARAM,
     finishedNoticeOf,
@@ -214,6 +216,13 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
         saved: recipe.visibility,
         apply: () => setVisibility.mutate({ id: id, visibility: RecipeVisibility.PRIVATE }),
     });
+    // Q5 (UX SPECIFY 2026-10-15): a downgraded owner confirms Make public first; the confirm stays up, busy, while the
+    // change is in flight, and says a failure inside itself.
+    const makePublic = useMakePublicConfirm({
+        state: paidFeatureStateOf(profile),
+        saved: recipe.visibility,
+        apply: (done) => setVisibility.mutate({ id, visibility: RecipeVisibility.PUBLIC }, { onSuccess: done }),
+    });
     const viewerId = readViewerId(sessionClaims);
     // P4: ONE Viewer value object, built from this platform's identity signal (Clerk's `external_id` claim), feeds every
     // gate below through the shared policy predicates — the SAME predicates the mobile detail screen evaluates (D7).
@@ -277,7 +286,7 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                     id: item,
                     label: detailActions.makePublic,
                     icon: 'globe',
-                    onSelect: () => setVisibility.mutate({ id, visibility: RecipeVisibility.PUBLIC }),
+                    onSelect: makePublic.request,
                 };
             case 'clearChecks':
                 return { id: item, label: detailActions.clearChecks, icon: 'rotateCcw', onSelect: marks.clear };
@@ -396,14 +405,23 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                 />
             </ScrollHost>
 
-            {/* B17 — a failed visibility change snaps back to the query's value; say so rather than fail silently. */}
-            {setVisibility.error !== null && (
+            {/* B17 — a failed visibility change snaps back to the query's value; say so rather than fail silently. The
+                make-public confirm says its own failure inside itself, so it is not said twice. */}
+            {setVisibility.error !== null && !makePublic.dialog.open && (
                 <p role="alert" className="max-w-detail text-meta text-danger-text">
                     {visibilityCopy.error}
                 </p>
             )}
 
             {viewerIsOwner && <RecipeUpsellSheet {...privateGate.sheet} />}
+
+            {viewerIsOwner && (
+                <RecipeMakePublicDialog
+                    {...makePublic.dialog}
+                    busy={setVisibility.isPending}
+                    error={setVisibility.error !== null}
+                />
+            )}
 
             {viewerIsOwner && (
                 <RecipeDeleteDialog

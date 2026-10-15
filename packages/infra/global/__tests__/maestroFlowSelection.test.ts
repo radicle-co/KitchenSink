@@ -277,6 +277,10 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // to the budget assertion with its reason. The same roles are proven against the real identity on web by
     // `paidFeatureRoles.spec.ts` (ticket sign-in, no email code).
     'recipes/paidFeaturesByRole',
+    // The make-public confirm (plan 2026-10-14-009 Q5): it needs a cook who owns a PRIVATE recipe and holds no entitled
+    // role, which the recipe service refuses to create, so `e2e-seed` cannot provide it; a lane seeded premium and then
+    // downgraded (`poolAdmin`) is owed first. Its states are pinned by the component suites and `paidFeatureGate.spec.ts`.
+    'recipes/makePublicConfirm',
     'homeRecentRecipeTap',
     // Slice 3: the iOS edge swipe needs the iOS Simulator, which does not run on Linux (blueprint Q4); it runs by name on
     // a Mac until an iOS lane exists.

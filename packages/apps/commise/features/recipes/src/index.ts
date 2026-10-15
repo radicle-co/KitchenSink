@@ -205,18 +205,21 @@ export type {
 export type { RecipeFormErrors } from './form/validate.js';
 export type { RecipeFormIngredient, RecipeFormPhoto, RecipeFormStep, RecipeFormValues } from './form/values.js';
 export { RecipeDeleteDialog } from './actions/RecipeDeleteDialog.js';
+export { RecipeMakePublicDialog } from './actions/RecipeMakePublicDialog.js';
+export { useMakePublicConfirm } from './actions/useMakePublicConfirm.js';
+export type { MakePublicConfirm, UseMakePublicConfirmOptions } from './actions/useMakePublicConfirm.js';
 export { RecipeUpsellSheet } from './actions/RecipeUpsellSheet.js';
 export { usePrivateChoice } from './actions/usePrivateChoice.js';
 export { useGatedPrivate } from './actions/useGatedPrivate.js';
 export {
+    makePublicConsequence,
     mayRestorePrivate,
     offersPrivate,
     privateChoice,
-    privateIsFinal,
     privateNeedsPremium,
     showsPremiumBadge,
 } from './actions/privateGate.js';
-export type { PrivateChoiceInput, PrivateChoiceOutcome } from './actions/privateGate.js';
+export type { MakePublicConsequence, PrivateChoiceInput, PrivateChoiceOutcome } from './actions/privateGate.js';
 export { recipeActionMessages } from './actions/messages.js';
 export type {
     RecipeActionMessages,
@@ -224,7 +227,7 @@ export type {
     RecipeMoreMenuMessages,
     RecipeVisibilityToggleMessages,
 } from './actions/messages.js';
-export type { RecipeDeleteDialogProps, RecipeUpsellSheetProps } from './actions/model.js';
+export type { RecipeDeleteDialogProps, RecipeMakePublicDialogProps, RecipeUpsellSheetProps } from './actions/model.js';
 export { RecipeConflictView } from './versions/RecipeConflictView.js';
 export { RecipeVersionList } from './versions/RecipeVersionList.js';
 export { RecipeVersionListError } from './versions/RecipeVersionListError.js';
@@ -489,4 +492,8 @@ export type {
 export { nextEditorOpening, useDeviceDraft } from './editor/useDeviceDraft.js';
 export type { DeviceDraftRead } from './editor/useDeviceDraft.js';
 export { splitPastedSteps } from './form/pasteSteps.js';
-export type { RecipeEditorSectionProps, RecipeVisibilityFieldProps } from './form/props.js';
+export type {
+    RecipeEditorSectionProps,
+    RecipeVisibilityFieldProps,
+    RecipeVisibilityStatementProps,
+} from './form/props.js';

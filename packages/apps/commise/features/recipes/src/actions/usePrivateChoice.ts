@@ -7,7 +7,8 @@
  * editor — setting the draft's visibility — and what the visibility leaves render from.
  *
  * Every decision is asked with {@link heldVisibility}, never the visibility the editor opened on: once the draft leaves
- * Private, choosing it again is a change to private like any other.
+ * Private, choosing it again is a change to private like any other. Leaving it is confirmed first for a downgraded
+ * owner, who cannot simply come back (`useMakePublicConfirm`, UX SPECIFY 2026-10-15).
  *
  * The host picks the leaf: `offersPrivate` → `RecipeVisibilityField` (Public and Private); otherwise
  * `RecipeVisibilityStatement` (a plain "Who can see it: Public"). Never a mode prop on one leaf.
@@ -18,9 +19,10 @@ import type { PaidFeatureState } from '@commise/features-account';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
 import type { RecipeFormValues } from '../form/values.js';
-import type { RecipeUpsellSheetProps } from './model.js';
-import { heldVisibility } from './privateGate.js';
+import type { RecipeMakePublicDialogProps, RecipeUpsellSheetProps } from './model.js';
+import { heldVisibility, refusedDraftPrivate } from './privateGate.js';
 import { useGatedPrivate } from './useGatedPrivate.js';
+import { useMakePublicConfirm } from './useMakePublicConfirm.js';
 
 /** Options for {@link usePrivateChoice}. */
 export interface UsePrivateChoiceOptions {
@@ -40,6 +42,17 @@ export interface PrivateChoice {
     readonly field: { readonly paidFeatures: PaidFeatureState; readonly savedVisibility: RecipeVisibility };
     /** For `RecipeVisibilityField.onPremiumRequired`. */
     readonly onPremiumRequired: () => void;
+    /** For `RecipeVisibilityField.onConfirmPublic`: Public at once, or the confirm first (`useMakePublicConfirm`). */
+    readonly onConfirmPublic: () => void;
+    /** For `RecipeMakePublicDialog`. Confirming changes the draft only, so it is never busy and never fails. */
+    readonly confirm: Pick<RecipeMakePublicDialogProps, 'open' | 'consequence' | 'onConfirm' | 'onKeep'>;
+    /** For `RecipeVisibilityStatement`. */
+    readonly statement: {
+        /** A kept draft's Private the server will refuse (`refusedDraftPrivate`): the statement says so. */
+        readonly privateUnavailable: boolean;
+        /** The cook confirmed Public here, so the statement replaces the field they used and takes its focus. */
+        readonly focusOnMount: boolean;
+    };
     /** For `RecipeUpsellSheet`. */
     readonly sheet: RecipeUpsellSheetProps;
 }
@@ -60,11 +73,26 @@ export function usePrivateChoice(options: UsePrivateChoiceOptions): PrivateChoic
         saved,
         apply: () => onChange({ ...values, visibility: RecipeVisibility.PRIVATE }),
     });
+    const makePublic = useMakePublicConfirm({
+        state,
+        saved,
+        apply: (done) => {
+            onChange({ ...values, visibility: RecipeVisibility.PUBLIC });
+            done();
+        },
+    });
 
     return {
         offersPrivate: gate.offersPrivate,
         field: { paidFeatures: state, savedVisibility: saved },
         onPremiumRequired: gate.request,
+        onConfirmPublic: makePublic.request,
+        confirm: makePublic.dialog,
+        statement: {
+            privateUnavailable:
+                !gate.offersPrivate && refusedDraftPrivate(state, saved, values.visibility) !== undefined,
+            focusOnMount: makePublic.confirmed,
+        },
         sheet: gate.sheet,
     };
 }

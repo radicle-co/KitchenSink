@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 16,
         "missing-component-doc": 148,
         "missing-module-doc": 21,
-        "platform-singleton": 46,
+        "platform-singleton": 47,
         "ref-api": 13,
         "unclassified-layer": 98,
         "undocumented-prop": 167
@@ -719,6 +719,16 @@
             "severity": "review",
             "component": "featuresRecipes/actions/RecipeDeleteDialog",
             "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeDeleteDialog.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/actions/RecipeMakePublicDialog",
+            "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeMakePublicDialog.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"

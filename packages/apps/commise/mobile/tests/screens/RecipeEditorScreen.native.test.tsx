@@ -365,35 +365,62 @@ describe('RecipeEditorScreen (native) — Private (E1, paid features)', () => {
      * under a shared id would reopen in a later case.
      *
      * The stuck-save defect: under `hidden` the owner of a private recipe could move it to Public and back to Private,
-     * and the server refused the second write. Once the draft leaves Private the editor offers it no more.
+     * and the server refused the second write. Leaving Private is confirmed first (UX SPECIFY 2026-10-15), and once the
+     * draft has left it the editor offers it no more.
      */
-    it('⛔ under hidden, a private recipe moved to Public is not offered Private again', async () => {
-        profile.paidFeatures = 'hidden';
+    const openPrivateRecipe = async (id: string): Promise<void> => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-            makeRecipeDetail({ id: 'rec_secret_hidden', title: 'Secret Stew', visibility: RecipeVisibility.PRIVATE }),
+            makeRecipeDetail({ id, title: 'Secret Stew', visibility: RecipeVisibility.PRIVATE }),
         );
-        renderScreen(client, { recipeId: 'rec_secret_hidden' });
+        renderScreen(client, { recipeId: id });
         await screen.findByRole('heading', { name: 'Edit recipe' });
+    };
+
+    const confirmDialog = (): HTMLElement =>
+        screen.getByRole('heading', { name: 'Make this recipe public?' }).closest('[role="alert"]') as HTMLElement;
+
+    it('⛔ under hidden, Public asks first; confirmed, the recipe is not offered Private again', async () => {
+        profile.paidFeatures = 'hidden';
+        await openPrivateRecipe('rec_secret_hidden');
         expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-checked')).toBe('true');
 
         fireEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+        expect(
+            within(confirmDialog()).getByText(
+                "Anyone can see a public recipe and save a copy. You won't be able to make this one private again.",
+            ),
+        ).toBeTruthy();
+        fireEvent.click(within(confirmDialog()).getByRole('button', { name: 'Make public' }));
 
         expect(await screen.findByLabelText('Who can see it: Public. Anyone can find it in Discover.')).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'Make this recipe public?' })).toBeNull();
         expect(screen.queryByRole('radio', { name: /^Private/u })).toBeNull();
         expect(screen.queryByText('Premium')).toBeNull();
     });
 
-    it('⛔ under upsell, a private recipe moved to Public asks for Premium to go back', async () => {
-        profile.paidFeatures = 'upsell';
-        const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-            makeRecipeDetail({ id: 'rec_secret_upsell', title: 'Secret Stew', visibility: RecipeVisibility.PRIVATE }),
-        );
-        renderScreen(client, { recipeId: 'rec_secret_upsell' });
-        await screen.findByRole('heading', { name: 'Edit recipe' });
+    it('under hidden, Keep private leaves the recipe private and still offered', async () => {
+        profile.paidFeatures = 'hidden';
+        await openPrivateRecipe('rec_secret_kept');
 
         fireEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+        fireEvent.click(within(confirmDialog()).getByRole('button', { name: 'Keep private' }));
+
+        expect(screen.queryByRole('heading', { name: 'Make this recipe public?' })).toBeNull();
+        expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('⛔ under upsell, Public asks first with the Premium words; confirmed, going back asks for Premium', async () => {
+        profile.paidFeatures = 'upsell';
+        await openPrivateRecipe('rec_secret_upsell');
+
+        fireEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+        expect(
+            within(confirmDialog()).getByText(
+                "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Premium.",
+            ),
+        ).toBeTruthy();
+        fireEvent.click(within(confirmDialog()).getByRole('button', { name: 'Make public' }));
         choosePrivate();
 
         expect(await screen.findByRole('heading', { name: 'Private recipes are part of Premium.' })).toBeTruthy();

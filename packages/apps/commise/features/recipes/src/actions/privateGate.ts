@@ -99,15 +99,36 @@ export function showsPremiumBadge(state: PaidFeatureState, saved: RecipeVisibili
 }
 
 /**
- * Whether making a private thing public cannot be undone — the cook may not choose Private again and is not offered
- * Premium. Pure.
+ * What making a private thing public costs the cook, which decides whether that step is confirmed first, the confirm's
+ * words, and the note on the Public choice (UX SPECIFY 2026-10-15):
+ *
+ * - `none` — nothing: the cook may make it private again (`granted`), or it is not private.
+ * - `final` — under `hidden`: it can never be made private again.
+ * - `premium` — under `upsell`: only with Premium.
+ * - `unknown` — under `loading`: it may not be possible. True in every state the load can settle to.
+ *
+ * Pure.
  *
  * @param state - The viewer's paid-feature state.
- * @param saved - The visibility the server holds.
+ * @param saved - The visibility the cook may keep without an entitlement (the editor's {@link heldVisibility}).
  */
-export function privateIsFinal(state: PaidFeatureState, saved: RecipeVisibility): boolean {
-    return state === 'hidden' && saved === RecipeVisibility.PRIVATE;
+export function makePublicConsequence(state: PaidFeatureState, saved: RecipeVisibility): MakePublicConsequence {
+    if (saved !== RecipeVisibility.PRIVATE || state === 'granted') {
+        return 'none';
+    }
+
+    switch (state) {
+        case 'hidden':
+            return 'final';
+        case 'upsell':
+            return 'premium';
+        case 'loading':
+            return 'unknown';
+    }
 }
+
+/** What making a private thing public costs: {@link makePublicConsequence}. */
+export type MakePublicConsequence = 'none' | 'final' | 'premium' | 'unknown';
 
 /** Why the server will refuse a change to private for this viewer: never again (`hidden`), or only with Premium. */
 export const PRIVATE_REFUSALS = ['final', 'premium'] as const;
@@ -131,6 +152,26 @@ export function privateRefusalOf(state: PaidFeatureState): PrivateRefusal | unde
     }
 
     return state === 'upsell' ? 'premium' : undefined;
+}
+
+/**
+ * Whether the draft holds a Private the server is known to refuse: a draft kept from before the cook lost the paid
+ * features, for a recipe that is not held private. The field then shows Public and says why, and no Private is sent
+ * (the editor's create body and follow-up). Pure.
+ *
+ * @param state - The viewer's paid-feature state.
+ * @param held - The visibility the cook may keep without an entitlement ({@link heldVisibility}).
+ * @param draft - The draft's visibility.
+ * @returns The refusal's reason, or `undefined`.
+ */
+export function refusedDraftPrivate(
+    state: PaidFeatureState,
+    held: RecipeVisibility,
+    draft: RecipeVisibility,
+): PrivateRefusal | undefined {
+    return draft === RecipeVisibility.PRIVATE && held !== RecipeVisibility.PRIVATE
+        ? privateRefusalOf(state)
+        : undefined;
 }
 
 /**

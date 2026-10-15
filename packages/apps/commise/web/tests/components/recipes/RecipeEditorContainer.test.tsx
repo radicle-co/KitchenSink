@@ -363,41 +363,84 @@ describe('RecipeEditorContainer (web) — Private (E1, paid features)', () => {
 
     /**
      * The stuck-save defect (plan 2026-10-14-009 Q5 follow-up): under `hidden` the owner of a private recipe could move
-     * it to Public and back to Private, and the server refused the second write. Once the draft leaves Private the
-     * editor offers it no more: the field gives way to the statement.
+     * it to Public and back to Private, and the server refused the second write. Leaving Private is now confirmed first
+     * (UX SPECIFY 2026-10-15), and once the draft has left it the editor offers it no more: the field gives way to the
+     * statement, which takes the focus the unmounted radio had (WCAG 2.4.3).
+     *
+     * Each case edits its own recipe: the tab's device session outlives one case, so a draft left under a shared id
+     * would reopen in the next.
      */
-    it('⛔ under hidden, a private recipe moved to Public is not offered Private again', async () => {
-        profile.paidFeatures = 'hidden';
+    const openPrivateRecipe = async (id: string): Promise<void> => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-            makeRecipeDetail({ id: 'rec_1', title: 'Secret Stew', visibility: RecipeVisibility.PRIVATE }),
+            makeRecipeDetail({ id, title: 'Secret Stew', visibility: RecipeVisibility.PRIVATE }),
         );
-        renderEditor(client, 'rec_1');
+        renderEditor(client, id);
+        await screen.findByRole('radio', { name: /^Private/u });
+    };
 
-        const privateRadio = (await screen.findByRole('radio', { name: /^Private/u })) as HTMLInputElement;
-        expect(privateRadio.checked).toBe(true);
+    it('⛔ under hidden, Public asks first; confirmed, the recipe is not offered Private again', async () => {
+        profile.paidFeatures = 'hidden';
+        await openPrivateRecipe('rec_secret_hidden');
+        expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
 
         await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
 
-        expect(await screen.findByText('Who can see it')).toBeTruthy();
+        const dialog = await screen.findByRole('alertdialog', { name: 'Make this recipe public?' });
+        expect(
+            within(dialog).getByText(
+                "Anyone can see a public recipe and save a copy. You won't be able to make this one private again.",
+            ),
+        ).toBeTruthy();
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Make public' }));
+
+        await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+        expect(screen.getByText('Who can see it')).toBeTruthy();
         expect(screen.queryByRole('radio', { name: /^Private/u })).toBeNull();
         expect(screen.queryByRole('radio', { name: /^Public/u })).toBeNull();
         expect(screen.queryByText('Premium')).toBeNull();
+        await waitFor(() => expect(document.activeElement?.textContent).toContain('Who can see it'));
     });
 
-    it('⛔ under upsell, a private recipe moved to Public asks for Premium to go back', async () => {
-        profile.paidFeatures = 'upsell';
-        const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-            makeRecipeDetail({ id: 'rec_1', title: 'Secret Stew', visibility: RecipeVisibility.PRIVATE }),
-        );
-        renderEditor(client, 'rec_1');
+    it('under hidden, Keep private leaves the recipe private and still offered', async () => {
+        profile.paidFeatures = 'hidden';
+        await openPrivateRecipe('rec_secret_kept');
 
-        await userEvent.click(await screen.findByRole('radio', { name: /^Public/u }));
+        await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+        await userEvent.click(await screen.findByRole('button', { name: 'Keep private' }));
+
+        await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+        expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+    });
+
+    it('⛔ under upsell, Public asks first with the Premium words; confirmed, going back asks for Premium', async () => {
+        profile.paidFeatures = 'upsell';
+        await openPrivateRecipe('rec_secret_upsell');
+
+        await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+        const dialog = await screen.findByRole('alertdialog', { name: 'Make this recipe public?' });
+        expect(
+            within(dialog).getByText(
+                "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Premium.",
+            ),
+        ).toBeTruthy();
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Make public' }));
+        await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+
         await choosePrivate();
 
         expect(await screen.findByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeTruthy();
         expect((screen.getByRole('radio', { name: /^Public/u, hidden: true }) as HTMLInputElement).checked).toBe(true);
+    });
+
+    it('a granted owner moves a private recipe to Public with no confirm', async () => {
+        profile.paidFeatures = 'granted';
+        await openPrivateRecipe('rec_secret_granted');
+
+        await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+
+        expect((screen.getByRole('radio', { name: /^Public/u }) as HTMLInputElement).checked).toBe(true);
+        expect(screen.queryByRole('alertdialog')).toBeNull();
     });
 
     it.each([

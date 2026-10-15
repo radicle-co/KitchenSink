@@ -1205,7 +1205,11 @@ describe('visibilityChoice', () => {
         ['public', 'private', 'public', 'upsell', 'premiumRequired'],
         ['public', 'private', 'public', 'hidden', undefined],
         ['public', 'private', 'public', 'loading', undefined],
-        ['private', 'public', 'private', 'hidden', { visibility: 'public' }],
+        // Leaving a held Private asks to confirm unless the cook is granted (`makePublicConsequence`).
+        ['private', 'public', 'private', 'hidden', 'confirmPublic'],
+        ['private', 'public', 'private', 'upsell', 'confirmPublic'],
+        ['private', 'public', 'private', 'loading', 'confirmPublic'],
+        ['private', 'public', 'private', 'granted', { visibility: 'public' }],
         ['private', 'public', 'public', 'upsell', { visibility: 'public' }],
         // Back to what the server holds — no plan needed, whatever the state.
         ['public', 'private', 'private', 'hidden', { visibility: 'private' }],

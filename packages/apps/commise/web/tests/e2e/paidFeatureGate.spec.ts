@@ -136,3 +136,79 @@ test.describe('paid features — a collection’s ⋯ menu', () => {
         await expect(page.getByRole('menuitem', { name: 'Make private' })).toHaveCount(0);
     });
 });
+
+/**
+ * Plan 2026-10-14-009 Q5 (UX SPECIFY 2026-10-15): a downgraded owner — paid features hidden, or the upsell — who makes
+ * a private recipe public cannot simply make it private again, so the step is confirmed first and says what it costs.
+ * Once confirmed in the editor, the recipe is not offered Private again (the stuck-save defect).
+ */
+test.describe('paid features — a downgraded owner making a private recipe public', () => {
+    const PRIVATE_ID = 'ec000000-0000-4000-8000-0000000000f2';
+
+    async function openPrivateRecipe(page: Page, paidFeatures: 'upsell' | 'hidden', path: string): Promise<void> {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        const own = makeRecipeDetail({
+            id: PRIVATE_ID,
+            ownerId: viewerId,
+            title: 'Secret Stew',
+            visibility: 'private',
+        });
+        await mockRecipeApi(page, { viewerId, paidFeatures, recipes: [own] });
+        await page.goto(route(path));
+    }
+
+    test('⛔ hidden, in the editor: Public asks first; confirmed, Private is not offered again', async ({ page }) => {
+        await openPrivateRecipe(page, 'hidden', `/recipes/${PRIVATE_ID}/edit`);
+        await expect(page.getByRole('radio', { name: /^Private/u })).toBeChecked();
+        await expect(page.getByText("You won't be able to make it private again.")).toBeVisible();
+
+        await page.getByRole('radio', { name: /^Public/u }).click();
+
+        const dialog = page.getByRole('alertdialog', { name: 'Make this recipe public?' });
+        await expect(dialog).toBeVisible();
+        await expect(
+            dialog.getByText(
+                "Anyone can see a public recipe and save a copy. You won't be able to make this one private again.",
+            ),
+        ).toBeVisible();
+        await expect(dialog.getByRole('button', { name: 'Keep private' })).toBeFocused();
+        await dialog.getByRole('button', { name: 'Make public' }).click();
+
+        await expect(dialog).toHaveCount(0);
+        await expect(page.getByText('Who can see it')).toBeVisible();
+        await expect(page.getByRole('radio', { name: /^Private/u })).toHaveCount(0);
+        await expect(page.getByRole('radio', { name: /^Public/u })).toHaveCount(0);
+    });
+
+    test('upsell, in the editor: Keep private leaves the recipe private', async ({ page }) => {
+        await openPrivateRecipe(page, 'upsell', `/recipes/${PRIVATE_ID}/edit`);
+        await expect(page.getByText("To make it private again, you'll need Premium.")).toBeVisible();
+
+        await page.getByRole('radio', { name: /^Public/u }).click();
+        const dialog = page.getByRole('alertdialog', { name: 'Make this recipe public?' });
+        await dialog.getByRole('button', { name: 'Keep private' }).click();
+
+        await expect(dialog).toHaveCount(0);
+        await expect(page.getByRole('radio', { name: /^Private/u })).toBeChecked();
+    });
+
+    test('⛔ hidden, on the recipe page: Make public asks first, then makes it public', async ({ page }) => {
+        await openPrivateRecipe(page, 'hidden', `/recipes/${PRIVATE_ID}`);
+        await expect(page.getByRole('heading', { name: 'Secret Stew' })).toBeVisible();
+        await page.getByRole('button', { name: /^More actions for /u }).click();
+
+        await page.getByRole('menuitem', { name: 'Make public' }).click();
+
+        const dialog = page.getByRole('alertdialog', { name: 'Make this recipe public?' });
+        await expect(dialog).toBeVisible();
+        await expect(dialog.getByRole('button', { name: /Premium/u })).toHaveCount(0);
+        await dialog.getByRole('button', { name: 'Make public' }).click();
+
+        await expect(dialog).toHaveCount(0);
+        // Public now, and under hidden nothing offers the way back.
+        await page.getByRole('button', { name: /^More actions for /u }).click();
+        await expect(page.getByRole('menuitem', { name: 'Make public' })).toHaveCount(0);
+        await expect(page.getByRole('menuitem', { name: 'Make private' })).toHaveCount(0);
+    });
+});

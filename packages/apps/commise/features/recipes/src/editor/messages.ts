@@ -203,10 +203,19 @@ export interface EditorMessages {
         readonly public: string;
         readonly publicHint: string;
         /**
-         * Under the Public card, for a cook whose private recipe could not be made private again (the paid features
-         * are hidden for them, plan 2026-10-14-009). No copy mentions Premium.
+         * Under the Public card of a private recipe, whenever choosing it opens the make-public confirm
+         * (`makePublicConsequence`; WCAG 3.2.2 asks that the cook be told before using it): `final` under hidden paid
+         * features (no copy mentions Premium), `premium` under the upsell, `unknown` while the state loads.
          */
         readonly publicIsFinal: string;
+        readonly publicNeedsPremium: string;
+        readonly publicMayBeFinal: string;
+        /**
+         * A draft kept from before the cook lost the paid features still says Private, for a recipe not held private
+         * (`refusedDraftPrivate`): on the statement under hidden, on the Public card under the upsell.
+         */
+        readonly privateUnavailable: string;
+        readonly privatePremiumOnly: string;
         readonly private: string;
         readonly privateHint: string;
     };
@@ -389,6 +398,10 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             public: 'Public',
             publicHint: 'Anyone can find it in Discover',
             publicIsFinal: "You won't be able to make it private again.",
+            publicNeedsPremium: "To make it private again, you'll need Premium.",
+            publicMayBeFinal: 'You may not be able to make it private again.',
+            privateUnavailable: "Private isn't available, so this recipe will be public when you publish.",
+            privatePremiumOnly: 'Private recipes are part of Premium, so this one will be public when you publish.',
             private: 'Private',
             privateHint: 'Only you can see it',
         },

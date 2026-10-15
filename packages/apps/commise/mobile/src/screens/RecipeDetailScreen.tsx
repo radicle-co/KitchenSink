@@ -38,7 +38,9 @@ import {
     RecipeRatingInput,
     detailMenuOf,
     RecipeUpsellSheet,
+    RecipeMakePublicDialog,
     useGatedPrivate,
+    useMakePublicConfirm,
     isUnreachableRecovery,
     recipeMessages,
     ratingModeFor,
@@ -247,6 +249,14 @@ function SettledRecipeDetail({
         saved: query.data.visibility,
         apply: () => setVisibility.mutate({ id: recipeId, visibility: RecipeVisibility.PRIVATE }),
     });
+    // Q5 (UX SPECIFY 2026-10-15): a downgraded owner confirms Make public first; the confirm stays up, busy, while the
+    // change is in flight, and says a failure inside itself. The web page reads the same.
+    const makePublic = useMakePublicConfirm({
+        state: paidFeatureStateOf(profile),
+        saved: query.data.visibility,
+        apply: (done) =>
+            setVisibility.mutate({ id: recipeId, visibility: RecipeVisibility.PUBLIC }, { onSuccess: done }),
+    });
 
     // Wait for the viewer profile too before rendering the detail. Owner-gated UI (edit/delete/visibility actions)
     // and the rating mode are derived from `profile` (the viewer id + paid features); rendering before it lands would paint
@@ -310,7 +320,7 @@ function SettledRecipeDetail({
                     id: item,
                     label: detailActions.makePublic,
                     icon: 'globe',
-                    onSelect: () => setVisibility.mutate({ id: recipeId, visibility: RecipeVisibility.PUBLIC }),
+                    onSelect: makePublic.request,
                 };
             case 'clearChecks':
                 return { id: item, label: detailActions.clearChecks, icon: 'rotateCcw', onSelect: marks.clear };
@@ -398,14 +408,23 @@ function SettledRecipeDetail({
             }
             scrollFooter={
                 <>
-                    {/* B17 — a failed visibility change snaps back to the query's value; say so rather than fail silently. */}
-                    {setVisibility.error !== null && (
+                    {/* B17 — a failed visibility change snaps back to the query's value; say so rather than fail silently.
+                        The make-public confirm says its own failure inside itself, so it is not said twice. */}
+                    {setVisibility.error !== null && !makePublic.dialog.open && (
                         <Text accessibilityRole="alert" style={{ color: theme.colors.dangerText }}>
                             {visibilityCopy.error}
                         </Text>
                     )}
 
                     {viewerIsOwner && <RecipeUpsellSheet {...privateGate.sheet} />}
+
+                    {viewerIsOwner && (
+                        <RecipeMakePublicDialog
+                            {...makePublic.dialog}
+                            busy={setVisibility.isPending}
+                            error={setVisibility.error !== null}
+                        />
+                    )}
 
                     {viewerIsOwner && (
                         <RecipeDeleteDialog

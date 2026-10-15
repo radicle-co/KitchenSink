@@ -28,6 +28,7 @@ import {
     editorMessages,
     RecipeEditorView,
     RecipePreviewSheet,
+    RecipeMakePublicDialog,
     RecipeUpsellSheet,
     RecipeIngredientsFields,
     RecipeInstructionsFields,
@@ -276,9 +277,10 @@ function RecipeEditorSession({
                         onChange={editor.setValues}
                         {...privateChoice.field}
                         onPremiumRequired={privateChoice.onPremiumRequired}
+                        onConfirmPublic={privateChoice.onConfirmPublic}
                     />
                 ) : (
-                    <RecipeVisibilityStatement />
+                    <RecipeVisibilityStatement {...privateChoice.statement} />
                 )}
             </>
         ),
@@ -319,6 +321,7 @@ function RecipeEditorSession({
                 onClose={session.preview.hide}
             />
             <RecipeUpsellSheet {...privateChoice.sheet} />
+            <RecipeMakePublicDialog {...privateChoice.confirm} />
         </>
     );
 }

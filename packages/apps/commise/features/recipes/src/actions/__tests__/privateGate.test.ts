@@ -11,12 +11,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
     heldVisibility,
+    makePublicConsequence,
     mayRestorePrivate,
     offersPrivate,
     privateChoice,
-    privateIsFinal,
     privateNeedsPremium,
     privateRefusalOf,
+    refusedDraftPrivate,
     showsPremiumBadge,
 } from '../privateGate.js';
 
@@ -83,14 +84,44 @@ describe('showsPremiumBadge', () => {
     });
 });
 
-describe('privateIsFinal — making a private thing public cannot be undone', () => {
-    it('only under hidden, for a thing that is private', () => {
-        expect(privateIsFinal('hidden', PRIVATE)).toBe(true);
-        expect(privateIsFinal('hidden', PUBLIC)).toBe(false);
+/**
+ * REPLACES `privateIsFinal` (hidden only). A downgraded owner who makes a private thing public cannot simply make it
+ * private again, so that step is confirmed first (UX SPECIFY 2026-10-15), and the Public choice carries a note saying
+ * so whenever the confirm can open (WCAG 3.2.2: a radio that opens a dialog must say so before it is used). One rule
+ * drives the confirm, its words and the note.
+ */
+describe('makePublicConsequence — what making a private thing public costs the cook', () => {
+    it.each([
+        ['hidden', 'final'],
+        ['upsell', 'premium'],
+        ['loading', 'unknown'],
+        ['granted', 'none'],
+    ] as const)('a private thing, %s → %s', (state, expected) => {
+        expect(makePublicConsequence(state, PRIVATE)).toBe(expected);
+    });
 
-        for (const state of ['loading', 'granted', 'upsell'] as const) {
-            expect(privateIsFinal(state, PRIVATE), state).toBe(false);
-        }
+    it.each(STATES.map((state) => [state]))('nothing for a thing already public (%s)', (state) => {
+        expect(makePublicConsequence(state, PUBLIC)).toBe('none');
+    });
+});
+
+/**
+ * A draft kept from before the cook lost the paid features can still say Private for a recipe the server does not hold
+ * private. The server will refuse it, so the field shows Public and says why, and nothing private is sent.
+ */
+describe('refusedDraftPrivate — a draft Private the server will refuse', () => {
+    it.each([
+        ['hidden', 'final'],
+        ['upsell', 'premium'],
+        ['loading', undefined],
+        ['granted', undefined],
+    ] as const)('a private draft of a recipe not held private, %s → %s', (state, expected) => {
+        expect(refusedDraftPrivate(state, PUBLIC, PRIVATE)).toBe(expected);
+    });
+
+    it.each(STATES.map((state) => [state]))('never for a recipe held private, or a public draft (%s)', (state) => {
+        expect(refusedDraftPrivate(state, PRIVATE, PRIVATE)).toBeUndefined();
+        expect(refusedDraftPrivate(state, PUBLIC, PUBLIC)).toBeUndefined();
     });
 });
 

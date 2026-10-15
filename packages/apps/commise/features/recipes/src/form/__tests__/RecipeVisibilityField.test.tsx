@@ -13,6 +13,7 @@ import { useState, type FC } from 'react';
 
 import type { PaidFeatureState } from '@commise/features-account';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
+import { heldVisibility } from '../../actions/privateGate.js';
 import { editorMessages } from '../../editor/messages.js';
 import { RecipeVisibilityField } from '../RecipeVisibilityField.js';
 import { recipeFormMessages } from '../messages.js';
@@ -26,26 +27,35 @@ afterEach(cleanup);
 interface HarnessProps {
     readonly initial?: RecipeFormValues;
     readonly paidFeatures: PaidFeatureState;
-    /** What the server holds; defaults to the initial draft's visibility. */
+    /** What the server held when the editor opened; defaults to the initial draft's visibility. */
     readonly saved?: RecipeVisibility;
     readonly onChange?: (next: RecipeFormValues) => void;
     readonly onPremiumRequired?: () => void;
+    /**
+     * What the host's confirm does. Defaults to a confirm the cook accepts, so a case can follow the choice through:
+     * the draft becomes Public, as the host's Make public makes it.
+     */
+    readonly onConfirmPublic?: () => void;
 }
 
-const Harness: FC<HarnessProps> = ({ initial, paidFeatures, saved, onChange, onPremiumRequired }) => {
+/** The host's wiring, as `usePrivateChoice` hands it over: the field decides from what the cook may still keep. */
+const Harness: FC<HarnessProps> = ({ initial, paidFeatures, saved, onChange, onPremiumRequired, onConfirmPublic }) => {
     const [values, setValues] = useState(initial ?? defaultRecipeFormValues());
-    const [savedVisibility] = useState(saved ?? values.visibility);
+    const [opened] = useState(saved ?? values.visibility);
+
+    const change = (next: RecipeFormValues): void => {
+        setValues(next);
+        onChange?.(next);
+    };
 
     return (
         <RecipeVisibilityField
             values={values}
             paidFeatures={paidFeatures}
-            savedVisibility={savedVisibility}
+            savedVisibility={heldVisibility(opened, values.visibility)}
             {...(onPremiumRequired === undefined ? {} : { onPremiumRequired })}
-            onChange={(next) => {
-                setValues(next);
-                onChange?.(next);
-            }}
+            onConfirmPublic={onConfirmPublic ?? (() => change({ ...values, visibility: 'public' }))}
+            onChange={change}
         />
     );
 };
@@ -154,14 +164,16 @@ describe('RecipeVisibilityField (web)', () => {
         expect(radio(v.public).checked).toBe(true);
     });
 
-    it('a recipe already private stays private under upsell go private, and can still go public', async () => {
+    it('⛔ under upsell, a recipe already private stays private, and going public asks to confirm first', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
+        const onConfirmPublic = vi.fn();
         render(
             <Harness
                 initial={{ ...defaultRecipeFormValues(), visibility: 'private' }}
                 paidFeatures="upsell"
                 onChange={onChange}
+                onConfirmPublic={onConfirmPublic}
             />,
         );
 
@@ -169,7 +181,62 @@ describe('RecipeVisibilityField (web)', () => {
 
         await user.click(radio(v.public));
 
+        expect(onConfirmPublic).toHaveBeenCalledTimes(1);
+        expect(onChange).not.toHaveBeenCalled();
+        expect(radio(v.private).checked).toBe(true);
+    });
+
+    it('a granted cook makes a private recipe public at once, with no confirm', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        const onConfirmPublic = vi.fn();
+        render(
+            <Harness
+                initial={{ ...defaultRecipeFormValues(), visibility: 'private' }}
+                paidFeatures="granted"
+                onChange={onChange}
+                onConfirmPublic={onConfirmPublic}
+            />,
+        );
+
+        await user.click(radio(v.public));
+
         expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'public' }));
+        expect(onConfirmPublic).not.toHaveBeenCalled();
+    });
+
+    /**
+     * WCAG 3.2.2 On Input: a radio whose choice opens a dialog must say so before it is used. So the Public card carries
+     * the consequence in EVERY state in which the confirm can open, and in none in which it cannot.
+     */
+    it.each([
+        ['hidden', "You won't be able to make it private again."],
+        ['upsell', "To make it private again, you'll need Premium."],
+        ['loading', 'You may not be able to make it private again.'],
+    ] as const)('⛔ under %s, the Public card of a private recipe says what going public costs', (state, note) => {
+        render(<Harness initial={{ ...defaultRecipeFormValues(), visibility: 'private' }} paidFeatures={state} />);
+
+        const shown = screen.getByText(note);
+        const describedBy = radio(v.public).getAttribute('aria-describedby')?.split(' ') ?? [];
+
+        expect(describedBy).toContain(shown.id);
+    });
+
+    it('⛔ a kept draft`s Private for a recipe not held private shows Public under upsell, and says why', () => {
+        render(
+            <Harness
+                initial={{ ...defaultRecipeFormValues(), visibility: 'private' }}
+                saved="public"
+                paidFeatures="upsell"
+            />,
+        );
+
+        expect(radio(v.public).checked).toBe(true);
+        expect(radio(v.private).checked).toBe(false);
+        const note = screen.getByText(v.privatePremiumOnly);
+        const describedBy = radio(v.public).getAttribute('aria-describedby')?.split(' ') ?? [];
+
+        expect(describedBy).toContain(note.id);
     });
 
     // ── Plan 2026-10-14-009 D14: the field under each paid-feature state (the host renders the statement leaf instead
@@ -181,16 +248,8 @@ describe('RecipeVisibilityField (web)', () => {
         expect(screen.queryByText(m.premiumBadge)).toBeNull();
     });
 
-    it('under hidden, a recipe already private stays private, shows no badge, and warns Public is final', async () => {
-        const user = userEvent.setup();
-        const onChange = vi.fn();
-        render(
-            <Harness
-                initial={{ ...defaultRecipeFormValues(), visibility: 'private' }}
-                paidFeatures="hidden"
-                onChange={onChange}
-            />,
-        );
+    it('under hidden, a recipe already private stays private, shows no badge, and warns Public is final', () => {
+        render(<Harness initial={{ ...defaultRecipeFormValues(), visibility: 'private' }} paidFeatures="hidden" />);
 
         expect(radio(v.private).checked).toBe(true);
         expect(screen.queryByText(m.premiumBadge)).toBeNull();
@@ -198,12 +257,34 @@ describe('RecipeVisibilityField (web)', () => {
         const describedBy = radio(v.public).getAttribute('aria-describedby')?.split(' ') ?? [];
 
         expect(describedBy).toContain(finalNote.id);
-
-        await user.click(radio(v.public));
-        expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'public' }));
     });
 
-    it('under hidden, after choosing Public on a saved-private recipe, Private can still be chosen back', async () => {
+    it('⛔ under hidden, choosing Public on a private recipe asks to confirm and leaves the value', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        const onConfirmPublic = vi.fn();
+        render(
+            <Harness
+                initial={{ ...defaultRecipeFormValues(), visibility: 'private' }}
+                paidFeatures="hidden"
+                onChange={onChange}
+                onConfirmPublic={onConfirmPublic}
+            />,
+        );
+
+        await user.click(radio(v.public));
+
+        expect(onConfirmPublic).toHaveBeenCalledTimes(1);
+        expect(onChange).not.toHaveBeenCalled();
+        expect(radio(v.private).checked).toBe(true);
+    });
+
+    /**
+     * REWRITTEN for the stuck-save defect: this case used to pin that Private could be chosen back after Public, which is
+     * exactly the write the server refused. Once the cook has confirmed Public, Private changes nothing (the host shows
+     * the statement in place of this field).
+     */
+    it('⛔ under hidden, once Public is confirmed, choosing Private again changes nothing', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
         render(
@@ -215,14 +296,20 @@ describe('RecipeVisibilityField (web)', () => {
         );
 
         await user.click(radio(v.public));
+        expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'public' }));
+        onChange.mockClear();
+
         await user.click(radio(v.private));
 
-        expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'private' }));
+        expect(onChange).not.toHaveBeenCalled();
+        expect(radio(v.public).checked).toBe(true);
     });
 
-    it('under granted, no note says Public is final', () => {
+    it('under granted, no note says what going public costs', () => {
         render(<Harness initial={{ ...defaultRecipeFormValues(), visibility: 'private' }} paidFeatures="granted" />);
 
         expect(screen.queryByText(v.publicIsFinal)).toBeNull();
+        expect(screen.queryByText(v.publicNeedsPremium)).toBeNull();
+        expect(screen.queryByText(v.publicMayBeFinal)).toBeNull();
     });
 });

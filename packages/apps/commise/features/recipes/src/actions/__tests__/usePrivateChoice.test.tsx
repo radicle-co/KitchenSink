@@ -98,6 +98,67 @@ describe('usePrivateChoice', () => {
         expect(onChange).toHaveBeenCalledWith({ ...PUBLIC_DRAFT, visibility: RecipeVisibility.PRIVATE });
     });
 
+    // ── Q5: a downgraded owner confirms before a private recipe goes public (UX SPECIFY 2026-10-15). ────────────────────
+    it.each([
+        ['hidden', 'final'],
+        ['upsell', 'premium'],
+        ['loading', 'unknown'],
+    ] as const)(
+        '⛔ under %s, choosing Public on a private recipe asks first, and changes nothing yet',
+        (state, consequence) => {
+            const { result, onChange } = mount(state, RecipeVisibility.PRIVATE);
+
+            act(() => result.current.onConfirmPublic());
+
+            expect(result.current.confirm).toMatchObject({ open: true, consequence });
+            expect(onChange).not.toHaveBeenCalled();
+        },
+    );
+
+    it('Make public changes the draft and closes the dialog; Keep private changes nothing', () => {
+        const kept = mount('hidden', RecipeVisibility.PRIVATE);
+
+        act(() => kept.result.current.onConfirmPublic());
+        act(() => kept.result.current.confirm.onKeep());
+
+        expect(kept.result.current.confirm.open).toBe(false);
+        expect(kept.onChange).not.toHaveBeenCalled();
+        expect(kept.result.current.statement.focusOnMount).toBe(false);
+
+        const confirmed = mount('hidden', RecipeVisibility.PRIVATE);
+
+        act(() => confirmed.result.current.onConfirmPublic());
+        act(() => confirmed.result.current.confirm.onConfirm());
+
+        expect(confirmed.onChange).toHaveBeenCalledWith({ ...PRIVATE_DRAFT, visibility: RecipeVisibility.PUBLIC });
+        expect(confirmed.result.current.confirm.open).toBe(false);
+        // The field gives way to the statement, so the statement takes the focus the Public radio had (WCAG 2.4.3).
+        expect(confirmed.result.current.statement.focusOnMount).toBe(true);
+    });
+
+    it('a granted cook goes public at once, with no dialog', () => {
+        const { result, onChange } = mount('granted', RecipeVisibility.PRIVATE);
+
+        act(() => result.current.onConfirmPublic());
+
+        expect(onChange).toHaveBeenCalledWith({ ...PRIVATE_DRAFT, visibility: RecipeVisibility.PUBLIC });
+        expect(result.current.confirm.open).toBe(false);
+    });
+
+    it.each([
+        ['hidden', true],
+        ['upsell', false],
+        ['granted', false],
+        ['loading', false],
+    ] as const)(
+        'a kept draft`s Private for a recipe not held private: the statement says so under %s → %s',
+        (state, expected) => {
+            const { result } = mount(state, RecipeVisibility.PUBLIC, PRIVATE_DRAFT);
+
+            expect(result.current.statement.privateUnavailable).toBe(expected);
+        },
+    );
+
     it('Not now closes the sheet, and so does See Premium (the subscription surface is not built, 010)', () => {
         const { result } = mount('upsell');
 

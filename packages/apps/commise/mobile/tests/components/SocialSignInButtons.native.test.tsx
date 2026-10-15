@@ -145,6 +145,14 @@ describe('SocialSignInButtons', () => {
         expect(getComputedStyle(google).opacity).toBe('0.25');
     });
 
+    it('⛔ dims a locked Apple button to the same design-system opacity, not a number of its own', () => {
+        renderButtons({ locked: true });
+
+        const apple = screen.getByRole('button', { name: APPLE });
+
+        expect(getComputedStyle(apple).opacity).toBe(String(BUTTON_DIMMED_OPACITY));
+    });
+
     it('locks both providers while the EMAIL form is busy too, without claiming a provider is signing in', () => {
         const onPress = renderButtons({ locked: true });
 

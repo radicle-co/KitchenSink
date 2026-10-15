@@ -677,6 +677,7 @@ describe('every published component’s zod is REACHABLE from @kitchensink/schem
         // Plan U9 — the parse-job resource.
         CreateParseJobRequest: 'createParseJobRequestSchema',
         EditParseJobLineRequest: 'editParseJobLineRequestSchema',
+        WithdrawParseJobLinesRequest: 'withdrawParseJobLinesRequestSchema',
         ParseJob: 'parseJobResponseSchema',
         ParseProposal: 'parseProposalSchema',
         RecipeVersion: 'recipeVersionSchema',

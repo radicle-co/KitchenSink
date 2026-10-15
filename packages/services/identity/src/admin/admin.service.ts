@@ -43,6 +43,14 @@ export class AdminService {
         private readonly sqs: SqsService,
     ) {}
 
+    /**
+     * The target user's row, or a 404 when no user has that id.
+     *
+     * @param targetSub - The target user's id.
+     * @returns The user's row.
+     * @throws NotFoundException when no user has that id.
+     * @sideEffect Reads the `users` table.
+     */
     private async requireUser(targetSub: string): Promise<typeof users.$inferSelect> {
         const targetId = userIdOrNotFound(targetSub);
         const [existing] = await this.db.select().from(users).where(eq(users.id, targetId)).limit(1);

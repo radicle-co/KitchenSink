@@ -9,8 +9,7 @@
     // the same ~18s each and buy nothing). Compare the unused-file count before and after any edit here.
     "$schema": "https://unpkg.com/knip@5/schema.json",
 
-    // ⚠️ SIX UNUSED FILES ARE REPORTED AND NOT SILENCED — they are TRUE findings, verified by grep:
-    //   • identity-webhooks `src/common/{retry,sqs}.ts` and identity `src/config/featureFlags.ts` — no importers.
+    // ⚠️ THREE UNUSED FILES ARE REPORTED AND NOT SILENCED — they are TRUE findings, verified by grep:
     //   • `packages/schemas/{recipe,identity,food}/src/types.ts` — each is `export type * from './schemas.js'`,
     //     the SAME module `index.ts` already re-exports with `export *` (which carries types), and `./types`
     //     is not in the package's `exports` map, so a consumer cannot reach it even deliberately. Measured:

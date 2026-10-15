@@ -36,6 +36,7 @@ import {
     useParseJob,
     useRetryParseJob,
 } from '@kitchensink/recipe-service-client/hooks';
+import { shouldRetryRecipeServiceFailure } from '@kitchensink/recipe-service-client';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useEffectEvent, useState } from 'react';
 
@@ -175,7 +176,11 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
             ? []
             : pastedLinesOf({
                   job: poll.data,
-                  jobFailed: poll.isError,
+                  // ⛔ Only a TERMINAL read failure ends the paste (the job is gone, or refused): a read that may work
+                  // again — a service outage, the sandbox's nightly stop — keeps the lines where they were, because
+                  // joining them all as written would make the cook's choice for them. The client's own retry policy
+                  // is the one authority on which failures repeating cannot fix.
+                  jobFailed: poll.isError && !shouldRetryRecipeServiceFailure(poll.error),
                   now: clock,
                   typedByCook: session.typedByCook,
               });

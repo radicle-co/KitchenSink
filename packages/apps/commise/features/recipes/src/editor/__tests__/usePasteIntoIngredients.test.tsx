@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react
 import { act, renderHook } from '@testing-library/react';
 import { FoodResolutionStatus, type Ingredient } from '@kitchensink/recipe-core';
 import { makeIngredient } from '@kitchensink/recipe-core/testing';
+import { FetchUnavailableError, NotFoundError } from '@kitchensink/recipe-service-client';
 import type { ParseJobResponse } from '@kitchensink/schema-recipe';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -28,7 +29,7 @@ const mocks = vi.hoisted(() => ({
     mutate: vi.fn(),
     reset: vi.fn(),
     job: undefined as ParseJobResponse | undefined,
-    jobError: false,
+    jobError: undefined as Error | undefined,
     polledId: vi.fn(),
     byName: vi.fn(),
     retryParse: vi.fn(),
@@ -43,7 +44,11 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useParseJob: (id: string) => {
         mocks.polledId(id);
 
-        return { data: id === '' ? undefined : mocks.job, isError: id !== '' && mocks.jobError };
+        return {
+            data: id === '' ? undefined : mocks.job,
+            isError: id !== '' && mocks.jobError !== undefined,
+            error: id === '' ? null : (mocks.jobError ?? null),
+        };
     },
     useAddIngredientByName: () => ({ mutateAsync: mocks.byName, isPaused: false }),
     useRetryParseJob: () => ({ mutate: mocks.retryParse }),
@@ -109,7 +114,7 @@ beforeEach(() => {
     mocks.created = undefined;
     mocks.createState = { isPending: false, isError: false };
     mocks.job = undefined;
-    mocks.jobError = false;
+    mocks.jobError = undefined;
     mocks.byName.mockImplementation(async (name: string) => ingredient(name));
 });
 
@@ -436,16 +441,35 @@ describe('usePasteIntoIngredients — no time limit; the cook decides', () => {
         expect(appended(dispatch).map((line) => line.name)).toEqual(['olive oil']);
     });
 
-    it('a job that cannot be read joins every line through the reader', async () => {
+    it('a job the service says is gone joins every line through the reader', async () => {
         const { result, rerender, dispatch } = render();
         act(() => result.current.submit('2 cups flour'));
         accept(makeParseJob());
 
-        mocks.jobError = true;
+        mocks.jobError = new NotFoundError('gone', 'PARSE_JOB_NOT_FOUND');
         rerender({ offered: true, keepsSource: true, dispatch });
         await settle();
 
         expect(appended(dispatch).map((line) => line.name)).toEqual(['flour']);
+    });
+
+    /**
+     * ⛔ A READ THAT MAY WORK AGAIN IS NOT A GIVE-UP (owner ruling 2026-10-13: no time limit). An outage of the recipe
+     * service — the sandbox's midnight stop included — fails the poll's refetch; joining every unread line as written
+     * then would be the cook's choice made for them. Only a failure the client's own retry policy calls terminal stops
+     * the paste.
+     */
+    it('⛔ a read that failed for now keeps the lines waiting rather than adding them as written', async () => {
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit('2 cups flour'));
+        accept(makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'reading' } })] }));
+
+        mocks.jobError = new FetchUnavailableError();
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await settle();
+
+        expect(appended(dispatch)).toEqual([]);
+        expect(result.current.reading.map((row) => row.state)).toEqual(['reading']);
     });
 });
 

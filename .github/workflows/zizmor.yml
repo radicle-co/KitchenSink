@@ -195,28 +195,26 @@
 #       Environment binding can narrow it back down. Note this audit does NOT see workflow-level reads at
 #       all, so that change moved no number — it was made on its own merits.
 #
-#   ⚠️ BE HONEST ABOUT WHAT THE SANDBOX HALF BOUGHT THEN: LESS THAN THE ZERO SUGGESTED (2026-08-11; the boundary
-#   since moved to the OIDC roles of ADR-0063, which the non-prod jobs now assume). `AWS_ACCESS_KEY_ID` and
-#   `AWS_SECRET_ACCESS_KEY` are ORGANIZATION secrets (verified: `gh api
-#   repos/:owner/:repo/actions/organization-secrets`), and an org secret CANNOT be scoped to an Environment —
-#   environment secrets are repo-level only. So every job in every workflow here can still reach those keys
-#   regardless of its binding, and one key pair still serves both prod and sandbox. The bindings make the
-#   deploy target explicit, give each stage its own deployment history, and pre-wire the seam; the trust
-#   boundary MOVES when the sandbox and prod credentials become separate stage-scoped identities held as
-#   `Sandbox` / `Production` environment secrets (or OIDC roles). It moved with ADR-0063's OIDC roles: the prod
-#   roles trust only `main`, and `prod` only the `Production` environment.
+#   ⚠️ BE HONEST ABOUT WHAT THE SANDBOX HALF BOUGHT THEN: LESS THAN THE ZERO SUGGESTED (2026-08-11). At the time
+#   `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` were ORGANIZATION secrets, and an org secret CANNOT be scoped to
+#   an Environment, so every job could reach them whatever it was bound to. That is no longer the case: every job
+#   that talks to AWS now signs in through the `awsAuth` action and assumes an OIDC role of ADR-0063, and no workflow
+#   reads those two secrets. The bindings still make the deploy target explicit and give each stage its own
+#   deployment history; the trust boundary is the role. The prod roles trust only `main`, and `prod` only the
+#   `Production` environment.
 #
-# ⛔ THE REMAINING 4 — deliberately NOT bound, and that is the correct outcome:
-#     food-loadtest 2 · claude 1 · claude-code-review 1
+# ⛔ WHAT STAYS UNBOUND — deliberately, and that is the correct outcome (the CURRENT MEASUREMENT above has the count):
+#     the reclamation jobs · claude · claude-code-review
 #   None of these is a deployment. Binding a CI/automation job to the zero-protection `Sandbox` would silence
 #   the finding without moving any boundary — the exact "accepting it by comment" failure this ledger refuses
 #   elsewhere — and binding it to a protected environment would make every PR wait on a human reviewer. The
-#   CI workflows (`_ci`, `ci-pr`, `ci-main`, `ci-full`, `heavy-e2e`, the two loadtests, `claude*`) are
-#   therefore left unbound BY DECISION, and the residual is reported rather than driven to zero. The 12
-#   breaks down as 8 reclamation (sandbox-deploy's `cleanup` + `reap-abandoned`, unbound so nothing can ever
-#   stall a teardown) and 4 CI/automation (food-loadtest 2, claude 1, claude-code-review 1). Note the whole
-#   residual is what the org-secret caveat above makes unavoidable anyway: while the AWS keys are org-scoped,
-#   a bound job is no less able to read them than an unbound one.
+#   reclamation jobs are unbound so nothing can ever stall a teardown, and the CI workflows (`_ci`, `ci-pr`,
+#   `ci-main`, `ci-full`, `heavy-e2e`, `recipe-loadtest`, `claude*`) are left unbound BY DECISION, so the residual
+#   is reported rather than driven to zero.
+#   ⚠️ `food-loadtest` is the one load test that is NOT unbound in every run: its `environment:` is an expression
+#   that names `Production` when the base or target stage is prod and is empty otherwise, so a prod run waits on
+#   `Production`'s reviewer and any other run does not. zizmor reports no finding for it, and the audit cannot tell
+#   from the expression which of the two a run takes.
 #
 #   ⚠️ AND ZIZMOR STILL HAS NO AUDIT FOR THE ACTOR-TRUST CLASS AT ALL, at any persona. The missing
 #   `author_association` guard on `claude.yml` (a PUBLIC repo handing `CLAUDE_CODE_OAUTH_TOKEN` to a

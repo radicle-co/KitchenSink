@@ -7,6 +7,7 @@ export {
     MAX_DISPLAY_NAME_LENGTH,
 } from './handleSync.js';
 export type { HandleSyncMessage } from './handleSync.js';
+export { MAX_USERNAME_LENGTH, parseUsername, usernameSchema } from './username.js';
 export { providerChangeIsOwed } from './statusConvergence.js';
 export type { StatusConvergenceState } from './statusConvergence.js';
 export { computeProfileScrub, scrubbedEmail } from './profileScrubPolicy.js';

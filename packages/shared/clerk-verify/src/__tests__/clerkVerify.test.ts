@@ -74,6 +74,32 @@ describe('verifyClerkToken', () => {
         expect((await verifyClerkToken('tok', CONFIG)).userId).toBeUndefined();
     });
 
+    it('surfaces the username claim both session tokens carry (owner ruling 2026-10-13)', async () => {
+        mockVerify.mockResolvedValue({
+            sub: 'user_123',
+            azp: 'https://app.example.com',
+            username: 'goodfellow',
+        } as never);
+
+        const claims = await verifyClerkToken('tok', CONFIG);
+
+        expect(claims.username).toBe('goodfellow');
+    });
+
+    it.each([
+        ['absent', {}],
+        ['empty', { username: '' }],
+        ['not a string', { username: 42 }],
+        // `{{user.username}}` renders as null for a user without one.
+        ['null', { username: null }],
+    ])('leaves username undefined when the claim is %s', async (_case, extra) => {
+        mockVerify.mockResolvedValue({ sub: 'user_123', azp: 'https://app.example.com', ...extra } as never);
+
+        const claims = await verifyClerkToken('tok', CONFIG);
+
+        expect(claims.username).toBeUndefined();
+    });
+
     it('also accepts the legacy { data } envelope (back-compat across @clerk/backend versions)', async () => {
         mockVerify.mockResolvedValue({
             data: { sub: 'user_legacy', azp: 'https://app.example.com', public_metadata: { scopes: ['s1'] } },

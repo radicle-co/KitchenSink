@@ -37,6 +37,11 @@ export interface VerifiedClerkClaims {
     readonly firstName?: string;
     /** Customized last-name claim, when present. */
     readonly lastName?: string;
+    /**
+     * The Clerk username — the public byline (owner ruling 2026-10-13). Both session tokens map it
+     * (`"username": "{{user.username}}"`); absent when the user has none. Clerk is its authority.
+     */
+    readonly username?: string;
     /** Customized avatar/picture claim, when present. */
     readonly picture?: string;
     /**
@@ -367,6 +372,7 @@ export async function verifyClerkToken(token: string, config: ClerkVerifyConfig)
         email: asNonEmptyString(payload['email']),
         firstName: asNonEmptyString(payload['first_name']),
         lastName: asNonEmptyString(payload['last_name']),
+        username: asNonEmptyString(payload['username']),
         picture: asNonEmptyString(payload['image_url']) ?? asNonEmptyString(payload['picture']),
         scopes: [...new Set([...asStringArray(publicMetadata['scopes']), ...scopesForRoles(roles)])],
         roles,

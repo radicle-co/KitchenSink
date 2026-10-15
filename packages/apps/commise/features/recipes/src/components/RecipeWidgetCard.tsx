@@ -7,17 +7,8 @@ import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
+import { isPlainClick } from './isPlainClick.js';
 import type { RecipeWidgetCardProps } from './props.js';
-
-/**
- * Whether a click should be handed to `onPress` rather than followed: a plain primary click only.
- *
- * @param event - The click.
- * @returns `true` for a plain primary click.
- */
-function isPlainClick(event: React.MouseEvent<HTMLAnchorElement>): boolean {
-    return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
-}
 
 export const RecipeWidgetCard: FC<RecipeWidgetCardProps> = ({ title, seeAll, children }) => {
     const { home } = useMessages(recipeMessages);

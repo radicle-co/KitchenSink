@@ -19,8 +19,9 @@ import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { RecipeCover } from '@commise/ui/recipe-cover';
 import { SearchField } from '@commise/ui/search-field';
-import { useId, type FC, type MouseEvent } from 'react';
+import { useId, type FC } from 'react';
 
+import { isPlainClick } from '../components/isPlainClick.js';
 import { formatRecipeCount } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
@@ -37,16 +38,6 @@ import {
 /** Two columns on a phone, `auto-fill` of at least 15 rem from a 600 container. */
 const GRID_CLASS =
     'grid grid-cols-2 gap-4 @regular/main:grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] @regular/main:gap-6';
-
-/**
- * Whether a click should be handed to `onSelect`: a plain primary click only, so a modified click opens a new tab.
- *
- * @param event - The click.
- * @returns `true` for a plain primary click.
- */
-function isPlainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
-    return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
-}
 
 /**
  * A card's cover (`buildSpec.md` §5.1): the first four members' photos as a 2 × 2 album with 2 px gaps, the first photo

@@ -31,8 +31,9 @@ import { DifficultyBadge } from '@commise/ui/difficulty-badge';
 import { Icon } from '@commise/ui/icon';
 import { RecipeCover } from '@commise/ui/recipe-cover';
 import { StatusBadge } from '@commise/ui/status-badge';
-import { createContext, useContext, type FC, type MouseEvent, type ReactNode } from 'react';
+import { createContext, useContext, type FC, type ReactNode } from 'react';
 
+import { isPlainClick } from '../components/isPlainClick.js';
 import type { CardVariant } from './cardVariant.js';
 import { STAR_COUNT } from './model.js';
 import {
@@ -162,17 +163,6 @@ const HeadingLevelContext = createContext<2 | 3 | undefined>(undefined);
  * third exported context.
  */
 const CardActivationContext = createContext<CardActivation | undefined>(undefined);
-
-/**
- * Whether a click should be handed to `onSelect` instead of following the link: a plain primary click only, so a
- * modified click (new tab, new window) keeps the browser's own behaviour.
- *
- * @param event - The click.
- * @returns `true` for a plain primary click.
- */
-function isPlainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
-    return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
-}
 
 /** The title, carrying the card's one control when the card is actionable. */
 const CardTitle: FC = () => {

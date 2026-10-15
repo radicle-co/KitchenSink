@@ -9,6 +9,7 @@ import { Icon } from '@commise/ui/icon';
 import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
+import { isPlainClick } from './isPlainClick.js';
 import type { RecipeWidgetEmptyStateProps } from './props.js';
 
 export const RecipeWidgetEmptyState: FC<RecipeWidgetEmptyStateProps> = ({ firstRun }) => {
@@ -38,14 +39,7 @@ export const RecipeWidgetEmptyState: FC<RecipeWidgetEmptyStateProps> = ({ firstR
                     <a
                         href={firstRun.discoverHref}
                         onClick={(event) => {
-                            if (
-                                firstRun.discoverHref === undefined ||
-                                (event.button === 0 &&
-                                    !event.metaKey &&
-                                    !event.ctrlKey &&
-                                    !event.shiftKey &&
-                                    !event.altKey)
-                            ) {
+                            if (firstRun.discoverHref === undefined || isPlainClick(event)) {
                                 event.preventDefault();
                                 firstRun.onFindOnDiscover();
                             }

@@ -191,7 +191,11 @@ the text. `{line}` is the raw line, because a pasted line is not a food yet.
 ## Concurrency measurement (non-prod, from code and config — nothing changed)
 
 Read from `recipe-workers/infra/lib/consumerConcurrency.ts` and `RecipeWorkersStack.ts` (ruling 5: measure, do not
-raise). Derived from the code; a synth was not run (the infra workspace's CDK install is separate).
+raise), then MEASURED by synthesizing the stack for `sandbox`, `pr-91` and `prod` (2026-10-15, a throwaway probe, not
+committed). The synthesized template agrees with every row below: parse function `ReservedConcurrentExecutions` 1 / 1 /
+5, `Timeout` 150, `PARSE_CLAIM_LEASE_SECONDS` 150, `PARSE_DELIVERY_ALLOWANCE` 20; queue `VisibilityTimeout` 180,
+`MessageRetentionPeriod` 345,600 (4 days), `maxReceiveCount` 181; event-source mapping `BatchSize` 1 with no
+`ScalingConfig` in non-prod and `MaximumConcurrency` 5 in prod. The verification consumer is 1 / 1 / 5 as well.
 
 | Setting                                      | Non-prod (`sandbox`, `pr-{N}`)                                  | Prod |
 | -------------------------------------------- | --------------------------------------------------------------- | ---- |
@@ -248,3 +252,9 @@ throwaway Postgres 18 + LocalStack containers.
    prefers; the row-level target would need a ref per row.
 6. **iOS `inactive`** (Control Center, the app switcher) releases the paste hold, because it already raises `appHidden`.
 7. **Publish blocked by lines still joining** may need its reason named in the action bar (UX open question).
+8. **Add as written does not cancel the server's parse.** The line's message stays queued, and when the worker reaches
+   it the engines are paid — Bedrock included — for an answer the client discards. After Add the rest as written on a
+   large stalled paste that is up to 200 lines. Given non-prod Bedrock spend so far, this deserves its own decision.
+9. **A failed poll is not a give-up.** Only a failure the client's retry policy calls terminal (the job gone or refused)
+   ends a paste; a transient one keeps the lines where they were. Fixed in this change after review; recorded because
+   the earlier code silently added everything as written on any read failure.

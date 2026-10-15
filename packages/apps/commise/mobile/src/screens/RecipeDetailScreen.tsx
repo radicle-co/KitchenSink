@@ -40,7 +40,9 @@ import {
     RecipeUpsellSheet,
     RecipeMakePublicDialog,
     useGatedPrivate,
+    privateRefusalOf,
     useMakePublicConfirm,
+    useServerRefusedPrivate,
     isUnreachableRecovery,
     recipeMessages,
     ratingModeFor,
@@ -69,7 +71,7 @@ import {
 } from '@kitchensink/recipe-service-client/hooks';
 import { NavigationContext } from '@react-navigation/native';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { paidFeatureStateOf } from '@commise/features-account';
+import { knownPaidFeaturesOf, paidFeatureStateOf } from '@commise/features-account';
 import { RecipeVisibility, canClone, isOwner, makeViewer } from '@kitchensink/recipe-core';
 import type { JSX } from 'react';
 import { useContext, useState } from 'react';
@@ -251,8 +253,10 @@ function SettledRecipeDetail({
     });
     // Q5 (UX SPECIFY 2026-10-15): a downgraded owner confirms Make public first; the confirm stays up, busy, while the
     // change is in flight, and says a failure inside itself. The web page reads the same.
+    const serverRefusedPrivate = useServerRefusedPrivate(recipeId);
+    // The confirm's words say what is KNOWN: a failed profile read is "may not", never "won't" (review).
     const makePublic = useMakePublicConfirm({
-        state: paidFeatureStateOf(profile),
+        state: knownPaidFeaturesOf(profile) ?? 'loading',
         saved: query.data.visibility,
         apply: (done) =>
             setVisibility.mutate({ id: recipeId, visibility: RecipeVisibility.PUBLIC }, { onSuccess: done }),
@@ -413,11 +417,24 @@ function SettledRecipeDetail({
             scrollFooter={
                 <>
                     {/* B17 — a failed visibility change snaps back to the query's value; say so rather than fail silently.
-                        The make-public confirm says its own failure inside itself, so it is not said twice. */}
-                    {setVisibility.error !== null && !makePublic.dialog.open && (
+                        The make-public confirm says its own failure inside itself, so it is not said twice. A Private
+                        the server refused — the editor's follow-up included — is said in its own words, because trying
+                        again cannot succeed. The web page reads the same. */}
+                    {serverRefusedPrivate ? (
                         <Text accessibilityRole="alert" style={{ color: theme.colors.dangerText }}>
-                            {visibilityCopy.error}
+                            {
+                                visibilityCopy.privateRefused[
+                                    privateRefusalOf(knownPaidFeaturesOf(profile) ?? 'loading') ?? 'final'
+                                ]
+                            }
                         </Text>
+                    ) : (
+                        setVisibility.error !== null &&
+                        !makePublic.dialog.open && (
+                            <Text accessibilityRole="alert" style={{ color: theme.colors.dangerText }}>
+                                {visibilityCopy.error}
+                            </Text>
+                        )
                     )}
 
                     {viewerIsOwner && <RecipeUpsellSheet {...privateGate.sheet} />}

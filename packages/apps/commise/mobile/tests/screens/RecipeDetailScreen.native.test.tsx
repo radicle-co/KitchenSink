@@ -19,8 +19,9 @@ import { computedContrast, renderWithRecipeClient, withFoodClient } from '@commi
 import { palette, tint } from '@commise/ui';
 import { role } from '@commise/ui/colors';
 import { SnackbarHost } from '@commise/ui/snackbar';
-import { NotFoundError, recipeQueries, recipeServiceKeys } from '@kitchensink/recipe-service-client';
+import { BadRequestError, NotFoundError, recipeQueries, recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import {
+    RECIPE_VISIBILITY_MUTATION_KEY,
     useCloneRecipe,
     useDeleteRecipe,
     useDeleteRecipeRating,
@@ -28,7 +29,7 @@ import {
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
-import type { RecipeDetail } from '@kitchensink/recipe-core';
+import { RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 
 import { RecipeDetailScreen } from '../../src/screens/RecipeDetailScreen.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
@@ -580,6 +581,28 @@ describe('RecipeDetailScreen — owner actions', () => {
 
         expect(screen.queryByRole('heading', { name: 'Make this recipe public?' })).toBeNull();
         expect(mutate).not.toHaveBeenCalled();
+    });
+
+    // A Private refused AFTER it was sent (the editor's follow-up, answered once the editor had gone) is read from the
+    // mutation cache and said in plain words; every other failure keeps the generic "try again".
+    it('⛔ says the recipe stayed public when a Private sent elsewhere was refused', async () => {
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'upsell'));
+        seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', visibility: RecipeVisibility.PUBLIC }));
+        await queryClient
+            .getMutationCache()
+            .build(queryClient, {
+                mutationKey: RECIPE_VISIBILITY_MUTATION_KEY,
+                mutationFn: () =>
+                    Promise.reject(new BadRequestError('Public-only for free tier.', 'INVALID_VISIBILITY')),
+            })
+            .execute({ id: 'rec_1', visibility: RecipeVisibility.PRIVATE })
+            .catch(() => undefined);
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        expect(
+            await screen.findByText('This recipe is still public. Private recipes are part of Premium.'),
+        ).toBeTruthy();
     });
 
     // Review S3: an earlier failure is not news to a confirm opened afresh — the request clears it.

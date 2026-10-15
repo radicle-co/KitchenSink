@@ -184,6 +184,24 @@ describe('usePrivateChoice', () => {
         expect(result.current.field.privateRefusal).toBeUndefined();
     });
 
+    // The confirm says what is KNOWN: after a failed read, "may not be able to", never "won't be able to".
+    it('⛔ after a failed profile read, the confirm and the Public card say "may not", never "won`t"', () => {
+        const { result } = renderHook(() =>
+            usePrivateChoice({
+                state: 'hidden',
+                knownPaidFeatures: undefined,
+                saved: RecipeVisibility.PRIVATE,
+                values: PRIVATE_DRAFT,
+                onChange: vi.fn(),
+            }),
+        );
+
+        act(() => result.current.onConfirmPublic());
+
+        expect(result.current.confirm.consequence).toBe('unknown');
+        expect(result.current.field.paidFeatures).toBe('loading');
+    });
+
     it('under a known refusal, the field is told why a kept draft`s Private will not stand', () => {
         expect(mount('upsell', RecipeVisibility.PUBLIC, PRIVATE_DRAFT).result.current.field.privateRefusal).toBe(
             'premium',

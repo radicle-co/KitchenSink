@@ -27,8 +27,13 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { SetRatingRequest } from '@kitchensink/schema-recipe';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
-import { NotFoundError } from '@kitchensink/recipe-service-client';
-import { recipeServiceKeys, useDeleteRecipeRating, useSetRecipeRating } from '@kitchensink/recipe-service-client/hooks';
+import { BadRequestError, NotFoundError } from '@kitchensink/recipe-service-client';
+import {
+    RECIPE_VISIBILITY_MUTATION_KEY,
+    recipeServiceKeys,
+    useDeleteRecipeRating,
+    useSetRecipeRating,
+} from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -1037,6 +1042,41 @@ describe('RecipeDetailContainer', () => {
             expect(screen.getAllByText('We couldn’t change who can see this recipe. Please try again.')).toHaveLength(
                 1,
             );
+        });
+
+        /**
+         * A Private refused AFTER it was sent — the editor's follow-up under an unknown or stale paid-feature state —
+         * lands once the editor has gone. The page reads it from the mutation cache and says so in plain words, and
+         * keeps the generic "try again" for every other failure (retrying this one cannot succeed).
+         */
+        it('⛔ says the recipe stayed public when a Private sent elsewhere was refused', async () => {
+            useUserProfileMock.mockReturnValue(profileWith('hidden'));
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
+            );
+            const queryClient = new QueryClient({
+                defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+            });
+            // The editor's follow-up, refused after the editor left.
+            await queryClient
+                .getMutationCache()
+                .build(queryClient, {
+                    mutationKey: RECIPE_VISIBILITY_MUTATION_KEY,
+                    mutationFn: () =>
+                        Promise.reject(new BadRequestError('Public-only for free tier.', 'INVALID_VISIBILITY')),
+                })
+                .execute({ id: 'rec_1', visibility: RecipeVisibility.PRIVATE })
+                .catch(() => undefined);
+
+            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client, { queryClient });
+
+            expect(
+                (await screen.findByText('This recipe is still public: it couldn’t be made private.')).closest(
+                    '[role="alert"]',
+                ),
+            ).not.toBeNull();
+            expect(screen.queryByText('We couldn’t change who can see this recipe. Please try again.')).toBeNull();
         });
 
         // Review S3: an earlier failure is not news to a confirm opened afresh.

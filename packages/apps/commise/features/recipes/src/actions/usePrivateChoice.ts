@@ -78,8 +78,10 @@ export function usePrivateChoice(options: UsePrivateChoiceOptions): PrivateChoic
         saved,
         apply: () => onChange({ ...values, visibility: RecipeVisibility.PRIVATE }),
     });
+    // The confirm's words and the Public card's note say what is KNOWN: a failed profile read is "may not", never
+    // "won't" (`unknown`, not `final`).
     const makePublic = useMakePublicConfirm({
-        state,
+        state: options.knownPaidFeatures ?? 'loading',
         saved,
         apply: (done) => {
             onChange({ ...values, visibility: RecipeVisibility.PUBLIC });
@@ -94,7 +96,7 @@ export function usePrivateChoice(options: UsePrivateChoiceOptions): PrivateChoic
 
     return {
         offersPrivate,
-        field: { paidFeatures: state, heldVisibility: saved, privateRefusal: refusal },
+        field: { paidFeatures: options.knownPaidFeatures ?? 'loading', heldVisibility: saved, privateRefusal: refusal },
         onPremiumRequired: gate.request,
         onConfirmPublic: makePublic.request,
         confirm: makePublic.dialog,

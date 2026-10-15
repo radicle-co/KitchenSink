@@ -207,12 +207,14 @@ export type { RecipeFormIngredient, RecipeFormPhoto, RecipeFormStep, RecipeFormV
 export { RecipeDeleteDialog } from './actions/RecipeDeleteDialog.js';
 export { RecipeMakePublicDialog } from './actions/RecipeMakePublicDialog.js';
 export { useMakePublicConfirm } from './actions/useMakePublicConfirm.js';
+export { useServerRefusedPrivate } from './actions/useServerRefusedPrivate.js';
 export type { MakePublicConfirm, UseMakePublicConfirmOptions } from './actions/useMakePublicConfirm.js';
 export { RecipeUpsellSheet } from './actions/RecipeUpsellSheet.js';
 export { usePrivateChoice } from './actions/usePrivateChoice.js';
 export { useGatedPrivate } from './actions/useGatedPrivate.js';
 export {
     makePublicConsequence,
+    privateRefusalOf,
     mayRestorePrivate,
     offersPrivate,
     privateChoice,

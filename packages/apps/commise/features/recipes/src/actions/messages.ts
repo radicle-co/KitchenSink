@@ -54,6 +54,11 @@ export interface RecipeVisibilityToggleMessages {
     readonly privateLabel: string;
     /** Error shown when a visibility change fails and the toggle snaps back, so it never does so silently (B17). */
     readonly error: string;
+    /**
+     * In place of `error` when the server refused a Private as `INVALID_VISIBILITY` (`useServerRefusedPrivate`):
+     * trying again cannot succeed, so it is not offered. `premium` under the upsell; otherwise `final`.
+     */
+    readonly privateRefused: { readonly final: string; readonly premium: string };
 }
 
 /** Copy for the "More actions" overflow (C4) that groups the detail header's secondary owner actions. */
@@ -160,6 +165,10 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             publicLabel: 'Public',
             privateLabel: 'Private',
             error: 'We couldn’t change who can see this recipe. Please try again.',
+            privateRefused: {
+                final: 'This recipe is still public: it couldn’t be made private.',
+                premium: 'This recipe is still public. Private recipes are part of Premium.',
+            },
         },
         moreMenu: {
             triggerFor: 'More actions for {title}',

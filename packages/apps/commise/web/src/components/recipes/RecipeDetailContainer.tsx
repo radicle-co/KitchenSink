@@ -47,7 +47,9 @@ import {
     RecipeUpsellSheet,
     RecipeMakePublicDialog,
     useGatedPrivate,
+    privateRefusalOf,
     useMakePublicConfirm,
+    useServerRefusedPrivate,
     editorMessages,
     FINISHED_OUTCOME_PARAM,
     finishedNoticeOf,
@@ -67,7 +69,7 @@ import { Button, buttonSurfaceClass, GHOST_EDGE_CLASS } from '@commise/ui/button
 import { HeroButton } from '@commise/ui/hero-button';
 import { Icon } from '@commise/ui/icon';
 import { ScrollHost, useScrollHost } from '@commise/ui/scroll-host';
-import { paidFeatureStateOf } from '@commise/features-account';
+import { knownPaidFeaturesOf, paidFeatureStateOf } from '@commise/features-account';
 import { RecipeVisibility, canClone, isOwner, makeViewer } from '@kitchensink/recipe-core';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import {
@@ -218,8 +220,10 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     });
     // Q5 (UX SPECIFY 2026-10-15): a downgraded owner confirms Make public first; the confirm stays up, busy, while the
     // change is in flight, and says a failure inside itself.
+    const serverRefusedPrivate = useServerRefusedPrivate(id);
+    // The confirm's words say what is KNOWN: a failed profile read is "may not", never "won't" (review).
     const makePublic = useMakePublicConfirm({
-        state: paidFeatureStateOf(profile),
+        state: knownPaidFeaturesOf(profile) ?? 'loading',
         saved: recipe.visibility,
         apply: (done) => setVisibility.mutate({ id, visibility: RecipeVisibility.PUBLIC }, { onSuccess: done }),
     });
@@ -410,11 +414,24 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
             </ScrollHost>
 
             {/* B17 — a failed visibility change snaps back to the query's value; say so rather than fail silently. The
-                make-public confirm says its own failure inside itself, so it is not said twice. */}
-            {setVisibility.error !== null && !makePublic.dialog.open && (
+                make-public confirm says its own failure inside itself, so it is not said twice. A Private the server
+                refused — the editor's follow-up included, answered after the editor left — is said in its own words,
+                because trying again cannot succeed. */}
+            {serverRefusedPrivate ? (
                 <p role="alert" className="max-w-detail text-meta text-danger-text">
-                    {visibilityCopy.error}
+                    {
+                        visibilityCopy.privateRefused[
+                            privateRefusalOf(knownPaidFeaturesOf(profile) ?? 'loading') ?? 'final'
+                        ]
+                    }
                 </p>
+            ) : (
+                setVisibility.error !== null &&
+                !makePublic.dialog.open && (
+                    <p role="alert" className="max-w-detail text-meta text-danger-text">
+                        {visibilityCopy.error}
+                    </p>
+                )
             )}
 
             {viewerIsOwner && <RecipeUpsellSheet {...privateGate.sheet} />}

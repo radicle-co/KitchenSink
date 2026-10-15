@@ -44,6 +44,7 @@ import {
     recipeServiceKeys,
     useAddRecipeToCollection,
     useCloneCollection,
+    RECIPE_VISIBILITY_MUTATION_KEY,
     SAVE_COPY_MUTATION_KEY,
     useCloneRecipe,
     useConfirmPhotoUpload,
@@ -583,6 +584,23 @@ describe('useSetRecipeVisibility', () => {
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
         expect(queryClient.getQueryData(recipeServiceKeys.recipe(PROBE_RECIPE_ID))).toEqual(updated);
+    });
+
+    // A visibility write can be refused after the screen that sent it has gone (the editor's follow-up): the recipe page
+    // finds it in the mutation cache by this key and its variables (plan 2026-10-14-009, the stuck-save review).
+    it('keys the mutation under RECIPE_VISIBILITY_MUTATION_KEY, with the id and visibility it sent', async () => {
+        const { result, client, queryClient } = renderMutation(() => useSetRecipeVisibility());
+        vi.spyOn(client, 'setRecipeVisibility').mockResolvedValue(makeRecipeDetail({ id: PROBE_RECIPE_ID }));
+
+        act(() => result.current.mutate({ id: PROBE_RECIPE_ID, visibility: 'private' }));
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        const mutations = queryClient.getMutationCache().findAll({ mutationKey: RECIPE_VISIBILITY_MUTATION_KEY });
+
+        expect(RECIPE_VISIBILITY_MUTATION_KEY).toEqual(['recipe-service', 'mutations', 'recipeVisibility']);
+        expect(mutations.map((mutation) => [mutation.options.mutationKey, mutation.state.variables])).toEqual([
+            [RECIPE_VISIBILITY_MUTATION_KEY, { id: PROBE_RECIPE_ID, visibility: 'private' }],
+        ]);
     });
 
     it('surfaces a 403 (free tier cannot make a recipe private) and invalidates nothing', async () => {

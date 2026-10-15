@@ -6,6 +6,13 @@ import { recipeServiceKeys } from '../queries.js';
 import { useRecipeServiceClient } from './recipeServiceProvider.js';
 
 /**
+ * The key every visibility write is filed under, with its `{ id, visibility }` as variables. A write can be refused
+ * after the screen that sent it has gone — the editor's follow-up lands after the editor navigated to the recipe — so
+ * the recipe page reads the latest one for its recipe from the mutation cache (`useMutationState`).
+ */
+export const RECIPE_VISIBILITY_MUTATION_KEY = ['recipe-service', 'mutations', 'recipeVisibility'] as const;
+
+/**
  * `PATCH /api/v1/recipes/{id}/visibility` — set a recipe's visibility.
  *
  * DA3 — write-through: the response is the full, freshly-persisted `RecipeDetail`, so it is written straight
@@ -26,6 +33,7 @@ export function useSetRecipeVisibility() {
     const queryClient = useQueryClient();
 
     return useMutation({
+        mutationKey: RECIPE_VISIBILITY_MUTATION_KEY,
         mutationFn: (vars: { id: string; visibility: RecipeVisibility }) =>
             client.setRecipeVisibility(vars.id, vars.visibility),
         onSuccess: async (data, vars) => {

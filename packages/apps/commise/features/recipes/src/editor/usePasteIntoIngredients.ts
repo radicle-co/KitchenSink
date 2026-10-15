@@ -115,6 +115,12 @@ interface PasteSession {
     readonly failedAt: number | undefined;
 }
 
+/** The paste in progress and what the last finished one said. */
+interface PasteState {
+    readonly session: PasteSession | undefined;
+    readonly added: PasteIntoIngredients['added'];
+}
+
 /** A row as a draft line: the admitted food, the measure the parse read, and the source while it may be sent. */
 function draftLineOf(
     admitted: ResolvedRecipeFormIngredient,
@@ -140,12 +146,20 @@ function draftLineOf(
  */
 export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions): PasteIntoIngredients {
     const { offered, keepsSource } = options;
-    const [session, setSession] = useState<PasteSession | undefined>(undefined);
+    // The session and the count a finished paste says live in ONE state, so the join that finishes a paste ends the
+    // session and records its count in the same pure update (a second `setState` inside an updater would not be pure).
+    const [{ session, added }, setPasteState] = useState<PasteState>({ session: undefined, added: undefined });
+    const setSession = (
+        update: PasteSession | undefined | ((current: PasteSession | undefined) => PasteSession | undefined),
+    ) =>
+        setPasteState((state) => ({
+            ...state,
+            session: typeof update === 'function' ? update(state.session) : update,
+        }));
     const [acceptedCount, setAcceptedCount] = useState(0);
     // The sessions whose next line is being joined. A session object names one line of one paste (it is replaced as each
     // line joins), so claiming it once keeps a line from being joined twice, by a re-run effect included.
     const [claimed] = useState(() => new WeakSet<PasteSession>());
-    const [added, setAdded] = useState<PasteIntoIngredients['added']>(undefined);
     const create = useCreateParseJob({
         onSuccess: (job) => {
             setSession({ jobId: job.id, typedByCook: new Set(), done: 0, addedRows: 0, failedAt: undefined });
@@ -237,17 +251,26 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
                     });
                 }
 
-                const done = from.done + 1;
-                const addedRows = from.addedRows + admitted.length;
+                // A functional update: the answer merges into the session AS IT STANDS, so a choice the cook made while the
+                // join was in flight (Add as written, Try again) is kept, and a paste that replaced this one (another job
+                // id) is left alone. The closure supplies only the job id and the line count, which never change.
+                setPasteState((state) => {
+                    const current = state.session;
 
-                if (done >= total) {
-                    setSession(undefined);
-                    setAdded((previous) => ({ count: addedRows, occurrence: (previous?.occurrence ?? 0) + 1 }));
+                    if (current?.jobId !== from.jobId) {
+                        return state;
+                    }
 
-                    return;
-                }
+                    const done = current.done + 1;
+                    const addedRows = current.addedRows + admitted.length;
 
-                setSession({ ...from, done, addedRows });
+                    return done >= total
+                        ? {
+                              session: undefined,
+                              added: { count: addedRows, occurrence: (state.added?.occurrence ?? 0) + 1 },
+                          }
+                        : { ...state, session: { ...current, done, addedRows } };
+                });
             },
             onError: (_error, line) =>
                 setSession((current) => (current === undefined ? current : { ...current, failedAt: line.lineIndex })),

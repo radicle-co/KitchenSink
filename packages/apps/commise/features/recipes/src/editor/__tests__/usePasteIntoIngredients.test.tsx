@@ -353,6 +353,65 @@ describe('usePasteIntoIngredients — a lookup that fails', () => {
         // A closure-based merge writes the stale `failedAt` back over the retry, and line 0 stays failed forever.
         expect(result.current.reading.map((row) => row.state)).not.toContain('lookupFailed');
     });
+
+    /** A lookup the test answers by hand, so the join is still in flight while the cook acts. */
+    function holdLookup(): { release: () => void } {
+        let release: () => void = () => undefined;
+        mocks.byName.mockImplementationOnce(
+            (name: string) =>
+                new Promise<Ingredient>((resolve) => {
+                    release = () => resolve(ingredient(name));
+                }),
+        );
+
+        return { release: () => release() };
+    }
+
+    it('⛔ a join that answers does not undo an Add as written the cook pressed while it was in flight', async () => {
+        const gate = holdLookup();
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit('2 cups flour\n1 tsp salt'));
+        accept(makeParseJob());
+        mocks.job = makeParseJob({
+            status: 'complete',
+            lines: [
+                parsed(0, '2 cups flour', 'flour'),
+                makeParseJobLine({ lineIndex: 1, sourceLine: '1 tsp salt', progress: { phase: 'stalled' } }),
+            ],
+        });
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await settle();
+        expect(mocks.byName).toHaveBeenCalledTimes(1);
+
+        act(() => result.current.addAsWritten(1));
+        await act(async () => gate.release());
+        await settle();
+
+        // Written back from the closure captured when the join began, the cook's choice is lost and line 1 stalls again.
+        expect(result.current.reading).toEqual([]);
+        expect(appended(dispatch).map((line) => line.name)).toEqual(['flour', 'salt']);
+    });
+
+    it('⛔ a join that answers for a paste that was replaced does not overwrite the newer paste', async () => {
+        const gate = holdLookup();
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit('2 cups flour\n1 tsp salt'));
+        accept(makeParseJob({ id: '11111111-1111-4111-8111-111111111111' }));
+        mocks.job = makeParseJob({
+            id: '11111111-1111-4111-8111-111111111111',
+            status: 'complete',
+            lines: [parsed(0, '2 cups flour', 'flour'), parsed(1, '1 tsp salt', 'salt')],
+        });
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await settle();
+
+        accept(makeParseJob({ id: '22222222-2222-4222-8222-222222222222' }));
+        mocks.polledId.mockClear();
+        await act(async () => gate.release());
+        await settle();
+
+        expect(mocks.polledId).not.toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111');
+    });
 });
 
 /**

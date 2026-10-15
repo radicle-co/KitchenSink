@@ -53,6 +53,11 @@ things out, but done."
 | `lambdaRolesCoverTheirSdkCalls` covers only the scheduler stack; extend it to recipe-workers, identity-webhooks, food | Every Lambda role checked, or the name narrowed                                  |
 | `sdkCommandReach.ts` does not record why IAM Policy Autopilot was not used                                            | One sentence in its header                                                       |
 | Two stale sentences in `zizmor.yml` about which jobs assume the roles                                                 | Rewritten                                                                        |
+| Parse statuses: "Add as written" does not cancel that line's paid parse (Bedrock included)                            | The line's parse is withdrawn server-side                                        |
+| Parse statuses: a refused "Try again" shows no error                                                                  | A localized failure on both apps                                                 |
+| Parse statuses: after "Add as written", focus goes to the progress block, not the next waiting row                    | Focus moves per the UX spec                                                      |
+| Parse statuses: the operator queue check calls every line between attempts "stuck"                                    | The check uses the same phase rule as the read                                   |
+| `sandboxStatusProbe` concurrent-deploy test flaked once under load                                                    | Timing made deterministic                                                        |
 | `readViewerAppId` in `web/tests/e2e/utils/recipeApi.ts` blames a claim that is present                                | The message names the real cause                                                 |
 | Whatever the first CI run with the iOS fixes shows                                                                    | Each failure fixed at its root                                                   |
 | CI on the OIDC roles, sandbox half (commit B)                                                                         | Plan 005. Proven on PR 91 by real runs                                           |
@@ -101,7 +106,6 @@ Each one gets its plan doc before code, built on web and mobile in lock-step, te
 | ------------------------------------------------------------------------------------------- | --------------- |
 | Confirm the prod web client ID (the two prod IDs sent were the same)                        | Wave 2          |
 | Clerk Native applications entries on both instances                                         | Wave 2          |
-| Sign in with Apple: build it beside Google, or not                                          | Wave 2          |
 | Phase 2 of the AWS separation: KitchenSink's own CDK qualifier or own accounts              | Wave 3          |
 | Whether `main` requires pull requests                                                       | Wave 3          |
 | Whether to delete the org-level AWS key secrets, which armoury's repositories can also read | After the merge |

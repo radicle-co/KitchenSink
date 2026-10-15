@@ -64,6 +64,7 @@ const innerHandler = async (
                     displayName: idpUser.fullName ?? undefined,
                     picture: idpUser.imageUrl ?? undefined,
                     avatarUrl: idpUser.imageUrl ?? null,
+                    username: idpUser.username ?? null,
                 },
                 { onEmailCollision: 'placeholder', emailIsReal: true },
             );

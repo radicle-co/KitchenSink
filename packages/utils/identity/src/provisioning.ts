@@ -63,6 +63,8 @@ export interface ProvisionInput {
     /** Profile display name; defaults to `name ?? ''`. */
     readonly displayName?: string | null;
     readonly avatarUrl?: string | null;
+    /** The Clerk username — the public byline (owner ruling 2026-10-13). Clerk is its authority. */
+    readonly username?: string | null;
 }
 
 /**
@@ -310,6 +312,11 @@ async function ensureAccountAndProfile(deps: ProvisionDeps, userId: string, inpu
     await db.insert(schema.accounts).values({ userId }).onConflictDoNothing();
     await db
         .insert(schema.profiles)
-        .values({ userId, displayName: input.displayName ?? input.name ?? '', avatarUrl: input.avatarUrl ?? null })
+        .values({
+            userId,
+            displayName: input.displayName ?? input.name ?? '',
+            avatarUrl: input.avatarUrl ?? null,
+            username: input.username ?? null,
+        })
         .onConflictDoNothing();
 }

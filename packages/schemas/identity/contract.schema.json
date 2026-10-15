@@ -545,6 +545,16 @@
                         },
                         "updatedAt": {
                             "type": "string"
+                        },
+                        "username": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
                         }
                     },
                     "required": [
@@ -552,6 +562,7 @@
                         "email",
                         "displayName",
                         "avatarUrl",
+                        "username",
                         "status",
                         "createdAt",
                         "updatedAt"
@@ -602,6 +613,16 @@
                 },
                 "updatedAt": {
                     "type": "string"
+                },
+                "username": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
                 }
             },
             "required": [
@@ -609,6 +630,7 @@
                 "email",
                 "displayName",
                 "avatarUrl",
+                "username",
                 "status",
                 "createdAt",
                 "updatedAt"

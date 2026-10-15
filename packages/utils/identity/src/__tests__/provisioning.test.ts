@@ -129,7 +129,20 @@ describe('provisionCompleteUser', () => {
             userId: 'usr_test',
             displayName: 'Ada',
             avatarUrl: 'https://img/ada.png',
+            username: null,
         });
+    });
+
+    it('seeds the profile with the Clerk username (the public byline, owner ruling 2026-10-13)', async () => {
+        const { deps, valuesByTable } = buildMockDb();
+
+        await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com', name: 'Ada Lovelace', username: 'ada' },
+            { onEmailCollision: 'placeholder' },
+        );
+
+        expect(valuesByTable.get('profiles')).toMatchObject({ displayName: 'Ada Lovelace', username: 'ada' });
     });
 
     /**
@@ -277,6 +290,11 @@ describe('provisionCompleteUser', () => {
             { onEmailCollision: 'placeholder' },
         );
 
-        expect(valuesByTable.get('profiles')).toEqual({ userId: 'usr_test', displayName: '', avatarUrl: null });
+        expect(valuesByTable.get('profiles')).toEqual({
+            userId: 'usr_test',
+            displayName: '',
+            avatarUrl: null,
+            username: null,
+        });
     });
 });

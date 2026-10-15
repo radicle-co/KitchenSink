@@ -613,6 +613,9 @@ components:
         avatarUrl:
           nullable: true
           type: string
+        username:
+          nullable: true
+          type: string
         status:
           type: string
           enum:
@@ -629,6 +632,7 @@ components:
         - email
         - displayName
         - avatarUrl
+        - username
         - status
         - createdAt
         - updatedAt

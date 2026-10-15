@@ -58,6 +58,7 @@ const idpUserNew = {
     emailAddresses: [{ id: 'ea_1', emailAddress: 'new@example.com' }],
     primaryEmailAddressId: 'ea_1',
     fullName: 'New User',
+    username: 'newuser',
     imageUrl: 'https://example.com/new.jpg',
 };
 
@@ -124,6 +125,7 @@ describe('reconciliation handler', () => {
                 name: 'New User',
                 displayName: 'New User',
                 avatarUrl: 'https://example.com/new.jpg',
+                username: 'newuser',
             }),
             { onEmailCollision: 'placeholder', emailIsReal: true },
         );

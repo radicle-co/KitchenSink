@@ -253,6 +253,7 @@ describe('UsersService', () => {
             userId: '01HZZZZZZZZZZZZZZZZZZZZZZU',
             displayName: 'New Name',
             avatarUrl: null,
+            username: 'newname',
             updatedAt: new Date(),
         };
         const updatedAccount = {
@@ -276,6 +277,8 @@ describe('UsersService', () => {
         const result = await usersService.patchUserMe({ ...userCtx, roles: ['premium'] }, { displayName: 'New Name' });
 
         expect(result.user.displayName).toBe('New Name');
+        // A display-name edit leaves the Clerk-owned username as it was, and answers it.
+        expect(result.user.username).toBe('newname');
         // The PATCH response builds its account half separately; it must answer the same field.
         expect(result.account.paidFeatures).toBe('granted');
     });

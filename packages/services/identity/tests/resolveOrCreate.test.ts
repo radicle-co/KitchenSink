@@ -145,6 +145,27 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
         expect(mockDb.insert).toHaveBeenCalledTimes(3);
     });
 
+    it.each([
+        ['the token’s username', 'GoodFellow', 'GoodFellow'],
+        ['NULL when the token has none', undefined, null],
+        ['NULL — not a truncation — for a username past the bound', 'u'.repeat(65), null],
+    ])('seeds the new profile with %s', async (_case, claim, stored) => {
+        const createdAt = new Date(1_000);
+        const createdRow = { id: '01NEWUSER0000000000000000', email: 'n@b.com', createdAt, updatedAt: createdAt };
+        const profileValues = vi.fn().mockReturnValue({ onConflictDoNothing: () => Promise.resolve() });
+
+        mockDb.select = vi.fn().mockReturnValueOnce(selectChain([]));
+        mockDb.insert = vi
+            .fn()
+            .mockReturnValueOnce(insertUsersReturning([createdRow]))
+            .mockReturnValueOnce(insertNoop)
+            .mockReturnValueOnce({ values: profileValues });
+
+        await usersService.resolveOrCreateFromClaims({ sub: 'user_new', email: 'n@b.com', username: claim });
+
+        expect(profileValues).toHaveBeenCalledWith(expect.objectContaining({ username: stored }));
+    });
+
     it('heals an existing user missing its profile (the old check looked only at accounts)', async () => {
         const userRow = {
             id: '01LEGACYUSER00000000000000',

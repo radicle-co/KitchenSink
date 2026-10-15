@@ -27,6 +27,7 @@
  *  - `users.name` / `users.picture` / `profiles.display_name` are unbounded `text`, so those carry the app's
  *    own display-name bound instead (see {@link MAX_DISPLAY_NAME_LENGTH}).
  */
+import { usernameSchema } from '@kitchensink/identity-core';
 import { z } from 'zod';
 
 /**
@@ -95,6 +96,12 @@ const identityUserDataSchema = z.looseObject({
     last_name: nameComponentSchema,
     /** Avatar URL. Optional and nullable; written to the nullable `users.picture` / `profiles.avatar_url`. */
     image_url: z.string().max(2048).nullable().optional(),
+    /**
+     * The Clerk username — the public byline (owner ruling 2026-10-13) — or `null` for a user without one. Bounded by
+     * identity-core's `usernameSchema`, the one bound every username boundary applies. Written to the nullable
+     * `profiles.username`.
+     */
+    username: usernameSchema.nullable().optional(),
 });
 
 /** The user fields `user.deleted` consumes — the id ALONE, and it is required. */

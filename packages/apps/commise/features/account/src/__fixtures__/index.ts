@@ -32,6 +32,7 @@ export function makeUserProfileUser(overrides: Partial<UserProfileUser> = {}): U
         email: 'ada@example.test',
         displayName: 'Ada',
         avatarUrl: null,
+        username: 'ada',
         status: 'active',
         createdAt: FIXED_TIMESTAMP,
         updatedAt: FIXED_TIMESTAMP,

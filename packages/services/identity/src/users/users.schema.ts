@@ -74,6 +74,12 @@ export const userProfileUserSchema = z.object({
     displayName: z.string(),
     /** Avatar URL, or `null` when unset or scrubbed by a closure/erasure. */
     avatarUrl: z.string().nullable(),
+    /**
+     * The Clerk username — the public byline (owner ruling 2026-10-13) — or `null` when the cook has none. Read-only:
+     * Clerk is its authority and there is no rename in the app. Required-nullable, so a client never has to tell "no
+     * username" from an older server.
+     */
+    username: z.string().nullable(),
     /** Lifecycle status. A `suspended`/`tombstoned` viewer is shown a block, not the app. */
     status: userStatusSchema,
     /** ISO-8601 creation timestamp. */

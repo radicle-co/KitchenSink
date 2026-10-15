@@ -2,7 +2,12 @@ import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nest
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { and, eq, sql } from 'drizzle-orm';
 import { provisionCompleteUser, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
-import { buildHandleSyncMessage, computeProfileScrub, deriveDisplayName } from '@kitchensink/identity-core';
+import {
+    buildHandleSyncMessage,
+    computeProfileScrub,
+    deriveDisplayName,
+    parseUsername,
+} from '@kitchensink/identity-core';
 import { eraseIdentityRow } from '@kitchensink/identity-db';
 
 import { HANDLE_SYNC_PUBLISH_FAILED } from '@kitchensink/identity-core';
@@ -108,6 +113,8 @@ export class UsersService {
         // The ONE display-name rule (W8-a.2 / decision 6), shared with the recipe write-time handle fallback
         // via @kitchensink/identity-core — so both services derive the "@handle" identically, no divergence.
         const displayName = deriveDisplayName(claims);
+        // The public byline (owner ruling 2026-10-13). A claim the boundary refuses is dropped, never stored.
+        const username = parseUsername(claims.username);
         const realEmail = claims.email;
 
         // One query: fetch the user AND whether its account + profile already exist (the hot-path
@@ -136,6 +143,7 @@ export class UsersService {
                     name: displayName || undefined,
                     displayName: displayName || undefined,
                     picture: claims.picture,
+                    username,
                 },
                 { onEmailCollision: 'placeholder', emailIsReal: realEmail !== undefined },
             );
@@ -176,6 +184,7 @@ export class UsersService {
                         name: displayName || undefined,
                         displayName: displayName || undefined,
                         picture: claims.picture,
+                        username,
                     },
                     { onEmailCollision: 'placeholder', emailIsReal: true },
                 );
@@ -210,6 +219,7 @@ export class UsersService {
                 status: user.status,
                 displayName: profile?.displayName ?? '',
                 avatarUrl: profile?.avatarUrl ?? null,
+                username: profile?.username ?? null,
                 createdAt: user.createdAt.toISOString(),
                 updatedAt: user.updatedAt.toISOString(),
             },
@@ -328,6 +338,7 @@ export class UsersService {
                 status: existing.status,
                 displayName: updatedProfile?.displayName ?? '',
                 avatarUrl: updatedProfile?.avatarUrl ?? null,
+                username: updatedProfile?.username ?? null,
                 createdAt: existing.createdAt.toISOString(),
                 updatedAt: now.toISOString(),
             },

@@ -13,6 +13,11 @@ export const profiles = pgTable(
         displayName: text('display_name').notNull(),
         avatarUrl: text('avatar_url'),
         bio: text('bio'),
+        /**
+         * Mirror of the Clerk username — the public byline (migration 0016). Clerk is the authority, so there is no
+         * unique index here; NULL means the user has none.
+         */
+        username: text('username'),
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
         /**
          * U9 (R21/R25): when a handle sync became owed, or NULL when nothing is owed.

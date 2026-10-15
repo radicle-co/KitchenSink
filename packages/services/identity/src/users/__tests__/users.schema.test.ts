@@ -121,6 +121,7 @@ describe('userProfileSchema', () => {
             email: 'viewer@example.com',
             displayName: '',
             avatarUrl: null,
+            username: null,
             status: 'active',
             createdAt: '2026-08-11T00:00:00.000Z',
             updatedAt: '2026-08-11T00:00:00.000Z',
@@ -144,6 +145,20 @@ describe('userProfileSchema', () => {
         expect(
             userProfileSchema.safeParse({ ...profile, user: { ...profile.user, avatarUrl: undefined } }).success,
         ).toBe(false);
+    });
+
+    it('carries the username as a string, or null when the cook has none', () => {
+        expect(userProfileSchema.parse({ ...profile, user: { ...profile.user, username: 'ada' } }).user.username).toBe(
+            'ada',
+        );
+        expect(userProfileSchema.parse(profile).user.username).toBeNull();
+    });
+
+    // Required-nullable, so a client never has to tell "no username" from "an older server".
+    it('requires the username key — absent is refused', () => {
+        const { username: _omitted, ...withoutUsername } = profile.user;
+
+        expect(userProfileSchema.safeParse({ ...profile, user: withoutUsername }).success).toBe(false);
     });
 
     it('requires account.paidFeatures — a client cannot fall back to guessing', () => {

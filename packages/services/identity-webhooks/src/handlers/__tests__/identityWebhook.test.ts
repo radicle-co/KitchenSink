@@ -85,6 +85,7 @@ const userCreatedPayload = {
         email_addresses: [{ id: 'email_1', email_address: 'test@example.com' }],
         first_name: 'John',
         last_name: 'Doe',
+        username: 'johndoe',
         image_url: 'https://example.com/avatar.png',
     },
     object: 'event' as const,
@@ -276,6 +277,7 @@ describe('identity-webhook handler', () => {
                 name: 'John Doe',
                 displayName: 'John Doe',
                 avatarUrl: 'https://example.com/avatar.png',
+                username: 'johndoe',
             }),
             { onEmailCollision: 'signal-incomplete', emailIsReal: true },
         );

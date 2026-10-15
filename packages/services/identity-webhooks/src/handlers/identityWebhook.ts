@@ -95,6 +95,7 @@ const handleUserCreated = async (data: IdentityUserData, db: IdentityWriter, req
                 displayName: buildDisplayName(data),
                 picture: data.image_url ?? undefined,
                 avatarUrl: data.image_url ?? null,
+                username: data.username ?? null,
             },
             { onEmailCollision: 'signal-incomplete', emailIsReal: true },
         );

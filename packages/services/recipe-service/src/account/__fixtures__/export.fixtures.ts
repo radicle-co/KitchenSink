@@ -43,6 +43,7 @@ export function makeRecipeRow(overrides: Partial<RecipeExportRow> = {}): RecipeE
         dietaryFlags: ['vegetarian'],
         tags: ['dinner'],
         authorDisplayName: 'chef-anna',
+        authorUsername: null,
         currentVersion: 1,
         deletedAt: null,
         createdAt: CREATED,
@@ -130,6 +131,7 @@ export function makeAuthorHandleRow(overrides: Partial<AuthorHandleRow> = {}): A
     return {
         userId: FIXTURE_OWNER,
         displayName: 'Chef Anna',
+        username: null,
         sourceTimestamp: UPDATED,
         ...overrides,
     };

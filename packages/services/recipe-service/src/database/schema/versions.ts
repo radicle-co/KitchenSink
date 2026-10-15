@@ -83,6 +83,8 @@ export const recipeVersions = pgTable(
         // snapshot field (a handle frozen in the immutable snapshot could never be corrected by rename-sync).
         // NULLABLE; kept current by the handle-sync consumer's fan-out. The editor is `created_by` (the ULID).
         editorDisplayName: text('editor_handle'),
+        // The editor's Clerk username (0055) — a column for the reason `editor_handle` is one.
+        editorUsername: text('editor_username'),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (table) => [

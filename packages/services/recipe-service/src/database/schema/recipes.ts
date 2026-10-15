@@ -164,6 +164,9 @@ export const recipes = pgTable(
         // a pre-feature row has none until its next write / the backfill; kept current by the handle-sync
         // consumer's fan-out. The owner_id ULID stays the join/authz key — never the handle.
         authorDisplayName: text('author_handle'),
+        // The author's Clerk username — the public byline (0055). Same lifecycle as the display name beside it:
+        // seeded at write time, corrected by the handle-sync fan-out, cleared to NULL on erasure (never a pseudonym).
+        authorUsername: text('author_username'),
 
         currentVersion: integer('current_version').notNull().default(1),
 

@@ -131,6 +131,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             dietary_flags: { type: 'text[]', notNull: true },
             tags: { type: 'text[]', notNull: true },
             author_handle: { type: 'text', notNull: false },
+            author_username: { type: 'text', notNull: false },
             status: { type: 'text', notNull: true },
             // ADR-0058 — nullable: NULL exactly while the recipe has never been published. Set and kept by the 0053
             // trigger, which `tests/e2e/draftVersions.e2e.test.ts` proves against a real Postgres.
@@ -287,6 +288,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             created_by: { type: 'varchar(255)', notNull: true },
             change_summary: { type: 'text', notNull: false },
             editor_handle: { type: 'text', notNull: false },
+            editor_username: { type: 'text', notNull: false },
             created_at: { type: 'timestamp with time zone', notNull: true },
         });
     });
@@ -296,6 +298,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
         expectColumns(authorHandles, {
             user_id: { type: 'varchar(255)', notNull: true },
             display_name: { type: 'text', notNull: true },
+            username: { type: 'text', notNull: false },
             source_timestamp: { type: 'timestamp with time zone', notNull: true },
         });
     });

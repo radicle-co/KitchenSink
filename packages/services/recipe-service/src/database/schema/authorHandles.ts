@@ -19,6 +19,8 @@ export const authorHandles = pgTable('author_handles', {
     userId: varchar('user_id', { length: 255 }).primaryKey(),
     /** The user's current display name (identity's `profiles.displayName`). */
     displayName: text('display_name').notNull(),
+    /** The user's Clerk username — the public byline (0055) — or NULL when they have none. */
+    username: text('username'),
     /** `profiles.updatedAt` at the rename (the single clock the monotonic guard compares). */
     sourceTimestamp: timestamp('source_timestamp', { withTimezone: true }).notNull(),
 });

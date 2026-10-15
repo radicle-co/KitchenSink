@@ -477,10 +477,14 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         const deleteIndex = statements.findIndex((s) => /^delete from recipes where/i.test(s.text));
 
         // Scrubbed to the deterministic ULID-derived pseudonym, on the owner's remaining (KEPT) rows that
-        // still carry a cleartext handle. Mutation: leaving cleartext, or fabricating a handle on a
-        // NULL-handle row, both fail here.
-        expect(scrub?.text).toMatch(/set author_handle = \$\d/i);
-        expect(scrub?.text).toMatch(/where owner_id = \$\d and author_handle is not null/i);
+        // still carry a cleartext handle OR username. Mutation: leaving cleartext, or fabricating a handle on a
+        // NULL-handle row (the CASE), both fail here. The username is CLEARED, never pseudonymized (plan
+        // 2026-10-15-010 D10): `user_<ULID>` is a legal Clerk username.
+        expect(scrub?.text).toMatch(/set author_handle = case when author_handle is null then null else \$\d end/i);
+        expect(scrub?.text).toMatch(/author_username = null/i);
+        expect(scrub?.text).toMatch(
+            /where owner_id = \$\d and \(author_handle is not null or author_username is not null\)/i,
+        );
         expect(scrub?.params[0]).toBe(`user_${OWNER}`);
         expect(scrub?.params[1]).toBe(OWNER);
         // AFTER the delete, so only KEPT rows remain when the scrub runs (removed rows are already gone).
@@ -536,7 +540,10 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
 
         // The same pseudonym as `recipes.author_handle` — one derivation, so a kept recipe and its version
         // history name the same stranger.
-        expect(scrub.text).toMatch(/where created_by = \$\d and editor_handle is not null/i);
+        expect(scrub.text).toMatch(/editor_username = null/i);
+        expect(scrub.text).toMatch(
+            /where created_by = \$\d and \(editor_handle is not null or editor_username is not null\)/i,
+        );
         expect(scrub.params[0]).toBe(`user_${OWNER}`);
         expect(scrub.params[1]).toBe(OWNER);
         // AFTER the recipe delete: a REMOVED recipe's versions go with the cascade, so only the KEPT ones

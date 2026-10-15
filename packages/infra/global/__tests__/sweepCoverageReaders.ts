@@ -142,32 +142,182 @@ const NOT_A_COLUMN: ReadonlySet<string> = new Set([
  * @returns The declared column names, in declaration order. Pure.
  */
 export function declaredColumnsIn(body: string): readonly string[] {
-    const columns: string[] = [];
+    return topLevelClausesIn(body).flatMap((clause) => {
+        const definition = /^\s*"?([a-z_][a-z0-9_]*)"?\s+[a-z]/i.exec(clause);
+
+        return definition?.[1] !== undefined && !NOT_A_COLUMN.has(definition[1].toLowerCase()) ? [definition[1]] : [];
+    });
+}
+
+/**
+ * Split a clause list on its TOP-LEVEL commas — a `CREATE TABLE` body or an `ALTER TABLE` clause list.
+ *
+ * Depth tracking is what makes the comma split safe over `varchar(255)`, `numeric(10, 2)` and a `CHECK (a, b)`.
+ *
+ * @param text - Comment-stripped clause text.
+ * @returns The clauses, in order. Pure.
+ */
+function topLevelClausesIn(text: string): readonly string[] {
+    const clauses: string[] = [];
     let depth = 0;
     let start = 0;
 
-    const take = (clause: string): void => {
-        const definition = /^\s*"?([a-z_][a-z0-9_]*)"?\s+[a-z]/i.exec(clause);
-
-        if (definition?.[1] !== undefined && !NOT_A_COLUMN.has(definition[1].toLowerCase())) {
-            columns.push(definition[1]);
-        }
-    };
-
-    for (let i = 0; i < body.length; i += 1) {
-        if (body[i] === '(') {
+    for (let i = 0; i < text.length; i += 1) {
+        if (text[i] === '(') {
             depth += 1;
-        } else if (body[i] === ')') {
+        } else if (text[i] === ')') {
             depth -= 1;
-        } else if (body[i] === ',' && depth === 0) {
-            take(body.slice(start, i));
+        } else if (text[i] === ',' && depth === 0) {
+            clauses.push(text.slice(start, i));
             start = i + 1;
         }
     }
 
-    take(body.slice(start));
+    clauses.push(text.slice(start));
 
-    return columns;
+    return clauses;
+}
+
+/**
+ * A column clause with every parenthesised sub-expression blanked, so `CHECK (x IS NOT NULL)` and `varchar(255)`
+ * contribute nothing to a question about the clause's own constraints. Pure.
+ */
+function withoutParenthesised(clause: string): string {
+    let depth = 0;
+    let out = '';
+
+    for (const char of clause) {
+        if (char === '(') {
+            depth += 1;
+        } else if (char === ')') {
+            depth -= 1;
+        } else if (depth === 0) {
+            out += char;
+        }
+    }
+
+    return out;
+}
+
+/** Whether a column clause makes its column NOT NULL (`NOT NULL`, or `PRIMARY KEY`, which implies it). Pure. */
+function declaresNotNull(clause: string): boolean {
+    return /\bNOT\s+NULL\b|\bPRIMARY\s+KEY\b/i.test(withoutParenthesised(clause));
+}
+
+/** The column list of a table-level `PRIMARY KEY (a, b)` clause, or none. Pure. */
+function tablePrimaryKeyColumnsIn(clause: string): readonly string[] {
+    const key = /^\s*(?:CONSTRAINT\s+"?[a-z_][a-z0-9_]*"?\s+)?PRIMARY\s+KEY\s*\(([^)]*)\)/i.exec(clause);
+
+    return (key?.[1] ?? '')
+        .split(',')
+        .map((column) => column.trim().replace(/^"|"$/g, ''))
+        .filter((column) => column !== '');
+}
+
+/** One `ALTER TABLE` clause applied to a table's NOT NULL set. Mutates `columns`; returns a rename target, if any. */
+function applyNotNullClause(clause: string, columns: Set<string>): string | undefined {
+    const add = /^\s*ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?/i.exec(clause);
+    const setOrDrop = /^\s*ALTER\s+COLUMN\s+"?([a-z_][a-z0-9_]*)"?\s+(SET|DROP)\s+NOT\s+NULL\b/i.exec(clause);
+    const dropColumn = /^\s*DROP\s+COLUMN\s+(?:IF\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?/i.exec(clause);
+    const renameColumn = /^\s*RENAME\s+COLUMN\s+"?([a-z_][a-z0-9_]*)"?\s+TO\s+"?([a-z_][a-z0-9_]*)"?/i.exec(clause);
+    const renameTable = /^\s*RENAME\s+TO\s+"?([a-z_][a-z0-9_]*)"?/i.exec(clause);
+
+    if (add?.[1] !== undefined) {
+        if (declaresNotNull(clause.slice(add[0].length))) {
+            columns.add(add[1]);
+        }
+    } else if (setOrDrop?.[1] !== undefined) {
+        if (setOrDrop[2]?.toUpperCase() === 'SET') {
+            columns.add(setOrDrop[1]);
+        } else {
+            columns.delete(setOrDrop[1]);
+        }
+    } else if (dropColumn?.[1] !== undefined) {
+        columns.delete(dropColumn[1]);
+    } else if (renameColumn?.[1] !== undefined && renameColumn[2] !== undefined) {
+        if (columns.delete(renameColumn[1])) {
+            columns.add(renameColumn[2]);
+        }
+    } else if (renameTable?.[1] !== undefined) {
+        return renameTable[1];
+    }
+
+    return undefined;
+}
+
+/**
+ * The columns of `table` that can NEVER be NULL after the whole ordered migration set has been applied.
+ *
+ * ⛔ WHY IT EXISTS. `erasureSweepCoverage`'s pairing rule reports a column a sweep clears under `WHERE <owner> = $1`
+ * when a row with NO owner could still carry it, because such a row is invisible to that predicate forever. A NOT
+ * NULL owner already makes that row unrepresentable, so demanding a CHECK tying the two would be a tautology (plan
+ * 2026-10-15-010 D10a, for `recipes.author_username` under `owner_id`).
+ *
+ * A FOLD, statement by statement in apply order, for the reason the module docstring gives about discovery: a later
+ * `DROP NOT NULL` must re-open the hole an earlier `NOT NULL` closed, or the pairing rule passes on DDL that no
+ * longer runs. Reads `NOT NULL` / `PRIMARY KEY` in a `CREATE TABLE` (column or table-level key), `ADD COLUMN … NOT
+ * NULL`, `ALTER COLUMN … SET|DROP NOT NULL`, `DROP COLUMN`, `RENAME COLUMN`, `RENAME TO` and `DROP TABLE`. Comments
+ * are stripped first, and a `CHECK (… IS NOT NULL …)` does not count: a CHECK is not a NOT NULL constraint.
+ *
+ * ⚠️ Splits statements on `;`, sound here for the reason {@link alterClausesIn} records.
+ *
+ * @param migrations - The migration files, in apply order.
+ * @param table - The table asked about.
+ * @returns Its NOT NULL columns. Pure.
+ */
+export function notNullColumnsOf(migrations: readonly SourceFile[], table: string): ReadonlySet<string> {
+    const byTable = new Map<string, Set<string>>();
+
+    for (const source of migrations) {
+        for (const statement of stripSqlComments(source.contents).split(';')) {
+            const create = /^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?\s*\(/i.exec(statement);
+            const drop = /^\s*DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(.+)$/is.exec(statement);
+
+            if (create?.[1] !== undefined) {
+                const columns = new Set<string>();
+
+                for (const clause of topLevelClausesIn(balancedBody(statement, create[0].length - 1))) {
+                    const [column] = declaredColumnsIn(clause);
+
+                    if (column !== undefined && declaresNotNull(clause)) {
+                        columns.add(column);
+                    }
+
+                    for (const keyed of tablePrimaryKeyColumnsIn(clause)) {
+                        columns.add(keyed);
+                    }
+                }
+
+                byTable.set(create[1], columns);
+                continue;
+            }
+
+            if (drop?.[1] !== undefined) {
+                for (const name of drop[1].replace(/\b(?:CASCADE|RESTRICT)\b/gi, '').split(',')) {
+                    byTable.delete(name.trim().replace(/^"|"$/g, ''));
+                }
+
+                continue;
+            }
+
+            for (const { table: altered, clauses } of alterClausesIn(statement)) {
+                const columns = byTable.get(altered) ?? new Set<string>();
+
+                byTable.set(altered, columns);
+
+                for (const clause of topLevelClausesIn(clauses)) {
+                    const renamedTo = applyNotNullClause(clause, columns);
+
+                    if (renamedTo !== undefined) {
+                        byTable.delete(altered);
+                        byTable.set(renamedTo, columns);
+                    }
+                }
+            }
+        }
+    }
+
+    return byTable.get(table) ?? new Set<string>();
 }
 
 /**

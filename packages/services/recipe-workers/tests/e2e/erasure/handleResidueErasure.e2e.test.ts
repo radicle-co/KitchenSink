@@ -72,6 +72,9 @@ const OWNER_C = '01JHANDLERESIDUE0000OWNERC0';
  */
 const CLEARTEXT_HANDLE = 'Alice Aubergine a63081';
 
+/** The erased owner's Clerk username, unique to this suite for the same reason. */
+const CLEARTEXT_USERNAME = 'alice_aubergine_a63081';
+
 /** One `collections` row as this suite reads it back. */
 type CollectionRow = {
     readonly id: string;
@@ -316,6 +319,75 @@ describe('account erasure pseudonymizes every denormalized handle (owner ruling 
         );
 
         expect(after.rows.map((row) => row.editor_handle)).toEqual([pseudonymizedAuthorHandle(OWNER_A)]);
+    });
+
+    it('⛔ CLEARS every username copy to NULL — never a pseudonym, which could impersonate a real user', async () => {
+        // Plan 2026-10-15-010 D10: `user_<ULID>` is a legal Clerk username, so the display-name pseudonym must
+        // never land in a username column. A scan for the cleartext username proves no copy survived anywhere.
+        const keptId = await insertKeptRecipe(OWNER_A, 'Kept Public', CLEARTEXT_HANDLE);
+
+        await db.execute(sql`UPDATE recipes SET author_username = ${CLEARTEXT_USERNAME} WHERE id = ${keptId}`);
+        await db.execute(sql`
+            INSERT INTO recipe_versions (recipe_id, version_number, snapshot, created_by, editor_handle, editor_username)
+            VALUES (${keptId}, 1, ${JSON.stringify({ version: 1 })}::jsonb, ${OWNER_A}, ${CLEARTEXT_HANDLE},
+                    ${CLEARTEXT_USERNAME})
+        `);
+        await db.execute(sql`
+            INSERT INTO author_handles (user_id, display_name, username, source_timestamp)
+            VALUES (${OWNER_A}, ${CLEARTEXT_HANDLE}, ${CLEARTEXT_USERNAME}, now())
+        `);
+
+        expect(await locationsHolding(CLEARTEXT_USERNAME)).toEqual([
+            'author_handles.username',
+            'recipe_versions.editor_username',
+            'recipes.author_username',
+        ]);
+
+        await eraseRecipeRows(db, OWNER_A, []);
+
+        expect(await locationsHolding(CLEARTEXT_USERNAME)).toEqual([]);
+        const recipe = await db.execute<{ author_handle: string | null; author_username: string | null }>(
+            sql`SELECT author_handle, author_username FROM recipes WHERE id = ${keptId}`,
+        );
+        const version = await db.execute<{ editor_handle: string | null; editor_username: string | null }>(
+            sql`SELECT editor_handle, editor_username FROM recipe_versions WHERE recipe_id = ${keptId}`,
+        );
+
+        expect(recipe.rows).toEqual([{ author_handle: pseudonymizedAuthorHandle(OWNER_A), author_username: null }]);
+        expect(version.rows).toEqual([{ editor_handle: pseudonymizedAuthorHandle(OWNER_A), editor_username: null }]);
+    });
+
+    it('⛔ clears a username on a kept row that carries NO display handle', async () => {
+        // The scrub's row filter must reach a row by EITHER copy: one keyed only on `author_handle IS NOT NULL`
+        // would skip this row and leave the username standing.
+        const keptId = await insertKeptRecipe(OWNER_A, 'Kept Public', CLEARTEXT_HANDLE);
+
+        await db.execute(
+            sql`UPDATE recipes SET author_handle = NULL, author_username = ${CLEARTEXT_USERNAME} WHERE id = ${keptId}`,
+        );
+
+        await eraseRecipeRows(db, OWNER_A, []);
+
+        const recipe = await db.execute<{ author_handle: string | null; author_username: string | null }>(
+            sql`SELECT author_handle, author_username FROM recipes WHERE id = ${keptId}`,
+        );
+
+        // No handle was there, so none is fabricated; the username is gone.
+        expect(recipe.rows).toEqual([{ author_handle: null, author_username: null }]);
+    });
+
+    it('leaves a bystander’s username alone', async () => {
+        const bystanderId = await insertKeptRecipe(OWNER_C, 'Bystander Public', 'Carol Courgette');
+
+        await db.execute(sql`UPDATE recipes SET author_username = 'carol' WHERE id = ${bystanderId}`);
+
+        await eraseRecipeRows(db, OWNER_A, []);
+
+        const recipe = await db.execute<{ author_username: string | null }>(
+            sql`SELECT author_username FROM recipes WHERE id = ${bystanderId}`,
+        );
+
+        expect(recipe.rows).toEqual([{ author_username: 'carol' }]);
     });
 
     it('⛔ leaves a bystander’s clone of a DIFFERENT owner who shares the same display name alone', async () => {

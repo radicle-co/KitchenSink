@@ -593,6 +593,8 @@ export interface EraseRecipeRowsResult {
  *     denormalized display name one table over. A KEPT recipe's version rows are NOT reached by the cascade
  *     in step 6, so they survived carrying the cleartext. Scrubbed to the same pseudonym, keyed on
  *     `created_by` — the predicate `handleSyncWorker` itself uses to write this column.
+ *     Steps 9 and 10 also CLEAR the username copies (`author_username`, `editor_username`, migration 0055) to
+ *     NULL — never the pseudonym, which is a legal Clerk username (plan 2026-10-15-010 D10).
  * 11. **`author_handles` read-model root (W8-a.2 / .10).** `DELETE FROM author_handles WHERE user_id =
  *     ownerId` — user-keyed, no FK, nothing cascades it. Deleting it removes the cleartext read-model row
  *     entirely; kept recipes no longer need it because their author renders from the scrubbed denormalized
@@ -739,12 +741,17 @@ export const eraseRecipeRows = async (
         // 8. Collections (U3c) — all of the owner's, cascading to memberships. Clones survive (SET NULL FK).
         await tx.execute(sql`DELETE FROM collections WHERE owner_id = ${ownerId}`);
 
-        // 9. Author-handle residue (U3b) — scrub the cleartext handle on KEPT rows to the pseudonym. Only
-        //    kept rows remain now, so this scopes by owner_id + a non-null handle.
+        // 9. Author-handle residue (U3b) — scrub the cleartext handle on KEPT rows to the pseudonym, and CLEAR
+        //    the username beside it (plan 2026-10-15-010 D10). Only kept rows remain now, so this scopes by owner_id
+        //    + either copy being present. A row with no display handle keeps none (CASE): authorship is never
+        //    fabricated. ⛔ The username is NULLed, never pseudonymized — `user_<ULID>` is a legal Clerk username,
+        //    so a pseudonym there could impersonate a real person.
         await tx.execute(sql`
             UPDATE recipes
-            SET author_handle = ${pseudonym}, updated_at = now()
-            WHERE owner_id = ${ownerId} AND author_handle IS NOT NULL
+            SET author_handle = CASE WHEN author_handle IS NULL THEN NULL ELSE ${pseudonym} END,
+                author_username = NULL,
+                updated_at = now()
+            WHERE owner_id = ${ownerId} AND (author_handle IS NOT NULL OR author_username IS NOT NULL)
         `);
 
         // 10. Editor-handle residue (owner ruling 2026-08-25) — the SAME datum one table over, on the KEPT
@@ -752,8 +759,9 @@ export const eraseRecipeRows = async (
         //     rename fan-out that writes this column.
         await tx.execute(sql`
             UPDATE recipe_versions
-            SET editor_handle = ${pseudonym}
-            WHERE created_by = ${ownerId} AND editor_handle IS NOT NULL
+            SET editor_handle = CASE WHEN editor_handle IS NULL THEN NULL ELSE ${pseudonym} END,
+                editor_username = NULL
+            WHERE created_by = ${ownerId} AND (editor_handle IS NOT NULL OR editor_username IS NOT NULL)
         `);
 
         // 11. author_handles read-model root (W8-a.10) — user-keyed, no cascade; delete removes the cleartext.

@@ -168,6 +168,7 @@ import {
     stripSqlComments,
     sweptTablesIn,
     isOwnerColumn,
+    notNullColumnsOf,
     trackedColumnsAfter,
     userBearingTablesAfter,
     userBearingTablesEver,
@@ -203,8 +204,11 @@ import {
  * ⚠️ `display_name` is matched EXACTLY, not as a `*_name` suffix. `collections.source_collection_name` is a
  * collection's title — authored content of the same kind as a kept public recipe's title, which erasure keeps
  * by design — and sweeping every `_name` column would drag it in without anybody deciding to.
+ *
+ * ⚠️ `username` is a handle too (plan 2026-10-15-010 D10a): the Clerk username is the public byline, the very datum
+ * a display handle is, so `author_username` and a bare `username` match by the same suffix rule `*_handle` does.
  */
-const HANDLE_COLUMN = /^(?:[a-z0-9_]+_)?handle$|^display_name$/;
+const HANDLE_COLUMN = /^(?:[a-z0-9_]+_)?(?:handle|username)$|^display_name$/;
 
 /** One database whose owner-bearing tables are gated, and the sweep that must reach them. */
 interface SweptDatabase {
@@ -268,6 +272,11 @@ const HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW: ReadonlyMap<string, string> = new M
         'author_handles.display_name',
         'the row IS the erased user’s (`DELETE FROM author_handles WHERE user_id = $1`), so the cleartext ' +
             'goes with it; no other person’s row carries this column',
+    ],
+    [
+        'author_handles.username',
+        'the same row as `author_handles.display_name` (`DELETE FROM author_handles WHERE user_id = $1`), so the ' +
+            'username goes with it; no other person’s row carries this column',
     ],
 ]);
 
@@ -374,11 +383,12 @@ const EXPECTED_OWNER_BEARING_TABLES = 13;
  * per-column dimension is more exposed to that than a per-table one, because it depends on the clause parser
  * as well as on the pattern.
  *
- * ⚠️ The current schema has exactly four (`recipes.author_handle`, `recipe_versions.editor_handle`,
- * `collections.source_owner_handle`, `author_handles.display_name`), so the slack is ZERO and a migration
- * that adds a fifth must raise this in the same change.
+ * ⚠️ The current schema has exactly seven — four display handles (`recipes.author_handle`,
+ * `recipe_versions.editor_handle`, `collections.source_owner_handle`, `author_handles.display_name`) and three
+ * usernames (`recipes.author_username`, `recipe_versions.editor_username`, `author_handles.username`, migration
+ * 0055) — so the slack is ZERO and a migration that adds an eighth must raise this in the same change.
  */
-const MINIMUM_HANDLE_BEARING_COLUMNS = 4;
+const MINIMUM_HANDLE_BEARING_COLUMNS = 7;
 
 /**
  * The databases this gate covers. See the module docstring's scope note before adding one.
@@ -696,6 +706,35 @@ function pairChecked(sources: readonly SourceFile[], table: string, first: strin
     );
 }
 
+/**
+ * Every column a de-identifying statement clears that a row with NO owner could still carry — the blind spot of a
+ * sweep that reaches rows by `WHERE <owner> = $1`.
+ *
+ * A column is PAIRED, and so not reported, when either a CHECK ties it to the owner column ({@link pairChecked}) or
+ * the owner column can never be NULL ({@link notNullColumnsOf}): either way a row with the datum and no owner is
+ * unrepresentable. The second arm exists for `recipes.author_username` / `recipe_versions.editor_username` (plan
+ * 2026-10-15-010 D10), whose owners — `owner_id`, `created_by` — are NOT NULL, where a CHECK would be a tautology.
+ *
+ * @param migrations - The migration files, in apply order.
+ * @param statements - The sweep's de-identifying statements.
+ * @returns `table.column ↮ owner` for each unpaired column. Pure.
+ */
+function unpairedColumnsOf(
+    migrations: readonly SourceFile[],
+    statements: readonly DeIdentifyingStatement[],
+): readonly string[] {
+    return statements.flatMap((statement) =>
+        statement.nulledColumns
+            .filter((column) => column !== statement.ownerColumn)
+            .filter(
+                (column) =>
+                    !notNullColumnsOf(migrations, statement.table).has(statement.ownerColumn) &&
+                    !pairChecked(migrations, statement.table, statement.ownerColumn, column),
+            )
+            .map((column) => `${statement.table}.${column} ↮ ${statement.ownerColumn}`),
+    );
+}
+
 describe('account-erasure sweep coverage', () => {
     for (const database of SWEPT_DATABASES) {
         describe(database.sweepFunction, () => {
@@ -848,12 +887,7 @@ describe('account-erasure sweep coverage', () => {
                 //
                 // ⚠️ Stated honestly: on the one axis where nothing replaces it — a parser that silently
                 // stops matching while the wiring still resolves — this file is weaker than it was.
-                const unpaired = statements.flatMap((statement) =>
-                    statement.nulledColumns
-                        .filter((column) => column !== statement.ownerColumn)
-                        .filter((column) => !pairChecked(migrations, statement.table, statement.ownerColumn, column))
-                        .map((column) => `${statement.table}.${column} ↮ ${statement.ownerColumn}`),
-                );
+                const unpaired = unpairedColumnsOf(migrations, statements);
 
                 // ⛔ Each entry is a column this sweep clears on rows it can reach, sitting in a table where a
                 // row with NO owner may still carry it — and such a row is invisible to `WHERE <owner> = $1`
@@ -1485,5 +1519,144 @@ describe('account-erasure sweep coverage', () => {
         // `widgets` is READ, never erased — counting it would report a table as reached by a sweep that
         // only looks at it, which is the false negative this gate cannot afford.
         expect([...swept]).toEqual(['collections']);
+    });
+
+    it('⛔ discovers a USERNAME column as a handle — the public byline is the same datum as a display name', () => {
+        // Plan 2026-10-15-010 D10a. A username is how other people read a person, exactly like a display name, so
+        // a shape predicate that knew only `*_handle` and `display_name` would let an unscrubbed `@name` pass green.
+        const migration = {
+            file: 'fake/0099_usernames.sql',
+            contents: `
+                ALTER TABLE "notes" ADD COLUMN "author_username" text;
+                ALTER TABLE "readers" ADD COLUMN "username" text, ADD COLUMN "usernames_seen" integer;
+            `,
+        };
+
+        expect(handleBearingColumnsAfter([migration])).toEqual(['notes.author_username', 'readers.username']);
+    });
+
+    describe('notNullColumnsOf — an owner column that can never be NULL needs no pairing CHECK', () => {
+        // ⛔ The pairing rule exists because a row with NO owner is invisible to `WHERE <owner> = $1`. A NOT NULL
+        // owner makes that row unrepresentable already, so a CHECK tying the cleared column to it would be a
+        // tautology. These cases are the reader's whole contract: each spelling that can make a column NOT NULL,
+        // each that can undo it, and the prose that must not count.
+        const create = (body: string): SourceFile => ({
+            file: 'fake/0001_create.sql',
+            contents: `CREATE TABLE notes (${body});`,
+        });
+
+        it.each([
+            [
+                'NOT NULL in the CREATE body',
+                create('id uuid PRIMARY KEY, owner_id varchar(255) NOT NULL, body text'),
+                true,
+            ],
+            ['a PRIMARY KEY column', create('user_id varchar(255) PRIMARY KEY, body text'), true],
+            ['a quoted NOT NULL column', create('"id" uuid, "owner_id" varchar(255) NOT NULL DEFAULT \'x\''), true],
+            ['a nullable column', create('id uuid PRIMARY KEY, owner_id varchar(255), body text'), false],
+            [
+                'a nullable column whose CHECK mentions NOT NULL',
+                create('owner_id varchar(255) CHECK (owner_id IS NOT NULL OR true)'),
+                false,
+            ],
+        ])('%s', (_case, migration, expected) => {
+            expect(
+                notNullColumnsOf([migration], 'notes').has('owner_id') ||
+                    notNullColumnsOf([migration], 'notes').has('user_id'),
+            ).toBe(expected);
+        });
+
+        it('honours a later ADD COLUMN … NOT NULL and ALTER COLUMN … SET NOT NULL', () => {
+            const later: SourceFile = {
+                file: 'fake/0002_alter.sql',
+                contents: `ALTER TABLE notes ADD COLUMN created_by varchar(255) NOT NULL, ALTER COLUMN owner_id SET NOT NULL;`,
+            };
+
+            expect([...notNullColumnsOf([create('id uuid, owner_id varchar(255)'), later], 'notes')].sort()).toEqual([
+                'created_by',
+                'owner_id',
+            ]);
+        });
+
+        it('⛔ RE-OPENS the hole on DROP NOT NULL, DROP COLUMN and DROP TABLE', () => {
+            const base = create('id uuid PRIMARY KEY, owner_id varchar(255) NOT NULL');
+
+            expect(
+                notNullColumnsOf(
+                    [
+                        base,
+                        { file: 'fake/0002.sql', contents: 'ALTER TABLE notes ALTER COLUMN owner_id DROP NOT NULL;' },
+                    ],
+                    'notes',
+                ).has('owner_id'),
+            ).toBe(false);
+            expect(
+                notNullColumnsOf(
+                    [base, { file: 'fake/0002.sql', contents: 'ALTER TABLE notes DROP COLUMN owner_id;' }],
+                    'notes',
+                ).has('owner_id'),
+            ).toBe(false);
+            expect(
+                notNullColumnsOf([base, { file: 'fake/0002.sql', contents: 'DROP TABLE notes;' }], 'notes').size,
+            ).toBe(0);
+        });
+
+        it('follows a RENAME COLUMN', () => {
+            const renamed: SourceFile = {
+                file: 'fake/0002.sql',
+                contents: 'ALTER TABLE notes RENAME COLUMN author_id TO user_id;',
+            };
+
+            expect([...notNullColumnsOf([create('author_id varchar(255) NOT NULL'), renamed], 'notes')]).toEqual([
+                'user_id',
+            ]);
+        });
+
+        it('reads the SQL, never a comment quoting it', () => {
+            const commented: SourceFile = {
+                file: 'fake/0002.sql',
+                contents: '-- ALTER TABLE notes ALTER COLUMN owner_id SET NOT NULL;\nSELECT 1;',
+            };
+
+            expect(notNullColumnsOf([create('owner_id varchar(255)'), commented], 'notes').has('owner_id')).toBe(false);
+        });
+
+        it('is per TABLE — another table’s NOT NULL column is not this one’s', () => {
+            const other: SourceFile = {
+                file: 'fake/0002.sql',
+                contents: 'CREATE TABLE other (owner_id varchar(255) NOT NULL);',
+            };
+
+            expect(notNullColumnsOf([create('owner_id varchar(255)'), other], 'notes').has('owner_id')).toBe(false);
+        });
+    });
+
+    it('⛔ pairs a cleared column with a NOT NULL owner, and still FAILS one under a nullable owner', () => {
+        const sweep = {
+            file: 'fake/sweep.ts',
+            contents: `
+                export const eraseRows = async (tx) => {
+                    await tx.execute(sql\`
+                        UPDATE notes SET author_handle = \${pseudonym}, author_username = NULL
+                        WHERE owner_id = \${ownerId} AND (author_handle IS NOT NULL OR author_username IS NOT NULL)
+                    \`);
+                };
+            `,
+        };
+        const [statement] = deIdentifyingStatementsIn(sweep, 'eraseRows');
+        const notNullOwner: SourceFile = {
+            file: 'fake/0001.sql',
+            contents:
+                'CREATE TABLE notes (id uuid PRIMARY KEY, owner_id varchar(255) NOT NULL, author_handle text, author_username text);',
+        };
+        const nullableOwner: SourceFile = {
+            file: 'fake/0001.sql',
+            contents:
+                'CREATE TABLE notes (id uuid PRIMARY KEY, owner_id varchar(255), author_handle text, author_username text);',
+        };
+
+        expect(statement).toEqual({ table: 'notes', ownerColumn: 'owner_id', nulledColumns: ['author_username'] });
+        expect(unpairedColumnsOf([notNullOwner], [statement!])).toEqual([]);
+        expect(unpairedColumnsOf([nullableOwner], [statement!])).toEqual(['notes.author_username ↮ owner_id']);
     });
 });

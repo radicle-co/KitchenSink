@@ -4,7 +4,7 @@
  * A custom Clerk sign-in form (the app ships its own UI, not Clerk's hosted screens) built on the design
  * system: the `@commise/ui` {@link Button} (with its real `busy` spinner) + tokenized {@link Input}, all copy
  * from `mobileMessages` (no hard-coded English), every field label associated for assistive tech, and the
- * form wrapped in a `SafeAreaView` + `KeyboardAvoider` so the keyboard never occludes the inputs.
+ * form inside the shared `AuthScreenFrame`, so the keyboard never occludes the inputs.
  *
  * The password is the FIRST factor and is always sent: ONE `signIn.password({ identifier, password })` call. A wrong
  * password fails there with Clerk's own message and no code is sent. Only after a correct password does Clerk
@@ -20,20 +20,19 @@
 import { useClerk, useSignIn } from '@clerk/expo';
 import { Button } from '@commise/ui/button';
 import { FieldLabel, Input } from '@commise/ui/input';
-import { KeyboardAvoider } from '@commise/ui/keyboard-avoider';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, Text, View } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
 import { authFailureMessage } from '../auth/authFailureMessage.js';
 import { AuthCodeActions } from '../components/auth/AuthCodeActions.js';
 import { AuthCodeFields } from '../components/auth/AuthCodeFields.js';
 import { AuthHeader } from '../components/auth/AuthHeader.js';
+import { AuthScreenFrame } from '../components/auth/AuthScreenFrame.js';
 import { AuthSwitchLink } from '../components/auth/AuthSwitchLink.js';
 import { SocialSignInButtons } from '../components/auth/SocialSignInButtons.js';
 import { useSocialSignIn, type PendingSignUp } from '../hooks/useSocialSignIn.js';
@@ -219,112 +218,93 @@ export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.
     const onCredentials = step === 'credentials';
 
     return (
-        <SafeAreaView style={styles.safe}>
-            <KeyboardAvoider style={styles.flex}>
-                <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-                    <AuthHeader title={t.signInTitle} />
+        <AuthScreenFrame>
+            <AuthHeader title={t.signInTitle} />
 
-                    {onCredentials ? (
-                        <SocialSignInButtons
-                            providers={social.providers}
-                            busyProvider={social.busyProvider}
-                            error={social.error}
-                            locked={locked}
-                            onPress={social.start}
-                        />
-                    ) : null}
+            {onCredentials ? (
+                <SocialSignInButtons
+                    providers={social.providers}
+                    busyProvider={social.busyProvider}
+                    error={social.error}
+                    locked={locked}
+                    onPress={social.start}
+                />
+            ) : null}
 
-                    {onCredentials ? (
-                        <View style={styles.fields}>
-                            <View style={styles.field}>
-                                <FieldLabel forId="signin-email" label={t.emailLabel} />
-                                <Input
-                                    id="signin-email"
-                                    placeholder={t.emailPlaceholder}
-                                    value={email}
-                                    onChangeText={setEmail}
-                                    inputMode="email"
-                                    autoCapitalize="none"
-                                    autoComplete="email"
-                                    enterKeyHint="next"
-                                    disabled={locked}
-                                />
-                            </View>
-                            <View style={styles.field}>
-                                <FieldLabel forId="signin-password" label={t.passwordLabel} />
-                                <Input
-                                    id="signin-password"
-                                    placeholder={t.passwordPlaceholder}
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    secret
-                                    autoComplete="current-password"
-                                    enterKeyHint="go"
-                                    disabled={locked}
-                                    onSubmit={() => void handleSignIn()}
-                                />
-                            </View>
-                        </View>
-                    ) : (
-                        <AuthCodeFields
-                            id="signin-code"
-                            value={code}
-                            onChangeText={setCode}
-                            busy={busy}
-                            onSubmit={() => void handleVerifyCode()}
-                        />
-                    )}
-
-                    {error ? (
-                        <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
-                            {error}
-                        </Text>
-                    ) : null}
-
-                    <Button
-                        icon={onCredentials ? 'logIn' : 'check'}
-                        size="lg"
-                        width="fill"
-                        busy={busy}
-                        disabled={!signIn || social.busyProvider !== null}
-                        onPress={() => void (onCredentials ? handleSignIn() : handleVerifyCode())}
-                    >
-                        {onCredentials ? t.signInAction : t.verifyAction}
-                    </Button>
-
-                    {onCredentials ? (
-                        <AuthSwitchLink
-                            prompt={t.noAccountPrompt}
-                            label={t.signUpLink}
+            {onCredentials ? (
+                <View style={styles.fields}>
+                    <View style={styles.field}>
+                        <FieldLabel forId="signin-email" label={t.emailLabel} />
+                        <Input
+                            id="signin-email"
+                            placeholder={t.emailPlaceholder}
+                            value={email}
+                            onChangeText={setEmail}
+                            inputMode="email"
+                            autoCapitalize="none"
+                            autoComplete="email"
+                            enterKeyHint="next"
                             disabled={locked}
-                            onPress={onSignUp}
                         />
-                    ) : (
-                        <AuthCodeActions
-                            busy={busy}
-                            onResend={() => void handleResend()}
-                            onStartOver={() => void handleStartOver()}
+                    </View>
+                    <View style={styles.field}>
+                        <FieldLabel forId="signin-password" label={t.passwordLabel} />
+                        <Input
+                            id="signin-password"
+                            placeholder={t.passwordPlaceholder}
+                            value={password}
+                            onChangeText={setPassword}
+                            secret
+                            autoComplete="current-password"
+                            enterKeyHint="go"
+                            disabled={locked}
+                            onSubmit={() => void handleSignIn()}
                         />
-                    )}
-                </ScrollView>
-            </KeyboardAvoider>
-        </SafeAreaView>
+                    </View>
+                </View>
+            ) : (
+                <AuthCodeFields
+                    id="signin-code"
+                    value={code}
+                    onChangeText={setCode}
+                    busy={busy}
+                    onSubmit={() => void handleVerifyCode()}
+                />
+            )}
+
+            {error ? (
+                <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
+                    {error}
+                </Text>
+            ) : null}
+
+            <Button
+                icon={onCredentials ? 'logIn' : 'check'}
+                size="lg"
+                width="fill"
+                busy={busy}
+                disabled={!signIn || social.busyProvider !== null}
+                onPress={() => void (onCredentials ? handleSignIn() : handleVerifyCode())}
+            >
+                {onCredentials ? t.signInAction : t.verifyAction}
+            </Button>
+
+            {onCredentials ? (
+                <AuthSwitchLink prompt={t.noAccountPrompt} label={t.signUpLink} disabled={locked} onPress={onSignUp} />
+            ) : (
+                <AuthCodeActions
+                    busy={busy}
+                    onResend={() => void handleResend()}
+                    onStartOver={() => void handleStartOver()}
+                />
+            )}
+        </AuthScreenFrame>
     );
 }
 
 const styles = StyleSheet.create({
     // A label and its field are one group: closer to each other than to the next field (spec §1.6).
     field: { gap: nativeTokens.spacing[1] },
-    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
-    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
-    safe: { flex: 1, backgroundColor: 'transparent' },
-    flex: { flex: 1 },
-    container: {
-        flexGrow: 1,
-        gap: nativeTokens.spacing[5],
-        paddingHorizontal: nativeTokens.spacing[5],
-        paddingVertical: nativeTokens.spacing[6],
-    },
     fields: { gap: nativeTokens.spacing[3] },
     error: { ...nativeTokens.type.meta },
 });

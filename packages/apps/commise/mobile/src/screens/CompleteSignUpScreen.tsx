@@ -22,15 +22,13 @@
 import { useClerk } from '@clerk/expo';
 import type { SignUpResource } from '@clerk/shared/types';
 import { Button } from '@commise/ui/button';
-import { KeyboardAvoider } from '@commise/ui/keyboard-avoider';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { useMessages } from '@commise/i18n/react';
 import * as Sentry from '@sentry/react-native';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { signUpFailure, type SignUpErrorField } from '../auth/signUpFailure.js';
 import {
@@ -41,6 +39,7 @@ import {
     type SignUpFieldSpec,
 } from '../auth/signUpFields.js';
 import { AuthHeader } from '../components/auth/AuthHeader.js';
+import { AuthScreenFrame } from '../components/auth/AuthScreenFrame.js';
 import { SignUpFields, type SignUpErrors, type SignUpValues } from '../components/auth/SignUpFields.js';
 import { mobileMessages } from '../i18n/messages.js';
 
@@ -164,60 +163,47 @@ export function CompleteSignUpScreen({
     }
 
     return (
-        <SafeAreaView style={styles.safe}>
-            <KeyboardAvoider style={styles.flex}>
-                <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-                    <AuthHeader title={t.finishTitle} />
-                    <View style={styles.intro}>
-                        <Text style={[nativeTokens.type.body, { color: colors.inkMuted }]}>{t.finishPrompt}</Text>
-                        {signUp.emailAddress ? (
-                            <Text style={[nativeTokens.type.meta, { color: colors.inkMuted }]}>
-                                {t.finishSigningUpAs.replace('{email}', signUp.emailAddress)}
-                            </Text>
-                        ) : null}
-                    </View>
+        <AuthScreenFrame>
+            <AuthHeader title={t.finishTitle} />
+            <View style={styles.intro}>
+                <Text style={[nativeTokens.type.body, { color: colors.inkMuted }]}>{t.finishPrompt}</Text>
+                {signUp.emailAddress ? (
+                    <Text style={[nativeTokens.type.meta, { color: colors.inkMuted }]}>
+                        {t.finishSigningUpAs.replace('{email}', signUp.emailAddress)}
+                    </Text>
+                ) : null}
+            </View>
 
-                    <SignUpFields
-                        fields={fields}
-                        idPrefix="complete-signup"
-                        values={values}
-                        errors={fieldErrors}
-                        onChange={changeField}
-                        busy={busy}
-                        focusField={focusField}
-                        onFocusHandled={() => setFocusField(null)}
-                    />
+            <SignUpFields
+                fields={fields}
+                idPrefix="complete-signup"
+                values={values}
+                errors={fieldErrors}
+                onChange={changeField}
+                busy={busy}
+                focusField={focusField}
+                onFocusHandled={() => setFocusField(null)}
+            />
 
-                    {error ? (
-                        <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
-                            {error}
-                        </Text>
-                    ) : null}
+            {error ? (
+                <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
+                    {error}
+                </Text>
+            ) : null}
 
-                    <Button icon="userPlus" size="lg" width="fill" busy={busy} onPress={() => void handleSubmit()}>
-                        {t.createAccountAction}
-                    </Button>
-                    <View style={styles.wayOut}>
-                        <Button variant="ghost" icon="rotateCcw" disabled={busy} onPress={onStartOver}>
-                            {t.startOverAction}
-                        </Button>
-                    </View>
-                </ScrollView>
-            </KeyboardAvoider>
-        </SafeAreaView>
+            <Button icon="userPlus" size="lg" width="fill" busy={busy} onPress={() => void handleSubmit()}>
+                {t.createAccountAction}
+            </Button>
+            <View style={styles.wayOut}>
+                <Button variant="ghost" icon="rotateCcw" disabled={busy} onPress={onStartOver}>
+                    {t.startOverAction}
+                </Button>
+            </View>
+        </AuthScreenFrame>
     );
 }
 
 const styles = StyleSheet.create({
-    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145), as on the other auth screens.
-    safe: { flex: 1, backgroundColor: 'transparent' },
-    flex: { flex: 1 },
-    container: {
-        flexGrow: 1,
-        gap: nativeTokens.spacing[5],
-        paddingHorizontal: nativeTokens.spacing[5],
-        paddingVertical: nativeTokens.spacing[6],
-    },
     intro: { gap: nativeTokens.spacing[1] },
     wayOut: { alignItems: 'flex-start' },
     error: { ...nativeTokens.type.meta },

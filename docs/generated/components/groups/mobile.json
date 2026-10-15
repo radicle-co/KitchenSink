@@ -4,15 +4,15 @@
     "packageName": "@commise/mobile",
     "layer": "app",
     "coverage": {
-        "components": 56,
-        "implementations": 56,
-        "props": 152,
-        "documentedComponents": 55,
-        "implementationsWithModuleDoc": 54,
-        "implementationsWithComponentDoc": 42,
-        "documentedProps": 144,
-        "classifiedComponents": 34,
-        "componentsWithPatternTag": 23,
+        "components": 57,
+        "implementations": 57,
+        "props": 153,
+        "documentedComponents": 56,
+        "implementationsWithModuleDoc": 55,
+        "implementationsWithComponentDoc": 43,
+        "documentedProps": 145,
+        "classifiedComponents": 35,
+        "componentsWithPatternTag": 24,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -606,6 +606,73 @@
                             "defaultValue": null,
                             "description": "The screen's H1.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthHeader.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/components/auth/AuthScreenFrame",
+            "name": "AuthScreenFrame",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/components/auth",
+            "kind": "presentational",
+            "patterns": [
+                "Decorator — wraps a screen's content in the safe-area, keyboard and scroll shell the three signed-out\n    screens used to copy"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "AuthScreenFrame",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/components/auth/AuthScreenFrame.tsx",
+                    "dir": "packages/apps/commise/mobile/src/components/auth",
+                    "moduleDoc": "components/auth/AuthScreenFrame — the shell every signed-out screen (sign-in, sign-up, the social finish\nstep) stands in: the safe area, keyboard avoidance so the keyboard never occludes an input, and a scroll that keeps\na tap on a control working while the keyboard is up.\n\nThe root is TRANSPARENT so the root `AppCanvas` beach-glow gradient shows through (issue #145); an opaque fill here\noccludes the whole canvas and restores the flat page the wireframes never had.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/auth/AuthScreenFrame — the shell every signed-out screen (sign-in, sign-up, the social finish"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator — wraps a screen's content in the safe-area, keyboard and scroll shell the three signed-out\n    screens used to copy"
+                        }
+                    ],
+                    "description": "The frame a signed-out screen stands in. Presentational: props → JSX, no state of its own.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The screen's content."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The content inside the safe area, keyboard avoidance and scroll."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The screen's sections, in reading order; the frame spaces them.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthScreenFrame.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -3591,7 +3658,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/login.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "screens/login — the mobile sign-in surface (U2 rebuild).\n\nA custom Clerk sign-in form (the app ships its own UI, not Clerk's hosted screens) built on the design\nsystem: the `@commise/ui` {@link Button} (with its real `busy` spinner) + tokenized {@link Input}, all copy\nfrom `mobileMessages` (no hard-coded English), every field label associated for assistive tech, and the\nform wrapped in a `SafeAreaView` + `KeyboardAvoider` so the keyboard never occludes the inputs.\n\nThe password is the FIRST factor and is always sent: ONE `signIn.password({ identifier, password })` call. A wrong\npassword fails there with Clerk's own message and no code is sent. Only after a correct password does Clerk\nanswer `needs_client_trust` (a new device) or `needs_second_factor`; the email code that follows is the SECOND\nfactor (`signIn.mfa.sendEmailCode` → a `oneTimeCode` field → `signIn.mfa.verifyEmailCode`) before `setActive`.\nThe passwordless first-factor strategy (`signIn.emailCode.*`) is deliberately never used: it signs a user in\nwith the mailbox alone (A-001).\n\nAbove the email form sits the provider group (plan 012): \"Continue with Apple / Google\", the `useSocialSignIn`\ncommand. While a provider's sheet is up every control here locks; a provider sign-up that still needs fields is\nhanded up to `AuthGate` (`onNeedsFields`), which shows the finish step.",
+                    "moduleDoc": "screens/login — the mobile sign-in surface (U2 rebuild).\n\nA custom Clerk sign-in form (the app ships its own UI, not Clerk's hosted screens) built on the design\nsystem: the `@commise/ui` {@link Button} (with its real `busy` spinner) + tokenized {@link Input}, all copy\nfrom `mobileMessages` (no hard-coded English), every field label associated for assistive tech, and the\nform inside the shared `AuthScreenFrame`, so the keyboard never occludes the inputs.\n\nThe password is the FIRST factor and is always sent: ONE `signIn.password({ identifier, password })` call. A wrong\npassword fails there with Clerk's own message and no code is sent. Only after a correct password does Clerk\nanswer `needs_client_trust` (a new device) or `needs_second_factor`; the email code that follows is the SECOND\nfactor (`signIn.mfa.sendEmailCode` → a `oneTimeCode` field → `signIn.mfa.verifyEmailCode`) before `setActive`.\nThe passwordless first-factor strategy (`signIn.emailCode.*`) is deliberately never used: it signs a user in\nwith the mailbox alone (A-001).\n\nAbove the email form sits the provider group (plan 012): \"Continue with Apple / Google\", the `useSocialSignIn`\ncommand. While a provider's sheet is up every control here locks; a provider sign-up that still needs fields is\nhanded up to `AuthGate` (`onNeedsFields`), which shows the finish step.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -4228,7 +4295,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/signup.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "screens/signup — the mobile sign-up surface (U2 rebuild).\n\nThe sibling of `LoginScreen`: a custom Clerk sign-up form on the design system\n(`@commise/ui` {@link Button} with `busy` + tokenized {@link Input}), all copy from `mobileMessages`,\nassociated field labels, and a `SafeAreaView` + `KeyboardAvoider` shell. It asks for the four profile fields both\nClerk instances require — first name, last name, username, email (owner ruling 2026-10-13; the\n`SIGN_UP_FIELDS` registry, plan 012 D8) — and a password, then runs `signUp.create` → `signUp.password`, and — when\nthe instance verifies the email — an email-code step (`verifications.sendEmailCode` → a `oneTimeCode` field →\n`verifications.verifyEmailCode`) before `setActive`. An empty field — the password too — is refused under that field\nwithout calling Clerk; EVERY error Clerk returns is shown under the field it names (a taken username, a rejected\npassword), the rest in the alert (`signUpFailure`); focus moves to the first field in error. Any requirement the\ninstance still has after that is one this form does not offer: it says so, and reports it to Sentry, rather than\nstranding the user on a form that cannot finish.\n\nAbove the form sits the same provider group as sign-in (plan 012): \"Continue with Apple / Google\" may sign the\nperson in OR create the account, and a provider sign-up that still needs fields is handed up to `AuthGate`\n(`onNeedsFields`). While a provider's sheet is up every control here locks.\n\n`onBack` returns to the sign-in form, which is where this screen is always reached FROM: the signed-out gate\nopens on login, and login's own \"Create account\" control is the only route here (owner decision 2026-07-28\ndeleted the welcome hero that used to provide a \"Get started\" entry). So the existing back affordance — the\ninline \"Sign in\" link under `haveAccountPrompt` — still lands exactly where the user came from, and it\nis now the ONLY exit, which is why `AuthGate` keeps rendering it rather than a bare form.",
+                    "moduleDoc": "screens/signup — the mobile sign-up surface (U2 rebuild).\n\nThe sibling of `LoginScreen`: a custom Clerk sign-up form on the design system\n(`@commise/ui` {@link Button} with `busy` + tokenized {@link Input}), all copy from `mobileMessages`,\nassociated field labels, and the shared `AuthScreenFrame` shell. It asks for the four profile fields both\nClerk instances require — first name, last name, username, email (owner ruling 2026-10-13; the\n`SIGN_UP_FIELDS` registry, plan 012 D8) — and a password, then runs `signUp.create` → `signUp.password`, and — when\nthe instance verifies the email — an email-code step (`verifications.sendEmailCode` → a `oneTimeCode` field →\n`verifications.verifyEmailCode`) before `setActive`. An empty field — the password too — is refused under that field\nwithout calling Clerk; EVERY error Clerk returns is shown under the field it names (a taken username, a rejected\npassword), the rest in the alert (`signUpFailure`); focus moves to the first field in error. Any requirement the\ninstance still has after that is one this form does not offer: it says so, and reports it to Sentry, rather than\nstranding the user on a form that cannot finish.\n\nAbove the form sits the same provider group as sign-in (plan 012): \"Continue with Apple / Google\" may sign the\nperson in OR create the account, and a provider sign-up that still needs fields is handed up to `AuthGate`\n(`onNeedsFields`). While a provider's sheet is up every control here locks.\n\n`onBack` returns to the sign-in form, which is where this screen is always reached FROM: the signed-out gate\nopens on login, and login's own \"Create account\" control is the only route here (owner decision 2026-07-28\ndeleted the welcome hero that used to provide a \"Get started\" entry). So the existing back affordance — the\ninline \"Sign in\" link under `haveAccountPrompt` — still lands exactly where the user came from, and it\nis now the ONLY exit, which is why `AuthGate` keeps rendering it rather than a bare form.",
                     "moduleTags": [
                         {
                             "name": "module",

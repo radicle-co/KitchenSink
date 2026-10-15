@@ -3,7 +3,7 @@
  *
  * The sibling of `LoginScreen`: a custom Clerk sign-up form on the design system
  * (`@commise/ui` {@link Button} with `busy` + tokenized {@link Input}), all copy from `mobileMessages`,
- * associated field labels, and a `SafeAreaView` + `KeyboardAvoider` shell. It asks for the four profile fields both
+ * associated field labels, and the shared `AuthScreenFrame` shell. It asks for the four profile fields both
  * Clerk instances require — first name, last name, username, email (owner ruling 2026-10-13; the
  * `SIGN_UP_FIELDS` registry, plan 012 D8) — and a password, then runs `signUp.create` → `signUp.password`, and — when
  * the instance verifies the email — an email-code step (`verifications.sendEmailCode` → a `oneTimeCode` field →
@@ -26,14 +26,12 @@
 import { useClerk, useSignUp } from '@clerk/expo';
 import { Button } from '@commise/ui/button';
 import { FieldLabel, Input } from '@commise/ui/input';
-import { KeyboardAvoider } from '@commise/ui/keyboard-avoider';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, Text, View } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
 import { authFailureMessage } from '../auth/authFailureMessage.js';
@@ -42,6 +40,7 @@ import { normalizeSignUpValue, SIGN_UP_FIELDS, type SignUpFieldName } from '../a
 import { AuthCodeActions } from '../components/auth/AuthCodeActions.js';
 import { AuthCodeFields } from '../components/auth/AuthCodeFields.js';
 import { AuthHeader } from '../components/auth/AuthHeader.js';
+import { AuthScreenFrame } from '../components/auth/AuthScreenFrame.js';
 import { AuthSwitchLink } from '../components/auth/AuthSwitchLink.js';
 import { SocialSignInButtons } from '../components/auth/SocialSignInButtons.js';
 import { useSocialSignIn, type PendingSignUp } from '../hooks/useSocialSignIn.js';
@@ -279,122 +278,103 @@ export function SignUpScreen({ onBack, onNeedsFields }: SignUpScreenProps): JSX.
     const onCredentials = step === 'credentials';
 
     return (
-        <SafeAreaView style={styles.safe}>
-            <KeyboardAvoider style={styles.flex}>
-                <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-                    <AuthHeader title={t.createHeading} />
+        <AuthScreenFrame>
+            <AuthHeader title={t.createHeading} />
 
-                    {onCredentials ? (
-                        <SocialSignInButtons
-                            providers={social.providers}
-                            busyProvider={social.busyProvider}
-                            error={social.error}
-                            locked={locked}
-                            onPress={social.start}
-                        />
-                    ) : null}
+            {onCredentials ? (
+                <SocialSignInButtons
+                    providers={social.providers}
+                    busyProvider={social.busyProvider}
+                    error={social.error}
+                    locked={locked}
+                    onPress={social.start}
+                />
+            ) : null}
 
-                    {onCredentials ? (
-                        <View style={styles.fields}>
-                            <SignUpFields
-                                fields={SIGN_UP_FIELDS}
-                                idPrefix="signup"
-                                values={values}
-                                errors={fieldErrors}
-                                onChange={changeField}
-                                busy={locked}
-                                focusField={focusField === 'password' ? null : focusField}
-                                onFocusHandled={() => setFocusField(null)}
-                            />
-                            <View style={styles.field}>
-                                <FieldLabel forId={PASSWORD_ID} label={t.passwordLabel} />
-                                <Input
-                                    id={PASSWORD_ID}
-                                    placeholder={t.passwordPlaceholder}
-                                    value={password}
-                                    onChangeText={(text) => changeField('password', text)}
-                                    secret
-                                    autoComplete="new-password"
-                                    enterKeyHint="go"
-                                    invalid={fieldErrors.password !== undefined}
-                                    {...(fieldErrors.password === undefined
-                                        ? {}
-                                        : { describedBy: signUpFieldErrorId(PASSWORD_ID) })}
-                                    disabled={locked}
-                                    focusRequested={focusField === 'password'}
-                                    onFocusRequestHandled={() => setFocusField(null)}
-                                    onSubmit={() => void handleSignUp()}
-                                />
-                                {fieldErrors.password === undefined ? null : (
-                                    <Text
-                                        nativeID={signUpFieldErrorId(PASSWORD_ID)}
-                                        style={[styles.error, { color: colors.dangerText }]}
-                                    >
-                                        {fieldErrors.password}
-                                    </Text>
-                                )}
-                            </View>
-                        </View>
-                    ) : (
-                        <AuthCodeFields
-                            id="signup-code"
-                            value={code}
-                            onChangeText={setCode}
-                            busy={busy}
-                            onSubmit={() => void handleVerifyCode()}
-                        />
-                    )}
-
-                    {error ? (
-                        <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
-                            {error}
-                        </Text>
-                    ) : null}
-
-                    <Button
-                        icon={onCredentials ? 'userPlus' : 'check'}
-                        size="lg"
-                        width="fill"
-                        busy={busy}
-                        disabled={!signUp || social.busyProvider !== null}
-                        onPress={() => void (onCredentials ? handleSignUp() : handleVerifyCode())}
-                    >
-                        {onCredentials ? t.createAccountAction : t.verifyAction}
-                    </Button>
-
-                    {onCredentials ? (
-                        <AuthSwitchLink
-                            prompt={t.haveAccountPrompt}
-                            label={t.signInLink}
+            {onCredentials ? (
+                <View style={styles.fields}>
+                    <SignUpFields
+                        fields={SIGN_UP_FIELDS}
+                        idPrefix="signup"
+                        values={values}
+                        errors={fieldErrors}
+                        onChange={changeField}
+                        busy={locked}
+                        focusField={focusField === 'password' ? null : focusField}
+                        onFocusHandled={() => setFocusField(null)}
+                    />
+                    <View style={styles.field}>
+                        <FieldLabel forId={PASSWORD_ID} label={t.passwordLabel} />
+                        <Input
+                            id={PASSWORD_ID}
+                            placeholder={t.passwordPlaceholder}
+                            value={password}
+                            onChangeText={(text) => changeField('password', text)}
+                            secret
+                            autoComplete="new-password"
+                            enterKeyHint="go"
+                            invalid={fieldErrors.password !== undefined}
+                            {...(fieldErrors.password === undefined
+                                ? {}
+                                : { describedBy: signUpFieldErrorId(PASSWORD_ID) })}
                             disabled={locked}
-                            onPress={onBack}
+                            focusRequested={focusField === 'password'}
+                            onFocusRequestHandled={() => setFocusField(null)}
+                            onSubmit={() => void handleSignUp()}
                         />
-                    ) : (
-                        <AuthCodeActions
-                            busy={busy}
-                            onResend={() => void handleResend()}
-                            onStartOver={() => void handleStartOver()}
-                        />
-                    )}
-                </ScrollView>
-            </KeyboardAvoider>
-        </SafeAreaView>
+                        {fieldErrors.password === undefined ? null : (
+                            <Text
+                                nativeID={signUpFieldErrorId(PASSWORD_ID)}
+                                style={[styles.error, { color: colors.dangerText }]}
+                            >
+                                {fieldErrors.password}
+                            </Text>
+                        )}
+                    </View>
+                </View>
+            ) : (
+                <AuthCodeFields
+                    id="signup-code"
+                    value={code}
+                    onChangeText={setCode}
+                    busy={busy}
+                    onSubmit={() => void handleVerifyCode()}
+                />
+            )}
+
+            {error ? (
+                <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
+                    {error}
+                </Text>
+            ) : null}
+
+            <Button
+                icon={onCredentials ? 'userPlus' : 'check'}
+                size="lg"
+                width="fill"
+                busy={busy}
+                disabled={!signUp || social.busyProvider !== null}
+                onPress={() => void (onCredentials ? handleSignUp() : handleVerifyCode())}
+            >
+                {onCredentials ? t.createAccountAction : t.verifyAction}
+            </Button>
+
+            {onCredentials ? (
+                <AuthSwitchLink prompt={t.haveAccountPrompt} label={t.signInLink} disabled={locked} onPress={onBack} />
+            ) : (
+                <AuthCodeActions
+                    busy={busy}
+                    onResend={() => void handleResend()}
+                    onStartOver={() => void handleStartOver()}
+                />
+            )}
+        </AuthScreenFrame>
     );
 }
 
 const styles = StyleSheet.create({
     // A label and its field are one group: closer to each other than to the next field (spec §1.6).
     field: { gap: nativeTokens.spacing[1] },
-    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
-    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
-    safe: { flex: 1, backgroundColor: 'transparent' },
-    flex: { flex: 1 },
-    container: {
-        flexGrow: 1,
-        gap: nativeTokens.spacing[5],
-        paddingHorizontal: nativeTokens.spacing[5],
-        paddingVertical: nativeTokens.spacing[6],
-    },
     fields: { gap: nativeTokens.spacing[3] },
     error: { ...nativeTokens.type.meta },
 });

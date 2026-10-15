@@ -186,3 +186,37 @@ describe('assertSignerEntitled — read the signer, refuse with the fix', () => 
         expect(calls[0]?.url).toBe(`${ORIGIN}/api/v1/users/me`);
     });
 });
+
+describe('assertSignerEntitled — a body read that is cut short', () => {
+    /** A 200 whose body read fails with `failure`, then (when `then` is given) a good answer. */
+    function bodyFails(failure: Error, then?: Response) {
+        const failing = { ok: true, status: 200, json: async () => Promise.reject(failure) } as unknown as Response;
+        const fetch = vi.fn(async () => (fetch.mock.calls.length === 1 || then === undefined ? failing : then.clone()));
+
+        return fetch;
+    }
+
+    it.each([
+        ['a timeout', new DOMException('The operation timed out.', 'TimeoutError')],
+        ['an abort', new DOMException('The operation was aborted.', 'AbortError')],
+    ])(
+        '⛔ retries when the attempt deadline fires while the body is read (%s), as it does before the headers',
+        async (_l, failure) => {
+            const fetch = bodyFails(failure, json(200, profile('granted')));
+
+            await expect(
+                assertSignerEntitled(input, { fetch: fetch as unknown as typeof globalThis.fetch, retry: NO_WAIT }),
+            ).resolves.toBeUndefined();
+            expect(fetch).toHaveBeenCalledTimes(2);
+        },
+    );
+
+    it('stays final for a body that really is not JSON: one attempt, and it says so', async () => {
+        const fetch = bodyFails(new SyntaxError('Unexpected token < in JSON'));
+
+        await expect(
+            assertSignerEntitled(input, { fetch: fetch as unknown as typeof globalThis.fetch, retry: NO_WAIT }),
+        ).rejects.toThrow(/body that is not JSON/u);
+        expect(fetch).toHaveBeenCalledTimes(1);
+    });
+});

@@ -74,7 +74,7 @@ things out, but done."
 | `usePasteIntoIngredients` replaced a functional `setSession` updater with a closure read                                | The updater restored for the merge                                               |
 | The dimmed-button opacity `0.4` is defined in two places                                                                | One exported constant                                                            |
 | The auth screen shell (safe area, keyboard, scroll) is copied a third time                                              | One auth screen frame                                                            |
-| `0054_parse_line_withdrawn.sql` drops the old CHECK with `IF EXISTS`                                                    | `IF EXISTS` removed                                                              |
+| `0054_parse_line_withdrawn.sql` drops the old CHECK with `IF EXISTS`                                                    | Kept: sandbox applies 0054, and `parseJobWithdraw.e2e` proves the name matched   |
 | `readViewerAppId` in `web/tests/e2e/utils/recipeApi.ts` blames a claim that is present                                  | The message names the real cause                                                 |
 | Whatever the first CI run with the iOS fixes shows                                                                      | Each failure fixed at its root                                                   |
 | CI on the OIDC roles, sandbox half (commit B)                                                                           | Plan 005. Proven on PR 91 by real runs                                           |

@@ -68,9 +68,6 @@ export const LABEL_NUTRIENT_MAP: Readonly<Record<LabelNutrientKey, { readonly na
         vitaminD: { name: 'Vitamin d (d2 + d3)', unit: 'µg' },
     };
 
-/** Every registered label-nutrient key, for exhaustive iteration and runtime narrowing. */
-export const LABEL_NUTRIENT_KEYS = Object.keys(LABEL_NUTRIENT_MAP) as readonly LabelNutrientKey[];
-
 /**
  * Look up a label nutrient by an UNTRUSTED key. Pure, total.
  *

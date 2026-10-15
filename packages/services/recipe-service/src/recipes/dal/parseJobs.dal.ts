@@ -22,7 +22,7 @@
  * window is benign and self-healing (a stale `running` job with retryable lines still retries, and the
  * next landing recomputes the aggregate), which is also precisely the worker's own crash posture.
  */
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import type pg from 'pg';
 import { PARSE_JOB_AGGREGATE_SQL } from '@kitchensink/recipe-core/parsing/parse-job-aggregate';
 
@@ -222,7 +222,11 @@ export class ParseJobsDal implements ParseJobsDalPort {
                         status: this.lineStatusOf(line.status),
                         proposal: line.proposal ?? null,
                         llmAttempts: line.llmAttempts,
+                        // Nothing has claimed a line inserted this instant, and nothing has gone quiet.
+                        attempts: 0,
+                        claimAgeSeconds: null,
                     })),
+                quietSeconds: 0,
             };
         });
     }
@@ -238,11 +242,23 @@ export class ParseJobsDal implements ParseJobsDalPort {
             return undefined;
         }
 
+        // ⛔ THE AGES ARE THE DATABASE'S, in the same statement as the rows. `claimLine` stamps `last_received_at` with
+        // the database's `now()`, so measuring it against this process's clock would mix two clocks and read a claim
+        // as lapsed (or held) by however far they drift. `::float8` is load-bearing too: `EXTRACT` answers `numeric`,
+        // which node-pg hands back as a STRING; `float8` arrives as a number. The window gives every row the job's
+        // quiet time — how long since ANY of its lines moved (every claim, landing, retry and edit stamps `updated_at`).
         const lines = await this.db
-            .select()
+            .select({
+                ...getTableColumns(recipeParseJobLines),
+                claimAgeSeconds: sql<
+                    number | null
+                >`EXTRACT(EPOCH FROM (now() - ${recipeParseJobLines.lastReceivedAt}))::float8`,
+                jobQuietSeconds: sql<number>`EXTRACT(EPOCH FROM (now() - max(${recipeParseJobLines.updatedAt}) OVER ()))::float8`,
+            })
             .from(recipeParseJobLines)
             .where(eq(recipeParseJobLines.jobId, jobId))
             .orderBy(asc(recipeParseJobLines.lineIndex));
+        const [first] = lines;
 
         return {
             id: job.id,
@@ -256,7 +272,12 @@ export class ParseJobsDal implements ParseJobsDalPort {
                 status: this.lineStatusOf(line.status),
                 proposal: line.proposal ?? null,
                 llmAttempts: line.llmAttempts,
+                // ⚠️ NULL before migration 0046 (expand-first); never claimed reads the same as zero claims.
+                attempts: line.attempts ?? 0,
+                claimAgeSeconds: line.claimAgeSeconds,
             })),
+            // An admitted job always has a line; a job with none has nothing that could be quiet.
+            quietSeconds: first === undefined ? 0 : first.jobQuietSeconds,
         };
     }
 

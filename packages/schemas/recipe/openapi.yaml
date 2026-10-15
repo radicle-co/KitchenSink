@@ -5697,11 +5697,26 @@ components:
                 nullable: true
                 allOf:
                   - $ref: "#/components/schemas/ParseProposal"
+              progress:
+                nullable: true
+                type: object
+                properties:
+                  phase:
+                    type: string
+                    enum:
+                      - queued
+                      - reading
+                      - retrying
+                      - delayed
+                      - stalled
+                required:
+                  - phase
             required:
               - lineIndex
               - sourceLine
               - status
               - proposal
+              - progress
       required:
         - id
         - status

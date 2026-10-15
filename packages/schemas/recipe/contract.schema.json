@@ -3150,6 +3150,37 @@
             ],
             "type": "object"
         },
+        "parseJobLinePhaseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "queued",
+                "reading",
+                "retrying",
+                "delayed",
+                "stalled"
+            ],
+            "type": "string"
+        },
+        "parseJobLineProgressSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "phase": {
+                    "enum": [
+                        "queued",
+                        "reading",
+                        "retrying",
+                        "delayed",
+                        "stalled"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "phase"
+            ],
+            "type": "object"
+        },
         "parseJobLineSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -3158,6 +3189,32 @@
                     "maximum": 9007199254740991,
                     "minimum": 0,
                     "type": "integer"
+                },
+                "progress": {
+                    "anyOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "phase": {
+                                    "enum": [
+                                        "queued",
+                                        "reading",
+                                        "retrying",
+                                        "delayed",
+                                        "stalled"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "phase"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
                 },
                 "proposal": {
                     "anyOf": [
@@ -3314,7 +3371,8 @@
                 "lineIndex",
                 "sourceLine",
                 "status",
-                "proposal"
+                "proposal",
+                "progress"
             ],
             "type": "object"
         },
@@ -3355,6 +3413,32 @@
                                 "maximum": 9007199254740991,
                                 "minimum": 0,
                                 "type": "integer"
+                            },
+                            "progress": {
+                                "anyOf": [
+                                    {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "phase": {
+                                                "enum": [
+                                                    "queued",
+                                                    "reading",
+                                                    "retrying",
+                                                    "delayed",
+                                                    "stalled"
+                                                ],
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "phase"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
                             },
                             "proposal": {
                                 "anyOf": [
@@ -3511,7 +3595,8 @@
                             "lineIndex",
                             "sourceLine",
                             "status",
-                            "proposal"
+                            "proposal",
+                            "progress"
                         ],
                         "type": "object"
                     },

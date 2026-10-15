@@ -39,9 +39,21 @@ export function makeParseProposal(overrides: Partial<ParseProposal> = {}): Parse
     };
 }
 
-/** One line of a job view. Defaults to `pending` with no proposal — the state a fresh job is in. */
+/**
+ * One line of a job view. Defaults to `pending` with no proposal — the state a fresh job is in. Its `progress` follows
+ * its status unless overridden, as the service's does: `queued` while pending, `null` otherwise.
+ */
 export function makeParseJobLine(overrides: Partial<ParseJobLineView> = {}): ParseJobLineView {
-    return { lineIndex: 0, sourceLine: '2 cups flour', status: 'pending', proposal: null, ...overrides };
+    const status = overrides.status ?? 'pending';
+
+    return {
+        lineIndex: 0,
+        sourceLine: '2 cups flour',
+        status,
+        proposal: null,
+        progress: status === 'pending' ? { phase: 'queued' } : null,
+        ...overrides,
+    };
 }
 
 /** The job view every one of the four endpoints answers with. Defaults to a single-line `running` job. */

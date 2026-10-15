@@ -26,9 +26,21 @@ export function makeParseProposal(overrides: Partial<ParseProposal> = {}): Parse
     };
 }
 
-/** One job line, pending with no proposal unless overridden. */
+/**
+ * One job line, pending with no proposal unless overridden. Its `progress` follows its status unless overridden, as the
+ * service's does: `queued` while pending, `null` otherwise.
+ */
 export function makeParseJobLine(overrides: Partial<ParseJobLineView> = {}): ParseJobLineView {
-    return { lineIndex: 0, sourceLine: '2 cups flour', status: 'pending', proposal: null, ...overrides };
+    const status = overrides.status ?? 'pending';
+
+    return {
+        lineIndex: 0,
+        sourceLine: '2 cups flour',
+        status,
+        proposal: null,
+        progress: status === 'pending' ? { phase: 'queued' } : null,
+        ...overrides,
+    };
 }
 
 /** A running job with one pending line unless overridden. Live for a day from 2026-10-09T10:00Z. */

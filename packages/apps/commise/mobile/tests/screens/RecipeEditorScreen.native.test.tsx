@@ -383,6 +383,7 @@ describe('RecipeEditorScreen (native) — Paste a list', () => {
                     lineIndex: 0,
                     sourceLine: '2 cups flour',
                     status: 'parsed' as const,
+                    progress: null,
                     proposal: {
                         raw: '2 cups flour',
                         quantity: { kind: 'exact' as const, value: 2 },

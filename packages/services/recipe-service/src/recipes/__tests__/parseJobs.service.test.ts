@@ -42,8 +42,11 @@ function makeRecord(overrides: Partial<ParseJobRecord> = {}): ParseJobRecord {
                 status: 'pending',
                 proposal: null,
                 llmAttempts: null,
+                attempts: 0,
+                claimAgeSeconds: null,
             },
         ],
+        quietSeconds: 0,
         ...overrides,
     };
 }
@@ -83,6 +86,8 @@ function makeDal(overrides: Partial<MockedDal> = {}): MockedDal {
                     status: 'pending',
                     proposal: null,
                     llmAttempts: null,
+                    attempts: 0,
+                    claimAgeSeconds: null,
                 })),
             });
 
@@ -294,6 +299,8 @@ describe('get', () => {
                             status: 'parsed',
                             proposal: stored,
                             llmAttempts: 2,
+                            attempts: 1,
+                            claimAgeSeconds: 40,
                         },
                     ],
                 }),
@@ -310,6 +317,56 @@ describe('get', () => {
             foods: [{ name: 'flour', prep: 'sifted' }],
             reviewReasons: [],
         });
+    });
+});
+
+/**
+ * What each line is doing (plan 2026-10-15-011). The PHASE RULES are `lineProgress.test.ts`'s; this owns the wiring:
+ * every line of the read gets its own facts, the job's quiet seconds reach every line, and a line that is not pending
+ * carries `null` rather than a phase.
+ */
+describe('get — progress', () => {
+    it("reports each pending line's phase from its own facts, and null for every other line", async () => {
+        const base = makeRecord().lines[0];
+
+        if (base === undefined) {
+            throw new Error('fixture has no line');
+        }
+
+        const dal = makeDal({
+            getJob: vi.fn<ParseJobsDalPort['getJob']>(async () =>
+                makeRecord({
+                    quietSeconds: 5,
+                    lines: [
+                        { ...base, lineIndex: 0, attempts: 0, claimAgeSeconds: null },
+                        { ...base, lineIndex: 1, attempts: 1, claimAgeSeconds: 20 },
+                        { ...base, lineIndex: 2, attempts: 3, claimAgeSeconds: 20 },
+                        { ...base, lineIndex: 3, attempts: 1, claimAgeSeconds: 400 },
+                        { ...base, lineIndex: 4, status: 'failed_retryable', attempts: 21, claimAgeSeconds: 20 },
+                    ],
+                }),
+            ),
+        });
+
+        const view = await new ParseJobsService(dal, makeQueue()).get(OWNER, JOB_ID);
+
+        expect(view.lines.map((line) => line.progress)).toEqual([
+            { phase: 'queued' },
+            { phase: 'reading' },
+            { phase: 'retrying' },
+            { phase: 'delayed' },
+            null,
+        ]);
+    });
+
+    it('reads a pending line as stalled when nothing in its paste has moved past the threshold', async () => {
+        const dal = makeDal({
+            getJob: vi.fn<ParseJobsDalPort['getJob']>(async () => makeRecord({ quietSeconds: 361 })),
+        });
+
+        const view = await new ParseJobsService(dal, makeQueue()).get(OWNER, JOB_ID);
+
+        expect(view.lines[0]?.progress).toEqual({ phase: 'stalled' });
     });
 });
 

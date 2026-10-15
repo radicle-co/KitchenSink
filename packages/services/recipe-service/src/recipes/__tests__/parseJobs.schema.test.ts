@@ -17,6 +17,8 @@ import { MAX_PARSE_JOB_LINES, PARSE_JOB_LINE_MAX_CHARS } from '@kitchensink/reci
 import {
     createParseJobRequestSchema,
     editParseJobLineRequestSchema,
+    parseJobLinePhaseSchema,
+    parseJobLineSchema,
     parseJobResponseSchema,
     parseProposalFoodSchema,
     parseProposalSchema,
@@ -126,10 +128,42 @@ describe('parseJobResponseSchema', () => {
             status: 'running',
             createdAt: '2026-08-31T00:00:00.000Z',
             expiresAt: '2026-09-01T00:00:00.000Z',
-            lines: [{ lineIndex: 0, sourceLine: '2 cups flour', status: 'pending', proposal: null }],
+            lines: [
+                {
+                    lineIndex: 0,
+                    sourceLine: '2 cups flour',
+                    status: 'pending',
+                    proposal: null,
+                    progress: { phase: 'queued' },
+                },
+            ],
         });
 
         expect(result.success).toBe(true);
+    });
+
+    /**
+     * ⛔ `progress` is REQUIRED and NULLABLE (plan 2026-10-15-011): a server that omits it is a server older than this
+     * contract, and the client's strict parse must say so rather than read the line as doing nothing. Its key set is
+     * pinned beside `lineIndex`/`status` so a field cannot join the line un-argued — and the phase vocabulary is
+     * pinned because installed clients parse it strictly: a new phase is a breaking change, a new field on
+     * `progress` is not.
+     */
+    it("carries a line's progress as a required, nullable object over five phases", () => {
+        expect(Object.keys(parseJobLineSchema.shape).sort()).toEqual([
+            'lineIndex',
+            'progress',
+            'proposal',
+            'sourceLine',
+            'status',
+        ]);
+        expect(parseJobLinePhaseSchema.options).toEqual(['queued', 'reading', 'retrying', 'delayed', 'stalled']);
+
+        const line = { lineIndex: 0, sourceLine: 'x', status: 'parsed', proposal: null };
+
+        expect(parseJobLineSchema.safeParse({ ...line, progress: null }).success).toBe(true);
+        expect(parseJobLineSchema.safeParse(line).success).toBe(false);
+        expect(parseJobLineSchema.safeParse({ ...line, progress: { phase: 'thinking' } }).success).toBe(false);
     });
 
     it('refuses a line status outside the four-member union', () => {
@@ -138,7 +172,7 @@ describe('parseJobResponseSchema', () => {
             status: 'running',
             createdAt: '2026-08-31T00:00:00.000Z',
             expiresAt: '2026-09-01T00:00:00.000Z',
-            lines: [{ lineIndex: 0, sourceLine: 'x', status: 'exploded', proposal: null }],
+            lines: [{ lineIndex: 0, sourceLine: 'x', status: 'exploded', proposal: null, progress: null }],
         });
 
         expect(result.success).toBe(false);

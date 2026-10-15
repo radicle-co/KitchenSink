@@ -569,6 +569,7 @@ describe('RecipeEditorContainer (web) — Paste a list', () => {
                 lineIndex: 0,
                 sourceLine: '2 cups flour',
                 status: status === 'complete' ? ('parsed' as const) : ('pending' as const),
+                progress: status === 'complete' ? null : { phase: 'queued' as const },
                 proposal:
                     status === 'complete'
                         ? {

@@ -43,10 +43,11 @@ import {
     type CopyForwardCandidate,
     type CopyForwardDecision,
 } from './domain/copyForwardPolicy.js';
+import { lineProgressOf } from './domain/lineProgress.js';
 import { RecipeDomainError } from './recipe.error.js';
 import { PARSE_JOB_QUEUE, type ParseJobQueuePort } from './parseJob.queue.js';
 import type { ParseJobLineStatus, ParseJobStatus } from '../database/schema/parseJobs.js';
-import type { ParseJobResponse, ParseProposal } from './parseJobs.schema.js';
+import type { ParseJobLineProgress, ParseJobResponse, ParseProposal } from './parseJobs.schema.js';
 
 /**
  * How long an untouched job lives before the TTL sweep expires it. A day: long enough to leave the review
@@ -82,6 +83,13 @@ export interface ParseJobLineRecord {
     /** The worker's stored `ParsedLine` jsonb, or `null` before a landing. */
     readonly proposal: unknown;
     readonly llmAttempts: number | null;
+    /**
+     * Deliveries that claimed the line (`COALESCE(attempts, 0)`). With {@link claimAgeSeconds}, the facts
+     * `lineProgressOf` reads — REQUIRED, so no record can reach the wire without them.
+     */
+    readonly attempts: number;
+    /** Seconds since the last claim, by the DATABASE's clock (the claim stamps its `now()`); `null` if never claimed. */
+    readonly claimAgeSeconds: number | null;
 }
 
 /** One job as the DAL returns it, lines in submission order. */
@@ -91,6 +99,8 @@ export interface ParseJobRecord {
     readonly createdAt: Date;
     readonly expiresAt: Date;
     readonly lines: readonly ParseJobLineRecord[];
+    /** Seconds since anything in this job last moved (`max(updated_at)` over its lines), by the database's clock. */
+    readonly quietSeconds: number;
 }
 
 /** A mutation's outcome. `missing` covers stranger AND absent — the DAL cannot tell them apart on purpose. */
@@ -193,8 +203,16 @@ function viewOf(record: ParseJobRecord): ParseJobResponse {
             sourceLine: line.sourceLine,
             status: line.status,
             proposal: line.proposal === null ? null : projectProposal(line.proposal),
+            progress: progressOf(line, record.quietSeconds),
         })),
     };
+}
+
+/** A line's wire progress: its phase while pending, `null` otherwise. Pure. */
+function progressOf(line: ParseJobLineRecord, quietSeconds: number): ParseJobLineProgress | null {
+    const phase = lineProgressOf(line, quietSeconds);
+
+    return phase === null ? null : { phase };
 }
 
 /** `PARSE_JOB_NOT_FOUND` — stranger and absent are deliberately one answer. */

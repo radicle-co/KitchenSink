@@ -1118,10 +1118,11 @@ export async function mockRecipeApi(
                 // `partial` leaves the LAST line retryable so the retry control is reachable while the rest
                 // of the job still renders its proposals.
                 settlesAs === 'partial' && index === job.lines.length - 1
-                    ? { ...line, status: 'failed_retryable', proposal: null }
+                    ? { ...line, status: 'failed_retryable', proposal: null, progress: null }
                     : {
                           ...line,
                           status: 'parsed',
+                          progress: null,
                           proposal: {
                               raw: line.sourceLine,
                               quantity: { kind: 'exact', value: 2 },
@@ -2223,7 +2224,13 @@ export async function mockRecipeApi(
                         .split(/\r?\n/)
                         .map((line) => line.trim())
                         .filter((line) => line !== '')
-                        .map((sourceLine, lineIndex) => ({ lineIndex, sourceLine, status: 'pending', proposal: null })),
+                        .map((sourceLine, lineIndex) => ({
+                            lineIndex,
+                            sourceLine,
+                            status: 'pending',
+                            proposal: null,
+                            progress: { phase: 'queued' },
+                        })),
                 };
                 parseJobs.set(id, job);
                 parseJobPollsLeft.set(id, parseJobScript.pollsBeforeSettled ?? 1);
@@ -2248,7 +2255,9 @@ export async function mockRecipeApi(
                     ...job,
                     status: 'running',
                     lines: job.lines.map((line) =>
-                        line.status === 'failed_retryable' ? { ...line, status: 'pending' } : line,
+                        line.status === 'failed_retryable'
+                            ? { ...line, status: 'pending', progress: { phase: 'queued' } }
+                            : line,
                     ),
                 };
                 parseJobs.set(job.id, reopened);
@@ -2279,7 +2288,7 @@ export async function mockRecipeApi(
                     status: 'running',
                     lines: job.lines.map((line) =>
                         line.lineIndex === lineIndex
-                            ? { ...line, sourceLine, status: 'pending', proposal: null }
+                            ? { ...line, sourceLine, status: 'pending', proposal: null, progress: { phase: 'queued' } }
                             : line,
                     ),
                 };

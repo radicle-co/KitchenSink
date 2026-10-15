@@ -120,6 +120,24 @@ export const parseProposalSchema = z.object({
 
 export type ParseProposal = z.infer<typeof parseProposalSchema>;
 
+/**
+ * What a PENDING line is doing — computed at read time by `lineProgressOf` (`domain/lineProgress.ts`, plan
+ * 2026-10-15-011) from the claim facts the worker already records. Every phase is inferred, none is stored.
+ *
+ * ⛔ A ONE-WAY DOOR: installed clients parse this enum strictly, so a new phase is a breaking change. New facts go on
+ * {@link parseJobLineProgressSchema} as fields instead.
+ */
+export const parseJobLinePhaseSchema = z.enum(['queued', 'reading', 'retrying', 'delayed', 'stalled']);
+
+export type ParseJobLinePhase = z.infer<typeof parseJobLinePhaseSchema>;
+
+/** A pending line's progress. An object, so a later fact is an additive field. Loose, like every response component. */
+export const parseJobLineProgressSchema = z.object({
+    phase: parseJobLinePhaseSchema,
+});
+
+export type ParseJobLineProgress = z.infer<typeof parseJobLineProgressSchema>;
+
 /** One line of a job view. Loose, like every response component. */
 export const parseJobLineSchema = z.object({
     /** The line's position within the job — with the job id, its identity. */
@@ -129,6 +147,11 @@ export const parseJobLineSchema = z.object({
     status: parseJobLineStatusSchema,
     /** The proposal, once one landed — `null` while pending/retryable, and for an exhausted line's absence of foods see `reviewReasons`. */
     proposal: parseProposalSchema.nullable(),
+    /**
+     * What the line is doing while `pending`; `null` for every other status. REQUIRED, so a server older than this
+     * contract fails the client's parse instead of reading as a line doing nothing.
+     */
+    progress: parseJobLineProgressSchema.nullable(),
 });
 
 export type ParseJobLineView = z.infer<typeof parseJobLineSchema>;

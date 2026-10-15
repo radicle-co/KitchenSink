@@ -81,7 +81,10 @@ function makeDal(candidates: readonly CopyForwardCandidate[] = []): MockedDal {
                     status: line.decision.kind === 'copy' ? line.decision.status : ('pending' as const),
                     proposal: line.decision.kind === 'copy' ? line.decision.proposal : null,
                     llmAttempts: line.decision.kind === 'copy' ? line.decision.llmAttempts : null,
+                    attempts: 0,
+                    claimAgeSeconds: null,
                 })),
+                quietSeconds: 0,
             };
 
             return built;
@@ -248,6 +251,7 @@ describe('create — what copy-forward must not disturb', () => {
             createdAt: new Date(),
             expiresAt: new Date(Date.now() + 3_600_000),
             lines: [],
+            quietSeconds: 0,
         });
 
         await new ParseJobsService(dal, queue).editLine(OWNER, JOB_ID, 0, EGGS);

@@ -65,6 +65,12 @@ on:
                     silence as a healthy one. `required: false` for the reason above: a fork
                     PR cannot supply it, and the tier degrades rather than turning that into a red check.
                 required: false
+            VERCEL_TOKEN:
+                description: >-
+                    Vercel API token, read by the deployed web tier to confirm the preview hostname serves this PR's
+                    head commit before Playwright drives it. A fork PR never reaches that tier (it cannot deploy a
+                    preview), so `required: false` costs nothing; a same-repo run without it fails the web tier.
+                required: false
 
 permissions:
     contents: read
@@ -1339,6 +1345,8 @@ jobs:
             # Omitted, that half skipped on every pull-request run while the job reported green under a name
             # claiming it had run.
             SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+            # The web tier asks Vercel which deployment the preview hostname serves (`webPreviewCurrencyGate.test.ts`).
+            VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
     integration-food:
         name: Integration (food — mocked)

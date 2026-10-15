@@ -126,6 +126,13 @@ on:
                     Reads the queue backstop's cron monitor. Optional: without it that half of the queue-guarantee
                     tier reports a notice and skips, rather than claiming a proof it did not make.
                 required: false
+            VERCEL_TOKEN:
+                description: >-
+                    Reads which Vercel deployment the web preview hostname serves, so the web tier can refuse a
+                    preview built from another commit. Not optional in practice: the web tier fails without it,
+                    because a sandbox that is up with a preview nobody checked is exactly what it exists to stop.
+                    Declared `required: false` only so the jobs that do not read it still start without it.
+                required: false
 
 permissions:
     contents: read
@@ -1067,6 +1074,29 @@ jobs:
                   fi
                   echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
                   npm ci
+            # ⛔ THE PREVIEW MUST SERVE THE COMMIT UNDER TEST, and this proves it before the shard signs in, seeds or runs a
+            # test. Run 38791689080 drove `pr-91.sandbox.commise.app` while it served a build 29 commits old, and seven
+            # green shards proved nothing about the commit's UI. A push does not move the alias (ADR-0060), so the script
+            # asks Vercel which deployment the hostname serves and compares its commit to the PR's HEAD — the commit
+            # Vercel built — not `github.sha`, which on a pull request is the merge commit no preview is ever built from.
+            # No `if:`: the sandbox is up whenever this job runs (it is skipped upstream otherwise), so a preview this
+            # cannot vouch for is a red, never a skip. `webPreviewCurrencyGate.test.ts` holds the position and the inputs.
+            - name: Confirm the web preview serves the commit under test (Vercel alias → deployment)
+              env:
+                  PR_TOKEN: ${{ inputs.target_stage }}
+                  PREVIEW_ZONE: sandbox.${{ vars.DOMAIN_NAME }}
+                  WEB_ORIGIN: ${{ inputs.web_origin }}
+                  EXPECTED_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+                  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+                  VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+              run: |
+                  set -euo pipefail
+                  if [ -z "${VERCEL_TOKEN}" ]; then
+                      echo "::error::VERCEL_TOKEN did not reach this job, so it cannot tell which commit ${WEB_ORIGIN} serves — refusing to run the web tier over an unchecked preview. Every caller of deployedE2eTiers.yml must forward secrets.VERCEL_TOKEN."
+                      exit 1
+                  fi
+                  npx tsx packages/apps/commise/web/scripts/previewCurrency.ts
             # STILL REQUIRED after the move to `next start`, for a different reason — worth stating, because
             # the old one no longer holds. The server this job runs is PRE-BUILT (`@commise/ui` is in
             # `transpilePackages`, so it is compiled INTO the artifact; `.next/server` carries no

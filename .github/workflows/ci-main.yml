@@ -34,3 +34,6 @@ jobs:
             # without passing it here would leave the reference resolving to an empty string — the tier
             # would skip, and the job would stay green while proving nothing.
             SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+            # Forwarded because the deployed web tier refuses a preview it cannot prove current, and without the token
+            # it cannot ask Vercel (`webPreviewCurrencyGate.test.ts` checks this hop).
+            VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

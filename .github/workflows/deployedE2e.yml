@@ -381,3 +381,5 @@ jobs:
         # Declared EXPLICITLY rather than `secrets: inherit` (zizmor `secrets-inherit`).
         secrets:
             SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+            # The web tier confirms the preview serves the dispatched commit before it runs.
+            VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

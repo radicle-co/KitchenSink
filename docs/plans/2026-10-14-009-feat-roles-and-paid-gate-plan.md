@@ -97,8 +97,17 @@ row above disagrees, this list wins.
   says the choice is final. The Home nudge is offered only under `upsell`. The collection menu is built once
   (`collectionMenuItems`).
 - **D15 — deleted.** `canGoPrivate`, `Viewer.tier`, `Tier`, `tierSchema` and `rankTier` had client callers only.
-- **Maestro** — `recipes/paidFeaturesByRole.yaml` is written and recorded in `KNOWN_UNRUN_FLOWS`: its UI sign-ins
-  would spend up to five more Clerk email-code verifications per platform per run (Q3).
+- **Maestro** — `recipes/paidFeaturesByRole.yaml` is in `FLOW_PLAN`, on both platform lanes (Q3): the only per-platform
+  door, `MAESTRO_PLATFORM_EXCLUSIONS`, admits only flows that reach an Android-only command. It spends up to five
+  Clerk email-code verifications per platform per run, which the budget guard names.
+- **Q5 — the make-public confirm.** A downgraded owner (`hidden`, `upsell`; `loading` too) confirms before a private
+  recipe goes public, in the editor and on the recipe page's ⋯ menu (`useMakePublicConfirm`,
+  `RecipeMakePublicDialog`), and the Public card says beforehand what it costs (`makePublicConsequence`). Collections
+  are not covered yet: the UX pass recommends the same confirm there.
+- **The stuck save.** The editor asks the gate with `heldVisibility` (Private only while the draft keeps it), so a
+  downgraded owner who leaves Private is not offered it back. A Private the server is known to refuse
+  (`privateRefusalOf`: `hidden`, `upsell`) is never sent: a create goes out public, the publish follow-up is skipped,
+  and the finish notice says the recipe stayed public (`EditorFinish.privateRefused`).
 
 ## Tests, by tier (each written red first)
 
@@ -131,13 +140,10 @@ row above disagrees, this list wins.
 - **Q2.** Should the Clerk session-token templates (web and `commise-native`) be checked in the dashboard for a
   whole-object `public_metadata` mapping? This change assumes it. If either maps chosen keys, `roles` never arrives and
   every check fails closed to no paid features.
-- **Q3.** May `recipes/paidFeaturesByRole.yaml` join the Maestro plan, spending up to five more email-code
-  verifications per platform per run?
-- **Q4.** GR-012 AC-012-c ("no feature other than 010 defines its own subscription tier check") and ADR-0017:73 predate
-  roles; the one shared check is now `hasPaidFeatures` in clerk-verify. Amend their text?
-- **Q5.** A downgraded owner who makes a private recipe public cannot make it private again. The UX spec recommends a
-  confirm dialog before that Make public; this change ships only the "You won't be able to make it private again."
-  note in the editor. Build the confirm?
+- **Q3.** Answered: `recipes/paidFeaturesByRole.yaml` joins the Maestro plan, on both lanes.
+- **Q4.** Answered: GR-012 AC-012-c (v3.5.1) and ADR-0017 consequence 3 name `hasPaidFeatures` as the one shared
+  check.
+- **Q5.** Answered: the confirm is built for recipes (see the corrections above).
 
 ## Operations after merge (the owner's, not this change's)
 

@@ -70,10 +70,13 @@ Consequences that follow immediately and are not separate decisions:
    files to `packages/services/recipe-service/src/{meal-plans,grocery-lists,nutrition-plans}/`, and the
    existing generator copies them into the existing `@kitchensink/schema-recipe`. There is no
    `@kitchensink/schema-meal-planning`, `-grocery`, `-nutrition` or `-billing`.
-3. **`@RequirePremium()` / `PlanGuard` (010) live wherever the entitlement is read**, which is every gated
-   service — so the guard is a **shared** concern (`packages/shared/*`) reading a claim from the Clerk session
-   token, not an import from the identity service. An app or service importing
-   `@kitchensink/identity-service` to gate a route would violate the boundary
+3. **The paid-features check lives wherever the entitlement is read**, which is every gated service — so it is
+   ONE **shared** predicate, `hasPaidFeatures(roles)` in `@kitchensink/clerk-verify`
+   (`packages/shared/clerk-verify/src/roles.ts`), over the roles in the Clerk session token's signed
+   `public_metadata`, not an import from the identity service. 010's `@RequirePremium()` / `PlanGuard` wrap that
+   predicate; they do not restate it. Whether a cook without an entitled role is SHOWN an upsell is a separate,
+   display-only answer that identity alone gives (`account.paidFeatures`), and it never decides who may use a paid
+   feature. An app or service importing `@kitchensink/identity-service` to gate a route would violate the boundary
    `packages/infra/global/__tests__/appServiceDependency.test.ts` already enforces.
 4. **Existing NestJS modules are the internal boundary.** `MealPlansModule`, `GroceryListsModule`,
    `NutritionPlansModule` are siblings of `RecipesModule`/`SearchModule`, each with its own DAL and its own

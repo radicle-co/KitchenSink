@@ -248,6 +248,10 @@ function visualBaselinesExist(): boolean {
  *     vertical when promoted.
  */
 const KNOWN_UNRUN_FLOWS: readonly string[] = [
+    // A paste the server reads as stalled (plan 2026-10-15-011): only a stage whose parse worker is STOPPED says so,
+    // after 360 s of nothing moving, and every planned run drives a deployed stage whose worker answers first. Hand-run on
+    // a local stage without `recipe-workers`; there is no planned stage it could pass on.
+    'recipes/pasteListStalled',
     // The offline write path: the sync layer beneath these is complete and unit-tested
     // (`@kitchensink/sync`, `@commise/query/sync`), and both apps mount the queue — but NO recipe write is
     // registered with it yet, so `submit` has zero call sites and nothing enqueues. These flows assert the

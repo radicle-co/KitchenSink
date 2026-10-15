@@ -19,6 +19,10 @@
 // budget that matters to a cook mid-flow) and `maxPaste` (200 lines at the admission cap — the fan-out
 // worst case that exercises 20 concurrent batches per request).
 //
+// A third, `pollProgress` (plan 2026-10-15-011), drives the READ every open paste issues every few seconds: since each
+// pending line reports its phase, `GET /recipe-parse-jobs/:id` computes ages with the database clock and a window over
+// the job's lines. It polls a 200-line job, the read's worst case, and checks every pending line carries its progress.
+//
 //   k6 run \
 //     -e RECIPE_API_BASE_URL=https://recipe.commise.app \
 //     -e RECIPE_LOAD_TEST_TOKEN=$TOKEN \
@@ -40,6 +44,7 @@ import {
 } from './lib/common.js';
 
 const createTrend = new Trend('parse_job_create_duration', true);
+const pollTrend = new Trend('parse_job_poll_duration', true);
 
 /** The p95 budget for a TYPICAL paste's 202. Shares the SAVE budget: one transaction plus one queue trip. */
 const TYPICAL_P95_MS = Number(__ENV['RECIPE_PARSE_JOB_P95_MS'] || SC009_P95_MS);
@@ -87,6 +92,13 @@ export const options = {
             stages: rampStages(Math.max(1, Math.floor(PEAK_VUS / 4))),
             tags: { scenario: 'maxPaste' },
         },
+        pollProgress: {
+            executor: 'ramping-vus',
+            exec: 'pollProgress',
+            startVUs: 0,
+            stages: rampStages(PEAK_VUS),
+            tags: { scenario: 'pollProgress' },
+        },
     },
     thresholds: {
         // ⛔ The load-bearing threshold: an SQS failure under pressure is a 202 with retryable lines, never a 5xx.
@@ -95,6 +107,8 @@ export const options = {
         ...whenSubstrate({
             'http_req_duration{scenario:typicalPaste}': [`p(95)<${TYPICAL_P95_MS}`],
             'http_req_duration{scenario:maxPaste}': [`p(95)<${MAX_PASTE_P95_MS}`],
+            // The poll is a READ, so it shares the typical paste's budget rather than earning a looser one.
+            'http_req_duration{scenario:pollProgress,operation:pollParseJob}': [`p(95)<${TYPICAL_P95_MS}`],
         }),
     },
 };
@@ -128,6 +142,8 @@ function createJob(text) {
             return body.status === 'running' || body.status === 'partial';
         },
     });
+
+    return res.status === 202 ? JSON.parse(res.body || '{}').id : undefined;
 }
 
 export function typicalPaste() {
@@ -138,4 +154,39 @@ export function typicalPaste() {
 export function maxPaste() {
     createJob(maxText(`${__VU}-${__ITER}`));
     sleep(iterationPause(2));
+}
+
+/** How many times one VU reads its job: a cook watching a paste for half a minute at the 4 s running cadence. */
+const POLLS_PER_JOB = 8;
+
+export function pollProgress() {
+    const id = createJob(maxText(`poll-${__VU}-${__ITER}`));
+
+    if (id === undefined) {
+        sleep(PACE_SECONDS);
+
+        return;
+    }
+
+    for (let poll = 0; poll < POLLS_PER_JOB; poll += 1) {
+        const res = http.get(`${BASE_URL}/api/v1/recipe-parse-jobs/${id}`, {
+            headers: jsonHeaders(),
+            tags: { operation: 'pollParseJob' },
+        });
+
+        pollTrend.add(res.timings.duration);
+        check(res, {
+            'parse-job poll answers 200': (r) => r.status === 200,
+            'every pending line says what it is doing': (r) => {
+                const lines = JSON.parse(r.body || '{}').lines || [];
+
+                return lines.every((line) =>
+                    line.status === 'pending'
+                        ? line.progress !== null && line.progress !== undefined
+                        : line.progress === null,
+                );
+            },
+        });
+        sleep(PACE_SECONDS);
+    }
 }

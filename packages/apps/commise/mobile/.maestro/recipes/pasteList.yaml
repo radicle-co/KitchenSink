@@ -40,16 +40,24 @@ appId: io.commise.mobile
 - assertVisible: '2 lines'
 - tapOn: 'Add 2 ingredients'
 
-# The sheet closes once the job is accepted, and the poll advances the rows on its own.
+# The sheet closes once the job is accepted, and the one progress block says where the paste is (plan 2026-10-15-011).
 - extendedWaitUntil:
       notVisible: 'Ingredient lines'
       timeout: 30000
-# Past the paste's stall bound (3 minutes) too: where the job cannot finish (a local stage whose queue refuses the
-# messages), the lines must still join, through the add field's reader, and never read for good.
 - extendedWaitUntil:
-      notVisible: 'Reading…'
+      visible:
+          text: 'Added [0-2] of 2 lines.*'
+      timeout: 30000
+# ⛔ REWRITTEN for owner ruling 2026-10-13 ("it takes as long as it takes"): there is no client stall bound any more, so
+# the lines join only when the parse worker answers. A stage whose worker cannot is the hand-run
+# `pasteListStalled.yaml`'s subject. The poll advances the rows on its own: nothing is tapped between.
+- extendedWaitUntil:
+      visible:
+          text: 'Edit 2 .*[Ff]lour.*'
       timeout: 240000
-      label: 'both pasted lines joined the recipe (settled by the parse job, or past the stall bound by the reader)'
+      label: 'both pasted lines joined the recipe once the parse job answered'
+- assertNotVisible:
+      text: 'Added [0-2] of 2 lines.*'
 # Both lines read as rows (build spec §7.5.1), each with the amount the cook pasted.
 - assertVisible:
       text: 'Edit 2 .*[Ff]lour.*'

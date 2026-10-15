@@ -12,6 +12,9 @@ import { editorSection, openNewRecipe } from './utils/recipeEditor';
  *
  * What only this tier proves: the POLL advances the rows on its own (the mock answers `running` once, then settles), the
  * pasted lines join the draft through the real lookup, and the recipe's CREATE carries what each line was read from.
+ * Since plan 2026-10-15-011 it also proves the live statuses: each row says what the server reports its line is doing,
+ * one progress block says where the paste is, and a paste the server calls stalled waits on the cook (no time limit)
+ * until Add the rest as written joins it.
  *
  * Selectors are role and label only; every wait is on a settled state, never a timeout.
  */
@@ -44,13 +47,15 @@ for (const colorScheme of SCHEMES) {
             await expect(sheet.getByText('2 lines')).toBeVisible();
             await sheet.getByRole('button', { name: 'Add 2 ingredients' }).click();
 
-            // The sheet closes once the job is accepted, and each line is a row of the list at once, reading.
+            // The sheet closes once the job is accepted, and each line is a row of its own list at once, saying what the
+            // server reports it is doing, under the one progress block (plan 2026-10-15-011).
             await expect(sheet).toHaveCount(0);
-            const list = ingredients.getByRole('list', { name: 'Ingredients' });
-            await expect(list.getByRole('listitem').filter({ hasText: '2 cups flour' })).toBeVisible();
+            const pasted = ingredients.getByRole('list', { name: 'Lines not added yet' });
+            await expect(pasted.getByRole('listitem').filter({ hasText: '2 cups flour' })).toBeVisible();
+            await expect(ingredients.getByText('Added 0 of 2 lines')).toBeVisible();
 
             // ⛔ THE POLL, not a click: nothing below touches the page.
-            await expect(list.getByText('Reading…')).toHaveCount(0, { timeout: POLL_SETTLE_TIMEOUT_MS });
+            await expect(pasted).toHaveCount(0, { timeout: POLL_SETTLE_TIMEOUT_MS });
             await expect(page.getByRole('status').filter({ hasText: 'Added 2 ingredients.' })).toHaveCount(1);
             // Paste is offered once more, now in the section's heading row.
             await expect(ingredients.getByRole('button', { name: 'Paste a list' })).toBeVisible();
@@ -85,6 +90,62 @@ for (const colorScheme of SCHEMES) {
             };
 
             expect(body.ingredients.map((line) => line.sourceLine)).toEqual(['2 cups flour']);
+        });
+
+        test('⛔ a stalled paste waits on the cook, with no time limit; Add the rest as written joins it', async ({
+            page,
+        }) => {
+            const viewerId = await readViewerAppId(page);
+            // The server keeps reporting both lines stalled: the paste never settles by itself.
+            await mockRecipeApi(page, {
+                viewerId,
+                paidFeatures: 'granted',
+                parseJob: { pendingPhase: 'stalled', pollsBeforeSettled: 1_000 },
+            });
+            await openNewRecipe(page);
+            const ingredients = editorSection(page, 'Ingredients');
+
+            await ingredients.getByRole('button', { name: 'Paste a list' }).click();
+            const sheet = page.getByRole('dialog', { name: 'Paste a list' });
+            await sheet.getByRole('textbox', { name: 'Ingredient lines' }).fill('2 cups flour\n1 tsp salt');
+            await sheet.getByRole('button', { name: 'Add 2 ingredients' }).click();
+
+            const pasted = ingredients.getByRole('list', { name: 'Lines not added yet' });
+            await expect(pasted.getByText('Taking longer than usual')).toHaveCount(2, {
+                timeout: POLL_SETTLE_TIMEOUT_MS,
+            });
+            await expect(ingredients.getByText('You can keep waiting, or add the lines as written.')).toBeVisible();
+            await expect(pasted.getByRole('button', { name: 'Add as written: 2 cups flour' })).toBeVisible();
+
+            await ingredients.getByRole('button', { name: 'Add the rest as written: 2 lines' }).click();
+
+            await expect(pasted).toHaveCount(0, { timeout: POLL_SETTLE_TIMEOUT_MS });
+            await expect(page.getByRole('status').filter({ hasText: 'Added 2 ingredients.' })).toHaveCount(1);
+        });
+
+        test('a line the system stopped reading offers Try again for the whole paste', async ({ page }) => {
+            const viewerId = await readViewerAppId(page);
+            await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', parseJob: { settlesAs: 'partial' } });
+            await openNewRecipe(page);
+            const ingredients = editorSection(page, 'Ingredients');
+
+            await ingredients.getByRole('button', { name: 'Paste a list' }).click();
+            const sheet = page.getByRole('dialog', { name: 'Paste a list' });
+            await sheet.getByRole('textbox', { name: 'Ingredient lines' }).fill('2 cups flour\n1 tsp salt');
+            await sheet.getByRole('button', { name: 'Add 2 ingredients' }).click();
+
+            const pasted = ingredients.getByRole('list', { name: 'Lines not added yet' });
+            await expect(pasted.getByText('Couldn’t read this line')).toBeVisible({ timeout: POLL_SETTLE_TIMEOUT_MS });
+            await expect(ingredients.getByText('1 line needs you')).toBeVisible();
+
+            const retried = page.waitForRequest(
+                (request) => request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/retry'),
+            );
+            await ingredients.getByRole('button', { name: 'Try again for 1 line' }).click();
+            await retried;
+
+            // The mock's retry recovers the job (one-shot partial), so the last line joins too.
+            await expect(pasted).toHaveCount(0, { timeout: POLL_SETTLE_TIMEOUT_MS });
         });
 
         test('⛔ a stored recipe offers no paste anywhere (D10)', async ({ page }) => {

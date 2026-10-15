@@ -22,6 +22,7 @@ import type {
     CollectionMemberRecipe,
     CollectionRecipeAddedVia,
     CollectionRecipeMembership,
+    ParseJobLinePhase,
     ParseJobResponse,
     PullDiff,
     PullFromSourceResponse,
@@ -928,6 +929,12 @@ export interface MockParseJobScript {
     readonly settlesAs?: 'complete' | 'partial' | 'expired';
     /** When the job's review deadline falls. Defaults to 24 hours ahead, as the service's TTL sets it. */
     readonly expiresAt?: string;
+    /**
+     * The phase a running poll reports on each pending line (plan 2026-10-15-011, the service's `lineProgressOf`).
+     * Defaults to `queued`, what a fresh line reads; `stalled` with a large `pollsBeforeSettled` models a paste that has
+     * gone quiet and waits on the cook.
+     */
+    readonly pendingPhase?: ParseJobLinePhase;
 }
 
 /** Options for {@link mockRecipeApi}. */
@@ -2318,8 +2325,16 @@ export async function mockRecipeApi(
 
                 if (left > 0) {
                     parseJobPollsLeft.set(job.id, left - 1);
+                    const phase = parseJobScript.pendingPhase ?? 'queued';
 
-                    return route.fulfill({ json: job });
+                    return route.fulfill({
+                        json: {
+                            ...job,
+                            lines: job.lines.map((line) =>
+                                line.status === 'pending' ? { ...line, progress: { phase } } : line,
+                            ),
+                        },
+                    });
                 }
 
                 const settled = settleParseJob(job);

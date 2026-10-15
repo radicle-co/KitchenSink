@@ -38,9 +38,10 @@ appId: io.commise.mobile
       notVisible: 'Ingredient lines'
       timeout: 30000
 
-# The rows settle (by the parse job, or past the stall bound by the reader)...
+# The rows settle, once the parse job answers (there is no client stall bound: plan 2026-10-15-011)...
 - extendedWaitUntil:
-      notVisible: 'Reading…'
+      notVisible:
+          text: 'Added [0-2] of 2 lines.*'
       timeout: 240000
 # ...and the release runs the deferred checkpoint at once: the create went out, so the header no longer says the work is
 # only on this device. ⛔ THE TIMEOUT IS THE ASSERTION. Without the release, the lines joining re-arm the idle timer and

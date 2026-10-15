@@ -33,7 +33,7 @@ export { AccountDAO } from './dao/account.dao.js';
 export type { AccountTier } from './dao/account.dao.js';
 export { SettingsDAO, type SettingsPatch } from './dao/settings.dao.js';
 export { UserDAO, type StampedByline } from './dao/user.dao.js';
-export { profileClock } from './profileClock.js';
+export { newProfileClock, profileClock } from './profileClock.js';
 export { hasProcessedWebhookEvent, recordOnce } from './dao/webhookEvents.dao.js';
 
 export { eraseIdentityRow, type EraseIdentityInput } from './eraseIdentityRow.js';

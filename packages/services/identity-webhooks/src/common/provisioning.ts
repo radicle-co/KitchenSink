@@ -1,5 +1,5 @@
 import type { IdentityWriter } from '@kitchensink/identity-db';
-import { users, accounts, profiles, newUserId } from '@kitchensink/identity-db';
+import { users, accounts, profiles, newProfileClock, newUserId } from '@kitchensink/identity-db';
 import type { ProvisionDeps } from '@kitchensink/identity-utils';
 
 /**
@@ -13,4 +13,5 @@ export const buildProvisionDeps = (db: IdentityWriter): ProvisionDeps => ({
     db,
     schema: { users, accounts, profiles },
     newUserId,
+    newProfileClock,
 });

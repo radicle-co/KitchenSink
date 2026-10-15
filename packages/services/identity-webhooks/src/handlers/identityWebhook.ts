@@ -3,7 +3,7 @@ import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { IdentityWriter } from '@kitchensink/identity-db';
 import { eq } from 'drizzle-orm';
 
-import { recordOnce, hasProcessedWebhookEvent, users } from '@kitchensink/identity-db';
+import { recordOnce, hasProcessedWebhookEvent, UserDAO, users } from '@kitchensink/identity-db';
 import type { UserRow, UserId } from '@kitchensink/identity-db';
 import { provisionCompleteUser, type ProvisionResult } from '@kitchensink/identity-utils';
 import {
@@ -118,6 +118,27 @@ const handleUserCreated = async (data: IdentityUserData, db: IdentityWriter, req
     }
 
     const { user } = result;
+
+    // Plan 2026-10-15-010 D6b: the byline this delivery CREATED seeds the recipe database's read model. Present only
+    // when THIS insert made the profile — a read-through that got there first published its own. Best-effort, after
+    // the commit: the owed marker the insert wrote is the record of a lost publish.
+    if (result.createdByline !== undefined) {
+        const sync = await publishOwedByline(
+            handleSyncPublisher,
+            (userId, owedAt, code) => new UserDAO(db).settleHandleSync(userId as UserId, owedAt, code),
+            user.id,
+            result.createdByline,
+        );
+
+        if (sync.outcome === 'owed') {
+            logger.error('identity-webhook: handle-sync publish failed (user.created still processed)', {
+                requestId,
+                userId: user.id,
+                error: sync.error,
+                settleError: sync.settleError,
+            });
+        }
+    }
 
     // Best-effort: backfill Clerk's external_id (the app user id) so the IdP→app link is bidirectional.
     // A failure here (Clerk API down, key rotated/again-missing, rate limit) must NOT abort provisioning

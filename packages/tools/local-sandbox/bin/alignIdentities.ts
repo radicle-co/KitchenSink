@@ -13,7 +13,7 @@ import { spawnSync } from 'node:child_process';
 
 import { clerkLeasePort } from '@kitchensink/e2e-fixtures/lease';
 import { maestroErasureSlots, maestroSlotForShard } from '@kitchensink/e2e-fixtures/testPool';
-import { accounts, profiles, users } from '@kitchensink/identity-db';
+import { accounts, newProfileClock, profiles, users } from '@kitchensink/identity-db';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
 import { eq, or } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -106,7 +106,7 @@ async function main(): Promise<void> {
         // THE house provisioning routine, with the id fixed to the one Clerk already carries.
         provision: async ({ identityId, externalId, email }) => {
             const result = await provisionCompleteUser(
-                { db, schema: { users, accounts, profiles }, newUserId: () => externalId },
+                { db, schema: { users, accounts, profiles }, newUserId: () => externalId, newProfileClock },
                 { identityId, email },
                 { onEmailCollision: 'placeholder', emailIsReal: true },
             );

@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 
@@ -41,11 +41,18 @@ export interface UsersTableShape extends PgTable {
     readonly updatedAt: PgColumn;
 }
 
+/** The `profiles` columns the routine reads back from the insert. */
+export interface ProfilesTableShape extends PgTable {
+    readonly displayName: PgColumn;
+    readonly username: PgColumn;
+    readonly updatedAt: PgColumn;
+}
+
 /** The Drizzle table objects, injected so this package never imports a service schema (KTD2). */
 export interface ProvisioningSchema {
     readonly users: UsersTableShape;
     readonly accounts: PgTable;
-    readonly profiles: PgTable;
+    readonly profiles: ProfilesTableShape;
 }
 
 export interface ProvisionDeps {
@@ -53,6 +60,19 @@ export interface ProvisionDeps {
     readonly schema: ProvisioningSchema;
     /** ULID generator — callers inject their branded `newUserId`. */
     readonly newUserId: () => string;
+    /**
+     * The database clock a NEW profile row is stamped with — `@kitchensink/identity-db`'s `newProfileClock`, injected
+     * like the schema (KTD2). It stamps `updated_at` and `handle_sync_owed_at` together, so the created byline's
+     * snapshot key and the debt it records are one value (plan 2026-10-15-010 D6b).
+     */
+    readonly newProfileClock: SQL;
+}
+
+/** The byline a profile insert created, with the stamp the insert returned. */
+export interface CreatedByline {
+    readonly displayName: string;
+    readonly username: string | null;
+    readonly stampedAt: Date;
 }
 
 export interface ProvisionInput {
@@ -107,8 +127,13 @@ function isNonRevivable(status: string): boolean {
     return (NON_REVIVABLE_STATES as readonly string[]).includes(status);
 }
 
+/**
+ * The routine's result. `createdByline` is present ONLY when this call inserted the profile — the create paths publish
+ * it (so the recipe database's read model has every cook, not only those who renamed), and a concurrent second
+ * creator, whose insert did nothing, does not publish a second one.
+ */
 export type ProvisionResult<TUser extends ProvisionedUser = ProvisionedUser> =
-    | { readonly kind: 'complete'; readonly user: TUser }
+    | { readonly kind: 'complete'; readonly user: TUser; readonly createdByline?: CreatedByline }
     | { readonly kind: 'incomplete'; readonly reason: 'email-collision' };
 
 /** Per-identity, never-deliverable placeholder for users whose token carries no usable email. */
@@ -186,9 +211,9 @@ export async function provisionCompleteUser<TUser extends ProvisionedUser = Prov
         return { kind: 'complete', user };
     }
 
-    await ensureAccountAndProfile(deps, user.id, input);
+    const createdByline = await ensureAccountAndProfile(deps, user.id, input);
 
-    return { kind: 'complete', user };
+    return createdByline === undefined ? { kind: 'complete', user } : { kind: 'complete', user, createdByline };
 }
 
 /**
@@ -305,18 +330,39 @@ async function upsertUser<TUser extends ProvisionedUser>(
     });
 }
 
-/** Idempotently ensure the account + profile rows. No-op once present (`onConflictDoNothing`). */
-async function ensureAccountAndProfile(deps: ProvisionDeps, userId: string, input: ProvisionInput): Promise<void> {
+/**
+ * Idempotently ensure the account + profile rows. No-op once present (`onConflictDoNothing`).
+ *
+ * The profile insert records a handle-sync DEBT on the injected database clock and returns the byline it created, so
+ * the caller can publish it (plan 2026-10-15-010 D6b). An insert that did nothing returns none.
+ *
+ * @returns The created byline, or `undefined` when the profile already existed.
+ */
+async function ensureAccountAndProfile(
+    deps: ProvisionDeps,
+    userId: string,
+    input: ProvisionInput,
+): Promise<CreatedByline | undefined> {
     const { db, schema } = deps;
 
     await db.insert(schema.accounts).values({ userId }).onConflictDoNothing();
-    await db
+    const [created] = await db
         .insert(schema.profiles)
         .values({
             userId,
             displayName: input.displayName ?? input.name ?? '',
             avatarUrl: input.avatarUrl ?? null,
             username: input.username ?? null,
+            updatedAt: deps.newProfileClock,
+            handleSyncOwedAt: deps.newProfileClock,
+            handleSyncFailureCode: null,
         })
-        .onConflictDoNothing();
+        .onConflictDoNothing()
+        .returning({
+            displayName: schema.profiles.displayName,
+            username: schema.profiles.username,
+            stampedAt: schema.profiles.updatedAt,
+        });
+
+    return created === undefined ? undefined : (created as unknown as CreatedByline);
 }

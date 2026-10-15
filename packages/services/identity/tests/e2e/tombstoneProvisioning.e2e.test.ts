@@ -8,7 +8,7 @@ import { and, eq } from 'drizzle-orm';
 import { provisionCompleteUser, type ProvisionDeps } from '@kitchensink/identity-utils';
 import { computeProfileScrub } from '@kitchensink/identity-core';
 import { accounts, lifecycleEvents, profiles, users } from '@kitchensink/identity-db';
-import { newUserId } from '@kitchensink/identity-db';
+import { newProfileClock, newUserId } from '@kitchensink/identity-db';
 
 /**
  * Proves R10 (anti-resurrection) against a REAL Postgres: neither a sign-in read-through nor the nightly
@@ -37,6 +37,7 @@ describe('lifecycle-aware provisioning — no resurrection (integration)', () =>
             db: db,
             schema: { users, accounts, profiles },
             newUserId,
+            newProfileClock,
         };
     });
 

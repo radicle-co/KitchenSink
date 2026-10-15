@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
 import { provisionCompleteUser, type ProvisionDeps, type ProvisioningSchema } from '../provisioning.js';
@@ -23,8 +24,15 @@ const emailViolation = Object.assign(new Error('duplicate key'), {
     constraint: 'users_email_unique',
 });
 
+/** The injected clock for a new profile row — a sentinel, so a test can see it reached the insert untouched. */
+const NEW_PROFILE_CLOCK = sql`clock()`;
+/** What the profile insert's RETURNING hands back when THIS call inserted the row. */
+const STAMPED = new Date('2026-10-15T00:00:00.123Z');
+
 interface MockOpts {
     userInsertThrowsOnce?: unknown;
+    /** The profile insert's RETURNING rows: one when this call inserted it, none when it already existed. */
+    profileReturning?: readonly Record<string, unknown>[];
     /** The `status` of the row the (conflict) upsert returns — drives the R10 no-resurrection guard. */
     rowStatus?: string;
 }
@@ -96,7 +104,21 @@ function buildMockDb(opts: MockOpts = {}) {
                                 },
                             };
                         },
-                        onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+                        // Awaitable (the account insert awaits it) and chainable (the profile insert returns).
+                        onConflictDoNothing: vi.fn(() =>
+                            Object.assign(Promise.resolve(undefined), {
+                                returning: () =>
+                                    Promise.resolve(
+                                        opts.profileReturning ?? [
+                                            {
+                                                displayName: v['displayName'],
+                                                username: v['username'],
+                                                stampedAt: STAMPED,
+                                            },
+                                        ],
+                                    ),
+                            }),
+                        ),
                     };
                 },
             };
@@ -107,6 +129,7 @@ function buildMockDb(opts: MockOpts = {}) {
         db: db as unknown as ProvisionDeps['db'],
         schema,
         newUserId: () => 'usr_test',
+        newProfileClock: NEW_PROFILE_CLOCK,
     };
 
     return { deps, insertedTables, valuesByTable, conflictSets, txStatements };
@@ -130,6 +153,9 @@ describe('provisionCompleteUser', () => {
             displayName: 'Ada',
             avatarUrl: 'https://img/ada.png',
             username: null,
+            updatedAt: NEW_PROFILE_CLOCK,
+            handleSyncOwedAt: NEW_PROFILE_CLOCK,
+            handleSyncFailureCode: null,
         });
     });
 
@@ -295,6 +321,52 @@ describe('provisionCompleteUser', () => {
             displayName: '',
             avatarUrl: null,
             username: null,
+            updatedAt: NEW_PROFILE_CLOCK,
+            handleSyncOwedAt: NEW_PROFILE_CLOCK,
+            handleSyncFailureCode: null,
         });
+    });
+
+    // Plan 2026-10-15-010 D6b: the read model is seeded at creation, so a cook who never renamed still has a byline
+    // in the recipe database. The insert records the debt on the database's clock, and only the call that INSERTED
+    // the profile returns a snapshot to publish — a concurrent second creator must not publish a second one.
+    it('returns the created byline, stamped by the insert, when THIS call created the profile', async () => {
+        const { deps } = buildMockDb();
+
+        const result = await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com', name: 'Ada Lovelace', username: 'ada' },
+            { onEmailCollision: 'placeholder' },
+        );
+
+        expect(result).toMatchObject({
+            kind: 'complete',
+            createdByline: { displayName: 'Ada Lovelace', username: 'ada', stampedAt: STAMPED },
+        });
+    });
+
+    it('returns NO byline when the profile already existed (the insert did nothing)', async () => {
+        const { deps } = buildMockDb({ profileReturning: [] });
+
+        const result = await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com', name: 'Ada', username: 'ada' },
+            { onEmailCollision: 'placeholder' },
+        );
+
+        expect(result.kind).toBe('complete');
+        expect(result).not.toHaveProperty('createdByline');
+    });
+
+    it('returns NO byline for a closed account it refuses to rebuild', async () => {
+        const { deps } = buildMockDb({ rowStatus: 'tombstoned' });
+
+        const result = await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com', name: 'Ada', username: 'ada' },
+            { onEmailCollision: 'placeholder' },
+        );
+
+        expect(result).not.toHaveProperty('createdByline');
     });
 });

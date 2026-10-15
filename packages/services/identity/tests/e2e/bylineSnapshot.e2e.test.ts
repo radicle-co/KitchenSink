@@ -199,6 +199,70 @@ describe('the byline snapshot (real Postgres)', () => {
         });
     });
 
+    describe('read-through create (plan 2026-10-15-010 D6b)', () => {
+        it('publishes the byline it CREATED, keyed by the insert’s stamp, and settles that debt', async () => {
+            const publish = vi.fn().mockResolvedValue(undefined);
+
+            const created = await serviceWith(publish).resolveOrCreateFromClaims({
+                sub: 'sub_seed',
+                email: 'seed@example.com',
+                firstName: 'Ada',
+                lastName: 'Lovelace',
+                username: 'ada',
+                scopes: [],
+                roles: [],
+                permissions: [],
+                testPrincipal: false,
+            });
+            const row = await profileOf(created.userId);
+
+            expect(publish).toHaveBeenCalledWith({
+                userId: created.userId,
+                displayName: 'Ada Lovelace',
+                username: 'ada',
+                sourceTimestamp: row.updatedAt.toISOString(),
+            });
+            expect(row.handleSyncOwedAt).toBeNull();
+        });
+
+        it('publishes NOTHING for a cook who already exists — the hot path stays one SELECT', async () => {
+            const userId = await provision('sub_existing');
+            const publish = vi.fn().mockResolvedValue(undefined);
+
+            const resolved = await serviceWith(publish).resolveOrCreateFromClaims({
+                sub: 'sub_existing',
+                email: 'sub_existing@example.com',
+                username: 'ada',
+                scopes: [],
+                roles: [],
+                permissions: [],
+                testPrincipal: false,
+            });
+
+            expect(resolved.userId).toBe(userId);
+            expect(publish).not.toHaveBeenCalled();
+        });
+
+        it('leaves the creation debt, coded, when the publish fails — the sign-in still succeeds', async () => {
+            const created = await serviceWith(
+                vi.fn().mockRejectedValue(new Error('sns down')),
+            ).resolveOrCreateFromClaims({
+                sub: 'sub_seed_fail',
+                email: 'fail@example.com',
+                firstName: 'Ada',
+                username: 'ada',
+                scopes: [],
+                roles: [],
+                permissions: [],
+                testPrincipal: false,
+            });
+            const row = await profileOf(created.userId);
+
+            expect(row.handleSyncOwedAt?.toISOString()).toBe(row.updatedAt.toISOString());
+            expect(row.handleSyncFailureCode).toBe('publish_failed');
+        });
+    });
+
     describe('PATCH /users/me', () => {
         it('publishes the snapshot from the row it wrote, keyed by the database’s stamp, and settles the debt', async () => {
             const userId = await provision('sub_patch');

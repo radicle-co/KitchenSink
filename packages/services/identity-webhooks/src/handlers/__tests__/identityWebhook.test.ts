@@ -578,6 +578,44 @@ describe('identity-webhook handler', () => {
         expect(handleSyncPublish).not.toHaveBeenCalled();
     });
 
+    it('user.created -> publishes the byline the provisioning CREATED, then settles that debt', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        mockProvisionCompleteUser.mockResolvedValue({
+            kind: 'complete',
+            user: { id: 'usr_ulid', identityId: 'user_abc123', email: 'test@example.com' },
+            createdByline: { displayName: 'John Doe', username: 'johndoe', stampedAt: STAMPED },
+        } as never);
+
+        const result = await handler(
+            makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_created' }),
+            makeContext(),
+        );
+
+        expect(result.statusCode).toBe(200);
+        expect(handleSyncPublish).toHaveBeenCalledWith({
+            userId: 'usr_ulid',
+            displayName: 'John Doe',
+            username: 'johndoe',
+            sourceTimestamp: STAMPED.toISOString(),
+        });
+    });
+
+    it('user.created -> publishes NOTHING when the profile already existed (the read-through got there first)', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        mockProvisionCompleteUser.mockResolvedValue({
+            kind: 'complete',
+            user: { id: 'usr_ulid', identityId: 'user_abc123', email: 'test@example.com' },
+        } as never);
+
+        await handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_created_2' }), makeContext());
+
+        expect(handleSyncPublish).not.toHaveBeenCalled();
+    });
+
     it('⛔ a USERNAME-ONLY Clerk change publishes the cook’s OWN display name beside the new username', async () => {
         const { db } = buildMockDb();
         mockGetDb.mockResolvedValue(db);

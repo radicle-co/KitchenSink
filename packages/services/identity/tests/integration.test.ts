@@ -169,7 +169,7 @@ describe('UsersService', () => {
                 onConflictDoUpdate: () => ({
                     returning: () => Promise.resolve([newUser]),
                 }),
-                onConflictDoNothing: () => Promise.resolve(),
+                onConflictDoNothing: () => Object.assign(Promise.resolve(), { returning: () => Promise.resolve([]) }),
             }),
         });
 

@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm';
 
 import { PROVISION_LOCK_NAMESPACE, provisionCompleteUser, type ProvisionDeps } from '@kitchensink/identity-utils';
 import { accounts, profiles, users } from '@kitchensink/identity-db';
-import { UserDAO, newUserId } from '@kitchensink/identity-db';
+import { UserDAO, newProfileClock, newUserId } from '@kitchensink/identity-db';
 
 /**
  * Proves R3 against a real Postgres: the shared provisioning routine is idempotent and race-safe
@@ -38,6 +38,7 @@ describe('provisionCompleteUser — race-safety under concurrency (integration)'
             db: db,
             schema: { users, accounts, profiles },
             newUserId,
+            newProfileClock,
         };
     });
 

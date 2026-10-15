@@ -19,5 +19,11 @@ import { sql, type SQL } from 'drizzle-orm';
 
 import { profiles } from './schema/profiles.js';
 
+/**
+ * The clock for a NEW profile row (an INSERT has no previous stamp to exceed): the statement's time at millisecond
+ * precision. `@kitchensink/identity-utils`' provisioning takes it injected, like the schema.
+ */
+export const newProfileClock: SQL = sql`date_trunc('milliseconds', statement_timestamp())`;
+
 /** `GREATEST(now at millisecond precision, the row's previous stamp + 1 ms)`. */
-export const profileClock: SQL = sql`GREATEST(date_trunc('milliseconds', statement_timestamp()), ${profiles.updatedAt} + interval '1 millisecond')`;
+export const profileClock: SQL = sql`GREATEST(${newProfileClock}, ${profiles.updatedAt} + interval '1 millisecond')`;

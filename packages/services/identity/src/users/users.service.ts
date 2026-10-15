@@ -2,8 +2,8 @@ import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nest
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, sql } from 'drizzle-orm';
 import { provisionCompleteUser, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
-import { computeProfileScrub, deriveDisplayName, parseUsername } from '@kitchensink/identity-core';
-import { eraseIdentityRow, profileClock, UserDAO } from '@kitchensink/identity-db';
+import { computeProfileScrub, deriveDisplayName, parseUsername, type BylineSnapshot } from '@kitchensink/identity-core';
+import { eraseIdentityRow, newProfileClock, profileClock, UserDAO } from '@kitchensink/identity-db';
 
 import { HANDLE_SYNC_PUBLISHER, publishOwedByline, type HandleSyncPublisher } from './handleSync.publisher.js';
 import { AVATAR_OBJECT_STORE, type AvatarObjectStore } from './avatarObjectStore.js';
@@ -67,7 +67,7 @@ export class UsersService {
 
     /** Dependency bundle for the shared provisioning routine (KTD2: schema-injected, db cast per repo convention). */
     private provisionDeps(): ProvisionDeps {
-        return { db: this.db as unknown as Db, schema: { users, accounts, profiles }, newUserId };
+        return { db: this.db as unknown as Db, schema: { users, accounts, profiles }, newUserId, newProfileClock };
     }
 
     async upsertUser(
@@ -149,6 +149,7 @@ export class UsersService {
             }
 
             userRow = result.user;
+            await this.publishByline(userRow.id, result.createdByline);
             traceAuth('provision.created', {
                 sub: claims.sub,
                 userId: userRow.id,
@@ -170,7 +171,7 @@ export class UsersService {
             // Heal an incomplete existing user (missing account OR profile — the old check looked only at
             // accounts) through the same idempotent routine. Only fires when the pre-check found a gap.
             if (!found.accountId || !found.profileId) {
-                await provisionCompleteUser(
+                const healed = await provisionCompleteUser(
                     this.provisionDeps(),
                     {
                         identityId: claims.sub,
@@ -182,6 +183,10 @@ export class UsersService {
                     },
                     { onEmailCollision: 'placeholder', emailIsReal: true },
                 );
+
+                if (healed.kind === 'complete') {
+                    await this.publishByline(userRow.id, healed.createdByline);
+                }
             }
         }
 
@@ -199,6 +204,39 @@ export class UsersService {
             // ADR-0040: carried from the signed claim so the lifecycle actions can contain a test-pool member.
             testPrincipal: claims.testPrincipal,
         };
+    }
+
+    /**
+     * Publish a byline this service's write created or changed, and settle the debt that write recorded (plan
+     * 2026-10-15-010 D6b/D6c). Best-effort: a failed fan-out must not fail the sign-in or the rename it follows; the
+     * owed marker is the backstop's record of it.
+     *
+     * @param userId - The app-user ULID.
+     * @param byline - The snapshot with the stamp its write returned, or `undefined` when nothing is owed.
+     * @sideEffect Publishes to the handle-sync topic; updates `profiles`.
+     */
+    private async publishByline(
+        userId: string,
+        byline: (BylineSnapshot & { readonly stampedAt: Date }) | undefined,
+    ): Promise<void> {
+        if (byline === undefined) {
+            return;
+        }
+
+        const sync = await publishOwedByline(
+            this.handleSync,
+            (owner, owedAt, code) => new UserDAO(this.db).settleHandleSync(owner as UserId, owedAt, code),
+            userId,
+            byline,
+        );
+
+        if (sync.outcome === 'owed') {
+            this.logger.error('handle-sync publish failed (the write it follows still succeeded)', {
+                userId,
+                error: sync.error,
+                settleError: sync.settleError,
+            });
+        }
     }
 
     async getUserMe(ctx: AuthorizerContext) {
@@ -267,24 +305,11 @@ export class UsersService {
         // the row already holds — keyed by the stamp the write returned. Best-effort: a failed publish must NOT fail
         // the rename; the owed marker is the backstop's record of it.
         if (renamed && updatedProfile !== undefined) {
-            const sync = await publishOwedByline(
-                this.handleSync,
-                (owner, owedAt, code) => new UserDAO(this.db).settleHandleSync(owner as UserId, owedAt, code),
-                userId,
-                {
-                    displayName: updatedProfile.displayName,
-                    username: updatedProfile.username,
-                    stampedAt: updatedProfile.updatedAt,
-                },
-            );
-
-            if (sync.outcome === 'owed') {
-                this.logger.error('handle-sync publish failed (rename still succeeded)', {
-                    userId,
-                    error: sync.error,
-                    settleError: sync.settleError,
-                });
-            }
+            await this.publishByline(userId, {
+                displayName: updatedProfile.displayName,
+                username: updatedProfile.username,
+                stampedAt: updatedProfile.updatedAt,
+            });
         }
 
         return {

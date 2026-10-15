@@ -18,8 +18,14 @@ function selectChain<T>(result: T) {
     };
 }
 
+/**
+ * An insert that conflicts and does nothing: awaitable (the account insert awaits it) and chainable (the profile
+ * insert reads its RETURNING, which is empty — this call created no byline, so nothing is published).
+ */
+const conflictedInsert = () => Object.assign(Promise.resolve(), { returning: () => Promise.resolve([]) });
+
 const insertNoop = {
-    values: () => ({ onConflictDoNothing: () => Promise.resolve() }),
+    values: () => ({ onConflictDoNothing: conflictedInsert }),
 };
 
 function insertUsersReturning<T>(rows: T) {
@@ -152,7 +158,7 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
     ])('seeds the new profile with %s', async (_case, claim, stored) => {
         const createdAt = new Date(1_000);
         const createdRow = { id: '01NEWUSER0000000000000000', email: 'n@b.com', createdAt, updatedAt: createdAt };
-        const profileValues = vi.fn().mockReturnValue({ onConflictDoNothing: () => Promise.resolve() });
+        const profileValues = vi.fn().mockReturnValue({ onConflictDoNothing: conflictedInsert });
 
         mockDb.select = vi.fn().mockReturnValueOnce(selectChain([]));
         mockDb.insert = vi

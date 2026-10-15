@@ -197,7 +197,8 @@ const handleUserUpdated = async (
     const { byline } = await userDao.syncProviderFields(existing.id as UserId, {
         name: displayName,
         picture: data.image_url ?? null,
-        username: data.username ?? null,
+        // `null` says the cook has no username; an ABSENT key says nothing, and must not clear it.
+        username: data.username,
         now,
     });
 

@@ -126,6 +126,24 @@ describe('the byline snapshot (real Postgres)', () => {
             expect(after.username).toBe(before.username);
         });
 
+        // A payload that does not SAY the username is not a payload saying the cook has none: clearing on absence would
+        // fan a NULL out to every recipe and version the cook owns.
+        it('leaves the username alone, and owes nothing, when the event does not carry one', async () => {
+            const userId = await provision('sub_absent');
+
+            const result = await userDao.syncProviderFields(userId, {
+                name: 'Ada Lovelace',
+                picture: null,
+                username: undefined,
+                now: new Date(),
+            });
+            const row = await profileOf(userId);
+
+            expect(result.byline).toBeUndefined();
+            expect(row.username).toBe('ada');
+            expect(row.handleSyncOwedAt).toBeNull();
+        });
+
         it('stores a NULL username when Clerk says the cook has none', async () => {
             const userId = await provision('sub_null');
 

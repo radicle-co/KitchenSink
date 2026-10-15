@@ -169,11 +169,11 @@ const makeStatefulUserDao = (initial: {
         syncProviderFields: vi.fn(
             async (
                 _userId: string,
-                data: { name: string; picture: string | null; username: string | null; now: Date },
+                data: { name: string; picture: string | null; username?: string | null; now: Date },
             ) => {
                 const nameChanged = data.name !== mirror.name;
                 const pictureChanged = data.picture !== mirror.picture;
-                const usernameChanged = data.username !== profile.username;
+                const usernameChanged = data.username !== undefined && data.username !== profile.username;
 
                 if (!nameChanged && !pictureChanged && !usernameChanged) {
                     return {};
@@ -183,7 +183,7 @@ const makeStatefulUserDao = (initial: {
                 profile = {
                     displayName: nameChanged ? data.name : profile.displayName,
                     avatarUrl: pictureChanged ? data.picture : profile.avatarUrl,
-                    username: usernameChanged ? data.username : profile.username,
+                    username: usernameChanged ? (data.username ?? null) : profile.username,
                 };
                 clock += 1;
 
@@ -642,6 +642,31 @@ describe('identity-webhook handler', () => {
             expect.objectContaining({ userId: 'usr_ulid', displayName: 'Chef John', username: 'john_cooks' }),
         );
         expect(daoInstance.getStoredDisplayName()).toBe('Chef John');
+    });
+
+    it('user.updated WITHOUT a username key leaves the username alone — absence is not “none”', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+
+        const daoInstance = makeStatefulUserDao({
+            mirrorName: 'John Doe',
+            mirrorPicture: 'https://example.com/avatar.png',
+            profileUsername: 'johndoe',
+        });
+        vi.mocked(UserDAO).mockImplementation(function () {
+            return daoInstance;
+        });
+        const { username: _omitted, ...data } = makeUserUpdatedPayload('John', 'Doe').data;
+        const payload = { ...makeUserUpdatedPayload('John', 'Doe'), data };
+        mockVerifyWebhook.mockReturnValue(payload as never);
+
+        await handler(makeEvent(JSON.stringify(payload), { 'svix-id': 'msg_no_username' }), makeContext());
+
+        expect(daoInstance.syncProviderFields).toHaveBeenCalledWith(
+            'usr_ulid',
+            expect.objectContaining({ username: undefined }),
+        );
+        expect(handleSyncPublish).not.toHaveBeenCalled();
     });
 
     it('user.updated -> a failed publish leaves the debt with its failure code and still answers 200', async () => {

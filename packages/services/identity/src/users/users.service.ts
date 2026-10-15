@@ -83,7 +83,8 @@ export class UsersService {
                 displayName: input.name,
                 picture: input.picture,
             },
-            { onEmailCollision: 'placeholder', owesCreatedByline: true, emailIsReal: true },
+            // Publishes nothing, so it owes nothing: a debt no caller settles is a sync the backstop reports as LOST.
+            { onEmailCollision: 'placeholder', owesCreatedByline: false, emailIsReal: true },
         );
 
         if (result.kind !== 'complete') {

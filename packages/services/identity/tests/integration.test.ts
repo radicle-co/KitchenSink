@@ -163,14 +163,20 @@ describe('UsersService', () => {
 
     it('upsertUser creates user via clerkId and returns ULID id', async () => {
         const newUser = { ...mockUser, id: '01HZZZZZZZZZZZZZZZZZZZZZZU' };
+        const inserted: Record<string, unknown>[] = [];
 
         mockDb.insert = vi.fn().mockReturnValue({
-            values: () => ({
-                onConflictDoUpdate: () => ({
-                    returning: () => Promise.resolve([newUser]),
-                }),
-                onConflictDoNothing: () => Object.assign(Promise.resolve(), { returning: () => Promise.resolve([]) }),
-            }),
+            values: (values: Record<string, unknown>) => {
+                inserted.push(values);
+
+                return {
+                    onConflictDoUpdate: () => ({
+                        returning: () => Promise.resolve([newUser]),
+                    }),
+                    onConflictDoNothing: () =>
+                        Object.assign(Promise.resolve(), { returning: () => Promise.resolve([]) }),
+                };
+            },
         });
 
         const result = await usersService.upsertUser(userCtx, {
@@ -182,6 +188,10 @@ describe('UsersService', () => {
         expect(result.id).toBe('01HZZZZZZZZZZZZZZZZZZZZZZU');
         // createdAt === updatedAt on the returned row signals a first-time insert (see UsersService.upsertUser).
         expect(result.created).toBe(true);
+        // ⛔ It publishes no byline, so the profile it creates must owe none: a debt nothing settles is a sync the
+        // identity backstop reports as LOST on every run (plan 2026-10-15-010).
+        const profile = inserted.find((values) => 'displayName' in values);
+        expect(profile).toMatchObject({ handleSyncOwedAt: null });
     });
 
     it('deleteUserMe tombstones (closure): scrubs email+avatar, keeps the row, and enqueues a closure ban', async () => {

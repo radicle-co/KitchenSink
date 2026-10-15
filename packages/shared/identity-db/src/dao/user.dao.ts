@@ -118,7 +118,7 @@ export class UserDAO {
      */
     async syncProviderFields(
         userId: UserId,
-        data: { name: string; picture: string | null; username: string | null; now: Date },
+        data: { name: string; picture: string | null; username?: string | null | undefined; now: Date },
     ): Promise<{ readonly byline?: StampedByline }> {
         return this.db.transaction(async (tx) => {
             const [user] = await tx.select().from(users).where(eq(users.id, userId)).for('update');
@@ -140,7 +140,8 @@ export class UserDAO {
 
             const nameChanged = data.name !== user.name;
             const pictureChanged = data.picture !== user.picture;
-            const usernameChanged = data.username !== profile.username;
+            // `undefined` — an event that does not carry the username — leaves it alone; `null` clears it.
+            const usernameChanged = data.username !== undefined && data.username !== profile.username;
             const bylineChanged = nameChanged || usernameChanged;
 
             if (!nameChanged && !pictureChanged && !usernameChanged) {
@@ -159,7 +160,7 @@ export class UserDAO {
                 .set({
                     ...(nameChanged ? { displayName: data.name } : {}),
                     ...(pictureChanged ? { avatarUrl: data.picture } : {}),
-                    ...(usernameChanged ? { username: data.username } : {}),
+                    ...(usernameChanged ? { username: data.username ?? null } : {}),
                     // ⛔ U9/R21: the OWED MARKER moves with the byline, inside this statement and on the same clock.
                     // The publish happens after the commit and is best-effort, so without the marker a failed
                     // fan-out left nothing behind. Both columns, because a new debt must not inherit the previous

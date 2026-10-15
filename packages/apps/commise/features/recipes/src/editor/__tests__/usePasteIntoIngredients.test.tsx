@@ -387,9 +387,14 @@ describe('usePasteIntoIngredients — a lookup that fails', () => {
         await act(async () => gate.release());
         await settle();
 
-        // Written back from the closure captured when the join began, the cook's choice is lost and line 1 stalls again.
+        // Two things are held. The join's answer merges into the session as it stands, so line 1 stays the cook's. And
+        // Add as written replaces the session object while line 0 is joining, which re-runs the join effect: the line
+        // is claimed by its job and place (`jobId:done`), so it is not joined again. Without the claim the same line
+        // joins twice, and the second join writes its foods to the catalog a second time (`byName` called 3 times).
         expect(result.current.reading).toEqual([]);
         expect(appended(dispatch).map((line) => line.name)).toEqual(['flour', 'salt']);
+        // One catalog write per food: flour, then salt as written. A line joined twice would write its foods twice.
+        expect(mocks.byName).toHaveBeenCalledTimes(2);
     });
 
     it('⛔ a join that answers for a paste that was replaced does not overwrite the newer paste', async () => {

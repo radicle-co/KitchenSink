@@ -4,15 +4,15 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 134,
-        "implementations": 240,
-        "props": 1135,
-        "documentedComponents": 134,
-        "implementationsWithModuleDoc": 240,
-        "implementationsWithComponentDoc": 140,
-        "documentedProps": 879,
-        "classifiedComponents": 116,
-        "componentsWithPatternTag": 59,
+        "components": 135,
+        "implementations": 241,
+        "props": 1149,
+        "documentedComponents": 135,
+        "implementationsWithModuleDoc": 241,
+        "implementationsWithComponentDoc": 141,
+        "documentedProps": 893,
+        "classifiedComponents": 117,
+        "componentsWithPatternTag": 61,
         "crossPlatformComponents": 106
     },
     "components": [
@@ -107,6 +107,113 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Title of the recipe being deleted — named in the confirmation copy.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/actions/RecipeMakePublicDialog",
+            "name": "RecipeMakePublicDialog",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/actions",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over the design-system `ConfirmDialog` — the recipe's make-public copy on the house confirmation"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeMakePublicDialog",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeMakePublicDialog.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/actions",
+                    "moduleDoc": "@commise/features-recipes — \"Make this recipe public?\", the confirm a downgraded owner sees before a private\nrecipe goes public (UX SPECIFY 2026-10-15; plan 2026-10-14-009 Q5). One component for both platforms: the design\nsystem's `ConfirmDialog` resolves to its Radix leaf on web and its `DialogFrame` leaf on native.\n\nMaking a private recipe public is destructive in the design system's sense — anyone may save a copy of a public\nrecipe, and this cook cannot simply make it private again — so the primitive is used as it is: the danger-filled\n\"Make public\" against \"Keep private\", where focus opens. The body says the cost plainly, per reason\n(`makePublicConsequence`). ⛔ Nothing here sells: no Premium button and no third choice (DSA Art. 25; the\ndeceptive-pattern rule) — under `upsell` the body states the fact and the ⋯ menu's Make private is where Premium is.\n\nPresentational: props → JSX, no data, no mutation, no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes — \"Make this recipe public?\", the confirm a downgraded owner sees before a private"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `ConfirmDialog` — the recipe's make-public copy on the house confirmation"
+                        }
+                    ],
+                    "description": "\"Make this recipe public?\": the cost, said plainly, then Keep private or Make public.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The change is in flight: the confirm spins and cannot fire again.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "consequence",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"final\"",
+                                "\"premium\"",
+                                "\"unknown\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Why going public costs the cook something: the body's words (`makePublicConsequence`, never `none` here).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "error",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "When true, the last change failed: a localized alert inside the dialog.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "onConfirm",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Make public: the cook accepted the cost.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "onKeep",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Keep private, Escape, and the Android Back button.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the dialog is shown. When `false` the component renders nothing.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
                         }
                     ],
@@ -15649,7 +15756,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeVisibilityField.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (web): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), a radio group of two cards, Public and Private.\n\nThe host renders it only when Private is offered (`offersPrivate`); otherwise `RecipeVisibilityStatement`. Under\n`upsell`, Private carries the Premium badge and choosing it calls `onPremiumRequired` instead of changing the value:\nthe upsell decides, and nothing is pre-selected for it (`visibilityChoice`). A recipe that is already private stays\nprivate and shows so; under `hidden` the Public card says that choosing it is final (plan 2026-10-14-009 D14).\n\nPresentational and controlled. The native leaf is `./RecipeVisibilityField.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (web): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), a radio group of two cards, Public and Private.\n\nThe host renders it only when Private is offered (`offersPrivate`); otherwise `RecipeVisibilityStatement`. Under\n`upsell`, Private carries the Premium badge and choosing it calls `onPremiumRequired` instead of changing the value:\nthe upsell decides, and nothing is pre-selected for it (`visibilityChoice`). A recipe that is already private stays\nprivate and shows so. For a downgraded owner, choosing Public on it calls `onConfirmPublic` instead — the confirm\ndecides — and the Public card says beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5).\n\nPresentational and controlled. The native leaf is `./RecipeVisibilityField.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -15666,12 +15773,33 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "heldVisibility",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"public\"",
+                                "\"private\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The visibility the cook may keep without an entitlement (`heldVisibility`): what the server held when the editor\nopened, for as long as the draft keeps it. The field applies `heldVisibility` again itself (it is idempotent), so\na host that passes the opening visibility cannot bring back the free return to Private.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
                             "name": "onChange",
                             "type": "(next: RecipeFormValues) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "Called with the next values on every field/row edit (add, remove, or change).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "onConfirmPublic",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Choosing Public when it costs the cook something (`makePublicConsequence`): open the make-public confirm. The value\nnever changes for it. REQUIRED, so no host can let a downgraded owner leave Private unasked.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -15698,15 +15826,16 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
-                            "name": "savedVisibility",
+                            "name": "privateRefusal",
                             "type": "enum",
                             "typeDetail": [
-                                "\"public\"",
-                                "\"private\""
+                                "undefined",
+                                "\"final\"",
+                                "\"premium\""
                             ],
                             "required": true,
                             "defaultValue": null,
-                            "description": "The visibility the server holds. Going back to it needs no entitlement.",
+                            "description": "Why the server refuses a change to private for this cook, if it is KNOWN to (`privateRefusalOf` over the\nprofile's own answer). REQUIRED: a kept draft's Private is shown as Public, and why, only under a known refusal.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -15731,7 +15860,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeVisibilityField.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (native): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), the React Native leaf of `./RecipeVisibilityField.tsx`, on the\nsame props and the same rule (`visibilityChoice`): a radio group of two 56 pt cards; under `upsell` Private asks for\nthe upsell instead of changing the value, and under `hidden` a private recipe's Public card says that choosing it is\nfinal (plan 2026-10-14-009 D14). The host renders `RecipeVisibilityStatement` instead when Private is not offered.\n\nA card is named by its whole text, so the Premium badge is read with it (an `aria-label` would replace it).\n\nColours come from the theme at render, so both colour schemes paint (owner D15).",
+                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (native): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), the React Native leaf of `./RecipeVisibilityField.tsx`, on the\nsame props and the same rule (`visibilityChoice`): a radio group of two 56 pt cards; under `upsell` Private asks for\nthe upsell instead of changing the value, and for a downgraded owner Public on a private recipe asks to confirm\n(`onConfirmPublic`), its card saying beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5). The\nhost renders `RecipeVisibilityStatement` instead when Private is not offered.\n\nA card is named by its whole text, so the Premium badge is read with it (an `aria-label` would replace it).\n\nColours come from the theme at render, so both colour schemes paint (owner D15).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -15748,12 +15877,33 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "heldVisibility",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"public\"",
+                                "\"private\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The visibility the cook may keep without an entitlement (`heldVisibility`): what the server held when the editor\nopened, for as long as the draft keeps it. The field applies `heldVisibility` again itself (it is idempotent), so\na host that passes the opening visibility cannot bring back the free return to Private.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
                             "name": "onChange",
                             "type": "(next: RecipeFormValues) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "Called with the next values on every field/row edit (add, remove, or change).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "onConfirmPublic",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Choosing Public when it costs the cook something (`makePublicConsequence`): open the make-public confirm. The value\nnever changes for it. REQUIRED, so no host can let a downgraded owner leave Private unasked.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -15780,15 +15930,16 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
-                            "name": "savedVisibility",
+                            "name": "privateRefusal",
                             "type": "enum",
                             "typeDetail": [
-                                "\"public\"",
-                                "\"private\""
+                                "undefined",
+                                "\"final\"",
+                                "\"premium\""
                             ],
                             "required": true,
                             "defaultValue": null,
-                            "description": "The visibility the server holds. Going back to it needs no entitlement.",
+                            "description": "Why the server refuses a change to private for this cook, if it is KNOWN to (`privateRefusalOf` over the\nprofile's own answer). REQUIRED: a kept draft's Private is shown as Public, and why, only under a known refusal.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -15818,7 +15969,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/form",
             "kind": "presentational",
-            "patterns": [],
+            "patterns": [
+                "Adapter over `@commise/ui/screen-reader-focus` — its mount-time ref is attached only when the statement\n    replaces the field, because the accessibility event takes a host node and has no declarative form",
+                "Adapter over the DOM focus API — a callback ref that hands the statement to `focusIfLost` as it attaches;\n    `.focus()` has no declarative form, and `autoFocus` does not apply to a non-control element"
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -15832,18 +15986,41 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeVisibilityStatement.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityStatement` (web): \"Who can see it: Public\", what the editor\nshows in place of `RecipeVisibilityField` when Private is not offered (`offersPrivate` false: the paid features are\nhidden for this cook, or their state is still loading). Plan 2026-10-14-009 D14; owner ruling 2026-10-13.\n\nA statement, not a one-card radio group: a group with one option is not a choice, and a disabled Private card would\nitself be an upsell. Whether a recipe is public is still a fact the cook needs before publishing, so it is said.\n\nPresentational and pure. The native leaf is `./RecipeVisibilityStatement.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityStatement` (web): \"Who can see it: Public\", what the editor\nshows in place of `RecipeVisibilityField` when Private is not offered (`offersPrivate` false: the paid features are\nhidden for this cook, or their state is still loading). Plan 2026-10-14-009 D14; owner ruling 2026-10-13.\n\nA statement, not a one-card radio group: a group with one option is not a choice, and a disabled Private card would\nitself be an upsell. Whether a recipe is public is still a fact the cook needs before publishing, so it is said.\n\nIt says, too, when a kept draft's Private will not be kept (`privateUnavailable`). And when it replaces the field the\ncook just used to confirm Public (`focusOnMount`, UX SPECIFY 2026-10-15), it takes the focus the unmounted radio had,\nso the keyboard is not dropped to the top of the page (WCAG 2.4.3) — only when focus is lost (`focusIfLost`).\n\nPresentational. The native leaf is `./RecipeVisibilityStatement.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/form — `RecipeVisibilityStatement` (web): \"Who can see it: Public\", what the editor"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the DOM focus API — a callback ref that hands the statement to `focusIfLost` as it attaches;\n    `.focus()` has no declarative form, and `autoFocus` does not apply to a non-control element"
                         }
                     ],
                     "description": "\"Who can see it: Public\".",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
-                    "props": [],
+                    "props": [
+                        {
+                            "name": "focusOnMount",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "It replaces the field the cook just used: take the focus that field had (web: only if focus is lost).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "privateUnavailable",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A kept draft's Private the server will refuse: say the recipe will be public when it is published.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        }
+                    ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -15856,18 +16033,41 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeVisibilityStatement.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityStatement` (native), the React Native leaf of\n`./RecipeVisibilityStatement.tsx`: \"Who can see it: Public\", shown in place of the visibility field when Private is\nnot offered (plan 2026-10-14-009 D14).\n\nONE accessible element, named by the whole sentence, so a screen reader reads it once rather than three fragments.\nColours come from the theme at render, so both colour schemes paint (owner D15).",
+                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityStatement` (native), the React Native leaf of\n`./RecipeVisibilityStatement.tsx`: \"Who can see it: Public\", shown in place of the visibility field when Private is\nnot offered (plan 2026-10-14-009 D14).\n\nONE accessible element, named by the whole sentence, so a screen reader reads it once rather than three fragments —\nthe note for a kept draft's refused Private included. When it replaces the field the cook just used to confirm Public\n(`focusOnMount`, UX SPECIFY 2026-10-15), the screen-reader cursor moves onto it, where the unmounted radio was.\nColours come from the theme at render, so both colour schemes paint (owner D15).",
                     "moduleTags": [
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/form — `RecipeVisibilityStatement` (native), the React Native leaf of"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `@commise/ui/screen-reader-focus` — its mount-time ref is attached only when the statement\n    replaces the field, because the accessibility event takes a host node and has no declarative form"
                         }
                     ],
                     "description": "\"Who can see it: Public\".",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
-                    "props": [],
+                    "props": [
+                        {
+                            "name": "focusOnMount",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "It replaces the field the cook just used: take the focus that field had (web: only if focus is lost).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "privateUnavailable",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A kept draft's Private the server will refuse: say the recipe will be public when it is published.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        }
+                    ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {

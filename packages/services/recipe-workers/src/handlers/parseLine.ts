@@ -581,6 +581,12 @@ async function parseAndLand(deps: ParseLineDeps, message: ParseLineJobMessage, r
     });
 
     // R17: guarded on the STORED digest — an edited line's stale landing matches zero rows.
+    //
+    // ⛔ AND ON `status <> 'withdrawn'`. "Add as written" withdraws a line from the job (recipe-service's
+    // `withdrawLines`); a claim that ran BEFORE the withdrawal committed is already past `claimLine`'s
+    // `status = 'pending'` gate and may still be mid-engine, and without this its answer would overwrite the
+    // cook's decision. That in-flight call is the one cost a withdrawal cannot recall; the landing is not
+    // allowed to compound it. A discarded landing publishes the discard metric like any other.
     const landed = await deps.pool.query(
         `UPDATE recipe_parse_job_lines
             SET status = $4,
@@ -588,7 +594,7 @@ async function parseAndLand(deps: ParseLineDeps, message: ParseLineJobMessage, r
                 llm_attempts = $6,
                 engine_generation = $7,
                 updated_at = now()
-          WHERE job_id = $1 AND line_index = $2 AND line_digest = $3`,
+          WHERE job_id = $1 AND line_index = $2 AND line_digest = $3 AND status <> 'withdrawn'`,
         [
             message.jobId,
             message.lineIndex,

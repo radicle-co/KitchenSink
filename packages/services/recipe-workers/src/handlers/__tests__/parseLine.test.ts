@@ -253,6 +253,26 @@ describe('R17 — the digest guard', () => {
     });
 });
 
+describe('withdrawal (plan 2026-10-15-011, open question 8)', () => {
+    it('⛔ the landing UPDATE refuses a withdrawn line, so an in-flight answer cannot resurrect it', async () => {
+        const { deps, queries } = build({});
+
+        await processParseLine(deps, { ...message(), lineDigest: computeRealDigest() });
+
+        expect(landings(queries)[0]?.text).toMatch(/status\s*<>\s*'withdrawn'/u);
+    });
+
+    it("the claim only takes a 'pending' line, which is what turns a withdrawn line's message into a no-op", async () => {
+        const { deps, queries } = build({});
+
+        await processParseLine(deps, { ...message(), lineDigest: computeRealDigest() });
+
+        const claim = queries.find((query) => /FROM recipe_parse_jobs/u.test(query.text));
+
+        expect(claim?.text).toMatch(/l\.status\s*=\s*'pending'/u);
+    });
+});
+
 /** The REAL digest the handler recomputes — derived through the same recipe-core function. */
 function computeRealDigest(): string {
     return realLineDigest(LINE, digest);

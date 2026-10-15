@@ -221,6 +221,45 @@ describe('the parse-line claim (integration)', () => {
         expect(row.attempts).toBe(1);
     });
 
+    /**
+     * WITHDRAWAL (plan 2026-10-15-011, open question 8). The guarantee is: no engine is asked for a line AFTER its
+     * withdrawal committed. The claim requires `status = 'pending'` under the row lock, so a claim serialises
+     * either before the withdrawal (it holds the line; see the next case) or after it (refused, nothing invoked).
+     */
+    it('⛔ a message for a WITHDRAWN line completes with no engine call and leaves it withdrawn', async () => {
+        const { jobId, storedDigest } = await seed();
+        await pool.query(`UPDATE recipe_parse_job_lines SET status = 'withdrawn' WHERE job_id = $1`, [jobId]);
+        const subject = makeSubject();
+
+        await processParseLine(subject.deps, message(jobId, storedDigest));
+
+        expect(subject.engineCalls()).toBe(0);
+        expect((await lineRow(jobId)).status).toBe('withdrawn');
+    });
+
+    it('⛔ a line withdrawn WHILE its claim is in flight is never resurrected by the landing', async () => {
+        const { jobId, storedDigest } = await seed();
+        const subject = makeSubject();
+        const crf = subject.deps.crf;
+        const deps: ParseLineDeps = {
+            ...subject.deps,
+            crf: {
+                ...crf,
+                parse: async (lines) => {
+                    await pool.query(`UPDATE recipe_parse_job_lines SET status = 'withdrawn' WHERE job_id = $1`, [
+                        jobId,
+                    ]);
+
+                    return crf.parse(lines);
+                },
+            },
+        };
+
+        await processParseLine(deps, message(jobId, storedDigest));
+
+        expect((await lineRow(jobId)).status).toBe('withdrawn');
+    });
+
     it('a claim RECORDS the delivery, so a line being redelivered stops being invisible', async () => {
         const { jobId, storedDigest } = await seed();
 

@@ -263,7 +263,7 @@ describe('SignUpScreen — sign-up flow', () => {
         expect(codeField.getAttribute('autocomplete')).toBe('one-time-code');
         expect(signUp.verifications.sendEmailCode).toHaveBeenCalledTimes(1);
         expect(setActive).not.toHaveBeenCalled();
-        expect(screen.queryByText(auth.additionalVerification)).toBeNull();
+        expect(screen.queryByText(auth.signUpUnsupported)).toBeNull();
 
         fireEvent.change(codeField, { target: { value: '424242' } });
         fireEvent.click(screen.getByRole('button', { name: auth.verifyAction }));
@@ -310,7 +310,7 @@ describe('SignUpScreen — sign-up flow', () => {
 
         submitCredentials('pw');
 
-        expect((await screen.findByRole('alert')).textContent).toBe(auth.additionalVerification);
+        expect((await screen.findByRole('alert')).textContent).toBe(auth.signUpUnsupported);
         expect(screen.queryByLabelText(auth.codeLabel)).toBeNull();
         expect(signUp.verifications.sendEmailCode).not.toHaveBeenCalled();
         expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
@@ -401,6 +401,99 @@ describe('SignUpScreen — sign-up flow', () => {
 
         expect(screen.queryByText(auth.usernameRequired)).toBeNull();
         expect(screen.getByLabelText(auth.usernameLabel).getAttribute('aria-invalid')).not.toBe('true');
+    });
+
+    it('refuses an empty password without calling Clerk, and says why UNDER the password', async () => {
+        const signUp = setup('nothing');
+
+        submitCredentials('');
+
+        const field = screen.getByLabelText(auth.passwordLabel);
+        const described = await screen.findByText(auth.passwordRequired);
+
+        expect(field.getAttribute('aria-invalid')).toBe('true');
+        expect(field.getAttribute('aria-describedby')?.split(' ')).toContain(described.id);
+        expect(signUp.create).not.toHaveBeenCalled();
+    });
+
+    it('sends a username typed with one leading "@" without it, and leaves a password exactly as typed', async () => {
+        const signUp = setup('nothing');
+
+        fireEvent.change(screen.getByLabelText(auth.usernameLabel), { target: { value: ' @ada ' } });
+        submitCredentials(' pw ', [auth.usernameLabel]);
+
+        await waitFor(() => expect(setActive).toHaveBeenCalled());
+        expect(signUp.create).toHaveBeenCalledWith(expect.objectContaining({ username: 'ada' }));
+        expect(signUp.password).toHaveBeenCalledWith({ password: ' pw ' });
+    });
+
+    it('moves focus to the FIRST field in error', async () => {
+        setup('nothing');
+
+        submitCredentials('pw', [auth.lastNameLabel, auth.emailLabel]);
+
+        await screen.findByText(auth.lastNameRequired);
+        await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(auth.lastNameLabel)));
+    });
+
+    it('routes EVERY error Clerk returns to its field, not only the first', async () => {
+        const { ClerkAPIResponseError } = await import('@clerk/shared/error');
+        const twoFields = new ClerkAPIResponseError('Two problems', {
+            data: [
+                {
+                    code: 'form_identifier_exists',
+                    message: 'That username is taken.',
+                    long_message: 'That username is taken.',
+                    meta: { param_name: 'username' },
+                },
+                {
+                    code: 'form_param_format_invalid',
+                    message: 'Identifier is invalid.',
+                    long_message: 'Identifier is invalid.',
+                    meta: { param_name: 'email_address' },
+                },
+            ],
+            status: 422,
+        });
+        setup('nothing', { create: vi.fn(async () => ({ error: twoFields })) });
+
+        submitCredentials('pw');
+
+        const taken = await screen.findByText('That username is taken.');
+        const invalid = screen.getByText(auth.emailInvalid);
+
+        expect(screen.getByLabelText(auth.usernameLabel).getAttribute('aria-describedby')?.split(' ')).toContain(
+            taken.id,
+        );
+        expect(screen.getByLabelText(auth.emailLabel).getAttribute('aria-describedby')?.split(' ')).toContain(
+            invalid.id,
+        );
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('puts Clerk’s rejection of the password UNDER the password, not in the alert', async () => {
+        const { ClerkAPIResponseError } = await import('@clerk/shared/error');
+        const tooShort = new ClerkAPIResponseError('Too short', {
+            data: [
+                {
+                    code: 'form_password_length_too_short',
+                    message: 'Passwords must be 8 characters or more.',
+                    long_message: 'Passwords must be 8 characters or more.',
+                    meta: { param_name: 'password' },
+                },
+            ],
+            status: 422,
+        });
+        setup('nothing', { password: vi.fn(async () => ({ error: tooShort })) });
+
+        submitCredentials('pw');
+
+        const described = await screen.findByText('Passwords must be 8 characters or more.');
+
+        expect(screen.getByLabelText(auth.passwordLabel).getAttribute('aria-describedby')?.split(' ')).toContain(
+            described.id,
+        );
+        expect(screen.queryByRole('alert')).toBeNull();
     });
 
     it('falls back to the localized message when a failure carries no Clerk message', async () => {

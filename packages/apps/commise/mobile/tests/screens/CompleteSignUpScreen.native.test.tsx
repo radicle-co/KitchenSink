@@ -153,6 +153,57 @@ describe('CompleteSignUpScreen', () => {
         expect(setActive).not.toHaveBeenCalled();
     });
 
+    it('routes EVERY error Clerk returns, and one on a field this step does not show goes to the alert', async () => {
+        const two = new ClerkAPIResponseError('Two problems', {
+            data: [
+                {
+                    code: 'form_identifier_exists',
+                    message: 'That address is in use.',
+                    long_message: 'That address is in use.',
+                    meta: { param_name: 'email_address' },
+                },
+                {
+                    code: 'form_username_invalid_character',
+                    message: 'Usernames may only contain letters and numbers.',
+                    long_message: 'Usernames may only contain letters and numbers.',
+                    meta: { param_name: 'username' },
+                },
+            ],
+            status: 422,
+        });
+        renderStep(makeSignUp(['username'], { update: vi.fn(async () => Promise.reject(two)) }));
+
+        fireEvent.change(screen.getByLabelText(auth.usernameLabel), { target: { value: 'a-b' } });
+        submit();
+
+        const described = await screen.findByText('Usernames may only contain letters and numbers.');
+
+        expect(screen.getByLabelText(auth.usernameLabel).getAttribute('aria-describedby')?.split(' ')).toContain(
+            described.id,
+        );
+        expect((await screen.findByRole('alert')).textContent).toBe('That address is in use.');
+    });
+
+    it('sends a username typed with one leading "@" without it', async () => {
+        const signUp = makeSignUp(['username']);
+        renderStep(signUp);
+
+        fireEvent.change(screen.getByLabelText(auth.usernameLabel), { target: { value: '@ada' } });
+        submit();
+
+        await waitFor(() => expect(signUp.update).toHaveBeenCalledWith({ username: 'ada' }));
+    });
+
+    it('moves focus to the FIRST field in error', async () => {
+        renderStep(makeSignUp(['first_name', 'last_name', 'username']));
+
+        fireEvent.change(screen.getByLabelText(auth.firstNameLabel), { target: { value: 'Ada' } });
+        submit();
+
+        await screen.findByText(auth.lastNameRequired);
+        await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(auth.lastNameLabel)));
+    });
+
     it('shows any other failure in the alert (an unreachable service)', async () => {
         renderStep(
             makeSignUp(['username'], {
@@ -197,7 +248,7 @@ describe('CompleteSignUpScreen', () => {
         fireEvent.change(screen.getByLabelText(auth.usernameLabel), { target: { value: 'ada' } });
         submit();
 
-        expect((await screen.findByRole('alert')).textContent).toBe(auth.additionalVerification);
+        expect((await screen.findByRole('alert')).textContent).toBe(auth.signUpUnsupported);
         expect(Sentry.captureMessage).toHaveBeenCalledWith(
             'Native social sign-up reached a status it cannot finish',
             expect.objectContaining({ extra: expect.objectContaining({ missingFields: ['legal_accepted'] }) }),

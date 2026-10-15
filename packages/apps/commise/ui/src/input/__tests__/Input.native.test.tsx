@@ -122,10 +122,13 @@ describe('Input + FieldLabel (native)', () => {
         },
     );
 
-    it('turns autocorrect off when asked (a username is not a word)', () => {
+    it('turns autocorrect AND spellcheck off when asked (a username is not a word)', () => {
         render(<LabelledInput autoCorrect={false} />);
 
-        expect(screen.getByRole('textbox', { name: 'Email' }).getAttribute('autocorrect')).toBe('off');
+        const field = screen.getByRole('textbox', { name: 'Email' });
+
+        expect(field.getAttribute('autocorrect')).toBe('off');
+        expect(field.getAttribute('spellcheck')).toBe('false');
     });
 
     it('cannot be edited when disabled, and dims to 40%', () => {

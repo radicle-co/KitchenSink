@@ -292,6 +292,11 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // flow needs) against the budget the describe below pins to two, and it has never run on a device. The buttons'
     // PRESENCE is asserted by the spine (`auth/loginFlow`); the states are `useSocialSignIn.native.test.tsx`'s.
     'auth/socialCancel',
+    // The native sign-up journey (plan 012 D8): it CREATES a Clerk user per run — a fresh username and a `+clerk_test`
+    // email — outside the fixed test pool, and nothing reclaims those users yet. Planning it needs a cleanup story for
+    // them (the owner's test-data scoping rule) and one more email-code verification per platform against the budget
+    // below. The same journey is proven on web by `signUp.spec.ts`; its states are `signup.native.test.tsx`'s.
+    'auth/signUpFlow',
 ];
 
 // ---------------------------------------------------------------------------------------------------------
@@ -642,12 +647,16 @@ describe('the Clerk email-code budget — only the flows that test sign-in clear
         ).toEqual(['accountErasure', 'auth/loginFlow', 'recipes/paidFeaturesByRole']);
     });
 
-    it('types the fixed email code in exactly one flow — the guarded credential sub-flow', () => {
+    it('types the fixed email code only in the guarded credential sub-flow — and the unplanned sign-up', () => {
         const typing = discoverFlowFiles().filter((flow) =>
             /^\s*-\s*inputText:\s*['"]?424242/mu.test(readFileSync(join(MAESTRO_DIR, `${flow}.yaml`), 'utf8')),
         );
 
-        expect(typing).toEqual(['auth/signinHome']);
+        // `auth/signUpFlow` cannot avoid the code — verifying the new email IS the journey — and it spends nothing from
+        // this budget because it is NOT planned (KNOWN_UNRUN_FLOWS says why). Planning it is the moment this list must
+        // be argued again.
+        expect(typing).toEqual(['auth/signUpFlow', 'auth/signinHome']);
+        expect(KNOWN_UNRUN_FLOWS).toContain('auth/signUpFlow');
     });
 
     it('keeps that credential block guarded on the login form being visible', () => {

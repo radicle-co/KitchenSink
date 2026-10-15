@@ -169,6 +169,10 @@ export interface MobileMessages {
         readonly lastNameRequired: string;
         /** Said when the username is left empty. */
         readonly usernameRequired: string;
+        /** Said when the sign-up password is left empty. */
+        readonly passwordRequired: string;
+        /** Shown when a sign-up needs something neither the sign-up form nor its finish step can ask for. */
+        readonly signUpUnsupported: string;
     };
     /**
      * Copy for the mobile impersonation notice. Administrator impersonation is deliberately unavailable in
@@ -420,6 +424,8 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             firstNameRequired: 'Enter your first name.',
             lastNameRequired: 'Enter your last name.',
             usernameRequired: 'Choose a username.',
+            passwordRequired: 'Enter a password.',
+            signUpUnsupported: 'We can’t finish creating your account in the app. Try again on the Commise website.',
         },
         impersonation: {
             title: 'Impersonation blocked on mobile',

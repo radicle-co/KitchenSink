@@ -66,6 +66,8 @@ export const Input: FC<InputProps> = ({
             placeholder={placeholder}
             autoCapitalize={autoCapitalize}
             autoCorrect={autoCorrectAttribute(autoCorrect)}
+            // A browser spellchecks independently of autocorrect; a value that is not a word wants neither.
+            spellCheck={autoCorrect}
             disabled={disabled}
             inputMode={inputMode}
             autoComplete={autoComplete}

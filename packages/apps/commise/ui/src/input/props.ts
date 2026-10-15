@@ -64,7 +64,7 @@ export interface InputProps extends FieldCommon {
     readonly inputMode?: InputMode;
     /** The autofill to offer. */
     readonly autoComplete?: InputAutoComplete;
-    /** Whether the keyboard corrects spelling. Absent, the platform decides; `false` for a value that is not a word. */
+    /** Whether the keyboard corrects and checks spelling. Absent, the platform decides; `false` for a non-word. */
     readonly autoCorrect?: boolean;
     /** What the return key says. */
     readonly enterKeyHint?: EnterKeyHint;

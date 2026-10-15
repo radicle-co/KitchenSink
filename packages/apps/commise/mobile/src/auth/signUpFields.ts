@@ -13,7 +13,6 @@
  * Pure.
  */
 import type { InputAutoComplete } from '@commise/ui/input';
-import { isClerkAPIResponseError } from '@clerk/shared/error';
 
 /** A profile field, by the name Clerk lists it under in `missingFields` and `meta.paramName`. */
 export type SignUpFieldName = 'first_name' | 'last_name' | 'username' | 'email_address';
@@ -92,37 +91,17 @@ export function signUpFieldPlan(missing: readonly string[], askable: ReadonlySet
     };
 }
 
-/** A Clerk error that belongs to one field. */
-export interface FieldError {
-    readonly field: SignUpFieldName;
-    /** Clerk's own words for it ("That username is taken."). */
-    readonly message: string;
-}
-
-const FIELD_NAMES: ReadonlySet<string> = new Set(SIGN_UP_FIELDS.map((field) => field.name));
-
-function isFieldName(name: string): name is SignUpFieldName {
-    return FIELD_NAMES.has(name);
-}
-
 /**
- * Route a Clerk API error to the field it names (`meta.paramName`), so the message sits under that field (SC 3.3.1).
+ * The value Clerk is sent for a field: trimmed — an Android keyboard appends a space after autocomplete, and Clerk would
+ * read it as part of the value — and, for a username, without ONE leading "@", since the app shows usernames with one
+ * and a cook may type it. A password is not a registry field, so it never passes through here: its spaces are its own.
  *
- * @param error - What a `signUp.create` / `signUp.update` threw or returned.
- * @returns The field and Clerk's message, or `undefined` when the error names no registry field. Pure.
+ * @param field - The field the value was typed into.
+ * @param raw - What the cook typed.
+ * @returns The value to judge and send; `''` when nothing is left. Pure.
  */
-export function fieldOfClerkError(error: unknown): FieldError | undefined {
-    // Clerk's guard THROWS for a non-object (a string or `undefined` is a legitimate failure here), so object first.
-    if (typeof error !== 'object' || error === null || !isClerkAPIResponseError(error)) {
-        return undefined;
-    }
+export function normalizeSignUpValue(field: SignUpFieldName, raw: string): string {
+    const trimmed = raw.trim();
 
-    const [first] = error.errors;
-    const paramName = first?.meta?.paramName;
-
-    if (first === undefined || paramName === undefined || !isFieldName(paramName)) {
-        return undefined;
-    }
-
-    return { field: paramName, message: first.longMessage ?? first.message };
+    return field === 'username' && trimmed.startsWith('@') ? trimmed.slice(1).trim() : trimmed;
 }

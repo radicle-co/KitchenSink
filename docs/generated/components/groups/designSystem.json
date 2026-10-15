@@ -4790,7 +4790,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Whether the keyboard corrects spelling. Absent, the platform decides; `false` for a value that is not a word.",
+                            "description": "Whether the keyboard corrects and checks spelling. Absent, the platform decides; `false` for a non-word.",
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
@@ -5006,7 +5006,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Whether the keyboard corrects spelling. Absent, the platform decides; `false` for a value that is not a word.",
+                            "description": "Whether the keyboard corrects and checks spelling. Absent, the platform decides; `false` for a non-word.",
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {

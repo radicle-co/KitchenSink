@@ -2,10 +2,10 @@
 
 /**
  * @module components/auth/SignUpForm — Clerk's `<SignUp>` for the sign-up page, themed for the browser's scheme
- * (`docs/design/uiOverhaul/buildSpec.md` §8; D15). The spec is email and password, plus Google, with the username and
- * the first and last name OFF. That is Clerk dashboard configuration, not code: this widget has no say in which fields
- * the form asks for, and the sandbox instance has been seen collecting all three — so what a visitor is asked for is
- * whatever the instance is set to, not what this file implies.
+ * (`docs/design/uiOverhaul/buildSpec.md` §8; D15). Both Clerk instances require a first name, a last name, a username
+ * and an email (owner ruling 2026-10-13); the widget renders whatever the instance requires, so this file has no say in
+ * the fields, and after a Google sign-up Clerk's own continue step asks only for what Google did not supply. The
+ * native form asks for the same fields in the same order (`mobile/src/screens/signup.tsx`).
  *
  * The routing is the sign-in form's (see `SignInForm`): hash routing under the preview basePath, `signInUrl` WITH the
  * basePath, `forceRedirectUrl` BARE — a pre-prefixed redirect double-prefixes to `/pr-{N}/pr-{N}/` and strands the

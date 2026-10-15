@@ -1634,8 +1634,10 @@ phone (< 480 viewport)              480–1023: card                   ≥ 1024 
   "New to Commise? Create an account". The link text never breaks across lines (the one permitted inline `nowrap`).
   It is the only way to sign up, so it must stay (FR-045a).
 - **Inside Clerk's form:** inputs 48 px with 12 px radius, the primary in `action`, the focus ring in `focusRing`.
-- **Sign-up** asks for email and password, plus Google. Username off, first and last name off (Clerk dashboard
-  settings, no code).
+- **Sign-up** asks for first name, last name, username, email and password, plus Google (and Apple on native) —
+  asking only for what the provider did not supply (owner ruling 2026-10-13; both Clerk instances require all four
+  details). On web Clerk's `<SignUp>` renders them from the instance settings; native asks in the same order, and after
+  a provider sign-up a finish step asks only for the fields Clerk still names missing (plan 012 D6, D8).
 - **Verification code:** one 6-digit field with `autocomplete="one-time-code"` and `inputmode="numeric"`, not six boxes
   (SC 3.3.8 favours letting the OS fill it).
 - **Native:** the same order and copy on `@commise/ui/input`. The primary is pinned above the keyboard
@@ -1686,9 +1688,9 @@ phone 390, and 840+ in content-reading (640), left-aligned
   (`meta`, `overflow-wrap: anywhere`, because it is one unbroken string).
 - **Grouped rows** (56 px, label, value truncate:1, chevron), the settings-list pattern both platforms use:
     - **Display name** opens a sheet titled "What should we call you?" with one field, prefilled from the Google given
-      name when Clerk has it, and **Save** (primary). It saves only on Save, because the name can show publicly as an
-      author handle. This is the only place the app asks for it. The identity service fills the name in from the
-      account at sign-up (D22), so the cook can change it here but does not have to set it.
+      name when Clerk has it, and **Save** (primary). It saves only on Save, because the name shows publicly beside
+      the cook's username on recipes they publish. This is the only place the app asks for it. The identity service
+      fills the name in from the account at sign-up (D22), so the cook can change it here but does not have to set it.
     - **Email**: shown once, in the header's identity block. Web's Account group also lists it as a read-only row; mobile has no Email row (owner, 2026-10-13: the header already shows it).
     - **Preferences:** "Food data sources" → `/legal/sources`. **Keyboard shortcuts** (web only): a switch, on by
       default. Off, `/` types a slash like any other key (SC 2.1.4).

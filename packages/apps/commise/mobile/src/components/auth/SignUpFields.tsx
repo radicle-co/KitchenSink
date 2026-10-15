@@ -3,6 +3,7 @@
  * sign-up form shows all of `SIGN_UP_FIELDS`; the finish step after a Google / Apple sign-up shows only those
  * Clerk still lists as missing. Each field carries its registry autofill and keyboard hints, and its error (ours for an
  * empty field, Clerk's for a rejected one) sits UNDER it, named by the field's `describedBy` (WCAG 2.2 SC 3.3.1).
+ * The host names the one field that takes focus: the first in error.
  *
  * Presentational: props → JSX.
  */
@@ -36,6 +37,10 @@ export interface SignUpFieldsProps {
     readonly onChange: (field: SignUpFieldName, text: string) => void;
     /** Locks every field while a request is in flight. */
     readonly busy: boolean;
+    /** The field asked to take focus (the first in error), or `null`. */
+    readonly focusField: SignUpFieldName | null;
+    /** Called once that field has taken focus; the host clears its request. */
+    readonly onFocusHandled: () => void;
 }
 
 /** The id of the error line under a field. Pure. */
@@ -49,7 +54,16 @@ export function signUpFieldErrorId(fieldId: string): string {
  * @param props - The fields, their values and errors, and the change handler.
  * @returns The labelled fields, each with its error under it.
  */
-export function SignUpFields({ fields, idPrefix, values, errors, onChange, busy }: SignUpFieldsProps): JSX.Element {
+export function SignUpFields({
+    fields,
+    idPrefix,
+    values,
+    errors,
+    onChange,
+    busy,
+    focusField,
+    onFocusHandled,
+}: SignUpFieldsProps): JSX.Element {
     const { auth: t } = useMessages(mobileMessages);
     const { colors } = useTheme();
     const labels: Readonly<Record<SignUpFieldName, string>> = {
@@ -89,6 +103,8 @@ export function SignUpFields({ fields, idPrefix, values, errors, onChange, busy 
                             {...(describedBy === '' ? {} : { describedBy })}
                             {...(field.name === 'email_address' ? { placeholder: t.emailPlaceholder } : {})}
                             disabled={busy}
+                            focusRequested={focusField === field.name}
+                            onFocusRequestHandled={onFocusHandled}
                         />
                         {error === undefined ? null : (
                             <Text

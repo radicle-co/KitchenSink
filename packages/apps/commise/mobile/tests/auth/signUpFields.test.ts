@@ -3,25 +3,16 @@
  * how each is asked, and which of Clerk's `missingFields` a given step may ask for at all. The finish step after a
  * social sign-up asks ONLY for what the provider did not supply, and never for an email or a password (D11) — so an
  * unknown or un-askable field must surface as `unknown`, never be silently dropped (a dropped field strands the cook on a
- * step that cannot finish).
+ * step that cannot finish). One rule cleans what a cook typed, for both askers.
  */
-import { ClerkAPIResponseError } from '@clerk/shared/error';
 import { describe, expect, it } from 'vitest';
 
 import {
-    fieldOfClerkError,
+    normalizeSignUpValue,
     SIGN_UP_FIELDS,
     signUpFieldPlan,
     SOCIAL_FINISH_FIELDS,
 } from '../../src/auth/signUpFields.js';
-
-/** A Clerk API error naming one form parameter, as the FAPI returns it. */
-function clerkError(paramName: string | undefined, code = 'form_param_format_invalid', longMessage = 'Clerk says no') {
-    return new ClerkAPIResponseError('x', {
-        data: [{ code, message: longMessage, long_message: longMessage, meta: { param_name: paramName } }],
-        status: 422,
-    });
-}
 
 describe('SIGN_UP_FIELDS', () => {
     it('lists the four profile fields in the order a form asks for them', () => {
@@ -79,26 +70,24 @@ describe('signUpFieldPlan', () => {
     );
 });
 
-describe('fieldOfClerkError', () => {
-    it.each([
-        ['first_name', 'first_name'],
-        ['last_name', 'last_name'],
-        ['username', 'username'],
-        ['email_address', 'email_address'],
-    ] as const)('routes a Clerk error on %s to that field, with Clerk’s own words', (paramName, field) => {
-        expect(fieldOfClerkError(clerkError(paramName, 'form_identifier_exists', 'That username is taken.'))).toEqual({
-            field,
-            message: 'That username is taken.',
-        });
+describe('normalizeSignUpValue', () => {
+    it.each(['first_name', 'last_name', 'username', 'email_address'] as const)(
+        'trims %s: an Android keyboard appends a space after autocomplete, and Clerk reads it as part of the value',
+        (field) => {
+            expect(normalizeSignUpValue(field, '  ada  ')).toBe('ada');
+        },
+    );
+
+    it('drops ONE leading "@" from a username: the app shows usernames with one, so a cook may type it', () => {
+        expect(normalizeSignUpValue('username', ' @ada ')).toBe('ada');
+        expect(normalizeSignUpValue('username', '@@ada')).toBe('@ada');
     });
 
-    it.each<[string, unknown]>([
-        ['an error on the password', clerkError('password')],
-        ['an error naming no parameter', clerkError(undefined)],
-        ['a plain Error', new Error('boom')],
-        ['a string', 'boom'],
-        ['undefined', undefined],
-    ])('routes %s to no field (it belongs in the alert)', (_name, error) => {
-        expect(fieldOfClerkError(error)).toBeUndefined();
+    it.each(['first_name', 'last_name', 'email_address'] as const)('leaves an "@" in %s alone', (field) => {
+        expect(normalizeSignUpValue(field, '@ada')).toBe('@ada');
+    });
+
+    it('answers a blank-only value as empty', () => {
+        expect(normalizeSignUpValue('username', '  @  ')).toBe('');
     });
 });

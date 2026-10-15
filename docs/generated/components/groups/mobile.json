@@ -6,11 +6,11 @@
     "coverage": {
         "components": 56,
         "implementations": 56,
-        "props": 150,
+        "props": 152,
         "documentedComponents": 55,
         "implementationsWithModuleDoc": 54,
         "implementationsWithComponentDoc": 42,
-        "documentedProps": 142,
+        "documentedProps": 144,
         "classifiedComponents": 34,
         "componentsWithPatternTag": 23,
         "crossPlatformComponents": 0
@@ -827,7 +827,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/auth/SignUpFields.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/auth",
-                    "moduleDoc": "components/auth/SignUpFields — the labelled profile fields a sign-up asks for (plan 012 D8): the typed\nsign-up form shows all of `SIGN_UP_FIELDS`; the finish step after a Google / Apple sign-up shows only those\nClerk still lists as missing. Each field carries its registry autofill and keyboard hints, and its error (ours for an\nempty field, Clerk's for a rejected one) sits UNDER it, named by the field's `describedBy` (WCAG 2.2 SC 3.3.1).\n\nPresentational: props → JSX.",
+                    "moduleDoc": "components/auth/SignUpFields — the labelled profile fields a sign-up asks for (plan 012 D8): the typed\nsign-up form shows all of `SIGN_UP_FIELDS`; the finish step after a Google / Apple sign-up shows only those\nClerk still lists as missing. Each field carries its registry autofill and keyboard hints, and its error (ours for an\nempty field, Clerk's for a rejected one) sits UNDER it, named by the field's `describedBy` (WCAG 2.2 SC 3.3.1).\nThe host names the one field that takes focus: the first in error.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -876,6 +876,15 @@
                             "declaredIn": "packages/apps/commise/mobile/src/components/auth/SignUpFields.tsx"
                         },
                         {
+                            "name": "focusField",
+                            "type": "SignUpFieldName | null",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The field asked to take focus (the first in error), or `null`.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/SignUpFields.tsx"
+                        },
+                        {
                             "name": "idPrefix",
                             "type": "string",
                             "typeDetail": null,
@@ -891,6 +900,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Called with the field and its new text on every change.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/SignUpFields.tsx"
+                        },
+                        {
+                            "name": "onFocusHandled",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Called once that field has taken focus; the host clears its request.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/auth/SignUpFields.tsx"
                         },
                         {
@@ -4210,7 +4228,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/signup.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "screens/signup — the mobile sign-up surface (U2 rebuild).\n\nThe sibling of `LoginScreen`: a custom Clerk sign-up form on the design system\n(`@commise/ui` {@link Button} with `busy` + tokenized {@link Input}), all copy from `mobileMessages`,\nassociated field labels, and a `SafeAreaView` + `KeyboardAvoider` shell. It asks for the four profile fields both\nClerk instances require — first name, last name, username, email (owner ruling 2026-10-13; the\n`SIGN_UP_FIELDS` registry, plan 012 D8) — and a password, then runs `signUp.create` → `signUp.password`, and — when\nthe instance verifies the email — an email-code step (`verifications.sendEmailCode` → a `oneTimeCode` field →\n`verifications.verifyEmailCode`) before `setActive`. An empty field is refused under that field without calling\nClerk; Clerk's rejection of a field (a taken username) is shown under the field it names. Any requirement the\ninstance still has after that is one this form does not offer: it says so, and reports it to Sentry, rather than\nstranding the user on a form that cannot finish.\n\nAbove the form sits the same provider group as sign-in (plan 012): \"Continue with Apple / Google\" may sign the\nperson in OR create the account, and a provider sign-up that still needs fields is handed up to `AuthGate`\n(`onNeedsFields`). While a provider's sheet is up every control here locks.\n\n`onBack` returns to the sign-in form, which is where this screen is always reached FROM: the signed-out gate\nopens on login, and login's own \"Create account\" control is the only route here (owner decision 2026-07-28\ndeleted the welcome hero that used to provide a \"Get started\" entry). So the existing back affordance — the\ninline \"Sign in\" link under `haveAccountPrompt` — still lands exactly where the user came from, and it\nis now the ONLY exit, which is why `AuthGate` keeps rendering it rather than a bare form.",
+                    "moduleDoc": "screens/signup — the mobile sign-up surface (U2 rebuild).\n\nThe sibling of `LoginScreen`: a custom Clerk sign-up form on the design system\n(`@commise/ui` {@link Button} with `busy` + tokenized {@link Input}), all copy from `mobileMessages`,\nassociated field labels, and a `SafeAreaView` + `KeyboardAvoider` shell. It asks for the four profile fields both\nClerk instances require — first name, last name, username, email (owner ruling 2026-10-13; the\n`SIGN_UP_FIELDS` registry, plan 012 D8) — and a password, then runs `signUp.create` → `signUp.password`, and — when\nthe instance verifies the email — an email-code step (`verifications.sendEmailCode` → a `oneTimeCode` field →\n`verifications.verifyEmailCode`) before `setActive`. An empty field — the password too — is refused under that field\nwithout calling Clerk; EVERY error Clerk returns is shown under the field it names (a taken username, a rejected\npassword), the rest in the alert (`signUpFailure`); focus moves to the first field in error. Any requirement the\ninstance still has after that is one this form does not offer: it says so, and reports it to Sentry, rather than\nstranding the user on a form that cannot finish.\n\nAbove the form sits the same provider group as sign-in (plan 012): \"Continue with Apple / Google\" may sign the\nperson in OR create the account, and a provider sign-up that still needs fields is handed up to `AuthGate`\n(`onNeedsFields`). While a provider's sheet is up every control here locks.\n\n`onBack` returns to the sign-in form, which is where this screen is always reached FROM: the signed-out gate\nopens on login, and login's own \"Create account\" control is the only route here (owner decision 2026-07-28\ndeleted the welcome hero that used to provide a \"Get started\" entry). So the existing back affordance — the\ninline \"Sign in\" link under `haveAccountPrompt` — still lands exactly where the user came from, and it\nis now the ONLY exit, which is why `AuthGate` keeps rendering it rather than a bare form.",
                     "moduleTags": [
                         {
                             "name": "module",

@@ -112,10 +112,22 @@ describe('Input + FieldLabel (web)', () => {
         expect(screen.getByRole('textbox').getAttribute('autocomplete')).toBe(autoComplete);
     });
 
-    it('turns autocorrect off when asked', () => {
+    it('turns autocorrect AND spellcheck off when asked (a username is not a word)', () => {
         render(<Input id="username" value="" onChangeText={vi.fn()} autoCorrect={false} />);
 
-        expect(screen.getByRole('textbox').getAttribute('autocorrect')).toBe('off');
+        const field = screen.getByRole('textbox');
+
+        expect(field.getAttribute('autocorrect')).toBe('off');
+        expect(field.getAttribute('spellcheck')).toBe('false');
+    });
+
+    it('leaves the browser default alone when autocorrect is not stated', () => {
+        render(<Input id="email" value="" onChangeText={vi.fn()} />);
+
+        const field = screen.getByRole('textbox');
+
+        expect(field.hasAttribute('autocorrect')).toBe(false);
+        expect(field.hasAttribute('spellcheck')).toBe(false);
     });
 
     it('is a password field when secret', () => {

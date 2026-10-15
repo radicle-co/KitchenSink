@@ -118,8 +118,9 @@ status: built (2026-10-15) — staff-architect BLUEPRINT and staff-ux-engineer S
   the last-chosen account on the device; explicit sign-in still shows the picker.
 - **D8 — Plan 012 takes ALL of native sign-up, including plan 010 D13's typed fields**, because both halves edit
   `signup.tsx`. Plan 010 keeps D13's web docstring fix only. Shared shape, at these paths: `src/auth/signUpFields.ts`
-  (`SIGN_UP_FIELDS` keyed by Clerk field name, `signUpFieldPlan(missing) → { fields, unknown }`, `fieldOfClerkError`
-  routing `meta.paramName`); `src/components/auth/SignUpFields.tsx`; `@commise/ui` `InputAutoComplete` gains
+  (`SIGN_UP_FIELDS` keyed by Clerk field name, `signUpFieldPlan(missing) → { fields, unknown }`, `normalizeSignUpValue`);
+  `src/auth/signUpFailure.ts` (EVERY Clerk error routed by `meta.paramName` to the shown field it names, the password
+  included, the rest to the alert — folded in from plan 010's build at the merge); `src/components/auth/SignUpFields.tsx`; `@commise/ui` `InputAutoComplete` gains
   `given-name` / `family-name`. **Merge point for the coordinator.**
 - **D9 — Buttons** (staff-ux-engineer): order mark → H1 → brand line → provider group → "or" divider → email form →
   primary → switch link (buildSpec §8). iOS: Apple then Google; Android sandbox: Google; no provider → no group and no

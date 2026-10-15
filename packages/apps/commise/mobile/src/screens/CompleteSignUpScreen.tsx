@@ -32,9 +32,9 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { authFailureMessage } from '../auth/authFailureMessage.js';
+import { signUpFailure, type SignUpErrorField } from '../auth/signUpFailure.js';
 import {
-    fieldOfClerkError,
+    normalizeSignUpValue,
     SOCIAL_FINISH_FIELDS,
     signUpFieldPlan,
     type SignUpFieldName,
@@ -72,6 +72,7 @@ export function CompleteSignUpScreen({
     const [values, setValues] = useState<SignUpValues>({});
     const [fieldErrors, setFieldErrors] = useState<SignUpErrors>({});
     const [error, setError] = useState<string | null>(null);
+    const [focusField, setFocusField] = useState<SignUpFieldName | null>(null);
     const [busy, setBusy] = useState(false);
 
     const copy = {
@@ -79,17 +80,25 @@ export function CompleteSignUpScreen({
         emailRequired: t.emailRequired,
         emailInvalid: t.emailInvalid,
         fallback: t.signUpFailed,
-    };
-    const requiredCopy: Readonly<Record<SignUpFieldName, string>> = {
-        first_name: t.firstNameRequired,
-        last_name: t.lastNameRequired,
-        username: t.usernameRequired,
-        email_address: t.emailRequired,
+        required: {
+            first_name: t.firstNameRequired,
+            last_name: t.lastNameRequired,
+            username: t.usernameRequired,
+            email_address: t.emailRequired,
+            password: t.passwordRequired,
+        },
     };
 
     function changeField(field: SignUpFieldName, text: string) {
         setValues((current) => ({ ...current, [field]: text }));
         setFieldErrors((current) => ({ ...current, [field]: undefined }));
+    }
+
+    // Each message under the field it names, the rest in the alert, focus on the first field in error.
+    function showFieldErrors(errors: SignUpErrors, form?: string) {
+        setFieldErrors(errors);
+        setError(form ?? null);
+        setFocusField(fields.find((field) => errors[field.name] !== undefined)?.name ?? null);
     }
 
     // After the update: a complete sign-up starts the session; one that still needs fields this step can ask for asks
@@ -122,36 +131,33 @@ export function CompleteSignUpScreen({
                 unverifiedFields: signUp.unverifiedFields,
             },
         });
-        setError(t.additionalVerification);
+        setError(t.signUpUnsupported);
     }
 
     async function handleSubmit() {
-        // Trimmed: an Android keyboard appends a space after autocomplete.
-        const trimmed = fields.map((field) => ({ field, value: (values[field.name] ?? '').trim() }));
-        const empty = trimmed.filter(({ value }) => value === '');
-
-        setError(null);
+        // One cleaning rule for every field (`normalizeSignUpValue`), the same as the typed form's.
+        const sent = fields.map((field) => ({
+            field,
+            value: normalizeSignUpValue(field.name, values[field.name] ?? ''),
+        }));
+        const empty = sent.filter(({ value }) => value === '');
 
         if (empty.length > 0) {
-            setFieldErrors(Object.fromEntries(empty.map(({ field }) => [field.name, requiredCopy[field.name]])));
+            showFieldErrors(Object.fromEntries(empty.map(({ field }) => [field.name, copy.required[field.name]])));
 
             return;
         }
 
-        setFieldErrors({});
+        showFieldErrors({});
         setBusy(true);
 
         try {
-            await signUp.update(Object.fromEntries(trimmed.map(({ field, value }) => [field.param, value])));
+            await signUp.update(Object.fromEntries(sent.map(({ field, value }) => [field.param, value])));
             await resolveStatus();
         } catch (failure) {
-            const onField = fieldOfClerkError(failure);
-
-            if (onField === undefined) {
-                setError(authFailureMessage(failure, copy));
-            } else {
-                setFieldErrors((current) => ({ ...current, [onField.field]: onField.message }));
-            }
+            const shown = new Set<SignUpErrorField>(fields.map((field) => field.name));
+            const routed = signUpFailure(failure, shown, copy);
+            showFieldErrors(routed.fields, routed.form);
         } finally {
             setBusy(false);
         }
@@ -178,6 +184,8 @@ export function CompleteSignUpScreen({
                         errors={fieldErrors}
                         onChange={changeField}
                         busy={busy}
+                        focusField={focusField}
+                        onFocusHandled={() => setFocusField(null)}
                     />
 
                     {error ? (

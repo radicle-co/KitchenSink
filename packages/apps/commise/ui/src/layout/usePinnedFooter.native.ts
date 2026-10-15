@@ -15,7 +15,7 @@
 import { useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 
-import { isFooterUnpinned, type PinnedFooterMeasure } from './pinnedFooter.js';
+import { isFooterUnpinned, UNMEASURED_FOOTER, type PinnedFooterMeasure } from './pinnedFooter.js';
 
 /** The decision and the three `onLayout` handlers that feed it. */
 export interface PinnedFooter {
@@ -29,15 +29,13 @@ export interface PinnedFooter {
     readonly onFooterLayout: (event: LayoutChangeEvent) => void;
 }
 
-const UNMEASURED: PinnedFooterMeasure = { pinnedTop: 0, footer: 0, frame: 0 };
-
 /**
  * Measure a frame's pinned chrome and decide whether its footer unpins.
  *
  * @returns The decision and the handlers to attach.
  */
 export function usePinnedFooter(): PinnedFooter {
-    const [measure, setMeasure] = useState(UNMEASURED);
+    const [measure, setMeasure] = useState(UNMEASURED_FOOTER);
 
     const record =
         (part: keyof PinnedFooterMeasure) =>

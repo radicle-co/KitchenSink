@@ -27,6 +27,9 @@ export interface PinnedFooterMeasure {
     readonly frame: number;
 }
 
+/** The measure before any layout has reported: every height unmeasured. */
+export const UNMEASURED_FOOTER: PinnedFooterMeasure = { pinnedTop: 0, footer: 0, frame: 0 };
+
 /**
  * Whether the footer scrolls with the content instead of staying pinned. Pure.
  *

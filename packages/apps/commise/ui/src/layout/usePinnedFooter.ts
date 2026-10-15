@@ -25,7 +25,12 @@
  */
 import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 
-import { isFooterUnpinned, pinnedFooterMeasureOf, type PinnedFooterMeasure } from './pinnedFooter.js';
+import {
+    isFooterUnpinned,
+    pinnedFooterMeasureOf,
+    UNMEASURED_FOOTER,
+    type PinnedFooterMeasure,
+} from './pinnedFooter.js';
 
 /** A callback ref, as the caller attaches it. */
 type NodeRef = (node: HTMLElement | null) => void;
@@ -76,7 +81,6 @@ interface PinningState<Control> {
 }
 
 const NO_NODES: Nodes = { frame: null, pinnedTop: null, footer: null };
-const UNMEASURED: PinnedFooterMeasure = { pinnedTop: 0, footer: 0, frame: 0 };
 
 /** A node's border-box height, in px. */
 const heightOf = (node: HTMLElement): number => node.getBoundingClientRect().height;
@@ -112,7 +116,7 @@ function focusedControl<Control>(footer: HTMLElement, carry: FooterFocusCarry<Co
 export function usePinnedFooter<Control = never>(options: PinnedFooterOptions<Control> = {}): PinnedFooter<Control> {
     const viewport = options.frame === 'viewport';
     const [nodes, setNodes] = useState(NO_NODES);
-    const [state, setState] = useState<PinningState<Control>>({ measure: UNMEASURED, refocus: null });
+    const [state, setState] = useState<PinningState<Control>>({ measure: UNMEASURED_FOOTER, refocus: null });
     // Created ONCE: a callback ref with a new identity each render is detached and re-attached on every render, and
     // each of those would set state and render again.
     const [refs] = useState(() => {

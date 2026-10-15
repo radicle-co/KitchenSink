@@ -6,7 +6,13 @@
  * is actually about (a tombstone's `deletedAt`, a bystander's `status`) and the rest stays valid — which is
  * what makes an erasure spec's intent readable at a glance.
  */
-import type { NewAccountRow, NewProfileRow, NewUserRow } from '@kitchensink/identity-db';
+import {
+    newUserId,
+    type NewAccountRow,
+    type NewProfileRow,
+    type NewUserRow,
+    type UserId,
+} from '@kitchensink/identity-db';
 
 /** Monotonic suffix so repeated factory calls never collide on the `id`/`identityId`/`email` uniques. */
 let sequence = 0;
@@ -29,7 +35,7 @@ export function makeIdentityUser(overrides: Partial<NewUserRow> = {}): NewUserRo
     const suffix = nextSuffix();
 
     return {
-        id: `usr_fixture_${suffix}`,
+        id: newUserId(),
         identityId: `user_clerk_${suffix}`,
         email: `fixture-${suffix}@example.com`,
         name: `Fixture ${suffix}`,
@@ -62,7 +68,7 @@ export function makeTombstonedUser(closedAt: Date, overrides: Partial<NewUserRow
  * @param overrides - Fields to override.
  * @returns An insertable `accounts` row.
  */
-export function makeIdentityAccount(userId: string, overrides: Partial<NewAccountRow> = {}): NewAccountRow {
+export function makeIdentityAccount(userId: UserId, overrides: Partial<NewAccountRow> = {}): NewAccountRow {
     return { userId, subscriptionTier: 'free', ...overrides };
 }
 
@@ -73,7 +79,7 @@ export function makeIdentityAccount(userId: string, overrides: Partial<NewAccoun
  * @param overrides - Fields to override.
  * @returns An insertable `profiles` row.
  */
-export function makeIdentityProfile(userId: string, overrides: Partial<NewProfileRow> = {}): NewProfileRow {
+export function makeIdentityProfile(userId: UserId, overrides: Partial<NewProfileRow> = {}): NewProfileRow {
     return {
         userId,
         displayName: `Display ${userId}`,

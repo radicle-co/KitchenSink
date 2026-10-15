@@ -9,6 +9,7 @@ import { getTableName, type Table } from 'drizzle-orm';
 import { describe, it, expect } from 'vitest';
 
 import { eraseIdentityRow } from '../eraseIdentityRow.js';
+import { newUserId } from '../ulid.js';
 
 /** A drizzle-shaped mock tx recording the update set, deleted tables, and audit rows. */
 function buildMockDb() {
@@ -54,8 +55,9 @@ describe('eraseIdentityRow', () => {
     it('applies the erased field-scrub, purges companion rows, and appends the audit row in ONE transaction', async () => {
         const { db, userSets, deletedTables, auditRows, transactionCount } = buildMockDb();
         const now = new Date('2026-07-26T00:00:00.000Z');
+        const userId = newUserId();
 
-        await eraseIdentityRow(db as never, { userId: 'usr_01', triggerSource: 'admin', actor: 'clerk-webhook' }, now);
+        await eraseIdentityRow(db as never, { userId, triggerSource: 'admin', actor: 'clerk-webhook' }, now);
 
         expect(transactionCount()).toBe(1);
         // Erased scrub: name + picture destroyed, email → ULID placeholder, status erased.
@@ -66,7 +68,7 @@ describe('eraseIdentityRow', () => {
         expect([...deletedTables].sort()).toEqual(['accounts', 'profiles', 'settings']);
         // R8 audit row carries the caller's trigger source + actor.
         expect(auditRows[0]).toMatchObject({
-            userId: 'usr_01',
+            userId,
             event: 'erasure',
             triggerSource: 'admin',
             actor: 'clerk-webhook',
@@ -77,8 +79,10 @@ describe('eraseIdentityRow', () => {
     it('records the sweep trigger source with a null actor for the automated path', async () => {
         const { db, auditRows } = buildMockDb();
 
-        await eraseIdentityRow(db as never, { userId: 'usr_02', triggerSource: 'sweep', actor: null }, new Date());
+        const userId = newUserId();
 
-        expect(auditRows[0]).toMatchObject({ userId: 'usr_02', triggerSource: 'sweep', actor: null });
+        await eraseIdentityRow(db as never, { userId, triggerSource: 'sweep', actor: null }, new Date());
+
+        expect(auditRows[0]).toMatchObject({ userId, triggerSource: 'sweep', actor: null });
     });
 });

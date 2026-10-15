@@ -51,7 +51,7 @@ vi.mock('../../src/common/observability.js', () => ({
 
 import { SendMessageCommand } from '@aws-sdk/client-sqs';
 
-import { accounts, lifecycleEvents, profiles, users } from '@kitchensink/identity-db';
+import { accounts, lifecycleEvents, profiles, users, type UserId } from '@kitchensink/identity-db';
 
 import { getDb } from '../../src/common/db.js';
 import { idpDeletionMessageSchema } from '@kitchensink/identity-core';
@@ -87,19 +87,19 @@ function daysAgo(days: number): Date {
 /** The seeded population's ULIDs, keyed by the lifecycle state each row represents. */
 interface Population {
     /** tombstoned, closed ~13 months ago — the ONLY row the sweep may erase. */
-    expired: string;
+    expired: UserId;
     /** tombstoned, closed just past the 12-month cutoff — also eligible (pins the window's size). */
-    justExpired: string;
+    justExpired: UserId;
     /** tombstoned, closed ~11 months ago — still inside the retention window. */
-    inWindow: string;
+    inWindow: UserId;
     /** ACTIVE with a legacy `deletedAt` — a live account. Erasing this is the catastrophic failure. */
-    activeSoftDeleted: string;
+    activeSoftDeleted: UserId;
     /** tombstoned with NULL `deletedAt` — closure instant unknown, so the window cannot have elapsed. */
-    tombstonedNoClosureDate: string;
+    tombstonedNoClosureDate: UserId;
     /** already `erased` — must never be re-selected (no duplicate Clerk delete, no duplicate audit). */
-    alreadyErased: string;
+    alreadyErased: UserId;
     /** `suspended` (admin moderation hold, RETAINS PII) — a different state entirely, never auto-erased. */
-    suspended: string;
+    suspended: UserId;
 }
 
 describe('tombstone-sweep selection predicate (integration — real Postgres)', () => {
@@ -155,15 +155,15 @@ describe('tombstone-sweep selection predicate (integration — real Postgres)', 
 
         for (const row of Object.values(rows)) {
             await db.insert(users).values(row);
-            await db.insert(accounts).values(makeIdentityAccount(row.id as string));
-            await db.insert(profiles).values(makeIdentityProfile(row.id as string));
+            await db.insert(accounts).values(makeIdentityAccount(row.id));
+            await db.insert(profiles).values(makeIdentityProfile(row.id));
         }
 
         return Object.fromEntries(Object.entries(rows).map(([key, row]) => [key, row.id])) as unknown as Population;
     }
 
     /** Read one seeded row back. */
-    async function readUser(userId: string) {
+    async function readUser(userId: UserId) {
         const [row] = await db.select().from(users).where(eq(users.id, userId));
 
         return row;

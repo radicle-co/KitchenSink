@@ -60,8 +60,9 @@ describe('lifecycle-aware provisioning — no resurrection (integration)', () =>
         expect(values).toEqual(expect.arrayContaining(['active', 'suspended', 'tombstoned', 'erased']));
 
         // lifecycle_events exists and accepts an audit insert.
-        await db.insert(lifecycleEvents).values({ userId: 'usr_x', event: 'closure', triggerSource: 'user' });
-        const audit = await db.select().from(lifecycleEvents).where(eq(lifecycleEvents.userId, 'usr_x'));
+        const auditedUser = newUserId();
+        await db.insert(lifecycleEvents).values({ userId: auditedUser, event: 'closure', triggerSource: 'user' });
+        const audit = await db.select().from(lifecycleEvents).where(eq(lifecycleEvents.userId, auditedUser));
         expect(audit).toHaveLength(1);
     });
 
@@ -74,7 +75,11 @@ describe('lifecycle-aware provisioning — no resurrection (integration)', () =>
         );
         expect(created.kind).toBe('complete');
 
-        const userId = created.kind === 'complete' ? created.user.id : '';
+        if (created.kind !== 'complete') {
+            throw new Error(`expected a complete user, got ${created.kind}`);
+        }
+
+        const userId = created.user.id;
         const closedAt = new Date('2026-01-01T00:00:00.000Z');
         const directive = computeProfileScrub('closure', userId);
         await db
@@ -107,7 +112,12 @@ describe('lifecycle-aware provisioning — no resurrection (integration)', () =>
             { identityId: 'idp_erased', email: 'gone@example.com', name: 'Grace' },
             { onEmailCollision: 'placeholder', owesCreatedByline: true, emailIsReal: true },
         );
-        const userId = created.kind === 'complete' ? created.user.id : '';
+
+        if (created.kind !== 'complete') {
+            throw new Error(`expected a complete user, got ${created.kind}`);
+        }
+
+        const userId = created.user.id;
 
         // Simulate erasure: scrub to {id} + delete the companion rows (what the sweep does).
         const directive = computeProfileScrub('erasure', userId);
@@ -142,7 +152,12 @@ describe('lifecycle-aware provisioning — no resurrection (integration)', () =>
             { identityId: 'idp_active', email: 'back@example.com', name: 'Reg' },
             { onEmailCollision: 'placeholder', owesCreatedByline: true, emailIsReal: true },
         );
-        const userId = created.kind === 'complete' ? created.user.id : '';
+
+        if (created.kind !== 'complete') {
+            throw new Error(`expected a complete user, got ${created.kind}`);
+        }
+
+        const userId = created.user.id;
         await db.update(users).set({ deletedAt: new Date() }).where(eq(users.id, userId));
 
         await provisionCompleteUser<typeof users.$inferSelect>(

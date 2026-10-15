@@ -68,7 +68,7 @@ describe('user.updated A->B->A profile sync — coherent users/profiles (integra
             .values({ userId: user.id, displayName: initialDisplayName, avatarUrl: 'https://example.com/avatar-a.png' })
             .onConflictDoNothing();
 
-        return user.id as UserId;
+        return user.id;
     }
 
     it('A -> B -> A: the revert lands, profiles.displayName ends at A, and users.name stays coherent', async () => {

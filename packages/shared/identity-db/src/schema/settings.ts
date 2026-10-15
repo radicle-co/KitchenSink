@@ -1,6 +1,7 @@
 import { boolean, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import { users } from './users.js';
+import type { UserId } from '../ulid.js';
 
 /**
  * One row per user, one typed nullable column per setting (ADR-0059).
@@ -10,6 +11,7 @@ import { users } from './users.js';
  */
 export const settings = pgTable('settings', {
     userId: text('user_id')
+        .$type<UserId>()
         .primaryKey()
         .references(() => users.id, { onDelete: 'cascade' }),
     /** Whether the web "/" key focuses search. `NULL` is "never chosen". */

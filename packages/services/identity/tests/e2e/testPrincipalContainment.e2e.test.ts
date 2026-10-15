@@ -16,7 +16,7 @@ import { eq } from 'drizzle-orm';
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { accounts, lifecycleEvents, profiles, users } from '@kitchensink/identity-db';
+import { accounts, lifecycleEvents, profiles, users, type UserId } from '@kitchensink/identity-db';
 
 import { identityDb } from '../support/roleDb.js';
 import type { VerifiedClerkClaims } from '../../src/auth/clerkAuth.service.js';
@@ -45,7 +45,7 @@ describe('test-principal containment — lifecycle actions (integration)', () =>
     const deleteAllForUser = vi.fn();
 
     /** Everything identity holds for one user — the state a contained action must not change. */
-    async function snapshot(userId: string) {
+    async function snapshot(userId: UserId) {
         return {
             users: await db.select().from(users).where(eq(users.id, userId)),
             accounts: await db.select().from(accounts).where(eq(accounts.userId, userId)),

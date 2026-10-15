@@ -55,7 +55,7 @@ describe('0015_settings (real Postgres)', () => {
             name: 'A Cook',
         });
 
-        return user.id as UserId;
+        return user.id;
     }
 
     describe('the table', () => {

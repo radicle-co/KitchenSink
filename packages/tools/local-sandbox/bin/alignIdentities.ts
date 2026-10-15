@@ -13,7 +13,7 @@ import { spawnSync } from 'node:child_process';
 
 import { clerkLeasePort } from '@kitchensink/e2e-fixtures/lease';
 import { maestroErasureSlots, maestroSlotForShard } from '@kitchensink/e2e-fixtures/testPool';
-import { accounts, newProfileClock, profiles, users } from '@kitchensink/identity-db';
+import { accounts, isUserId, newProfileClock, profiles, users } from '@kitchensink/identity-db';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
 import { eq, or } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -98,7 +98,10 @@ async function main(): Promise<void> {
             db
                 .select({ id: users.id, identityId: users.identityId, status: users.status })
                 .from(users)
-                .where(or(eq(users.identityId, identityId), eq(users.id, externalId))),
+                .where(
+                    // An external id that is no user id names no row by `id`; `or` drops the absent arm.
+                    or(eq(users.identityId, identityId), isUserId(externalId) ? eq(users.id, externalId) : undefined),
+                ),
         // `accounts` and `profiles` reference `users.id` ON DELETE CASCADE, so they go with it.
         removeRow: async (identityId) => {
             await db.delete(users).where(eq(users.identityId, identityId));

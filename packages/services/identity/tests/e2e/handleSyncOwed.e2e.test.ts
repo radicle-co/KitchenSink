@@ -59,10 +59,10 @@ describe('the handle-sync owed marker (integration)', () => {
         await db.insert(accounts).values({ userId: user.id }).onConflictDoNothing();
         await db.insert(profiles).values({ userId: user.id, displayName }).onConflictDoNothing();
 
-        return user.id as UserId;
+        return user.id;
     }
 
-    async function marker(userId: string): Promise<{ owedAt: Date | null; code: string | null }> {
+    async function marker(userId: UserId): Promise<{ owedAt: Date | null; code: string | null }> {
         const [row] = await db.select().from(profiles).where(eq(profiles.userId, userId));
 
         return { owedAt: row?.handleSyncOwedAt ?? null, code: row?.handleSyncFailureCode ?? null };

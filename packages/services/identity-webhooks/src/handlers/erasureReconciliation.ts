@@ -1,7 +1,7 @@
 import type { Context, ScheduledEvent } from 'aws-lambda';
 import { and, eq, isNull, lte } from 'drizzle-orm';
 
-import { users } from '@kitchensink/identity-db';
+import { users, type UserId } from '@kitchensink/identity-db';
 
 import { getErasureFanoutConfig } from '../config/env.js';
 import { withDb, type DbContext } from '../common/handlerPipeline.js';
@@ -44,7 +44,7 @@ export const RECONCILE_GRACE_MS = 60 * 60 * 1000; // 1 hour
 
 /** An erased identity to reconcile — the durable ULID (recipe/food key) + its Clerk `sub` (correlation). */
 interface ErasedIdentity {
-    id: string;
+    id: UserId;
     identityId: string;
 }
 
@@ -80,7 +80,7 @@ export function isErasureComplete(result: ErasureFanoutResult): boolean {
  * @param userId - The erased identity's durable ULID.
  * @sideEffect Writes `users.reconciled_at`; catches and logs its own errors.
  */
-async function stampReconciled(db: DbContext['db'], userId: string): Promise<void> {
+async function stampReconciled(db: DbContext['db'], userId: UserId): Promise<void> {
     try {
         await db
             .update(users)
@@ -113,7 +113,7 @@ const innerHandler = async (_event: ScheduledEvent, _context: Context, { db }: D
         .from(users)
         .where(
             and(eq(users.status, 'erased'), lte(users.updatedAt, cutoff), isNull(users.reconciledAt)),
-        )) as ErasedIdentity[];
+        )) satisfies ErasedIdentity[];
 
     let incomplete = 0;
 

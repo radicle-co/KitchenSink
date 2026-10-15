@@ -58,7 +58,7 @@ describe('the byline snapshot (real Postgres)', () => {
             'ada',
         ]);
 
-        return user.id as UserId;
+        return user.id;
     }
 
     async function profileOf(userId: UserId) {

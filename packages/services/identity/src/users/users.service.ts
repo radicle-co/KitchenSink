@@ -193,8 +193,7 @@ export class UsersService {
             }
         }
 
-        // The ONE place a row's text id becomes the branded `UserId` (the column is plain `text`).
-        const userId = userRow.id as UserId;
+        const userId = userRow.id;
 
         await this.publishByline(userId, createdByline);
 

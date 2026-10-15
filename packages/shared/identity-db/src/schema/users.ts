@@ -1,5 +1,6 @@
 import { customType, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
+import type { UserId } from '../ulid.js';
 
 // citext — case-insensitive text (requires pg extension citext)
 export const citext = customType<{ data: string; driverData: string }>({
@@ -18,7 +19,7 @@ export const userStatusEnum = pgEnum('user_status', ['active', 'suspended', 'tom
 export const users = pgTable(
     'users',
     {
-        id: text('id').primaryKey(),
+        id: text('id').$type<UserId>().primaryKey(),
         identityId: text('identity_id').unique().notNull(),
         email: citext('email').notNull(),
         name: text('name'),

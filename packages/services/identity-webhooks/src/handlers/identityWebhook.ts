@@ -4,7 +4,7 @@ import type { IdentityWriter } from '@kitchensink/identity-db';
 import { eq } from 'drizzle-orm';
 
 import { recordOnce, hasProcessedWebhookEvent, UserDAO, users } from '@kitchensink/identity-db';
-import type { UserRow, UserId } from '@kitchensink/identity-db';
+import type { UserRow } from '@kitchensink/identity-db';
 import { provisionCompleteUser, type ProvisionResult } from '@kitchensink/identity-utils';
 import {
     createSnsHandleSyncPublisher,
@@ -118,8 +118,7 @@ const handleUserCreated = async (data: IdentityUserData, db: IdentityWriter, req
     }
 
     const { user } = result;
-    // The ONE place the row's text id becomes the branded `UserId` for the handle-sync settle (the column is `text`).
-    const userId = user.id as UserId;
+    const userId = user.id;
 
     // Plan 2026-10-15-010 D6b: the byline this delivery CREATED seeds the recipe database's read model. Present only
     // when THIS insert made the profile — a read-through that got there first published its own. Best-effort, after
@@ -196,8 +195,7 @@ const handleUserUpdated = async (
     // username is compared to the profile directly (Clerk is its only authority). One transaction, both tables. It
     // returns the byline SNAPSHOT only when the display name or the username actually changed — including a revert to
     // a prior value — carrying the PROFILE's display name and the stamp its own statement wrote.
-    const existingId = existing.id as UserId;
-    const { byline } = await userDao.syncProviderFields(existingId, {
+    const { byline } = await userDao.syncProviderFields(existing.id, {
         name: displayName,
         picture: data.image_url ?? null,
         // `null` says the cook has no username; an ABSENT key says nothing, and must not clear it.
@@ -212,7 +210,7 @@ const handleUserUpdated = async (
         const sync = await publishOwedByline(
             handleSyncPublisher,
             (owner, owedAt, code) => userDao.settleHandleSync(owner, owedAt, code),
-            existingId,
+            existing.id,
             byline,
         );
 

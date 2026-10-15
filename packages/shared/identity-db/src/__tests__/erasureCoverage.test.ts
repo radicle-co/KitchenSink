@@ -18,6 +18,7 @@ import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
 import { eraseIdentityRow } from '../eraseIdentityRow.js';
+import { newUserId } from '../ulid.js';
 import * as identityDb from '../index.js';
 
 /**
@@ -58,7 +59,7 @@ async function tablesTouchedByErasure(): Promise<ReadonlySet<string>> {
     };
     const db = { transaction: (callback: (t: typeof tx) => unknown) => callback(tx) };
 
-    await eraseIdentityRow(db as never, { userId: 'usr_cov', triggerSource: 'admin', actor: 'guard' }, new Date());
+    await eraseIdentityRow(db as never, { userId: newUserId(), triggerSource: 'admin', actor: 'guard' }, new Date());
 
     return touched;
 }

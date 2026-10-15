@@ -5,7 +5,6 @@ import { withDb, type DbContext } from '../common/handlerPipeline.js';
 
 import { eraseIdentityRow } from '@kitchensink/identity-db';
 import { runErasureFanout, type ErasureFanoutResult, type ErasureFanoutTarget } from '../common/erasureFanout.js';
-import type { UserId } from '@kitchensink/identity-db';
 import { banUser, deleteUser, isAlreadyDeleted, unbanUser } from '../common/identityClient.js';
 import { getErasureFanoutConfig } from '../config/env.js';
 import { emitMetric, logger, withObservability } from '../common/observability.js';
@@ -188,7 +187,7 @@ const convergeProviderState = async (
         await unbanUser(message.identityId);
     }
 
-    const settled = await userDao.settleStatusVersion(user.id as UserId, intendedVersion);
+    const settled = await userDao.settleStatusVersion(user.id, intendedVersion);
 
     if (!settled) {
         // ⛔ THROW, so the message redelivers and the NEWER intent is applied. Returning here would

@@ -27,7 +27,15 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { accounts, eraseIdentityRow, lifecycleEvents, profiles, settings, users } from '@kitchensink/identity-db';
+import {
+    accounts,
+    eraseIdentityRow,
+    lifecycleEvents,
+    profiles,
+    settings,
+    users,
+    type UserId,
+} from '@kitchensink/identity-db';
 
 import { identityDb, openTestDb, resetIdentityRows } from '../support/roleDb.js';
 import { makeIdentityAccount, makeIdentityProfile, makeIdentityUser } from '../__fixtures__/makeIdentityUser.js';
@@ -55,7 +63,7 @@ describe('eraseIdentityRow (integration — real Postgres)', () => {
      * @returns The seeded user's ULID.
      * @sideEffect Inserts into `users`, `accounts`, `profiles`.
      */
-    async function seedCompleteUser(overrides: Parameters<typeof makeIdentityUser>[0] = {}): Promise<string> {
+    async function seedCompleteUser(overrides: Parameters<typeof makeIdentityUser>[0] = {}): Promise<UserId> {
         const row = makeIdentityUser(overrides);
         await db.insert(users).values(row);
         await db.insert(accounts).values(makeIdentityAccount(row.id));

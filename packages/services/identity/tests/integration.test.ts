@@ -40,7 +40,7 @@ const adminCtx = {
 };
 
 const userCtx = {
-    userId: '01HZZZZZZZZZZZZZZZZZZZZZZU' as const,
+    userId: '01HZZZZZZZZZZZZZZZZZZZZZZB' as const,
     clerkUserId: 'user_abc123',
     email: 'test@example.com',
     tokenType: 'user' as const,
@@ -51,7 +51,7 @@ const userCtx = {
 };
 
 const mockUser = {
-    id: '01HZZZZZZZZZZZZZZZZZZZZZZU',
+    id: '01HZZZZZZZZZZZZZZZZZZZZZZB',
     clerkId: 'user_abc123',
     email: 'test@example.com',
     status: 'active',
@@ -97,7 +97,7 @@ describe('UsersService', () => {
                 user: mockUser,
                 account: {
                     id: 'a-1',
-                    userId: '01HZZZZZZZZZZZZZZZZZZZZZZU',
+                    userId: '01HZZZZZZZZZZZZZZZZZZZZZZB',
                     subscriptionTier: 'free',
                     createdAt: new Date(),
                     updatedAt: new Date(),
@@ -113,7 +113,7 @@ describe('UsersService', () => {
     it('getUserMe returns aggregated profile', async () => {
         const profile = {
             id: 'p-1',
-            userId: '01HZZZZZZZZZZZZZZZZZZZZZZU',
+            userId: '01HZZZZZZZZZZZZZZZZZZZZZZB',
             displayName: 'Test',
             avatarUrl: null,
             bio: null,
@@ -121,7 +121,7 @@ describe('UsersService', () => {
         };
         const account = {
             id: 'a-1',
-            userId: '01HZZZZZZZZZZZZZZZZZZZZZZU',
+            userId: '01HZZZZZZZZZZZZZZZZZZZZZZB',
             subscriptionTier: 'free',
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -132,7 +132,7 @@ describe('UsersService', () => {
 
         const result = await usersService.getUserMe(userCtx);
 
-        expect(result.user.id).toBe('01HZZZZZZZZZZZZZZZZZZZZZZU');
+        expect(result.user.id).toBe('01HZZZZZZZZZZZZZZZZZZZZZZB');
         // No role and the gate off (the suite's service is built with `false`): no paid feature, no upsell.
         expect(result.account.paidFeatures).toBe('hidden');
         expect(result.account).not.toHaveProperty('subscriptionTier');
@@ -162,7 +162,7 @@ describe('UsersService', () => {
     });
 
     it('upsertUser creates user via clerkId and returns ULID id', async () => {
-        const newUser = { ...mockUser, id: '01HZZZZZZZZZZZZZZZZZZZZZZU' };
+        const newUser = { ...mockUser, id: '01HZZZZZZZZZZZZZZZZZZZZZZB' };
         const inserted: Record<string, unknown>[] = [];
 
         mockDb.insert = vi.fn().mockReturnValue({
@@ -185,7 +185,7 @@ describe('UsersService', () => {
             name: 'Test User',
         });
 
-        expect(result.id).toBe('01HZZZZZZZZZZZZZZZZZZZZZZU');
+        expect(result.id).toBe('01HZZZZZZZZZZZZZZZZZZZZZZB');
         // createdAt === updatedAt on the returned row signals a first-time insert (see UsersService.upsertUser).
         expect(result.created).toBe(true);
         // ⛔ It publishes no byline, so the profile it creates must owe none: a debt nothing settles is a sync the
@@ -260,7 +260,7 @@ describe('UsersService', () => {
     it('patchUserMe updates profile fields', async () => {
         const updatedProfile = {
             id: 'p-1',
-            userId: '01HZZZZZZZZZZZZZZZZZZZZZZU',
+            userId: '01HZZZZZZZZZZZZZZZZZZZZZZB',
             displayName: 'New Name',
             avatarUrl: null,
             username: 'newname',
@@ -268,7 +268,7 @@ describe('UsersService', () => {
         };
         const updatedAccount = {
             id: 'a-1',
-            userId: '01HZZZZZZZZZZZZZZZZZZZZZZU',
+            userId: '01HZZZZZZZZZZZZZZZZZZZZZZB',
             subscriptionTier: 'free',
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -409,30 +409,30 @@ describe('AdminService', () => {
     });
 
     it('suspendUser updates db status to suspended', async () => {
-        const result = await adminService.suspendUser('01HZZZZZZZZZZZZZZZZZZZZZZU', adminCtx);
+        const result = await adminService.suspendUser('01HZZZZZZZZZZZZZZZZZZZZZZB', adminCtx);
 
         expect(result.status).toBe('suspended');
     });
 
     it('unsuspendUser updates db status to active', async () => {
-        const result = await adminService.unsuspendUser('01HZZZZZZZZZZZZZZZZZZZZZZU', adminCtx);
+        const result = await adminService.unsuspendUser('01HZZZZZZZZZZZZZZZZZZZZZZB', adminCtx);
 
         expect(result.status).toBe('active');
     });
 
     it('startImpersonation returns session metadata', async () => {
-        const result = await adminService.startImpersonation('01HZZZZZZZZZZZZZZZZZZZZZZU', adminCtx);
+        const result = await adminService.startImpersonation('01HZZZZZZZZZZZZZZZZZZZZZZB', adminCtx);
 
         expect(result.impersonatorSub).toBe('01HZZZZZZZZZZZZZZZZZZZZZZA');
-        expect(result.impersonatedSub).toBe('01HZZZZZZZZZZZZZZZZZZZZZZU');
+        expect(result.impersonatedSub).toBe('01HZZZZZZZZZZZZZZZZZZZZZZB');
         expect(result.sessionId).toContain('imp-');
     });
 
     it('stopImpersonation returns stop metadata', async () => {
-        const result = await adminService.stopImpersonation('01HZZZZZZZZZZZZZZZZZZZZZZU', adminCtx);
+        const result = await adminService.stopImpersonation('01HZZZZZZZZZZZZZZZZZZZZZZB', adminCtx);
 
         expect(result.impersonatorSub).toBe('01HZZZZZZZZZZZZZZZZZZZZZZA');
-        expect(result.impersonatedSub).toBe('01HZZZZZZZZZZZZZZZZZZZZZZU');
+        expect(result.impersonatedSub).toBe('01HZZZZZZZZZZZZZZZZZZZZZZB');
     });
 
     it('suspendUser throws when target missing', async () => {

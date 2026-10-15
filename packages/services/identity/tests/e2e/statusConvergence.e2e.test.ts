@@ -56,10 +56,10 @@ describe('status convergence (integration)', () => {
         await db.insert(accounts).values({ userId: user.id }).onConflictDoNothing();
         await db.insert(profiles).values({ userId: user.id, displayName: 'A Cook' }).onConflictDoNothing();
 
-        return user.id as UserId;
+        return user.id;
     }
 
-    async function readState(userId: string) {
+    async function readState(userId: UserId) {
         const [row] = await db.select().from(users).where(eq(users.id, userId));
 
         return {
@@ -70,7 +70,7 @@ describe('status convergence (integration)', () => {
     }
 
     /** Change the status the way a service path does: status and version in ONE statement. */
-    async function changeStatus(userId: string, status: 'active' | 'suspended' | 'tombstoned'): Promise<void> {
+    async function changeStatus(userId: UserId, status: 'active' | 'suspended' | 'tombstoned'): Promise<void> {
         await db
             .update(users)
             .set({ status, updatedAt: new Date(), statusVersion: sql`${users.statusVersion} + 1` })

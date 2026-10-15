@@ -22,6 +22,7 @@
  */
 import { eq } from 'drizzle-orm';
 import type { IdentityWriter } from './identityWriter.js';
+import type { UserId } from './ulid.js';
 
 import { accounts } from './schema/accounts.js';
 import { lifecycleEvents } from './schema/lifecycleEvents.js';
@@ -34,7 +35,7 @@ import { computeProfileScrub } from '@kitchensink/identity-core';
 /** The inputs to {@link eraseIdentityRow}. */
 export interface EraseIdentityInput {
     /** The app-user ULID (identity `users.id`) to erase. */
-    readonly userId: string;
+    readonly userId: UserId;
     /** The R8 audit trigger source — `'sweep'` (12-month auto-erasure) or `'admin'` (webhook/dashboard). */
     readonly triggerSource: LifecycleTriggerSource;
     /** The R8 audit actor label (e.g. the webhook name), or `null` for an unattributed automated sweep. */

@@ -2,7 +2,7 @@ import type { Context, ScheduledEvent } from 'aws-lambda';
 import { and, eq, lte } from 'drizzle-orm';
 import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 
-import { eraseIdentityRow, users } from '@kitchensink/identity-db';
+import { eraseIdentityRow, users, type UserId } from '@kitchensink/identity-db';
 
 import { getConfig } from '../config/env.js';
 import { withDb, type DbContext } from '../common/handlerPipeline.js';
@@ -33,7 +33,7 @@ const sqsClient = new SQSClient({});
 
 /** An expired tombstone to erase — the durable ULID + the Clerk `sub` the erasure deletes. */
 interface ExpiredTombstone {
-    id: string;
+    id: UserId;
     identityId: string;
 }
 
@@ -83,7 +83,7 @@ const innerHandler = async (_event: ScheduledEvent, _context: Context, { db }: D
     const expired = (await db
         .select({ id: users.id, identityId: users.identityId })
         .from(users)
-        .where(and(eq(users.status, 'tombstoned'), lte(users.deletedAt, cutoff)))) as ExpiredTombstone[];
+        .where(and(eq(users.status, 'tombstoned'), lte(users.deletedAt, cutoff)))) satisfies ExpiredTombstone[];
 
     let erased = 0;
     let failed = 0;

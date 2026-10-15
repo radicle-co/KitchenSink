@@ -2,13 +2,30 @@ import { Inject, Injectable, NotFoundException, ConflictException } from '@nestj
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { and, eq, ilike, sql } from 'drizzle-orm';
 
-import { lifecycleEvents, users } from '@kitchensink/identity-db';
+import { isUserId, lifecycleEvents, users, type UserId } from '@kitchensink/identity-db';
 import { DrizzleProvider } from '../database/database.module.js';
 import { containsPattern } from '../common/likePattern.js';
 import type { AuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
 import { SqsService } from '../queue/sqs.service.js';
 import { createServiceLogger } from '@kitchensink/service-logging';
 import { reportDeletionEnqueueFailure } from '../queue/deletionEnqueue.error.js';
+
+/**
+ * The caller-named user as a {@link UserId}, or `404`. The controller has already checked the SHAPE of a path
+ * parameter (`adminUserIdParamSchema`); this narrows the type at the one boundary where a plain string meets
+ * `users.id`, and answers a string that is no user id exactly as the service answers an unknown one.
+ *
+ * @param raw - The id the admin named.
+ * @returns The id, branded.
+ * @throws NotFoundException when `raw` is not a well-formed user id.
+ */
+function userIdOrNotFound(raw: string): UserId {
+    if (!isUserId(raw)) {
+        throw new NotFoundException(`User ${raw} not found`);
+    }
+
+    return raw;
+}
 
 // Authorization (the `admin:users` scope check) is enforced declaratively by `ScopesGuard` +
 // `@RequireScopes('admin:users')` on `AdminController` — see that guard's JSDoc for the pattern. This
@@ -34,7 +51,8 @@ export class AdminService {
         const predicates = [
             filters.email ? ilike(users.email, containsPattern(filters.email)) : undefined,
             filters.name ? ilike(users.name, containsPattern(filters.name)) : undefined,
-            filters.sub ? eq(users.id, filters.sub) : undefined,
+            // A `sub` that is no user id matches no user: the filter must stay on and match nothing, not fall away.
+            filters.sub ? (isUserId(filters.sub) ? eq(users.id, filters.sub) : sql`false`) : undefined,
         ].filter((predicate) => predicate !== undefined);
 
         const query = this.db
@@ -63,7 +81,8 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ sub: string; status: 'suspended'; suspendedAt: string }> {
-        const [existing] = await this.db.select().from(users).where(eq(users.id, targetSub)).limit(1);
+        const targetId = userIdOrNotFound(targetSub);
+        const [existing] = await this.db.select().from(users).where(eq(users.id, targetId)).limit(1);
 
         if (!existing) {
             throw new NotFoundException(`User ${targetSub} not found`);
@@ -74,7 +93,7 @@ export class AdminService {
         await this.db
             .update(users)
             .set({ status: 'suspended', updatedAt: now, statusVersion: sql`${users.statusVersion} + 1` })
-            .where(eq(users.id, targetSub));
+            .where(eq(users.id, targetId));
 
         this.logger.warn('user suspended', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 
@@ -85,7 +104,8 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ sub: string; status: 'active'; unsuspendedAt: string }> {
-        const [existing] = await this.db.select().from(users).where(eq(users.id, targetSub)).limit(1);
+        const targetId = userIdOrNotFound(targetSub);
+        const [existing] = await this.db.select().from(users).where(eq(users.id, targetId)).limit(1);
 
         if (!existing) {
             throw new NotFoundException(`User ${targetSub} not found`);
@@ -95,7 +115,7 @@ export class AdminService {
         await this.db
             .update(users)
             .set({ status: 'active', updatedAt: now, statusVersion: sql`${users.statusVersion} + 1` })
-            .where(eq(users.id, targetSub));
+            .where(eq(users.id, targetId));
 
         this.logger.warn('user unsuspended', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 
@@ -117,7 +137,8 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ sub: string; status: 'active'; reactivatedAt: string }> {
-        const [existing] = await this.db.select().from(users).where(eq(users.id, targetSub)).limit(1);
+        const targetId = userIdOrNotFound(targetSub);
+        const [existing] = await this.db.select().from(users).where(eq(users.id, targetId)).limit(1);
 
         if (!existing) {
             throw new NotFoundException(`User ${targetSub} not found`);
@@ -142,7 +163,7 @@ export class AdminService {
                     updatedAt: now,
                     statusVersion: sql`${users.statusVersion} + 1`,
                 })
-                .where(eq(users.id, targetSub));
+                .where(eq(users.id, targetId));
 
             await tx.insert(lifecycleEvents).values({
                 userId: existing.id,
@@ -182,7 +203,8 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ impersonatorSub: string; impersonatedSub: string; sessionId: string; startedAt: string }> {
-        const [existing] = await this.db.select().from(users).where(eq(users.id, targetSub)).limit(1);
+        const targetId = userIdOrNotFound(targetSub);
+        const [existing] = await this.db.select().from(users).where(eq(users.id, targetId)).limit(1);
 
         if (!existing) {
             throw new NotFoundException(`User ${targetSub} not found`);
@@ -209,7 +231,8 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ impersonatorSub: string; impersonatedSub: string; stoppedAt: string; message: string }> {
-        const [existing] = await this.db.select().from(users).where(eq(users.id, targetSub)).limit(1);
+        const targetId = userIdOrNotFound(targetSub);
+        const [existing] = await this.db.select().from(users).where(eq(users.id, targetId)).limit(1);
 
         if (!existing) {
             throw new NotFoundException(`User ${targetSub} not found`);

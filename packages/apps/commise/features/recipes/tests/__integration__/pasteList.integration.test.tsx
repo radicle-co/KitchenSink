@@ -47,6 +47,7 @@ const COMPLETE_JOB = {
             lineIndex: 0,
             sourceLine: '2 cups flour, sifted',
             status: 'parsed',
+            progress: null,
             proposal: {
                 raw: '2 cups flour, sifted',
                 quantity: { kind: 'exact', value: 2 },
@@ -85,7 +86,14 @@ function wire(beforeJob: () => Promise<void> = async () => undefined) {
                     {
                         ...COMPLETE_JOB,
                         status: 'running',
-                        lines: [{ ...COMPLETE_JOB.lines[0], status: 'pending', proposal: null }],
+                        lines: [
+                            {
+                                ...COMPLETE_JOB.lines[0],
+                                status: 'pending',
+                                proposal: null,
+                                progress: { phase: 'queued' },
+                            },
+                        ],
                     },
                     202,
                 );

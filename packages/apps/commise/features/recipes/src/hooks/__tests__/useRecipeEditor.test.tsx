@@ -1607,6 +1607,34 @@ describe('paste and the create', () => {
         expect(port.submitExclusive).not.toHaveBeenCalled();
     });
 
+    /**
+     * Owner ruling 2026-10-13 (plan 2026-10-15-011): a parse takes as long as it takes, so the app going to the
+     * background lets the create through though a paste is still joining. The lines that join after it are authored
+     * lines (D10), and the hold letting go later does not send a second create.
+     */
+    it('⛔ creates the draft when the app goes to the background mid-paste, and the later lines keep no source', async () => {
+        const hold = createPasteHold();
+        const { result, port } = mount({}, hold);
+
+        typeTitle(result);
+        hold.set(true);
+        act(() => {
+            result.current.checkpoint('appHidden');
+        });
+        await settle();
+        port.claim(port.lastSeq());
+
+        expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create']);
+        expect(result.current.pasteKeepsSource).toBe(false);
+
+        act(() => {
+            hold.set(false);
+        });
+        await settle();
+
+        expect(port.submitted.filter((intent) => intent.intentKind === 'create')).toHaveLength(1);
+    });
+
     it('a published recipe offers no paste', () => {
         const { result } = mount({ recipe: PUBLISHED });
 

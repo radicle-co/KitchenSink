@@ -90,6 +90,14 @@ const DRAFT_CHECKPOINTS: ReadonlySet<CheckpointTrigger> = new Set([
     'publish',
 ]);
 
+/**
+ * The triggers at which a paste still joining lets the create through. Leaving the editor ends the paste with it; the
+ * app going to the background means the cook may not come back, and a parse takes as long as it takes (owner ruling
+ * 2026-10-13), so the draft must not wait on the device for it. Lines that join after that create land without their
+ * source, as D10 accepts (`pastedLineKeepsSource`).
+ */
+const PASTE_HOLD_RELEASES: ReadonlySet<CheckpointTrigger> = new Set(['editorExit', 'appHidden']);
+
 const NONE: ServerWrite = { kind: 'none' };
 
 /**
@@ -107,9 +115,9 @@ export function serverWriteFor(input: CheckpointInput): ServerWrite {
 
     switch (lifecycle) {
         case 'unsaved':
-            // A paste still joining holds the create, except on the way out: the paste ends with the editor, and a titled
-            // recipe is still created when the cook leaves.
-            if (pastePending && trigger !== 'editorExit') {
+            // A paste still joining holds the create, except on the way out or into the background
+            // (`PASTE_HOLD_RELEASES`): a titled recipe is still created when the cook may not come back.
+            if (pastePending && !PASTE_HOLD_RELEASES.has(trigger)) {
                 return NONE;
             }
 

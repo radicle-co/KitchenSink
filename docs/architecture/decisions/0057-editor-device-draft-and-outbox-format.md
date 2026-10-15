@@ -113,7 +113,8 @@ to draft through the API therefore stays `published` to the editor: its changes 
 no paste. A read without the field falls back to `status = published`, which the service's own CHECK makes imply a
 first publish. The same lifecycle gates Paste a list (`pasteOffered`, D10: until the first publish) and decides whether
 a pasted line keeps its source (`pastedLineKeepsSource`: only until the create is submitted). A paste still joining
-holds the create, except on the editor's exit.
+holds the create, except on the editor's exit and when the app goes to the background (owner ruling 2026-10-13: a parse
+takes as long as it takes, so a draft must not wait on the device for it).
 
 The rebind command (ADR-0045) is a direct write, not an outbox intent: each rebind needs the version the previous
 answer returned, which an intent cannot carry without the outbox rewriting payloads. It runs only while the editor has

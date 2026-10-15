@@ -167,16 +167,21 @@ describe('pastedLineKeepsSource — a pasted line carries its source only into t
 
 /**
  * A paste still joining holds the CREATE (finding 8): a line that joined after the create was sent would keep its source
- * in the draft and lose it in the next update. Publish is held by the bar; the other checkpoints are held here. Leaving
- * the editor is not held: the paste ends with the editor, and a titled recipe must still be created on the way out.
+ * in the draft and lose it in the next update. Publish is held by the bar; the other checkpoints are held here.
+ *
+ * Two triggers let the create through. Leaving the editor: the paste ends with the editor, and a titled recipe must
+ * still be created on the way out. And — REWRITTEN for owner ruling 2026-10-13 (plan 2026-10-15-011), which turned
+ * `appHidden` from held to released — the app going to the background: a parse takes as long as it takes, the cook may
+ * not come back, and a draft that exists only on the device is the one a closed tab or a killed app loses. The lines
+ * that join after that create land as authored lines, without their source, as D10 accepts.
  */
 describe('serverWriteFor — a paste still joining', () => {
     it.each<[CheckpointTrigger, ServerWrite]>([
         ['sectionChange', NONE],
-        ['appHidden', NONE],
         ['checkpointIdle', NONE],
         ['publish', NONE],
         ['editorExit', { kind: 'create', publish: false }],
+        ['appHidden', { kind: 'create', publish: false }],
     ])('an unsaved recipe: %s → %o', (trigger, expected) => {
         expect(decide('unsaved', trigger, { pastePending: true })).toStrictEqual(expected);
     });

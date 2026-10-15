@@ -6,8 +6,9 @@
  *
  *  - the ages are measured by the DATABASE's clock, in the statement that reads the rows (`claimLine` stamps
  *    `last_received_at` with the database's `now()`, so the read must too);
- *  - they arrive as NUMBERS: `EXTRACT` answers `numeric`, which node-pg returns as a string unless cast to `float8`,
- *    and a string compared with `<=` would decide every phase wrongly without throwing;
+ *  - they arrive as NUMBERS: `EXTRACT` answers `numeric`, which node-pg returns as a STRING unless cast to `float8`.
+ *    JavaScript's `<=` would coerce a numeric string and hide that, so the DAL's own record is asserted directly — a
+ *    string there is a type that lies to every later reader;
  *  - `attempts` NULL (a row from before migration 0046) reads as never claimed;
  *  - quiet is per JOB: of two jobs, only the one whose lines have all gone quiet reads `stalled`.
  *
@@ -20,6 +21,8 @@ import pg from 'pg';
 
 import { parseJobResponseSchema, type ParseJobResponse } from '@kitchensink/schema-recipe';
 
+import { createRecipeDrizzle } from '../../../src/database/client.js';
+import { ParseJobsDal } from '../../../src/recipes/dal/parseJobs.dal.js';
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { SEED_PARSE_QUEUE_URL } from '../../support/localHarness.js';
 import { recipeDb } from '../../support/roleDb.js';
@@ -113,6 +116,22 @@ describe('parse job progress (LOCAL e2e)', () => {
             { phase: 'retrying' },
             { phase: 'delayed' },
         ]);
+    });
+
+    it('hands the service its ages as numbers, measured by the database', async () => {
+        const job = await createJob('progress number check olives');
+
+        await claim(job.id, 0, 2, '30 seconds');
+
+        const record = await new ParseJobsDal(createRecipeDrizzle(pool), pool).getJob(OWNER, job.id);
+        const [line] = record?.lines ?? [];
+
+        expect(typeof line?.claimAgeSeconds).toBe('number');
+        expect(typeof record?.quietSeconds).toBe('number');
+        // Thirty seconds by the database's clock, give or take the round trip.
+        expect(line?.claimAgeSeconds).toBeGreaterThanOrEqual(30);
+        expect(line?.claimAgeSeconds).toBeLessThan(40);
+        expect(line?.attempts).toBe(2);
     });
 
     it('reads a NULL attempt count as never claimed', async () => {

@@ -199,17 +199,15 @@ describe('assertSignerEntitled — a body read that is cut short', () => {
     it.each([
         ['a timeout', new DOMException('The operation timed out.', 'TimeoutError')],
         ['an abort', new DOMException('The operation was aborted.', 'AbortError')],
-    ])(
-        '⛔ retries when the attempt deadline fires while the body is read (%s), as it does before the headers',
-        async (_l, failure) => {
-            const fetch = bodyFails(failure, json(200, profile('granted')));
+        ['a stream cut short', new TypeError('terminated')],
+    ])('⛔ retries when the body read is cut short (%s), as it does before the headers', async (_l, failure) => {
+        const fetch = bodyFails(failure, json(200, profile('granted')));
 
-            await expect(
-                assertSignerEntitled(input, { fetch: fetch as unknown as typeof globalThis.fetch, retry: NO_WAIT }),
-            ).resolves.toBeUndefined();
-            expect(fetch).toHaveBeenCalledTimes(2);
-        },
-    );
+        await expect(
+            assertSignerEntitled(input, { fetch: fetch as unknown as typeof globalThis.fetch, retry: NO_WAIT }),
+        ).resolves.toBeUndefined();
+        expect(fetch).toHaveBeenCalledTimes(2);
+    });
 
     it('stays final for a body that really is not JSON: one attempt, and it says so', async () => {
         const fetch = bodyFails(new SyntaxError('Unexpected token < in JSON'));

@@ -106,10 +106,6 @@ class TransientIdentityFailure extends Error {
     }
 }
 
-/** Whether `error` is the attempt deadline (`AbortSignal.timeout`) or an abort firing. */
-const isDeadlineError = (error: unknown): error is Error =>
-    error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
-
 /**
  * Refuse to seed unless identity says the signer is entitled to the paid features.
  *
@@ -154,11 +150,14 @@ export async function assertSignerEntitled(
             try {
                 return (await response.json()) as unknown;
             } catch (error) {
-                // The attempt deadline also bounds the body read: a stream cut short is the stage failing to finish,
-                // like a fetch that never completed, and unlike a body that arrived whole and is not JSON.
-                throw isDeadlineError(error)
-                    ? new TransientIdentityFailure(`${asSigner} did not finish its body (${error.message})`)
-                    : new AbortError(`${asSigner} answered ${response.status} with a body that is not JSON`);
+                // Only a body that ARRIVED WHOLE and does not parse is final (`SyntaxError`). Any other failure of the
+                // read — the attempt deadline, or undici's `TypeError: terminated` when the stream is cut — is the
+                // stage failing to finish, like a fetch that never completed, so it is retried.
+                throw error instanceof SyntaxError
+                    ? new AbortError(`${asSigner} answered ${response.status} with a body that is not JSON`)
+                    : new TransientIdentityFailure(
+                          `${asSigner} did not finish its body (${error instanceof Error ? error.message : String(error)})`,
+                      );
             }
         },
         {

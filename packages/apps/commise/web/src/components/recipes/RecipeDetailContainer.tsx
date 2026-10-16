@@ -15,18 +15,15 @@
  * the cooking progress start fresh for B, and nothing of A's can leak onto it.
  *
  * Remote state stays in TanStack Query — this component derives its view from the query, never copying the
- * recipe into local state; the only local state is the ephemeral delete-dialog open flag. The mutations are
- * owned by the recipe-service hooks (`useDeleteRecipe` / `useSetRecipeVisibility` / `useCloneRecipe`), which
- * invalidate the relevant caches; the container only wires the blocks' callbacks to them and handles
- * post-success navigation.
+ * recipe into local state. The mutations are owned by the recipe-service hooks, which invalidate the relevant caches;
+ * the controller wires them and this container hands it the navigation after a clone or a delete.
  *
- * A single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from the recipe's `ownerId`
- * key — the app-user ULID read off Clerk's `external_id` session claim, the SAME claim the recipe service
- * uses as the owner key (see `IDENTITY_SYNC_PENDING_CODE`). The ownership and clone gates read from that ONE
- * `Viewer` through the shared `isOwner`/`canClone` policy predicates, the SAME predicates the mobile detail screen
- * evaluates, so the two platforms can never diverge on a gate (this closes D7, where the clone gate previously
- * disagreed: web ignored ownership while mobile checked it). Whether Private is offered comes from the profile's
- * `account.paidFeatures` alone (`paidFeatureStateOf` / `knownPaidFeaturesOf`), decided in `useGatedPrivate`.
+ * Every DECISION the page makes — who the viewer is, the ownership and clone gates, the Private gate, the visibility
+ * notice, the ⋯ menu, the rating block and the owner dialogs — is `useRecipeDetailController`
+ * (`@commise/features-recipes/detail`), the SAME hook the mobile screen runs, so the two platforms cannot diverge on a
+ * gate (this closes D7). The viewer is the session's `external_id` claim (the recipe service's owner key) and, when the
+ * claim is absent, the profile's `user.id` (owner ruling 2026-10-16). This file keeps what is the web's own: the read,
+ * the layout, the router and the address that carries a finished editor's refusal.
  *
  * The recipe page (build spec §6): the action row's primary — Edit recipe for the owner, Save a copy for another cook
  * who may clone; Back and the ⋯ menu, whose entries come from the shared `detailMenuOf` (Version history, Make
@@ -38,47 +35,25 @@
  */
 import { useAuth } from '@clerk/nextjs';
 import {
-    RecipeDeleteDialog,
     RecipeDetailView,
-    RecipeRatingDisplay,
-    RecipeRatingInput,
-    detailMenuOf,
-    RecipeUpsellSheet,
-    RecipeMakePublicDialog,
-    useGatedPrivate,
-    useMakePublicConfirm,
-    useServerRefusedPrivate,
     editorMessages,
     FINISHED_OUTCOME_PARAM,
     finishedNoticeOf,
     isUnreachableRecovery,
     parseFinishedParam,
-    ratingModeFor,
     recipeActionMessages,
     recipeMessages,
-    useCookMarks,
-    visibilityNoticeOf,
-    type DetailMenuItem,
-    type RecipeRatingError,
 } from '@commise/features-recipes';
+import { RecipeDetailDialogs, RecipeDetailRating, useRecipeDetailController } from '@commise/features-recipes/detail';
 import { useMessages } from '@commise/i18n/react';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
-import { ActionMenu, type ActionMenuItem } from '@commise/ui/action-menu';
+import { ActionMenu } from '@commise/ui/action-menu';
 import { Button, buttonSurfaceClass, GHOST_EDGE_CLASS } from '@commise/ui/button';
 import { HeroButton } from '@commise/ui/hero-button';
 import { Icon } from '@commise/ui/icon';
 import { ScrollHost, useScrollHost } from '@commise/ui/scroll-host';
-import { knownPaidFeaturesOf, paidFeatureStateOf } from '@commise/features-account';
-import { RecipeVisibility, canClone, isOwner, makeViewer } from '@kitchensink/recipe-core';
-import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
-import {
-    useCloneRecipe,
-    useDeleteRecipe,
-    useDeleteRecipeRating,
-    useRecipeServiceClient,
-    useSetRecipeRating,
-    useSetRecipeVisibility,
-} from '@kitchensink/recipe-service-client/hooks';
+import { recipeQueries } from '@kitchensink/recipe-service-client';
+import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import Link from 'next/link';
@@ -97,20 +72,6 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 export interface RecipeDetailContainerProps {
     /** The recipe id from the `[id]` route segment. */
     readonly id: string;
-}
-
-/**
- * Read the viewer's app-user ULID from Clerk's session claims (the `external_id` claim — the recipe
- * service's owner key). Returns `undefined` when the claim is absent so ownership stays deniably false.
- *
- * @param sessionClaims - Clerk's session claims (untyped for the custom `external_id` claim).
- * @returns The viewer's app-user ULID, or `undefined` when it is not present.
- */
-function readViewerId(sessionClaims: unknown): string | undefined {
-    const claims = sessionClaims as Record<string, unknown> | null;
-    const externalId = claims?.['external_id'];
-
-    return typeof externalId === 'string' ? externalId : undefined;
 }
 
 /**
@@ -188,15 +149,8 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     // query, counting only retries that loaded every name, so its recoveries move focus to the Ingredients heading
     // (not the title) and only when the button the cook pressed is gone.
     const unreachableRetry = useRefreshNotice(query, { recovered: isUnreachableRecovery });
-    const deleteRecipe = useDeleteRecipe();
-    const setVisibility = useSetRecipeVisibility();
-    const cloneRecipe = useCloneRecipe();
-    const setRating = useSetRecipeRating();
-    const deleteRating = useDeleteRecipeRating();
-    // The view binds the cook's marks itself; the ⋯ menu reads the same marks to offer Clear checks.
-    const marks = useCookMarks(id);
-    const { detailActions, moreMenu, visibility: visibilityCopy } = useMessages(recipeActionMessages);
     const { detail: detailCopy } = useMessages(recipeMessages);
+    const { detailActions } = useMessages(recipeActionMessages);
     const editorCopy = useMessages(editorMessages);
 
     // E8: the editor finished and navigated here with `?done=<outcome>[.<refusal>]`; say how it finished once. The
@@ -225,157 +179,52 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
         keepFinishRefusal,
     );
 
-    const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
-
     const recipe = query.data;
-    // Plan 2026-10-14-009 D14: whether Make private is offered, and whether it applies or opens the Premium sheet, is
-    // decided in ONE place, `useGatedPrivate`, from the viewer's paid features alone (owner ruling 2026-10-13).
-    const privateGate = useGatedPrivate({
-        state: paidFeatureStateOf(profile),
-        saved: recipe.visibility,
-        apply: () => setVisibility.mutate({ id: id, visibility: RecipeVisibility.PRIVATE }),
-    });
-    // Q5 (UX SPECIFY 2026-10-15): a downgraded owner confirms Make public first; the confirm stays up, busy, while the
-    // change is in flight, and says a failure inside itself.
-    const serverRefusedPrivate = useServerRefusedPrivate(id, knownPaidFeaturesOf(profile));
-    // The confirm's words say what is KNOWN: a failed profile read is "may not", never "won't" (review).
-    const makePublic = useMakePublicConfirm({
-        state: knownPaidFeaturesOf(profile) ?? 'loading',
-        saved: recipe.visibility,
-        apply: (done) => setVisibility.mutate({ id, visibility: RecipeVisibility.PUBLIC }, { onSuccess: done }),
-    });
-    const viewerId = readViewerId(sessionClaims);
-    // P4: ONE Viewer value object, built from this platform's identity signal (Clerk's `external_id` claim), feeds every
-    // gate below through the shared policy predicates — the SAME predicates the mobile detail screen evaluates (D7).
-    const viewer = makeViewer({ id: viewerId });
-    const viewerIsOwner = isOwner(recipe, viewer);
-    // §6.4: ONE slot under the rating and visibility line says every refusal of a Private, and the generic failure. The
-    // make-public confirm says its own failure inside itself, so it is not said twice.
-    const visibilityNotice = visibilityNoticeOf(
-        {
-            viewerIsOwner,
-            isPublic: recipe.visibility === RecipeVisibility.PUBLIC,
-            serverRefusal: serverRefusedPrivate,
-            finishRefused: finishRefusalFor === id,
-            known: knownPaidFeaturesOf(profile),
-            writeFailed: setVisibility.error !== null && !makePublic.dialog.open,
-        },
-        visibilityCopy,
-    );
-    // D7: a viewer may clone a PUBLIC recipe they do not own — the SAME `canClone` predicate mobile now
-    // evaluates, closing the drift where web ignored ownership and mobile checked it.
-    const viewerCanClone = canClone(recipe, viewer);
-
-    // FR-013 ratings: the viewer may rate a recipe they can read and do NOT own (Sc8). The read-through user
-    // resolution guarantees the recipe is one the viewer can see, so ownership is the only client-side gate;
-    // the backend enforces the rest (Sc8 own-recipe 403, Sc9 not-found for the unreadable). A rating write's
-    // error is mapped to the honest surface: a not-found (the client's 404 shape) is "not available" (Sc9),
-    // never a distinct "forbidden"; anything else is generic. Set errors win over remove (only one is in
-    // flight at a time — the control disables its inputs while pending).
-    const ratingMode = ratingModeFor({ viewerId, ownerId: recipe.ownerId });
-    const ratingError = setRating.error ?? deleteRating.error;
-    const ratingErrorKind: RecipeRatingError | undefined =
-        ratingError === null || ratingError === undefined
-            ? undefined
-            : isNotFoundError(ratingError)
-              ? 'notAvailable'
-              : 'generic';
-    // The stars the input pre-selects: the server's `viewerRating` (DA4 — `useSetRecipeRating` /
-    // `useDeleteRecipeRating` patch this optimistically in the cache on `onMutate`, so it never flickers back
-    // to the pre-write value before the refetch lands). The community `averageRating` stays the displayed score.
-    const selectedStars = recipe.viewerRating;
-
-    // §6.1/§6.4: the action row is the primary — Edit recipe for the owner, Save a copy for another cook — and the ⋯
-    // menu, whose entries are decided once for both platforms (`detailMenuOf`). The two NAVIGATIONS stay real links: a
-    // `<button onClick={router.push}>` would lose the link role, ⌘-click and open-in-new-tab.
-    //
-    // ⛔ The delete CONFIRMATION DIALOG does NOT live in the menu: it stays a sibling below, so it survives the menu
-    // closing while the dialog is open.
-    const menu = detailMenuOf({
-        owner: viewerIsOwner,
-        isPublic: recipe.visibility === RecipeVisibility.PUBLIC,
-        hasMarks: marks.hasMarks,
-        offersPrivate: privateGate.offersPrivate,
-    });
     const versionsHref = `/${locale}/recipes/${id}/versions`;
+    // Everything the page decides, once for both apps: the viewer (the session claim, else the profile), the Private
+    // gate, the visibility notice, the primary, the ⋯ menu, the rating block and the owner dialogs. This shell draws it.
+    const page = useRecipeDetailController({
+        id,
+        recipe,
+        sessionClaims,
+        profile,
+        finishRefused: finishRefusalFor === id,
+        nav: {
+            onVersions: () => router.push(versionsHref as Route),
+            // A copy needs a real edit before it can be published (FR-005b), so it opens in the editor.
+            onCloned: (createdId) => router.push(`/${locale}/recipes/${createdId}/edit` as Route),
+            // "Recipe deleted" is said by the page this lands on: a snackbar raised here would die with this page's
+            // shell (`recipesAfterDeleteHref`).
+            onDeleted: () => router.push(recipesAfterDeleteHref(locale) as Route),
+        },
+    });
 
-    const menuItem = (item: DetailMenuItem): ActionMenuItem => {
-        switch (item) {
-            case 'versions':
-                return {
-                    id: item,
-                    label: detailActions.versionHistory,
-                    icon: 'clock',
-                    onSelect: () => router.push(versionsHref as Route),
-                };
-            case 'makePrivate':
-                return {
-                    id: item,
-                    label: detailActions.makePrivate,
-                    icon: 'lock',
-                    onSelect: privateGate.request,
-                };
-            case 'makePublic':
-                return {
-                    id: item,
-                    label: detailActions.makePublic,
-                    icon: 'globe',
-                    // A fresh confirm starts clean: an earlier failure is not news to it (review S3).
-                    onSelect: () => {
-                        setVisibility.reset();
-                        makePublic.request();
-                    },
-                };
-            case 'clearChecks':
-                return { id: item, label: detailActions.clearChecks, icon: 'rotateCcw', onSelect: marks.clear };
-        }
-    };
+    if (!page.ready) {
+        // Nothing names the viewer yet and the profile may: hold the page's own loading state rather than draw a
+        // non-owner page of the cook's recipe and correct it.
+        return <RecipeDetailRouteLoading />;
+    }
 
     // The ⋯ menu is drawn twice — a disc over the hero below 840, a plain trigger in the action row from 840 — so it is
     // built by appearance. Each instance keeps its own open state, and the hidden one is `display: none`, so it is
     // neither focusable nor announced.
     const moreActions = (appearance: 'plain' | 'disc') =>
-        menu.items.length > 0 || menu.destructive !== undefined ? (
-            <ActionMenu
-                triggerLabel={moreMenu.triggerFor.replace('{title}', recipe.title)}
-                title={moreMenu.title}
-                closeLabel={moreMenu.close}
-                items={menu.items.map(menuItem)}
-                appearance={appearance}
-                {...(menu.destructive === undefined
-                    ? {}
-                    : {
-                          destructiveItem: {
-                              id: 'delete',
-                              label: detailActions.deleteRecipe,
-                              icon: 'trash',
-                              onSelect: () => setDeleteDialogOpen(true),
-                          },
-                      })}
-            />
+        page.menu === undefined ? null : <ActionMenu {...page.menu} appearance={appearance} />;
+    // §6.1: the action row is the primary — Edit recipe for the owner, Save a copy for another cook. The two NAVIGATIONS
+    // stay real links: a `<button onClick={router.push}>` would lose the link role, ⌘-click and open-in-new-tab.
+    const primary =
+        page.primary === 'edit' ? (
+            <Link href={`/${locale}/recipes/${id}/edit` as Route} className={buttonSurfaceClass('primary')}>
+                <Icon name="pencilLine" size={20} />
+                {detailActions.editRecipe}
+            </Link>
+        ) : page.primary === 'saveCopy' ? (
+            <Button icon="copyPlus" busy={page.clone.pending} onPress={page.clone.run}>
+                {detailActions.saveCopy}
+            </Button>
         ) : null;
-    const hasMenu = menu.items.length > 0 || menu.destructive !== undefined;
-    const primary = viewerIsOwner ? (
-        <Link href={`/${locale}/recipes/${id}/edit` as Route} className={buttonSurfaceClass('primary')}>
-            <Icon name="pencilLine" size={20} />
-            {detailActions.editRecipe}
-        </Link>
-    ) : viewerCanClone ? (
-        <Button
-            icon="copyPlus"
-            busy={cloneRecipe.isPending}
-            onPress={() =>
-                // A copy needs a real edit before it can be published (FR-005b), so it opens in the editor.
-                cloneRecipe.mutate(id, {
-                    onSuccess: (created) => router.push(`/${locale}/recipes/${created.id}/edit` as Route),
-                })
-            }
-        >
-            {detailActions.saveCopy}
-        </Button>
-    ) : null;
     const headerActions =
-        primary === null && !hasMenu ? undefined : (
+        primary === null && page.menu === undefined ? undefined : (
             <>
                 {primary}
                 <span className="hidden nav:contents">{moreActions('plain')}</span>
@@ -394,9 +243,9 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                     recipe={recipe}
                     dataSourcesHref={dataSourcesHref(locale)}
                     editHref={`/${locale}/recipes/${id}/edit`}
-                    versionsHref={viewerIsOwner ? versionsHref : undefined}
-                    viewerIsOwner={viewerIsOwner}
-                    {...(visibilityNotice === undefined ? {} : { visibilityNotice })}
+                    versionsHref={page.viewerIsOwner ? versionsHref : undefined}
+                    viewerIsOwner={page.viewerIsOwner}
+                    {...(page.visibilityNotice === undefined ? {} : { visibilityNotice: page.visibilityNotice })}
                     refreshNotice={refreshNotice}
                     unreachableRetry={unreachableRetry}
                     headerActions={headerActions}
@@ -410,7 +259,7 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                                     onPress={() => router.push(backHref as Route)}
                                 />
                             </span>
-                            {hasMenu ? <span className="nav:hidden">{moreActions('disc')}</span> : null}
+                            {page.menu === undefined ? null : <span className="nav:hidden">{moreActions('disc')}</span>}
                         </>
                     }
                     back={
@@ -424,54 +273,11 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                             </Link>
                         </span>
                     }
-                    rating={
-                        // Orchestration picks the render component (B15): the owner sees the read-only aggregate (Sc8);
-                        // everyone else gets the interactive input. The own-recipe gate lives HERE, not in a mode prop.
-                        ratingMode === 'own' ? (
-                            <RecipeRatingDisplay average={recipe.averageRating} ratingCount={recipe.ratingCount} />
-                        ) : (
-                            <RecipeRatingInput
-                                average={recipe.averageRating}
-                                ratingCount={recipe.ratingCount}
-                                selectedStars={selectedStars}
-                                pending={setRating.isPending || deleteRating.isPending}
-                                error={ratingErrorKind}
-                                onRate={(stars) => setRating.mutate({ id, input: { stars } })}
-                                onRemove={() => deleteRating.mutate(id)}
-                            />
-                        )
-                    }
+                    rating={<RecipeDetailRating {...page.rating} />}
                 />
             </ScrollHost>
 
-            {viewerIsOwner && <RecipeUpsellSheet {...privateGate.sheet} />}
-
-            {viewerIsOwner && (
-                <RecipeMakePublicDialog
-                    {...makePublic.dialog}
-                    busy={setVisibility.isPending}
-                    error={setVisibility.error !== null}
-                />
-            )}
-
-            {viewerIsOwner && (
-                <RecipeDeleteDialog
-                    recipeTitle={recipe.title}
-                    open={isDeleteDialogOpen}
-                    deleting={deleteRecipe.isPending}
-                    // B17 — a failed delete left the dialog open with no explanation; surface an honest
-                    // reason inside it. Cleared on the next attempt (and on recipe switch).
-                    error={deleteRecipe.error !== null}
-                    onConfirm={() =>
-                        deleteRecipe.mutate(id, {
-                            // "Recipe deleted" is said by the page this lands on: a snackbar raised here would die with
-                            // this page's shell (`recipesAfterDeleteHref`).
-                            onSuccess: () => router.push(recipesAfterDeleteHref(locale) as Route),
-                        })
-                    }
-                    onCancel={() => setDeleteDialogOpen(false)}
-                />
-            )}
+            <RecipeDetailDialogs {...page.dialogs} />
         </>
     );
 };

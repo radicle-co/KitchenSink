@@ -12,13 +12,13 @@
  *   paid features are hidden or the profile is loading (plan 2026-10-14-009 D14).
  * - The clone action renders for a PUBLIC recipe the viewer does not own (US2), copying it into their recipes.
  *
- * A single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from `useUserProfile` (the
- * viewer's app-user id); every ownership/clone gate above reads from that ONE `Viewer` through the shared
- * `isOwner`/`canClone` policy predicates, and the visibility gate from `paidFeatureStateOf` — the SAME predicates
- * the web detail container evaluates, so the two platforms can never diverge on a gate (this closes D7,
- * where the clone gate previously disagreed: web ignored ownership while mobile checked it). Every mutation
- * is owned here and reported upward so the navigator can route (back to the list after delete, to the new
- * recipe after clone). Remote state stays in the query cache — this screen derives its view state from it.
+ * Every DECISION the page makes — who the viewer is, the ownership and clone gates, the Private gate, the visibility
+ * notice, the ⋯ menu, the rating block and the owner dialogs — is `useRecipeDetailController`
+ * (`@commise/features-recipes/detail`), the SAME hook the web container runs, so the two platforms cannot diverge on a
+ * gate (this closes D7). The viewer is the session's `external_id` claim and, when the claim is absent, the profile's
+ * `user.id` (owner ruling 2026-10-16); with the claim in hand the body shows without waiting for the profile. Every
+ * mutation is reported upward so the navigator can route (back to the list after delete, to the new recipe after clone).
+ * Remote state stays in the query cache — this screen derives its view state from it.
  *
  * The recipe page (build spec §6): the action row's primary — Edit recipe for the owner, Save a copy for another
  * cook who may clone; Back and the ⋯ menu are discs over the hero photo, the menu's entries coming from the shared
@@ -31,53 +31,32 @@
  * and their routes are the navigator's, and this screen only looks at the route below it.
  */
 import {
-    RecipeDeleteDialog,
     RecipeDetailSkeleton,
     RecipeDetailView,
-    RecipeRatingDisplay,
-    RecipeRatingInput,
-    detailMenuOf,
-    RecipeUpsellSheet,
-    RecipeMakePublicDialog,
-    useGatedPrivate,
-    useMakePublicConfirm,
-    useServerRefusedPrivate,
-    visibilityNoticeOf,
     isUnreachableRecovery,
     recipeMessages,
-    ratingModeFor,
     recipeActionMessages,
-    useCookMarks,
-    type DetailMenuItem,
-    type RecipeRatingError,
 } from '@commise/features-recipes';
+import { RecipeDetailDialogs, RecipeDetailRating, useRecipeDetailController } from '@commise/features-recipes/detail';
 import { useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
-import { ActionMenu, type ActionMenuItem } from '@commise/ui/action-menu';
+import { ActionMenu } from '@commise/ui/action-menu';
 import { Button } from '@commise/ui/button';
 import { HeroButton } from '@commise/ui/hero-button';
 import { Icon } from '@commise/ui/icon';
 import { useTheme } from '@commise/ui/theme';
 import { useSnackbar } from '@commise/ui/snackbar';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
-import {
-    useCloneRecipe,
-    useDeleteRecipe,
-    useDeleteRecipeRating,
-    useRecipeServiceClient,
-    useSetRecipeRating,
-    useSetRecipeVisibility,
-} from '@kitchensink/recipe-service-client/hooks';
+import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { NavigationContext, NavigationRouteContext } from '@react-navigation/native';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { knownPaidFeaturesOf, paidFeatureStateOf } from '@commise/features-account';
-import { RecipeVisibility, canClone, isOwner, makeViewer } from '@kitchensink/recipe-core';
 import type { JSX } from 'react';
-import { useContext, useEffect, useState } from 'react';
+import { useContext } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { mobileMessages } from '../i18n/messages.js';
+import { useSessionClaims } from '../hooks/useSessionClaims.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
 
 /** Props for {@link RecipeDetailScreen}. */
@@ -251,246 +230,74 @@ function SettledRecipeDetail({
     // query, counting only retries that loaded every name, so its recoveries move the screen-reader cursor to the
     // Ingredients heading (not the title) and only when the button the cook pressed is gone.
     const unreachableRetry = useRefreshNotice(query, { recovered: isUnreachableRecovery });
-    // The view binds the cook's marks itself; the ⋯ menu reads the same marks to offer Clear checks.
-    const marks = useCookMarks(recipeId);
-    const { detailActions, moreMenu, visibility: visibilityCopy } = useMessages(recipeActionMessages);
-    const snackbar = useSnackbar();
+    const { detailActions } = useMessages(recipeActionMessages);
     const { recipes: t } = useMessages(mobileMessages);
-    const profile = useUserProfile();
-    const deleteRecipe = useDeleteRecipe();
-    const setVisibility = useSetRecipeVisibility();
-    const cloneRecipe = useCloneRecipe();
-    const setRating = useSetRecipeRating();
-    const deleteRating = useDeleteRecipeRating();
-    const [deleteOpen, setDeleteOpen] = useState(false);
+    const snackbar = useSnackbar();
     const backLabel = useBackLabel();
-    // Plan 2026-10-14-009 D14: whether Make private is offered, and whether it applies or opens the Premium sheet, is
-    // decided in ONE place, `useGatedPrivate`, from the viewer's paid features alone (owner ruling 2026-10-13).
-    const privateGate = useGatedPrivate({
-        state: paidFeatureStateOf(profile),
-        saved: query.data.visibility,
-        apply: () => setVisibility.mutate({ id: recipeId, visibility: RecipeVisibility.PRIVATE }),
-    });
-    // Q5 (UX SPECIFY 2026-10-15): a downgraded owner confirms Make public first; the confirm stays up, busy, while the
-    // change is in flight, and says a failure inside itself. The web page reads the same.
-    const serverRefusedPrivate = useServerRefusedPrivate(recipeId, knownPaidFeaturesOf(profile));
-    // The confirm's words say what is KNOWN: a failed profile read is "may not", never "won't" (review).
-    const makePublic = useMakePublicConfirm({
-        state: knownPaidFeaturesOf(profile) ?? 'loading',
-        saved: query.data.visibility,
-        apply: (done) =>
-            setVisibility.mutate({ id: recipeId, visibility: RecipeVisibility.PUBLIC }, { onSuccess: done }),
+    const recipe = query.data;
+    const sessionClaims = useSessionClaims();
+    const profile = useUserProfile();
+    // Everything the page decides, once for both apps: the viewer (the session claim, else the profile), the Private
+    // gate, the visibility notice, the primary, the ⋯ menu, the rating block and the owner dialogs. This shell draws it.
+    const page = useRecipeDetailController({
+        id: recipeId,
+        recipe,
+        sessionClaims,
+        profile,
+        finishRefused: finishRefused === true,
+        ...(refusalArrived === undefined ? {} : { refusalArrived }),
+        ...(onFinishRefusalSeen === undefined ? {} : { onFinishRefusalSeen }),
+        nav: {
+            onVersions: () => onViewVersions?.(recipeId),
+            onCloned: (createdId) => onCloned?.(createdId),
+            onDeleted: () => {
+                // The snackbar host sits above the navigator, so this outlives the screen we leave.
+                snackbar.show({ message: detailActions.recipeDeleted });
+                onDeleted?.();
+            },
+        },
     });
 
-    // §6.4: tell the route its claim was seen, once the body is on screen. The effect runs after the commit that mounts
-    // the body, so the live region exists, empty, before the route's answer fills it. Never during the skeleton.
-    const bodyShown = !profile.isLoading;
-    useEffect(() => {
-        if (bodyShown && refusalArrived === true) {
-            onFinishRefusalSeen?.();
-        }
-    }, [bodyShown, refusalArrived, onFinishRefusalSeen]);
-
-    // Wait for the viewer profile too before rendering the detail. Owner-gated UI (edit/delete/visibility actions)
-    // and the rating mode are derived from `profile` (the viewer id + paid features); rendering before it lands would paint
-    // the detail WITHOUT the owner actions and then pop them in — shifting the layout mid-interaction. A signed-out
-    // viewer's profile query is disabled, so its `isLoading` is false and this never hangs for a guest.
-    if (profile.isLoading) {
+    // Nothing names the viewer yet and the profile may: hold the skeleton rather than paint the detail WITHOUT the owner
+    // actions and pop them in — a layout shift that makes a fast tapper race a moving target. With the session claim in
+    // hand the body shows at once (owner ruling 2026-10-16). A signed-out viewer's profile query is disabled, so its
+    // `isLoading` is false and this never hangs for a guest.
+    if (!page.ready) {
         return <RecipeDetailSkeleton label={t.detailLoading} />;
     }
 
-    const recipe = query.data;
-    const viewerId = profile.data?.user.id;
-    // P4: ONE Viewer value object, built from this platform's identity signal (the profile's app-user id), feeds every
-    // gate below through the shared policy predicates — the SAME predicates the web detail container evaluates (D7).
-    const viewer = makeViewer({ id: viewerId });
-    const viewerIsOwner = isOwner(recipe, viewer);
-    // §6.4: ONE slot under the rating and visibility line says every refusal of a Private, and the generic failure. The
-    // make-public confirm says its own failure inside itself, so it is not said twice. The web page reads the same.
-    const visibilityNotice = visibilityNoticeOf(
-        {
-            viewerIsOwner,
-            isPublic: recipe.visibility === RecipeVisibility.PUBLIC,
-            serverRefusal: serverRefusedPrivate,
-            finishRefused: finishRefused === true,
-            known: knownPaidFeaturesOf(profile),
-            writeFailed: setVisibility.error !== null && !makePublic.dialog.open,
-        },
-        visibilityCopy,
-    );
-    // D7: a viewer may clone a PUBLIC recipe they do not own — the SAME `canClone` predicate web now
-    // evaluates, closing the drift where web ignored ownership and mobile checked it.
-    const viewerCanClone = canClone(recipe, viewer);
-
-    // FR-013 ratings: the viewer may rate a recipe they can read and do NOT own (Sc8) — ownership is the only
-    // client-side gate; the backend enforces the rest (Sc8 403, Sc9 not-found). A write's error maps to the
-    // honest surface: a not-found (the client's 404 shape) is "not available" (Sc9), never "forbidden".
-    const ratingMode = ratingModeFor({ viewerId, ownerId: recipe.ownerId });
-    const ratingError = setRating.error ?? deleteRating.error;
-    const ratingErrorKind: RecipeRatingError | undefined =
-        ratingError === null || ratingError === undefined
-            ? undefined
-            : isNotFoundError(ratingError)
-              ? 'notAvailable'
-              : 'generic';
-    // §6.1/§6.4: the action row is the primary — Edit recipe for the owner, Save a copy for another cook — and the ⋯
-    // menu, whose entries are decided once for both platforms (`detailMenuOf`).
-    //
-    // ⛔ The delete CONFIRMATION DIALOG does NOT live in the menu: it stays a sibling below, so it survives the menu
-    // closing while the dialog is open.
-    const menu = detailMenuOf({
-        owner: viewerIsOwner,
-        isPublic: recipe.visibility === RecipeVisibility.PUBLIC,
-        hasMarks: marks.hasMarks,
-        offersPrivate: privateGate.offersPrivate,
-    });
-
-    const menuItem = (item: DetailMenuItem): ActionMenuItem => {
-        switch (item) {
-            case 'versions':
-                return {
-                    id: item,
-                    label: detailActions.versionHistory,
-                    icon: 'clock',
-                    onSelect: () => onViewVersions?.(recipeId),
-                };
-            case 'makePrivate':
-                return {
-                    id: item,
-                    label: detailActions.makePrivate,
-                    icon: 'lock',
-                    onSelect: privateGate.request,
-                };
-            case 'makePublic':
-                return {
-                    id: item,
-                    label: detailActions.makePublic,
-                    icon: 'globe',
-                    // A fresh confirm starts clean: an earlier failure is not news to it (review S3).
-                    onSelect: () => {
-                        setVisibility.reset();
-                        makePublic.request();
-                    },
-                };
-            case 'clearChecks':
-                return { id: item, label: detailActions.clearChecks, icon: 'rotateCcw', onSelect: marks.clear };
-        }
-    };
-
-    const moreActions =
-        menu.items.length > 0 || menu.destructive !== undefined ? (
-            <ActionMenu
-                triggerLabel={moreMenu.triggerFor.replace('{title}', recipe.title)}
-                title={moreMenu.title}
-                closeLabel={moreMenu.close}
-                items={menu.items.map(menuItem)}
-                appearance="disc"
-                {...(menu.destructive === undefined
-                    ? {}
-                    : {
-                          destructiveItem: {
-                              id: 'delete',
-                              label: detailActions.deleteRecipe,
-                              icon: 'trash',
-                              onSelect: () => setDeleteOpen(true),
-                          },
-                      })}
-            />
-        ) : null;
-    const primary = viewerIsOwner ? (
-        <Button variant="primary" icon="pencilLine" onPress={() => onEdit?.(recipeId)}>
-            {detailActions.editRecipe}
-        </Button>
-    ) : viewerCanClone ? (
-        <Button
-            variant="primary"
-            icon="copyPlus"
-            busy={cloneRecipe.isPending}
-            onPress={() => cloneRecipe.mutate(recipeId, { onSuccess: (created) => onCloned?.(created.id) })}
-        >
-            {detailActions.saveCopy}
-        </Button>
-    ) : null;
     // The row's primary; Back and ⋯ are discs over the photo, always (§6.1, §3.5). An empty View keeps ⋯ at the end when
     // there is no Back to its start.
-    const headerActions = primary ?? undefined;
+    const primary =
+        page.primary === 'edit' ? (
+            <Button variant="primary" icon="pencilLine" onPress={() => onEdit?.(recipeId)}>
+                {detailActions.editRecipe}
+            </Button>
+        ) : page.primary === 'saveCopy' ? (
+            <Button variant="primary" icon="copyPlus" busy={page.clone.pending} onPress={page.clone.run}>
+                {detailActions.saveCopy}
+            </Button>
+        ) : undefined;
     const heroControls = (
         <>
             {onBack === undefined ? <View /> : <HeroButton icon="chevronLeft" label={backLabel} onPress={onBack} />}
-            {moreActions}
+            {page.menu === undefined ? null : <ActionMenu {...page.menu} appearance="disc" />}
         </>
     );
-
-    // The stars the input pre-selects: the server's `viewerRating` (DA4 — `useSetRecipeRating` /
-    // `useDeleteRecipeRating` patch this optimistically in the cache on `onMutate`, so it never flickers back
-    // to the pre-write value before the refetch lands). The community `averageRating` stays the displayed score.
-    const selectedStars = recipe.viewerRating;
 
     return (
         <RecipeDetailView
             recipe={recipe}
-            viewerIsOwner={viewerIsOwner}
-            {...(visibilityNotice === undefined ? {} : { visibilityNotice })}
+            viewerIsOwner={page.viewerIsOwner}
+            {...(page.visibilityNotice === undefined ? {} : { visibilityNotice: page.visibilityNotice })}
             refreshNotice={refreshNotice}
             unreachableRetry={unreachableRetry}
-            headerActions={headerActions}
+            headerActions={primary}
             heroControls={heroControls}
             onEditSection={() => onEdit?.(recipeId)}
-            {...(viewerIsOwner ? { onViewVersions: () => onViewVersions?.(recipeId) } : {})}
-            rating={
-                // Orchestration picks the render component (B15): the owner sees the read-only aggregate (Sc8);
-                // everyone else gets the interactive input. The own-recipe gate lives HERE, not in a mode prop.
-                ratingMode === 'own' ? (
-                    <RecipeRatingDisplay
-                        {...(recipe.averageRating === undefined ? {} : { average: recipe.averageRating })}
-                        ratingCount={recipe.ratingCount}
-                    />
-                ) : (
-                    <RecipeRatingInput
-                        {...(recipe.averageRating === undefined ? {} : { average: recipe.averageRating })}
-                        ratingCount={recipe.ratingCount}
-                        {...(selectedStars === undefined ? {} : { selectedStars })}
-                        pending={setRating.isPending || deleteRating.isPending}
-                        {...(ratingErrorKind === undefined ? {} : { error: ratingErrorKind })}
-                        onRate={(stars) => setRating.mutate({ id: recipeId, input: { stars } })}
-                        onRemove={() => deleteRating.mutate(recipeId)}
-                    />
-                )
-            }
-            scrollFooter={
-                <>
-                    {viewerIsOwner && <RecipeUpsellSheet {...privateGate.sheet} />}
-
-                    {viewerIsOwner && (
-                        <RecipeMakePublicDialog
-                            {...makePublic.dialog}
-                            busy={setVisibility.isPending}
-                            error={setVisibility.error !== null}
-                        />
-                    )}
-
-                    {viewerIsOwner && (
-                        <RecipeDeleteDialog
-                            recipeTitle={recipe.title}
-                            open={deleteOpen}
-                            deleting={deleteRecipe.isPending}
-                            // B17 — a failed delete left the dialog open with no explanation; surface an honest
-                            // reason inside it. Cleared on the next attempt (and on recipe switch).
-                            error={deleteRecipe.error !== null}
-                            onConfirm={() =>
-                                deleteRecipe.mutate(recipeId, {
-                                    onSuccess: () => {
-                                        // The snackbar host sits above the navigator, so this outlives the screen we leave.
-                                        snackbar.show({ message: detailActions.recipeDeleted });
-                                        onDeleted?.();
-                                    },
-                                })
-                            }
-                            onCancel={() => setDeleteOpen(false)}
-                        />
-                    )}
-                </>
-            }
+            {...(page.viewerIsOwner ? { onViewVersions: () => onViewVersions?.(recipeId) } : {})}
+            rating={<RecipeDetailRating {...page.rating} />}
+            scrollFooter={<RecipeDetailDialogs {...page.dialogs} />}
         />
     );
 }

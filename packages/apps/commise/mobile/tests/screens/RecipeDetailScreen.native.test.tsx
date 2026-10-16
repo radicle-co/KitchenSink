@@ -33,6 +33,7 @@ import { RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 
 import { RecipeDetailScreen } from '../../src/screens/RecipeDetailScreen.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
+import { useSessionClaims } from '../../src/hooks/useSessionClaims.js';
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
 
@@ -65,6 +66,11 @@ vi.mock('../../src/hooks/useUserProfile.js', () => ({
     useUserProfile: vi.fn(),
 }));
 
+vi.mock('../../src/hooks/useSessionClaims.js', () => ({
+    useSessionClaims: vi.fn(),
+}));
+
+const useSessionClaimsMock = vi.mocked(useSessionClaims);
 const useDeleteRecipeMock = vi.mocked(useDeleteRecipe);
 const useSetRecipeVisibilityMock = vi.mocked(useSetRecipeVisibility);
 const useCloneRecipeMock = vi.mocked(useCloneRecipe);
@@ -123,6 +129,9 @@ beforeEach(() => {
     useSetRecipeRatingMock.mockReset();
     useDeleteRecipeRatingMock.mockReset();
     useUserProfileMock.mockReset();
+    // No session claim by default: the viewer id then comes from the profile, as it did before the claim was read.
+    useSessionClaimsMock.mockReset();
+    useSessionClaimsMock.mockReturnValue(undefined);
     useDeleteRecipeMock.mockReturnValue(mutation<ReturnType<typeof useDeleteRecipe>>());
     useSetRecipeVisibilityMock.mockReturnValue(mutation<ReturnType<typeof useSetRecipeVisibility>>());
     useCloneRecipeMock.mockReturnValue(mutation<ReturnType<typeof useCloneRecipe>>());
@@ -150,12 +159,11 @@ describe('RecipeDetailScreen — loading state', () => {
         expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
     });
 
-    it('keeps loading while the recipe is ready but the viewer profile is still in flight', () => {
-        // Regression guard for the owner-action pop-in: with the recipe resolved but the PROFILE query
-        // still loading, the screen must NOT paint the detail yet. Painting here would render it WITHOUT the
-        // owner-gated actions (edit/delete/visibility) and then pop them in when the profile lands — a layout
-        // shift that makes a fast (or automated) tapper race a moving target. The screen must stay loading
-        // until BOTH sources resolve. Fails against a gate that only checks the recipe query.
+    // Rewritten (S3, 2026-10-16) from "keeps loading while the viewer profile is in flight". The wait is now only for a
+    // viewer whose id nothing else names: with the session claim present the body shows at once (the next describe), and
+    // this guard keeps its original job for the case that has no claim — painting before the profile lands would render
+    // the detail WITHOUT the owner actions and pop them in. Fails against a gate that only checks the recipe query.
+    it('keeps loading while the recipe is ready, no claim names the viewer, and the profile is still in flight', () => {
         seedRecipe(makeRecipeDetail({ title: 'Weeknight Pasta' }));
         useUserProfileMock.mockReturnValue({ isLoading: true, data: undefined } as unknown as ReturnType<
             typeof useUserProfile
@@ -165,6 +173,91 @@ describe('RecipeDetailScreen — loading state', () => {
 
         expect(screen.getByText('Loading recipe…')).toBeTruthy();
         expect(screen.queryByRole('heading', { name: 'Weeknight Pasta' })).toBeNull();
+    });
+});
+
+/**
+ * S3 drift ruling (owner, 2026-10-16): the viewer's app-user id comes from the signed token claim (`external_id`) when
+ * present and falls back to the profile — on BOTH platforms. Mobile used to read the profile alone, and to hold the body
+ * until the profile landed; with the claim present nothing is left to wait for.
+ */
+describe('RecipeDetailScreen — the viewer id: the session claim first, the profile second', () => {
+    const profileInFlight = { isLoading: true, data: undefined } as unknown as ReturnType<typeof useUserProfile>;
+
+    it('⛔ shows the body at once when the claim names the viewer, though the profile is still in flight', () => {
+        seedRecipe(makeRecipeDetail({ title: 'Weeknight Pasta', ownerId: 'usr_1' }));
+        useSessionClaimsMock.mockReturnValue({ external_id: 'usr_1' });
+        useUserProfileMock.mockReturnValue(profileInFlight);
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        expect(screen.getByRole('heading', { name: 'Weeknight Pasta' })).toBeTruthy();
+        // And it is the OWNER's body, from the claim alone: Edit recipe is there with no profile.
+        expect(screen.getByRole('button', { name: 'Edit recipe' })).toBeTruthy();
+    });
+
+    it('⛔ trusts the claim over the profile when the two name different viewers', () => {
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1' }));
+        useSessionClaimsMock.mockReturnValue({ external_id: 'usr_1' });
+        useUserProfileMock.mockReturnValue(profile('usr_other'));
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        expect(screen.getByRole('button', { name: 'Edit recipe' })).toBeTruthy();
+    });
+
+    it.each([
+        ['no claims at all', undefined],
+        ['claims without external_id', { sub: 'user_clerk' }],
+        ['an empty external_id', { external_id: '' }],
+        ['a non-string external_id', { external_id: 7 }],
+    ])('falls back to the profile id for %s', (_name, claims) => {
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1' }));
+        useSessionClaimsMock.mockReturnValue(claims);
+        useUserProfileMock.mockReturnValue(profile('usr_1'));
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        expect(screen.getByRole('button', { name: 'Edit recipe' })).toBeTruthy();
+    });
+
+    it('offers Make private only once the profile lands: the paid features are the profile’s alone', () => {
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: RecipeVisibility.PUBLIC }));
+        useSessionClaimsMock.mockReturnValue({ external_id: 'usr_1' });
+        useUserProfileMock.mockReturnValue(profileInFlight);
+
+        const { rerender } = render(<RecipeDetailScreen recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+
+        expect(screen.queryByRole('menuitem', { name: 'Make private' })).toBeNull();
+        // An open menu keeps the list it opened with, so the cook closes it and opens it again once the profile lands.
+        fireEvent.click(screen.getByRole('button', { name: 'Close more actions' }));
+
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'granted'));
+        rerender(
+            withFoodClient(
+                <SnackbarHost>
+                    <CookMarksProvider subject="user_test">
+                        <RecipeDetailScreen recipeId="rec_1" />
+                    </CookMarksProvider>
+                </SnackbarHost>,
+            ),
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+
+        expect(screen.getByRole('menuitem', { name: 'Make private' })).toBeTruthy();
+    });
+
+    it('reports the arrived refusal claim as seen once the claim-shown body has mounted, profile still in flight', () => {
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1' }));
+        useSessionClaimsMock.mockReturnValue({ external_id: 'usr_1' });
+        useUserProfileMock.mockReturnValue(profileInFlight);
+        const onFinishRefusalSeen = vi.fn();
+
+        render(<RecipeDetailScreen recipeId="rec_1" refusalArrived onFinishRefusalSeen={onFinishRefusalSeen} />);
+
+        expect(onFinishRefusalSeen).toHaveBeenCalledTimes(1);
     });
 });
 

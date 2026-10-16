@@ -1,8 +1,15 @@
 /**
  * @module @commise/features-recipes/detail — the recipe detail screen's shared controller and states.
  *
- * A package-export entry (the one kind of barrel this repo keeps), registered ahead of the web/mobile UI
- * consolidation so the slice that fills it (S3 of `docs/plans/2026-10-13-007-chore-finish-pr91-plan.md`) edits
- * neither the package root index nor `package.json`.
+ * A package-export entry (the one kind of barrel this repo keeps): `@commise/features-recipes/detail`. The render leaves
+ * the controller feeds are platform pairs, so each specifier below resolves to its web or native file at bundle time.
  */
-export {};
+export { RecipeDetailDialogs, type RecipeDetailDialogsProps } from './RecipeDetailDialogs.js';
+export { RecipeDetailRating, type RecipeDetailRatingProps } from './RecipeDetailRating.js';
+export {
+    useRecipeDetailController,
+    type RecipeDetailController,
+    type RecipeDetailControllerInput,
+    type RecipeDetailNav,
+    type RecipeDetailProfile,
+} from './useRecipeDetailController.js';

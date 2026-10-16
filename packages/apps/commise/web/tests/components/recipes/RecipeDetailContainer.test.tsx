@@ -100,9 +100,16 @@ vi.mock('@clerk/nextjs', () => ({
 const useSetRecipeRatingMock = vi.mocked(useSetRecipeRating);
 const useDeleteRecipeRatingMock = vi.mocked(useDeleteRecipeRating);
 
-/** Build a settled profile-query stub carrying only the paid-feature state the visibility gate reads. */
+/**
+ * Build a settled profile-query stub: the paid-feature state the visibility gate reads, and the viewer id the page falls
+ * back to when the session carries no claim. The id names nobody the fixtures own, so no test is owned by accident.
+ */
 function profileWith(paidFeatures: 'granted' | 'upsell' | 'hidden') {
-    return { status: 'success', data: { account: { paidFeatures } } };
+    return {
+        status: 'success',
+        isLoading: false,
+        data: { user: { id: 'usr_from_profile' }, account: { paidFeatures } },
+    };
 }
 
 /** The app-user ULID that matches the default fixture's `ownerId` — the signed-in owner. */
@@ -530,6 +537,71 @@ describe('RecipeDetailContainer', () => {
 
                 expect(screen.queryByText('This recipe isn’t available.')).not.toBeInTheDocument();
             });
+        });
+    });
+
+    /**
+     * S3 drift ruling (owner, 2026-10-16): the viewer's app-user id comes from the signed session claim (`external_id`)
+     * when present and falls back to the profile, on BOTH platforms. Web used to read the claim alone, so a session
+     * whose claim was absent saw a non-owner page of its own recipe.
+     */
+    describe('the viewer id: the session claim first, the profile second', () => {
+        const seedOwned = () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID }));
+
+            return client;
+        };
+
+        it('⛔ falls back to the profile id when the session carries no claim: the owner still gets Edit recipe', async () => {
+            useAuthMock.mockReturnValue({ sessionClaims: {} });
+            useUserProfileMock.mockReturnValue({
+                status: 'success',
+                isLoading: false,
+                data: { user: { id: OWNER_ID }, account: { paidFeatures: 'upsell' } },
+            });
+
+            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), seedOwned());
+
+            expect(await screen.findByRole('link', { name: 'Edit recipe' })).toBeInTheDocument();
+        });
+
+        it('⛔ trusts the claim over the profile when the two name different viewers', async () => {
+            useAuthMock.mockReturnValue({ sessionClaims: { external_id: OWNER_ID } });
+            useUserProfileMock.mockReturnValue({
+                status: 'success',
+                isLoading: false,
+                data: { user: { id: 'usr_other' }, account: { paidFeatures: 'upsell' } },
+            });
+
+            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), seedOwned());
+
+            expect(await screen.findByRole('link', { name: 'Edit recipe' })).toBeInTheDocument();
+        });
+
+        it('⛔ shows the page without waiting for the profile when the claim names the viewer', async () => {
+            useUserProfileMock.mockReturnValue({ status: 'pending', isLoading: true, data: undefined });
+
+            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), seedOwned());
+
+            expect(await screen.findByRole('link', { name: 'Edit recipe' })).toBeInTheDocument();
+        });
+
+        it('⛔ holds the loading status, not a non-owner page, while nothing names the viewer and the profile is in flight', async () => {
+            useAuthMock.mockReturnValue({ sessionClaims: {} });
+            useUserProfileMock.mockReturnValue({ status: 'pending', isLoading: true, data: undefined });
+            const client = seedOwned();
+            const read = vi.mocked(client.getRecipeById);
+
+            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
+            // The recipe itself has landed; only the viewer is unknown. Without this the status would be the read's own.
+            await vi.waitFor(() => expect(read).toHaveBeenCalled());
+            await act(async () => {
+                await read.mock.results[0]?.value;
+            });
+
+            expect(screen.getByRole('status', { name: 'Loading recipe' })).toBeInTheDocument();
+            expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
         });
     });
 

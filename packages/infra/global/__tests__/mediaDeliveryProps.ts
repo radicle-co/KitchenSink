@@ -8,8 +8,6 @@
  *
  * @pattern Factory Method — one construction point for the props, so a new required prop is one edit, not ten
  */
-import type { Construct } from 'constructs';
-
 import type { DataStackProps } from '../lib/platform/DataStack.js';
 
 /** The origins a test synth admits to the media bucket's CORS rule. */
@@ -18,13 +16,10 @@ export const TEST_UPLOAD_ORIGINS: readonly string[] = ['https://commise.app'];
 /**
  * The media-delivery props for a `DataStack`.
  *
- * @param _scope - The app the `DataStack` is built in. Unused now that nothing needs a fixture stack; kept so the
- *   call sites do not change.
  * @param overrides - Props to replace, e.g. an empty `uploadOrigins` for the refusal test.
  * @returns The props to spread into `new DataStack(...)`. Pure.
  */
 export function mediaDeliveryProps(
-    _scope: Construct,
     overrides: Partial<Pick<DataStackProps, 'domainName' | 'uploadOrigins'>> = {},
 ): Pick<DataStackProps, 'domainName' | 'uploadOrigins'> {
     return {

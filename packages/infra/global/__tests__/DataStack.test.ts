@@ -19,7 +19,7 @@ const env = { account: '123456789012', region: 'us-east-1' };
 const dataTemplate = (stage: string): Template => {
     const app = testApp();
     const network = new NetworkStack(app, `Net-${stage}`, { env, stage });
-    const data = new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps(app) });
+    const data = new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps() });
 
     return Template.fromStack(data);
 };

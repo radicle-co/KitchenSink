@@ -83,7 +83,7 @@ const synthesize = (label: string): Template => {
     const network = new NetworkStack(app, `Net-${label}`, { env, stage: 'prod' });
 
     return Template.fromStack(
-        new DataStack(app, `Data-${label}`, { env, network, stage: 'prod', ...mediaDeliveryProps(app) }),
+        new DataStack(app, `Data-${label}`, { env, network, stage: 'prod', ...mediaDeliveryProps() }),
     );
 };
 

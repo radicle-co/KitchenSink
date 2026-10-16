@@ -133,7 +133,7 @@ describe('DataStack credentials secret', () => {
     it('has no Auth0 reference (service migrated to Clerk)', () => {
         const app = testApp();
         const network = new NetworkStack(app, 'NetForData', { env, stage: 'test' });
-        const data = new DataStack(app, 'DataForTest', { env, network, stage: 'test', ...mediaDeliveryProps(app) });
+        const data = new DataStack(app, 'DataForTest', { env, network, stage: 'test', ...mediaDeliveryProps() });
 
         const json = JSON.stringify(Template.fromStack(data).toJSON());
         expect(json.toLowerCase()).not.toContain('auth0');

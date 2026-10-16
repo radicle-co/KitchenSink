@@ -168,7 +168,7 @@ function engineFaults(properties: EngineProperties, expected: string): readonly 
 function synthesizedInstances(stage: string): readonly { readonly logicalId: string; properties: EngineProperties }[] {
     const app = testApp();
     const network = new NetworkStack(app, `Net-${stage}`, { env, stage });
-    const data = new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps(app) });
+    const data = new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps() });
 
     return Object.entries(Template.fromStack(data).findResources('AWS::RDS::DBInstance')).map(
         ([logicalId, resource]) => ({

@@ -34,7 +34,7 @@ function masterSecretReaders(stage: string): readonly string[] {
     const app = testApp();
     const network = new NetworkStack(app, `Net-${stage}`, { env, stage });
     const resources = Template.fromStack(
-        new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps(app) }),
+        new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps() }),
     ).toJSON().Resources as Record<string, Resource>;
     const secretId = Object.keys(resources).find((id) => /^DatabaseCredentialsSecret[0-9A-F]{8}$/u.test(id));
 

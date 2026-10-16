@@ -341,7 +341,7 @@ describe('DataStack — the missing-bundle placeholder never reports success', (
             env: SYNTH_ENV,
             network,
             stage: 'prod',
-            ...mediaDeliveryProps(app),
+            ...mediaDeliveryProps(),
         });
         const resources = Template.fromStack(data).findResources('AWS::CloudFormation::CustomResource');
         const bootstraps = Object.values(resources).filter((resource) => resource.Properties?.service);

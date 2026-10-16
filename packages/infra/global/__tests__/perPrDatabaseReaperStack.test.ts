@@ -45,7 +45,7 @@ const dataTemplate = (stage: string): Template => {
     const app = testApp();
     const network = new NetworkStack(app, `Net-${stage}`, { env, stage });
 
-    return Template.fromStack(new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps(app) }));
+    return Template.fromStack(new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps() }));
 };
 
 /** Every Lambda in the template that is the reaper, whatever CDK named the resource. */

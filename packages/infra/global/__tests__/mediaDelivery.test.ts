@@ -35,7 +35,7 @@ const dataTemplate = (stage: string): Template => {
     const app = testApp();
     const network = new NetworkStack(app, `Net-${stage}`, { env, stage });
 
-    return Template.fromStack(new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps(app) }));
+    return Template.fromStack(new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps() }));
 };
 
 interface TemplateStatement {
@@ -292,7 +292,7 @@ describe('bucket CORS for the browser PUT', () => {
                     env,
                     network,
                     stage: 'prod',
-                    ...mediaDeliveryProps(app, { uploadOrigins }),
+                    ...mediaDeliveryProps({ uploadOrigins }),
                 }),
         ).toThrow(/upload origin/iu);
     });

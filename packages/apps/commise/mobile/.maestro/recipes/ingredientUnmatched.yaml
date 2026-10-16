@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Plan 002 US1 on a device: an ingredient with no food explains itself in the editor row. Mobile mirror of the web
 # Playwright `ingredientUnmatched.spec.ts`, per the cross-platform mandate (the two form leaves share no compiler

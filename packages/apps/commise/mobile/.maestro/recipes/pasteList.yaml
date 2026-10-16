@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Paste a list in the editor's Ingredients section (build spec §7.5.4; blueprint A5; owner decision D10; UI overhaul
 # slice 8). Mobile mirror of the web Playwright `ingredientPasteList.spec.ts`. REPLACES `parseIngredients.yaml`: the

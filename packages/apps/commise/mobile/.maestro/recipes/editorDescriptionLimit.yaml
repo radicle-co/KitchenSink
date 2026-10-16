@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # The description's 256-character limit, on a phone (owner 2026-10-13). Mobile mirror of the web Playwright test in
 # `recipeEditorSession.spec.ts`.

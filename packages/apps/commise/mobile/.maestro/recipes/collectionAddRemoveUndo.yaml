@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Adding to and removing from a collection, with Undo (slice 5; `docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3) — the
 # mobile mirror of the web Playwright `collectionPicker.spec.ts` and the removal half of `collections.spec.ts`.

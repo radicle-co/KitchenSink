@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Curated U15 on a device (`docs/design/ingredientSpecialization.md` §S7, F1, AE1): a cook adds a detail to a
 # root-bound line from the row's `⋮`, finds it by searching, changes it and removes it, and the line shows the root's

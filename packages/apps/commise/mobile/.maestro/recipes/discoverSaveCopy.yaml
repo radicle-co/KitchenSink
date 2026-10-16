@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Save a copy from a Discover card (`docs/design/uiOverhaul/buildSpec.md` §4.1) — the mobile mirror of the web
 # Playwright `saveACopy.spec.ts`. Signs in, switches to the Discover tab, finds a public recipe the caller does NOT own,

@@ -10,7 +10,7 @@
 # The login form lives in mobile/src/screens/login.tsx. Credentials mirror the web Playwright suite's
 # TEST_USER_* (cross-platform parity).
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Sign in and land on Home (idempotent — skips the login form when a session is already persisted).
 - runFlow: signinHome.yaml

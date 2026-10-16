@@ -94,7 +94,7 @@ describe.each([
     });
 
     it('keeps the app’s own deep-link schemes beside it', () => {
-        expect(urlSchemesOf(config)).toEqual(expect.arrayContaining(['commise', 'io.commise.mobile']));
+        expect(urlSchemesOf(config)).toEqual(expect.arrayContaining(['commise', 'com.radicle-co.commise']));
     });
 
     it('carries the Sign in with Apple entitlement', () => {

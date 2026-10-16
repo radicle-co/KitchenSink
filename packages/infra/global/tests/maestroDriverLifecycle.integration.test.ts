@@ -188,6 +188,8 @@ describe('maestro driver lifecycle', () => {
         expect(maestroArgv()).toEqual([
             'test',
             ...manifestToEnvLines(manifest, ERASURE_SUBJECT).flatMap((pair) => ['-e', pair]),
+            '-e',
+            'APP_ID=io.commise.mobile', // Android: the package, not the iOS bundle (maestroAppId.test.ts)
             '--driver-host-port',
             port,
             'packages/apps/commise/mobile/.maestro/recipes/discoverDetailSaveCopy.yaml',

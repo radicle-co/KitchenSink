@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Recipe list -> detail happy path (US1). Assumes an authenticated session (the auth login flow runs
 # first in CI ordering) and the app pointed at a seeded recipe API (EXPO_PUBLIC_RECIPE_API_URL). Asserts the

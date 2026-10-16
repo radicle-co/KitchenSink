@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # iOS only (slice 3; ADR-0056; `buildSpec.md` §3.5): the interactive edge swipe pops a pushed screen, as the header's ‹
 # does. It needs the iOS Simulator, which does not run on the owner's Linux machine (blueprint Q4), so it is NOT under

@@ -4,7 +4,7 @@
 # as SKELETON PLACEHOLDERS ("coming soon", never fabricated data — CR-001) rather than being absent; and the
 # recipe widget's "See all recipes" entry navigates into the recipes surface.
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Sign in and land on the Home widget surface (the login core waits on the large title's avatar, "Profile…").
 - runFlow: auth/signinHome.yaml

@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Reusable sub-flow: from the editor with a title set, add one ingredient declared as written ("Tomato", no food service
 # needed) and one step, the least a recipe needs to publish but its cuisine. Called with

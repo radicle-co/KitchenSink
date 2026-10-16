@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # A refused Publish takes the cook to the field it refused (build spec §7.8; `specSharedSystem.md` §16.3), on a phone.
 # Native mirror of the web Playwright test in `recipeEditor.spec.ts`.

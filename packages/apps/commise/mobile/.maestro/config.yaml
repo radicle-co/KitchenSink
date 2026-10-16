@@ -11,7 +11,8 @@
 #
 #   - `appId`. Maestro requires `appId` in every flow's own header regardless of the workspace config, so
 #     declaring it here would ADD a 10th copy rather than dedupe the 9 that exist — anti-DRY, not DRY. The
-#     per-flow `appId: io.commise.mobile` headers stay.
+#     per-flow `appId: ${APP_ID}` headers stay (the runner passes `-e APP_ID` per platform; a hand run
+#     adds `-e APP_ID=$(bash tests/e2e/runMaestroFlows.sh app-id ios|android)`).
 #   - `executionOrder`. `flowsOrder` pins a PREFIX (listed flows run first, in order; everything else runs
 #     after in any order), so it cannot express the one ordering wish in the suite — delete.yaml's "run me
 #     last" note — without enumerating every other flow and re-enumerating on every addition. No flow

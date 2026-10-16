@@ -13,7 +13,7 @@
 #
 # ⚠️ Maestro is MANUAL-ONLY here (owner ruling 2026-09-05) and targets a deployed sandbox. A skipped run claims nothing
 # — never report one as a pass.
-appId: io.commise.mobile
+appId: ${APP_ID}
 name: discard while offline leaves nothing syncing and nothing created
 tags:
     - offline

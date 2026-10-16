@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Go Home through the APP's tab bar. ⛔ ANCHORED, not bare: under three-button navigation Android publishes a system node
 # named exactly `Home` (`maestroBackCollidesWithSystemNav` memory), so a bare `tapOn: 'Home'` may press the SYSTEM Home

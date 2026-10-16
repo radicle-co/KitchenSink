@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Remote foods on a device (plan 002 S7.8, ADR-0055 points 9 and 10). Mobile mirror of the web Playwright
 # `ingredientRemoteFoods.spec.ts` create and Change food stories. Replaces `ingredientUsdaSearch.yaml`, whose

@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Recipe visibility toggle, PREMIUM path (US2, T113/T074/C-004). The clone half of T113 is covered by
 # discoverDetailSaveCopy.yaml; this closes the visibility half. Signs in, opens an OWNED private recipe, and drives a real

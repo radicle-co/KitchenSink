@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Recent searches on the discovery keyword field (U7). Proves on device what only the device can:
 #   1. a search that actually RAN is remembered (recorded from the debounced query, not per keystroke);

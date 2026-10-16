@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # REWRITTEN for plan 002 S7.9. Row 6 on a device (`docs/design/ingredientStatusExplanation.md` SPECIFY.1 row 6;
 # `docs/design/rowEditorOpenDecisions.md` S7 list contract P12). Mobile mirror of the web Playwright

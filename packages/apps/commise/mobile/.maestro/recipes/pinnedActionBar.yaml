@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # U32 — THE PINNED ACTION BAR, ON A DEVICE, ON A LONG INGREDIENT LIST.
 #

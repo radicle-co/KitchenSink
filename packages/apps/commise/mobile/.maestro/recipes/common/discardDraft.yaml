@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Reusable sub-flow: throw away the never-published recipe the editor holds, so a flow leaves no scratch draft behind.
 # Called with `runFlow: common/discardDraft.yaml` from a flow standing in the one-page editor on a recipe it typed into.

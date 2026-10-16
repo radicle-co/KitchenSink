@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # The add-ingredient LOOP (plan U28). Mobile mirror of the web Playwright `addIngredientLoop.spec.ts`, per
 # the cross-platform mandate — the two form leaves are separate files with no compiler edge between them, so

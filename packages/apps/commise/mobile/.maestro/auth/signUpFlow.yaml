@@ -11,7 +11,7 @@
 # ⚠️ NOT PLANNED: it CREATES a Clerk user per run, outside the fixed test pool, and nothing reclaims it yet — see its
 # entry in `maestroFlowSelection.test.ts`' KNOWN_UNRUN_FLOWS. Run by hand: maestro test .maestro/auth/signUpFlow.yaml
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 - launchApp:
       clearState: true

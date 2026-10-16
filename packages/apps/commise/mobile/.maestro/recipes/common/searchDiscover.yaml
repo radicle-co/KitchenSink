@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Reusable sub-flow: search Discover for `QUERY`, then close the keyboard. Called with
 # `runFlow: { file: common/searchDiscover.yaml, env: { QUERY: '…' } }`.

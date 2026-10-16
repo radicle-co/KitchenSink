@@ -41,7 +41,7 @@
 # Run (after baselines exist):
 #   maestro test packages/apps/commise/mobile/.maestro/visual/authSurfaces.yaml
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # A signed-OUT launch is the whole point of this flow, so it clears state rather than reusing a session.
 - launchApp:

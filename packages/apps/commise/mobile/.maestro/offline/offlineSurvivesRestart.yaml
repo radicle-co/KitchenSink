@@ -6,7 +6,7 @@
 #
 # ⚠️ `clearState: false` on the relaunch is load-bearing — clearing it would wipe the very outbox under test
 # and the flow would pass vacuously.
-appId: io.commise.mobile
+appId: ${APP_ID}
 name: a queued write survives an app restart
 tags:
     - offline

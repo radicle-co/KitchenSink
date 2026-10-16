@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Row 7 on a device (`docs/design/ingredientStatusExplanation.md` SPECIFY.1 row 7). Mobile mirror of the web Playwright
 # `ingredientShortlistRow.spec.ts`: an AMBIGUOUS line's glyph opens a shortlist re-derived from the food search over

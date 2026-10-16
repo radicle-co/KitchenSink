@@ -10,7 +10,7 @@
 #
 # Run: maestro test .maestro/auth/keyboardReveal.yaml
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 - launchApp:
       clearState: true

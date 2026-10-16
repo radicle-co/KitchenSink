@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Reusable sub-flow: choose "Italian" in the editor's Cuisine field. Called with
 # `runFlow: { file: common/chooseCuisine.yaml }`, straight after `common/typeTitle.yaml`. A cuisine is required to

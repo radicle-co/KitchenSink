@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # The native shell (slice 3 of the UI overhaul; ADR-0056; `docs/design/uiOverhaul/buildSpec.md` §3.1, §3.5, §3.7), on
 # a device, where React Navigation's own back handling runs (jsdom cannot see it). It replaces `appTabBar.yaml`.

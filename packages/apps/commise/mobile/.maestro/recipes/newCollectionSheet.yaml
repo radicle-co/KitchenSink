@@ -1,7 +1,7 @@
 # The new-collection sheet (`docs/design/uiOverhaul/buildSpec.md` §5.1, slice 4 of the UI overhaul): it opens over the
 # Collections list, refuses an empty name with a reason, asks before discarding a typed name, and a created collection
 # opens its detail. Selectors are visible text or accessibility labels only.
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 - runFlow: ../auth/signin.yaml
 

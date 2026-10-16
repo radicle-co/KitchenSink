@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Discovery browse overhaul (U7). Proves the three U7 discovery behaviours end-to-end on device:
 #   1. no query/filter -> the curated browse RAILS (Trending / New / Quick), not a bare relevance stream;

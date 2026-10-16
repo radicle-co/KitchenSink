@@ -31,7 +31,7 @@
 # Run:
 #   maestro test packages/apps/commise/mobile/.maestro/visual/recordBaselines.yaml
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # ── Mirrors visual/authSurfaces.yaml ────────────────────────────────────────────────────────────────────
 - launchApp:

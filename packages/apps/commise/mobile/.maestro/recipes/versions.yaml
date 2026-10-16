@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Recipe version history — preview, compare, and restore (W6 Task 6, FR-007b). Mobile mirror of the web
 # Playwright `versions.spec.ts`. Signs in, opens the seeded recipe, and performs TWO separate edits/saves:

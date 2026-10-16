@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 onFlowComplete:
     # ⛔ ALWAYS back to portrait, pass or fail. The emulator is shared by every later flow on this shard, and each one
     # was written for portrait geometry: a flow that died mid-rotation would otherwise fail every flow after it.

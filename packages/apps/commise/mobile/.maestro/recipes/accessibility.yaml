@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Accessibility audit of the recipes surface (T115). Read-only; mutates nothing; order-independent.
 #

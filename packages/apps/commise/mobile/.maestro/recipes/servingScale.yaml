@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Configurable serving size on the recipe detail (mobile mirror of the web Playwright
 # `recipeSourceAndScale.spec.ts` — cross-platform mandate, CLAUDE.md §14).

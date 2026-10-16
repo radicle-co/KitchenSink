@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Ranged and absent ingredient quantities (U9 / R40, R42; acceptance AE20 + AE21). Mobile mirror of the web
 # Playwright `recipeQuantityRange.spec.ts`, per the cross-platform mandate — a quantity model that ships to

@@ -13,7 +13,7 @@
 # The flow never restarts the app between the two cooks: a restart empties the cache by itself and would hide the
 # defect. The app is cleared only in `onFlowComplete`, so the next flow signs in as the signer again, pass or fail.
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 onFlowComplete:
     - launchApp:
           clearState: true

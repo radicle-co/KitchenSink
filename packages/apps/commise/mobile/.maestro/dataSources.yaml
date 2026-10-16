@@ -8,7 +8,7 @@
 # It assumes a stage whose catalog cites USDA and Ciqual — every deployed stage once the seed has run (R31), since
 # both are cited by the committed seed. Selectors are visible text and accessibility labels only.
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Sign in (idempotent) and land on the Home widget surface.
 - runFlow: auth/signinHome.yaml

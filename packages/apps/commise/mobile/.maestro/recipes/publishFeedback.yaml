@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # E8 (UI walk 2026-10-13; build spec §7.8): the editor says how it finished. "Recipe published." over the recipe after a
 # publish, "Changes saved." over the recipe after Save changes. The snackbar host sits above the stack, so the message

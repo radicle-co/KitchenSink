@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # A-008 / E2 (UI walk 2026-10-13; build spec §7.6: "The new step's field takes focus"). Add step moves focus into the
 # step it adds, so the keyboard is up on that field and typing lands there, not in the ingredient field above it and

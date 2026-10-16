@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Screenshots of the design-system primitives in their states, on the surfaces that render them (slice 2 of the UI
 # overhaul, `docs/architecture/uiOverhaulBlueprint.md` Part B). A capture flow, not an assertion flow: it is not under

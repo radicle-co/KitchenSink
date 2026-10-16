@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # A line's PREPARATION and its SECTION (plan U26 / U27). Mobile mirror of the web Playwright
 # `recipeIngredientDetail.spec.ts`, per the cross-platform mandate — two fields that ship to one platform and

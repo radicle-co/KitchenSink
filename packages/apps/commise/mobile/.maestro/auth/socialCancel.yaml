@@ -16,7 +16,7 @@
 # the later flows need — against the per-run verification budget that suite pins — and it has never run on a device.
 # Hand-run it: `maestro test .maestro/auth/socialCancel.yaml`.
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 - launchApp:
       clearState: true

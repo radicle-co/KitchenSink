@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # The one-tap create entry (build spec §3.4; owner decision D4; UI overhaul slice 8) on a real device. REPLACES
 # `speedDial.yaml`: the dial and its menu are gone, because paste lives in the editor's Ingredients section, so the

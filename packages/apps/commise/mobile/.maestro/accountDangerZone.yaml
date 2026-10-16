@@ -11,7 +11,7 @@
 # "Account settings" hub into Profile, so the zone is now a group at the bottom of that page and there is no
 # second screen to open.
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Sign in (idempotent) and land on the Home widget surface.
 - runFlow: auth/signinHome.yaml

@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Recipe create happy path (US1, T067). REWRITTEN for slice 7: the four-step wizard is retired, and the recipe is
 # made on the ONE scrolling editor page (build spec §7, owner decisions D1/D2). Assumes an authenticated session (the

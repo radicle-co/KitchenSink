@@ -35,6 +35,16 @@ import type { ExpoConfig } from 'expo/config';
 
 import type { SocialAuthExtra } from './src/auth/socialAuthConfig.js';
 
+/**
+ * The iOS bundle ID: the App ID registered in the Apple Developer account (Team `6822556035`), and the one both Clerk
+ * instances' Native applications list (`6822556035.com.radicle-co.commise`). Owner ruling 2026-10-16.
+ * `.maestro` flows and `runMaestroFlows.sh` take it from here by `maestroAppId.test.ts`, which reads this declaration.
+ */
+export const IOS_BUNDLE_IDENTIFIER = 'com.radicle-co.commise';
+
+/** The Android application ID: the package Clerk's Android Native application lists. Deliberately NOT the iOS bundle. */
+export const ANDROID_PACKAGE = 'io.commise.mobile';
+
 /** A Clerk instance's Google OAuth clients (public identifiers, not secrets). */
 interface GoogleClients {
     /** The web client in this Clerk instance's Google custom credentials — the ID token's audience. */
@@ -54,7 +64,7 @@ interface InstanceSocialAuth {
     /** The instance type its publishable key must carry. */
     readonly instanceType: 'development' | 'production';
     readonly google: GoogleClients;
-    /** Sign in with Apple on iOS (App ID `io.commise.mobile`, Team `L366LM35BC`). */
+    /** Sign in with Apple on iOS (App ID {@link IOS_BUNDLE_IDENTIFIER}, Team `6822556035`). */
     readonly appleIos: boolean;
 }
 
@@ -134,6 +144,17 @@ function socialAuthExtraFor(publishableKey: string | undefined): SocialAuthExtra
 }
 
 /**
+ * The iOS `webcredentials:` associated domain for the build's Clerk instance. Apple applies the instance's
+ * `apple-app-site-association` file to the app only when the app lists the host, so each build lists its OWN instance
+ * (the sandbox and production hosts differ, as do their Native applications). Pure.
+ */
+function associatedDomainsFor(publishableKey: string | undefined): { associatedDomains?: string[] } {
+    const parsed = parsePublishableKey(publishableKey);
+
+    return parsed === null ? {} : { associatedDomains: [`webcredentials:${parsed.frontendApi}`] };
+}
+
+/**
  * The whole app config for an environment.
  *
  * @param env - The build environment (`process.env` at prebuild / build time).
@@ -161,16 +182,17 @@ export function buildAppConfig(env: Readonly<Record<string, string | undefined>>
         userInterfaceStyle: 'automatic',
         ios: {
             supportsTablet: true,
-            bundleIdentifier: 'io.commise.mobile',
+            bundleIdentifier: IOS_BUNDLE_IDENTIFIER,
+            ...associatedDomainsFor(env['EXPO_PUBLIC_IDP_PUBLISHABLE_KEY']),
             infoPlist: {
-                CFBundleURLTypes: [{ CFBundleURLSchemes: ['commise', 'io.commise.mobile'] }],
+                CFBundleURLTypes: [{ CFBundleURLSchemes: ['commise', IOS_BUNDLE_IDENTIFIER] }],
                 // The system Sign in with Apple button localises itself only when the app allows mixed localisations
                 // (what `expo-apple-authentication`'s plugin would set; its entitlement half is `@clerk/expo`'s below).
                 CFBundleAllowMixedLocalizations: true,
             },
         },
         android: {
-            package: 'io.commise.mobile',
+            package: ANDROID_PACKAGE,
             adaptiveIcon: {
                 foregroundImage: './src/assets/adaptiveIcon.png',
                 backgroundColor: '#ffffff',

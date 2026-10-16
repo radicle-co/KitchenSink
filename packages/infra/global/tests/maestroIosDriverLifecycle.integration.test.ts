@@ -153,6 +153,8 @@ describe('maestro iOS driver lifecycle — one flow through the real loop', () =
             UDID,
             'test',
             ...manifestToEnvLines(manifest, ERASURE_SUBJECT).flatMap((pair) => ['-e', pair]),
+            '-e',
+            'APP_ID=com.radicle-co.commise', // the iOS bundle, not the Android package (maestroAppId.test.ts)
             '--driver-host-port',
             port,
             'packages/apps/commise/mobile/.maestro/recipes/discoverDetailSaveCopy.yaml',
@@ -170,7 +172,11 @@ describe('maestro iOS driver lifecycle — one flow through the real loop', () =
     });
 
     it('never uninstalls the app or erases the Simulator — that would sign every later flow out', () => {
-        expect(recorded.calls.filter((call) => /io\.commise|\terase\b|\tprivacy\t/u.test(call))).toEqual([]);
+        expect(
+            recorded.calls.filter(
+                (call) => /^xcrun\t/u.test(call) && /io\.commise|com\.radicle-co|\terase\b|\tprivacy\t/u.test(call),
+            ),
+        ).toEqual([]);
     });
 });
 

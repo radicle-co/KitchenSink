@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Curated AE3 on a device (`docs/brainstorms/2026-09-26-curated-food-catalog-requirements.md` AE3;
 # `docs/design/ingredientSpecialization.md` §S2): words that name exactly one variant of a root find that root carrying

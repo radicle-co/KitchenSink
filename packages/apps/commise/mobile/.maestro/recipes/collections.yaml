@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Collections management happy path (US3, T112). Signs in, switches to the Collections tab, and drives the
 # full lifecycle the collection screens expose: create -> open -> rename -> delete. The mobile counterpart to

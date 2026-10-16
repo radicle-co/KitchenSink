@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Collections pagination (W8-b Task 5, W5/C7) — the mobile mirror of the server-paged "Load more" collection
 # list: no sibling flow yet drove the list past a single page, so this is the first mobile E2E proof that

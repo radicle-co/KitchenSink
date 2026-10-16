@@ -9,8 +9,8 @@ status: built (2026-10-15) — staff-architect BLUEPRINT and staff-ux-engineer S
 
 ## Owner facts (2026-10-13)
 
-- One iOS app. Bundle ID and Android package are `io.commise.mobile` for both stages.
-- Apple Team ID `L366LM35BC`. The App ID has only Sign in with Apple (primary).
+- One iOS app. The iOS bundle ID is `com.radicle-co.commise` (Apple Team `6822556035`, owner ruling 2026-10-16) and the Android package is `io.commise.mobile`, for both stages.
+- Apple Team ID `6822556035`. The App ID has only Sign in with Apple (primary).
 - Google OAuth client IDs (public, not secrets):
 
     | Client  | Sandbox (Clerk `nice-fowl-6.clerk.accounts.dev`)                             | Prod (Clerk `clerk.commise.app`)                                     |
@@ -200,8 +200,8 @@ Real OAuth cannot be automated: it needs a real Google / Apple account and the p
 
 ## Owner actions (Clerk dashboard — not changed here)
 
-1. Both instances: Native applications → enable the Native API; add the iOS app (Team ID `L366LM35BC`, bundle
-   `io.commise.mobile`).
+1. Both instances: Native applications → enable the Native API; add the iOS app (Team ID `6822556035`, bundle
+   `com.radicle-co.commise`).
 2. Sandbox: add the Android app (package `io.commise.mobile`, SHA-256
    `FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C`, the CI debug
    keystore). Confirm the sandbox Android OAuth client in Google Cloud carries SHA-1

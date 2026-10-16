@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # The recipe page's Back and ⋯ are discs over the hero photo (A-014 / D7; `docs/design/uiOverhaul/buildSpec.md` §3.5,
 # §6.1), and Back is NAMED FOR WHERE IT GOES — "Back to My recipes" here, because this flow opens the recipe from the list.

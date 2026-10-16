@@ -21,7 +21,7 @@
 #
 # Run: maestro test .maestro/auth/loginFlow.yaml
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 - launchApp:
       clearState: true

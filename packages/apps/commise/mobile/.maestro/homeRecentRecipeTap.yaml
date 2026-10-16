@@ -13,7 +13,7 @@
 #
 # Requires a seeded recipe API (EXPO_PUBLIC_RECIPE_API_URL) — the same seed the other recipe flows use.
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Sign in and land on the Home widget surface (the login core waits on the large title's avatar, "Profile…").
 - runFlow: auth/signinHome.yaml

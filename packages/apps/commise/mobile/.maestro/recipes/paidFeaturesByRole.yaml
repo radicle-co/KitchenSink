@@ -18,7 +18,7 @@
 # ⚠️ The editor's radios carry a hint under the title, so their accessible name is BOTH texts (`visibility.yaml` says
 # why), and the statement is ONE element named by its whole sentence (`RecipeVisibilityStatement.native.tsx`).
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 onFlowComplete:
     - launchApp:
           clearState: true

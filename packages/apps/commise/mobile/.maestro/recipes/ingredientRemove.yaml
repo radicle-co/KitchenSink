@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Plan 002 US6 on a device: removing an ingredient removes ONLY that row. Mobile mirror of the web Playwright
 # `ingredientRemove.spec.ts`.

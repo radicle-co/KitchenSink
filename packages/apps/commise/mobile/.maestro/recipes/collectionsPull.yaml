@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Pull-updates preview -> commit happy path (W5 Task 13, C2/FR-011) — the mobile mirror of the web Playwright
 # `collections.spec.ts` pull-preview-then-commit spec, and the highest-value of the three new collection

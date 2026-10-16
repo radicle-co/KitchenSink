@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Search + navigation (US1/US2, T114). The existing flows only assert the search box is VISIBLE; nothing ever
 # typed a query, so filtering was never tested. This flow types real queries and asserts the RESULT SET

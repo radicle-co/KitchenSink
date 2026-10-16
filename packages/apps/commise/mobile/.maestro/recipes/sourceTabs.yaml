@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # The recipe-SOURCE switcher round trip (L5) — mobile's half of the same story the web Playwright spec
 # `recipeSourceTabs.spec.ts` proves: My recipes -> Discover -> BACK to My recipes.

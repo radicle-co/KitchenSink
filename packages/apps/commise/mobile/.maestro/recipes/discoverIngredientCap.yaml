@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # The ingredient filter at its cap (curated U9, `docs/design/ingredientSpecialization.md` §S8.1a "The ingredient filter
 # at its cap"). One search filters on at most six foods (`MAX_SEARCH_FOOD_FILTERS`; the service answers 400 past it).

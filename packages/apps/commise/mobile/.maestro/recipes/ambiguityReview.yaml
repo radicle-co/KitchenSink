@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # U13 — the ambiguity-review story (mobile). Mirror of the web Playwright `ambiguityReview.spec.ts` per the
 # cross-platform mandate: the surface's decision layer is shared, so what this flow proves on a device is the native

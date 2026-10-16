@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Concurrent-edit conflict resolution (US1, T070 / FR-007c; W7 rebuild — banner + changed-only diff + A/B/C
 # cards + per-element merge, replacing the pre-rebuild 2-way "Keep my version" / "Use the latest version" /

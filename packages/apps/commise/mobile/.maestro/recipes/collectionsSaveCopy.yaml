@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Collection clone happy path (W5 Task 13, FR-011) — the mobile mirror of the web Playwright clone spec
 # (`collections.spec.ts`). Signs in, creates its own OWNED collection (HERMETIC — same reasoning as

@@ -26,7 +26,7 @@
 # ⚠️ A CONSUMER MAY OVERRIDE `E2E_SIGNIN_EMAIL` through `runFlow: env:` to sign in as a DIFFERENT identity —
 # `accountErasure.yaml` does exactly that, because it really erases the account it signs in as.
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 - launchApp
 

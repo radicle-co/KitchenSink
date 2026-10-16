@@ -321,6 +321,27 @@ ios|recipes/systemBackGuard|android-behaviour|its subject is Android's SYSTEM ba
 # the runner is removed first, which costs one reinstall.
 MAESTRO_IOS_DRIVER_BUNDLE='dev.mobile.maestro-driver-iosUITests.xctrunner'
 
+# The ID of the app under test, per platform: what `launchApp` names. Every flow reads it as `appId: ${APP_ID}` and
+# `maestro_run_flow_list` passes it with `-e`. These are COPIES of `IOS_BUNDLE_IDENTIFIER` and `ANDROID_PACKAGE` in
+# app.config.ts (a bash script cannot import them), and `maestroAppId.test.ts` asserts they agree.
+MAESTRO_IOS_APP_ID='com.radicle-co.commise'
+MAESTRO_ANDROID_APP_ID='io.commise.mobile'
+
+# maestro_app_id <platform>
+#
+# Prints the app ID `platform` runs; refuses an unknown platform (exit 2). Pure.
+maestro_app_id() {
+    case "${1-}" in
+        ios) printf '%s\n' "$MAESTRO_IOS_APP_ID" ;;
+        android) printf '%s\n' "$MAESTRO_ANDROID_APP_ID" ;;
+        *)
+            echo "runMaestroFlows.sh: no app ID for platform '${1-}'" >&2
+
+            return 2
+            ;;
+    esac
+}
+
 # ── SHARDING: how many runners the plan may be split across, and what each flow costs ────────────────────
 #
 # ⛔ `MAESTRO_MAX_SHARDS` IS A COPY OF `maestroShardCapacity(platform)` (packages/tools/e2e-fixtures/src/testPool.ts),
@@ -1340,7 +1361,7 @@ maestro_run_flows() {
 #
 # @sideEffect Resets the driver, reseeds the database, runs Maestro, and dumps diagnostics on failure.
 maestro_run_flow_list() {
-    local rc=0 f reseed_mode flows="$*" platform driver_args=()
+    local rc=0 f reseed_mode flows="$*" platform app_id driver_args=()
 
     if ! platform=$(maestro_platform); then
         echo "::error::unknown MAESTRO_PLATFORM '${MAESTRO_PLATFORM:-}' — refusing to guess which device to drive"
@@ -1415,10 +1436,11 @@ maestro_run_flow_list() {
             return 1
         fi
         maestro_load_fixture_env_args
+        app_id=$(maestro_app_id "$platform") || return 1
         # `${a[@]+"${a[@]}"}` rather than a bare `"${a[@]}"`: under `set -u` an EMPTY array is an unbound
         # variable on bash 3.2 (still the system bash on macOS), and the `run-one` seam runs with no
         # manifest. Every element stays individually quoted, so titles keep their spaces.
-        if maestro ${device_args[@]+"${device_args[@]}"} test ${driver_args[@]+"${driver_args[@]}"} ${MAESTRO_FIXTURE_ENV_ARGS[@]+"${MAESTRO_FIXTURE_ENV_ARGS[@]}"} --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
+        if maestro ${device_args[@]+"${device_args[@]}"} test ${driver_args[@]+"${driver_args[@]}"} ${MAESTRO_FIXTURE_ENV_ARGS[@]+"${MAESTRO_FIXTURE_ENV_ARGS[@]}"} -e "APP_ID=${app_id}" --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
             driver_trusted=1
             runner_before='the previous flow passed'
         else
@@ -1466,6 +1488,10 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             shift
             platform=$(maestro_platform) || exit 2
             maestro_shard_selection "$platform" "$@"
+            ;;
+        app-id)
+            shift
+            maestro_app_id "$@"
             ;;
         platform-flows)
             shift

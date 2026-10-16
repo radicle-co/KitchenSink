@@ -21,7 +21,7 @@
 # The confirm's body differs by reason (hidden: "won't be able to", upsell: "you'll need Premium"), and the stage's gate
 # is the owner's, so the body is matched by the sentence both share. ⚠️ The editor's radios are named by ALL their texts,
 # the cost note included (`visibility.yaml` says why), so the Public radio is matched by its leading words.
-appId: io.commise.mobile
+appId: ${APP_ID}
 # The device is cleared after the run, pass or fail, so the next flow signs in as the shard's signer (`signinHome.yaml`
 # skips the form when any session is persisted).
 onFlowComplete:

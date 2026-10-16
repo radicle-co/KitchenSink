@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # The ingredient row editor's stories on a device (plan 002 V1 B7). Mobile mirror of the web Playwright
 # `ingredientRowEditor.spec.ts`:

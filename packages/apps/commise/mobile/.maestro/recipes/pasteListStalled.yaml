@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # A paste the server reads as STALLED waits on the cook (plan 2026-10-15-011; owner ruling 2026-10-13: "it takes as long
 # as it takes"). Mobile mirror of the web Playwright case "a stalled paste waits on the cook" in

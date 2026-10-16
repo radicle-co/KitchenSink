@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Interactive rating happy path (FR-013, scenarios 6/7/10) — the mobile mirror of the web Playwright
 # `recipeRating.spec.ts`. Signs in, opens a PUBLIC recipe the caller does NOT own (so the own-recipe gate,

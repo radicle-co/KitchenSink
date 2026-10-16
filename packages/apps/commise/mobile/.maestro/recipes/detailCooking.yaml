@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # The first slice of 008 FR-035 on the recipe page (`docs/design/uiOverhaul/buildSpec.md` §6.3), on a device:
 #

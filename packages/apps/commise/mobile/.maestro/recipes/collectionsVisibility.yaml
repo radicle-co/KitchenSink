@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Collection visibility, PREMIUM path (W5 Task 13, C1/FR-010; slice 5, `docs/design/uiOverhaul/buildSpec.md` §5.2) — the
 # mobile mirror of the web Playwright visibility spec. It drives a real Private -> Public -> Private round trip from the

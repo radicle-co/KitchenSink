@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Reusable sub-flow: add one ingredient line "as written" from the add field, then wait for it to land. Called with
 # `runFlow: { file: addDeclaredLine.yaml, env: { NAME: '…' } }` from a flow standing in the one-page editor.

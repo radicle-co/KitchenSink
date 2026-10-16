@@ -63,13 +63,33 @@ describe('app config orientation', () => {
 });
 
 describe('app config identity', () => {
-    it('is one app for every stage: io.commise.mobile on both platforms (owner, 2026-10-13)', () => {
+    it('is one app for every stage: the Apple-registered iOS bundle, the Android package (owner, 2026-10-16)', () => {
         for (const key of [SANDBOX_KEY, PROD_KEY]) {
             const config = configFor(key);
 
-            expect(config.ios?.bundleIdentifier).toBe('io.commise.mobile');
+            // The Apple Developer account (Team 6822556035) registers `com.radicle-co.commise`; Clerk's Native
+            // applications list `6822556035.com.radicle-co.commise` for iOS and the Android package separately.
+            expect(config.ios?.bundleIdentifier).toBe('com.radicle-co.commise');
             expect(config.android?.package).toBe('io.commise.mobile');
         }
+    });
+
+    it('names the iOS bundle (not the Android package) as the iOS deep-link scheme', () => {
+        const schemes = configFor(SANDBOX_KEY).ios?.infoPlist?.['CFBundleURLTypes'] as
+            readonly { CFBundleURLSchemes: readonly string[] }[] | undefined;
+
+        expect(schemes?.[0]?.CFBundleURLSchemes).toEqual(['commise', 'com.radicle-co.commise']);
+    });
+
+    it.each([
+        ['sandbox', SANDBOX_KEY, 'nice-fowl-6.clerk.accounts.dev'],
+        ['production', PROD_KEY, 'clerk.commise.app'],
+    ])('associates the %s Clerk host for webcredentials, so the AASA applies to the app', (_stage, key, host) => {
+        expect(configFor(key).ios?.associatedDomains).toEqual([`webcredentials:${host}`]);
+    });
+
+    it('declares no associated domain when the build has no Clerk key', () => {
+        expect(configFor(undefined).ios?.associatedDomains).toBeUndefined();
     });
 
     it('lets the system Sign in with Apple button follow the device language (CFBundleAllowMixedLocalizations)', () => {

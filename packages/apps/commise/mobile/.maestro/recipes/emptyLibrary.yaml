@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # First-run recipe library (US1) — the very first screen a brand-new account opens on, and the state a
 # reported defect shipped broken: the list hung on a permanent loading skeleton, so BOTH the empty branch

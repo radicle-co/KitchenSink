@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # The one-page editor's sections and its section index, on a phone (UI overhaul slice 7; build spec §7.1, §7.2;
 # owner decisions D1, D2). Mobile mirror of the web Playwright `recipeEditor.spec.ts` section-jump tests.

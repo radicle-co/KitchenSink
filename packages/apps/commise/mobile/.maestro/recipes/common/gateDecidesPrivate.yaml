@@ -9,7 +9,7 @@
 #
 # The caller clears the device first; this sub-flow does not, so the caller decides whose session it replaces.
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 - runFlow: ../../auth/signinHome.yaml
 # A role user with no recipes sees Home's first run, which hides the floating button and offers "Add your first recipe"

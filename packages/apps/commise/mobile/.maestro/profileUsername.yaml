@@ -6,7 +6,7 @@
 # provisioned after identity migration 0016 and for any older one once a Clerk `user.updated` has synced it. Pool
 # users always have one (`poolAdmin.ts` writes `username` on create). Selectors are visible text only.
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 - runFlow: auth/signinHome.yaml
 

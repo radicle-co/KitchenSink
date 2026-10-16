@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # A-021 part 1 (UI walk 2026-10-13). A paste holds the recipe's server create while its lines are read (the lines that
 # join before the create keep their source, blueprint A5). When the lines have joined, the hold lets go and the editor

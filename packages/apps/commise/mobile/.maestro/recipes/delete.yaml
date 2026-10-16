@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Recipe delete happy path (US1, T068). Assumes an authenticated session (auth flow runs first in CI) and
 # a seeded recipe API. Drives list -> detail -> delete-confirm dialog -> confirm, then asserts the return

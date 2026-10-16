@@ -59,7 +59,7 @@
 # `enabled: false` on `assertVisible` by `recipes/conflictMerge.yaml`, and relative-position anchoring by `recipes/rating.yaml`'s
 # `above: 'New'`.
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Sign in as THIS RUN'S ERASURE SUBJECT — not the signer — and land on the Home widget surface.
 #

@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Plan 002 US5 on a device: a matched ingredient's info glyph opens its nutrition in the bottom sheet, from the
 # editor's ONE background read (`POST /api/v1/ingredients/food-nutrition`). Mobile mirror of the web Playwright

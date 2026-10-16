@@ -17,7 +17,7 @@
 #   - FR-001 / FR-001b — the recipe editor's first screen (Details): the form chrome, and the difficulty picker
 #     whose "no difficulty stated" is a first-class state that MUST render no badge and no default.
 
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Sign in and land on the Home widget surface. The login CORE is used deliberately (not `auth/signin.yaml`,
 # which crosses into recipes) because the first assertion is about Home itself.

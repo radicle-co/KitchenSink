@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Reusable sub-flow: type `QUERY` into the Discover filter sheet's ingredient search. Called with
 # `runFlow: { file: common/typeIngredientFilter.yaml, env: { QUERY: '…' } }` while the sheet is open.

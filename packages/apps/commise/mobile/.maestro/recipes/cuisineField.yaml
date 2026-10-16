@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # The Cuisine field on a phone (`docs/design/uiOverhaul/cuisineField.md`; owner rulings 2026-10-13): a cuisine is
 # REQUIRED TO PUBLISH, and it is free text. Mobile mirror of the web Playwright `cuisineField.spec.ts`.

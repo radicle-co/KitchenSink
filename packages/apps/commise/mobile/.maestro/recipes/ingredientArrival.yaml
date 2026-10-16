@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # After a food is picked, the new row stays in view (`docs/design/uiOverhaul/ingredientArrival.md`). Mobile mirror of the
 # web Playwright `ingredientArrival.spec.ts`.

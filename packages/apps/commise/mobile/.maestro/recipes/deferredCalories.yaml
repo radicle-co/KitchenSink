@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Deferred calorie lookup on a real device (ADR-0021, mobile Phase 6). The cards paint FIRST and each card's
 # per-serving figure arrives afterwards, behind its own Suspense boundary — so the one thing this story can

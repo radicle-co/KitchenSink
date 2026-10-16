@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # The quantity-first add field (build spec §7.5.3; blueprint A1, A2; UI overhaul slice 8). Mobile mirror of the web
 # Playwright `addIngredientLoop.spec.ts`'s amount-first cases.

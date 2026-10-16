@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # U16 — the CREATE-MY-OWN-FOOD door (plan U16, ADR-0029). Since plan 002 V1 B8 it is the LAST option of the trailing
 # "Add an ingredient" list (O3 ruling, `docs/design/rowEditorOpenDecisions.md` item 1), and the form is the

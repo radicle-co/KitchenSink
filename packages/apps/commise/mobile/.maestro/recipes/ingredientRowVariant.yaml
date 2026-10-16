@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Curated U15 on the recipe form row (`docs/design/ingredientSpecialization.md` §S1, F3): a variant-bound line shows the
 # root's name with the variant's dotted line under it, a root-bound line beside it shows the name only, and the row's

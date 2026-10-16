@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # A line bound to ANOTHER cook's private food, read across the real boundary (plan 002 R9). The signer opens the
 # co-author's public recipe, whose one line (2 tbsp) is bound to the co-author's PRIVATE food. The recipe service

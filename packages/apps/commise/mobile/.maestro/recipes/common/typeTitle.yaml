@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Reusable sub-flow: type `TITLE` into the editor's Title field, then close the keyboard. Called with
 # `runFlow: { file: common/typeTitle.yaml, env: { TITLE: '…' } }`.

@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Reusable sub-flow: empty the Title field of the seeded lamb (`${E2E_RECIPE_LAMB}`), the recipe every caller edits.
 #

@@ -298,6 +298,27 @@ describe('search — a barcode unshift (curated U8 S3, plan 002 S3)', () => {
             { id: 'R-LIVE', name: 'beef brisket', score: 1 },
         ]);
     });
+
+    // A typed barcode names one food exactly, so it must land ABOVE every fuzzy match, not after them.
+    it('⛔ puts the crosswalk hit FIRST, ahead of the ranked hits', async () => {
+        const { service } = makeSearchService({ hits: [brisketHit()], barcodeFood: { id: 'R-LIVE', name: 'oxtail' } });
+
+        expect((await service.search('0123456789012', AUTHOR)).results).toStrictEqual([
+            { id: 'R-LIVE', name: 'oxtail', score: 1 },
+            { id: ROOT_ID, name: 'beef brisket', score: 0.8 },
+        ]);
+    });
+
+    it('never duplicates a root the ranked hits already hold, keeping its ranked score', async () => {
+        const { service } = makeSearchService({
+            hits: [brisketHit()],
+            barcodeFood: { id: ROOT_ID, name: 'beef brisket' },
+        });
+
+        expect((await service.search('0123456789012', AUTHOR)).results).toStrictEqual([
+            { id: ROOT_ID, name: 'beef brisket', score: 0.8 },
+        ]);
+    });
 });
 
 describe('search — a source-key unshift reads through the owner reader (curated U8 S4, R19)', () => {

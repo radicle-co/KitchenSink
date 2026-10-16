@@ -100,12 +100,16 @@ const Harness: FC<{
     );
 };
 
-/** The host's revealer, recording what the add field asks. */
+/**
+ * The host's revealer, recording the ARRIVALS the add field asks. The field also holds itself in view while focused (a
+ * `focus` request, `specSharedSystem.md` §16.3), which `Combobox.native.test.tsx` covers; this file is about arrivals.
+ */
 function hosted(props: Parameters<typeof Harness>[0] = {}) {
     const release = vi.fn();
     const revealer = vi.fn<FieldRevealer>(() => release);
+    const arrivalsOnly: FieldRevealer = (request) => (request.kind === 'arrival' ? revealer(request) : () => undefined);
     const tree = (next: Parameters<typeof Harness>[0]) => (
-        <FieldRevealContext.Provider value={revealer}>
+        <FieldRevealContext.Provider value={arrivalsOnly}>
             <Harness {...next} />
         </FieldRevealContext.Provider>
     );

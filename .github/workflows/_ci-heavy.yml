@@ -1266,6 +1266,14 @@ jobs:
                   ram-size: 4096M
                   emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect -camera-back none
                   disable-animations: true
+                  # ⛔ The soft keyboard must raise on focus. `avdmanager` copies the pixel_6 profile's hardware keyboard
+                  # into the AVD and the action's `enable-hw-keyboard: false` adds nothing, so the AVD reported a hardware
+                  # keyboard and the IME stayed down (run 38950847113, `recipes/pinnedActionBar.yaml`). Rewritten once here,
+                  # for every shard, and printed (`maestroSoftKeyboard.test.ts`).
+                  pre-emulator-launch-script: |
+                      sed -i '/^hw.keyboard=/d' $HOME/.android/avd/test.avd/config.ini
+                      echo 'hw.keyboard=no' >> $HOME/.android/avd/test.avd/config.ini
+                      grep -n 'hw.keyboard' $HOME/.android/avd/test.avd/config.ini
                   # ⛔ THERE IS DELIBERATELY NO HARDWARE-KEYBOARD INPUT HERE, and the paragraph that used to
                   # stand in its place was FALSE. It read: "Use a hardware keyboard so text fields never raise
                   # the SOFT keyboard … With the soft keyboard suppressed there is nothing to hide, so the
@@ -1513,6 +1521,10 @@ jobs:
                   udid=$(xcrun simctl create "maestro-${GITHUB_RUN_ID}-${SHARD_INDEX}" "${devicetype}" "${runtime}")
                   prefs="$HOME/Library/Developer/CoreSimulator/Devices/${udid}/data/Library/Preferences"
                   mkdir -p "${prefs}"
+                  # Same class as the Android AVD: with the host keyboard connected the Simulator never raises the software one.
+                  defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false ||
+                      echo "::warning::could not switch Connect Hardware Keyboard off for the Simulator"
+                  echo "ConnectHardwareKeyboard=$(defaults read com.apple.iphonesimulator ConnectHardwareKeyboard || echo unset)"
                   for key in KeyboardAutocorrection KeyboardAutocapitalization KeyboardCheckSpelling KeyboardPrediction KeyboardPeriodShortcut; do
                       defaults write "${prefs}/com.apple.Preferences" "${key}" -bool false ||
                           echo "::warning::could not write ${key} for the Simulator keyboard"

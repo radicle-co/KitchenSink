@@ -37,9 +37,13 @@ export const isInvalidConfigError = (error: unknown): error is InvalidConfigErro
 /**
  * Read a required environment variable, throwing `MissingConfigError` when unset or empty. Uses
  * bracket notation per the repo env-access convention.
+ *
+ * @param name - The variable's name.
+ * @param env - The environment to read; defaults to `process.env`.
+ * @sideEffect Reads `process.env` when no environment is given.
  */
-export const requireEnv = (name: string): string => {
-    const value = process.env[name];
+export const requireEnv = (name: string, env: NodeJS.ProcessEnv = process.env): string => {
+    const value = env[name];
 
     if (value === undefined || value === '') {
         throw new MissingConfigError(name);
@@ -63,13 +67,7 @@ export const requireEnv = (name: string): string => {
  * @sideEffect Reads `process.env` when no environment is given.
  */
 export const requirePositiveEnv = (name: string, env: NodeJS.ProcessEnv = process.env): number => {
-    const raw = env[name];
-
-    if (raw === undefined || raw === '') {
-        throw new MissingConfigError(name);
-    }
-
-    const parsed = Number(raw);
+    const parsed = Number(requireEnv(name, env));
 
     if (!Number.isInteger(parsed) || parsed <= 0) {
         throw new InvalidConfigError(name, `${name} must be a positive integer`);

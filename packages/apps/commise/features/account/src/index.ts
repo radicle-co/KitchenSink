@@ -84,3 +84,8 @@ export {
 } from './session/subjectBoundToken.js';
 export { TokenMintFailedError, isTokenMintFailedError } from './session/tokenMintFailedError.js';
 export type { SessionSubjectSource } from './session/subjectBoundToken.js';
+// ONE token policy for every identity client, on both platforms: no token means no request, and `forceRefresh` reaches Clerk.
+export { tokenSourceFrom } from './session/tokenSourceFrom.js';
+export type { ClerkGetToken } from './session/tokenSourceFrom.js';
+export { useProfileServiceClient } from './session/useProfileServiceClient.js';
+export type { ProfileServiceClientInput } from './session/useProfileServiceClient.js';

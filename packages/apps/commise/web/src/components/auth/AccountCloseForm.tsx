@@ -35,27 +35,26 @@
  *     holding a live session.
  */
 import { useState } from 'react';
-import { useAuth } from '@clerk/nextjs';
 import { useMessages } from '@commise/i18n/react';
 import { isClosureStepError, useClosureSequence } from '@commise/features-account';
 import { accountDangerMessages } from '@commise/features-account/danger';
 import { ProfileRow } from '@commise/features-account/profile';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 
-import { createProfileServiceClient } from '@/lib/identityServiceClient';
+import { useProfileServiceClient } from '@/hooks/useProfileServiceClient';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { useSignOutAndLeave } from '@/components/auth/useSignOutAndLeave';
 
 export function AccountCloseForm() {
     const { close } = useMessages(accountDangerMessages);
-    const { getToken } = useAuth();
+    const client = useProfileServiceClient();
     const [open, setOpen] = useState(false);
     const { signOutAndLeave } = useSignOutAndLeave();
 
     const sequence = useClosureSequence({
         // The token is minted when the request is sent: a session token lives about a minute, so one captured at
         // render would be stale for a cook who read the page first.
-        close: async () => createProfileServiceClient(async () => (await getToken()) ?? '').deleteMe(),
+        close: async () => client.deleteMe(),
         leave: signOutAndLeave,
     });
     // The account is closed and only leaving failed: the row is a fact now, not an action.

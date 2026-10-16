@@ -20,10 +20,9 @@
  * further is layered on top of it.
  */
 import { useMutation, type UseMutationResult } from '@tanstack/react-query';
-import { useAuth } from '@clerk/nextjs';
 import type { EraseAccountResult } from '@commise/features-account';
 
-import { createProfileServiceClient } from '@/lib/identityServiceClient';
+import { useProfileServiceClient } from '@/hooks/useProfileServiceClient';
 
 /**
  * The account-erasure command. Irreversible: on success the Clerk account is queued for deletion and the
@@ -33,15 +32,9 @@ import { createProfileServiceClient } from '@/lib/identityServiceClient';
  * @sideEffect Issues an authenticated request that irreversibly destroys the signed-in account.
  */
 export function useEraseAccount(): UseMutationResult<EraseAccountResult, Error, void> {
-    const { getToken } = useAuth();
+    const client = useProfileServiceClient();
 
-    return useMutation({
-        // Adapted, not passed through: Clerk's `GetToken` takes its OWN options object and can resolve
-        // `null`, while `TokenSource` promises a string. Handing `getToken` over directly type-errors, and
-        // widening `TokenSource` to accept it would let a null token reach the client as the string "null".
-        mutationFn: async () =>
-            createProfileServiceClient(
-                async ({ forceRefresh } = {}) => (await getToken({ skipCache: forceRefresh })) ?? '',
-            ).eraseMe(),
-    });
+    // The shared client adapts Clerk's `getToken` (see `useProfileServiceClient`): `forceRefresh` reaches Clerk as
+    // `skipCache`, and a session with no token sends nothing rather than `Authorization: Bearer null`.
+    return useMutation({ mutationFn: async () => client.eraseMe() });
 }

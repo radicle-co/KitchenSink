@@ -116,6 +116,32 @@ describe('AccountCloseForm (web) — the bearer token', () => {
         await expect((source as () => Promise<string>)()).resolves.toBe('fresh-token');
         expect(getToken).toHaveBeenCalled();
     });
+
+    it('forwards forceRefresh to Clerk as skipCache, so a refused bearer is replayed with a fresh one', async () => {
+        const user = userEvent.setup();
+        renderForm();
+
+        await user.click(screen.getByRole('button', { name: 'Close account' }));
+        await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Close account' }));
+
+        const source = tokenSources.at(-1) as (options?: { forceRefresh?: boolean }) => Promise<string>;
+        await source({ forceRefresh: true });
+
+        expect(getToken).toHaveBeenLastCalledWith({ skipCache: true });
+    });
+
+    it('refuses to mint when the session has no token, instead of sending an empty bearer', async () => {
+        getToken.mockResolvedValue(null);
+        const user = userEvent.setup();
+        renderForm();
+
+        await user.click(screen.getByRole('button', { name: 'Close account' }));
+        await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Close account' }));
+
+        const source = tokenSources.at(-1) as () => Promise<string>;
+
+        await expect(source()).rejects.toMatchObject({ name: 'UnauthorizedError' });
+    });
 });
 
 describe('AccountCloseForm (web) — open', () => {

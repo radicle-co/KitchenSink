@@ -11,10 +11,9 @@
  *    `DELETE /api/v1/users/me`. If it ever collapsed onto the closure endpoint the app's irreversible control
  *    would silently perform the RECOVERABLE action — a user told their data was destroyed would still have an
  *    account — and every doubled test in `AccountEraseForm.test.tsx` would go on passing.
- * 2. **A session that yields no token must not send the STRING `null` as a credential.** Clerk's `getToken`
- *    resolves `null`, `TokenSource` promises a string, and the hook bridges the two with `?? ''`. Dropping
- *    that coalesce produces `Authorization: Bearer null` — a credential-shaped value that is not a
- *    credential, on the one request in the app that cannot be undone.
+ * 2. **A session that yields no token must send NOTHING.** Clerk's `getToken` resolves `null` while `TokenSource`
+ *    promises a string; the shared `tokenSourceFrom` bridges the two by refusing (an `UnauthorizedError`), so no
+ *    `Authorization: Bearer ` (or `Bearer null`) ever reaches the one request in the app that cannot be undone.
  *
  * Assertions observe the ACTUAL outgoing `fetch` (URL, method, header), matching `tests/hooks/
  * useUserProfile.test.tsx` and `AccountEditForm.test.tsx`, rather than an internal collaborator — so they
@@ -100,18 +99,17 @@ describe('useEraseAccount (web)', () => {
         expect(sentRequest().init.headers['authorization']).toBe('Bearer tok_abc');
     });
 
-    it('never sends the string "null" as a credential when the session yields no token', async () => {
+    it('sends NO request, and never a credential-shaped value, when the session yields no token', async () => {
         useAuthMock.mockReturnValue({ getToken: vi.fn().mockResolvedValue(null) });
 
         const { result } = renderHook(() => useEraseAccount(), { wrapper });
         result.current.mutate();
 
-        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        await waitFor(() => expect(result.current.isError).toBe(true));
 
-        const authorization = sentRequest().init.headers['authorization'];
-        expect(authorization).toBe('Bearer ');
-        expect(authorization).not.toContain('null');
-        expect(authorization).not.toContain('undefined');
+        // Fail closed: an empty `Bearer ` header on the one request that cannot be undone is worse than no request.
+        expect(result.current.error).toMatchObject({ name: 'UnauthorizedError' });
+        expect(global.fetch).not.toHaveBeenCalled();
     });
 
     it('reports a REJECTED erasure as an error rather than resolving — the flow must not sign the viewer out', async () => {

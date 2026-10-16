@@ -14,7 +14,7 @@ import { profileQueries } from '@commise/features-account';
 import type { UserSettings } from '@kitchensink/schema-identity';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
-import { createProfileServiceClient } from '@/lib/identityServiceClient';
+import { useProfileServiceClient } from '@/hooks/useProfileServiceClient';
 
 /**
  * Read the signed-in viewer's settings via TanStack Query.
@@ -23,10 +23,11 @@ import { createProfileServiceClient } from '@/lib/identityServiceClient';
  *   when the query has neither.
  */
 export function useUserSettings(): UseQueryResult<UserSettings> {
-    const { getToken, isSignedIn } = useAuth();
+    const { isSignedIn } = useAuth();
+    const client = useProfileServiceClient();
 
     return useQuery({
-        ...profileQueries(createProfileServiceClient(async () => (await getToken()) ?? '')).settings(),
+        ...profileQueries(client).settings(),
         enabled: Boolean(isSignedIn),
     });
 }

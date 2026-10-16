@@ -93,16 +93,43 @@ describe('useUserProfile (web)', () => {
         expect(global.fetch).not.toHaveBeenCalled();
     });
 
-    it('sends an empty bearer when the session yields no token, without throwing', async () => {
+    it('fails closed when the session yields no token: no request is sent, never an empty bearer', async () => {
         useAuthMock.mockReturnValue({ isSignedIn: true, getToken: vi.fn().mockResolvedValue(null) });
 
         const { result } = renderHook(() => useUserProfile(), { wrapper });
 
+        await waitFor(() => expect(result.current.isError).toBe(true));
+
+        expect(result.current.error).toMatchObject({ name: 'UnauthorizedError' });
+        expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('recovers from a refused first bearer by replaying once with a freshly minted token', async () => {
+        const getToken = vi.fn(async (options?: { skipCache?: boolean }) =>
+            options?.skipCache === true ? 'tok_fresh' : 'tok_stale',
+        );
+        useAuthMock.mockReturnValue({ isSignedIn: true, getToken });
+        vi.mocked(global.fetch)
+            .mockResolvedValueOnce({
+                ok: false,
+                status: 401,
+                json: () => Promise.resolve({ code: 'IDENTITY_SYNC_PENDING' }),
+                text: () => Promise.resolve(JSON.stringify({ code: 'IDENTITY_SYNC_PENDING' })),
+            } as Response)
+            .mockResolvedValueOnce({
+                ok: true,
+                status: 200,
+                json: () => Promise.resolve(premiumProfile),
+                text: () => Promise.resolve(JSON.stringify(premiumProfile)),
+            } as Response);
+
+        const { result } = renderHook(() => useUserProfile(), { wrapper });
+
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
-        const [, init] = vi.mocked(global.fetch).mock.calls[0] as [
-            string,
-            RequestInit & { headers: Record<string, string> },
-        ];
-        expect(init.headers['authorization']).toBe('Bearer ');
+
+        const bearers = vi
+            .mocked(global.fetch)
+            .mock.calls.map(([, init]) => (init as { headers: Record<string, string> }).headers['authorization']);
+        expect(bearers).toEqual(['Bearer tok_stale', 'Bearer tok_fresh']);
     });
 });

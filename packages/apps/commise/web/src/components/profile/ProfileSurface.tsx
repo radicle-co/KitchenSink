@@ -17,7 +17,7 @@
  * @pattern Composition root over the Profile render leaves — the read, the editor and the router meet here and nowhere
  *     below
  */
-import { useAuth, useUser } from '@clerk/nextjs';
+import { useUser } from '@clerk/nextjs';
 import { profileMutations } from '@commise/features-account';
 import { initialsFor } from '@commise/features-core';
 import {
@@ -43,9 +43,9 @@ import { AccountCloseForm } from '@/components/auth/AccountCloseForm';
 import { AccountEraseForm } from '@/components/auth/AccountEraseForm';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { ShortcutSwitchRow } from '@/components/profile/ShortcutSwitchRow';
+import { useProfileServiceClient } from '@/hooks/useProfileServiceClient';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useUserSettings } from '@/hooks/useUserSettings';
-import { createProfileServiceClient } from '@/lib/identityServiceClient';
 import { withBasePath } from '@/lib/basePath';
 
 /** The Profile page. */
@@ -58,17 +58,13 @@ export const ProfileSurface: FC = () => {
     const read = profileReadOf(query);
     const saved = read.status === 'ready' ? read.displayName : '';
     const { user } = useUser();
-    const { getToken } = useAuth();
-    // The token is minted per call: a session token lives about a minute, so one captured at render would be stale for
-    // a cook who typed slowly.
-    const update = useMutation(
-        profileMutations(createProfileServiceClient(async () => (await getToken()) ?? '')).update(),
-    );
+    // The client mints its token per call (see `useProfileServiceClient`): a session token lives about a minute, so one
+    // captured at render would be stale for a cook who typed slowly.
+    const client = useProfileServiceClient();
+    const update = useMutation(profileMutations(client).update());
     const editor = useDisplayNameEditor({ saved, user, update });
     const settings = useUserSettings();
-    const patchSettings = useMutation(
-        profileMutations(createProfileServiceClient(async () => (await getToken()) ?? '')).patchSettings(),
-    );
+    const patchSettings = useMutation(profileMutations(client).patchSettings());
     const sourcesPath = `/${locale}/legal/sources`;
     const homePath = `/${locale}`;
 

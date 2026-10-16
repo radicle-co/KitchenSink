@@ -19,7 +19,7 @@ import { profileQueries } from '@commise/features-account';
 import type { UserProfile } from '@kitchensink/schema-identity';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
-import { createProfileServiceClient } from '@/lib/identityServiceClient';
+import { useProfileServiceClient } from '@/hooks/useProfileServiceClient';
 
 /**
  * Read the signed-in viewer's identity profile via TanStack Query.
@@ -27,10 +27,11 @@ import { createProfileServiceClient } from '@/lib/identityServiceClient';
  * @returns The query result; `data.account.paidFeatures` drives every paid-feature surface. Idle while signed out.
  */
 export function useUserProfile(): UseQueryResult<UserProfile> {
-    const { getToken, isSignedIn } = useAuth();
+    const { isSignedIn } = useAuth();
+    const client = useProfileServiceClient();
 
     return useQuery({
-        ...profileQueries(createProfileServiceClient(async () => (await getToken()) ?? '')).me(),
+        ...profileQueries(client).me(),
         enabled: Boolean(isSignedIn),
     });
 }

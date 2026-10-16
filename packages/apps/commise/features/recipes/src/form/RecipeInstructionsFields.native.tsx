@@ -103,8 +103,11 @@ export const RecipeInstructionsFields: FC<RecipeEditorSectionProps> = ({ values,
                                     value={step.instruction}
                                     minRows={2}
                                     autoCapitalize="sentences"
+                                    label={label}
                                     invalid={invalid}
-                                    {...(invalid ? { describedBy: stepsErrorId } : {})}
+                                    {...(invalid && refused !== undefined
+                                        ? { describedBy: stepsErrorId, error: refused.text }
+                                        : {})}
                                     focusRequested={list.fieldFocus(index).requested}
                                     onFocusRequestHandled={list.fieldFocus(index).onHandled}
                                     onChangeText={(instruction) =>

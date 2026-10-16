@@ -28,6 +28,8 @@ export const Input: FC<InputProps> = ({
     onChangeText,
     invalid = false,
     describedBy,
+    error,
+    label,
     placeholder,
     autoCapitalize,
     autoCorrect,
@@ -52,7 +54,9 @@ export const Input: FC<InputProps> = ({
             value={value}
             onChangeText={onChangeText}
             aria-labelledby={fieldLabelId(id)}
-            aria-invalid={invalid}
+            accessibilityLabel={label}
+            accessibilityHint={error}
+            aria-invalid={invalid || error !== undefined}
             aria-describedby={describedBy}
             placeholder={placeholder}
             placeholderTextColor={theme.colors.inkMuted}
@@ -65,7 +69,7 @@ export const Input: FC<InputProps> = ({
             secureTextEntry={secret}
             onSubmitEditing={onSubmit}
             maxLength={maxLength}
-            style={[styles.field, fieldPaint(theme, invalid), disabled ? styles.disabled : null]}
+            style={[styles.field, fieldPaint(theme, invalid || error !== undefined), disabled ? styles.disabled : null]}
         />
     );
 };

@@ -42,6 +42,20 @@ interface FieldCommon {
     readonly invalid?: boolean;
     /** The id of the element that describes the field — a hint, an error, or both, space-separated. */
     readonly describedBy?: string;
+    /**
+     * The message the caller draws for this field (WCAG 3.3.1), repeated here for the platform that cannot link them.
+     * Native only: React Native has no `aria-describedby`, so the field's `accessibilityHint` is this text and a screen
+     * reader speaks it on reaching the field; present means invalid, the `danger` edge too. The caller still draws the
+     * message wherever its layout needs it. The web leaf ignores it, because `invalid` and `describedBy` already tie the
+     * message to the field there.
+     */
+    readonly error?: string;
+    /**
+     * The visible label's text, repeated as the field's accessible name. Native only: the field's `aria-labelledby` is
+     * honoured on Android alone, and `accessibilityLabel` is what iOS reads. The web leaf ignores it, because the
+     * label's `htmlFor` names the field there.
+     */
+    readonly label?: string;
     /** An example value, never a label (spec §2.2: no "..." in a placeholder). */
     readonly placeholder?: string;
     /** Capitalisation the keyboard applies while typing. */

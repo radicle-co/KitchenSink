@@ -224,7 +224,8 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
                             maxRows={3}
                             placeholder={m.titlePlaceholder}
                             autoCapitalize="sentences"
-                            invalid={titleMessage !== undefined}
+                            label={m.titleLabel}
+                            {...(titleMessage === undefined ? {} : { error: titleMessage })}
                             describedBy={describedByOf(
                                 titleMessage === undefined ? undefined : titleErrorId,
                                 title.shown ? titleCounterId : undefined,
@@ -243,7 +244,8 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
                             value={values.description}
                             minRows={4}
                             autoCapitalize="sentences"
-                            invalid={descriptionMessage !== undefined}
+                            label={m.descriptionLabel}
+                            {...(descriptionMessage === undefined ? {} : { error: descriptionMessage })}
                             describedBy={describedByOf(
                                 descriptionMessage === undefined ? undefined : descriptionErrorId,
                                 description.shown ? descriptionCounterId : undefined,

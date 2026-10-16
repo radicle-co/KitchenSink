@@ -49,6 +49,8 @@ export const TextArea: FC<TextAreaProps> = ({
     onChangeText,
     invalid = false,
     describedBy,
+    error,
+    label,
     placeholder,
     autoCapitalize,
     disabled = false,
@@ -71,7 +73,9 @@ export const TextArea: FC<TextAreaProps> = ({
             onChangeText={onChangeText}
             onContentSizeChange={(event) => setContent(event.nativeEvent.contentSize.height)}
             aria-labelledby={fieldLabelId(id)}
-            aria-invalid={invalid}
+            accessibilityLabel={label}
+            accessibilityHint={error}
+            aria-invalid={invalid || error !== undefined}
             aria-describedby={describedBy}
             placeholder={placeholder}
             placeholderTextColor={theme.colors.inkMuted}
@@ -80,7 +84,7 @@ export const TextArea: FC<TextAreaProps> = ({
             style={[
                 styles.field,
                 { height: textAreaHeight(content, minRows, maxRows) },
-                fieldPaint(theme, invalid),
+                fieldPaint(theme, invalid || error !== undefined),
                 disabled ? styles.disabled : null,
             ]}
         />

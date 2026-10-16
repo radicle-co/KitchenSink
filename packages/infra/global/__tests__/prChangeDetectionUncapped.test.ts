@@ -100,7 +100,11 @@ function cappedApiDefect(triggers: readonly string[], job: Job, step: Step): str
         return "a pull request reaches it with a token, so it reads the 3000-file API; set `token: ''` to diff with git";
     }
 
-    const checkout = (job.steps ?? []).find((candidate) => (candidate.uses ?? '').startsWith('actions/checkout@'));
+    // The checkout that feeds the filter is the last one before it.
+    const steps = job.steps ?? [];
+    const checkout = steps
+        .slice(0, steps.indexOf(step))
+        .findLast((candidate) => (candidate.uses ?? '').startsWith('actions/checkout@'));
 
     if (String(checkout?.with?.['fetch-depth']) !== '0') {
         return 'git mode needs the pull-request base locally; check out with `fetch-depth: 0`';
@@ -153,6 +157,18 @@ describe('cappedApiDefect — the rule, over shapes the tree does and does not h
                 { uses: FILTER, with: { token: '' } },
             ],
             defective: false,
+        },
+        {
+            shape: 'a full checkout AFTER the filter, a shallow one before it',
+            triggers: ['pull_request'],
+            steps: [SHALLOW_CHECKOUT, { uses: FILTER, with: { token: '' } }, FULL_CHECKOUT],
+            defective: true,
+        },
+        {
+            shape: 'a full checkout, then a shallow one that feeds the filter',
+            triggers: ['pull_request'],
+            steps: [FULL_CHECKOUT, SHALLOW_CHECKOUT, { uses: FILTER, with: { token: '' } }],
+            defective: true,
         },
         {
             shape: 'push-only workflow (the action uses git there anyway)',

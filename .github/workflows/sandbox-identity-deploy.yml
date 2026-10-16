@@ -101,10 +101,10 @@ jobs:
 
         steps:
             # ⚠️ DELIBERATE: this checkout KEEPS its git credential (`persist-credentials` left at its `true`
-            # default), unlike the rest of the repo. `dorny/paths-filter` below is NOT gated on the event, and
-            # its GitHub-API code path applies only to `pull_request`; on the `workflow_dispatch` trigger it
-            # falls through to `getChangedFilesFromGit`, which fetches the base ref from `origin`. Same
-            # reasoning as prod-deploy.yml's `deploy` job — see the note there.
+            # default), unlike the rest of the repo. `dorny/paths-filter` below is NOT gated on the event. On a
+            # pull request it diffs the local history (no token, full checkout); on `workflow_dispatch` it falls
+            # through to `getChangedFilesFromGit`, which fetches the base ref from `origin` and needs the
+            # credential. Same reasoning as prod-deploy.yml's `deploy` job — see the note there.
             #
             # The `zizmor: ignore[artipacked]` below is how that exception is DECLARED, per-site, so the gate in
             # zizmor.yml can sit at the `low` floor and still fail on any artipacked we have NOT accepted. It is

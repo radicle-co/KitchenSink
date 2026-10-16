@@ -23,7 +23,7 @@ import { createAppQueryClient, MAX_QUERY_RETRIES } from '@commise/query';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { describe, expect, it, vi } from 'vitest';
 
-import { RecipeAuthNotReadyError } from '@/lib/recipeAuthNotReady';
+import { RecipeAuthNotReadyError } from '@commise/features-recipes/session';
 
 const BASE = 'https://recipes.example.test';
 const RECIPE_ID = '00000000-0000-4000-8000-00000000000a';
@@ -149,7 +149,7 @@ describe('query retry policy — the recovery the abstention default exists to p
         // than by a rule: `RecipeAuthNotReadyError` belongs to neither client's hierarchy, so both owner
         // predicates abstain and the composition's `every` lets it through. Nothing special-cases it, which
         // means a future "unknown → do not retry" would silently break it — and what breaks is the recovery
-        // `web/src/lib/recipeAuthNotReady.ts` was written for after a measured 2026-08-07 production failure,
+        // `features-recipes/src/session/recipeAuthNotReady.ts` was written for after a measured 2026-08-07 production failure,
         // where a transient pre-hydration state reached the redirect-to-sign-in handler as an auth error.
         //
         // ⚠️ Asserted against the REAL exported class, not a local `class X extends Error {}` stand-in. The

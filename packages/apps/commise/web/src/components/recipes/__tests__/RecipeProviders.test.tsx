@@ -42,7 +42,7 @@ import {
 } from '@commise/features-account';
 import { appendIntent, loadOutbox, outboxMutatorFor } from '@kitchensink/sync';
 
-import { RecipeAuthNotReadyError } from '@/lib/recipeAuthNotReady';
+import { RecipeAuthNotReadyError } from '@commise/features-recipes/session';
 import { webDeviceStore } from '@/components/recipes/deviceSession';
 import { editorDraftsFor } from '@commise/features-recipes/editor';
 

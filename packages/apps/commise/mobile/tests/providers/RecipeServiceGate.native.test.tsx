@@ -31,7 +31,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { useAuth } from '@clerk/expo';
-import { isSessionSubjectChangedError } from '@commise/features-account';
+import {
+    isSessionSubjectChangedError,
+    isTokenMintFailedError,
+    type TokenMintFailedError,
+} from '@commise/features-account';
+import { isRecipeAuthNotReadyError } from '@commise/features-recipes/session';
 import { useSyncQueue } from '@commise/query/sync';
 import { FoodServiceClient } from '@kitchensink/food-service-client';
 import { useFoodServiceClient, useFoodServiceSubject } from '@kitchensink/food-service-client/hooks';
@@ -278,10 +283,56 @@ describe('RecipeServiceGate — a client belongs to the cook it was built for', 
         expect(clerk.session?.getToken).toHaveBeenNthCalledWith(2, { template: 'commise-native', skipCache: true });
     });
 
+    // The policy both apps share (`useRecipeServiceClients`): a session that yields no token sends NOTHING. An empty
+    // `Bearer ` header is a guaranteed 401 (measured in production 2026-08-07, `recipeAuthNotReady`), and on a phone it
+    // is the ordinary state of a session that expired offline.
     it.each([
-        ['another cook signs in', 'user_B'],
-        ['the cook signs out', null],
-    ])('refuses cook A’s recipe and food requests once %s, and sends nothing', async (_case, next) => {
+        ['null', null],
+        ['an empty string', ''],
+        ['undefined', undefined],
+    ])('sends no request, and no empty bearer, when the session mints %s', async (_case, minted) => {
+        const fetchMock = vi.fn(async () => new Response(JSON.stringify({}), { status: 500 }));
+        vi.stubGlobal('fetch', fetchMock);
+        const view = renderAs('user_A');
+        (clerk.session as FakeSession).getToken.mockResolvedValue(minted);
+
+        const outcomes = await Promise.all([
+            view
+                .latest()
+                .recipe.listRecipes()
+                .then(
+                    () => undefined,
+                    (error: unknown) => error,
+                ),
+            view
+                .latest()
+                .food.getById('food_1')
+                .then(
+                    () => undefined,
+                    (error: unknown) => error,
+                ),
+        ]);
+
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(outcomes.map(isTokenMintFailedError)).toStrictEqual([true, true]);
+        expect(outcomes.map((outcome) => (outcome as TokenMintFailedError).cause)).toSatisfy((causes: unknown[]) =>
+            causes.every(isRecipeAuthNotReadyError),
+        );
+    });
+
+    // REWRITTEN for the shared no-token policy (`useRecipeServiceClients`): once A signs out there is no session left to
+    // mint from, so the honest refusal is "no token" (`TokenMintFailedError`, cause `RecipeAuthNotReadyError`), where the
+    // empty bearer used to reach the proxy's own subject check first. Nothing is sent either way, and `recipeSender`
+    // parks both refusals the same way. Another cook signing in is still the proxy's `SessionSubjectChangedError`.
+    it.each([
+        ['another cook signs in', 'user_B', isSessionSubjectChangedError],
+        [
+            'the cook signs out',
+            null,
+            (error: unknown) =>
+                isTokenMintFailedError(error) && isRecipeAuthNotReadyError((error as TokenMintFailedError).cause),
+        ],
+    ])('refuses cook A’s recipe and food requests once %s, and sends nothing', async (_case, next, isRefusal) => {
         const fetchMock = vi.fn(async () => new Response(JSON.stringify({}), { status: 500 }));
         vi.stubGlobal('fetch', fetchMock);
         const view = renderAs('user_A');
@@ -299,7 +350,7 @@ describe('RecipeServiceGate — a client belongs to the cook it was built for', 
             ),
         ]);
 
-        expect(outcomes.map(isSessionSubjectChangedError)).toStrictEqual([true, true]);
+        expect(outcomes.map(isRefusal)).toStrictEqual([true, true]);
         expect(fetchMock).not.toHaveBeenCalled();
     });
 });

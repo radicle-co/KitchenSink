@@ -26,12 +26,10 @@
  *     asks for neither, and the enforced provider order lives in one place rather than in every caller.
  */
 import { useAuth, useClerk } from '@clerk/nextjs';
-import { subjectBoundToken } from '@commise/features-account';
 import { CookMarksProvider, useDeviceSessionScope } from '@commise/features-recipes';
+import { useRecipeServiceClients } from '@commise/features-recipes/session';
 import { createAppQueryClient } from '@commise/query';
-import { FoodServiceClient } from '@kitchensink/food-service-client';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
-import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { QueryClientProvider } from '@tanstack/react-query';
 
@@ -49,7 +47,6 @@ import type { ReactElement, ReactNode } from 'react';
 import { webDeviceStore } from '@/components/recipes/deviceSession';
 import { EditorDraftAnswers } from '@/components/recipes/EditorDraftAnswers';
 import { FOOD_SERVICE_BASE_URL } from '@/lib/foodServiceConfig';
-import { RecipeAuthNotReadyError } from '@/lib/recipeAuthNotReady';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
 
 /**
@@ -78,50 +75,22 @@ export function RecipeProviders({ children }: { readonly children: ReactNode }):
     // sign-out, another tab's, an expiry or revocation, the UserButton, or a switch of cook. Fed Clerk's raw `userId`, so
     // the loading `undefined` is told apart from a signed-out `null`.
     useDeviceSessionScope(webDeviceStore, userId);
-    // The one Clerk session-token resolver both clients use, so recipe and food authenticate the same way.
-    const sessionToken = useCallback(
-        async (forceRefresh: boolean): Promise<string> => {
-            // ⚠️ DO NOT restore an empty-string fallback here. This used to `return ''` when
-            // `getToken` was undefined (SSR/pre-hydration) or resolved `null`, on the reasoning
-            // that an unauthenticated request beats throwing inside the request pipeline. It does
-            // not: an empty bearer makes every protected recipe endpoint answer
-            // `401 {"message":"Missing bearer token"}`, so the request cannot succeed. Measured in
-            // production 2026-08-07 — `/api/v1/recipes?pageSize=4` 401'd on a signed-in Home load
-            // while the same call with a real token returned 200 — and that 401 then met the
-            // redirect-to-sign-in handler, turning a transient state into an auth failure.
-            //
-            // Throwing the typed error keeps "not ready" distinguishable from "rejected", and
-            // TanStack Query's default retry recovers it a moment later once Clerk has hydrated.
-            if (typeof getToken !== 'function') {
-                throw new RecipeAuthNotReadyError('getToken is unavailable (SSR / pre-hydration)');
-            }
-
-            const token = await getToken({ skipCache: forceRefresh });
-
-            if (token === null || token === '') {
-                throw new RecipeAuthNotReadyError('Clerk returned no session token');
-            }
-
-            return token;
-        },
+    // The one Clerk session-token resolver both clients use, so recipe and food authenticate the same way. A missing
+    // `getToken` (SSR / pre-hydration) is "no token": the shared hook sends nothing for it rather than an empty bearer.
+    const mint = useCallback(
+        async (forceRefresh: boolean): Promise<string | null> =>
+            typeof getToken === 'function' ? getToken({ skipCache: forceRefresh }) : null,
         [getToken],
     );
     // ⚠️ DELIBERATE — ADR-0054. Both clients per cook, and one bound mint between them. Plan 002 S5: foods and their
     // variants are read from food-service directly, at its own origin.
-    const clients = useMemo(() => {
-        const token = subjectBoundToken(userId ?? undefined, clerk, sessionToken);
-
-        return {
-            recipe: new RecipeServiceClient({
-                baseUrl: RECIPE_SERVICE_BASE_URL,
-                token: async ({ forceRefresh } = {}) => token(forceRefresh === true),
-            }),
-            food: new FoodServiceClient({
-                baseUrl: FOOD_SERVICE_BASE_URL,
-                token: async ({ forceRefresh } = {}) => token(forceRefresh === true),
-            }),
-        };
-    }, [clerk, userId, sessionToken]);
+    const clients = useRecipeServiceClients({
+        userId: userId ?? undefined,
+        clerk,
+        mint,
+        recipeBaseUrl: RECIPE_SERVICE_BASE_URL,
+        foodBaseUrl: FOOD_SERVICE_BASE_URL,
+    });
 
     // The sender reads the client per call, so a new cook's sender sends with the new cook's client. A drain already
     // running holds the previous sender, whose client refuses to mint for the new cook (ADR-0054).

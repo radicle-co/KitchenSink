@@ -24,19 +24,17 @@
  *     `forceRefresh` → `skipCache` retry) the recipe client's token seam asks for, and nothing else.
  */
 import { useAuth, useClerk } from '@clerk/expo';
-import { subjectBoundToken } from '@commise/features-account';
 import { recipeSender } from '@commise/query/recipe-sender';
 import { CookMarksProvider } from '@commise/features-recipes';
+import { useRecipeServiceClients } from '@commise/features-recipes/session';
 import { useQuerySessionScope } from '@commise/query/session-scope';
 import { RecipeWriteCacheObserver } from '@commise/query/recipe-write-cache';
 import { SyncProvider } from '@commise/query/sync';
-import { FoodServiceClient } from '@kitchensink/food-service-client';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
-import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import type { JSX, ReactNode } from 'react';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { NATIVE_JWT_TEMPLATE } from '../auth/nativeToken.js';
 import { env } from '../config/env.js';
@@ -59,30 +57,24 @@ export function RecipeServiceGate({ children }: { readonly children: ReactNode }
     const queryClient = useQueryClient();
     useQuerySessionScope(queryClient, userId ?? undefined);
 
+    // The live session mints with the native JWT template. No session, or a session that yields no token (an expired one,
+    // days offline), is "no token": the shared hook sends nothing for it, where this once sent an empty bearer.
+    const mint = useCallback(
+        async (forceRefresh: boolean) =>
+            clerk.session?.getToken({ template: NATIVE_JWT_TEMPLATE, skipCache: forceRefresh }),
+        [clerk],
+    );
     // ⚠️ DELIBERATE — ADR-0054. Both clients per cook, and one bound mint between them, so recipe and food authenticate
-    // the same way. An empty bearer while no session exists is answered `401`, which the query retry outlasts.
-    const clients = useMemo(() => {
-        const token = subjectBoundToken(
-            userId ?? undefined,
-            clerk,
-            async (forceRefresh) =>
-                (await clerk.session?.getToken({ template: NATIVE_JWT_TEMPLATE, skipCache: forceRefresh })) ?? '',
-        );
-
-        return {
-            recipe: new RecipeServiceClient({
-                // Required and validated at load — `localhost` on a phone is the PHONE, so a default here
-                // could never have been right in a deployed build. See `../config/env.ts`.
-                baseUrl: env.EXPO_PUBLIC_RECIPE_API_URL,
-                token: (options) => token(options?.forceRefresh ?? false),
-            }),
-            // Plan 002 S5: foods and their variants are read from food-service directly, at its own origin.
-            food: new FoodServiceClient({
-                baseUrl: env.EXPO_PUBLIC_FOOD_API_URL,
-                token: (options) => token(options?.forceRefresh ?? false),
-            }),
-        };
-    }, [clerk, userId]);
+    // the same way. Plan 002 S5: foods and their variants are read from food-service directly, at its own origin.
+    // Required and validated at load — `localhost` on a phone is the PHONE, so a default could never have been right in
+    // a deployed build. See `../config/env.ts`.
+    const clients = useRecipeServiceClients({
+        userId: userId ?? undefined,
+        clerk,
+        mint,
+        recipeBaseUrl: env.EXPO_PUBLIC_RECIPE_API_URL,
+        foodBaseUrl: env.EXPO_PUBLIC_FOOD_API_URL,
+    });
 
     // The sender reads the client per call, so a new cook's sender sends with the new cook's client. A drain already
     // running holds the previous sender, whose client refuses to mint for the new cook (ADR-0054).

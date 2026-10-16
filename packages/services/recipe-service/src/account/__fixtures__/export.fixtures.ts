@@ -134,6 +134,7 @@ export function makeAuthorHandleRow(overrides: Partial<AuthorHandleRow> = {}): A
         displayName: 'Chef Anna',
         username: 'chef_anna',
         sourceTimestamp: UPDATED,
+        erasedAt: null,
         ...overrides,
     };
 }

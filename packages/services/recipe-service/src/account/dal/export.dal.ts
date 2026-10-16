@@ -174,8 +174,8 @@ export class AccountExportDal {
     }
 
     /**
-     * The owner's author-handle read-model row(s). Keyed on `user_id` exactly as the erasure sweep's
-     * `DELETE FROM author_handles WHERE user_id = :owner`. At most one row exists (the PK is `user_id`),
+     * The owner's author-handle read-model row(s). Keyed on `user_id`, exactly as the erasure sweep's tombstone
+     * upsert is (erasure tombstones the row, 0056, rather than deleting it). At most one row exists (the PK is `user_id`),
      * but a list keeps the DAL uniform and the assertion honest.
      *
      * @param ownerId - The verified owner.

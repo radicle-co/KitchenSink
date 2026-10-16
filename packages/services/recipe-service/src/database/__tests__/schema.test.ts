@@ -300,6 +300,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             display_name: { type: 'text', notNull: true },
             username: { type: 'text', notNull: false },
             source_timestamp: { type: 'timestamp with time zone', notNull: true },
+            erased_at: { type: 'timestamp with time zone', notNull: false },
         });
     });
 

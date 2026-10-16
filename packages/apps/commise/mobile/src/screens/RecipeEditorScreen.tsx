@@ -19,30 +19,15 @@
  * @pattern Adapter — the route's hand-offs behind the session's `EditorNavigation` port
  */
 import {
-    pendingIngredientIds,
-    IngredientsNutritionFoot,
     nextEditorOpening,
-    RecipeBasicsFields,
-    PasteListSheet,
-    PasteStepsControl,
-    editorMessages,
-    RecipeEditorView,
-    RecipePreviewSheet,
-    RecipeMakePublicDialog,
-    RecipeUpsellSheet,
-    RecipeIngredientsFields,
-    RecipeInstructionsFields,
-    RecipeVisibilityField,
-    RecipeVisibilityStatement,
     useDeviceDraft,
-    usePrivateChoice,
     useRecipeEditorSession,
     type DraftStore,
     type EditorNavigation,
     type EditorSectionId,
     type EditorFinish,
 } from '@commise/features-recipes';
-import { cookDraftsOf, IngredientStatusPoller, type CookDrafts } from '@commise/features-recipes/editor';
+import { cookDraftsOf, RecipeEditorSurface, type CookDrafts } from '@commise/features-recipes/editor';
 import type { EditorSeed } from '@commise/features-recipes/hooks';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
@@ -50,11 +35,11 @@ import { useSyncQueue } from '@commise/query/sync';
 import { Button } from '@commise/ui/button';
 import { useAuth } from '@clerk/expo';
 import { knownPaidFeaturesOf, paidFeatureStateOf } from '@commise/features-account';
-import { RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
+import type { RecipeDetail } from '@kitchensink/recipe-core';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { useState, type JSX, type ReactNode } from 'react';
+import { useState, type JSX } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { LoadingState } from '../components/LoadingState.js';
@@ -215,114 +200,20 @@ function RecipeEditorSession({
         openPaste,
         knownPaidFeatures,
     });
-    const { editor, paste } = session;
-    const { ingredients: ingredientsCopy } = useMessages(editorMessages);
-    // E1 + plan 2026-10-14-009 D14: Private from the viewer's paid features alone — applied when granted, the Premium sheet
-    // under upsell, the plain statement when hidden or still loading. "Saved" is what the server held when the editor
-    // opened (a new recipe is public), so a choice back to it needs no entitlement. The web editor reads the same.
-    const privateChoice = usePrivateChoice({
-        state: paidFeatures,
-        knownPaidFeatures,
-        saved: seed.recipe?.visibility ?? RecipeVisibility.PUBLIC,
-        values: editor.values,
-        onChange: editor.setValues,
-    });
-
-    const sections: Readonly<Record<EditorSectionId, ReactNode>> = {
-        details: (
-            <RecipeBasicsFields
-                values={editor.values}
-                errors={editor.errors}
-                onChange={editor.setValues}
-                onFieldBlur={session.blur}
-            />
-        ),
-        ingredients: (
-            <>
-                {pendingIngredientIds(editor.values).map((id) => (
-                    <IngredientStatusPoller key={id} ingredientId={id} onStatus={session.applyLineStatus} />
-                ))}
-                <RecipeIngredientsFields
-                    values={editor.values}
-                    errors={editor.errors}
-                    onChange={editor.setValues}
-                    nutrition={session.nutrition}
-                    lookupRetry={session.lookupRetry}
-                    rowEditor={session.rowEditor}
-                    paste={paste.view}
-                />
-                <PasteListSheet sheet={paste.sheet} submitting={paste.submitting} failed={paste.failed} />
-            </>
-        ),
-        steps: (
-            <RecipeInstructionsFields
-                values={editor.values}
-                errors={editor.errors}
-                onChange={editor.setValues}
-                onFieldBlur={session.blur}
-            />
-        ),
-        photos: (
-            <>
-                {editor.recipeId === undefined ? null : (
-                    <RecipePhotoUploader
-                        recipeId={editor.recipeId}
-                        title={editor.values.title}
-                        cuisine={editor.values.cuisine}
-                    />
-                )}
-                {privateChoice.offersPrivate ? (
-                    <RecipeVisibilityField
-                        values={editor.values}
-                        onChange={editor.setValues}
-                        {...privateChoice.field}
-                        onPremiumRequired={privateChoice.onPremiumRequired}
-                        onConfirmPublic={privateChoice.onConfirmPublic}
-                    />
-                ) : (
-                    <RecipeVisibilityStatement {...privateChoice.statement} />
-                )}
-            </>
-        ),
-    };
 
     return (
-        <>
-            <RecipeEditorView
-                editor={editor}
-                mode={mode}
-                keep="disk"
-                pendingEntryText={session.rowEditor.entry.pendingEntryText}
-                pastePending={paste.pending}
-                sections={sections}
-                // §7.2 and §7.5.6: a wide tablet's rail foot shows the Ingredients total too, from the same draft and read.
-                railFooter={<IngredientsNutritionFoot values={editor.values} nutrition={session.nutrition} />}
-                headingActions={{
-                    ...(paste.inHeading
-                        ? {
-                              ingredients: (
-                                  <Button variant="ghost" icon="clipboardPaste" onPress={paste.open}>
-                                      {ingredientsCopy.pasteList}
-                                  </Button>
-                              ),
-                          }
-                        : {}),
-                    steps: <PasteStepsControl onAdd={session.appendSteps} />,
-                }}
-                {...(section === undefined ? {} : { initialSection: section })}
-                onClose={onClose}
-                onPreview={session.preview.show}
-                onRefused={session.rowEditor.refused}
-                onOpenMyRecipes={onDiscarded}
-            />
-            <RecipePreviewSheet
-                open={session.preview.open}
-                recipe={session.preview.recipe}
-                onClose={session.preview.hide}
-            />
-            <RecipeUpsellSheet {...privateChoice.sheet} />
-            <RecipeMakePublicDialog {...privateChoice.confirm} />
-        </>
+        <RecipeEditorSurface
+            session={session}
+            seed={seed}
+            mode={mode}
+            keep="disk"
+            paidFeatures={paidFeatures}
+            knownPaidFeatures={knownPaidFeatures}
+            renderPhotos={(target) => <RecipePhotoUploader {...target} />}
+            {...(section === undefined ? {} : { initialSection: section })}
+            onClose={onClose}
+            onOpenMyRecipes={onDiscarded}
+        />
     );
 }
 

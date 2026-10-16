@@ -9,3 +9,5 @@ export { cookDraftsOf, editorDraftsFor } from './cookDrafts.js';
 export type { CookDrafts } from './cookDrafts.js';
 export { IngredientStatusPoller } from './IngredientStatusPoller.js';
 export type { IngredientStatusPollerProps } from './IngredientStatusPoller.js';
+export { RecipeEditorSurface } from './RecipeEditorSurface.js';
+export type { PhotoUploaderTarget, RecipeEditorSurfaceProps } from './RecipeEditorSurface.js';

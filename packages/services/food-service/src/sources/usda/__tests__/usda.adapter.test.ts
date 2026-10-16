@@ -240,6 +240,46 @@ describe('UsdaSourceAdapter.fetchByKey — mapToCanonical', () => {
         expect(candidate.portions).toEqual([]);
     });
 
+    /**
+     * Reject-not-store for a portion: a stored gram weight is what recipe nutrition multiplies, so a zero, negative or
+     * absurd one must reject the whole candidate rather than reach the catalog. Each row breaks ONE bound.
+     */
+    it.each<[string, UsdaPortionBody, string]>([
+        ['a zero gram weight', { gramWeight: 0, amount: 1, measureUnit: { name: 'cup' } }, 'portion.gramWeight'],
+        ['a negative gram weight', { gramWeight: -1, amount: 1, measureUnit: { name: 'cup' } }, 'portion.gramWeight'],
+        [
+            'a gram weight above the sanity bound',
+            { gramWeight: 1e12, amount: 1, measureUnit: { name: 'cup' } },
+            'portion.gramWeight',
+        ],
+        [
+            'a label over 256 characters',
+            { gramWeight: 91, measureUnit: { name: 'undetermined' }, portionDescription: `1 ${'x'.repeat(300)}` },
+            'portion.label',
+        ],
+    ])('reject-not-store: %s rejects the whole candidate', async (_case, portion, field) => {
+        const adapter = makeAdapter(makeJsonFetch(makeUsdaFoodDetailBody({ foodPortions: [portion] })));
+
+        const thrown = await adapter.fetchByKey('171688').catch((error: unknown) => error);
+
+        expect(isAdapterValidationError(thrown)).toBe(true);
+        expect(thrown).toMatchObject({ field });
+    });
+
+    it('skips a portion that states a measure but no gram weight', async () => {
+        const adapter = makeAdapter(
+            makeJsonFetch(makeUsdaFoodDetailBody({ foodPortions: [{ amount: 1, measureUnit: { name: 'cup' } }] })),
+        );
+
+        expect((await adapter.fetchByKey('171688')).portions).toEqual([]);
+    });
+
+    it('maps a record that publishes no portions at all (absent `foodPortions`) to none', async () => {
+        const adapter = makeAdapter(makeJsonFetch(makeUsdaFoodDetailBody({ foodPortions: undefined })));
+
+        expect((await adapter.fetchByKey('171688')).portions).toEqual([]);
+    });
+
     it.each<[string, BulkPortionRow, UsdaPortionBody]>([
         [
             'an SR row',

@@ -23,6 +23,7 @@ import { nutritionSlotRenderer } from '../nutrition/nutritionSlotRenderer.js';
 import { CollectionDeleteDialog } from './CollectionDeleteDialog.js';
 import { CollectionDetailAlert } from './CollectionDetailAlert.js';
 import { CollectionHeader } from './CollectionHeader.js';
+import { headerSourceProps } from './collectionHeaderSource.js';
 import { CollectionMembers } from './CollectionMembers.js';
 import { CollectionPickerBody } from './CollectionPickerBody.js';
 import { CollectionRecipePicker } from './CollectionRecipePicker.js';
@@ -87,19 +88,7 @@ export const CollectionDetailBody: FC<CollectionDetailBodyProps> = ({
                 {...(collection.description === undefined ? {} : { description: collection.description })}
                 visibility={collection.visibility}
                 recipeCount={members.length}
-                {...(collection.sourceCollectionName === undefined
-                    ? {}
-                    : { sourceCollectionName: collection.sourceCollectionName })}
-                {...(collection.sourceOwnerDisplayName === undefined
-                    ? {}
-                    : { sourceOwnerDisplayName: collection.sourceOwnerDisplayName })}
-                {...(collection.sourceOwnerUsername === undefined
-                    ? {}
-                    : { sourceOwnerUsername: collection.sourceOwnerUsername })}
-                {...(collection.sourceCollectionId === undefined
-                    ? {}
-                    : { sourceCollectionId: collection.sourceCollectionId })}
-                {...(collection.lastPulledAt === undefined ? {} : { lastPulledAt: collection.lastPulledAt })}
+                {...headerSourceProps(collection)}
                 actionsPlacement={layout.container === 'narrow' ? 'below' : 'title'}
                 headingId={COLLECTION_TITLE_ID}
                 headingFocusSignal={0}

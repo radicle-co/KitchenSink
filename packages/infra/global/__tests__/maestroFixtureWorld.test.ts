@@ -39,10 +39,16 @@ const FIXTURE_FILE = 'packages/tools/e2e-seed/src/fixtureManifest.ts';
 const SEED_FILE = 'packages/services/recipe-service/src/database/seed.ts';
 
 /**
+ * The fixture identities whose recipes `seed.ts` holds. The downgraded owner's world is written by its own seeder
+ * (`DOWNGRADED_OWNER_WORLD`, `seed-downgraded`), so it has no `seed.ts` owner to stand for.
+ */
+type SeedFixtureOwner = Exclude<FixtureOwner, 'downgradedOwner'>;
+
+/**
  * Which `seed.ts` owner each fixture identity stands for. Nothing in code binds them: `recipes/listDetail.yaml`'s
  * header states the signer is the FREE owner, and the co-author owns the risotto, which `seed.ts` gives to PRO.
  */
-const SEED_OWNER_OF: Readonly<Record<FixtureOwner, string>> = { signer: SEED_OWNER_FREE, coAuthor: SEED_OWNER_PRO };
+const SEED_OWNER_OF: Readonly<Record<SeedFixtureOwner, string>> = { signer: SEED_OWNER_FREE, coAuthor: SEED_OWNER_PRO };
 
 /** The `seed.ts` half of the comparison. */
 interface SeedWorld {

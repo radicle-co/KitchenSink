@@ -32,13 +32,47 @@ import ts from 'typescript';
  * here throws rather than being guessed.
  */
 const IAM_SERVICE_OF_CLIENT: Readonly<Record<string, string>> = {
+    'client-bedrock-runtime': 'bedrock',
     'client-cloudformation': 'cloudformation',
+    'client-cloudfront': 'cloudfront',
     'client-ec2': 'ec2',
     'client-ecs': 'ecs',
     'client-eventbridge': 'events',
+    'client-lambda': 'lambda',
     'client-rds': 'rds',
+    'client-s3': 's3',
+    'client-secrets-manager': 'secretsmanager',
     'client-sfn': 'states',
+    'client-sns': 'sns',
+    'client-sqs': 'sqs',
     'client-ssm': 'ssm',
+};
+
+/**
+ * The IAM actions AWS authorizes a call under when they are NOT its command's name, keyed `<prefix>:<Command>`.
+ * A command absent here is authorized as itself. Each row is the Service Authorization Reference's own statement:
+ *
+ * - S3 has no `HeadObject`, `ListObjectsV2`, `HeadBucket` or `DeleteObjects` action: they are authorized as
+ *   `s3:GetObject`, `s3:ListBucket`, `s3:ListBucket` and `s3:DeleteObject`; `CopyObject` needs read on the source and
+ *   write on the destination.
+ * - The SQS and SNS batch calls are authorized as the single-message action (`sqs:SendMessage`, `sns:Publish`, …).
+ * - `lambda:Invoke` is the action `lambda:InvokeFunction`, and Bedrock's `Converse` is authorized as
+ *   `bedrock:InvokeModel` (its streaming forms as `bedrock:InvokeModelWithResponseStream`).
+ */
+const ACTIONS_OF_COMMAND: Readonly<Record<string, readonly string[]>> = {
+    's3:HeadObject': ['s3:GetObject'],
+    's3:ListObjects': ['s3:ListBucket'],
+    's3:ListObjectsV2': ['s3:ListBucket'],
+    's3:HeadBucket': ['s3:ListBucket'],
+    's3:DeleteObjects': ['s3:DeleteObject'],
+    's3:CopyObject': ['s3:GetObject', 's3:PutObject'],
+    'sqs:SendMessageBatch': ['sqs:SendMessage'],
+    'sqs:DeleteMessageBatch': ['sqs:DeleteMessage'],
+    'sqs:ChangeMessageVisibilityBatch': ['sqs:ChangeMessageVisibility'],
+    'sns:PublishBatch': ['sns:Publish'],
+    'lambda:Invoke': ['lambda:InvokeFunction'],
+    'bedrock:Converse': ['bedrock:InvokeModel'],
+    'bedrock:ConverseStream': ['bedrock:InvokeModelWithResponseStream'],
 };
 
 /** A second action AWS authorizes a call under when the call leaves out one request field. */
@@ -156,12 +190,33 @@ export function sdkPermissionsReachedFrom(
 
     const recordCommand = (node: ts.NewExpression): void => {
         const declaration = checker.getTypeAtLocation(node.expression).getSymbol()?.declarations?.[0];
-        const client = /\/@aws-sdk\/(client-[a-z0-9-]+)\//u.exec(declaration?.getSourceFile().fileName ?? '')?.[1];
+        const fileName = declaration?.getSourceFile().fileName ?? '';
+        const sdkModule = /\/@aws-sdk\/([a-z0-9-]+)\//u.exec(fileName)?.[1];
         const name = checker.getTypeAtLocation(node.expression).getSymbol()?.getName() ?? '';
 
-        if (client === undefined || !name.endsWith('Command')) {
+        // An import the checker cannot resolve types as `any`, so the class has no symbol and no file. Reading that as
+        // "not an SDK call" would report a green over every call in a handler whose dependency is not installed.
+        if (declaration === undefined && ts.isIdentifier(node.expression) && node.expression.text.endsWith('Command')) {
+            throw new Error(
+                `${site(node)}: ${node.expression.text} does not resolve to a declaration — is its @aws-sdk package ` +
+                    'installed? The analysis cannot see the call, and a call it cannot see is not one it can judge',
+            );
+        }
+
+        if (sdkModule === undefined || !name.endsWith('Command')) {
             return;
         }
+
+        // `lib-dynamodb`'s `PutCommand` is a document-client wrapper, not a client: it is authorized under another
+        // name again. Reading it as a client command would invent an action, so it is refused until a row is written.
+        if (!sdkModule.startsWith('client-')) {
+            throw new Error(
+                `${site(node)}: ${name} comes from @aws-sdk/${sdkModule}, which is not a plain client — teach ` +
+                    'sdkCommandReach how AWS authorizes it before a handler may use it',
+            );
+        }
+
+        const client = sdkModule;
 
         const service = IAM_SERVICE_OF_CLIENT[client];
 
@@ -173,13 +228,16 @@ export function sdkPermissionsReachedFrom(
         }
 
         const action = `${service}:${name.slice(0, -'Command'.length)}`;
+        const actions = ACTIONS_OF_COMMAND[action] ?? [action];
         const [input] = node.arguments ?? [];
         const states = (field: string): boolean =>
             input !== undefined &&
             ts.isObjectLiteralExpression(input) &&
             input.properties.some((property) => property.name !== undefined && property.name.getText() === field);
 
-        record({ action, site: site(node) });
+        for (const own of actions) {
+            record({ action: own, site: site(node) });
+        }
 
         for (const implied of IMPLIED_PERMISSIONS) {
             if (implied.action === action && !states(implied.whenOmitted)) {

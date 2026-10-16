@@ -7,12 +7,17 @@
  * calls. So this reads the calls out of the handler's source ({@link sdkPermissionsReachedFrom}) and holds the
  * SYNTHESIZED role to them, in both directions:
  *
- *   - every call is admitted ({@link policyAdmits}, conditions ignored), on the resource AWS evaluates when that is
+ *   - every call is admitted (`policyAdmits`, conditions ignored), on the resource AWS evaluates when that is
  *     known and otherwise on some resource the role grants the action on;
  *   - every action the role allows is one the code reaches, so a grant the code stopped using is a red test.
  *
  * Which function runs which handler is the one thing written here, and the synthesized stack is held to it: a third
  * function fails until it is added.
+ *
+ * ⚠️ This file is the scheduler stack ONLY, in BOTH directions, and is also where the reader itself is pinned (the
+ * fixture tables below). EVERY OTHER stack in the repository is held to the first direction by
+ * `tests/lambdaRolesCoverTheirSdkCalls.integration.test.ts`, which synthesizes each CDK app in its own process and
+ * discovers the functions from the templates instead of listing them.
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,7 +27,8 @@ import { Template } from 'aws-cdk-lib/assertions';
 import { describe, expect, it } from 'vitest';
 
 import { SandboxSchedulerStack } from '../lib/platform/SandboxSchedulerStack.js';
-import { policyAdmits, type PolicyStatementJson } from './iamGlob.js';
+import type { PolicyStatementJson } from './iamGlob.js';
+import { lambdaFunctionsOf, listOf, missingFrom, type CfnTemplate } from './lambdaRoleReach.js';
 import { packageProgram, sdkPermissionsReachedFrom, type RequiredPermission } from './sdkCommandReach.js';
 import { testApp } from './testApp.js';
 
@@ -55,76 +61,15 @@ const template = ((app) =>
         }),
     ))(testApp());
 
-/** A template value as a string: pseudo-parameters filled in, any other reference left as a named placeholder. */
-function resolved(value: unknown): string {
-    if (typeof value === 'string') {
-        return value;
-    }
-
-    const record = value as Record<string, unknown>;
-    const ref = record['Ref'];
-
-    if (ref === 'AWS::Partition') {
-        return 'aws';
-    }
-
-    if (ref === 'AWS::Region') {
-        return env.region;
-    }
-
-    if (ref === 'AWS::AccountId') {
-        return env.account;
-    }
-
-    const join = record['Fn::Join'] as [string, unknown[]] | undefined;
-
-    if (join !== undefined) {
-        return join[1].map(resolved).join(join[0]);
-    }
-
-    return `<${JSON.stringify(value)}>`;
-}
-
-const listOf = <T>(value: T | readonly T[] | undefined): readonly T[] =>
-    value === undefined ? [] : Array.isArray(value) ? value : [value as T];
-
 /** The statements on one function's role, every resource resolved to a string. */
 function roleStatements(functionId: string): readonly PolicyStatementJson[] {
-    const roleId = (
-        template.findResources('AWS::Lambda::Function')[functionId]?.['Properties']?.['Role'] as
-            { 'Fn::GetAtt': [string, string] } | undefined
-    )?.['Fn::GetAtt'][0];
+    const found = lambdaFunctionsOf(template.toJSON() as CfnTemplate, env).find((fn) => fn.logicalId === functionId);
 
-    if (roleId === undefined) {
-        throw new Error(`${functionId} has no execution role`);
+    if (found === undefined) {
+        throw new Error(`${functionId} is not in the synthesized stack`);
     }
 
-    return Object.values(template.findResources('AWS::IAM::Policy'))
-        .filter((policy) =>
-            listOf(policy['Properties']['Roles'] as { Ref: string }[]).some((role) => role.Ref === roleId),
-        )
-        .flatMap((policy) => listOf(policy['Properties']['PolicyDocument']['Statement'] as PolicyStatementJson[]))
-        .map((statement) => ({
-            ...statement,
-            ...(statement.Resource === undefined
-                ? {}
-                : { Resource: listOf(statement.Resource as unknown).map(resolved) }),
-        }));
-}
-
-/** Whether the statements admit one required permission. Pure. */
-function admits(statements: readonly PolicyStatementJson[], permission: RequiredPermission): boolean {
-    if (permission.evaluatedOn !== undefined) {
-        const resource = permission.evaluatedOn.replace('{region}', env.region).replace('{account}', env.account);
-
-        return policyAdmits(statements, permission.action, resource);
-    }
-
-    // No resource is known for the call, so it is enough that the role lets the action reach SOMETHING it names.
-    return statements
-        .filter((statement) => statement.Effect === 'Allow')
-        .flatMap((statement) => listOf(statement.Resource))
-        .some((resource) => policyAdmits(statements, permission.action, resource));
+    return found.statements;
 }
 
 const functionIds = Object.keys(template.findResources('AWS::Lambda::Function'));
@@ -163,12 +108,7 @@ describe.each(Object.entries(HANDLER_OF))('%s', (prefix, handler) => {
 
     it('⛔ its role admits every AWS call its code makes', () => {
         expect(
-            permissions
-                .filter((permission) => !admits(statements, permission))
-                .map(
-                    (permission) =>
-                        `${permission.action}${permission.evaluatedOn === undefined ? '' : ` on ${permission.evaluatedOn}`} (${permission.site})`,
-                ),
+            missingFrom(statements, permissions, env),
             `${prefix}'s role is missing these; the function will be denied at run time`,
         ).toEqual([]);
     });
@@ -252,6 +192,40 @@ export function createApi() {
             ['states:StartExecution'],
         ],
         ['a client constructor is not a call', `${RDS}export const handler = () => new RDSClient({});`, []],
+        [
+            'S3 HeadObject and ListObjectsV2 are authorized as GetObject and ListBucket, not as their own names',
+            `import { HeadObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+export const handler = async () => {
+    const s3 = new S3Client({});
+    await s3.send(new HeadObjectCommand({ Bucket: 'b', Key: 'k' }));
+    await s3.send(new ListObjectsV2Command({ Bucket: 'b' }));
+};`,
+            ['s3:GetObject', 's3:ListBucket'],
+        ],
+        [
+            'S3 CopyObject needs read on the source and write on the destination',
+            `import { CopyObjectCommand, S3Client } from '@aws-sdk/client-s3';
+export const handler = () => new S3Client({}).send(new CopyObjectCommand({ Bucket: 'b', Key: 'k', CopySource: 's' }));`,
+            ['s3:GetObject', 's3:PutObject'],
+        ],
+        [
+            'the SQS batch calls and lambda Invoke are authorized as the single-message and InvokeFunction actions',
+            `import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
+import { DeleteMessageBatchCommand, SQSClient, SendMessageBatchCommand } from '@aws-sdk/client-sqs';
+export const handler = async () => {
+    const sqs = new SQSClient({});
+    await sqs.send(new SendMessageBatchCommand({ QueueUrl: 'q', Entries: [] }));
+    await sqs.send(new DeleteMessageBatchCommand({ QueueUrl: 'q', Entries: [] }));
+    await new LambdaClient({}).send(new InvokeCommand({ FunctionName: 'f' }));
+};`,
+            ['lambda:InvokeFunction', 'sqs:DeleteMessage', 'sqs:SendMessage'],
+        ],
+        [
+            'a Bedrock Converse call is authorized as InvokeModel',
+            `import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
+export const handler = () => new BedrockRuntimeClient({}).send(new ConverseCommand({ modelId: 'm' }));`,
+            ['bedrock:InvokeModel'],
+        ],
     ])('%s', (_label, source, expected) => {
         expect(actionsReachedBy(source)).toEqual(expected);
     });
@@ -259,9 +233,27 @@ export function createApi() {
     it('refuses a client whose IAM prefix it does not know, rather than guessing one', () => {
         expect(() =>
             actionsReachedBy(
-                "import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';\n" +
-                    "export const handler = () => new SecretsManagerClient({}).send(new GetSecretValueCommand({ SecretId: 'a' }));",
+                "import { DynamoDBClient, GetItemCommand } from '@aws-sdk/client-dynamodb';\n" +
+                    "export const handler = () => new DynamoDBClient({}).send(new GetItemCommand({ TableName: 't', Key: {} }));",
             ),
-        ).toThrow(/client-secrets-manager has no IAM service prefix/u);
+        ).toThrow(/client-dynamodb has no IAM service prefix/u);
+    });
+
+    it('refuses a document-client command, whose authorization it has not been taught', () => {
+        expect(() =>
+            actionsReachedBy(
+                "import { PutCommand } from '@aws-sdk/lib-dynamodb';\n" +
+                    "export const handler = () => new PutCommand({ TableName: 't', Item: {} });",
+            ),
+        ).toThrow(/PutCommand comes from @aws-sdk\/lib-dynamodb, which is not a plain client/u);
+    });
+
+    it('refuses a Command whose SDK import does not resolve, rather than reading it as no call', () => {
+        expect(() =>
+            actionsReachedBy(
+                "import { GetThingCommand } from '@aws-sdk/client-not-installed-anywhere';\n" +
+                    'export const handler = () => new GetThingCommand({});',
+            ),
+        ).toThrow(/GetThingCommand does not resolve/u);
     });
 });

@@ -349,11 +349,15 @@ export function prepareWorkspace(): void {
  * question (alarms ON) states the one variable it changes, and everything else stays the deployed shape.
  *
  * @param overrides - Environment variables layered over {@link SYNTH_ENV}.
+ * @param only - The apps to synthesize (default: all of {@link synthesizable}); a caller retrying the apps that refused a stage.
  * @returns One entry per synthesizable app. Impure.
  * @sideEffect Runs one CDK entrypoint per app and writes a temp directory for each (see {@link removeSynthesisScratch}).
  */
-export function synthesizeEveryApp(overrides: Readonly<Record<string, string>> = {}): readonly AppSynthesis[] {
-    return synthesizable.map((app) => {
+export function synthesizeEveryApp(
+    overrides: Readonly<Record<string, string>> = {},
+    only: readonly string[] = synthesizable,
+): readonly AppSynthesis[] {
+    return only.map((app) => {
         const outdir = mkdtempSync(path.join(tmpdir(), 'every-app-synthesis-'));
 
         scratchDirectories.push(outdir);

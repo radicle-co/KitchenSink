@@ -16,7 +16,7 @@ import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { useState } from 'react';
 
 import type { RecipeUpsellSheetProps } from './model.js';
-import { offersPrivate, privateChoice } from './privateGate.js';
+import { offersPrivate, privateChoice, privateNeedsPremium } from './privateGate.js';
 
 /** Options for {@link useGatedPrivate}. */
 export interface UseGatedPrivateOptions {
@@ -52,12 +52,12 @@ export function useGatedPrivate(options: UseGatedPrivateOptions): GatedPrivate {
     return {
         offersPrivate: offersPrivate(state, saved),
         request: () => {
-            const outcome = privateChoice({ target: RecipeVisibility.PRIVATE, saved, state });
+            const choice = { target: RecipeVisibility.PRIVATE, saved, state };
 
-            if (outcome === 'apply') {
-                apply();
-            } else if (outcome === 'upsell') {
+            if (privateNeedsPremium(choice)) {
                 setOpen(true);
+            } else if (privateChoice(choice) === 'apply') {
+                apply();
             }
         },
         // Derived, never stored: a refetch that moves the state off `upsell` closes the sheet in the same render.

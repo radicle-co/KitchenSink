@@ -27,7 +27,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { collectionMessages } from '../collections/messages.js';
-import { privateChoice } from '../actions/privateGate.js';
+import { privateChoice, privateNeedsPremium } from '../actions/privateGate.js';
 import { canUndoVisibilityChange } from '../collections/visibilityUndo.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 
@@ -101,15 +101,15 @@ export function useCollectionVisibility(collection: {
                 return;
             }
 
-            const outcome = privateChoice({ target: to, saved: from, state: collection.paidFeatures });
+            const choice = { target: to, saved: from, state: collection.paidFeatures };
 
-            if (outcome === 'upsell') {
+            if (privateNeedsPremium(choice)) {
                 setUpsellOpen(true);
 
                 return;
             }
 
-            if (outcome === 'none') {
+            if (privateChoice(choice) === 'none') {
                 return;
             }
 

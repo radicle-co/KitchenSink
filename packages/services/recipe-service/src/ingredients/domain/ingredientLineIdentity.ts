@@ -54,24 +54,6 @@ export type IngredientLineIdentity =
           readonly food?: undefined;
       };
 
-/** A line whose identity the caller needed was never derived — a defect in the caller's batching. */
-export class MissingLineIdentityError extends Error {
-    public readonly lookupId: string;
-
-    /** @param lookupId - The lookup the caller asked about. */
-    public constructor(lookupId: string) {
-        super(`no identity was derived for food lookup ${lookupId}`);
-        this.name = 'MissingLineIdentityError';
-        this.lookupId = lookupId;
-        Object.setPrototypeOf(this, MissingLineIdentityError.prototype);
-    }
-}
-
-/** Type guard for {@link MissingLineIdentityError}. */
-export function isMissingLineIdentityError(value: unknown): value is MissingLineIdentityError {
-    return value instanceof MissingLineIdentityError;
-}
-
 /**
  * The identity a bound arm has, given food's answer.
  *
@@ -117,28 +99,6 @@ export function deriveIngredientLineIdentity(
     }
 
     return boundIdentity(arm, answers.get(foodRefKey(ref)));
-}
-
-/**
- * Look up a derived identity, refusing a missing one. The ONE place absence becomes a refusal, so it cannot be
- * spelled two ways.
- *
- * @param byLookupId - Identities by lookup id.
- * @param lookupId - The lookup wanted.
- * @returns The identity.
- * @throws {MissingLineIdentityError} when none was derived. Pure.
- */
-export function requireIngredientLineIdentity(
-    byLookupId: ReadonlyMap<string, IngredientLineIdentity>,
-    lookupId: string,
-): IngredientLineIdentity {
-    const identity = byLookupId.get(lookupId);
-
-    if (identity === undefined) {
-        throw new MissingLineIdentityError(lookupId);
-    }
-
-    return identity;
 }
 
 /** The line's name, or `undefined` when it has none to show. Pure. */

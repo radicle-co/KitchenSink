@@ -16,9 +16,7 @@ import {
     deriveIngredientLineIdentity,
     isUserEnteredOf,
     lineNameOf,
-    MissingLineIdentityError,
     presenceOf,
-    requireIngredientLineIdentity,
     shareableLineNameOf,
     shareableVariantPartsOf,
 } from '../ingredientLineIdentity.js';
@@ -155,16 +153,6 @@ describe('deriveIngredientLineIdentity', () => {
         const identity = deriveIngredientLineIdentity(VARIANT, answers([['root:variant-1', found('wrong food')]]));
 
         expect(lineNameOf(identity)).toBeUndefined();
-    });
-});
-
-describe('requireIngredientLineIdentity — the one place absence becomes a refusal', () => {
-    it('returns the identity for a known lookup, and throws a named error for a missing one', () => {
-        const identity = deriveIngredientLineIdentity(ROOT, answers([['root:food-1', found('beef brisket')]]));
-        const byLookup = new Map([['l-root', identity]]);
-
-        expect(requireIngredientLineIdentity(byLookup, 'l-root')).toBe(identity);
-        expect(() => requireIngredientLineIdentity(byLookup, 'l-missing')).toThrow(MissingLineIdentityError);
     });
 });
 

@@ -4,15 +4,15 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 140,
-        "implementations": 246,
-        "props": 1197,
-        "documentedComponents": 140,
-        "implementationsWithModuleDoc": 246,
-        "implementationsWithComponentDoc": 146,
-        "documentedProps": 933,
-        "classifiedComponents": 120,
-        "componentsWithPatternTag": 64,
+        "components": 146,
+        "implementations": 252,
+        "props": 1250,
+        "documentedComponents": 146,
+        "implementationsWithModuleDoc": 252,
+        "implementationsWithComponentDoc": 152,
+        "documentedProps": 977,
+        "classifiedComponents": 125,
+        "componentsWithPatternTag": 66,
         "crossPlatformComponents": 106
     },
     "components": [
@@ -8585,6 +8585,125 @@
             ]
         },
         {
+            "id": "featuresRecipes/discovery/DiscoveryBrowseRails",
+            "name": "DiscoveryBrowseRails",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/discovery",
+            "kind": "orchestration",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "DiscoveryBrowseRails",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/discovery/DiscoveryBrowseRails.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/discovery",
+                    "moduleDoc": "@commise/features-recipes/discovery/DiscoveryBrowseRails — (orchestration) the curated rails, each behind its OWN read boundary,\nso one rail loads and fails without the others. Mounted only while browsing (or under a no-result state, for the one\nrail), so the rail reads are a browse-time cost. A failed refresh of the rails on screen keeps their rows and is\nreported once, for the block, through `useBrowseRailsRefresh`'s passive observers.\n\nPull-to-refresh and the scroll bind are handed to the rails leaf unconditionally: the native leaf uses them, the web\nleaf ignores them (its contract), so this part has no platform branch.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/discovery/DiscoveryBrowseRails — (orchestration) the curated rails, each behind its OWN read boundary,"
+                        }
+                    ],
+                    "description": "The curated rails.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The cuisine shortcuts, the \"see all\" intent, the one rail to draw (if any) and the card actions."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The rails block."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "cuisines",
+                            "type": "readonly RecipeBrowseCuisineShortcut[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cuisine shortcuts under the rails.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryBrowseRails.tsx"
+                        },
+                        {
+                            "name": "hrefOf",
+                            "type": "((recipeId: string) => string)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Where a card links, for a platform whose cards are links. Absent: the card is a button.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/discoveryScreenModel.ts"
+                        },
+                        {
+                            "name": "only",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"trending\"",
+                                "\"new\"",
+                                "\"quick\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Draw only this rail, with no cuisine row: the Trending rail every no-result state ends in.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryBrowseRails.tsx"
+                        },
+                        {
+                            "name": "onSeeAll",
+                            "type": "(sortBy: RecipeSearchSortBy) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A rail's \"see all\": leave browse for the full list sorted by that rail.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryBrowseRails.tsx"
+                        },
+                        {
+                            "name": "onSelectRecipe",
+                            "type": "(id: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/discoveryScreenModel.ts"
+                        },
+                        {
+                            "name": "saveCopy",
+                            "type": "SaveCopy",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/discoveryScreenModel.ts"
+                        },
+                        {
+                            "name": "scrollBind",
+                            "type": "ScrollBind",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The screen's scroll bind, when the rails ARE the screen's scroller (browsing), never the nested Trending rail.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryBrowseRails.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/discovery/DiscoveryControls",
             "name": "DiscoveryControls",
             "group": "featuresRecipes",
@@ -8961,6 +9080,82 @@
             ]
         },
         {
+            "id": "featuresRecipes/discovery/DiscoveryPlatformProvider",
+            "name": "DiscoveryPlatformProvider",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/discovery",
+            "kind": "unclassified",
+            "patterns": [
+                "Dependency Injection — React context carrying the platform port"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "DiscoveryPlatformProvider",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/discovery/DiscoveryPlatformProvider.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/discovery",
+                    "moduleDoc": "@commise/features-recipes/discovery/DiscoveryPlatformProvider — hands the screen's parts the host's\n{@link DiscoveryPlatform}, so the rails, the results and the settled reads reach the boundary and the calorie lookup\nwithout each passing them down four levels.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/discovery/DiscoveryPlatformProvider — hands the screen's parts the host's"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Dependency Injection — React context carrying the platform port"
+                        }
+                    ],
+                    "description": "Provide the platform to the discovery screen's parts.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The platform and the subtree."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The subtree under the platform."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The discovery screen's parts.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryPlatformProvider.tsx"
+                        },
+                        {
+                            "name": "platform",
+                            "type": "DiscoveryPlatform",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The platform the parts read.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryPlatformProvider.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/discovery/DiscoveryRecentSearches",
             "name": "DiscoveryRecentSearches",
             "group": "featuresRecipes",
@@ -9026,6 +9221,618 @@
                     "docSignals": {
                         "presentational": true,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/discovery/DiscoveryResultsView",
+            "name": "DiscoveryResultsView",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/discovery",
+            "kind": "orchestration",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "DiscoveryResultsView",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/discovery",
+                    "moduleDoc": "@commise/features-recipes/discovery/DiscoveryResultsView — (orchestration) the results of one search, from its pages: the rails\nor the cards, the no-result state, and one nutrition batch per fetched page. Shared by the settled read and by the\n\"previous results\" kept under a failed search.\n\nThe deferred calorie lookup (ADR-0021) is ONE REQUEST PER FETCHED PAGE: \"Load more\" appends, so a single batch over every\naccumulated id would change its key on every page and drop the figures already on screen to skeletons. While the rails\nare the body these cards are not on screen, so nothing is asked about them; and the compact card draws no figure, so a\nbatch for it would have nobody to read the promise (a rejection would go unhandled). The id list is unmemoized on\npurpose: the lookup keys its batches on the ids' content, never on the array's identity.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/discovery/DiscoveryResultsView — (orchestration) the results of one search, from its pages: the rails"
+                        }
+                    ],
+                    "description": "The results of one search.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The pages, the criteria they belong to, and the intents to forward."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The discovery results."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "cardVariant",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"grid\"",
+                                "\"compact\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The card variant the results draw.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "criteria",
+                            "type": "RecipeDiscoveryCriteria",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The criteria these pages answer.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "cuisines",
+                            "type": "readonly RecipeBrowseCuisineShortcut[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cuisine shortcuts under the rails.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "facets",
+                            "type": "Partial<Pick<Readonly<{ dietaryFlags: readonly { value: string; count: number; }[]; tags: readonly { value: string; count: number; }[]; cuisine: readonly { value: string; count: number; }[]; totalTime: readonly { value: string; count: number; }[]; }>, \"cuisine\" | ... 1 more ... | \"tags\">>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The settled search's facets, for the \"try these\" tags.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "hrefOf",
+                            "type": "((recipeId: string) => string)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Where a card links, for a platform whose cards are links. Absent: the card is a button.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/discoveryScreenModel.ts"
+                        },
+                        {
+                            "name": "loadMore",
+                            "type": "RecipeDiscoveryLoadMoreControl",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The pager.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "onClearFilters",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Clear every filter.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "onClearSearch",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Clear the typed term.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "onPickTag",
+                            "type": "(tag: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Apply one suggested tag as a filter.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "onSeeAll",
+                            "type": "(sortBy: RecipeSearchSortBy) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A rail's \"see all\".",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "onSelectRecipe",
+                            "type": "(id: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/discoveryScreenModel.ts"
+                        },
+                        {
+                            "name": "pages",
+                            "type": "readonly { readonly results: readonly RecipeSearchResult[]; }[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The fetched pages, in order; one calorie batch is asked per page.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "refresh",
+                            "type": "RecipeListRefreshControl",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Pull-to-refresh (native leaves only).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "refreshNotice",
+                            "type": "RefreshNoticeState",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The notice for a failed refresh of the results on screen.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "saveCopy",
+                            "type": "SaveCopy",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/discoveryScreenModel.ts"
+                        },
+                        {
+                            "name": "scrollBind",
+                            "type": "ScrollBind",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The screen's scroll bind, for whichever of the rails, the cards or the no-result state is the scroller.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "stale",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Newer criteria are pending behind these results.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/discovery/DiscoveryScreen",
+            "name": "DiscoveryScreen",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/discovery",
+            "kind": "orchestration",
+            "patterns": [
+                "Layout slot — the persistent frame around a Suspense read boundary, with the criteria, the recent searches\n    and the recovery counter lifted to the frame's side",
+                "Ports and Adapters — the criteria store and the platform are injected by each host"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "DiscoveryScreen",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/discovery/DiscoveryScreen.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/discovery",
+                    "moduleDoc": "@commise/features-recipes/discovery/DiscoveryScreen — public-recipe discovery (orchestration): the discovery\nFRAME around a suspense read of the search, with the curated rails as the body while the viewer is browsing\n(`docs/design/uiOverhaul/buildSpec.md` §4.4–§4.6). The web route and the mobile tab both render THIS; each supplies only\nthe {@link DiscoveryCriteriaStore} (URL / component state) and the {@link DiscoveryPlatform} (boundary, calorie lookup,\nrecent-search persistence), plus its own navigation.\n\nThe frame (heading, search field, filters, back-to-browse, sort, the count line) sits outside the read boundary, so a\npending or failed search swaps only the results. The boundary's loading body is `RecipeDiscoveryLoading` in the card\nvariant the results will draw, its error body is `RecipeDiscoveryLoadError` over the PREVIOUS results, which stay, and\nonce settled the RESULTS render the rails or the counted grid. TanStack Query is the source of truth for the results.\n\nA retry from the results' refresh notice that succeeds moves focus to the frame's heading, across the boundary, as a\n`useRecoverySignal` counter. Save a copy is `useSaveCopy`: each card derives its control from the clone mutation, and\nthe snackbar's Edit opens the copy.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/discovery/DiscoveryScreen — public-recipe discovery (orchestration): the discovery"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Layout slot — the persistent frame around a Suspense read boundary, with the criteria, the recent searches\n    and the recovery counter lifted to the frame's side"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Ports and Adapters — the criteria store and the platform are injected by each host"
+                        }
+                    ],
+                    "description": "The discovery screen.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The two ports, the navigation the host owns, and the optional title action and scroll bind."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The discovery frame around the search's read boundary."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "criteria",
+                            "type": "DiscoveryCriteriaStore",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Where the shareable criteria live.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryScreen.tsx"
+                        },
+                        {
+                            "name": "headerAction",
+                            "type": "HeaderAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The large title's action (the avatar, which opens Profile). The app supplies it, since the profile read is its.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryScreen.tsx"
+                        },
+                        {
+                            "name": "hrefOf",
+                            "type": "((recipeId: string) => string)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Where a card links, for a platform whose cards are links. Absent: the card is a button.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/discoveryScreenModel.ts"
+                        },
+                        {
+                            "name": "onEditCopy",
+                            "type": "(copyId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Opens a saved copy in the editor: the Save a copy snackbar's Edit action.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryScreen.tsx"
+                        },
+                        {
+                            "name": "onSelectRecipe",
+                            "type": "(id: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/discoveryScreenModel.ts"
+                        },
+                        {
+                            "name": "platform",
+                            "type": "DiscoveryPlatform",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The platform pieces. Pass a module constant.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryScreen.tsx"
+                        },
+                        {
+                            "name": "scrollBind",
+                            "type": "ScrollBind",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The bind for this screen's one vertical scroller, from its `ScrollHost` — native only.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryScreen.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/discovery/DiscoverySettledRail",
+            "name": "DiscoverySettledRail",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/discovery",
+            "kind": "orchestration",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "DiscoverySettledRail",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/discovery/DiscoverySettledRail.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/discovery",
+                    "moduleDoc": "@commise/features-recipes/discovery/DiscoverySettledRail — (orchestration) one browse rail's settled read: its cards, with\nONE nutrition batch for this rail. The rails settle at different moments, so a batch spanning all three would change as\neach landed and re-batch the rails already showing figures.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/discovery/DiscoverySettledRail — (orchestration) one browse rail's settled read: its cards, with"
+                        }
+                    ],
+                    "description": "One rail's settled read.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The rail's read and the card actions."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The rail's cards."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "hrefOf",
+                            "type": "((recipeId: string) => string)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Where a card links, for a platform whose cards are links. Absent: the card is a button.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/discoveryScreenModel.ts"
+                        },
+                        {
+                            "name": "onSelectRecipe",
+                            "type": "(id: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/discoveryScreenModel.ts"
+                        },
+                        {
+                            "name": "read",
+                            "type": "OmitKeyof<UseInfiniteQueryOptions<Readonly<{ results: readonly { recipe: { id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 21 more ...; deletedAt?: string | undefined; ...",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The rail's suspense read.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoverySettledRail.tsx"
+                        },
+                        {
+                            "name": "saveCopy",
+                            "type": "SaveCopy",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/discoveryScreenModel.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/discovery/DiscoverySettledResults",
+            "name": "DiscoverySettledResults",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/discovery",
+            "kind": "orchestration",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "DiscoverySettledResults",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/discovery/DiscoverySettledResults.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/discovery",
+                    "moduleDoc": "@commise/features-recipes/discovery/DiscoverySettledResults — (orchestration) the results of a settled search: the suspense read,\nits refresh notice and pull-to-refresh, and the pager.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/discovery/DiscoverySettledResults — (orchestration) the results of a settled search: the suspense read,"
+                        }
+                    ],
+                    "description": "The results of a settled search.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The read, the recovery hand-off, and the view's own props."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The results view over the read's pages."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "cardVariant",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"grid\"",
+                                "\"compact\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The card variant the results draw.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "criteria",
+                            "type": "RecipeDiscoveryCriteria",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The criteria these pages answer.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "cuisines",
+                            "type": "readonly RecipeBrowseCuisineShortcut[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cuisine shortcuts under the rails.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "facets",
+                            "type": "Partial<Pick<Readonly<{ dietaryFlags: readonly { value: string; count: number; }[]; tags: readonly { value: string; count: number; }[]; cuisine: readonly { value: string; count: number; }[]; totalTime: readonly { value: string; count: number; }[]; }>, \"cuisine\" | ... 1 more ... | \"tags\">>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The settled search's facets, for the \"try these\" tags.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "hrefOf",
+                            "type": "((recipeId: string) => string)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Where a card links, for a platform whose cards are links. Absent: the card is a button.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/discoveryScreenModel.ts"
+                        },
+                        {
+                            "name": "onClearFilters",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Clear every filter.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "onClearSearch",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Clear the typed term.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "onPickTag",
+                            "type": "(tag: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Apply one suggested tag as a filter.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "onRecovered",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A retry from the refresh notice succeeded: the frame's heading takes focus, across the boundary.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoverySettledResults.tsx"
+                        },
+                        {
+                            "name": "onSeeAll",
+                            "type": "(sortBy: RecipeSearchSortBy) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A rail's \"see all\".",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "onSelectRecipe",
+                            "type": "(id: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/discoveryScreenModel.ts"
+                        },
+                        {
+                            "name": "read",
+                            "type": "OmitKeyof<UseInfiniteQueryOptions<Readonly<{ results: readonly { recipe: { id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 21 more ...; deletedAt?: string | undefined; ...",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The settled search's suspense read.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoverySettledResults.tsx"
+                        },
+                        {
+                            "name": "saveCopy",
+                            "type": "SaveCopy",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/discoveryScreenModel.ts"
+                        },
+                        {
+                            "name": "scrollBind",
+                            "type": "ScrollBind",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The screen's scroll bind, for whichever of the rails, the cards or the no-result state is the scroller.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        },
+                        {
+                            "name": "stale",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Newer criteria are pending behind these results.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryResultsView.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]
@@ -10459,7 +11266,7 @@
                 "native"
             ],
             "crossPlatform": true,
-            "propsDiverge": true,
+            "propsDiverge": false,
             "documented": true,
             "implementations": [
                 {
@@ -10504,7 +11311,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/discovery/RecipeDiscoveryLoading.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/discovery",
-                    "moduleDoc": "@commise/features-recipes — native discovery LOADING body (presentational).\n\nThe React Native twin of `RecipeDiscoveryLoading`: the shared native `RecipeCardGridSkeleton` — inert, motion-free\nplaceholders under the localized label — while a search with nothing to show yet is pending.",
+                    "moduleDoc": "@commise/features-recipes — native discovery LOADING body (presentational).\n\nThe React Native twin of `RecipeDiscoveryLoading`: the shared native `RecipeCardGridSkeleton` — inert, motion-free\nplaceholders under the localized label — while a search with nothing to show yet is pending. Like the web leaf it\ndraws the variant the results will use (`docs/design/uiOverhaul/buildSpec.md` §4.1: \"the same rows at the same\nsizes\"), so nothing changes shape when they land.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -10515,7 +11322,20 @@
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
-                    "props": [],
+                    "props": [
+                        {
+                            "name": "variant",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"grid\"",
+                                "\"compact\""
+                            ],
+                            "required": false,
+                            "defaultValue": "grid",
+                            "description": "The variant the results will draw (compact below 600, grid from 600), so the skeleton matches them.",
+                            "declaredIn": null
+                        }
+                    ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -18408,7 +19228,7 @@
                     "props": [
                         {
                             "name": "nutritionBatchPromise",
-                            "type": "Promise<{ nutrition: Record<string, { state: \"known\"; caloriesPerServing: number; proteinG: number; carbsG: number; fatG: number; isComplete: boolean; freshness: \"fresh\" | \"stale\"; rangeDerivedBound?: \"low\" | ... 1 more ... | undefined; } | { ...; }>; }>",
+                            "type": "Promise<{ nutrition: Record<string, { state: \"known\"; caloriesPerServing: number; proteinG: number; carbsG: number; fatG: number; isComplete: boolean; freshness: \"stale\" | \"fresh\"; rangeDerivedBound?: \"low\" | ... 1 more ... | undefined; } | { ...; }>; }>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,

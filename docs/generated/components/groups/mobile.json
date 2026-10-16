@@ -3835,7 +3835,7 @@
             "dir": "packages/apps/commise/mobile/src/screens",
             "kind": "orchestration",
             "patterns": [
-                "Layout slot — the persistent frame around a Suspense read boundary, with the criteria, the recent searches\n    and the recovery counter lifted to the frame's side"
+                "Adapter — the mobile host's criteria store and platform plugged into the shared discovery screen"
             ],
             "platforms": [
                 "web"
@@ -3849,11 +3849,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeDiscoveryScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Public-recipe discovery screen (mobile, T076 / US2 + FR-006, U7 overhaul, orchestration): the shared native discovery\nFRAME around a suspense read of the search, with the curated rails as the body while the viewer is browsing.\n\nThe frame (heading, search field, filters, back-to-browse, sort, the count line) sits outside the read boundary, so a pending or\nfailed search swaps only the results. `Suspense` renders `RecipeDiscoveryLoading`, the error boundary renders\n`RecipeDiscoveryLoadError` — over the PREVIOUS results, which stay — and once settled the RESULTS render the rails or the\ncards. Unlike web\n(URL-persisted), the term and filters are component state — the platform edge — fed through the SAME shared pure model\n(`discoverySearchParams`, `applyFilterAction`, …), so the two platforms cannot drift on what a search is.\n\nThe same three behaviours as the web container meet at the criteria: the field echoes every keystroke while the term\nthat searches is debounced ({@link DISCOVERY_SEARCH_DEBOUNCE_MS}); the criteria are deferred\n(`useDeferredDiscoveryCriteria`), so a new term, filter or sort keeps the previous results on screen, busy, until the\nnew ones settle, and the boundary resets when the settled criteria change; and with nothing searched the body is the\ncurated rails. The frame follows what the viewer asked for NOW; the results follow what has settled. The facets\nlive in ONE place (`useFilterPresentation`): a panel beside the results on a wide tablet, otherwise the Filters button,\nthe applied-filter chips and the sheet. Their groups come from a PASSIVE observer of the settled search\n(`enabled: false`), so they keep their last settled values while a newer search is pending. Recent searches persist\nthrough the injected `nativeRecentSearchStore` port. Save a copy is `useSaveCopy`: the snackbar's Edit opens the copy.",
+                    "moduleDoc": "Public-recipe discovery screen (mobile, T076 / US2 + FR-006, U7 overhaul, orchestration): the mobile host of the shared\n`DiscoveryScreen` (`@commise/features-recipes/discovery`), which owns the frame, the search, the filters, the rails and\nthe results — the same code the web route runs, so the two platforms cannot drift on what a search is or what stays on\nscreen while a newer one is pending. This file supplies only what is mobile's:\n\n- **The criteria live in component state** (`useStateCriteriaStore`), seeded from `initialFilters` — a tag deep-link\n  from a recipe detail (D6), which still runs through the SAME visibility-scoped search. Unlike web there is no URL.\n- **The platform** (`nativeDiscoveryPlatform`): the plain read boundary, the calorie lookup, and `AsyncStorage` for the\n  recent searches.\n- **Navigation**: a selected card opens its detail through the navigator; the snackbar's Edit opens the copy. The\n  route also supplies the large title's avatar action and the scroll host's bind for the screen's one scroller.",
                     "moduleTags": [
                         {
                             "name": "pattern",
-                            "text": "Layout slot — the persistent frame around a Suspense read boundary, with the criteria, the recent searches\n    and the recovery counter lifted to the frame's side"
+                            "text": "Adapter — the mobile host's criteria store and platform plugged into the shared discovery screen"
                         }
                     ],
                     "description": "The public-discovery screen.",
@@ -3864,7 +3864,7 @@
                         },
                         {
                             "name": "returns",
-                            "text": "The discovery frame around the search's read boundary."
+                            "text": "The shared discovery screen over component-state criteria and the mobile platform."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",

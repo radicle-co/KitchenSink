@@ -43,9 +43,17 @@ vi.mock('react-native', async (importOriginal) => {
     return {
         ...actual,
         AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
+        // A test that needs a phone-width window sets `windowMock.width`; otherwise the real dimensions answer.
+        useWindowDimensions: () => {
+            const real = actual.useWindowDimensions();
+
+            return windowMock.width === undefined ? real : { ...real, width: windowMock.width };
+        },
         RefreshControl,
     };
 });
+
+const windowMock = vi.hoisted(() => ({ width: undefined as number | undefined }));
 
 // An in-memory `AsyncStorage` double: the real native module has no runtime under jsdom, and the point here is the
 // screen's recent-search WIRING, not the native KV store's own behaviour.
@@ -116,6 +124,27 @@ describe('RecipeDiscoveryScreen — loading and error', () => {
         expect(screen.getByRole('heading', { name: 'Discover' })).toBeTruthy();
         expect(screen.getByLabelText('Search recipes')).toBeTruthy();
         expect(screen.getByLabelText('Loading recipes')).toBeTruthy();
+    });
+
+    // Drift settled (UI consolidation S7): web always sat the skeleton in the grid the results draw; mobile drew the
+    // grid placeholder under compact results. `buildSpec.md` §4.1: "the same rows at the same sizes".
+    it('sits COMPACT placeholders in the loading body on a phone-width window, where the results are compact', () => {
+        windowMock.width = 390;
+        onTestFinished(() => {
+            windowMock.width = undefined;
+        });
+        vi.spyOn(client, 'searchRecipes').mockReturnValue(new Promise(() => {}));
+
+        render(
+            <RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} initialFilters={resultsMode} />,
+        );
+
+        const cards = screen.getByLabelText('Loading recipes').querySelectorAll('[data-skeleton-variant]');
+        expect(cards.length).toBeGreaterThan(0);
+
+        for (const card of Array.from(cards)) {
+            expect(card.getAttribute('data-skeleton-variant')).toBe('compact');
+        }
     });
 
     it('shows an alert and loads the results from Try again', async () => {

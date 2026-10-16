@@ -4067,7 +4067,7 @@
             "dir": "packages/apps/commise/web/src/components/recipes",
             "kind": "orchestration",
             "patterns": [
-                "Layout slot — the persistent frame around a Suspense read boundary, with the criteria, the recent searches\n    and the recovery counter lifted to the frame's side"
+                "Adapter — the web host's criteria store and platform plugged into the shared discovery screen"
             ],
             "platforms": [
                 "web"
@@ -4081,22 +4081,22 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeDiscoveryContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the public-discovery route (orchestration): the shared discovery FRAME around a suspense read of the\nsearch, with the curated rails as the body while the viewer is browsing (`docs/design/uiOverhaul/buildSpec.md` §4.4–§4.6).\n\nThe frame (heading, search field, filters, back-to-browse, sort, the count line) sits outside the read boundary, so a\npending or failed search swaps only the results. `Suspense` renders `RecipeDiscoveryLoading`, the error boundary\nrenders `RecipeDiscoveryLoadError` — over the PREVIOUS results, which stay — and once settled the RESULTS render the\nrails or the counted grid. TanStack Query is the source of truth for the results; the search term and filters live in\nthe URL (`?query=…&tags=…`), so a filtered view is shareable and survives reload, and are written back with\n`window.history.replaceState`, which updates `useSearchParams()` without a server round-trip.\n\nThree behaviours meet at the criteria:\n- **Debounced search.** The field echoes every keystroke; the term that SEARCHES waits for\n  {@link DISCOVERY_SEARCH_DEBOUNCE_MS} of quiet, so typing does not send a request per keystroke.\n- **Deferred results.** The criteria are deferred (`useDeferredDiscoveryCriteria`), so a new term, filter or sort keeps\n  the previous results on screen — marked busy, still naming their own query — until the new ones settle, instead of\n  the skeleton. The boundary resets when the settled criteria change, so a failed search clears once the viewer\n  changes what they asked for.\n- **Browsable default.** With nothing searched, the body is the curated rails (Trending/New/Quick + cuisine\n  shortcuts, once three cuisines hold three recipes each); a rail's \"see all\" leaves for the full sorted list, and\n  back-to-browse returns.\n\nThe facets live in ONE place (`useFilterPresentation`): a sticky panel beside the results at a 960 container, otherwise\nthe Filters button, the applied-filter chips and the sheet. Their groups come from a PASSIVE observer of the settled\nsearch (`enabled: false` — it reads the cache the suspense read fills and never fetches), so they keep their last settled\nvalues while a newer search is pending, and the same observer supplies the count the frame announces and the sheet's\n\"Show {n} recipes\".\n\nSave a copy is `useSaveCopy`: each card derives its control from the clone mutation, the snackbar's Edit opens the copy.\n\n`/discover` is server-prefetched with the URL's criteria, so the boundary is `ClientQueryBoundary` with that key. A\nretry from the results' refresh notice that succeeds moves focus to the frame's heading, across the boundary, as a\n`useRecoverySignal` counter.",
+                    "moduleDoc": "Container for the public-discovery route (orchestration): the web host of the shared `DiscoveryScreen`\n(`@commise/features-recipes/discovery`), which owns the frame, the search, the filters, the rails and the results\n(`docs/design/uiOverhaul/buildSpec.md` §4.4–§4.6). This file supplies only what is the web's:\n\n- **The criteria live in the URL** (`?query=…&tags=…`, `useUrlCriteriaStore`), so a filtered view is shareable and\n  survives reload.\n- **The platform**: `ClientQueryBoundary` (`/discover` is server-prefetched with the URL's criteria, so the boundary\n  opens before hydration when every prefetched key holds data), the hydration-gated calorie lookup, and `localStorage`\n  for the recent searches.\n- **Navigation**: a card is a link to `/{locale}/recipes/{id}` and is also opened with the router; the snackbar's Edit\n  opens the copy.",
                     "moduleTags": [
                         {
                             "name": "pattern",
-                            "text": "Layout slot — the persistent frame around a Suspense read boundary, with the criteria, the recent searches\n    and the recovery counter lifted to the frame's side"
+                            "text": "Adapter — the web host's criteria store and platform plugged into the shared discovery screen"
                         }
                     ],
                     "description": "The live public-discovery container.",
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The active locale."
+                            "text": "props - The active locale and the title's avatar."
                         },
                         {
                             "name": "returns",
-                            "text": "The discovery frame around the search's read boundary."
+                            "text": "The shared discovery screen over the URL and the web platform."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",

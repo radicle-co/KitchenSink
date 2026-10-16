@@ -55,12 +55,15 @@ import {
     makeSearchResponse,
 } from '../__fixtures__/recipes.js';
 
-// Home draws the calorie figure on the full card only (the compact card has no meta line), which it shows from a 960
-// container (owner ruling D8); jsdom has no window to measure, so the content is read as wide here.
-vi.mock('@commise/features-recipes', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('@commise/features-recipes')>()),
-    useMainContainerClass: () => 'wide' as const,
-}));
+// Home and discovery draw the calorie figure on the full card only (the compact card has no meta line), which they show
+// from a 960 container (owner ruling D8); jsdom has no window to measure, so the window is read as wide here. This is
+// the window the REAL container-class hook reads — discovery is now the shared screen, which imports that hook from
+// inside the feature package, where a mock of the package root's export no longer reaches it.
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return { ...actual, useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: 1200 }) };
+});
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
     default: { getItem: async () => null, setItem: async () => undefined },

@@ -4,7 +4,7 @@
  * @module @commise/features-recipes/collections — the SETTLED collection detail, composed once for web and mobile
  * (`docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3): the {@link CollectionHeader} (back, name, meta, description, Add
  * recipes and the ⋯ menu), the two failure lines, the {@link CollectionMembers} list, and the sheets the header opens —
- * rename, delete, Premium, the add-recipes picker and the pull-updates dialog.
+ * rename, delete, make-public, Premium, the add-recipes picker and the pull-updates dialog.
  *
  * Orchestration: every piece it draws is a leaf pair that resolves per platform, and what it reads is the
  * {@link CollectionDetail} view-model — plain `.tsx` with no native twin. The app keeps only what differs: the frame around it (a page `<section>` on
@@ -23,6 +23,7 @@ import { nutritionSlotRenderer } from '../nutrition/nutritionSlotRenderer.js';
 import { CollectionDeleteDialog } from './CollectionDeleteDialog.js';
 import { CollectionDetailAlert } from './CollectionDetailAlert.js';
 import { CollectionHeader } from './CollectionHeader.js';
+import { CollectionMakePublicDialog } from './CollectionMakePublicDialog.js';
 import { headerSourceProps } from './collectionHeaderSource.js';
 import { CollectionMembers } from './CollectionMembers.js';
 import { CollectionPickerBody } from './CollectionPickerBody.js';
@@ -77,7 +78,7 @@ export const CollectionDetailBody: FC<CollectionDetailBodyProps> = ({
     PickerBoundary,
 }) => {
     const { member: copy } = useMessages(collectionMessages);
-    const { collection, members, layout, picker, rename, deletion, pull, visibility, removal } = detail;
+    const { collection, members, layout, picker, rename, deletion, pull, visibility, removal, makePublic } = detail;
     const { nutritionFor } = detail;
     const renderNutrition = useMemo(() => nutritionSlotRenderer(nutritionFor), [nutritionFor]);
 
@@ -143,6 +144,8 @@ export const CollectionDetailBody: FC<CollectionDetailBodyProps> = ({
                 onKeep={deletion.onKeep}
                 onConfirm={deletion.onConfirm}
             />
+
+            <CollectionMakePublicDialog {...makePublic} />
 
             <CollectionUpsellSheet
                 open={visibility.upsellOpen}

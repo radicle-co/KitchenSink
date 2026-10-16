@@ -210,6 +210,16 @@ export interface CollectionDialogMessages {
     readonly deleting: string;
     /** The Premium sheet's Close control. */
     readonly upsellClose: string;
+    /** The confirm before a private collection goes public (plan 2026-10-14-009 T1). */
+    readonly makePublicTitle: string;
+    /** Under `hidden`: it can never be made private again. */
+    readonly makePublicBodyFinal: string;
+    /** Under `upsell`: only with Premium. */
+    readonly makePublicBodyPremium: string;
+    /** While the profile loads: it may not be possible. */
+    readonly makePublicBodyUnknown: string;
+    readonly makePublicConfirm: string;
+    readonly makePublicKeep: string;
 }
 
 /**
@@ -442,6 +452,15 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             deleteFailed: 'We couldn’t delete this collection. Try again.',
             deleting: 'Deleting…',
             upsellClose: 'Close',
+            makePublicTitle: 'Make this collection public?',
+            makePublicBodyFinal:
+                "Anyone can see a public collection and save a copy. You won't be able to make this one private again.",
+            makePublicBodyPremium:
+                "Anyone can see a public collection and save a copy. To make this one private again, you'll need Premium.",
+            makePublicBodyUnknown:
+                'Anyone can see a public collection and save a copy. You may not be able to make this one private again.',
+            makePublicConfirm: 'Make public',
+            makePublicKeep: 'Keep private',
         },
         detail: {
             membersHeading: 'Recipes',

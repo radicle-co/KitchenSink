@@ -395,17 +395,61 @@ describe('CollectionDetailScreen — visibility, with Undo and the Premium sheet
         expect(screen.getByRole('menuitem', { name: 'Rename' })).toBeTruthy();
     });
 
-    it('under hidden, a private collection still offers Make public, with no Undo back to private', async () => {
+    // Plan 2026-10-14-009 T1: a downgraded owner cannot take Public back, so Make public asks first.
+    it.each([
+        ['hidden', profile('hidden'), "You won't be able to make this one private again."],
+        ['upsell', profile('upsell'), "To make this one private again, you'll need Premium."],
+    ] as const)(
+        'under %s, Make public on a private collection asks first, and Keep private sends nothing',
+        async (_label, stub, cost) => {
+            useUserProfileMock.mockReturnValue(stub);
+            seed(makeCollectionWithRecipes([], { id: 'col_1', name: 'Dinners', visibility: 'private' }));
+            const update = vi.spyOn(client, 'updateCollection');
+
+            renderOver(<CollectionDetailScreen {...props} />);
+            await screen.findByRole('heading', { name: 'Dinners' });
+            pressMenuItem('Dinners', 'Make public');
+
+            expect(await screen.findByRole('heading', { name: 'Make this collection public?' })).toBeTruthy();
+            expect(screen.getByText(`Anyone can see a public collection and save a copy. ${cost}`)).toBeTruthy();
+            expect(update).not.toHaveBeenCalled();
+
+            fireEvent.click(screen.getByRole('button', { name: 'Keep private' }));
+
+            await waitFor(() =>
+                expect(screen.queryByRole('heading', { name: 'Make this collection public?' })).toBeNull(),
+            );
+            expect(update).not.toHaveBeenCalled();
+        },
+    );
+
+    it('under hidden, confirming Make public sends the change, with no Undo back to private', async () => {
         useUserProfileMock.mockReturnValue(profile('hidden'));
         seed(makeCollectionWithRecipes([], { id: 'col_1', name: 'Dinners', visibility: 'private' }));
-        vi.spyOn(client, 'updateCollection').mockResolvedValue(makeCollectionWithRecipes([]));
+        const update = vi.spyOn(client, 'updateCollection').mockResolvedValue(makeCollectionWithRecipes([]));
+
+        renderOver(<CollectionDetailScreen {...props} />);
+        await screen.findByRole('heading', { name: 'Dinners' });
+        pressMenuItem('Dinners', 'Make public');
+        await screen.findByRole('heading', { name: 'Make this collection public?' });
+        fireEvent.click(screen.getByRole('button', { name: 'Make public' }));
+
+        await waitFor(() => expect(update).toHaveBeenCalledWith('col_1', { visibility: 'public' }));
+        expect(await screen.findByText('Collection is now public.')).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'Make this collection public?' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    });
+
+    it('under granted, Make public on a private collection is one tap, with no confirm', async () => {
+        seed(makeCollectionWithRecipes([], { id: 'col_1', name: 'Dinners', visibility: 'private' }));
+        const update = vi.spyOn(client, 'updateCollection').mockResolvedValue(makeCollectionWithRecipes([]));
 
         renderOver(<CollectionDetailScreen {...props} />);
         await screen.findByRole('heading', { name: 'Dinners' });
         pressMenuItem('Dinners', 'Make public');
 
-        expect(await screen.findByText('Collection is now public.')).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+        await waitFor(() => expect(update).toHaveBeenCalledWith('col_1', { visibility: 'public' }));
+        expect(screen.queryByRole('heading', { name: 'Make this collection public?' })).toBeNull();
     });
 });
 

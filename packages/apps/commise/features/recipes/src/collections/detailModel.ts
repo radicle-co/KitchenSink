@@ -6,6 +6,7 @@
  * `useCollectionVisibility`, `useMemberToggle`, `useCollectionPull`) run the requests; the containers and screens connect
  * the two.
  */
+import type { RecipeMakePublicDialogProps } from '../actions/model.js';
 import type { CardVariant, ListViewMode } from '../card/cardVariant.js';
 import type { RemovableMember } from '../hooks/useMemberRemoval.js';
 import type { ActionMenuItem } from '@commise/ui/action-menu';
@@ -174,6 +175,15 @@ export interface CollectionDeleteDialogProps {
     /** Keep the collection: every dismissal route calls this. */
     readonly onKeep: () => void;
 }
+
+/**
+ * Props for the confirmation before a private collection goes public: the recipe dialog's, less the busy and error a
+ * network write needs — a collection's change is optimistic, so the dialog closes with it.
+ */
+export type CollectionMakePublicDialogProps = Pick<
+    RecipeMakePublicDialogProps,
+    'open' | 'consequence' | 'onConfirm' | 'onKeep'
+>;
 
 /** Props for the Premium sheet a free-tier cook gets for "Make private". */
 export interface CollectionUpsellSheetProps {

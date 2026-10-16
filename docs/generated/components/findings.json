@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 15,
         "missing-component-doc": 156,
         "missing-module-doc": 21,
-        "platform-singleton": 65,
+        "platform-singleton": 66,
         "ref-api": 13,
         "unclassified-layer": 93,
         "undocumented-prop": 176
@@ -984,6 +984,16 @@
             "severity": "review",
             "component": "featuresRecipes/collections/CollectionLoadError",
             "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionLoadError.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/collections/CollectionMakePublicDialog",
+            "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionMakePublicDialog.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"

@@ -218,3 +218,59 @@ test.describe('paid features — a downgraded owner making a private recipe publ
         await expect(page.getByRole('menuitem', { name: 'Make private' })).toHaveCount(0);
     });
 });
+
+/**
+ * Plan 2026-10-14-009 T1: the same confirm for a PRIVATE COLLECTION. A downgraded owner's ⋯ Make public asks first, in
+ * the words that say what going public costs, and Keep private leaves the collection as it was.
+ */
+test.describe('paid features — a downgraded owner making a private collection public', () => {
+    async function openPrivateCollection(page: Page, paidFeatures: 'upsell' | 'hidden'): Promise<void> {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            paidFeatures,
+            collections: [
+                makeCollection({ id: 'col_gate', ownerId: viewerId, name: 'Gate dinners', visibility: 'private' }),
+            ],
+        });
+        await page.goto(route('/collections/col_gate'));
+        await page.getByRole('button', { name: 'More actions for Gate dinners' }).click();
+        await page.getByRole('menuitem', { name: 'Make public' }).click();
+    }
+
+    test('⛔ hidden: Make public asks first; confirmed, it is public with no way back', async ({ page }) => {
+        await openPrivateCollection(page, 'hidden');
+
+        const dialog = page.getByRole('alertdialog', { name: 'Make this collection public?' });
+        await expect(dialog).toBeVisible();
+        await expect(
+            dialog.getByText(
+                "Anyone can see a public collection and save a copy. You won't be able to make this one private again.",
+            ),
+        ).toBeVisible();
+        await expect(dialog.getByRole('button', { name: 'Keep private' })).toBeFocused();
+        await expect(dialog.getByRole('button', { name: /Premium/u })).toHaveCount(0);
+        await dialog.getByRole('button', { name: 'Make public' }).click();
+
+        await expect(dialog).toHaveCount(0);
+        await expect(page.getByText('Collection is now public.')).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Undo' })).toHaveCount(0);
+    });
+
+    test('upsell: Keep private leaves the collection private', async ({ page }) => {
+        await openPrivateCollection(page, 'upsell');
+
+        const dialog = page.getByRole('alertdialog', { name: 'Make this collection public?' });
+        await expect(
+            dialog.getByText(
+                "Anyone can see a public collection and save a copy. To make this one private again, you'll need Premium.",
+            ),
+        ).toBeVisible();
+        await dialog.getByRole('button', { name: 'Keep private' }).click();
+
+        await expect(dialog).toHaveCount(0);
+        await expect(page.getByText('Collection is now public.')).toHaveCount(0);
+        await expect(page.getByText('Private')).toBeVisible();
+    });
+});

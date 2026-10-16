@@ -14,7 +14,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { CollectionWithRecipes } from '@kitchensink/recipe-service-client';
-import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
+import { RecipeServiceProvider, recipeServiceKeys } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import type { FC, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -45,6 +45,8 @@ function setup(
     vi.spyOn(client, 'getCollectionById').mockResolvedValue(options.collection ?? collectionOf());
     const nav: CollectionDetailNav = { onDeleted: vi.fn(), onCloned: vi.fn(), onCreateRecipe: vi.fn() };
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    // The detail is on screen when the hook runs, so its cache holds the collection a visibility change reads from.
+    queryClient.setQueryData(recipeServiceKeys.collection('col_1'), options.collection ?? collectionOf());
     const wrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (
         <QueryClientProvider client={queryClient}>
             <RecipeServiceProvider client={client}>
@@ -254,5 +256,70 @@ describe('useCollectionDetail — save a copy, rename and visibility', () => {
     it('offers the visibility toggle only when the viewer may use it', () => {
         expect(setup({ paidFeatures: 'granted' }).result.current.onToggleVisibility).toBeTypeOf('function');
         expect(setup({ paidFeatures: 'hidden' }).result.current.onToggleVisibility).toBeUndefined();
+    });
+});
+
+/**
+ * The collection twin of the recipe make-public confirm (plan 2026-10-14-009 T1): a downgraded owner's ⋯ Make public on
+ * a private collection asks first, through the same `useMakePublicConfirm`, because going public cannot be undone by them.
+ */
+describe('useCollectionDetail — the make-public confirm', () => {
+    const privateCollection = collectionOf({ visibility: RecipeVisibility.PRIVATE });
+
+    it.each([
+        ['hidden', 'final'],
+        ['upsell', 'premium'],
+        ['loading', 'unknown'],
+    ] as const)('under %s, Make public opens the confirm (%s) and sends nothing', (state, consequence) => {
+        const { client, result } = setup({ paidFeatures: state, collection: privateCollection });
+        const update = vi.spyOn(client, 'updateCollection');
+
+        act(() => result.current.onToggleVisibility?.());
+
+        expect(result.current.makePublic.open).toBe(true);
+        expect(result.current.makePublic.consequence).toBe(consequence);
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('Make public in the confirm sends the change and closes the dialog', async () => {
+        const { client, result } = setup({ paidFeatures: 'hidden', collection: privateCollection });
+        const update = vi.spyOn(client, 'updateCollection').mockResolvedValue(collectionOf());
+
+        act(() => result.current.onToggleVisibility?.());
+        act(() => result.current.makePublic.onConfirm());
+
+        await waitFor(() => expect(update).toHaveBeenCalledWith('col_1', { visibility: 'public' }));
+        expect(result.current.makePublic.open).toBe(false);
+    });
+
+    it('Keep private closes the confirm and sends nothing', () => {
+        const { client, result } = setup({ paidFeatures: 'upsell', collection: privateCollection });
+        const update = vi.spyOn(client, 'updateCollection');
+
+        act(() => result.current.onToggleVisibility?.());
+        act(() => result.current.makePublic.onKeep());
+
+        expect(result.current.makePublic.open).toBe(false);
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('a cook who may go private again is not asked: one tap makes it public', async () => {
+        const { client, result } = setup({ paidFeatures: 'granted', collection: privateCollection });
+        const update = vi.spyOn(client, 'updateCollection').mockResolvedValue(collectionOf());
+
+        act(() => result.current.onToggleVisibility?.());
+
+        expect(result.current.makePublic.open).toBe(false);
+        await waitFor(() => expect(update).toHaveBeenCalledWith('col_1', { visibility: 'public' }));
+    });
+
+    it('Make private (a public collection) is never confirmed', async () => {
+        const { client, result } = setup({ paidFeatures: 'granted' });
+        const update = vi.spyOn(client, 'updateCollection').mockResolvedValue(collectionOf());
+
+        act(() => result.current.onToggleVisibility?.());
+
+        expect(result.current.makePublic.open).toBe(false);
+        await waitFor(() => expect(update).toHaveBeenCalledWith('col_1', { visibility: 'private' }));
     });
 });

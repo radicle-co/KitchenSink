@@ -377,19 +377,77 @@ describe('CollectionDetailContainer — visibility, with Undo and the Premium sh
         expect(menu.getByRole('menuitem', { name: 'Rename' })).toBeInTheDocument();
     });
 
-    it('under hidden, a private collection still offers Make public, with no Undo back to private', async () => {
+    // Plan 2026-10-14-009 T1: a downgraded owner cannot take Public back, so Make public asks first.
+    it.each([
+        ['hidden', profileWith('hidden'), "You won't be able to make this one private again."],
+        ['upsell', profileWith('upsell'), "To make this one private again, you'll need Premium."],
+        [
+            'a profile still loading',
+            { status: 'pending', data: undefined },
+            'You may not be able to make this one private again.',
+        ],
+    ] as const)(
+        'under %s, Make public on a private collection asks first, and Keep private sends nothing',
+        async (_label, stub, cost) => {
+            const user = userEvent.setup();
+            useUserProfileMock.mockReturnValue(stub);
+            const client = clientSeededWith(
+                makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', visibility: 'private' }),
+            );
+            const update = vi.spyOn(client, 'updateCollection');
+
+            renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+            await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Make public' }));
+
+            const dialog = await screen.findByRole('alertdialog', { name: 'Make this collection public?' });
+            expect(
+                within(dialog).getByText(`Anyone can see a public collection and save a copy. ${cost}`),
+            ).toBeInTheDocument();
+            expect(update).not.toHaveBeenCalled();
+
+            await user.click(within(dialog).getByRole('button', { name: 'Keep private' }));
+
+            await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+            expect(update).not.toHaveBeenCalled();
+            expect(screen.getByText('Private')).toBeInTheDocument();
+        },
+    );
+
+    it('under hidden, confirming Make public sends the change, with no Undo back to private', async () => {
         const user = userEvent.setup();
         useUserProfileMock.mockReturnValue(profileWith('hidden'));
         const client = clientSeededWith(
             makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', visibility: 'private' }),
         );
-        vi.spyOn(client, 'updateCollection').mockResolvedValue(makeCollectionWithRecipes());
+        const update = vi.spyOn(client, 'updateCollection').mockResolvedValue(makeCollectionWithRecipes());
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Make public' }));
+        await user.click(
+            within(await screen.findByRole('alertdialog', { name: 'Make this collection public?' })).getByRole(
+                'button',
+                { name: 'Make public' },
+            ),
+        );
+
+        await waitFor(() => expect(update).toHaveBeenCalledWith('col_9', { visibility: 'public' }));
+        expect(await screen.findByText('Collection is now public.')).toBeInTheDocument();
+        expect(screen.queryByRole('alertdialog')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    });
+
+    it('under granted, Make public on a private collection is one tap, with no confirm', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(
+            makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', visibility: 'private' }),
+        );
+        const update = vi.spyOn(client, 'updateCollection').mockResolvedValue(makeCollectionWithRecipes());
 
         renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
         await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Make public' }));
 
-        expect(await screen.findByText('Collection is now public.')).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+        await waitFor(() => expect(update).toHaveBeenCalledWith('col_9', { visibility: 'public' }));
+        expect(screen.queryByRole('alertdialog')).toBeNull();
     });
 });
 

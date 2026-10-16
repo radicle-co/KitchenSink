@@ -27,11 +27,13 @@
 import type { PaidFeatureState } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
 import type { ContainerClass } from '@commise/ui/container-class';
+import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { CollectionWithRecipes, CreateCollectionRequest } from '@kitchensink/recipe-service-client';
 import { useCloneCollection, useDeleteCollection, useUpdateCollection } from '@kitchensink/recipe-service-client/hooks';
 import { useMemo, useState } from 'react';
 
 import { offersPrivate } from '../actions/privateGate.js';
+import { useMakePublicConfirm, type MakePublicConfirm } from '../actions/useMakePublicConfirm.js';
 import { cardVariantOf, type CardVariant, type ListViewMode } from '../card/cardVariant.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { useCollectionPull, type CollectionPull } from '../hooks/useCollectionPull.js';
@@ -93,6 +95,8 @@ export interface CollectionDetail {
     readonly nutritionFor: RecipeNutritionLookup;
     readonly removal: MemberRemoval;
     readonly visibility: CollectionVisibilityControl;
+    /** The confirm a downgraded owner answers before a private collection goes public (plan 2026-10-14-009 T1). */
+    readonly makePublic: MakePublicConfirm['dialog'];
     /** Present only when the viewer's menu offers the visibility item. */
     readonly onToggleVisibility: (() => void) | undefined;
     readonly pull: CollectionPull;
@@ -149,6 +153,16 @@ export function useCollectionDetail({
     const cloneCollection = useCloneCollection();
     const pull = useCollectionPull(id);
     const visibility = useCollectionVisibility({ id, paidFeatures });
+    // The recipe page's own guard, over this surface's Command: the change is optimistic and instant, so the dialog
+    // closes with it and a refusal is said by the page's alert, as for every other visibility change here.
+    const makePublic = useMakePublicConfirm({
+        state: paidFeatures,
+        saved: collection.visibility,
+        apply: (done) => {
+            visibility.change(RecipeVisibility.PUBLIC);
+            done();
+        },
+    });
     const removal = useMemberRemoval({ id, name: collection.name });
     const announcement = usePickerAnnouncement(id);
 
@@ -184,8 +198,12 @@ export function useCollectionDetail({
         nutritionFor,
         removal,
         visibility,
+        makePublic: makePublic.dialog,
         onToggleVisibility: offersPrivate(paidFeatures, collection.visibility)
-            ? () => visibility.change(collection.visibility === 'public' ? 'private' : 'public')
+            ? () =>
+                  collection.visibility === RecipeVisibility.PUBLIC
+                      ? visibility.change(RecipeVisibility.PRIVATE)
+                      : makePublic.request()
             : undefined,
         pull,
         rename: {

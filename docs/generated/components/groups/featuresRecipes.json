@@ -4,15 +4,15 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 153,
-        "implementations": 261,
-        "props": 1284,
-        "documentedComponents": 153,
-        "implementationsWithModuleDoc": 261,
-        "implementationsWithComponentDoc": 154,
-        "documentedProps": 1005,
-        "classifiedComponents": 133,
-        "componentsWithPatternTag": 76,
+        "components": 154,
+        "implementations": 262,
+        "props": 1288,
+        "documentedComponents": 154,
+        "implementationsWithModuleDoc": 262,
+        "implementationsWithComponentDoc": 155,
+        "documentedProps": 1009,
+        "classifiedComponents": 134,
+        "componentsWithPatternTag": 77,
         "crossPlatformComponents": 108
     },
     "components": [
@@ -1048,7 +1048,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDetailBody.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes/collections — the SETTLED collection detail, composed once for web and mobile\n(`docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3): the {@link CollectionHeader} (back, name, meta, description, Add\nrecipes and the ⋯ menu), the two failure lines, the {@link CollectionMembers} list, and the sheets the header opens —\nrename, delete, Premium, the add-recipes picker and the pull-updates dialog.\n\nOrchestration: every piece it draws is a leaf pair that resolves per platform, and what it reads is the\n{@link CollectionDetail} view-model — plain `.tsx` with no native twin. The app keeps only what differs: the frame around it (a page `<section>` on\nweb, a `ScrollView` on mobile), the read boundary, the navigation, and the links web needs so a card is a real anchor.\n\nThe picker's read boundary is the app's (`ClientQueryBoundary` on web, `QueryBoundary` on mobile; this package may\nnot import `@commise/query`), handed in as {@link CollectionDetailBodyProps.PickerBoundary}.",
+                    "moduleDoc": "@commise/features-recipes/collections — the SETTLED collection detail, composed once for web and mobile\n(`docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3): the {@link CollectionHeader} (back, name, meta, description, Add\nrecipes and the ⋯ menu), the two failure lines, the {@link CollectionMembers} list, and the sheets the header opens —\nrename, delete, make-public, Premium, the add-recipes picker and the pull-updates dialog.\n\nOrchestration: every piece it draws is a leaf pair that resolves per platform, and what it reads is the\n{@link CollectionDetail} view-model — plain `.tsx` with no native twin. The app keeps only what differs: the frame around it (a page `<section>` on\nweb, a `ScrollView` on mobile), the read boundary, the navigation, and the links web needs so a card is a real anchor.\n\nThe picker's read boundary is the app's (`ClientQueryBoundary` on web, `QueryBoundary` on mobile; this package may\nnot import `@commise/query`), handed in as {@link CollectionDetailBodyProps.PickerBoundary}.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2264,6 +2264,95 @@
                             "defaultValue": null,
                             "description": "Read again: the boundary's reset.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionLoadError.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/collections/CollectionMakePublicDialog",
+            "name": "CollectionMakePublicDialog",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/collections",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over the design-system `ConfirmDialog` — the collection's make-public copy on the house confirmation"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CollectionMakePublicDialog",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionMakePublicDialog.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/collections",
+                    "moduleDoc": "@commise/features-recipes/collections — \"Make this collection public?\", the confirm a downgraded owner sees\nbefore a private collection goes public (plan 2026-10-14-009 T1). The collection twin of `RecipeMakePublicDialog`:\none component for both platforms, because the design system's `ConfirmDialog` resolves to its own leaf on each.\n\nGoing public is destructive in the design system's sense — anyone may save a copy of a public collection, and this\ncook cannot simply make it private again — so the primitive is used as it is: the danger-filled \"Make public\"\nagainst \"Keep private\", where focus opens. The body says the cost plainly, per reason (`makePublicConsequence`).\n⛔ Nothing here sells: no Premium button and no third choice (DSA Art. 25).\n\nPresentational: props → JSX, no data, no mutation, no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/collections — \"Make this collection public?\", the confirm a downgraded owner sees"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `ConfirmDialog` — the collection's make-public copy on the house confirmation"
+                        }
+                    ],
+                    "description": "\"Make this collection public?\": the cost, said plainly, then Keep private or Make public.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "consequence",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"final\"",
+                                "\"premium\"",
+                                "\"unknown\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Why going public costs the cook something: the body's words (`makePublicConsequence`, never `none` here).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "onConfirm",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Make public: the cook accepted the cost.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "onKeep",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Keep private, Escape, and the Android Back button.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the dialog is shown. When `false` the component renders nothing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
                         }
                     ],
                     "usesRefApi": [],

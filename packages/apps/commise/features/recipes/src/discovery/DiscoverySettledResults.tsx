@@ -9,6 +9,7 @@
 import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { FC } from 'react';
 
+import { loadMoreOf } from '../list/loadMoreOf.js';
 import { useDiscoveryPlatform } from './DiscoveryPlatformProvider.js';
 import { DiscoveryResultsView, type DiscoveryResultsViewProps } from './DiscoveryResultsView.js';
 import type { DiscoverySearchRead } from './discoverySearchRead.js';
@@ -44,12 +45,7 @@ export const DiscoverySettledResults: FC<DiscoverySettledResultsProps> = ({ read
             // Pull-to-refresh (U4/L8): the spinner tracks the in-flight refetch; pulling re-runs the search. The web
             // leaf has no such gesture and ignores it.
             refresh={{ refreshing: search.isRefetching, onRefresh: () => void search.refetch() }}
-            loadMore={{
-                hasMore: search.hasNextPage,
-                loading: search.isFetchingNextPage,
-                failed: search.isFetchNextPageError,
-                onLoadMore: () => void search.fetchNextPage(),
-            }}
+            loadMore={loadMoreOf(search)}
         />
     );
 };

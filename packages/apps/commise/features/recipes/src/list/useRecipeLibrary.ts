@@ -19,6 +19,7 @@ import { useMessages } from '@commise/i18n/react';
 
 import { recipeMessages } from '../messages.js';
 import { libraryFacetsOf, libraryStateOf, narrowLibrary } from './library.js';
+import { loadMoreOf } from './loadMoreOf.js';
 import type { LibraryFacet, LibraryState } from './libraryTypes.js';
 import { toRecipeListItem, type RecipeListItem } from './model.js';
 
@@ -110,12 +111,7 @@ export function useRecipeLibrary({
             setClearCount((count) => count + 1);
             onActiveFacetsChange(() => []);
         },
-        loadMore: {
-            hasMore: query.hasNextPage,
-            loading: query.isFetchingNextPage,
-            failed: query.isFetchNextPageError,
-            onLoadMore: () => void query.fetchNextPage(),
-        },
+        loadMore: loadMoreOf(query),
         chunkIds,
     };
 }

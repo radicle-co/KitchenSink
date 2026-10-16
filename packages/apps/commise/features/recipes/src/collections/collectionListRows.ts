@@ -5,6 +5,7 @@
  * The host passes the infinite query in: this package does not depend on `@commise/query`, so the failed-refresh notice
  * (`useRefreshNotice`) and the pull-to-refresh stay with the host, which reads them from the same query. Pure.
  */
+import { loadMoreOf } from '../list/loadMoreOf.js';
 import { narrowCollections } from './model.js';
 
 /** The part of the collection list's infinite query this projection reads; the real query result satisfies it. */
@@ -50,11 +51,6 @@ export function collectionListRowsOf<T extends { readonly name: string }>(
     return {
         collections: narrowCollections(loaded, searchValue),
         total: loaded.length,
-        loadMore: {
-            hasMore: query.hasNextPage,
-            loading: query.isFetchingNextPage,
-            failed: query.isFetchNextPageError,
-            onLoadMore: () => void query.fetchNextPage(),
-        },
+        loadMore: loadMoreOf(query),
     };
 }

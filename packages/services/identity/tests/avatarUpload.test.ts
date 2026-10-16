@@ -20,7 +20,7 @@
  *
  * @module
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import { ZodValidationPipe } from 'nestjs-zod';
 import type { ArgumentMetadata } from '@nestjs/common';
@@ -99,5 +99,43 @@ describe('avatar presign — POLICY (the controller)', () => {
         );
 
         expect(error).not.toBeInstanceOf(BadRequestException);
+    });
+});
+
+describe('avatar presign — the signed URL is uploadable by a plain HTTP client (D3)', () => {
+    const ctx: AuthorizerContext = {
+        userId: newUserId() as AuthorizerContext['userId'],
+        email: 'test@example.com',
+        clerkUserId: 'idp_123',
+        scopes: [],
+        permissions: [],
+        tokenType: 'user' as AuthorizerContext['tokenType'],
+        roles: [],
+        testPrincipal: false,
+    };
+
+    beforeEach(() => {
+        vi.stubEnv('AWS_ACCESS_KEY_ID', 'test');
+        vi.stubEnv('AWS_SECRET_ACCESS_KEY', 'test');
+        vi.stubEnv('AWS_REGION', 'us-east-1');
+        vi.stubEnv('MEDIA_BUCKET_NAME', 'test-bucket');
+    });
+
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    // The installed SDK defaults to `requestChecksumCalculation: 'WHEN_SUPPORTED'`, which bakes
+    // `x-amz-checksum-crc32` + `x-amz-sdk-checksum-algorithm` into the SIGNED query. A browser or `fetch` PUT
+    // cannot reproduce that checksum, so S3 answers 400 and no avatar object could ever be written.
+    it('signs no flexible-checksum parameter into the query', async () => {
+        const { uploadUrl } = await new AvatarUploadController().generatePresignedUrl(
+            ctx,
+            parseQuery({ type: 'image/png', size: '1024' }),
+        );
+
+        const query = new URL(uploadUrl).searchParams;
+
+        expect([...query.keys()].filter((name) => name.toLowerCase().includes('checksum'))).toEqual([]);
     });
 });

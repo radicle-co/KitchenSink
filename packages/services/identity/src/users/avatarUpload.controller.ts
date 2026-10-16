@@ -17,7 +17,10 @@ export class AvatarUploadController {
     private readonly allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
     public constructor() {
-        this.s3 = new S3Client({});
+        // Presigned PUTs are uploaded by a plain HTTP client (browser/mobile), not the SDK. The SDK default
+        // (`WHEN_SUPPORTED`) signs `x-amz-checksum-crc32` into the query, which that client cannot reproduce, so
+        // S3 answers 400. Attach checksums only when the operation requires them.
+        this.s3 = new S3Client({ requestChecksumCalculation: 'WHEN_REQUIRED' });
         this.bucket = process.env['MEDIA_BUCKET_NAME'] ?? 'kitchensink-identity-media-dev';
     }
 

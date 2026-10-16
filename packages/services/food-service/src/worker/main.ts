@@ -36,6 +36,7 @@ import { RoutedWorkerLogger } from './RoutedWorkerLogger.js';
 import { checkInQueueCheck, escalate } from '../observability/queueEscalation.js';
 import { readOnlyCounts, runQueueCheck as runFoodQueueCheck } from './queueCheck.js';
 import { workerCatalogOf } from './workerCatalog.js';
+import { exitOnBootstrapFailure } from './bootstrapFailure.js';
 import { WorkerRuntime } from './WorkerRuntime.js';
 
 /**
@@ -197,6 +198,5 @@ async function bootstrap(): Promise<void> {
 }
 
 void bootstrap().catch((error: unknown) => {
-    console.error(JSON.stringify({ level: 'error', message: 'bootstrap-failed', error: String(error) }));
-    process.exitCode = 1;
+    exitOnBootstrapFailure(error);
 });

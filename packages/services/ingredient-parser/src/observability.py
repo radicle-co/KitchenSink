@@ -11,18 +11,57 @@ them.
 `False` and `report()` does nothing, so the handler behaves exactly as it did before this module existed.
 
 ⚠️ NO PII. The engine is handed ingredient phrases — a cook's own words — and `send_default_pii` is off, but
-that setting governs request/user data rather than exception values. What protects the phrase here is that
-this module reports EXCEPTIONS and never the input: `report()` takes a message and identifiers, and the
-handler passes neither the sentence nor the batch.
+that setting governs request/user data rather than exception values. Not reporting the input is not enough:
+the engine's own exceptions can ECHO the line they choked on, and the SDK also captures the local variables of
+every stack frame (`parse_line` has the sentence in scope). So `scrub_event` is installed as `before_send` and
+strips exception values, frame variables, log entries and breadcrumbs, keeping the exception type and the stack
+— which is what grouping and diagnosis read. The erasure path does not reach Sentry, so the phrase must never
+get there to begin with.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+from typing import Any
 
 _logger = logging.getLogger(__name__)
 _initialised = False
+
+
+def scrub_event(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any]:
+    """Remove every place a cook's ingredient line can ride on a Sentry event (the SDK's ``before_send``).
+
+    ⛔ KEPT: the exception ``type`` and the stack (file, function, line), because Sentry groups on them and they
+    name the cause. REMOVED: each exception ``value`` (the chained cause included — a ``from`` raise carries its
+    own), each frame's captured ``vars``, ``logentry``, ``message`` and ``breadcrumbs``.
+
+    ⚠️ An allow-list would be safer in the abstract, but the event is the SDK's own shape and an allow-list of
+    its fields rots on every SDK release; this removes the known carriers and the test pins each one.
+
+    :param event: The event the SDK is about to send. Mutated in place and returned, as the SDK expects.
+    :param hint: The SDK's hint (unused).
+    :returns: The same event, scrubbed. Never raises on an unexpected shape.
+    """
+    exception = event.get("exception")
+    values = exception.get("values") if isinstance(exception, dict) else None
+
+    for value in values if isinstance(values, list) else []:
+        if not isinstance(value, dict):
+            continue
+
+        value.pop("value", None)
+        stacktrace = value.get("stacktrace")
+        frames = stacktrace.get("frames") if isinstance(stacktrace, dict) else None
+
+        for frame in frames if isinstance(frames, list) else []:
+            if isinstance(frame, dict):
+                frame.pop("vars", None)
+
+    for carrier in ("logentry", "message", "breadcrumbs"):
+        event.pop(carrier, None)
+
+    return event
 
 
 def init(engine_version: str) -> bool:
@@ -56,6 +95,10 @@ def init(engine_version: str) -> bool:
         environment=os.environ.get("STAGE", "dev"),
         release=engine_version,
         send_default_pii=False,
+        # ⛔ Belt and braces with `scrub_event`: never CAPTURE frame locals, so the sentence is not collected at
+        # all rather than collected and then removed.
+        include_local_variables=False,
+        before_send=scrub_event,
         # ⚠️ Tracing OFF by default. This function is invoked in a batch by one caller that already traces;
         # a second trace of the same work would double the spans and tell nobody anything new.
         traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0")),

@@ -172,6 +172,17 @@ describe('createDraftStore', () => {
         expect(await drafts.load('srv-1')).toMatchObject({ baseVersion: 6 });
     });
 
+    it('⛔ a create`s answer never lowers a version already recorded under the server id', async () => {
+        const drafts = createDraftStore(createMemoryOutboxStore(), 'user_a');
+        await drafts.save(memento({ recipeRef: 'srv-1', baseVersion: 5 }));
+        await drafts.save(memento());
+
+        await drafts.adopt(LOCAL_REF, { serverId: 'srv-1', version: 3 });
+
+        expect(await drafts.load(LOCAL_REF)).toBeUndefined();
+        expect(await drafts.load('srv-1')).toMatchObject({ recipeRef: 'srv-1', baseVersion: 5 });
+    });
+
     it('⛔ a save never lowers the version an answer already recorded (whichever writes last)', async () => {
         const drafts = createDraftStore(createMemoryOutboxStore(), 'user_a');
         await drafts.save(memento({ recipeRef: 'srv-1', baseVersion: 4 }));

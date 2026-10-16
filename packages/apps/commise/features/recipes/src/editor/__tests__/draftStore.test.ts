@@ -183,6 +183,35 @@ describe('createDraftStore', () => {
         expect(await drafts.load('srv-1')).toMatchObject({ recipeRef: 'srv-1', baseVersion: 5 });
     });
 
+    /**
+     * Two drafts can meet at the server id: the local-ref draft the create answered for, and one already stored under
+     * the id. The CONTENT of the one with the higher version wins; on a tie the stored one stays, so local edits made
+     * under the id are never overwritten by the create's older content.
+     */
+    it.each([
+        { when: 'the stored draft is ahead of the answer', storedVersion: 5, answered: 3, winner: 'stored' },
+        { when: 'the answer is ahead of the stored draft', storedVersion: 2, answered: 3, winner: 'moved' },
+        { when: 'the versions are equal', storedVersion: 3, answered: 3, winner: 'stored' },
+    ] as const)(
+        '⛔ at the server id, when $when, the $winner draft`s content wins',
+        async ({ storedVersion, answered, winner }) => {
+            const drafts = createDraftStore(createMemoryOutboxStore(), 'user_a');
+            const values = toDraftValues(makeRecipeFormValues());
+            await drafts.save(
+                memento({ recipeRef: 'srv-1', baseVersion: storedVersion, values: { ...values, title: 'stored' } }),
+            );
+            await drafts.save(memento({ values: { ...values, title: 'moved' } }));
+
+            await drafts.adopt(LOCAL_REF, { serverId: 'srv-1', version: answered });
+
+            expect(await drafts.load(LOCAL_REF)).toBeUndefined();
+            expect(await drafts.load('srv-1')).toMatchObject({
+                values: { title: winner },
+                baseVersion: Math.max(storedVersion, answered),
+            });
+        },
+    );
+
     it('⛔ a save never lowers the version an answer already recorded (whichever writes last)', async () => {
         const drafts = createDraftStore(createMemoryOutboxStore(), 'user_a');
         await drafts.save(memento({ recipeRef: 'srv-1', baseVersion: 4 }));

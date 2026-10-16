@@ -192,7 +192,8 @@ export interface DraftStore {
     /**
      * Record a server write's answer: a create moves the draft from its local ref to the server id, and every answer
      * raises `baseVersion` to the version it returned — never lowers it, so a late answer for an older write cannot
-     * regress the token. An answer for a recipe with no draft writes nothing. The editor calls it while open; an
+     * regress the token. When a draft already sits under the server id, the content of the higher version wins and a
+     * tie keeps the stored draft, so local edits are not lost. An answer for a recipe with no draft writes nothing. The editor calls it while open; an
      * observer of the outbox calls it once the editor has closed (`useDraftAnswers`).
      */
     readonly adopt: (recipeRef: string, answer: DraftAnswer) => Promise<void>;
@@ -291,15 +292,22 @@ export function createDraftStore(store: OutboxStore, subject: string): DraftStor
                     return;
                 }
 
-                const already = drafts[serverId]?.baseVersion ?? null;
+                const stored = recipeRef === serverId ? undefined : drafts[serverId];
+                const baseVersion = higherVersion(
+                    higherVersion(stored?.baseVersion ?? null, draft.baseVersion),
+                    version,
+                );
+                // ⛔ Two drafts meet at the server id: the one the answer is for, and one already stored under the id.
+                // The higher version's CONTENT wins; on a tie the stored one stays, so edits made under the id are not
+                // overwritten by the create's older content.
+                const kept =
+                    stored !== undefined && stored.baseVersion !== null && stored.baseVersion >= version
+                        ? stored
+                        : draft;
 
                 await write({
                     ...without(drafts, recipeRef),
-                    [serverId]: {
-                        ...draft,
-                        recipeRef: serverId,
-                        baseVersion: higherVersion(higherVersion(already, draft.baseVersion), version),
-                    },
+                    [serverId]: { ...kept, recipeRef: serverId, baseVersion },
                 });
             }),
         clear: () =>

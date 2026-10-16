@@ -4,9 +4,10 @@
 // a Vercel deployment built from 249a376f1, 29 commits behind the commit under test, and seven shards went green over
 // a UI they were not testing. The services have a "deployed image is CURRENT" smoke; the web preview had none.
 //
-// ⛔ A PUSH DOES NOT MOVE THE ALIAS (ADR-0060). Vercel builds every push, but the hostname keeps serving the
-// deployment Sandbox Up last pointed it at (`createPreviewDomain.ts`). So the build being green says nothing about
-// what the hostname serves — only the alias does, and that is what this reads.
+// ⛔ A BUILD IS NOT AN ADDRESS (ADR-0060). Vercel builds every push, but the hostname serves only the deployment the
+// alias names. While the sandbox is up the `preview-address` job moves it on every push (`createPreviewDomain.ts`),
+// and that job can still fail or be skipped. So the build being green says nothing about what the hostname serves —
+// only the alias does, and that is what this reads.
 //
 // ⛔ WHICH COMMIT. Vercel builds the PR's BRANCH, so a preview's `meta.githubCommitSha` is a head commit and never
 // the `refs/pull/N/merge` commit a `pull_request` run checks out. The head sha is therefore the only one a preview
@@ -331,17 +332,18 @@ export function describeVerdict(verdict: PreviewCurrencyVerdict, prToken: string
             return (
                 `::error::the web preview https://${verdict.host} serves Vercel deployment ${verdict.deploymentId}, ` +
                 `built from ${verdict.servedSha}, but this run tests ${verdict.expectedSha}, so the deployed web tier ` +
-                `would prove nothing about this commit's UI. A push does not move the preview alias (ADR-0060): wait ` +
-                `for this commit's Vercel preview build to reach READY, press Sandbox Up for ${prToken} to point the ` +
-                `alias at it, then re-run this job. If that build failed, the build is the defect to fix first — ` +
-                `Sandbox Up cannot alias it.`
+                `would prove nothing about this commit's UI. The preview-address job moves the preview alias on every push ` +
+                `while the sandbox is up (ADR-0060), so it failed or did not point at this commit: wait for this ` +
+                `commit's Vercel preview build to reach READY, re-run that job (or press Sandbox Up for ${prToken}), ` +
+                `then re-run this one. If that build failed, the build is the defect to fix first — nothing can ` +
+                `alias it.`
             );
         case 'unverifiable':
             return (
                 `::error::cannot tell which commit the web preview https://${verdict.host} serves — ${verdict.reason}. ` +
                 `The sandbox is up, so this fails rather than skips: the deployed web tier would run over a UI nobody ` +
-                `can name. If the preview is simply behind, press Sandbox Up for ${prToken} once this commit's Vercel ` +
-                `build has finished (ADR-0060).`
+                `can name. If the preview is simply behind, re-run the preview-address job (or press Sandbox Up for ` +
+                `${prToken}) once this commit's Vercel build has finished (ADR-0060).`
             );
     }
 }

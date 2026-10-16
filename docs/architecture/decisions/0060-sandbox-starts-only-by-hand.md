@@ -149,8 +149,11 @@ reports each DLQ when the stage is up again. The nine-hour budget is kept, so no
 - A press has a cold start. The database takes a few minutes to become available, and Sandbox Up waits for it.
 - Queue checks and sweepers run only while their stage is up. Overnight and on idle days, nothing reports on the
   sandbox queues. This is by design. The owner must delete the Sentry cron monitors that expect sandbox check-ins.
-- Sandbox Up publishes the preview address of a PR. A later push to the PR does not move the alias to the new
-  Vercel deployment. The alias moves when someone presses Sandbox Up again.
+- Sandbox Up publishes the preview address of a PR. While the sandbox is up, every PR push moves the address to the
+  pushed commit (owner ruling 2026-10-16). The `preview-address` job in `_ci.yml` runs only when the sandbox is
+  already up. It never starts it: Sandbox Up stays the only start. The job picks the Vercel deployment built from the
+  PR head commit and waits for it to be READY. While the sandbox is down, a push publishes nothing, and the deployed
+  web tier is skipped with the rest.
 - Nothing retries a failed PR-close teardown by itself. The midnight stop still scales the ECS of a leaked preview
   to zero. So a leak costs idle resources, not compute.
 

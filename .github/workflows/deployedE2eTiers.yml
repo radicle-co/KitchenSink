@@ -1076,7 +1076,7 @@ jobs:
                   npm ci
             # ⛔ THE PREVIEW MUST SERVE THE COMMIT UNDER TEST, and this proves it before the shard signs in, seeds or runs a
             # test. Run 38791689080 drove `pr-91.sandbox.commise.app` while it served a build 29 commits old, and seven
-            # green shards proved nothing about the commit's UI. A push does not move the alias (ADR-0060), so the script
+            # green shards proved nothing about the commit's UI. A build is not an address (ADR-0060: the alias names what is served), so the script
             # asks Vercel which deployment the hostname serves and compares its commit to the PR's HEAD — the commit
             # Vercel built — not `github.sha`, which on a pull request is the merge commit no preview is ever built from.
             # No `if:`: the sandbox is up whenever this job runs (it is skipped upstream otherwise), so a preview this

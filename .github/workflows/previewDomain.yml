@@ -28,6 +28,13 @@ on:
                 description: The PR's preview stage, `pr-{N}`. A named stage owns no preview address.
                 required: true
                 type: string
+            commit_sha:
+                description: >-
+                    The full head sha of the PR commit the address must serve. When set, the deployment is CHOSEN by
+                    that commit (and waited for until READY); when empty, the by-hand door's branch lookup is used.
+                required: false
+                type: string
+                default: ''
         # AWS is reached through `awsAuth`, so no AWS secret is passed in; a caller grants `id-token: write`.
         secrets:
             VERCEL_TOKEN:
@@ -44,6 +51,13 @@ jobs:
         # Constrained to a `pr-{N}` stage: a named stage owns no per-PR preview address, and
         # `previewDomainScope.ts` refuses it anyway.
         if: startsWith(inputs.stage, 'pr-')
+        # ⛔ Two pushes in quick succession start two of these. Serialised, never cancelled: a cancel could land
+        # between the claim and the alias, and an unserialised pair could finish out of order and leave the address
+        # on the OLDER commit. GitHub keeps one pending run per group and drops the older pending one, so the
+        # newest push always runs last.
+        concurrency:
+            group: preview-address-${{ inputs.stage }}
+            cancel-in-progress: false
         # Signs in to AWS and reads the Vercel token. Bound to `Sandbox`, which keeps ZERO protection rules: the
         # binding makes the deploy target explicit, and a required reviewer would stall every Sandbox Up.
         environment: Sandbox
@@ -85,10 +99,12 @@ jobs:
                     exit 1
                   fi
                   echo "hosted_zone_id=$ZONE" >> "$GITHUB_OUTPUT"
-            # The deployment the hostname must serve. Same action + inputs as `sandbox-web-preview.yml`
-            # uses for the KVS route, so there is one way to resolve "this PR's preview deployment".
+            # The deployment the hostname must serve, for the by-hand door only (no commit named). A pull request
+            # run passes `commit_sha` and the script below chooses the deployment BY THAT COMMIT: this action looks
+            # a deployment up by branch, which in the window between a push and its build names the previous build.
             - name: Wait for this PR's Vercel preview deployment
               id: preview
+              if: ${{ inputs.commit_sha == '' }}
               uses: zentered/vercel-preview-url@fba568fc6d882ae788a9724d7e28dee618728771 # v1.4.0
               env:
                   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -106,5 +122,6 @@ jobs:
                   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
                   VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
                   VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+                  PREVIEW_COMMIT_SHA: ${{ inputs.commit_sha }}
                   VERCEL_DEPLOYMENT: ${{ steps.preview.outputs.preview_url }}
               run: npx tsx packages/apps/commise/web/scripts/createPreviewDomain.ts

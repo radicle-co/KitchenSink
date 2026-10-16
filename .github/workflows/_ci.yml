@@ -1228,6 +1228,39 @@ jobs:
         with:
             stage: ${{ needs.resolve-sandbox.outputs.stage }}
 
+    # ── THE PREVIEW ADDRESS — a push, while the sandbox is already up, moves it to the pushed commit ─────────
+    #
+    # Owner ruling 2026-10-16: "Make pushes move the preview address". ADR-0060 had taken the address out of the push
+    # path, so after every push `pr-{N}.sandbox.<domain>` kept serving the commit Sandbox Up last named and the deployed
+    # web tier's `previewCurrency` check went red. This restores the move WITHOUT restoring a start:
+    #
+    #   • it needs only `sandbox-status` (a read-only probe) and `resolve-sandbox` (the stage), never `deploy-preview`
+    #     or anything that starts a tier — Sandbox Up is still the ONLY thing that starts the sandbox;
+    #   • it runs only when the deploy gate runs (`branch == 'run'`, i.e. the sandbox is up), for a pull request, and for
+    #     a resolved `pr-{N}` stage. `ci-main.yml` and `ci-full.yml` call this file too: a named stage owns no preview
+    #     address, and `resolve-sandbox` answers an EMPTY stage for them.
+    #
+    # `commit_sha` is the PR HEAD sha because Vercel builds the branch, so a preview's commit is never the
+    # `refs/pull/N/merge` sha. The callee chooses the deployment BY that commit and waits for it to be READY, so the
+    # alias cannot land on the previous build. The create / teardown ORDER inside the scripts is unchanged.
+    # `packages/infra/global/__tests__/previewAddressOnPush.test.ts` holds all of it.
+    preview-address:
+        name: Publish this PR's preview address
+        needs: [sandbox-status, resolve-sandbox]
+        if: >-
+            ${{ needs.sandbox-status.outputs.branch == 'run'
+            && github.event_name == 'pull_request'
+            && needs.resolve-sandbox.outputs.stage != '' }}
+        uses: ./.github/workflows/previewDomain.yml
+        permissions:
+            contents: read
+            id-token: write # awsAuth in previewDomain.yml (a callee can only downgrade)
+        with:
+            stage: ${{ needs.resolve-sandbox.outputs.stage }}
+            commit_sha: ${{ github.event.pull_request.head.sha }}
+        secrets:
+            VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
     # ── THE MOBILE TEST APPS — built once per platform, BESIDE the preview deploy ───────────────────────────
     #
     # The Maestro shards used to build the app themselves, one build per shard (18.4 / 14.3 minutes on Android, 17.5 /
@@ -1286,11 +1319,25 @@ jobs:
     deployed-tiers:
         name: Deployed tiers
         needs:
-            [deploy-preview, install, build-ui, resolve-sandbox, sandbox-status, detect-mobile-flows, mobile-app-build]
+            [
+                deploy-preview,
+                preview-address,
+                install,
+                build-ui,
+                resolve-sandbox,
+                sandbox-status,
+                detect-mobile-flows,
+                mobile-app-build,
+            ]
         # ⛔ NOT GATED ON `mobile-app-build`, AND THAT IS THE POINT OF EVERY TERM BELOW. The build is skipped on every
         # run without the `mobile-e2e` label, and a skipped dependency skips its dependents — which would take every
         # other deployed tier down with it. `!cancelled()` lets this job run past that skip, and the explicit `success`
         # terms then restore what a bare `needs` gave for free: nothing runs past a failed or skipped REAL dependency.
+        # `preview-address` IS in the condition, unlike the build: the web shards drive the preview HOSTNAME, and a
+        # tier that ran past a skipped or failed address would test whatever commit the hostname last served (the
+        # defect `previewCurrency` exists to catch). It is skipped only when the sandbox is down or the run has no
+        # `pr-{N}` stage, and the tiers have nothing to drive in either case, so requiring `success` removes no
+        # run that could have happened.
         # The build is deliberately absent from the condition. A FAILED build must not skip the tiers either — a skip
         # renders green, so a broken build would erase a tier's verdict instead of reddening it. The Maestro shards
         # refuse an empty app name themselves, which is the red (`mobileTestAppBuild.test.ts`).
@@ -1301,7 +1348,8 @@ jobs:
             && needs.resolve-sandbox.result == 'success'
             && needs.detect-mobile-flows.result == 'success'
             && needs.sandbox-status.outputs.branch == 'run'
-            && needs.deploy-preview.result == 'success' }}
+            && needs.deploy-preview.result == 'success'
+            && needs.preview-address.result == 'success' }}
         uses: ./.github/workflows/deployedE2eTiers.yml
         # ⛔ A called workflow can only DOWNGRADE its caller's grant; the web shards exchange an OIDC token for
         # their secretless Argos credential, and the tiers sign in to AWS through `awsAuth`, so `id-token: write`

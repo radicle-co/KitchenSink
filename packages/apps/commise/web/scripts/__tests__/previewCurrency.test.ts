@@ -3,8 +3,8 @@
  *
  * Run 38791689080 is why this exists: its eight Playwright shards drove `pr-91.sandbox.commise.app` while that
  * hostname served a Vercel deployment built from 249a376f1, 29 commits behind the commit under test. Seven
- * shards went green and proved nothing about that commit's web UI. A push does not move the alias any more
- * (ADR-0060); Sandbox Up does. So the deployed web tier must ask Vercel which deployment the hostname serves,
+ * shards went green and proved nothing about that commit's web UI. A build is not an address: the
+ * alias names the deployment the hostname serves (ADR-0060). So the deployed web tier must ask Vercel which deployment the hostname serves,
  * and fail when it is not this commit's.
  *
  * Every row that is not a clean match must come out NOT `current`. A check that let any of them through would

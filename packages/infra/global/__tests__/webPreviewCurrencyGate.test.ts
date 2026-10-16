@@ -7,7 +7,7 @@
  *
  * CI run 38791689080: the eight Playwright shards drove `pr-91.sandbox.commise.app` while it served a Vercel
  * deployment built from 249a376f1, 29 commits behind the commit under test. Seven shards went green and proved
- * nothing about that commit's web UI. A push does not move the preview alias (ADR-0060), so "the preview built"
+ * nothing about that commit's web UI. The preview alias is a separate fact from the build (ADR-0060), so "the preview built"
  * and "the preview serves this build" are different facts, and only the second one licenses the tier.
  * `packages/apps/commise/web/scripts/previewCurrency.ts` reads the second one from Vercel.
  *

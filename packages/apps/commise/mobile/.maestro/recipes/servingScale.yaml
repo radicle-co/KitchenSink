@@ -69,7 +69,11 @@ appId: io.commise.mobile
 
 - assertVisible: 'for 4'
 - assertVisible: 'Amounts scaled from 2 servings.*'
-- assertVisible: 'Cook times and step timers are shown unchanged: cooking time does not scale with batch size. Check for doneness.'
+# The note's second sentence runs on under the tab bar, so it is scrolled into view rather than asserted where it is.
+- scrollUntilVisible:
+      element: 'Cook times and step timers are shown unchanged: cooking time does not scale with batch size. Check for doneness.'
+      direction: DOWN
+      timeout: 20000
 # Hands-on prep DOUBLES (10 -> 20) and the total moves by exactly that delta (20 -> 30). The strip is above the
 # stepper, so scroll back up to it.
 - scrollUntilVisible:

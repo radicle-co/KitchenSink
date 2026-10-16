@@ -26,9 +26,12 @@ appId: io.commise.mobile
 - extendedWaitUntil:
       visible: 'Fix 1 thing to publish'
       timeout: 20000
+# A refused Publish takes the page to the top of the section with the error: native has no field registry, so it cannot
+# land on the field itself (`ScrollHost.native.tsx`, `scrollToField`). The cuisine is BELOW that heading, after Time and
+# servings, so the error is found scrolling DOWN.
 - scrollUntilVisible:
       element: 'Choose a cuisine, or type your own.'
-      direction: UP
+      direction: DOWN
       timeout: 20000
 - assertVisible: 'Close editor'
 

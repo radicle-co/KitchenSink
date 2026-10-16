@@ -61,10 +61,13 @@ appId: io.commise.mobile
       direction: UP
       timeout: 30000
 # The first line sits above it; bring it into view too, for the assertions over both.
+# Centred: Android reports a row cut by the sticky Sections bar as visible, with its name and parts clipped away (run
+# 38835438945), so the assertions below would read a sliver.
 - scrollUntilVisible:
       element: 'Edit boneless skinless chicken breasts'
       direction: UP
       timeout: 20000
+      centerElement: true
 
 # The variant's parts sit under the root name, and the root-bound line shows the name only (R28).
 - assertVisible:

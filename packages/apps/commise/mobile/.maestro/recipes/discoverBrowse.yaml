@@ -74,10 +74,13 @@ appId: io.commise.mobile
 - extendedWaitUntil:
       visible: 'Under 60 min'
       timeout: 40000
-# From the sheet's title row (the title is the same word as the Filters button, so a name cannot name it).
+# From the sheet's title row. Found by its text next to the ×, never by a screen position: the title sits at about 44%
+# of the screen, and a fixed 55% started the drag on the time chips (run 38835438945).
 - swipe:
-      start: 40%, 55%
-      end: 40%, 95%
+      from:
+          text: 'Filters'
+          leftOf: 'Close filters'
+      direction: DOWN
 - extendedWaitUntil:
       notVisible: 'Under 60 min'
       timeout: 10000

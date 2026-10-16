@@ -48,6 +48,10 @@ import {
     classifyEdgeUnauthorized,
     classifyHealth,
     classifyImageCurrency,
+    classifyMediaForeignUploadPreflight,
+    classifyMediaObject,
+    classifyMediaUploadPreflight,
+    classifyRawBucketDenied,
     classifyForeignPreflight,
     classifyPreflight,
     classifyPreflightDenied,
@@ -58,6 +62,7 @@ import {
     main,
     parsePreflightRoute,
     runEdgeUnauthorizedSmoke,
+    runMediaSmoke,
     runSmoke,
     type CorsExpectation,
     type PreflightRoute,
@@ -1182,5 +1187,303 @@ describe('the edge mode — one tokenless GET from the web origin and one from a
         await main(['--base-url', 'https://food.commise.app', '--edge-unauthorized-path', PROBE, ...rest]);
 
         expect(process.exitCode).toBe(2);
+    });
+});
+
+/**
+ * ADR-0064 - the media delivery path, judged on the DEPLOYED artifact.
+ *
+ * Every media defect was invisible to a green synth and to every mocked suite: no CORS on the bucket (a browser `PUT`
+ * is refused), no read grant (every photo URL refused), and an SDK-signed checksum that made every presigned `PUT` fail.
+ * These checks drive the real CDN host and the real bucket host:
+ *
+ *   - an `avatars/` and a `recipes/` object is served by the CDN (`200`);
+ *   - the same object straight from the bucket is REFUSED (`403`) - the bucket is closed to everything but the CDN;
+ *   - the bucket's CORS preflight admits the web origin for a `PUT` and refuses a foreign origin.
+ *
+ * Run after Sandbox Up only: the sandbox must be up, and a key must exist to ask about.
+ */
+describe('media delivery smoke (ADR-0064)', () => {
+    const CDN = 'https://media-sandbox.commise.app';
+    const BUCKET = 'https://kitchensink-data-sandbox-mediabucket.s3.us-east-1.amazonaws.com';
+
+    describe('classifyMediaObject', () => {
+        it('passes a 200 from the CDN', () => {
+            expect(classifyMediaObject('avatars/u/1.png', { status: 200 }).ok).toBe(true);
+        });
+
+        it.each([
+            [403, 'the bucket policy or the access control grants the CDN nothing'],
+            [404, 'the object is missing, or the CDN points at the wrong origin'],
+            [502, 'the CDN could not reach its origin'],
+        ])('fails a %i, saying why it matters', (status, reason) => {
+            const verdict = classifyMediaObject('recipes/u/p.jpg', { status });
+
+            expect(verdict.ok).toBe(false);
+            expect(verdict.reason).toContain(String(status));
+            expect(reason.length).toBeGreaterThan(0);
+        });
+    });
+
+    describe('classifyRawBucketDenied', () => {
+        it('passes a 403: the bucket answers, and refuses an anonymous read', () => {
+            expect(classifyRawBucketDenied('avatars/u/1.png', { status: 403 }).ok).toBe(true);
+        });
+
+        it.each([200, 206, 301, 404, 500])(
+            'fails a %i: that is not the refusal Block Public Access gives',
+            (status) => {
+                const verdict = classifyRawBucketDenied('avatars/u/1.png', { status });
+
+                expect(verdict.ok).toBe(false);
+            },
+        );
+
+        it('calls a 200 what it is: a publicly readable bucket', () => {
+            expect(classifyRawBucketDenied('avatars/u/1.png', { status: 200 }).reason).toMatch(/public/iu);
+        });
+    });
+
+    describe('classifyMediaUploadPreflight', () => {
+        it('passes an echo of the web origin that allows PUT', () => {
+            expect(
+                classifyMediaUploadPreflight(ORIGIN, { status: 200, allowOrigin: ORIGIN, allowMethods: 'PUT' }).ok,
+            ).toBe(true);
+        });
+
+        it.each([
+            [
+                'no CORS configuration (403, no header)',
+                { status: 403, allowOrigin: undefined, allowMethods: undefined },
+            ],
+            ['a 200 with no allow-origin', { status: 200, allowOrigin: undefined, allowMethods: 'PUT' }],
+            ['a wildcard origin', { status: 200, allowOrigin: '*', allowMethods: 'PUT' }],
+            ['another origin', { status: 200, allowOrigin: 'https://other.example', allowMethods: 'PUT' }],
+            ['an origin that may not PUT', { status: 200, allowOrigin: ORIGIN, allowMethods: 'GET' }],
+            ['no allow-methods', { status: 200, allowOrigin: ORIGIN, allowMethods: undefined }],
+        ])('fails %s', (_name, observed) => {
+            expect(classifyMediaUploadPreflight(ORIGIN, observed).ok).toBe(false);
+        });
+    });
+
+    describe('classifyMediaForeignUploadPreflight', () => {
+        it.each([
+            ['a 403 with no header', { status: 403, allowOrigin: undefined, allowMethods: undefined }],
+            ['a 200 with no header', { status: 200, allowOrigin: undefined, allowMethods: undefined }],
+        ])('passes %s', (_name, observed) => {
+            expect(classifyMediaForeignUploadPreflight(observed).ok).toBe(true);
+        });
+
+        it.each(['*', FOREIGN_PREFLIGHT_ORIGIN])('fails an allow-origin of %s', (allowOrigin) => {
+            expect(classifyMediaForeignUploadPreflight({ status: 200, allowOrigin, allowMethods: 'PUT' }).ok).toBe(
+                false,
+            );
+        });
+
+        it('fails a 5xx: it proves nothing about the rule', () => {
+            expect(
+                classifyMediaForeignUploadPreflight({ status: 503, allowOrigin: undefined, allowMethods: undefined })
+                    .ok,
+            ).toBe(false);
+        });
+    });
+
+    describe('runMediaSmoke (stubbed network)', () => {
+        const stub = (
+            cdnStatus: number,
+            rawStatus: number,
+            corsFor: (origin: string | undefined) => Response,
+        ): string[] => {
+            const seen: string[] = [];
+
+            vi.stubGlobal('fetch', (input: string | URL, init?: RequestInit) => {
+                const url = String(input);
+
+                seen.push(`${init?.method ?? 'GET'} ${url}`);
+
+                if (init?.method === 'OPTIONS') {
+                    return Promise.resolve(corsFor(originOf(init)));
+                }
+
+                return Promise.resolve(new Response('', { status: url.startsWith(CDN) ? cdnStatus : rawStatus }));
+            });
+
+            return seen;
+        };
+
+        const admitWebOnly = (origin: string | undefined): Response =>
+            origin === ORIGIN
+                ? new Response(null, {
+                      status: 200,
+                      headers: { 'access-control-allow-origin': ORIGIN, 'access-control-allow-methods': 'PUT' },
+                  })
+                : new Response(null, { status: 403 });
+
+        afterEach(() => {
+            vi.unstubAllGlobals();
+        });
+
+        const target = {
+            cdnUrl: CDN,
+            bucketUrl: BUCKET,
+            webOrigin: ORIGIN,
+            objectKeys: ['avatars/u/1.png', 'recipes/u/p.jpg'],
+        };
+
+        it('passes a healthy deployment: CDN 200s, bucket 403s, CORS admits the web origin only', async () => {
+            const seen = stub(200, 403, admitWebOnly);
+
+            const verdicts = await runMediaSmoke(target);
+
+            expect(verdicts.every((verdict) => verdict.ok)).toBe(true);
+            // Each object from the CDN AND from the raw bucket, plus the two preflights.
+            expect(seen).toEqual(
+                expect.arrayContaining([
+                    `GET ${CDN}/avatars/u/1.png`,
+                    `GET ${CDN}/recipes/u/p.jpg`,
+                    `GET ${BUCKET}/avatars/u/1.png`,
+                    `GET ${BUCKET}/recipes/u/p.jpg`,
+                ]),
+            );
+            expect(seen.filter((line) => line.startsWith('OPTIONS'))).toHaveLength(2);
+        });
+
+        it('preflights the BUCKET as a browser would before a PUT: PUT requested, content-type asked for', async () => {
+            const requests: RequestInit[] = [];
+
+            vi.stubGlobal('fetch', (_input: string | URL, init?: RequestInit) => {
+                if (init?.method === 'OPTIONS') {
+                    requests.push(init);
+                }
+
+                return Promise.resolve(admitWebOnly(originOf(init)));
+            });
+
+            await runMediaSmoke({ ...target, objectKeys: [] });
+
+            const headers = new Headers(requests[0]?.headers);
+
+            expect(headers.get('access-control-request-method')).toBe('PUT');
+            expect(headers.get('access-control-request-headers')).toBe('content-type');
+        });
+
+        it('fails when the bucket is publicly readable', async () => {
+            stub(200, 200, admitWebOnly);
+
+            expect((await runMediaSmoke(target)).some((verdict) => !verdict.ok)).toBe(true);
+        });
+
+        it('fails when the CDN cannot serve the object', async () => {
+            stub(403, 403, admitWebOnly);
+
+            expect((await runMediaSmoke(target)).some((verdict) => !verdict.ok)).toBe(true);
+        });
+
+        it('fails when the bucket has no CORS rule', async () => {
+            stub(200, 403, () => new Response(null, { status: 403 }));
+
+            expect((await runMediaSmoke(target)).some((verdict) => !verdict.ok)).toBe(true);
+        });
+
+        it('fails when the bucket reflects any origin', async () => {
+            stub(
+                200,
+                403,
+                (origin) =>
+                    new Response(null, {
+                        status: 200,
+                        headers: {
+                            'access-control-allow-origin': origin ?? '*',
+                            'access-control-allow-methods': 'PUT',
+                        },
+                    }),
+            );
+
+            expect((await runMediaSmoke(target)).some((verdict) => !verdict.ok)).toBe(true);
+        });
+
+        it('reports a transport failure as a failing verdict, not a crash', async () => {
+            vi.stubGlobal('fetch', () => Promise.reject(new Error('getaddrinfo ENOTFOUND')));
+
+            const verdicts = await runMediaSmoke(target);
+
+            expect(verdicts.every((verdict) => !verdict.ok)).toBe(true);
+            expect(verdicts[0]?.reason).toContain('ENOTFOUND');
+        });
+    });
+
+    describe('CLI mode', () => {
+        afterEach(() => {
+            vi.unstubAllGlobals();
+            vi.restoreAllMocks();
+            process.exitCode = undefined;
+        });
+
+        it('runs the media checks from its own flags and exits clean on a healthy deployment', async () => {
+            vi.stubGlobal('fetch', (input: string | URL, init?: RequestInit) =>
+                Promise.resolve(
+                    init?.method === 'OPTIONS'
+                        ? originOf(init) === ORIGIN
+                            ? new Response(null, {
+                                  status: 200,
+                                  headers: {
+                                      'access-control-allow-origin': ORIGIN,
+                                      'access-control-allow-methods': 'PUT',
+                                  },
+                              })
+                            : new Response(null, { status: 403 })
+                        : new Response('', { status: String(input).startsWith(CDN) ? 200 : 403 }),
+                ),
+            );
+            vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+            await main([
+                '--media-cdn-url',
+                CDN,
+                '--media-bucket-url',
+                BUCKET,
+                '--web-origin',
+                ORIGIN,
+                '--media-object-key',
+                'avatars/u/1.png',
+            ]);
+
+            expect(process.exitCode).toBeUndefined();
+        });
+
+        it('exits non-zero when a check fails', async () => {
+            vi.stubGlobal('fetch', () => Promise.resolve(new Response('', { status: 500 })));
+            vi.spyOn(console, 'log').mockImplementation(() => undefined);
+            vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+            await main(['--media-cdn-url', CDN, '--media-bucket-url', BUCKET, '--web-origin', ORIGIN]);
+
+            expect(process.exitCode).toBe(1);
+        });
+
+        it.each([
+            ['no web origin', ['--media-cdn-url', CDN, '--media-bucket-url', BUCKET]],
+            ['no bucket url', ['--media-cdn-url', CDN, '--web-origin', ORIGIN]],
+            [
+                'a service flag mixed in (it would be silently ignored)',
+                [
+                    '--media-cdn-url',
+                    CDN,
+                    '--media-bucket-url',
+                    BUCKET,
+                    '--web-origin',
+                    ORIGIN,
+                    '--food-origin',
+                    FOOD_ORIGIN,
+                ],
+            ],
+        ])('refuses %s with the usage exit code', async (_name, argv) => {
+            vi.spyOn(console, 'error').mockImplementation(() => undefined);
+            vi.stubGlobal('fetch', () => Promise.reject(new Error('must not be called')));
+
+            await main(argv);
+
+            expect(process.exitCode).toBe(2);
+        });
     });
 });

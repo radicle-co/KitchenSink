@@ -532,6 +532,46 @@ jobs:
                       exit 1
                   fi
 
+            # ADR-0064 - the media path, judged on the DEPLOYED artifact. A green synth proved none of the three defects
+            # this closed: no CORS on the bucket, no read grant for the CDN, and a presign that signed a checksum no plain
+            # client can send. Asked here, after Sandbox Up, because it needs the sandbox up and a stored object to ask about:
+            # the CDN must serve one `avatars/` and one `recipes/` object, the bucket must refuse the same read, and the
+            # bucket's CORS must admit this preview's origin for a PUT and refuse a foreign one.
+            #
+            # A prefix with no object yet is NOT a pass: it is not asked, the step warns, and the smoke prints that the
+            # object checks were not run. The CORS and Block Public Access checks need no object and always run.
+            - name: Media delivery - the CDN serves, the bucket refuses, the bucket CORS admits
+              run: |
+                  set -euo pipefail
+                  smoke='packages/services/recipe-service/infra/smoke/deployedSmoke.ts'
+                  cdn="$(aws ssm get-parameter --name /kitchensink/sandbox/media/cdn-url --query 'Parameter.Value' --output text)"
+                  bucket="$(bash .github/scripts/cfnExport.sh kitchensink-data-sandbox:MediaBucketName)"
+
+                  keys=()
+                  for prefix in avatars/ recipes/; do
+                      key="$(aws s3api list-objects-v2 --bucket "${bucket}" --prefix "${prefix}" --max-items 1 --query 'Contents[0].Key' --output text)"
+                      if [ -z "${key}" ] || [ "${key}" = "None" ]; then
+                          echo "::warning::no object under ${prefix} yet - the CDN serving and bucket refusal for ${prefix} are NOT checked"
+                      else
+                          keys+=(--media-object-key "${key}")
+                      fi
+                  done
+
+                  # Retried as a whole: a distribution that has just deployed can take a moment to answer.
+                  for attempt in 1 2 3 4 5; do
+                      if npx tsx "${smoke}" \
+                          --media-cdn-url "${cdn}" \
+                          --media-bucket-url "https://${bucket}.s3.${AWS_REGION}.amazonaws.com" \
+                          --web-origin "https://${PREVIEW_STAGE}.sandbox.${DOMAIN_NAME}" \
+                          ${keys[@]+"${keys[@]}"}; then
+                          exit 0
+                      fi
+                      echo "attempt ${attempt}/5: media delivery not verified yet - retrying in 15s"
+                      sleep 15
+                  done
+                  echo "::error::the media path is deployed and does NOT verify - photos and avatars are unusable." >&2
+                  exit 1
+
             # Reached ONLY when every called workflow succeeded, every declared stack verified, and every origin
             # answered — a failed step skips the rest of the job. So this summary reports what happened.
             - name: Summary

@@ -729,6 +729,211 @@ export async function runEdgeUnauthorizedSmoke(target: EdgeSmokeTarget): Promise
     ];
 }
 
+// ── Media delivery (ADR-0064) ───────────────────────────────────────────────────────────────────────────────────────
+
+/** What a media GET returned. */
+export interface MediaObjectObservation {
+    readonly status: number;
+}
+
+/** What the bucket's CORS preflight returned, as a browser would see it. */
+export interface MediaPreflightObservation extends PreflightObservation {
+    /** The `access-control-allow-methods` response header, if S3 sent one. */
+    readonly allowMethods: string | undefined;
+}
+
+/**
+ * The CDN serves a stored object. Pure.
+ *
+ * @param key - The object key asked for.
+ * @param observed - What the CDN host answered.
+ */
+export function classifyMediaObject(key: string, observed: MediaObjectObservation): SmokeVerdict {
+    if (observed.status === 200) {
+        return { ok: true, reason: `CDN serves ${key}` };
+    }
+
+    return {
+        ok: false,
+        reason:
+            `CDN answered ${observed.status} for ${key}, expected 200. A 403 means the bucket policy grants the ` +
+            'distribution nothing; a 404 means the object is missing or the distribution points at the wrong origin; ' +
+            'a 502 means it cannot reach its origin.',
+    };
+}
+
+/**
+ * The bucket itself refuses an anonymous read of the same object. Pure.
+ *
+ * Only `403` is the refusal Block Public Access gives. A `200` is a publicly readable bucket, which defeats the Origin
+ * Access Control; anything else says nothing about the bucket's policy.
+ *
+ * @param key - The object key asked for.
+ * @param observed - What the bucket host answered.
+ */
+export function classifyRawBucketDenied(key: string, observed: MediaObjectObservation): SmokeVerdict {
+    if (observed.status === 403) {
+        return { ok: true, reason: `bucket refuses an anonymous read of ${key}` };
+    }
+
+    if (observed.status >= 200 && observed.status < 300) {
+        return {
+            ok: false,
+            reason: `bucket answered ${observed.status} to an anonymous read of ${key}: it is publicly readable, so the CDN is not the only door`,
+        };
+    }
+
+    return {
+        ok: false,
+        reason: `bucket answered ${observed.status} to an anonymous read of ${key}, expected 403 (Block Public Access)`,
+    };
+}
+
+/**
+ * The bucket's CORS rule admits the web origin for a `PUT`. Pure.
+ *
+ * @param origin - The browser origin that must be admitted.
+ * @param observed - The preflight answer.
+ */
+export function classifyMediaUploadPreflight(origin: string, observed: MediaPreflightObservation): SmokeVerdict {
+    const { status, allowOrigin, allowMethods } = observed;
+
+    if (status < 200 || status >= 300) {
+        return {
+            ok: false,
+            reason:
+                `bucket CORS preflight returned ${status}: a browser PUT to a presigned URL is refused. S3 answers 403 ` +
+                'to a preflight when the bucket has no CORS rule for the origin.',
+        };
+    }
+
+    if (allowOrigin !== origin) {
+        return {
+            ok: false,
+            reason: `bucket CORS preflight allowed "${allowOrigin ?? ''}" but the uploader is "${origin}"`,
+        };
+    }
+
+    if (!(allowMethods ?? '').split(',').some((method) => method.trim().toUpperCase() === 'PUT')) {
+        return {
+            ok: false,
+            reason: `bucket CORS preflight for ${origin} does not allow PUT (allows "${allowMethods ?? ''}")`,
+        };
+    }
+
+    return { ok: true, reason: `bucket CORS admits a PUT from ${origin}` };
+}
+
+/**
+ * The bucket's CORS rule refuses an origin nothing admits. Pure.
+ *
+ * S3 answers `403` with no allow-origin to an origin its rule does not list, so any allow-origin here fails, and a 5xx
+ * proves nothing.
+ *
+ * @param observed - The preflight answer from {@link FOREIGN_PREFLIGHT_ORIGIN}.
+ */
+export function classifyMediaForeignUploadPreflight(observed: MediaPreflightObservation): SmokeVerdict {
+    if (observed.status >= 500) {
+        return {
+            ok: false,
+            reason: `bucket CORS preflight from ${FOREIGN_PREFLIGHT_ORIGIN} returned ${observed.status}`,
+        };
+    }
+
+    if (observed.allowOrigin !== undefined && observed.allowOrigin !== '') {
+        return {
+            ok: false,
+            reason: `bucket CORS preflight from ${FOREIGN_PREFLIGHT_ORIGIN}, an origin nothing admits, got allow-origin "${observed.allowOrigin}"`,
+        };
+    }
+
+    return { ok: true, reason: `bucket CORS refuses ${FOREIGN_PREFLIGHT_ORIGIN}` };
+}
+
+/** What the media mode probes. */
+export interface MediaSmokeTarget {
+    /** The CDN origin, e.g. `https://media-sandbox.commise.app`. */
+    readonly cdnUrl: string;
+    /** The bucket's own regional origin, e.g. `https://{bucket}.s3.us-east-1.amazonaws.com`. */
+    readonly bucketUrl: string;
+    /** A browser origin the bucket's CORS must admit. */
+    readonly webOrigin: string;
+    /** Real object keys to ask the CDN and the bucket about (one under `avatars/`, one under `recipes/`). */
+    readonly objectKeys: readonly string[];
+}
+
+/** A transport failure as a failing verdict, so the log names the host and the reason instead of crashing the run. */
+function transportFailure(what: string, error: unknown): SmokeVerdict {
+    return { ok: false, reason: `${what}: ${error instanceof Error ? error.message : String(error)}` };
+}
+
+/** GET one URL and report its status, or the transport failure. */
+async function statusOf(url: string): Promise<MediaObjectObservation | SmokeVerdict> {
+    try {
+        const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+
+        return { status: response.status };
+    } catch (error) {
+        return transportFailure(`GET ${url}`, error);
+    }
+}
+
+/** Send a browser-style upload preflight to the bucket from `origin`. */
+async function uploadPreflight(bucketUrl: string, origin: string): Promise<MediaPreflightObservation | SmokeVerdict> {
+    const url = `${bucketUrl}/avatars/preflight-probe.png`;
+
+    try {
+        const response = await fetch(url, {
+            method: 'OPTIONS',
+            headers: {
+                origin,
+                'access-control-request-method': 'PUT',
+                'access-control-request-headers': 'content-type',
+            },
+            signal: AbortSignal.timeout(15_000),
+        });
+
+        return {
+            status: response.status,
+            allowOrigin: allowOriginOf(response.headers),
+            allowMethods: response.headers.get('access-control-allow-methods') ?? undefined,
+        };
+    } catch (error) {
+        return transportFailure(`OPTIONS ${url}`, error);
+    }
+}
+
+const isVerdict = (value: object): value is SmokeVerdict => 'ok' in value;
+
+/**
+ * Probe the deployed media path: the CDN serves each given object, the bucket refuses the same read, and the bucket's
+ * CORS admits the web origin for a `PUT` and refuses a foreign one.
+ *
+ * @param target - What to probe; see {@link MediaSmokeTarget}.
+ * @returns One verdict per assertion; a transport failure is a failing verdict.
+ * @sideEffect Performs network requests.
+ */
+export async function runMediaSmoke(target: MediaSmokeTarget): Promise<readonly SmokeVerdict[]> {
+    const { cdnUrl, bucketUrl, webOrigin, objectKeys } = target;
+    const verdicts: SmokeVerdict[] = [];
+
+    for (const key of objectKeys) {
+        const viaCdn = await statusOf(`${cdnUrl}/${key}`);
+        const direct = await statusOf(`${bucketUrl}/${key}`);
+
+        verdicts.push(isVerdict(viaCdn) ? viaCdn : classifyMediaObject(key, viaCdn));
+        verdicts.push(isVerdict(direct) ? direct : classifyRawBucketDenied(key, direct));
+    }
+
+    const admitted = await uploadPreflight(bucketUrl, webOrigin);
+    const foreign = await uploadPreflight(bucketUrl, FOREIGN_PREFLIGHT_ORIGIN);
+
+    verdicts.push(isVerdict(admitted) ? admitted : classifyMediaUploadPreflight(webOrigin, admitted));
+    verdicts.push(isVerdict(foreign) ? foreign : classifyMediaForeignUploadPreflight(foreign));
+
+    return verdicts;
+}
+
 /** Everything the smoke run needs to know about the deployment it is verifying. */
 export interface SmokeTarget {
     /** The recipe service origin, e.g. `https://recipe-pr-73.commise.app`. */
@@ -868,10 +1073,19 @@ const USAGE =
     '                        [--unauthorized-path <path>]...\n' +
     '                        [--expected-image-tag <tag>] [--running-image-tag <tag>]\n' +
     '                        [--food-origin <url>] [--configured-food-origin <url>]\n' +
-    '       deployedSmoke.ts --base-url <url> --web-origin <url> --edge-unauthorized-path <path>';
+    '       deployedSmoke.ts --base-url <url> --web-origin <url> --edge-unauthorized-path <path>\n' +
+    '       deployedSmoke.ts --media-cdn-url <url> --media-bucket-url <url> --web-origin <url> [--media-object-key <key>]...';
 
 /** The only flags the edge mode reads. Any other flag would be silently ignored there, so it is refused. */
 const EDGE_MODE_FLAGS: ReadonlySet<string> = new Set(['base-url', 'web-origin', 'edge-unauthorized-path']);
+
+/** The only flags the media mode reads, refused for the same reason as {@link EDGE_MODE_FLAGS}. */
+const MEDIA_MODE_FLAGS: ReadonlySet<string> = new Set([
+    'media-cdn-url',
+    'media-bucket-url',
+    'web-origin',
+    'media-object-key',
+]);
 
 /**
  * The `::error::` line a failed run ends with, naming the service by the origin it probed. Pure.
@@ -906,6 +1120,9 @@ function parseFlags(argv: readonly string[]) {
             'configured-food-origin': { type: 'string' },
             'edge-unauthorized-path': { type: 'string' },
             'unauthorized-path': { type: 'string', multiple: true },
+            'media-cdn-url': { type: 'string' },
+            'media-bucket-url': { type: 'string' },
+            'media-object-key': { type: 'string', multiple: true },
         },
     }).values;
 }
@@ -941,6 +1158,54 @@ export async function main(argv: readonly string[]): Promise<void> {
     } catch (error) {
         console.error(`${error instanceof Error ? error.message : String(error)}\n${USAGE}`);
         process.exitCode = 2;
+
+        return;
+    }
+
+    const mediaCdnUrl = optional(values['media-cdn-url']);
+    const mediaBucketUrl = optional(values['media-bucket-url']);
+
+    // Media mode: its own flags, and only its own. A flag it would silently ignore is refused, like the edge mode's.
+    if (mediaCdnUrl !== undefined || mediaBucketUrl !== undefined) {
+        const webOriginForMedia = optional(values['web-origin']);
+        const misused =
+            mediaCdnUrl === undefined ||
+            mediaBucketUrl === undefined ||
+            webOriginForMedia === undefined ||
+            Object.keys(values).some((flag) => !MEDIA_MODE_FLAGS.has(flag));
+
+        if (misused) {
+            console.error(USAGE);
+            process.exitCode = 2;
+
+            return;
+        }
+
+        const objectKeys = many(values['media-object-key']);
+        const mediaVerdicts = await runMediaSmoke({
+            cdnUrl: mediaCdnUrl,
+            bucketUrl: mediaBucketUrl,
+            webOrigin: webOriginForMedia,
+            objectKeys,
+        });
+
+        console.log(`Post-deploy media smoke — ${mediaCdnUrl} (browser origin ${webOriginForMedia})`);
+
+        // A prefix with no object to ask about is NOT a pass: it is not asked, and the log says so.
+        if (objectKeys.length === 0) {
+            console.log(
+                '  NOTE no --media-object-key given: the CDN serving and bucket refusal of an object were NOT checked',
+            );
+        }
+
+        for (const verdict of mediaVerdicts) {
+            console.log(`  ${verdict.ok ? 'OK  ' : 'FAIL'} ${verdict.reason}`);
+        }
+
+        if (mediaVerdicts.some((verdict) => !verdict.ok)) {
+            console.error(`\n${failureAnnotation(mediaCdnUrl)}`);
+            process.exitCode = 1;
+        }
 
         return;
     }

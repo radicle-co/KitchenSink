@@ -22,7 +22,7 @@ export interface AccountStateMessages {
  * Copy for the sign-in and sign-up forms that only web has. The sentences both platforms say (the brand line, the sign-up
  * prompt and link, the two email messages) are `authSurfaceMessages` in `@commise/features-account`.
  */
-export interface AuthSurfaceMessages {
+interface WebSignInErrorMessages {
     /** Shown when no account has the email address that was typed. */
     readonly accountNotFound: string;
 }
@@ -30,7 +30,7 @@ export interface AuthSurfaceMessages {
 /** The shape of the web auth surface's copy. */
 export interface AuthMessages {
     /** The sign-in and sign-up forms' copy. */
-    readonly surface: AuthSurfaceMessages;
+    readonly surface: WebSignInErrorMessages;
     /** Account-state gate copy. */
     readonly state: AccountStateMessages;
 }

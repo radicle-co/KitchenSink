@@ -271,6 +271,6 @@ test.describe('paid features — a downgraded owner making a private collection 
 
         await expect(dialog).toHaveCount(0);
         await expect(page.getByText('Collection is now public.')).toHaveCount(0);
-        await expect(page.getByText('Private')).toBeVisible();
+        await expect(page.getByText('Private', { exact: true })).toBeVisible();
     });
 });

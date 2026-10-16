@@ -108,6 +108,21 @@ describe('useUserProfile (web)', () => {
         expect(global.fetch).not.toHaveBeenCalled();
     });
 
+    it('does not bounce to sign-in when the token source fails for a non-auth reason (network down)', async () => {
+        useAuthMock.mockReturnValue({
+            isSignedIn: true,
+            getToken: vi.fn().mockRejectedValue(new Error('network down')),
+        });
+
+        const { result } = renderHook(() => useUserProfile(), { wrapper });
+
+        await waitFor(() => expect(result.current.isError).toBe(true));
+
+        // A transient failure is not a lost session: bouncing would sign out a viewer who is merely offline.
+        expect(global.fetch).not.toHaveBeenCalled();
+        expect(redirectToSignInOnceMock).not.toHaveBeenCalled();
+    });
+
     it('bounces to sign-in exactly once when the session yields no token (the pre-request 401 path)', async () => {
         useAuthMock.mockReturnValue({ isSignedIn: true, getToken: vi.fn().mockResolvedValue(null) });
 

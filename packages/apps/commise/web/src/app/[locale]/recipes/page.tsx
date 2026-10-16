@@ -1,12 +1,9 @@
-import type { Route } from 'next';
-import { auth } from '@clerk/nextjs/server';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 import { VIEW_MODE_KEY, viewModeFrom } from '@commise/features-recipes';
 import { RecipeServiceClient, recipeQueries } from '@kitchensink/recipe-service-client';
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query';
 
-import { signInPathFor } from '@/lib/signInReturn';
+import { requireSignedIn } from '@/lib/requireSignedIn';
 import { AppShell } from '@/components/app/AppShell';
 import { ShellBackToTop } from '@/components/app/ShellBackToTop';
 import { ProfileAvatarEntry } from '@/components/home/chrome/ProfileAvatarEntry';
@@ -37,11 +34,7 @@ export default async function RecipesPage({
     params: Promise<{ locale: string }>;
 }): Promise<React.ReactElement> {
     const { locale } = await params;
-    const { userId, getToken } = await auth();
-
-    if (!userId) {
-        redirect(signInPathFor(locale, `/${locale}/recipes`) as Route);
-    }
+    const { getToken } = await requireSignedIn(locale, `/${locale}/recipes`);
 
     const queryClient = new QueryClient();
     const client = new RecipeServiceClient({

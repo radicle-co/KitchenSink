@@ -1,13 +1,10 @@
 import { Suspense } from 'react';
-import type { Route } from 'next';
-import { auth } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { discoverySearchParams, filtersFromQueryString } from '@commise/features-recipes';
 import { RecipeServiceClient, recipeQueries } from '@kitchensink/recipe-service-client';
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query';
 
-import { signInPathFor } from '@/lib/signInReturn';
+import { requireSignedIn } from '@/lib/requireSignedIn';
 import { AppShell } from '@/components/app/AppShell';
 import { ShellBackToTop } from '@/components/app/ShellBackToTop';
 import { ProfileAvatarEntry } from '@/components/home/chrome/ProfileAvatarEntry';
@@ -65,12 +62,8 @@ export default async function DiscoverPage({
     searchParams: Promise<RawSearchParams>;
 }): Promise<React.ReactElement> {
     const { locale } = await params;
-    const { userId, getToken } = await auth();
     const search = toQueryString(await searchParams);
-
-    if (!userId) {
-        redirect(signInPathFor(locale, `/${locale}/discover${search === '' ? '' : `?${search}`}`) as Route);
-    }
+    const { getToken } = await requireSignedIn(locale, `/${locale}/discover${search === '' ? '' : `?${search}`}`);
 
     const { filters, query } = filtersFromQueryString(search);
 

@@ -1,8 +1,6 @@
-import type { Route } from 'next';
-import { auth } from '@clerk/nextjs/server';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 
-import { signInPathFor } from '@/lib/signInReturn';
+import { requireSignedIn } from '@/lib/requireSignedIn';
 import { AppShell } from '@/components/app/AppShell';
 import { RecipeVersionsContainer } from '@/components/recipes/RecipeVersionsContainer';
 import { isRecipeRouteId } from '@/lib/recipeRouteId';
@@ -31,11 +29,7 @@ export default async function RecipeVersionsPage({
         notFound();
     }
 
-    const { userId } = await auth();
-
-    if (!userId) {
-        redirect(signInPathFor(locale, `/${locale}/recipes/${encodeURIComponent(id)}/versions`) as Route);
-    }
+    await requireSignedIn(locale, `/${locale}/recipes/${encodeURIComponent(id)}/versions`);
 
     return (
         <AppShell activeId="recipes" titleId="recipeVersions">

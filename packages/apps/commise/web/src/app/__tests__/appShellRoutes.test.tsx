@@ -36,6 +36,10 @@ vi.mock('next/navigation', () => ({
         // Mirrors Next's real `redirect()`: typed `never`, aborts the page by throwing.
         throw new Error(`NEXT_REDIRECT:${url}`);
     }),
+    notFound: vi.fn(() => {
+        // Mirrors Next's real `notFound()`: typed `never`, aborts the page by throwing.
+        throw new Error('NEXT_NOT_FOUND');
+    }),
 }));
 
 const { auth } = await import('@clerk/nextjs/server');
@@ -237,6 +241,44 @@ describe('every authenticated route names ITSELF in the top bar', () => {
 
         expect([...SHELL_SURFACE_IDS].filter((id) => !covered.has(id))).toEqual([]);
     });
+});
+
+/**
+ * The middleware matcher skips a path that names a static file, so `clerkMiddleware` never runs for it and `auth()`
+ * throws: `/en/collections/cover.png` answered 500, and so did the same shape on every other protected page (a locale
+ * segment of `cover.png`). Each page must answer 404 BEFORE it reads `auth()` — they all do it through
+ * `requireSignedIn`, and this table is what keeps a new page from reading `auth()` first.
+ */
+describe('every protected route answers 404 to a static-file address, before auth()', () => {
+    const everyPage = [...shellRoutes, ...contentSplitRoutes];
+    const withParams = (params: Record<string, string>) => ({
+        params: Promise.resolve(params),
+        searchParams: Promise.resolve({}),
+    });
+
+    for (const route of everyPage) {
+        it(`${route.path} refuses a locale segment that names a file`, async () => {
+            mockedAuth.mockReset();
+            const { default: Page } = (await route.load()) as { default: (props: never) => Promise<unknown> };
+
+            await expect(
+                Page(withParams({ locale: 'cover.png', id: '0a6c2f4e-8b1d-4c3a-9e2f-1d2c3b4a5f60' }) as never),
+            ).rejects.toThrow('NEXT_NOT_FOUND');
+            expect(mockedAuth).not.toHaveBeenCalled();
+        });
+    }
+
+    for (const route of everyPage.filter((candidate) => candidate.path.includes('[id]'))) {
+        it(`${route.path} refuses an id segment that names a file`, async () => {
+            mockedAuth.mockReset();
+            const { default: Page } = (await route.load()) as { default: (props: never) => Promise<unknown> };
+
+            await expect(Page(withParams({ locale: 'en', id: 'cover.png' }) as never)).rejects.toThrow(
+                'NEXT_NOT_FOUND',
+            );
+            expect(mockedAuth).not.toHaveBeenCalled();
+        });
+    }
 });
 
 describe('every shell-hosted route is per-request dynamic', () => {

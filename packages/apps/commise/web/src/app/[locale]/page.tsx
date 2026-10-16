@@ -1,10 +1,5 @@
-import { auth } from '@clerk/nextjs/server';
-import type { Route } from 'next';
-import { notFound, redirect } from 'next/navigation';
-
-import { signInPathFor } from '@/lib/signInReturn';
+import { requireSignedIn } from '@/lib/requireSignedIn';
 import { HomeWidgetSurface } from '@/components/home/HomeWidgetSurface';
-import { isRoutableLocale } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,19 +25,7 @@ export const dynamic = 'force-dynamic';
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
     const { locale } = await params;
 
-    // ⛔ Before `auth()`, not left to the layout. The middleware matcher skips `/favicon.ico`, `/robots.txt`
-    // and `/sitemap.xml`, so those requests arrive here as a `locale` with no `clerkMiddleware()` run. Next
-    // renders this page alongside the layout, so the layout's `notFound()` set the 404 while `auth()` here
-    // still threw — a server error reported to Sentry on every favicon fetch.
-    if (!isRoutableLocale(locale)) {
-        notFound();
-    }
-
-    const { userId } = await auth();
-
-    if (!userId) {
-        redirect(signInPathFor(locale, `/${locale}`) as Route);
-    }
+    await requireSignedIn(locale, `/${locale}`);
 
     return <HomeWidgetSurface />;
 }

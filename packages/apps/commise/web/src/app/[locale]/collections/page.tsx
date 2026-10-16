@@ -1,10 +1,7 @@
-import type { Route } from 'next';
-import { auth } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
 import { RecipeServiceClient, collectionQueries } from '@kitchensink/recipe-service-client';
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query';
 
-import { signInPathFor } from '@/lib/signInReturn';
+import { requireSignedIn } from '@/lib/requireSignedIn';
 import { AppShell } from '@/components/app/AppShell';
 import { ProfileAvatarEntry } from '@/components/home/chrome/ProfileAvatarEntry';
 import { CollectionListContainer } from '@/components/recipes/CollectionListContainer';
@@ -32,11 +29,7 @@ export default async function CollectionsPage({
     params: Promise<{ locale: string }>;
 }): Promise<React.ReactElement> {
     const { locale } = await params;
-    const { userId, getToken } = await auth();
-
-    if (!userId) {
-        redirect(signInPathFor(locale, `/${locale}/collections`) as Route);
-    }
+    const { getToken } = await requireSignedIn(locale, `/${locale}/collections`);
 
     const queryClient = new QueryClient();
     const client = new RecipeServiceClient({

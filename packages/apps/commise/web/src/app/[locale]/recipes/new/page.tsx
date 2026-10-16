@@ -1,8 +1,4 @@
-import type { Route } from 'next';
-import { auth } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
-
-import { signInPathFor } from '@/lib/signInReturn';
+import { requireSignedIn } from '@/lib/requireSignedIn';
 import { AppShell } from '@/components/app/AppShell';
 import { RecipeEditorContainer } from '@/components/recipes/RecipeEditorContainer';
 
@@ -24,11 +20,7 @@ export default async function NewRecipePage({
     params: Promise<{ locale: string }>;
 }): Promise<React.ReactElement> {
     const { locale } = await params;
-    const { userId } = await auth();
-
-    if (!userId) {
-        redirect(signInPathFor(locale, `/${locale}/recipes/new`) as Route);
-    }
+    await requireSignedIn(locale, `/${locale}/recipes/new`);
 
     return (
         // `focusedTask`: the editor is a focused task — the tab bar hides and the editor's own header and action bar

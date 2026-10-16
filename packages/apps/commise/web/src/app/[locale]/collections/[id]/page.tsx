@@ -1,10 +1,7 @@
-import type { Route } from 'next';
 import { VIEW_MODE_KEY, viewModeFrom } from '@commise/features-recipes';
-import { auth } from '@clerk/nextjs/server';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 
-import { signInPathFor } from '@/lib/signInReturn';
+import { requireSignedIn } from '@/lib/requireSignedIn';
 import { AppShell } from '@/components/app/AppShell';
 import { CollectionDetailContainer } from '@/components/recipes/CollectionDetailContainer';
 
@@ -24,11 +21,7 @@ export default async function CollectionDetailPage({
     params: Promise<{ locale: string; id: string }>;
 }): Promise<React.ReactElement> {
     const { locale, id } = await params;
-    const { userId } = await auth();
-
-    if (!userId) {
-        redirect(signInPathFor(locale, `/${locale}/collections/${encodeURIComponent(id)}`) as Route);
-    }
+    await requireSignedIn(locale, `/${locale}/collections/${encodeURIComponent(id)}`);
 
     // The cook's list/grid choice (shared with My recipes), so the server renders it and hydration does not flip the view.
     const storedViewMode = viewModeFrom((await cookies()).get(VIEW_MODE_KEY)?.value);

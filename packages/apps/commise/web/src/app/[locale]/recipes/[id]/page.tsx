@@ -1,10 +1,8 @@
-import type { Route } from 'next';
-import { auth } from '@clerk/nextjs/server';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { RecipeServiceClient, recipeQueries } from '@kitchensink/recipe-service-client';
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query';
 
-import { signInPathFor } from '@/lib/signInReturn';
+import { requireSignedIn } from '@/lib/requireSignedIn';
 import { AppShell } from '@/components/app/AppShell';
 import { RecipeDetailContainer } from '@/components/recipes/RecipeDetailContainer';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
@@ -37,11 +35,7 @@ export default async function RecipeDetailPage({
         notFound();
     }
 
-    const { userId, getToken } = await auth();
-
-    if (!userId) {
-        redirect(signInPathFor(locale, `/${locale}/recipes/${encodeURIComponent(id)}`) as Route);
-    }
+    const { getToken } = await requireSignedIn(locale, `/${locale}/recipes/${encodeURIComponent(id)}`);
 
     const queryClient = new QueryClient();
     const client = new RecipeServiceClient({

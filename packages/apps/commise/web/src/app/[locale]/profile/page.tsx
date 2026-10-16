@@ -1,9 +1,6 @@
-import type { Route } from 'next';
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
 
-import { signInPathFor } from '@/lib/signInReturn';
+import { requireSignedIn } from '@/lib/requireSignedIn';
 import { getDictionary } from '@/i18n/getDictionary';
 
 import { ProfileContent } from './ProfileContent';
@@ -22,11 +19,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function ProfilePage({ params }: { params: Promise<{ locale: string }> }) {
     const { locale } = await params;
-    const { userId } = await auth();
-
-    if (!userId) {
-        redirect(signInPathFor(locale, `/${locale}/profile`) as Route);
-    }
+    await requireSignedIn(locale, `/${locale}/profile`);
 
     return <ProfileContent />;
 }

@@ -1,8 +1,6 @@
-import type { Route } from 'next';
-import { auth } from '@clerk/nextjs/server';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 
-import { signInPathFor } from '@/lib/signInReturn';
+import { requireSignedIn } from '@/lib/requireSignedIn';
 import { AppShell } from '@/components/app/AppShell';
 import { RecipeEditorContainer } from '@/components/recipes/RecipeEditorContainer';
 import { isRecipeRouteId } from '@/lib/recipeRouteId';
@@ -30,11 +28,7 @@ export default async function EditRecipePage({
         notFound();
     }
 
-    const { userId } = await auth();
-
-    if (!userId) {
-        redirect(signInPathFor(locale, `/${locale}/recipes/${encodeURIComponent(id)}/edit`) as Route);
-    }
+    await requireSignedIn(locale, `/${locale}/recipes/${encodeURIComponent(id)}/edit`);
 
     return (
         // `focusedTask`: the editor is a focused task — the tab bar hides and the editor's own header and action bar

@@ -1,8 +1,7 @@
 /**
- * @module @commise/features-recipes/form — Tailwind class strings shared by MORE THAN ONE web recipe-form
- * field group (`RecipeBasicsFields`, `RecipeIngredientsFields`, `RecipeInstructionsFields`). A class string
- * used by exactly one group lives in that group's own file instead — this module holds only the chrome the
- * sections must keep identical (the card, its heading, the input, the error alert).
+ * @module @commise/features-recipes/form — the Tailwind class string for the error text shared by the web ingredient
+ * editing components that show a field error: `RecipeIngredientsFields`, `IngredientLineEditor` and `IngredientRow`.
+ * A class string used by one component lives in that component's own file instead. The native counterpart is
+ * `formSectionStyles.native.ts`.
  */
-export const sectionHeading = 'font-display text-heading-md font-semibold text-ink';
 export const errorText = 'text-body-sm text-danger-text';

@@ -70,6 +70,13 @@ jobs:
               working-directory: shared/infra
               run: npm run build
 
+            # ⛔ THE ALLOCATOR'S TESTS RUN BEFORE ANYTHING IS PUBLISHED. This package is outside the npm workspace, so
+            # no root `npm test` reaches it, and a priority collision it cannot see only surfaces mid-deploy as
+            # `Priority 'N' is currently in use`. A published version is reserved forever, so the check goes first.
+            - name: Test
+              working-directory: shared/infra
+              run: npm test
+
             # ⛔ THE GUARD THAT MATTERS FOR THIS PACKAGE. It exists to hold no `aws-cdk-lib` of its own, so a
             # consuming CDK app supplies the single instance. A `dependencies` entry here would put a second
             # instance in every consumer's tree, and the failure is not a missing module — it is

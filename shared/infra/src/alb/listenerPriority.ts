@@ -77,7 +77,7 @@ export const EPHEMERAL_SERVICE_SLOTS = 8;
  * Width of one service's per-PR band, and therefore the EXCLUSIVE ceiling on a PR number.
  *
  * `EPHEMERAL_SERVICE_SLOTS * PER_PR_BAND_WIDTH` must equal the per-PR span exactly — too wide overhangs the
- * ALB ceiling, too narrow leaves an unallocated gap. Asserted in `__tests__/listenerPriority.test.ts`.
+ * ALB ceiling, too narrow leaves an unallocated gap. Asserted in `src/alb/__tests__/listenerPriority.test.ts`, which `publishInfraShared.yml` runs before it publishes.
  */
 export const PER_PR_BAND_WIDTH = 6_000;
 

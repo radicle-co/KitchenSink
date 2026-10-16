@@ -1,3 +1,3 @@
 import { createConfig } from '@kitchensink/eslint';
 
-export default createConfig('./tsconfig.json', import.meta.dirname);
+export default createConfig('./tsconfig.lint.json', import.meta.dirname);

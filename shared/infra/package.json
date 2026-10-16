@@ -77,7 +77,8 @@
         "format:check": "prettier --check .",
         "lint": "eslint .",
         "prepack": "npm run build",
-        "typecheck": "tsc --noEmit"
+        "test": "vitest run",
+        "typecheck": "tsc --noEmit -p tsconfig.lint.json"
     },
     "dependencies": {
         "cdk-nag": "^2.38.2"
@@ -92,7 +93,8 @@
         "constructs": "^10.8.1",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
-        "typescript": "^6.0.3"
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
     },
     "engines": {
         "node": "24.x"

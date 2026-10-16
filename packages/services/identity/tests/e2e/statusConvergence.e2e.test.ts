@@ -20,7 +20,6 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, sql } from 'drizzle-orm';
 
 import { accounts, profiles, UserDAO, users } from '@kitchensink/identity-db';
-import { providerChangeIsOwed } from '@kitchensink/identity-core';
 
 import { AdminService } from '../../src/admin/admin.service.js';
 import { noopHandleSyncPublisher } from '../../src/users/handleSync.publisher.js';
@@ -72,6 +71,20 @@ describe('status convergence (integration)', () => {
         };
     }
 
+    /**
+     * Whether the backstop's convergence rule counts this account as owed: the SAME predicate as migration 0014's
+     * partial index and the U12 read (`IDENTITY_OWED_SQL`), evaluated by Postgres on the real row.
+     */
+    async function isOwed(userId: UserId): Promise<boolean> {
+        const result = await pool.query(
+            `SELECT 1 FROM users
+              WHERE id = $1 AND status_applied_version IS DISTINCT FROM status_version AND status <> 'erased'`,
+            [userId],
+        );
+
+        return result.rowCount === 1;
+    }
+
     /** Change the status the way a service path does: status and version in ONE statement. */
     async function changeStatus(userId: UserId, status: 'active' | 'suspended' | 'tombstoned'): Promise<void> {
         await db
@@ -83,7 +96,7 @@ describe('status convergence (integration)', () => {
     it('a fresh user starts converged — the provider agrees by construction', async () => {
         const userId = await provisionUser('user_conv_fresh');
 
-        expect(providerChangeIsOwed(await readState(userId))).toBe(false);
+        expect(await isOwed(userId)).toBe(false);
     });
 
     it('⛔ a status change makes the account OWED until the provider is brought to it', async () => {
@@ -92,10 +105,10 @@ describe('status convergence (integration)', () => {
         await changeStatus(userId, 'tombstoned');
 
         const owed = await readState(userId);
-        expect(providerChangeIsOwed(owed)).toBe(true);
+        expect(await isOwed(userId)).toBe(true);
 
         expect(await userDao.settleStatusVersion(userId, owed.statusVersion)).toBe(true);
-        expect(providerChangeIsOwed(await readState(userId))).toBe(false);
+        expect(await isOwed(userId)).toBe(false);
     });
 
     /**
@@ -113,7 +126,7 @@ describe('status convergence (integration)', () => {
 
         expect(await userDao.settleStatusVersion(userId, read.statusVersion)).toBe(false);
         // ...and the account is still owed, so the redelivery applies the NEWER intent.
-        expect(providerChangeIsOwed(await readState(userId))).toBe(true);
+        expect(await isOwed(userId)).toBe(true);
     });
 
     /**
@@ -136,7 +149,7 @@ describe('status convergence (integration)', () => {
 
         const final = await readState(userId);
         expect(final.status).toBe('active');
-        expect(providerChangeIsOwed(final)).toBe(false);
+        expect(await isOwed(userId)).toBe(false);
     });
 
     it('repeated settles of ONE intent are idempotent — one applied record', async () => {
@@ -156,7 +169,7 @@ describe('status convergence (integration)', () => {
 
         const state = await readState(userId);
         expect(state.statusAppliedVersion).not.toBe(state.statusVersion);
-        expect(providerChangeIsOwed(state)).toBe(false);
+        expect(await isOwed(userId)).toBe(false);
     });
 
     /**
@@ -207,7 +220,7 @@ describe('status convergence (integration)', () => {
             const after = await readState(ctx.userId);
             expect(after.status).toBe('tombstoned');
             expect(after.statusVersion).toBe(before.statusVersion + 1);
-            expect(providerChangeIsOwed(after)).toBe(true);
+            expect(await isOwed(ctx.userId)).toBe(true);
         });
 
         it('a reactivation (reactivateUser) bumps the version once more and leaves the account owed', async () => {
@@ -220,7 +233,7 @@ describe('status convergence (integration)', () => {
             const after = await readState(ctx.userId);
             expect(after.status).toBe('active');
             expect(after.statusVersion).toBe(closed.statusVersion + 1);
-            expect(providerChangeIsOwed(after)).toBe(true);
+            expect(await isOwed(ctx.userId)).toBe(true);
         });
     });
 });

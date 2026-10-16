@@ -9,8 +9,8 @@ export {
 } from './handleSync.js';
 export type { BylineSnapshot, HandleSyncMessage } from './handleSync.js';
 export { MAX_USERNAME_LENGTH, parseUsername, usernameSchema } from './username.js';
-export { providerChangeIsOwed, providerDeletionIsOwed } from './statusConvergence.js';
-export type { ProviderDeletionState, StatusConvergenceState } from './statusConvergence.js';
+export { providerDeletionIsOwed } from './statusConvergence.js';
+export type { ProviderDeletionState } from './statusConvergence.js';
 export { computeProfileScrub, scrubbedEmail } from './profileScrubPolicy.js';
 export type {
     LifecycleScrubEvent,

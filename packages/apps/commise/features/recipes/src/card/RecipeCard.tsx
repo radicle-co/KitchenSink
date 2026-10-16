@@ -30,10 +30,10 @@
 import { DifficultyBadge } from '@commise/ui/difficulty-badge';
 import { Icon } from '@commise/ui/icon';
 import { RecipeCover } from '@commise/ui/recipe-cover';
+import { isModifiedClick } from '@commise/ui/route-link';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { createContext, useContext, type FC, type ReactNode } from 'react';
 
-import { isPlainClick } from '../components/isPlainClick.js';
 import type { CardVariant } from './cardVariant.js';
 import { STAR_COUNT } from './model.js';
 import {
@@ -182,7 +182,7 @@ const CardTitle: FC = () => {
                 href={href}
                 className={stretch}
                 onClick={(event) => {
-                    if (onSelect !== undefined && isPlainClick(event)) {
+                    if (onSelect !== undefined && !isModifiedClick(event)) {
                         event.preventDefault();
                         onSelect(recipe.id);
                     }

@@ -18,10 +18,10 @@ import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { RecipeCover } from '@commise/ui/recipe-cover';
+import { isModifiedClick } from '@commise/ui/route-link';
 import { SearchField } from '@commise/ui/search-field';
 import { useId, type FC } from 'react';
 
-import { isPlainClick } from '../components/isPlainClick.js';
 import { formatRecipeCount } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
@@ -123,7 +123,7 @@ const CollectionCard: FC<{
                             href={href}
                             className={stretch}
                             onClick={(event) => {
-                                if (isPlainClick(event)) {
+                                if (!isModifiedClick(event)) {
                                     event.preventDefault();
                                     onSelect(collection.id);
                                 }

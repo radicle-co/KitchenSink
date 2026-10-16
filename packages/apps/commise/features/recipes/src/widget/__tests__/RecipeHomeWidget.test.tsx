@@ -9,7 +9,7 @@
  * here: the block is now one heading row, one grid in a decided variant, and a first run with actions, so its states are
  * tested through the entry the host mounts. The Suspense and `renderNutrition` hop assertions are kept.
  */
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -71,6 +71,26 @@ describe('RecipeHomeWidget (web) — recent recipes', () => {
         expect(onPress).toHaveBeenCalledTimes(1);
     });
 
+    it('renders "See all" as a focusable button, never an href-less link, when the host gives no href', async () => {
+        const onPress = vi.fn();
+        await renderWidget({ seeAll: { onPress } });
+
+        expect(screen.queryByRole('link', { name: 'See all recipes' })).toBeNull();
+
+        await userEvent.click(screen.getByRole('button', { name: 'See all recipes' }));
+
+        expect(onPress).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves a modified click on "See all" to the browser', async () => {
+        const onPress = vi.fn();
+        await renderWidget({ seeAll: { href: '/en/recipes', onPress } });
+
+        fireEvent.click(screen.getByRole('link', { name: 'See all recipes' }), { ctrlKey: true });
+
+        expect(onPress).not.toHaveBeenCalled();
+    });
+
     it('makes each card a link when the host gives an href, reporting a plain click', async () => {
         const onSelectRecipe = vi.fn();
         await renderWidget({ onSelectRecipe, hrefOf: (id) => `/en/recipes/${id}` });
@@ -128,6 +148,32 @@ describe('RecipeHomeWidget (web) — the first run', () => {
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
         expect(onPasteIngredients).toHaveBeenCalledTimes(1);
         expect(onFindOnDiscover).toHaveBeenCalledTimes(1);
+    });
+
+    it('renders "Or find one on Discover" as a focusable button when the host gives no href', async () => {
+        const onFindOnDiscover = vi.fn();
+        await renderWidget({
+            recipesPromise: Promise.resolve([]),
+            firstRun: { onCreateRecipe: vi.fn(), onFindOnDiscover },
+        });
+
+        expect(screen.queryByRole('link', { name: 'Or find one on Discover' })).toBeNull();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Or find one on Discover' }));
+
+        expect(onFindOnDiscover).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves a modified click on "Or find one on Discover" to the browser', async () => {
+        const onFindOnDiscover = vi.fn();
+        await renderWidget({
+            recipesPromise: Promise.resolve([]),
+            firstRun: { onCreateRecipe: vi.fn(), onFindOnDiscover, discoverHref: '/en/discover' },
+        });
+
+        fireEvent.click(screen.getByRole('link', { name: 'Or find one on Discover' }), { metaKey: true });
+
+        expect(onFindOnDiscover).not.toHaveBeenCalled();
     });
 
     it('still says where recipes will show when the host offers no actions', async () => {

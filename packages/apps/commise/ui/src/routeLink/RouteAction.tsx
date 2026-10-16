@@ -3,7 +3,8 @@
 /**
  * @module routeLink/RouteAction — a web control that goes somewhere: a real link when it has an `href`, so a new tab
  * works, whose plain click goes to `onPress` with the link's own navigation cancelled, so the app's router moves; a
- * button when it has none. The design system's avatar and back controls use it. Internal to `@commise/ui`.
+ * button when it has none, so the props cannot express an `<a>` with no `href` (not focusable, WCAG 2.1.1). The
+ * design system's avatar and back controls use it, and so do Home's "See all" and "Find on Discover".
  *
  * Presentational: props → JSX.
  *
@@ -15,8 +16,8 @@ import { isModifiedClick } from './isModifiedClick.js';
 
 /** Props for {@link RouteAction}. */
 export interface RouteActionProps {
-    /** The accessible name. */
-    readonly label: string;
+    /** The accessible name. Without one the children name the control, and no `aria-label` repeats them. */
+    readonly label?: string;
     /** Go. */
     readonly onPress: () => void;
     /** Where it goes, on web. Without one the control is a button. */

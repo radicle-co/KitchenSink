@@ -12,6 +12,7 @@
  * @pattern Visitor — an exhaustive pick of the element by whether the row has a destination
  */
 import { Icon } from '@commise/ui/icon';
+import { isModifiedClick } from '@commise/ui/route-link';
 import { useId, type FC, type MouseEvent } from 'react';
 
 import type { ProfileRowProps } from './props.js';
@@ -59,12 +60,10 @@ export const ProfileRow: FC<ProfileRowProps> = ({ label, value, hint, tone, chev
     if (href !== undefined) {
         // A plain click is the app's own navigation; a modified click (a new tab) keeps the link's.
         const onClick = (event: MouseEvent<HTMLAnchorElement>): void => {
-            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
-                return;
+            if (!isModifiedClick(event)) {
+                event.preventDefault();
+                onPress();
             }
-
-            event.preventDefault();
-            onPress();
         };
 
         return (

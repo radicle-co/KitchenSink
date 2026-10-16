@@ -8542,7 +8542,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/routeLink/RouteAction.tsx",
                     "dir": "packages/apps/commise/ui/src/routeLink",
-                    "moduleDoc": "routeLink/RouteAction — a web control that goes somewhere: a real link when it has an `href`, so a new tab\nworks, whose plain click goes to `onPress` with the link's own navigation cancelled, so the app's router moves; a\nbutton when it has none. The design system's avatar and back controls use it. Internal to `@commise/ui`.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "routeLink/RouteAction — a web control that goes somewhere: a real link when it has an `href`, so a new tab\nworks, whose plain click goes to `onPress` with the link's own navigation cancelled, so the app's router moves; a\nbutton when it has none, so the props cannot express an `<a>` with no `href` (not focusable, WCAG 2.1.1). The\ndesign system's avatar and back controls use it, and so do Home's \"See all\" and \"Find on Discover\".\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -8580,9 +8580,9 @@
                             "name": "label",
                             "type": "string",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "The accessible name.",
+                            "description": "The accessible name. Without one the children name the control, and no `aria-label` repeats them.",
                             "declaredIn": "packages/apps/commise/ui/src/routeLink/RouteAction.tsx"
                         },
                         {

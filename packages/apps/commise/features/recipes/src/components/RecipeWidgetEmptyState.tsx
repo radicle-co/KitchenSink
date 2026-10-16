@@ -6,10 +6,10 @@
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
+import { RouteAction } from '@commise/ui/route-link';
 import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
-import { isPlainClick } from './isPlainClick.js';
 import type { RecipeWidgetEmptyStateProps } from './props.js';
 
 export const RecipeWidgetEmptyState: FC<RecipeWidgetEmptyStateProps> = ({ firstRun }) => {
@@ -36,19 +36,14 @@ export const RecipeWidgetEmptyState: FC<RecipeWidgetEmptyStateProps> = ({ firstR
                             </Button>
                         )}
                     </div>
-                    <a
-                        href={firstRun.discoverHref}
-                        onClick={(event) => {
-                            if (firstRun.discoverHref === undefined || isPlainClick(event)) {
-                                event.preventDefault();
-                                firstRun.onFindOnDiscover();
-                            }
-                        }}
+                    <RouteAction
+                        {...(firstRun.discoverHref === undefined ? {} : { href: firstRun.discoverHref })}
+                        onPress={firstRun.onFindOnDiscover}
                         className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-label text-action-text hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                         <Icon name="compass" size={20} />
                         {home.findOnDiscover}
-                    </a>
+                    </RouteAction>
                 </>
             )}
         </div>

@@ -94,7 +94,8 @@
         "./hero-button": "./src/heroButton/index.ts",
         "./photo-control": "./src/photoControl/index.ts",
         "./large-title-header": "./src/largeTitleHeader/index.ts",
-        "./scroll-host": "./src/scrollHost/index.ts"
+        "./scroll-host": "./src/scrollHost/index.ts",
+        "./route-link": "./src/routeLink/index.ts"
     },
     "dependencies": {
         "@floating-ui/react-dom": "2.1.9",

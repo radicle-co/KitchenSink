@@ -4,10 +4,10 @@
  * — the heading sits on the page canvas and the cards are the only boxes (§1.6 "No box in a box").
  */
 import { useMessages } from '@commise/i18n/react';
+import { RouteAction } from '@commise/ui/route-link';
 import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
-import { isPlainClick } from './isPlainClick.js';
 import type { RecipeWidgetCardProps } from './props.js';
 
 export const RecipeWidgetCard: FC<RecipeWidgetCardProps> = ({ title, seeAll, children }) => {
@@ -18,19 +18,14 @@ export const RecipeWidgetCard: FC<RecipeWidgetCardProps> = ({ title, seeAll, chi
             <div className="flex items-center justify-between gap-3">
                 <h2 className="text-section-title text-ink">{title}</h2>
                 {seeAll === undefined ? null : (
-                    <a
-                        href={seeAll.href}
-                        aria-label={home.seeAllLabel}
-                        onClick={(event) => {
-                            if (seeAll.href === undefined || isPlainClick(event)) {
-                                event.preventDefault();
-                                seeAll.onPress();
-                            }
-                        }}
+                    <RouteAction
+                        label={home.seeAllLabel}
+                        {...(seeAll.href === undefined ? {} : { href: seeAll.href })}
+                        onPress={seeAll.onPress}
                         className="inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-label text-action-text hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                         {home.seeAll}
-                    </a>
+                    </RouteAction>
                 )}
             </div>
             {children}

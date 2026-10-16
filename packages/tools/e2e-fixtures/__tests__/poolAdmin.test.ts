@@ -14,11 +14,13 @@ import {
     metadataSatisfies,
     parsePoolAdminArgs,
     planPool,
+    poolProfileReassert,
     poolScopeOptions,
     poolUserCreateInput,
     reconcilePool,
     type ObservedPoolUser,
     type PoolAdminPort,
+    type PoolProfileReassert,
     type PoolUserCreate,
 } from '../src/poolAdmin.js';
 import {
@@ -33,7 +35,12 @@ import {
     type PoolSlotMetadata,
 } from '../src/testPool.js';
 
-const clerk = vi.hoisted(() => ({ getUserList: vi.fn(), createUser: vi.fn(), updateUserMetadata: vi.fn() }));
+const clerk = vi.hoisted(() => ({
+    getUserList: vi.fn(),
+    createUser: vi.fn(),
+    updateUserMetadata: vi.fn(),
+    updateUser: vi.fn(),
+}));
 
 vi.mock('@clerk/backend', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@clerk/backend')>()),
@@ -42,6 +49,7 @@ vi.mock('@clerk/backend', async (importOriginal) => ({
             getUserList: clerk.getUserList,
             createUser: clerk.createUser,
             updateUserMetadata: clerk.updateUserMetadata,
+            updateUser: clerk.updateUser,
         },
     }),
 }));
@@ -203,6 +211,7 @@ describe('reconcilePool', () => {
                 }
             }),
             readExternalId: vi.fn(async () => 'ext_new'),
+            reassertProfile: vi.fn(async (_userId: string, _profile: PoolProfileReassert) => undefined),
         } satisfies PoolAdminPort;
 
         return port;
@@ -406,7 +415,11 @@ describe('reconcilePool', () => {
 
 describe('poolScopeOptions', () => {
     it('reconciles the whole roster and audits drift for the owner’s run', () => {
-        expect(poolScopeOptions({ kind: 'roster' })).toEqual({ slots: rosterSlots(), drift: 'audit' });
+        expect(poolScopeOptions({ kind: 'roster' })).toEqual({
+            slots: rosterSlots(),
+            drift: 'audit',
+            profile: 'reassert',
+        });
     });
 
     it.each(MAESTRO_PLATFORMS)(
@@ -415,6 +428,7 @@ describe('poolScopeOptions', () => {
             expect(poolScopeOptions({ kind: 'maestroErasure', platform, shard: MAESTRO_ERASURE_SHARD })).toEqual({
                 slots: maestroErasureSlots(platform, MAESTRO_ERASURE_SHARD),
                 drift: 'skip',
+                profile: 'leave',
             });
         },
     );
@@ -464,15 +478,103 @@ describe('parsePoolAdminArgs', () => {
     });
 });
 
+/**
+ * Identity learns a Clerk username only from the `user.created` / `user.updated` webhook (owner rule: never filled on
+ * read). Pool slots created before identity migration 0016 hold a Clerk username and an identity profile without
+ * one, so the owner's full run re-asserts the roster's profile through Clerk, which emits the event.
+ */
+describe('poolProfileReassert', () => {
+    it('is the username and names the roster declares for the slot — the create body’s own values', () => {
+        const create = poolUserCreateInput(alfa, 'pw');
+
+        expect(poolProfileReassert(alfa)).toEqual({
+            username: create.username,
+            firstName: create.firstName,
+            lastName: create.lastName,
+        });
+    });
+});
+
+describe('reconcilePool profile re-assert', () => {
+    const port = (existing: readonly ObservedPoolUser[]) => {
+        const reassertProfile = vi.fn(async (_userId: string, _profile: PoolProfileReassert) => undefined);
+        const base = {
+            findUsers: vi.fn(async (email: string) =>
+                existing.filter((candidate) => candidate.emails.some((e) => e.toLowerCase() === email)),
+            ),
+            listUsers: vi.fn(async () => [...existing]),
+            createUser: vi.fn(async () => ({ id: 'created' })),
+            mergeMetadata: vi.fn(async () => undefined),
+            readExternalId: vi.fn(async () => 'ext'),
+            reassertProfile,
+        } satisfies PoolAdminPort;
+
+        return base;
+    };
+
+    const run = { randomPassword: () => 'r', now: () => 0, sleep: async () => undefined, drift: 'skip' } as const;
+
+    it('with --apply and profile reassert, re-asserts every existing slot — marked or stale — exactly once', async () => {
+        const stale = user(signer.email);
+        const fake = port([marked(alfa), stale]);
+
+        await reconcilePool(fake, { ...run, slots: [alfa, signer], apply: true, profile: 'reassert' });
+
+        expect(fake.reassertProfile).toHaveBeenCalledTimes(2);
+        expect(fake.reassertProfile).toHaveBeenCalledWith(
+            `user_${alfa.email.split('@')[0]}`,
+            poolProfileReassert(alfa),
+        );
+        expect(fake.reassertProfile).toHaveBeenCalledWith(stale.id, poolProfileReassert(signer));
+    });
+
+    it('⛔ never asserts for an absent slot (the create carries the profile) or an ambiguous one', async () => {
+        const fake = port([user(alfa.email), user(alfa.email, { id: 'dup' })]);
+
+        await reconcilePool(fake, { ...run, slots: [alfa, signer], apply: true, profile: 'reassert' });
+
+        expect(fake.reassertProfile).not.toHaveBeenCalled();
+    });
+
+    it('⛔ writes nothing on a dry run, and nothing when the scope leaves profiles alone', async () => {
+        const dry = port([marked(alfa)]);
+        const leave = port([marked(alfa)]);
+
+        await reconcilePool(dry, { ...run, slots: [alfa], apply: false, profile: 'reassert' });
+        await reconcilePool(leave, { ...run, slots: [alfa], apply: true, profile: 'leave' });
+
+        expect(dry.reassertProfile).not.toHaveBeenCalled();
+        expect(leave.reassertProfile).not.toHaveBeenCalled();
+    });
+
+    it('defaults to leaving profiles alone, so a caller that never heard of it writes nothing new', async () => {
+        const fake = port([marked(alfa)]);
+
+        await reconcilePool(fake, { ...run, slots: [alfa], apply: true });
+
+        expect(fake.reassertProfile).not.toHaveBeenCalled();
+    });
+});
+
 describe('clerkPoolAdminPort', () => {
     beforeEach(() => {
         clerk.getUserList.mockReset();
         clerk.createUser.mockReset();
         clerk.updateUserMetadata.mockReset();
+        clerk.updateUser.mockReset();
     });
 
     it('⛔ refuses a key that is not a development instance key before building a client', () => {
         expect(() => clerkPoolAdminPort('sk_live_x')).toThrow(/development/u);
+    });
+
+    it('re-asserts a profile with updateUser, naming only username and names — never metadata', async () => {
+        clerk.updateUser.mockResolvedValue({});
+
+        await clerkPoolAdminPort('sk_test_x').reassertProfile('user_1', poolProfileReassert(alfa));
+
+        expect(clerk.updateUser).toHaveBeenCalledWith('user_1', poolProfileReassert(alfa));
+        expect(clerk.updateUserMetadata).not.toHaveBeenCalled();
     });
 
     it('writes metadata with the MERGE endpoint, never updateUser (which replaces)', async () => {

@@ -35,6 +35,11 @@
  * slot in scope is READ AGAIN and judged by the lease's own rule (`judgePoolSlot`): healthy means the next lease of
  * any of them will succeed, not merely that the writes returned.
  *
+ * The owner's whole-roster `--apply` also RE-ASSERTS each existing slot's username and names through
+ * `updateUser`, so Clerk emits `user.updated` and the identity webhook fills the profile's username — the one
+ * honest path (identity never fills it on read, and this command never writes identity's database). It is idempotent
+ * and only the roster scope does it; the Maestro refill leaves existing users alone.
+ *
  * ⛔ METADATA IS MERGED, NEVER REPLACED. `updateUser({ publicMetadata })` REPLACES the whole object — the
  * installed `@clerk/backend` marks that use deprecated for exactly this reason — so a second tool writing a
  * different key would silently erase the marker. `updateUserMetadata` deep-merges.
@@ -107,7 +112,19 @@ export interface PoolAdminPort {
     readonly createUser: (input: PoolUserCreate) => Promise<{ readonly id: string }>;
     readonly mergeMetadata: (userId: string, metadata: PoolSlotMetadata) => Promise<void>;
     readonly readExternalId: (userId: string) => Promise<string | null>;
+    /** Re-state a user's username and names, which makes Clerk emit `user.updated`. Never touches metadata. */
+    readonly reassertProfile: (userId: string, profile: PoolProfileReassert) => Promise<void>;
 }
+
+/** The profile fields a slot's Clerk user is re-asserted with — the same values the create body carries. */
+export interface PoolProfileReassert {
+    readonly username: string;
+    readonly firstName: string;
+    readonly lastName: string;
+}
+
+/** Whether a reconciliation re-states existing slots' profiles so Clerk re-emits them to identity. */
+export type ProfileReassert = 'reassert' | 'leave';
 
 /** One slot's verdict. */
 export type PoolAction =
@@ -149,12 +166,15 @@ export type DriftAudit = 'audit' | 'skip';
 export function poolScopeOptions(scope: PoolScope): {
     readonly slots: readonly PoolSlot[];
     readonly drift: DriftAudit;
+    readonly profile: ProfileReassert;
 } {
     switch (scope.kind) {
         case 'roster':
-            return { slots: rosterSlots(), drift: 'audit' };
+            return { slots: rosterSlots(), drift: 'audit', profile: 'reassert' };
         case 'maestroErasure':
-            return { slots: maestroErasureSlots(scope.platform, scope.shard), drift: 'skip' };
+            // The CI refill creates fresh users (whose `user.created` carries the profile) and must not spend the
+            // instance-wide Backend API limit re-writing slots it did not create.
+            return { slots: maestroErasureSlots(scope.platform, scope.shard), drift: 'skip', profile: 'leave' };
     }
 }
 
@@ -320,6 +340,18 @@ export function poolUserCreateInput(slot: PoolSlot, randomPassword: string): Poo
 }
 
 /**
+ * The profile a slot's Clerk user is re-asserted with: exactly the username and names its create body carries. Pure.
+ *
+ * Identity learns a username ONLY from the `user.created` / `user.updated` webhook (never filled on read), so a slot
+ * whose identity profile was made before the username column existed gets it when Clerk re-emits the user.
+ */
+export function poolProfileReassert(slot: PoolSlot): PoolProfileReassert {
+    const { username, firstName, lastName } = poolUserCreateInput(slot, '');
+
+    return { username, firstName, lastName };
+}
+
+/**
  * Every user holding each slot's address, one lookup at a time (the Backend API limit is instance-wide).
  *
  * @sideEffect One Backend API lookup per slot.
@@ -355,8 +387,9 @@ function unleasableSlots(
  * Writes happen one at a time: the Backend API limit is instance-wide and shared with every suite running
  * against the dev instance.
  *
- * @sideEffect Reads the slots in scope (and, auditing drift, every Clerk user); with `apply`, creates users and
- *   writes metadata, polls for `external_id`, then reads the slots in scope again.
+ * @sideEffect Reads the slots in scope (and, auditing drift, every Clerk user); with `apply`, creates users,
+ *   writes metadata, (with `profile: 'reassert'`) re-states existing slots' username and names, polls for
+ *   `external_id`, then reads the slots in scope again.
  */
 export async function reconcilePool(
     port: PoolAdminPort,
@@ -365,6 +398,8 @@ export async function reconcilePool(
         readonly slots?: readonly PoolSlot[];
         /** Required: whether drift is audited is a decision about cost and blast radius, never a default. */
         readonly drift: DriftAudit;
+        /** Default `'leave'`: re-writing existing users is a decision about the Backend API budget, never implicit. */
+        readonly profile?: ProfileReassert;
         readonly randomPassword: () => string;
         readonly now: () => number;
         readonly sleep: (ms: number) => Promise<void>;
@@ -387,9 +422,15 @@ export async function reconcilePool(
     for (const action of plan.actions) {
         if (action.kind === 'mark') {
             await port.mergeMetadata(action.userId, poolSlotMetadata(action.slot));
+
+            if (options.profile === 'reassert') {
+                await port.reassertProfile(action.userId, poolProfileReassert(action.slot));
+            }
         } else if (action.kind === 'create') {
             const { id } = await port.createUser(poolUserCreateInput(action.slot, options.randomPassword()));
             created.push({ slot: action.slot, id });
+        } else if (action.kind === 'ok' && options.profile === 'reassert') {
+            await port.reassertProfile(action.userId, poolProfileReassert(action.slot));
         }
     }
 
@@ -482,6 +523,9 @@ export function clerkPoolAdminPort(
         },
         mergeMetadata: async (userId, metadata) => {
             await backend(() => clerk.users.updateUserMetadata(userId, { publicMetadata: { ...metadata } }));
+        },
+        reassertProfile: async (userId, profile) => {
+            await backend(() => clerk.users.updateUser(userId, { ...profile }));
         },
         readExternalId: async (userId) => (await backend(() => clerk.users.getUser(userId))).externalId,
     };

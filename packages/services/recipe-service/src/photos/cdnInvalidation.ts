@@ -7,7 +7,7 @@
  * a mock port with no network.
  *
  * The media distribution (ADR-0064) is provisioned by the global app and its id reaches this service from SSM as
- * `CLOUDFRONT_DISTRIBUTION_ID`. The config schema REQUIRES it on a deployed task, so a deployed process always gets a
+ * `MEDIA_DISTRIBUTION_ID`. The config schema REQUIRES it on a deployed task, so a deployed process always gets a
  * real adapter. This factory returns a documented NO-OP port - never a port that throws - only when the id is absent or
  * blank, which can happen on a developer machine alone. See `PhotosService.invalidateDeletedPhoto` for how the caller
  * treats a real (configured) adapter's failure, which is stricter than this unset-id case.
@@ -20,7 +20,7 @@ import type { CdnInvalidationPort } from '@kitchensink/recipe-core';
 
 /** Config the CloudFront adapter needs (sourced from the service's storage config). */
 export interface CloudFrontInvalidationConfig {
-    /** The CloudFront distribution id (`CLOUDFRONT_DISTRIBUTION_ID`). Unset/blank → the no-op adapter. */
+    /** The CloudFront distribution id (`MEDIA_DISTRIBUTION_ID`). Unset/blank → the no-op adapter. */
     readonly distributionId?: string;
     /** AWS region for the CloudFront control-plane client. Defaults to `us-east-1`. */
     readonly region?: string;
@@ -43,7 +43,7 @@ export function createCloudFrontInvalidation(config: CloudFrontInvalidationConfi
         return {
             async invalidate(paths: string[]): Promise<void> {
                 logger.warn(
-                    `CLOUDFRONT_DISTRIBUTION_ID is unset — skipping CDN invalidation for ${paths.length} path(s). ` +
+                    `MEDIA_DISTRIBUTION_ID is unset — skipping CDN invalidation for ${paths.length} path(s). ` +
                         'A deleted/erased photo may remain reachable via a CloudFront edge cache until TTL expiry.',
                 );
             },

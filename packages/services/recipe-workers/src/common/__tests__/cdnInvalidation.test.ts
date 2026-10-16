@@ -97,21 +97,21 @@ describe('createCloudFrontInvalidation (recipe-workers)', () => {
  */
 describe('distributionIdFromEnv', () => {
     it.each(['prod', 'sandbox', 'pr-91', 'staging'])('returns the id on %s', (stage) => {
-        expect(distributionIdFromEnv({ STAGE: stage, CLOUDFRONT_DISTRIBUTION_ID: 'E123' })).toBe('E123');
+        expect(distributionIdFromEnv({ STAGE: stage, MEDIA_DISTRIBUTION_ID: 'E123' })).toBe('E123');
     });
 
     it.each(['prod', 'sandbox', 'pr-91'])('THROWS on deployed stage %s without an id', (stage) => {
-        expect(() => distributionIdFromEnv({ STAGE: stage })).toThrow(/CLOUDFRONT_DISTRIBUTION_ID/u);
+        expect(() => distributionIdFromEnv({ STAGE: stage })).toThrow(/MEDIA_DISTRIBUTION_ID/u);
     });
 
     it('treats a blank id as absent', () => {
-        expect(() => distributionIdFromEnv({ STAGE: 'prod', CLOUDFRONT_DISTRIBUTION_ID: '  ' })).toThrow(
-            /CLOUDFRONT_DISTRIBUTION_ID/u,
+        expect(() => distributionIdFromEnv({ STAGE: 'prod', MEDIA_DISTRIBUTION_ID: '  ' })).toThrow(
+            /MEDIA_DISTRIBUTION_ID/u,
         );
     });
 
     it('THROWS when STAGE itself is unset: an unknown environment is a deployed one (fail closed)', () => {
-        expect(() => distributionIdFromEnv({})).toThrow(/CLOUDFRONT_DISTRIBUTION_ID/u);
+        expect(() => distributionIdFromEnv({})).toThrow(/MEDIA_DISTRIBUTION_ID/u);
     });
 
     it.each(['dev', 'test', 'local'])(

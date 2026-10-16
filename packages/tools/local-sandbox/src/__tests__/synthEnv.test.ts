@@ -48,7 +48,7 @@ describe('inferPlaceholder', () => {
         ['RECIPE_LAMBDA_SG_ID', /^sg-[0-9a-f]+$/u],
         ['SOME_SUBNET_ID', /^subnet-[0-9a-f]+$/u],
         ['RECIPE_FOOD_SERVICE_URL', /^https?:\/\//u],
-        ['CLOUDFRONT_DISTRIBUTION_ID', /^[A-Z0-9]+$/u],
+        ['MEDIA_DISTRIBUTION_ID', /^[A-Z0-9]+$/u],
         ['DELETION_QUEUE_ARN', /^arn:aws:/u],
         ['CDK_DEFAULT_ACCOUNT', /^\d{12}$/u],
         ['AWS_ACCOUNT_ID', /^\d{12}$/u],

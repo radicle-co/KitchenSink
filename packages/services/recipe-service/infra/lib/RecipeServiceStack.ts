@@ -286,7 +286,7 @@ export class RecipeServiceStack extends Stack {
             // boot without either, so a stage the global app has not deployed fails loudly instead of serving photo
             // URLs that do not resolve.
             MEDIA_CDN_URL: mediaCdnUrl,
-            CLOUDFRONT_DISTRIBUTION_ID: mediaDistributionId,
+            MEDIA_DISTRIBUTION_ID: mediaDistributionId,
             // ⛔ Clerk auth env — the ONE definition lives in `@radicle-co/infra-shared/security`
             // (`clerkAuthEnvironment`): the JWT public key, EXACTLY ONE azp mode (prod = exact-match list,
             // non-prod = anchored preview pattern + preview mode), and the every-stage native-admission gate.

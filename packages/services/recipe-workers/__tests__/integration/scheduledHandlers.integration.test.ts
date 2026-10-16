@@ -49,7 +49,7 @@ beforeAll(async () => {
     process.env['RECIPE_ARCHIVE_BUCKET'] = 'archive';
     process.env['RECIPE_MEDIA_BUCKET'] = 'media';
     // A deployed stage always carries the media distribution id (ADR-0064); without it the sweeper refuses to start.
-    process.env['CLOUDFRONT_DISTRIBUTION_ID'] = 'E2TESTDISTRIBUTION';
+    process.env['MEDIA_DISTRIBUTION_ID'] = 'E2TESTDISTRIBUTION';
 });
 
 afterAll(async () => {

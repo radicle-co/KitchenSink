@@ -902,7 +902,7 @@ export class RecipeWorkersStack extends Stack {
             RECIPE_ARCHIVE_BUCKET: props.archiveBucketName,
             RECIPE_MEDIA_BUCKET: props.mediaBucketName,
             STAGE: props.stage,
-            CLOUDFRONT_DISTRIBUTION_ID: mediaDistributionId,
+            MEDIA_DISTRIBUTION_ID: mediaDistributionId,
         };
 
         const erasureFn = new lambda.Function(this, 'AccountErasureWorkerFunction', {
@@ -1038,7 +1038,7 @@ export class RecipeWorkersStack extends Stack {
                 RECIPE_ARCHIVE_BUCKET: props.archiveBucketName,
                 RECIPE_MEDIA_BUCKET: props.mediaBucketName,
                 STAGE: props.stage,
-                CLOUDFRONT_DISTRIBUTION_ID: mediaDistributionId,
+                MEDIA_DISTRIBUTION_ID: mediaDistributionId,
             },
             logGroup,
         });

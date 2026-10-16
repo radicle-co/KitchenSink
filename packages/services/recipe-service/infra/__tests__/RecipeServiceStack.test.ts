@@ -1332,7 +1332,7 @@ describe('media CDN wiring (ADR-0064)', () => {
         const environment = apiEnvironment(template);
 
         expect(ssmPathOf(template, environment['MEDIA_CDN_URL'])).toBe(`/kitchensink/${tree}/media/cdn-url`);
-        expect(ssmPathOf(template, environment['CLOUDFRONT_DISTRIBUTION_ID'])).toBe(
+        expect(ssmPathOf(template, environment['MEDIA_DISTRIBUTION_ID'])).toBe(
             `/kitchensink/${tree}/media/distribution-id`,
         );
     });

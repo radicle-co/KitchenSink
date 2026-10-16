@@ -1124,7 +1124,7 @@ describe('handler', () => {
         process.env['RECIPE_ARCHIVE_BUCKET'] = 'archive-bucket';
         // An undeployed stage: a missing distribution id is a logged no-op here, and a REFUSAL on any other (below).
         process.env['STAGE'] = 'test';
-        delete process.env['CLOUDFRONT_DISTRIBUTION_ID'];
+        delete process.env['MEDIA_DISTRIBUTION_ID'];
         control = createFakeDb();
         vi.mocked(getRecipeDbMock).mockReturnValue(control.db as never);
         // Default happy path: one active job, one removed recipe to sweep.
@@ -1145,7 +1145,7 @@ describe('handler', () => {
         delete process.env['RECIPE_MEDIA_BUCKET'];
         delete process.env['RECIPE_ARCHIVE_BUCKET'];
         delete process.env['STAGE'];
-        delete process.env['CLOUDFRONT_DISTRIBUTION_ID'];
+        delete process.env['MEDIA_DISTRIBUTION_ID'];
     });
 
     it('sweeps EACH removed recipe’s prefix in BOTH the media and the version-archive bucket', async () => {
@@ -1201,8 +1201,8 @@ describe('handler', () => {
             expect(cdnIndex).toBeGreaterThan(lastSweepIndex);
         });
 
-        it('builds the CDN port from CLOUDFRONT_DISTRIBUTION_ID (the config the adapter itself gates on)', async () => {
-            process.env['CLOUDFRONT_DISTRIBUTION_ID'] = 'E1234567890';
+        it('builds the CDN port from MEDIA_DISTRIBUTION_ID (the config the adapter itself gates on)', async () => {
+            process.env['MEDIA_DISTRIBUTION_ID'] = 'E1234567890';
 
             await runHandler(makeErasureEvent({ ownerId: OWNER }));
 
@@ -1241,13 +1241,11 @@ describe('handler', () => {
         // ADR-0064: a deployed invocation with no distribution id would erase the S3 objects and leave the photos
         // served from the edge. It must fail BEFORE any destructive work, so SQS redelivers and the alarm fires.
         it.each(['prod', 'sandbox', 'pr-91'])(
-            '⛔ REFUSES on deployed stage %s without CLOUDFRONT_DISTRIBUTION_ID: nothing erased, nothing swept',
+            '⛔ REFUSES on deployed stage %s without MEDIA_DISTRIBUTION_ID: nothing erased, nothing swept',
             async (stage) => {
                 process.env['STAGE'] = stage;
 
-                await expect(runHandler(makeErasureEvent({ ownerId: OWNER }))).rejects.toThrow(
-                    /CLOUDFRONT_DISTRIBUTION_ID/,
-                );
+                await expect(runHandler(makeErasureEvent({ ownerId: OWNER }))).rejects.toThrow(/MEDIA_DISTRIBUTION_ID/);
 
                 expect(timeline).toEqual([]);
                 expect(control.statements()).toEqual([]);

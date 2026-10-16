@@ -322,7 +322,7 @@ export const storageConfigSchema = z.object({
      * deployed task: a delete or an erasure that cannot purge the edge leaves the photo served. Optional locally,
      * where invalidation is a logged no-op (`photos/cdnInvalidation.ts`).
      */
-    CLOUDFRONT_DISTRIBUTION_ID: z.string().min(1).optional(),
+    MEDIA_DISTRIBUTION_ID: z.string().min(1).optional(),
 
     /** Presigned URL expiry in seconds. Defaults to 900 (15 min). */
     PRESIGNED_URL_EXPIRY_SECONDS: z.coerce.number().int().positive().default(900),
@@ -348,7 +348,7 @@ export const storageConfigMeta: Record<keyof StorageConfig, ConfigFieldMeta> = {
     S3_BUCKET_PHOTOS: { secret: false, description: 'Photo storage bucket' },
     S3_BUCKET_VERSIONS: { secret: false, description: 'Version archive bucket' },
     MEDIA_CDN_URL: { secret: false, description: 'Media CDN base URL (required when deployed)' },
-    CLOUDFRONT_DISTRIBUTION_ID: {
+    MEDIA_DISTRIBUTION_ID: {
         secret: false,
         description: 'Media distribution id for invalidations (HAZ-051/067/039); required when deployed',
     },
@@ -736,7 +736,7 @@ export const apiConfigSchema = baseConfigSchema
         // ADR-0064: a deployed task with no media CDN serves photo URLs that do not resolve, and one with no
         // distribution erases a photo and leaves it cached. Both are refused at boot. A blank value is absent.
         if (isDeployedEnvironment(config.NODE_ENV)) {
-            for (const name of ['MEDIA_CDN_URL', 'CLOUDFRONT_DISTRIBUTION_ID'] as const) {
+            for (const name of ['MEDIA_CDN_URL', 'MEDIA_DISTRIBUTION_ID'] as const) {
                 if ((config[name] ?? '').trim().length === 0) {
                     ctx.addIssue({
                         code: z.ZodIssueCode.custom,

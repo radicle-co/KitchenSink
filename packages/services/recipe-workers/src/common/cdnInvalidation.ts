@@ -35,10 +35,10 @@ const UNDEPLOYED_STAGES = new Set(['dev', 'test', 'local']);
  *
  * @param env - The environment (injected for tests).
  * @returns The id, or `undefined` on an undeployed stage with none set.
- * @throws {Error} when a deployed stage has no `CLOUDFRONT_DISTRIBUTION_ID`.
+ * @throws {Error} when a deployed stage has no `MEDIA_DISTRIBUTION_ID`.
  */
 export function distributionIdFromEnv(env: Readonly<Record<string, string | undefined>>): string | undefined {
-    const id = env['CLOUDFRONT_DISTRIBUTION_ID']?.trim();
+    const id = env['MEDIA_DISTRIBUTION_ID']?.trim();
 
     if (id !== undefined && id !== '') {
         return id;
@@ -49,14 +49,14 @@ export function distributionIdFromEnv(env: Readonly<Record<string, string | unde
     }
 
     throw new Error(
-        'CLOUDFRONT_DISTRIBUTION_ID is required on a deployed stage (ADR-0064): the media distribution id is read ' +
+        'MEDIA_DISTRIBUTION_ID is required on a deployed stage (ADR-0064): the media distribution id is read ' +
             'from SSM /kitchensink/{baseStage}/media/distribution-id. Refusing to erase media without purging its edge.',
     );
 }
 
 /** Config the CloudFront adapter needs. */
 export interface CloudFrontInvalidationConfig {
-    /** The CloudFront distribution id (`CLOUDFRONT_DISTRIBUTION_ID`). Unset/blank → the no-op adapter. */
+    /** The CloudFront distribution id (`MEDIA_DISTRIBUTION_ID`). Unset/blank → the no-op adapter. */
     readonly distributionId?: string;
     /** AWS region for the CloudFront control-plane client. Defaults to `us-east-1`. */
     readonly region?: string;
@@ -73,7 +73,7 @@ export function createCloudFrontInvalidation(config: CloudFrontInvalidationConfi
     if (distributionId === undefined || distributionId === '') {
         return {
             async invalidate(paths: string[]): Promise<void> {
-                logger.warn('CLOUDFRONT_DISTRIBUTION_ID unset — skipping CDN invalidation', {
+                logger.warn('MEDIA_DISTRIBUTION_ID unset — skipping CDN invalidation', {
                     pathCount: paths.length,
                 });
             },

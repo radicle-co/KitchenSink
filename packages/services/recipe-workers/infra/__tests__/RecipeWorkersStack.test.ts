@@ -1146,8 +1146,8 @@ describe('RecipeWorkersStack — archive-orphan sweep', () => {
                 const configured = synth(stage, stage);
                 const path = `/kitchensink/${tree}/media/distribution-id`;
 
-                expect(ssmPathOf(configured, sweeperEnvironment(configured)['CLOUDFRONT_DISTRIBUTION_ID'])).toBe(path);
-                expect(ssmPathOf(configured, erasureEnvironment(configured)['CLOUDFRONT_DISTRIBUTION_ID'])).toBe(path);
+                expect(ssmPathOf(configured, sweeperEnvironment(configured)['MEDIA_DISTRIBUTION_ID'])).toBe(path);
+                expect(ssmPathOf(configured, erasureEnvironment(configured)['MEDIA_DISTRIBUTION_ID'])).toBe(path);
                 expect(sweeperActions(configured)).toContain('cloudfront:CreateInvalidation');
 
                 const grants = Object.values(configured.findResources('AWS::IAM::Policy'))
@@ -1174,7 +1174,7 @@ describe('RecipeWorkersStack — archive-orphan sweep', () => {
         it('a pr-{N} preview reads the SANDBOX tree: previews share the base stage distribution', () => {
             const preview = synth('pr-91', 'sandbox');
 
-            expect(ssmPathOf(preview, sweeperEnvironment(preview)['CLOUDFRONT_DISTRIBUTION_ID'])).toBe(
+            expect(ssmPathOf(preview, sweeperEnvironment(preview)['MEDIA_DISTRIBUTION_ID'])).toBe(
                 '/kitchensink/sandbox/media/distribution-id',
             );
         });

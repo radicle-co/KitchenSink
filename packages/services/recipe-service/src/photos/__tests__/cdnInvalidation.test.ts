@@ -3,8 +3,8 @@
  * `CdnInvalidationPort` (HAZ-051/067/039).
  *
  * Two behaviours, both load-bearing for a data-privacy boundary:
- *  - `CLOUDFRONT_DISTRIBUTION_ID` SET → issues a real `CreateInvalidationCommand` with the given paths.
- *  - `CLOUDFRONT_DISTRIBUTION_ID` UNSET (local/dev; no distribution exists in this repo's CDK — see the
+ *  - `MEDIA_DISTRIBUTION_ID` SET → issues a real `CreateInvalidationCommand` with the given paths.
+ *  - `MEDIA_DISTRIBUTION_ID` UNSET (local/dev; no distribution exists in this repo's CDK — see the
  *    module docstring) → a documented NO-OP that logs a warning and NEVER throws, so an unconfigured
  *    stage can still boot and serve photo deletes/erasure without crashing.
  *
@@ -39,7 +39,7 @@ describe('createCloudFrontInvalidation', () => {
         cloudFrontSend.mockResolvedValue({});
     });
 
-    describe('with CLOUDFRONT_DISTRIBUTION_ID set', () => {
+    describe('with MEDIA_DISTRIBUTION_ID set', () => {
         it('issues a CreateInvalidation request for the given paths, batched into ONE call', async () => {
             const port = createCloudFrontInvalidation({ distributionId: 'E1234567890' });
 
@@ -95,7 +95,7 @@ describe('createCloudFrontInvalidation', () => {
         });
     });
 
-    describe('with CLOUDFRONT_DISTRIBUTION_ID unset (documented no-op)', () => {
+    describe('with MEDIA_DISTRIBUTION_ID unset (documented no-op)', () => {
         it('never constructs a CloudFront client when the distribution id is undefined', async () => {
             const port = createCloudFrontInvalidation({ distributionId: undefined });
 

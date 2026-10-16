@@ -144,12 +144,12 @@ beforeEach(() => {
     process.env['RECIPE_MEDIA_BUCKET'] = MEDIA;
     process.env['STAGE'] = 'sandbox';
     // Required on a deployed stage (ADR-0064); the sweeper then purges a reconciled owner's media prefix.
-    process.env['CLOUDFRONT_DISTRIBUTION_ID'] = 'E-SWEEPER-TEST';
+    process.env['MEDIA_DISTRIBUTION_ID'] = 'E-SWEEPER-TEST';
 });
 
 afterEach(() => {
     vi.useRealTimers();
-    delete process.env['CLOUDFRONT_DISTRIBUTION_ID'];
+    delete process.env['MEDIA_DISTRIBUTION_ID'];
     delete process.env['RECIPE_ARCHIVE_BUCKET'];
     delete process.env['RECIPE_MEDIA_BUCKET'];
     delete process.env['STAGE'];
@@ -359,8 +359,8 @@ describe('CDN invalidation of orphaned media (Finding 2 / HAZ-051/067)', () => {
         expect(cdnInvalidate).toHaveBeenCalledWith(['/recipes/own-2/*']);
     });
 
-    it('builds the CDN port from CLOUDFRONT_DISTRIBUTION_ID — the same config the adapter itself gates on', async () => {
-        process.env['CLOUDFRONT_DISTRIBUTION_ID'] = 'E1234567890';
+    it('builds the CDN port from MEDIA_DISTRIBUTION_ID — the same config the adapter itself gates on', async () => {
+        process.env['MEDIA_DISTRIBUTION_ID'] = 'E1234567890';
         vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners([completed('own-1')]) as never);
         s3WithOrphansAt(new Set([`${MEDIA}|recipes/own-1/own-1-rem/`]));
 
@@ -371,7 +371,7 @@ describe('CDN invalidation of orphaned media (Finding 2 / HAZ-051/067)', () => {
                 expect.objectContaining({ distributionId: 'E1234567890' }),
             );
         } finally {
-            delete process.env['CLOUDFRONT_DISTRIBUTION_ID'];
+            delete process.env['MEDIA_DISTRIBUTION_ID'];
         }
     });
 

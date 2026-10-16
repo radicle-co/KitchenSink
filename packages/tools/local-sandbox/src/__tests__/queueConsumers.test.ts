@@ -61,7 +61,7 @@ function workersTemplate(overrides: { readonly handler?: string; readonly mappin
                             SENTRY_TRACES_SAMPLE_RATE: '1.0',
                             RECIPE_MEDIA_BUCKET: 'local-placeholder',
                             RECIPE_ARCHIVE_BUCKET: 'local-placeholder',
-                            CLOUDFRONT_DISTRIBUTION_ID: 'ELOCALDISTRIBUTION',
+                            MEDIA_DISTRIBUTION_ID: 'ELOCALDISTRIBUTION',
                             LOG_LEVEL: 'info',
                         },
                     },
@@ -216,7 +216,7 @@ describe('consumerEnvironment', () => {
     it('drops a value the synth INVENTED — a placeholder is not configuration', () => {
         // Kept, the fake distribution id makes the worker call CloudFront, which LocalStack Community does not
         // serve, and every purge fails; unset is the worker's documented no-op.
-        expect(environment()).not.toHaveProperty('CLOUDFRONT_DISTRIBUTION_ID');
+        expect(environment()).not.toHaveProperty('MEDIA_DISTRIBUTION_ID');
     });
 
     it('drops Sentry, so a local run reports nowhere', () => {

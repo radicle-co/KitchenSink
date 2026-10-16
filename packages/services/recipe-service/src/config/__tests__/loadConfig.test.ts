@@ -39,7 +39,7 @@ const validEnv = (): Record<string, string> => ({
     S3_BUCKET_PHOTOS: 'commise-photos',
     S3_BUCKET_VERSIONS: 'commise-versions',
     MEDIA_CDN_URL: 'https://media.commise.app',
-    CLOUDFRONT_DISTRIBUTION_ID: 'E1234567890',
+    MEDIA_DISTRIBUTION_ID: 'E1234567890',
     DATABASE_URL: 'postgres://recipe_app@localhost:5432/kitchensink_recipes',
     ACCOUNT_ERASURE_QUEUE_URL: 'https://sqs.us-east-1.amazonaws.com/000000000000/account-erasure',
     INGREDIENT_VERIFICATION_QUEUE_URL: 'https://sqs.us-east-1.amazonaws.com/000000000000/recipe-verification',
@@ -252,11 +252,11 @@ describe('loadConfig', () => {
             expect(() => loadConfig(apiConfigSchema, env)).toThrow(/MEDIA_CDN_URL/u);
         });
 
-        it.each(['production', 'staging'])('%s refuses to boot without CLOUDFRONT_DISTRIBUTION_ID', (nodeEnv) => {
+        it.each(['production', 'staging'])('%s refuses to boot without MEDIA_DISTRIBUTION_ID', (nodeEnv) => {
             const env: Record<string, string> = { ...validEnv(), NODE_ENV: nodeEnv };
-            delete env['CLOUDFRONT_DISTRIBUTION_ID'];
+            delete env['MEDIA_DISTRIBUTION_ID'];
 
-            expect(() => loadConfig(apiConfigSchema, env)).toThrow(/CLOUDFRONT_DISTRIBUTION_ID/u);
+            expect(() => loadConfig(apiConfigSchema, env)).toThrow(/MEDIA_DISTRIBUTION_ID/u);
         });
 
         it('treats a blank value as absent when deployed', () => {
@@ -273,12 +273,12 @@ describe('loadConfig', () => {
                 S3_BUCKET_PHOTOS: 'commise-photos',
             };
             delete env['MEDIA_CDN_URL'];
-            delete env['CLOUDFRONT_DISTRIBUTION_ID'];
+            delete env['MEDIA_DISTRIBUTION_ID'];
 
             const config = loadConfig(apiConfigSchema, env);
 
             expect(config.MEDIA_CDN_URL).toBe('http://localhost:4566/commise-photos');
-            expect(config.CLOUDFRONT_DISTRIBUTION_ID).toBeUndefined();
+            expect(config.MEDIA_DISTRIBUTION_ID).toBeUndefined();
         });
 
         it('locally, a configured MEDIA_CDN_URL wins over the fallback', () => {

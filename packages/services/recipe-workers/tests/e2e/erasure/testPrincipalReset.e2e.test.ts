@@ -122,7 +122,7 @@ describe('test-principal reset — the real handler on the real schema (ADR-0040
         await roleDb.truncate();
         process.env['RECIPE_MEDIA_BUCKET'] = MEDIA_BUCKET;
         process.env['RECIPE_ARCHIVE_BUCKET'] = ARCHIVE_BUCKET;
-        delete process.env['CLOUDFRONT_DISTRIBUTION_ID'];
+        delete process.env['MEDIA_DISTRIBUTION_ID'];
     });
 
     afterEach(async () => {

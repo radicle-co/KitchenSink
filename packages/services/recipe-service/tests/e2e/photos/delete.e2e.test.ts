@@ -11,11 +11,11 @@
  * (3) spies on the port `booted.app` actually resolves rather than injecting a fake via a testing-module
  * override: `bootRecipeApp`/`bootServiceApp` boots the real `AppModule` with no override hook, so this is
  * the one way to observe the REAL production wiring (module → service → port) end to end. Because
- * `CLOUDFRONT_DISTRIBUTION_ID` is unset in this harness (LocalStack Community has no CloudFront support —
+ * `MEDIA_DISTRIBUTION_ID` is unset in this harness (LocalStack Community has no CloudFront support —
  * `compose.test.yml`'s `SERVICES` is `s3,sqs` only), the resolved port is the logging no-op
  * adapter; spying its `invalidate` method still proves the WIRING and the exact paths it is called with,
  * which is the part a real CloudFront distribution cannot be exercised against in this harness anyway.
- * `src/photos/__tests__/cdnInvalidation.test.ts` separately proves the real (`CLOUDFRONT_DISTRIBUTION_ID`
+ * `src/photos/__tests__/cdnInvalidation.test.ts` separately proves the real (`MEDIA_DISTRIBUTION_ID`
  * SET) adapter branch issues the correct `CreateInvalidationCommand` against a mocked AWS SDK client.
  *
  */

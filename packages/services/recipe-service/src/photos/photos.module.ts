@@ -23,7 +23,7 @@ import { createCloudFrontInvalidation } from './cdnInvalidation.js';
  * `recipe_photos` metadata rows. Wires the {@link PhotosDal} over the global Drizzle client, the S3
  * storage port ({@link createS3PhotoStorage} — the real `S3Client` + presigner, adapted to
  * `PhotoStoragePort`), the CDN-invalidation port ({@link createCloudFrontInvalidation} — real
- * `CloudFrontClient`, or a no-op when `CLOUDFRONT_DISTRIBUTION_ID` is unset; HAZ-051/067/039), the
+ * `CloudFrontClient`, or a no-op when `MEDIA_DISTRIBUTION_ID` is unset; HAZ-051/067/039), the
  * CloudFront base config, the {@link PhotosService}, and the {@link PhotosController} REST surface.
  * Mirrors `RecipesModule`. The global `AuthMiddleware` populates `req.principal`; the global
  * `ApiExceptionFilter` maps thrown errors to HTTP.
@@ -61,11 +61,11 @@ import { createCloudFrontInvalidation } from './cdnInvalidation.js';
         {
             provide: PHOTOS_CDN,
             inject: [ConfigService],
-            // CLOUDFRONT_DISTRIBUTION_ID is required on a deployed task (config.types.ts, ADR-0064); locally an
+            // MEDIA_DISTRIBUTION_ID is required on a deployed task (config.types.ts, ADR-0064); locally an
             // unset/blank value degrades to the adapter's own logged no-op; see cdnInvalidation.ts.
             useFactory: (config: ConfigService) =>
                 createCloudFrontInvalidation({
-                    distributionId: config.get<string>('CLOUDFRONT_DISTRIBUTION_ID'),
+                    distributionId: config.get<string>('MEDIA_DISTRIBUTION_ID'),
                     region: config.get<string>('AWS_REGION') ?? DEFAULT_AWS_REGION,
                 }),
         },

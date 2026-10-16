@@ -71,6 +71,12 @@ appId: io.commise.mobile
           - assertVisible: '${E2E_SIGNIN_EMAIL}'
           - tapOn: 'Your password'
           - inputText: '${E2E_SIGNIN_PASSWORD}'
+          # ⛔ THE KEYBOARD IS CLOSED BEFORE `Sign in`, for `recipes/common/typeTitle.yaml`'s reason. On iOS the Apple and
+          # Google buttons push `Sign in` under the keyboard, and Maestro still taps the element, so the tap lands on a
+          # key: run 38835438945 typed a 24th character into the 23-character password and never submitted, on every
+          # iOS flow. The heading closes it: `AuthScreenFrame` keeps the keyboard only for a tap a control handles. Not
+          # the `Password` label, which focuses its field; not the keyboard's Go key, which is a different control.
+          - tapOn: 'Sign in to Commise'
           - tapOn: 'Sign in'
           # New-device verification: this Clerk instance requires an email code after the password factor
           # (the web sign-in spec fills the same code), and `clearState` makes every fresh sign-in a new

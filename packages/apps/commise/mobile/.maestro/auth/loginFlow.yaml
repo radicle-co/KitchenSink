@@ -95,6 +95,8 @@ appId: io.commise.mobile
 - assertVisible: '${E2E_SIGNIN_EMAIL}'
 - tapOn: 'Your password'
 - inputText: 'wrongpassword123'
+# The keyboard is closed first, or on iOS the tap lands on a key under it (`signinHome.yaml`).
+- tapOn: 'Sign in to Commise'
 - tapOn: 'Sign in'
 - extendedWaitUntil:
       visible: '.*ncorrect.*'

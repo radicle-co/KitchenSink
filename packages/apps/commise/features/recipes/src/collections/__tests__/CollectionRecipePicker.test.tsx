@@ -11,7 +11,7 @@
  * and says so when its toggle fails.
  */
 import { makeRecipe } from '@kitchensink/recipe-core/testing';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -47,6 +47,35 @@ function picker(over: Partial<CollectionRecipePickerProps> = {}) {
 }
 
 describe('CollectionRecipePicker (web) — the frame', () => {
+    it('passes the sheet’s dismissal on, once, after Done closes it', async () => {
+        const onDismissed = vi.fn();
+        const user = userEvent.setup();
+        const Host = () => {
+            const [open, setOpen] = useState(true);
+
+            return inLocale(
+                <CollectionRecipePicker
+                    open={open}
+                    onClose={() => setOpen(false)}
+                    onDismissed={onDismissed}
+                    collectionName="Weeknight Dinners"
+                    query=""
+                    onQueryChange={vi.fn()}
+                    summary={{ added: 0, removed: 0 }}
+                >
+                    <p>BODY</p>
+                </CollectionRecipePicker>,
+            );
+        };
+
+        render(<Host />);
+        expect(onDismissed).not.toHaveBeenCalled();
+
+        await user.click(screen.getByRole('button', { name: /^Done/ }));
+
+        await waitFor(() => expect(onDismissed).toHaveBeenCalledTimes(1));
+    });
+
     it('is a dialog titled “Add to {name}”, with the search field and the body', () => {
         picker();
         const dialog = screen.getByRole('dialog', { name: 'Add to Weeknight Dinners' });

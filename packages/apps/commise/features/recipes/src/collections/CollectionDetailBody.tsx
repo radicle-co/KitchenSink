@@ -175,6 +175,7 @@ export const CollectionDetailBody: FC<CollectionDetailBodyProps> = ({
             <CollectionRecipePicker
                 open={picker.open}
                 onClose={picker.onClose}
+                onDismissed={picker.onDismissed}
                 collectionName={collection.name}
                 query={picker.query}
                 onQueryChange={picker.onQueryChange}

@@ -46,6 +46,26 @@ function picker(over: Partial<CollectionRecipePickerProps> = {}) {
 }
 
 describe('CollectionRecipePicker (native) — the frame', () => {
+    it('passes the sheet’s dismissal on, once, after it closes and not while it is open', () => {
+        const onDismissed = vi.fn();
+        const props = {
+            onClose: vi.fn(),
+            onDismissed,
+            collectionName: 'Weeknight Dinners',
+            query: '',
+            onQueryChange: vi.fn(),
+            summary: { added: 0, removed: 0 },
+            children: <p>BODY</p>,
+        };
+        const view = render(inLocale(<CollectionRecipePicker open {...props} />));
+
+        expect(onDismissed).not.toHaveBeenCalled();
+
+        view.rerender(inLocale(<CollectionRecipePicker open={false} {...props} />));
+
+        expect(onDismissed).toHaveBeenCalledTimes(1);
+    });
+
     it('is a sheet titled “Add to {name}”, with the search field and the body', () => {
         picker();
 

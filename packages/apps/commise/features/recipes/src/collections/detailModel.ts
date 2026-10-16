@@ -194,6 +194,11 @@ export interface CollectionRecipePickerProps {
     readonly open: boolean;
     /** Done, ×, Escape and the scrim all call this. */
     readonly onClose: () => void;
+    /**
+     * The sheet is off screen after a close, by any route (`Sheet`'s `onDismissed`): the moment the host can present
+     * what comes next. Closing is not leaving, because native keeps the sheet's window up for its slide-out.
+     */
+    readonly onDismissed?: () => void;
     readonly collectionName: string;
     /** The controlled search value. */
     readonly query: string;

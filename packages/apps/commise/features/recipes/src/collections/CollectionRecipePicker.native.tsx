@@ -30,6 +30,7 @@ import { doneLabelOf } from './pickerModel.js';
 export const CollectionRecipePicker: FC<CollectionRecipePickerProps> = ({
     open,
     onClose,
+    onDismissed,
     collectionName,
     query,
     onQueryChange,
@@ -49,6 +50,7 @@ export const CollectionRecipePicker: FC<CollectionRecipePickerProps> = ({
                     onClose();
                 }
             }}
+            {...(onDismissed === undefined ? {} : { onDismissed })}
             title={fillTemplate(picker.title, { name: collectionName })}
             closeLabel={picker.close}
             size="full"

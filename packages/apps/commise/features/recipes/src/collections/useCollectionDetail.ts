@@ -15,8 +15,11 @@
  * - DELETE closes the confirm dialog, and only then leaves. The dialog is a window of its own on native; popping the
  *   screen that hosts it while it is open crashes Android (`addViewAt ... already has a parent`). Web used to navigate
  *   from the mutation's `onSuccess` with the dialog still mounted.
- * - "Add a recipe" from the empty picker closes the picker, and only then opens the editor, for the same reason.
- * Both go through {@link useLeaveWhenClosed}, which fires once per request however often the host re-renders.
+ * - "Add a recipe" from the empty picker closes the picker, and only then opens the editor, for the same reason. "Only
+ *   then" is the sheet's own `onDismissed` (it is off screen), not the commit that turns `open` false: native keeps the
+ *   picker's window up for its slide-out.
+ * The delete flow goes through {@link useLeaveWhenClosed}, which fires once per request however often the host
+ * re-renders.
  *
  * @pattern Headless hook — the container/screen session of one settled collection; each platform renders it
  * @pattern Port — {@link CollectionDetailNav}, the navigation the session asks the app to perform
@@ -120,6 +123,7 @@ export interface CollectionDetail {
         readonly onOpen: () => void;
         readonly onClose: () => void;
         readonly onCreateRecipe: () => void;
+        readonly onDismissed: () => void;
     };
 }
 
@@ -171,7 +175,6 @@ export function useCollectionDetail({
     const nutritionFor = useRecipeNutritionBatches([memberIds]);
 
     useLeaveWhenClosed(deleteCollection.isSuccess, deleteOpen, nav.onDeleted);
-    useLeaveWhenClosed(creatingRecipe, pickerOpen, nav.onCreateRecipe);
 
     return {
         collection,
@@ -237,6 +240,14 @@ export function useCollectionDetail({
             onCreateRecipe: () => {
                 setCreatingRecipe(true);
                 setPickerOpen(false);
+            },
+            // The editor opens from the sheet's own "gone" report, never from the close: native keeps the picker's window up
+            // for its slide-out, and presenting the editor over it is the two-windows crash `useLeaveWhenClosed` guards.
+            onDismissed: () => {
+                if (creatingRecipe) {
+                    setCreatingRecipe(false);
+                    nav.onCreateRecipe();
+                }
             },
         },
     };

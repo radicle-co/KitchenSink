@@ -168,31 +168,52 @@ describe('useCollectionDetail — the add-recipes picker', () => {
         expect(result.current.picker.summary).toEqual({ added: 0, removed: 0 });
     });
 
-    it('"Add a recipe" closes the picker, THEN opens the editor, once', async () => {
-        const { nav, result, rerender, latest } = setup();
-        const pickerOpenWhenLeaving: boolean[] = [];
-        vi.mocked(nav.onCreateRecipe).mockImplementation(() => {
-            pickerOpenWhenLeaving.push(latest().picker.open);
-        });
-
-        act(() => result.current.picker.onOpen());
-        act(() => result.current.picker.onCreateRecipe());
-
-        await waitFor(() => expect(nav.onCreateRecipe).toHaveBeenCalledTimes(1));
-        rerender();
-        expect(nav.onCreateRecipe).toHaveBeenCalledTimes(1);
-        expect(pickerOpenWhenLeaving).toEqual([false]);
-        expect(result.current.picker.open).toBe(false);
-    });
-
-    it('reopening and merely closing the picker afterwards does not open the editor again', async () => {
+    it('"Add a recipe" closes the picker but does NOT open the editor until the sheet reports it is gone', () => {
         const { nav, result } = setup();
 
         act(() => result.current.picker.onOpen());
         act(() => result.current.picker.onCreateRecipe());
-        await waitFor(() => expect(nav.onCreateRecipe).toHaveBeenCalledTimes(1));
+
+        // The sheet may still be on screen sliding out (React Native keeps its Modal mounted for the iOS slide-out), so
+        // closing is not leaving.
+        expect(result.current.picker.open).toBe(false);
+        expect(nav.onCreateRecipe).not.toHaveBeenCalled();
+
+        act(() => result.current.picker.onDismissed());
+
+        expect(nav.onCreateRecipe).toHaveBeenCalledTimes(1);
+    });
+
+    it('opens the editor once, however often the sheet reports being dismissed', () => {
+        const { nav, result } = setup();
+
+        act(() => result.current.picker.onOpen());
+        act(() => result.current.picker.onCreateRecipe());
+        act(() => result.current.picker.onDismissed());
+        act(() => result.current.picker.onDismissed());
+
+        expect(nav.onCreateRecipe).toHaveBeenCalledTimes(1);
+    });
+
+    it('a picker closed by Done (not by "Add a recipe") never opens the editor when it is dismissed', () => {
+        const { nav, result } = setup();
+
         act(() => result.current.picker.onOpen());
         act(() => result.current.picker.onClose());
+        act(() => result.current.picker.onDismissed());
+
+        expect(nav.onCreateRecipe).not.toHaveBeenCalled();
+    });
+
+    it('reopening and merely closing the picker afterwards does not open the editor again', () => {
+        const { nav, result } = setup();
+
+        act(() => result.current.picker.onOpen());
+        act(() => result.current.picker.onCreateRecipe());
+        act(() => result.current.picker.onDismissed());
+        act(() => result.current.picker.onOpen());
+        act(() => result.current.picker.onClose());
+        act(() => result.current.picker.onDismissed());
 
         expect(nav.onCreateRecipe).toHaveBeenCalledTimes(1);
     });

@@ -262,23 +262,16 @@ const EXEMPT_FROM_SWEEP: ReadonlyMap<string, string> = new Map([]);
  * checked in both directions below, exactly as {@link EXEMPT_FROM_SWEEP}'s is.
  *
  * ⚠️ This is the ONE place a `DELETE` may stand in for a pseudonym write, and the difference from
- * `collections` is the whole point. `DELETE FROM author_handles WHERE user_id = $1` removes the row that IS
- * the erased user's; `DELETE FROM collections WHERE owner_id = $1` removes the erased user's collections
- * while their handle sits on somebody else's. Syntactically the two statements are the same shape, which is
- * why the distinction has to be written down by a person rather than inferred.
+ * `collections` is the whole point: `DELETE FROM collections WHERE owner_id = $1` removes the erased user's
+ * collections while their handle sits on somebody else's, and the two statement shapes cannot be told apart by a
+ * parser, which is why such a claim is written down by a person rather than inferred.
+ *
+ * EMPTY since migration 0056, and the rule stands. Its two entries (`author_handles.display_name` and
+ * `.username`) claimed that `DELETE FROM author_handles` destroyed the row, and that delete is what let a late
+ * handle-sync snapshot re-identify an erased author. Erasure now WRITES both columns (a tombstone upsert, read
+ * as a write by `writtenColumnsIn`), so nothing is claimed to go with its row.
  */
-const HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW: ReadonlyMap<string, string> = new Map([
-    [
-        'author_handles.display_name',
-        'the row IS the erased user’s (`DELETE FROM author_handles WHERE user_id = $1`), so the cleartext ' +
-            'goes with it; no other person’s row carries this column',
-    ],
-    [
-        'author_handles.username',
-        'the same row as `author_handles.display_name` (`DELETE FROM author_handles WHERE user_id = $1`), so the ' +
-            'username goes with it; no other person’s row carries this column',
-    ],
-]);
+const HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW: ReadonlyMap<string, string> = new Map<string, string>();
 
 /**
  * Tables that carry a user column which is deliberately NOT swept, because the column is not erasable
@@ -1069,13 +1062,25 @@ describe('account-erasure sweep coverage', () => {
         }
     });
 
-    it('states a real reason for every handle column claimed to go with its row', () => {
-        // ⛔ Non-vacuity FIRST, unlike the exemption case above. That map is legitimately empty today (nothing
-        // is exempt), and its assertion is a standing rule. This one makes a live claim about a real column
-        // that a real `DELETE` covers, so an emptied map here means the claim was dropped rather than settled.
-        expect(HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW.size, 'the handle-column claims have been emptied') //
-            .toBeGreaterThan(0);
+    it('⛔ erasure TOMBSTONES author_handles FIRST and never deletes it (a late snapshot must not re-identify)', () => {
+        // ⛔ A guard over the SOURCE, because the LOCAL e2e that proves it never runs in CI. Two properties:
+        //  * no `DELETE FROM author_handles` — with the row gone, handle-sync's stale guard has nothing to compare
+        //    against and a late snapshot takes the INSERT branch, writing the real name over the pseudonym;
+        //  * the tombstone upsert is the FIRST statement — handle-sync locks author_handles then recipes, so
+        //    erasure must take them in the same order or the two transactions can deadlock.
+        const statements = statementTextsIn(
+            readSource(SWEPT_DATABASES[0]!.sweepFile),
+            SWEPT_DATABASES[0]!.sweepFunction,
+        ).filter((text) => /^\s*(?:INSERT|UPDATE|DELETE|SELECT)\b/i.test(text));
 
+        expect(statements.length, 'the parser has broken — no statements read').toBeGreaterThan(5);
+        expect(statements[0]).toMatch(/^\s*INSERT\s+INTO\s+author_handles\b[\s\S]*\bON\s+CONFLICT\b/i);
+        expect(statements.filter((text) => /\bDELETE\s+FROM\s+author_handles\b/i.test(text))).toEqual([]);
+    });
+
+    it('states a real reason for every handle column claimed to go with its row', () => {
+        // A standing rule over a map that is legitimately EMPTY today (0056: erasure writes `author_handles`
+        // rather than deleting it), exactly as the exemption case above — so no non-vacuity floor.
         for (const [location, why] of HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW) {
             expect(location, `${location} must name a table and a column`).toMatch(
                 /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/,

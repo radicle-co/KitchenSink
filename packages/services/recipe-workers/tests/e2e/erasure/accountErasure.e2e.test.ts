@@ -39,7 +39,8 @@ import { recipeWorkersDb } from '../roleDb.js';
  *     throws `recipes_cloned_from_id_fkey`. An `owner_id <> ownerId` guard would MISS it — this file is what
  *     proves the guard must be survivor-scoped.
  *   - **The author-handle residue scrub is real.** A kept recipe's denormalized `author_handle` becomes the
- *     pseudonym, and the `author_handles` read-model row is deleted — verifiable only against real rows.
+ *     pseudonym, and the `author_handles` read-model row is TOMBSTONED (0056), not deleted — verifiable only against
+ *     real rows.
  *   - **The per-removed-recipe S3 sweep spares a KEPT recipe's media** — genuine `ListObjectsV2`/`DeleteObjects`.
  *
  * The handler's own `getRecipeDb()` mints an RDS-IAM token no local Postgres can honour, so these drive the
@@ -276,7 +277,7 @@ describe('account-erasure worker — scoped erasure on the real schema (T137 int
         );
         expect([...(persisted.rows[0]?.removed_recipe_ids ?? [])].sort()).toEqual(removedRecipeIds.slice().sort());
 
-        // Author-handle residue: KEPT rows carry the pseudonym, no cleartext; the read-model row is gone.
+        // Author-handle residue: KEPT rows carry the pseudonym, no cleartext; the read-model row is a TOMBSTONE.
         const pseudonym = pseudonymizedAuthorHandle(OWNER_A);
         const keptHandles = await db.execute<{ author_handle: string | null }>(
             sql`SELECT author_handle FROM recipes WHERE owner_id = ${OWNER_A}`,
@@ -287,7 +288,15 @@ describe('account-erasure worker — scoped erasure on the real schema (T137 int
             expect(row.author_handle).not.toContain('Cleartext');
         }
 
-        expect(await count('author_handles', 'user_id', OWNER_A)).toBe(0);
+        // ⛔ REWRITTEN from `count('author_handles') = 0` (migration 0056). A deleted row cannot refuse a late
+        // handle-sync snapshot — the upsert's stale guard has nothing to compare against — so the row now stays as
+        // a tombstone: the SAME pseudonym kept recipes carry, no username, `erased_at` set. Gone is still true of
+        // the cleartext; `applyHandleRename.e2e.test.ts` proves the fence it provides.
+        const tombstone = await db.execute<{ display_name: string; username: string | null; erased: boolean }>(
+            sql`SELECT display_name, username, erased_at IS NOT NULL AS erased FROM author_handles WHERE user_id = ${OWNER_A}`,
+        );
+
+        expect(tombstone.rows).toEqual([{ display_name: pseudonym, username: null, erased: true }]);
 
         // Cascades from the removed active recipe's id all fired.
         expect(await count('recipe_steps', 'recipe_id', ownerOnly)).toBe(0);

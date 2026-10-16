@@ -595,10 +595,14 @@ export interface EraseRecipeRowsResult {
  *     `created_by` — the predicate `handleSyncWorker` itself uses to write this column.
  *     Steps 9 and 10 also CLEAR the username copies (`author_username`, `editor_username`, migration 0055) to
  *     NULL — never the pseudonym, which is a legal Clerk username (plan 2026-10-15-010 D10).
- * 11. **`author_handles` read-model root (W8-a.2 / .10).** `DELETE FROM author_handles WHERE user_id =
- *     ownerId` — user-keyed, no FK, nothing cascades it. Deleting it removes the cleartext read-model row
- *     entirely; kept recipes no longer need it because their author renders from the scrubbed denormalized
- *     column (verified: no read path joins `author_handles`).
+ * 11. **`author_handles` read-model root — now step 0, a TOMBSTONE rather than a delete (migration 0056).**
+ *     The row used to be deleted here. But `handleSyncWorker`'s stale-snapshot guard is a comparison against that
+ *     row, and a guard cannot refuse against a row that is gone: a late, redelivered or DLQ'd snapshot took the
+ *     INSERT branch and wrote the real name back over the pseudonym steps 9-10 had put on the kept recipes. So the
+ *     first statement of the transaction is an unconditional upsert that leaves `erased_at` set, `display_name` =
+ *     the same pseudonym, `username` NULL; the handle-sync upsert refuses any row with `erased_at` set.
+ *     ⛔ FIRST on purpose: handle-sync locks `author_handles` then `recipes`, so erasure takes them in the same
+ *     order and the two transactions cannot deadlock. `COALESCE` keeps the first `erased_at` on a replay.
  *
  * ## ONE RULE FOR HANDLES — steps 7 and 10, and what step 7 deliberately costs
  *
@@ -686,6 +690,20 @@ export const eraseRecipeRows = async (
     const ownerOnly = sql`owner_id = ${ownerId} AND NOT (visibility = 'public' AND status = 'published')`;
 
     return db.transaction(async (tx) => {
+        // 0. author_handles TOMBSTONE (migration 0056) — FIRST, so this transaction takes the `author_handles` lock
+        //    before any `recipes` lock, the order `handleSyncWorker` already uses. An UNCONDITIONAL upsert: a user
+        //    who never synced has no row to update and still needs the fence a late snapshot will meet. Steps 9-10
+        //    write the same pseudonym onto the kept recipes and versions; `username` is NULL (a CHECK demands it).
+        await tx.execute(sql`
+            INSERT INTO author_handles (user_id, display_name, username, source_timestamp, erased_at)
+            VALUES (${ownerId}, ${pseudonym}, NULL, now(), now())
+            ON CONFLICT (user_id) DO UPDATE
+                SET display_name = EXCLUDED.display_name,
+                    username = NULL,
+                    source_timestamp = EXCLUDED.source_timestamp,
+                    erased_at = COALESCE(author_handles.erased_at, EXCLUDED.erased_at)
+        `);
+
         // 1. Donate-flip (U3b): elected recipes → community-visible. BOTH columns; scoped to the owner.
         await tx.execute(sql`
             UPDATE recipes
@@ -764,8 +782,7 @@ export const eraseRecipeRows = async (
             WHERE created_by = ${ownerId} AND (editor_handle IS NOT NULL OR editor_username IS NOT NULL)
         `);
 
-        // 11. author_handles read-model root (W8-a.10) — user-keyed, no cascade; delete removes the cleartext.
-        await tx.execute(sql`DELETE FROM author_handles WHERE user_id = ${ownerId}`);
+        // 11. (author_handles — moved to step 0 as a tombstone; see the docstring.)
 
         // 12. Parse jobs (plan U8/U9, 0039) — user-keyed rows carrying the cook's PASTED TEXT verbatim
         //     (`recipe_parse_job_lines.source_line` cascades from the job). Deleted outright: proposals

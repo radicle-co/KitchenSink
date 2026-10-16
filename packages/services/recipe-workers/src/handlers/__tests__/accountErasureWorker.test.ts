@@ -5,6 +5,7 @@ import type { SQSEvent } from 'aws-lambda';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
+import { pseudonymizedAuthorHandle } from '@kitchensink/recipe-core';
 
 /**
  * T135-test — unit tests for the GDPR account-erasure worker (C-007 / D7).
@@ -286,12 +287,14 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
 
     /**
      * Seed the fake DB so `eraseRecipeRows` reads a concrete removed set. Execute order inside the fn is:
-     * 0 flip, 1 removed-SELECT, 2 persist, 3 ratings, 4 detach, 5 delete, 6 collections, 7 scrub, 8
-     * author_handles — so the removed-SELECT (index 1) is the 2nd enqueued result.
+     * 0 author_handles tombstone, 1 flip, 2 removed-SELECT, 3 persist, 4 ratings, 5 detach, 6 delete,
+     * 7 collections-provenance, 8 collections, 9 scrub … — so the removed-SELECT (index 2) is the 3rd enqueued
+     * result.
      */
     const seedRemoved = (control: FakeDbControl, ...ids: string[]): void => {
-        control.enqueue({ rows: [] }); // 0: flip
-        control.enqueue({ rows: ids.map((id) => ({ id })) }); // 1: removed-SELECT
+        control.enqueue({ rows: [] }); // 0: author_handles tombstone
+        control.enqueue({ rows: [] }); // 1: flip
+        control.enqueue({ rows: ids.map((id) => ({ id })) }); // 2: removed-SELECT
     };
 
     it('runs every statement inside ONE transaction so a crash cannot half-erase', async () => {
@@ -552,19 +555,40 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         expect(scrubIndex).toBeGreaterThan(deleteIndex);
     });
 
-    it('deletes the author_handles read-model row (the user-keyed root — W8-a.2/.10)', async () => {
+    /**
+     * REPLACES "deletes the author_handles read-model row" (migration 0056). A deleted row cannot refuse a late
+     * handle-sync snapshot — the upsert's stale guard compares against a row, and with none the INSERT branch
+     * wrote the real name back over the pseudonym. The row is TOMBSTONED instead, and FIRST, so erasure and
+     * handle-sync take the `author_handles` lock before the `recipes` locks (one order for both transactions).
+     */
+    it('⛔ TOMBSTONES the author_handles row as the FIRST statement, and never deletes it (0056)', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A);
 
         await eraseRecipeRows(control.db, OWNER, []);
 
-        // author_handles is keyed by user_id with NO FK, so nothing cascades it — the cleartext read-model
-        // row must be deleted explicitly or the display name survives erasure there.
-        const del = control.statements().find((s) => /delete from author_handles/i.test(s.text));
+        const [first] = control.statements();
 
-        expect(control.statements().filter((s) => /delete from author_handles/i.test(s.text))).toHaveLength(1);
-        expect(del?.text).toMatch(/delete from author_handles where user_id = \$\d/i);
-        expect(del?.params).toEqual([OWNER]);
+        // An unconditional upsert: a never-synced user has no row to update, and still needs the fence.
+        expect(first?.text).toMatch(/^\s*insert into author_handles\b/i);
+        expect(first?.text).toMatch(/on conflict \(user_id\) do update/i);
+        // The tombstone carries the pseudonym kept recipes carry, NO username, and the erased marker…
+        expect(first?.text).toMatch(/values \(\$1, \$2, null, now\(\), now\(\)\)/i);
+        expect(first?.text).toMatch(/username = null/i);
+        expect(first?.text).toMatch(/erased_at = coalesce\(author_handles\.erased_at, excluded\.erased_at\)/i);
+        expect(first?.params).toEqual([OWNER, pseudonymizedAuthorHandle(OWNER)]);
+        // …and the row is never deleted: that is what let a late snapshot take the INSERT branch.
+        expect(control.statements().filter((s) => /delete from author_handles/i.test(s.text))).toHaveLength(0);
+    });
+
+    it('the tombstone replays idempotently — a re-run keeps the FIRST erased_at', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        // COALESCE(existing, new): a retried or replayed erasure must not move the marker forward.
+        expect(control.statements()[0]?.text).toMatch(/coalesce\(author_handles\.erased_at/i);
     });
 
     /**
@@ -1055,6 +1079,7 @@ describe('handler', () => {
      */
     const seedRecord = (db: FakeDbControl, claim: { rows: unknown[] }, removedIds: string[], trailing = 0): void => {
         db.enqueue(claim); // claim
+        db.enqueue({ rows: [] }); // author_handles tombstone (0056) — the FIRST erase statement
         db.enqueue({ rows: [] }); // flip
         db.enqueue({ rows: removedIds.map((id) => ({ id })) }); // removed-SELECT
 
@@ -1066,7 +1091,7 @@ describe('handler', () => {
         // consumes the previous record's leftover padding and returns nothing, and the only symptom is two
         // missing S3 prefixes in one assertion three hundred lines away. A literal cannot detect that the
         // statement list grew; `eraseStatementCount` asks the function itself.
-        for (let i = 0; i < eraseStatementCount - 1 + trailing; i += 1) {
+        for (let i = 0; i < eraseStatementCount - 2 + trailing; i += 1) {
             db.enqueue({ rows: [] });
         }
     };

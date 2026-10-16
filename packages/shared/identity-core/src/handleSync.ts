@@ -64,15 +64,53 @@ export interface BylineSnapshot {
 }
 
 /**
- * Build a {@link HandleSyncMessage} from a byline snapshot. Pure — the caller supplies `sourceTimestamp` from the
- * same statement as the write (this does not stamp `Date.now()`, deliberately).
+ * Cut a name to at most {@link MAX_DISPLAY_NAME_LENGTH} UTF-16 code units (what the contract's `.max` counts) without
+ * leaving half of a surrogate pair at the cut. Pure.
+ */
+function cutToBound(name: string): string {
+    if (name.length <= MAX_DISPLAY_NAME_LENGTH) {
+        return name;
+    }
+
+    const cut = name.slice(0, MAX_DISPLAY_NAME_LENGTH);
+    const last = cut.charCodeAt(cut.length - 1);
+    const splitsPair = last >= 0xd800 && last <= 0xdbff;
+
+    return (splitsPair ? cut.slice(0, -1) : cut).trimEnd();
+}
+
+/**
+ * The display name the byline publishes: the stored name trimmed and cut to the contract's bound, else the username
+ * (a cook with no name renders as `@handle` alone, because the byline rule hides a display name that only repeats the
+ * username), else `''`. Pure.
+ *
+ * ⛔ This is where a stored name becomes a message. The profile can hold a name the consumer refuses — blank (Apple
+ * withheld the name), or past the bound (the webhook joins two parts that are each bounded alone) — and a refused
+ * message settles `publish_failed` for good, then fails again on every later sync for that cook, a username change
+ * included. Normalizing here lets every producer route settle.
+ */
+function publishedDisplayName(byline: BylineSnapshot): string {
+    const name = cutToBound(byline.displayName.trim());
+
+    return name === '' ? (byline.username ?? '') : name;
+}
+
+/** Whether the byline carries anything to publish: a name, or a username to stand in for one. Pure. */
+export function bylineIsPublishable(byline: BylineSnapshot): boolean {
+    return publishedDisplayName(byline) !== '';
+}
+
+/**
+ * Build a {@link HandleSyncMessage} from a byline snapshot, normalizing the display name to what the consumer
+ * accepts ({@link publishedDisplayName}). Pure — the caller supplies `sourceTimestamp` from the same statement as the
+ * write (this does not stamp `Date.now()`, deliberately).
  */
 export function buildHandleSyncMessage(
     userId: string,
     byline: BylineSnapshot,
     sourceTimestamp: string,
 ): HandleSyncMessage {
-    return { userId, displayName: byline.displayName, username: byline.username, sourceTimestamp };
+    return { userId, displayName: publishedDisplayName(byline), username: byline.username, sourceTimestamp };
 }
 
 /**

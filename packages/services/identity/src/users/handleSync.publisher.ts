@@ -12,6 +12,7 @@
 import { PublishCommand, SNSClient } from '@aws-sdk/client-sns';
 import {
     buildHandleSyncMessage,
+    bylineIsPublishable,
     HANDLE_SYNC_PUBLISH_FAILED,
     handleSyncMessageSchema,
     type BylineSnapshot,
@@ -80,6 +81,8 @@ export type SettleHandleSync = (userId: UserId, owedAt: Date, failureCode: strin
 /** What {@link publishOwedByline} did. Never a throw: the byline write it follows has already committed. */
 export type OwedBylineOutcome =
     | { readonly outcome: 'published' }
+    /** The byline had no name and no username: nothing the consumer could hold, so the debt was cleared unsent. */
+    | { readonly outcome: 'nothing_to_publish' }
     | { readonly outcome: 'owed'; readonly error: unknown; readonly settleError: unknown };
 
 /**
@@ -110,6 +113,14 @@ export async function publishOwedByline(
     byline: BylineSnapshot & { readonly stampedAt: Date },
 ): Promise<OwedBylineOutcome> {
     try {
+        // No name and no username is a byline the consumer cannot represent (its contract refuses a blank name), so
+        // publishing it would fail and be retried by the backstop forever. There is nothing to send: clear the debt.
+        if (!bylineIsPublishable(byline)) {
+            await settle(userId, byline.stampedAt, null);
+
+            return { outcome: 'nothing_to_publish' };
+        }
+
         await publisher.publish(buildHandleSyncMessage(userId, byline, byline.stampedAt.toISOString()));
         await settle(userId, byline.stampedAt, null);
 

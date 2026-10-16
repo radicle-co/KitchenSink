@@ -2,6 +2,7 @@ export { deriveDisplayName } from './displayName.js';
 export type { DisplayNameClaims } from './displayName.js';
 export {
     buildHandleSyncMessage,
+    bylineIsPublishable,
     handleSyncMessageSchema,
     HANDLE_SYNC_PUBLISH_FAILED,
     MAX_DISPLAY_NAME_LENGTH,

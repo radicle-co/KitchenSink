@@ -650,6 +650,33 @@ describe('identity-webhook handler', () => {
         });
     });
 
+    // The profile row can hold a name the consumer refuses: the webhook joins first + last name, each bounded only
+    // alone, and a cook whose provider sent no name is stored with ''. Either used to settle `publish_failed`.
+    it.each([
+        ['past the bound', 'x'.repeat(150), 'x'.repeat(100)],
+        ['blank', '', 'johndoe'],
+    ])(
+        '⛔ user.created with a stored name %s -> publishes a name the consumer accepts',
+        async (_label, stored, sent) => {
+            const { db } = buildMockDb();
+            mockGetDb.mockResolvedValue(db);
+            mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+            mockProvisionCompleteUser.mockResolvedValue({
+                kind: 'complete',
+                user: { id: 'usr_ulid', identityId: 'user_abc123', email: 'test@example.com' },
+                createdByline: { displayName: stored, username: 'johndoe', stampedAt: STAMPED },
+            } as never);
+
+            const result = await handler(
+                makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_created_norm' }),
+                makeContext(),
+            );
+
+            expect(result.statusCode).toBe(200);
+            expect(handleSyncPublish).toHaveBeenCalledWith(expect.objectContaining({ displayName: sent }));
+        },
+    );
+
     it('user.created -> publishes NOTHING when the profile already existed (the read-through got there first)', async () => {
         const { db } = buildMockDb();
         mockGetDb.mockResolvedValue(db);

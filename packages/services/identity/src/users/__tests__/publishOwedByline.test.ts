@@ -63,4 +63,43 @@ describe('publishOwedByline', () => {
 
         expect(outcome).toMatchObject({ outcome: 'owed', settleError });
     });
+
+    // A stored name the consumer refuses used to settle `publish_failed` forever, and the same stored name failed
+    // every later sync for that cook. The snapshot is normalized to the contract before it is published.
+    it('publishes a stored name past the bound cut to the bound, so the debt can settle', async () => {
+        const publish = vi.fn().mockResolvedValue(undefined);
+        const settle = vi.fn().mockResolvedValue(undefined);
+
+        const outcome = await publishOwedByline({ publish }, settle, USER, { ...BYLINE, displayName: 'x'.repeat(150) });
+
+        expect(publish).toHaveBeenCalledWith(expect.objectContaining({ displayName: 'x'.repeat(100) }));
+        expect(settle).toHaveBeenCalledWith(USER, STAMP, null);
+        expect(outcome).toEqual({ outcome: 'published' });
+    });
+
+    it('publishes the username as the name of a cook whose name is blank', async () => {
+        const publish = vi.fn().mockResolvedValue(undefined);
+
+        await publishOwedByline({ publish }, vi.fn().mockResolvedValue(undefined), USER, {
+            ...BYLINE,
+            displayName: '',
+        });
+
+        expect(publish).toHaveBeenCalledWith(expect.objectContaining({ displayName: 'ada', username: 'ada' }));
+    });
+
+    it('settles the debt WITHOUT publishing when the byline has neither a name nor a username', async () => {
+        const publish = vi.fn().mockResolvedValue(undefined);
+        const settle = vi.fn().mockResolvedValue(undefined);
+
+        const outcome = await publishOwedByline({ publish }, settle, USER, {
+            displayName: '  ',
+            username: null,
+            stampedAt: STAMP,
+        });
+
+        expect(publish).not.toHaveBeenCalled();
+        expect(settle).toHaveBeenCalledWith(USER, STAMP, null);
+        expect(outcome).toEqual({ outcome: 'nothing_to_publish' });
+    });
 });

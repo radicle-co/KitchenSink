@@ -43,6 +43,7 @@ import { cookDraftsOf, RecipeEditorSurface, type CookDrafts } from '@commise/fea
 import type { EditorSeed } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { useSyncQueue } from '@commise/query/sync';
+import { LoadingNotice } from '@commise/ui/loading-notice';
 import { useAuth } from '@clerk/nextjs';
 import { knownPaidFeaturesOf, paidFeatureStateOf } from '@commise/features-account';
 import { recipeQueries } from '@kitchensink/recipe-service-client';
@@ -85,9 +86,7 @@ export const RecipeEditorContainer: FC<RecipeEditorContainerProps> = ({ locale, 
     const [opening] = useState(nextEditorOpening);
     const loading = (
         <EditorStateFrame>
-            <p role="status" aria-label={copy.loadingLabel} className="py-8 text-body-md text-ink-muted">
-                {copy.loadingLabel}
-            </p>
+            <LoadingNotice label={copy.loadingLabel} />
         </EditorStateFrame>
     );
 

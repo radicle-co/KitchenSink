@@ -49,7 +49,7 @@ describe('CollectionListContainer', () => {
 
         renderWithRecipeClient(<CollectionListContainer locale="en" />, client);
 
-        expect(screen.getByRole('status', { name: 'Loading collections' })).toBeInTheDocument();
+        expect(screen.getByRole('status', { name: 'Loading collections…' })).toBeInTheDocument();
     });
 
     it('renders the populated list when collections load', async () => {
@@ -304,7 +304,7 @@ describe('CollectionListContainer — across the server render', () => {
         const html = renderToString(page(client, new QueryClient({ defaultOptions: { queries: { retry: false } } })));
 
         expect(html).toContain('New collection');
-        expect(html).toContain('Loading collections');
+        expect(html).toContain('Loading collections…');
         expect(list).not.toHaveBeenCalled();
     });
 

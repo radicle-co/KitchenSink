@@ -328,7 +328,7 @@ test.describe('suspense read boundary across a failed SSR prefetch (§11.0)', ()
 
         expect(response?.status()).toBe(200);
         await expect(unhydrated.getByRole('heading', { level: 1, name: 'Recipes' })).toBeVisible();
-        await expect(unhydrated.getByRole('status', { name: 'Loading collections' })).toBeVisible();
+        await expect(unhydrated.getByRole('status', { name: 'Loading collections…' })).toBeVisible();
         await expect(unhydrated.getByRole('alert')).toHaveCount(0);
         await context.close();
     });

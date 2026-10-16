@@ -25,13 +25,13 @@ describe('CollectionListLoading (native)', () => {
     it('shows the loading label', () => {
         render(<CollectionListLoading />);
 
-        expect(screen.getByLabelText('Loading collections')).toBeTruthy();
+        expect(screen.getByLabelText('Loading collections…')).toBeTruthy();
     });
 
     it('renders inert skeleton cards (not a blank view) while loading (U4)', () => {
         render(<CollectionListLoading />);
 
-        const region = screen.getByLabelText('Loading collections');
+        const region = screen.getByLabelText('Loading collections…');
         expect(region.querySelectorAll('[aria-hidden="true"]').length).toBeGreaterThan(0);
     });
 });
@@ -41,7 +41,7 @@ describe.each(['light', 'dark'] as const)('CollectionListLoading (native) — th
     it('fills each skeleton card with surfaceMuted', () => {
         systemScheme.current = scheme;
         render(<CollectionListLoading />);
-        const card = screen.getByLabelText('Loading collections').querySelector('[aria-hidden="true"]');
+        const card = screen.getByLabelText('Loading collections…').querySelector('[aria-hidden="true"]');
 
         if (card === null) {
             throw new Error('no skeleton card');

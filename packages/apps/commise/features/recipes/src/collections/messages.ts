@@ -364,7 +364,7 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
         list: {
             heading: 'Collections',
             createCta: 'New collection',
-            loadingLabel: 'Loading collections',
+            loadingLabel: 'Loading collections…',
             emptyTitle: 'Group recipes your way',
             emptyBody: 'Make a collection for weeknights, holidays or anything else.',
             errorTitle: 'We couldn’t load your collections.',

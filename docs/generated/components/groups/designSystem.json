@@ -4,16 +4,16 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 67,
-        "implementations": 116,
-        "props": 680,
-        "documentedComponents": 67,
-        "implementationsWithModuleDoc": 116,
-        "implementationsWithComponentDoc": 108,
-        "documentedProps": 645,
-        "classifiedComponents": 60,
-        "componentsWithPatternTag": 67,
-        "crossPlatformComponents": 49
+        "components": 69,
+        "implementations": 119,
+        "props": 683,
+        "documentedComponents": 69,
+        "implementationsWithModuleDoc": 119,
+        "implementationsWithComponentDoc": 111,
+        "documentedProps": 648,
+        "classifiedComponents": 62,
+        "componentsWithPatternTag": 69,
+        "crossPlatformComponents": 50
     },
     "components": [
         {
@@ -6816,6 +6816,103 @@
             ]
         },
         {
+            "id": "designSystem/loadingNotice/LoadingNotice",
+            "name": "LoadingNotice",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/loadingNotice",
+            "kind": "presentational",
+            "patterns": [
+                "Decorator — `EnterTransition`'s 400 ms hold over a status region, so a fast load never flashes a spinner"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "LoadingNotice",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/loadingNotice/LoadingNotice.tsx",
+                    "dir": "packages/apps/commise/ui/src/loadingNotice",
+                    "moduleDoc": "@commise/ui/loading-notice — the web `LoadingNotice`: a status region for a load that has no shape to\nreserve, in the page's flow where `StateNotice` sits, so a load that fails swaps in place.\n\nThe region is `role=\"status\"` and its CONTENT is the caption. `status` does not take its name from content, so the\ncaption names it by reference (`aria-labelledby`, which is the caption itself rather than a second copy of it as an\n`aria-label` would be); there is no `aria-busy` (the notice replaces its region, so no node stays to be busy). The spinner is\ndecorative. It enters after 400 ms through `EnterTransition` (§18's Doherty hold), whose keyframe is `both`-filled,\nso the notice stays hidden during the hold and under reduced motion it shows at once.\n⚠️ The visible caption and name are guaranteed; a spoken announcement is not, since a status region inserted with its\ntext already inside is not reliably spoken. Loading is not a must-hear message.\n\n`'use client'`: `EnterTransition` and the feature leaves that render this are reachable from App Router\nserver pages (caught by `next build`, not by typecheck).\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/loading-notice — the web `LoadingNotice`: a status region for a load that has no shape to"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator — `EnterTransition`'s 400 ms hold over a status region, so a fast load never flashes a spinner"
+                        }
+                    ],
+                    "description": "The web loading notice.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Localized, CONTEXTUAL description of what is loading (\"Loading recipe…\"; the form is \"Loading ‹thing›…\"). It is\nboth the visible caption and the accessible name — never a bare \"Loading\" unless the caller cannot know.",
+                            "declaredIn": "packages/apps/commise/ui/src/loadingNotice/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "LoadingNotice",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/loadingNotice/LoadingNotice.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/loadingNotice",
+                    "moduleDoc": "@commise/ui/loading-notice — the native `LoadingNotice`: the system activity indicator above a visible\ncaption, centred in the upper two thirds where `StateNotice.native`'s message sits, so a load that fails swaps in\nplace.\n\nONE accessibility element (`accessible`, `progressbar`, the label as its name, `busy`), as `LoadingState` held. The\nspinner is hidden from assistive tech (react-native-web exposes an `ActivityIndicator` as its own unnamed\n`progressbar`), and there is no `LiveRegion`: a loading state is not a must-hear message. It enters after 400 ms\nthrough `EnterTransition`, which shows it at once under reduced motion.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/loading-notice — the native `LoadingNotice`: the system activity indicator above a visible"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator — `EnterTransition`'s 400 ms hold over a status region, so a fast load never flashes a spinner"
+                        }
+                    ],
+                    "description": "The native loading notice.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Localized, CONTEXTUAL description of what is loading (\"Loading recipe…\"; the form is \"Loading ‹thing›…\"). It is\nboth the visible caption and the accessible name — never a bare \"Loading\" unless the caller cannot know.",
+                            "declaredIn": "packages/apps/commise/ui/src/loadingNotice/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "designSystem/loadMore/LoadMoreControl",
             "name": "LoadMoreControl",
             "group": "designSystem",
@@ -10699,6 +10796,64 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/spinner/Spinner",
+            "name": "Spinner",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/spinner",
+            "kind": "presentational",
+            "patterns": [
+                "Strategy — the caller picks the spin class (always, or `motion-safe:` only); the arc is the same"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "Spinner",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/spinner/Spinner.tsx",
+                    "dir": "packages/apps/commise/ui/src/spinner",
+                    "moduleDoc": "@commise/ui/spinner — the web in-flight spinner. INTERNAL to the design system (no package export): `Button`\ndraws it in its busy glyph slot and `LoadingNotice` draws it beside its caption.\n\n`currentColor` so it inherits its context's text colour. It is decorative (`aria-hidden`): whoever draws it carries\nthe meaning — `Button` through `aria-busy`, `LoadingNotice` through its caption.\n\n⛔ The spin class is the CALLER's, not the spinner's. `Button` spins unconditionally (inside a control the spin is\nthe only busy cue); `LoadingNotice` spins `motion-safe:` only (its caption carries the meaning, so a still arc is\nenough under reduced motion).\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/spinner — the web in-flight spinner. INTERNAL to the design system (no package export): `Button`"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Strategy — the caller picks the spin class (always, or `motion-safe:` only); the arc is the same"
+                        }
+                    ],
+                    "description": "The 20 px spinning arc.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "className",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Utility classes for the `svg`: the spin animation, and any text colour.",
+                            "declaredIn": "packages/apps/commise/ui/src/spinner/Spinner.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
                         "orchestration": false
                     }
                 }

@@ -1,10 +1,16 @@
+'use client';
+
 /**
  * Loading boundary for the recipe-editor route segment (`/[locale]/recipes/[id]/edit`). Its parent segment's boundary is the
- * recipe page's skeleton, which is the wrong shape for the editor; until the editor has a skeleton of its own, this keeps
- * the shared text fallback the segment had before the parent changed.
+ * recipe page's skeleton, which is the wrong shape for the editor, whose sections depend on the recipe; so it draws the
+ * shared `LoadingNotice` (specSharedSystem.md §18). The label comes from a client hook, hence `'use client'`.
  */
-import { RouteLoadingState } from '@/components/app/RouteLoadingState';
+import { recipeLoadMessages } from '@commise/features-recipes/detail';
+import { useMessages } from '@commise/i18n/react';
+import { LoadingNotice } from '@commise/ui/loading-notice';
 
 export default function RecipeEditLoading(): React.JSX.Element {
-    return <RouteLoadingState />;
+    const copy = useMessages(recipeLoadMessages);
+
+    return <LoadingNotice label={copy.loadingLabel} />;
 }

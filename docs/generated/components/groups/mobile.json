@@ -4,13 +4,13 @@
     "packageName": "@commise/mobile",
     "layer": "app",
     "coverage": {
-        "components": 55,
-        "implementations": 55,
-        "props": 156,
-        "documentedComponents": 54,
-        "implementationsWithModuleDoc": 53,
-        "implementationsWithComponentDoc": 40,
-        "documentedProps": 150,
+        "components": 54,
+        "implementations": 54,
+        "props": 155,
+        "documentedComponents": 53,
+        "implementationsWithModuleDoc": 52,
+        "implementationsWithComponentDoc": 39,
+        "documentedProps": 149,
         "classifiedComponents": 36,
         "componentsWithPatternTag": 24,
         "crossPlatformComponents": 0
@@ -2161,67 +2161,6 @@
                             "defaultValue": null,
                             "description": "Whether the nudge is shown.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/SubscriptionNudge.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "mobile/components/LoadingState",
-            "name": "LoadingState",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/components",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "LoadingState",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/components/LoadingState.tsx",
-                    "dir": "packages/apps/commise/mobile/src/components",
-                    "moduleDoc": "components/LoadingState — the mobile app's shared, self-describing loading affordance.\n\nA bare `ActivityIndicator` is a nameless spinning shape: assistive tech announces nothing, and a sighted\nviewer cannot distinguish \"fetching your recipe\" from \"wedged\". Every mobile loading surface therefore\nrenders through THIS component, which owns the one accessibility decision they share:\n\n - the wrapper is a single accessibility element (`accessible` + `progressbar` role) named by the CALLER's\n   contextual, localized label, so the announcement says what is loading;\n - the spinner itself is hidden from assistive tech (`aria-hidden`) — react-native-web exposes an\n   `ActivityIndicator` as its own unnamed `progressbar`, and a second nameless progress element beside the\n   labelled one is noise;\n - the same label doubles as a VISIBLE caption, because a spinner alone gives a sighted viewer no context\n   either.\n\nPure render component: label in, affordance out.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "components/LoadingState — the mobile app's shared, self-describing loading affordance."
-                        }
-                    ],
-                    "description": "A centred, named loading affordance.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The localized `label` describing what is loading."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The spinner plus its visible caption, exposed as one named `progressbar`."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "label",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Localized, CONTEXTUAL description of what is loading (e.g. \"Loading recipe…\"). Becomes both the\naccessible name of the progress affordance and its visible caption — never a generic \"Loading\".",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/LoadingState.tsx"
                         }
                     ],
                     "usesRefApi": [],

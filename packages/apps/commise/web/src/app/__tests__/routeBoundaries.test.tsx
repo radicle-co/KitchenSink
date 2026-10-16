@@ -2,7 +2,7 @@
 /**
  * Component tests for every web App Router `error.tsx` / `loading.tsx` / `not-found.tsx` boundary added for
  * the data segments (B18). Each boundary file is a thin wrapper delegating to the shared
- * `RouteErrorBoundary` / `RouteLoadingState` / `RouteNotFoundState` (unit-tested in isolation under
+ * `RouteErrorBoundary` / `LoadingNotice` / `RouteNotFoundState` (unit-tested in isolation under
  * `components/app/__tests__/`) — THESE tests prove each segment's actual file wires the shared component
  * correctly (a wrong relative import, a dropped `routeName`, or a missing `'use client'` fails here, not
  * just in a shared-component test), per "Next.js boundary files are components — test them as components."
@@ -32,6 +32,7 @@ const { default: RecipesLoading } = await import('../[locale]/recipes/loading');
 const { default: RecipeDetailLoading } = await import('../[locale]/recipes/[id]/loading');
 const { default: DiscoverLoading } = await import('../[locale]/discover/loading');
 const { default: CollectionsLoading } = await import('../[locale]/collections/loading');
+const { default: RecipeEditLoading } = await import('../[locale]/recipes/[id]/edit/loading');
 
 const { default: LocaleNotFound } = await import('../[locale]/not-found');
 
@@ -86,6 +87,26 @@ describe.each(LOADING_BOUNDARIES)('%s/loading.tsx', (_segment, Loading) => {
 });
 
 /**
+ * The three segments with no settled shape to reserve draw the shared `LoadingNotice` (specSharedSystem.md §18), each
+ * with its own contextual caption. The root cannot know what it is loading, so it is the one bare "Loading…".
+ */
+const LOADING_NOTICE_BOUNDARIES = [
+    ['[locale]', LocaleLoading, 'Loading…'] as const,
+    ['[locale]/collections', CollectionsLoading, 'Loading collections…'] as const,
+    ['[locale]/recipes/[id]/edit', RecipeEditLoading, 'Loading recipe…'] as const,
+];
+
+describe.each(LOADING_NOTICE_BOUNDARIES)('%s/loading.tsx — the loading notice', (_segment, Loading, caption) => {
+    it('names the status by its visible contextual caption', () => {
+        renderWithProviders(<Loading />);
+
+        const status = screen.getByRole('status', { name: caption });
+
+        expect(status.textContent).toBe(caption);
+    });
+});
+
+/**
  * The two segments whose settled body is a recipe-card GRID owe a card-grid skeleton, not a line of text: a
  * paragraph followed by a grid is a full-page reflow on every navigation, and "skeleton loaders for recipes"
  * is unmet at the route level while the route boundary paints nothing card-shaped.
@@ -94,7 +115,7 @@ describe.each(LOADING_BOUNDARIES)('%s/loading.tsx', (_segment, Loading) => {
  * (`CollectionListResults.tsx`), so the recipe skeleton's four-column rhythm would reflow rather than reserve — the
  * very invariant `RecipeCardGridSkeleton` documents. `/recipes/[id]` is a DETAIL route: eight card
  * placeholders where one recipe is about to render is the same defect with more paint. Both keep
- * `RouteLoadingState`; a `CollectionCardGridSkeleton` is a follow-up, not this change.
+ * `LoadingNotice`; a `CollectionCardGridSkeleton` is a follow-up, not this change.
  */
 const CARD_GRID_LOADING_BOUNDARIES = [
     ['[locale]/recipes', RecipesLoading] as const,
@@ -117,7 +138,7 @@ describe.each(CARD_GRID_LOADING_BOUNDARIES)('%s/loading.tsx — the card-grid sk
         renderWithProviders(<Loading />);
         const status = screen.getByRole('status');
 
-        // The invariant `RouteLoadingState` and `RecipeCardGridSkeleton` both hold: an empty `role="status"`
+        // The invariant `LoadingNotice` and `RecipeCardGridSkeleton` both hold: an empty `role="status"`
         // is zero-height AND silent, because a live region announces its CONTENT, not its label.
         expect(status).toHaveAccessibleName(/loading/i);
         expect(status.textContent).toMatch(/loading/i);

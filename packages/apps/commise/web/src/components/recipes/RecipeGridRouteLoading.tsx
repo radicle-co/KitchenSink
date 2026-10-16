@@ -6,9 +6,9 @@
  *
  * Pure `props → JSX` (no props): the shared {@link RecipeCardGridSkeleton} plus the one thing a `loading.tsx`
  * cannot supply on its own — the localized label, which comes from a client hook (`useMessages`), exactly as
- * `RouteLoadingState` resolves its own copy.
+ * `LoadingNotice` resolves its own copy.
  *
- * ⛔ WHY NOT `RouteLoadingState` HERE. That is a single line of text. On a route that is about to paint a
+ * ⛔ WHY NOT `LoadingNotice` HERE. That is a single line of text. On a route that is about to paint a
  * four-column card grid, a text line means the whole page reflows the moment the segment resolves, and the
  * viewer sees nothing recipe-shaped in the meantime — which is what left "skeleton loaders for recipes"
  * unmet at the ROUTE level even after every in-page list grew one. `RecipeCardGridSkeleton`'s column rhythm
@@ -18,7 +18,7 @@
  * ⚠️ IT IS NOT FOR EVERY ROUTE. `/collections` settles into a THREE-column grid of COLLECTION cards, and
  * `/recipes/[id]` settles into a single detail view; painting recipe-card placeholders on either would
  * reflow rather than reserve, which is the exact invariant this skeleton exists to hold. Those two keep
- * `RouteLoadingState`.
+ * `LoadingNotice`.
  */
 import { RecipeCardGridSkeleton, recipeMessages } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';

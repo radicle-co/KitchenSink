@@ -9,6 +9,7 @@
  */
 import { renderWithProviders } from '@commise/test-utils';
 import { role, roleDark } from '@commise/ui/colors';
+import { LoadingNotice } from '@commise/ui/loading-notice';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -34,7 +35,6 @@ import { MealPlanWidgetSkeleton } from '../../src/components/home/skeletons/Meal
 import { NutritionWidgetSkeleton } from '../../src/components/home/skeletons/NutritionWidgetSkeleton.js';
 import { ResumeCookingWidgetSkeleton } from '../../src/components/home/skeletons/ResumeCookingWidgetSkeleton.js';
 import { SubscriptionNudge } from '../../src/components/home/SubscriptionNudge.js';
-import { LoadingState } from '../../src/components/LoadingState.js';
 import { useAuth } from '../../src/hooks/useAuth.js';
 import { homeMessages } from '@commise/features-core/home';
 import { mobileMessages } from '../../src/i18n/messages.js';
@@ -55,9 +55,9 @@ const filledWith = (container: HTMLElement, colour: string): readonly Element[] 
 describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s scheme', (scheme) => {
     const colours = scheme === 'dark' ? roleDark : role;
 
-    it('LoadingState captions its spinner in inkMuted', () => {
+    it('LoadingNotice captions its spinner in inkMuted', () => {
         systemScheme.current = scheme;
-        render(<LoadingState label="Loading recipe…" />);
+        render(<LoadingNotice label="Loading recipe…" />);
 
         expect(colourOf(screen.getByText('Loading recipe…'))).toBe(rgb(colours.inkMuted));
     });

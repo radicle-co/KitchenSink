@@ -70,7 +70,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
             {/* The upload-in-flight affordance carries its label as CONTENT, not only as `aria-label`: an empty
                 `role="status"` paragraph is a zero-height node — nothing for a sighted viewer to see, and
                 nothing for a screen reader to announce (a live region announces content CHANGES). Same
-                doctrine as the mobile `LoadingState`: the contextual label doubles as the visible caption. */}
+                doctrine as `LoadingNotice` (specSharedSystem.md §18): the contextual label doubles as the visible caption. */}
             {uploading === true ? (
                 <p role="status" aria-label={m.uploadingLabel} className="text-body-sm text-ink-muted">
                     {m.uploadingLabel}

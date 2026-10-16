@@ -184,7 +184,7 @@ describe('RecipePhotoManager (web) — upload + error states', () => {
         // The live region must carry its label as CONTENT, not only as `aria-label`: an empty `role="status"`
         // paragraph is a zero-height node — invisible to a sighted viewer and silent to a screen reader (a
         // live region announces content CHANGES, and there is no content to change). Same doctrine as the
-        // mobile `LoadingState`: the label doubles as the visible caption.
+        // `LoadingNotice` (specSharedSystem.md §18): the label doubles as the visible caption.
         const status = screen.getByRole('status', { name: 'Uploading photo' });
         expect(status.textContent).toBe('Uploading photo');
     });

@@ -30,6 +30,7 @@ import { CollectionDetailBody, CollectionLoadError, useCollectionDetail } from '
 import { useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
+import { LoadingNotice } from '@commise/ui/loading-notice';
 import { nativeTokens } from '@commise/ui/native';
 import { paidFeatureStateOf } from '@commise/features-account';
 import { collectionQueries } from '@kitchensink/recipe-service-client';
@@ -38,7 +39,6 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import type { JSX } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 
-import { LoadingState } from '../components/LoadingState.js';
 import { useStoredViewMode } from '../hooks/useStoredViewMode.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
 
@@ -72,7 +72,7 @@ export function CollectionDetailScreen(props: CollectionDetailScreenProps): JSX.
 
     return (
         <QueryBoundary
-            loading={<LoadingState label={detail.loadingLabel} />}
+            loading={<LoadingNotice label={detail.loadingLabel} />}
             renderError={({ error, resetErrorBoundary }) => (
                 <CollectionLoadError
                     error={error}

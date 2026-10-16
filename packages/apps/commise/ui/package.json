@@ -57,6 +57,7 @@
         "./surface": "./src/surface/index.ts",
         "./input": "./src/input/index.ts",
         "./keyboard-avoider": "./src/keyboardAvoider/KeyboardAvoider.native.tsx",
+        "./loading-notice": "./src/loadingNotice/index.ts",
         "./live-region": "./src/liveRegion/index.ts",
         "./load-more": "./src/loadMore/index.ts",
         "./pending-bar": "./src/pendingBar/index.ts",

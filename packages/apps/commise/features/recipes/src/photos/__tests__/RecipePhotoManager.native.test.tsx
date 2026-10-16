@@ -259,7 +259,7 @@ describe('RecipePhotoManager (native) — upload + error states', () => {
         renderManager({ uploading: true });
 
         // A named-but-empty progressbar is a nameless spinning shape with nothing to look at: the label has to
-        // double as the visible caption (the `components/LoadingState` doctrine), so a sighted viewer can tell
+        // double as the visible caption (`LoadingNotice` doctrine, specSharedSystem.md §18), so a sighted viewer can tell
         // "uploading" from "wedged".
         expect(screen.getByRole('progressbar', { name: 'Uploading photo' })).toBeTruthy();
         expect(screen.getByText('Uploading photo')).toBeTruthy();

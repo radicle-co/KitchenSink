@@ -379,7 +379,7 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  * layer, was deleted as dead code (nothing rendered it), and every component the slice added (`SignOutRow`,
  * `ProfileAccountGroup`) states its layer in its own docblock.
  */
-const LAYER_UNSTATED_CENSUS = 96;
+const LAYER_UNSTATED_CENSUS = 95;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.

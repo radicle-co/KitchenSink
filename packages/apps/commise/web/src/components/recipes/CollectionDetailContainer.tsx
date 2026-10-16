@@ -34,6 +34,7 @@ import {
 } from '@commise/features-recipes/collections';
 import { useMessages } from '@commise/i18n/react';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
+import { LoadingNotice } from '@commise/ui/loading-notice';
 import { paidFeatureStateOf } from '@commise/features-account';
 import { collectionQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
@@ -68,11 +69,7 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
 
     return (
         <ClientQueryBoundary
-            loading={
-                <p role="status" aria-label={detail.loadingLabel} className="py-8 text-body text-ink-muted">
-                    {detail.loadingLabel}
-                </p>
-            }
+            loading={<LoadingNotice label={detail.loadingLabel} />}
             renderError={({ error, resetErrorBoundary }) => (
                 <CollectionLoadError
                     error={error}

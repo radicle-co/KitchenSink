@@ -26,6 +26,7 @@ import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { boundaryMessages } from '@commise/features-core/boundary';
 import { useMessages } from '@commise/i18n/react';
 import { SyncNoticeHost } from '@commise/query/sync-notice-host';
+import { LoadingNotice } from '@commise/ui/loading-notice';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { JSX, ReactNode } from 'react';
@@ -38,7 +39,6 @@ import type { PendingSignUp } from '../hooks/useSocialSignIn';
 import { CompleteSignUpScreen } from '../screens/CompleteSignUpScreen';
 import { LoginScreen } from '../screens/login';
 import { SignUpScreen } from '../screens/signup';
-import { LoadingState } from './LoadingState';
 
 /** Props for {@link AuthGate}. */
 interface AuthGateProps {
@@ -103,9 +103,9 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
 
     switch (state.status) {
         case 'loading':
-            // The app's very first paint: a nameless spinner here reads as "frozen". `LoadingState` names it
+            // The app's very first paint: a nameless spinner here reads as "frozen". `LoadingNotice` names it
             // ("Checking your session…") for assistive tech AND sighted viewers.
-            return <LoadingState label={auth.sessionLoading} />;
+            return <LoadingNotice label={auth.sessionLoading} />;
         case 'unauthenticated':
             return <SignedOutSurfaces />;
         case 'blocked':

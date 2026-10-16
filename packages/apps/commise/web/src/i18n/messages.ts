@@ -22,7 +22,7 @@ export interface WebMessages {
     /**
      * Copy for the shared App Router resilience boundaries (B18) — the `error.tsx` / `loading.tsx` /
      * `not-found.tsx` files under `[locale]` and each data segment render this ONE localized set through
-     * `RouteErrorBoundary` / `RouteLoadingState` / `RouteNotFoundState`, so a segment never invents its own copy.
+     * `RouteErrorBoundary` / `LoadingNotice` / `RouteNotFoundState`, so a segment never invents its own copy.
      */
     readonly boundary: {
         /**
@@ -43,7 +43,7 @@ export interface WebMessages {
         };
         /** Copy for a route segment's `loading.tsx` (the Suspense fallback shown while it streams in). */
         readonly loading: {
-            /** Accessible label of the loading status region. */
+            /** The loading notice's caption (the root boundary cannot know what it is loading, so it is the one bare label). */
             readonly label: string;
         };
         /** Copy for a route segment's `not-found.tsx`. */
@@ -129,7 +129,7 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 home: 'Go to Home',
             },
             loading: {
-                label: 'Loading',
+                label: 'Loading…',
             },
             notFound: {
                 title: 'We couldn’t find that page.',

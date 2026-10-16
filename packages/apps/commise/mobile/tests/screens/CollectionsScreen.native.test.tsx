@@ -110,7 +110,7 @@ describe('CollectionsScreen — loading, error, empty', () => {
     it('shows the loading indicator while collections load, under the heading and create action', () => {
         render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
 
-        expect(screen.getByLabelText('Loading collections')).toBeTruthy();
+        expect(screen.getByLabelText('Loading collections…')).toBeTruthy();
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'New collection' })).toBeTruthy();
     });

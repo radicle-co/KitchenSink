@@ -75,7 +75,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
 
             {/* The upload-in-flight affordance carries its label as VISIBLE text, not only as
                 `accessibilityLabel`: an empty progressbar is a nameless, contentless shape a sighted viewer
-                cannot distinguish from "wedged" (the `components/LoadingState` doctrine). */}
+                cannot distinguish from "wedged" (`LoadingNotice` doctrine, specSharedSystem.md §18). */}
             {uploading === true ? (
                 <View accessible accessibilityRole="progressbar" accessibilityLabel={m.uploadingLabel}>
                     <Text style={[styles.muted, { color: colors.inkMuted }]}>{m.uploadingLabel}</Text>

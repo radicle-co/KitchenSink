@@ -4,14 +4,14 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 81,
-        "implementations": 81,
+        "components": 80,
+        "implementations": 80,
         "props": 98,
-        "documentedComponents": 78,
-        "implementationsWithModuleDoc": 62,
-        "implementationsWithComponentDoc": 57,
+        "documentedComponents": 77,
+        "implementationsWithModuleDoc": 61,
+        "implementationsWithComponentDoc": 56,
         "documentedProps": 65,
-        "classifiedComponents": 33,
+        "classifiedComponents": 32,
         "componentsWithPatternTag": 28,
         "crossPlatformComponents": 0
     },
@@ -140,7 +140,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/app/[locale]/collections/loading.tsx",
                     "dir": "packages/apps/commise/web/src/app/[locale]/collections",
-                    "moduleDoc": "Loading boundary for the collection-list route segment (`/[locale]/collections`, B18). Delegates to the\nshared {@link RouteLoadingState}.",
+                    "moduleDoc": "Loading boundary for the collection-list route segment (`/[locale]/collections`, B18). It keeps the shared\n`LoadingNotice`, not `CollectionListLoading`: that skeleton's stacked rows do not match this route's three-column\ngrid, so they would reflow instead of reserving the space (specSharedSystem.md §18). The label comes from a client\nhook, hence `'use client'`.",
                     "moduleTags": [],
                     "description": "",
                     "tags": [],
@@ -587,7 +587,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/app/[locale]/loading.tsx",
                     "dir": "packages/apps/commise/web/src/app/[locale]",
-                    "moduleDoc": "Segment-level default loading boundary for `/[locale]` (B18) — the Suspense fallback shown while the\nserver render (params/auth) of a route with no more specific `loading.tsx` resolves. Delegates to the\nshared {@link RouteLoadingState}.",
+                    "moduleDoc": "Segment-level default loading boundary for `/[locale]` (B18) — the Suspense fallback shown while the\nserver render (params/auth) of a route with no more specific `loading.tsx` resolves. It draws the shared\n`LoadingNotice` (specSharedSystem.md §18). This root cannot know what it is loading, so its caption is the one bare\n\"Loading…\"; the label comes from a client hook, hence `'use client'`.",
                     "moduleTags": [],
                     "description": "",
                     "tags": [],
@@ -787,7 +787,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/edit/loading.tsx",
                     "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/edit",
-                    "moduleDoc": "Loading boundary for the recipe-editor route segment (`/[locale]/recipes/[id]/edit`). Its parent segment's boundary is the\nrecipe page's skeleton, which is the wrong shape for the editor; until the editor has a skeleton of its own, this keeps\nthe shared text fallback the segment had before the parent changed.",
+                    "moduleDoc": "Loading boundary for the recipe-editor route segment (`/[locale]/recipes/[id]/edit`). Its parent segment's boundary is the\nrecipe page's skeleton, which is the wrong shape for the editor, whose sections depend on the recipe; so it draws the\nshared `LoadingNotice` (specSharedSystem.md §18). The label comes from a client hook, hence `'use client'`.",
                     "moduleTags": [],
                     "description": "",
                     "tags": [],
@@ -1770,48 +1770,6 @@
                     "docSignals": {
                         "presentational": true,
                         "orchestration": true
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/components/app/RouteLoadingState",
-            "name": "RouteLoadingState",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/app",
-            "kind": "presentational",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RouteLoadingState",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/app/RouteLoadingState.tsx",
-                    "dir": "packages/apps/commise/web/src/components/app",
-                    "moduleDoc": "components/app/RouteLoadingState — the shared, localized presentational Suspense fallback\nrendered by every web App Router `loading.tsx` boundary (B18). Pure `props → JSX` (no props at all): shown\nwhile a route segment's server render (params/auth) resolves, before the client container underneath\nmounts and takes over its own query-driven loading state.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "components/app/RouteLoadingState — the shared, localized presentational Suspense fallback"
-                        }
-                    ],
-                    "description": "Localized loading status, shared by every route's `loading.tsx`.\n\nThe label is the region's CONTENT, not only its `aria-label`: an empty `role=\"status\"` node is zero-height\n(nothing for a sighted viewer, and Playwright resolves it as `hidden`) AND silent, because a live region\nannounces its CONTENT, not its label. So the localized label doubles as the visible caption.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
                     }
                 }
             ]
@@ -4120,7 +4078,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeGridRouteLoading.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "components/recipes/RecipeGridRouteLoading — the localized route-level loading state for the two\nsegments whose settled body is a recipe-card GRID (`/[locale]/recipes`, `/[locale]/discover`).\n\nPure `props → JSX` (no props): the shared {@link RecipeCardGridSkeleton} plus the one thing a `loading.tsx`\ncannot supply on its own — the localized label, which comes from a client hook (`useMessages`), exactly as\n`RouteLoadingState` resolves its own copy.\n\n⛔ WHY NOT `RouteLoadingState` HERE. That is a single line of text. On a route that is about to paint a\nfour-column card grid, a text line means the whole page reflows the moment the segment resolves, and the\nviewer sees nothing recipe-shaped in the meantime — which is what left \"skeleton loaders for recipes\"\nunmet at the ROUTE level even after every in-page list grew one. `RecipeCardGridSkeleton`'s column rhythm\nis character-identical to the populated `<ul>` in `RecipeListResults` / `RecipeDiscoveryResults`, so the placeholder\nreserves the space the cards will occupy.\n\n⚠️ IT IS NOT FOR EVERY ROUTE. `/collections` settles into a THREE-column grid of COLLECTION cards, and\n`/recipes/[id]` settles into a single detail view; painting recipe-card placeholders on either would\nreflow rather than reserve, which is the exact invariant this skeleton exists to hold. Those two keep\n`RouteLoadingState`.",
+                    "moduleDoc": "components/recipes/RecipeGridRouteLoading — the localized route-level loading state for the two\nsegments whose settled body is a recipe-card GRID (`/[locale]/recipes`, `/[locale]/discover`).\n\nPure `props → JSX` (no props): the shared {@link RecipeCardGridSkeleton} plus the one thing a `loading.tsx`\ncannot supply on its own — the localized label, which comes from a client hook (`useMessages`), exactly as\n`LoadingNotice` resolves its own copy.\n\n⛔ WHY NOT `LoadingNotice` HERE. That is a single line of text. On a route that is about to paint a\nfour-column card grid, a text line means the whole page reflows the moment the segment resolves, and the\nviewer sees nothing recipe-shaped in the meantime — which is what left \"skeleton loaders for recipes\"\nunmet at the ROUTE level even after every in-page list grew one. `RecipeCardGridSkeleton`'s column rhythm\nis character-identical to the populated `<ul>` in `RecipeListResults` / `RecipeDiscoveryResults`, so the placeholder\nreserves the space the cards will occupy.\n\n⚠️ IT IS NOT FOR EVERY ROUTE. `/collections` settles into a THREE-column grid of COLLECTION cards, and\n`/recipes/[id]` settles into a single detail view; painting recipe-card placeholders on either would\nreflow rather than reserve, which is the exact invariant this skeleton exists to hold. Those two keep\n`LoadingNotice`.",
                     "moduleTags": [
                         {
                             "name": "module",

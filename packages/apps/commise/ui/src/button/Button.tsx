@@ -32,29 +32,10 @@ import { useRef, type FC } from 'react';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { Icon } from '../icon/Icon.js';
 import { PressScale } from '../pressScale/index.js';
+import { Spinner } from '../spinner/Spinner.js';
 import { busyControlProps } from './busyControlProps.js';
 import { surfaceOf, type ButtonProps } from './props.js';
 import { buttonSurfaceClass } from './surfaceClass.js';
-
-/**
- * The in-flight spinner. `currentColor` so it inherits the tier's text colour; `animate-spin` for the
- * rotation. It renders in the SAME `aria-hidden` slot the icon uses, so busy state does not reflow the
- * label. The busy state is announced via the button's `aria-busy`, so the glyph itself stays decorative.
- */
-const Spinner: FC = () => (
-    <svg
-        className="animate-spin"
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        aria-hidden="true"
-        focusable="false"
-    >
-        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" opacity="0.25" />
-        <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-    </svg>
-);
 
 /** The Commise design-system button — the meaning's glyph + label, one surface per tier and size. */
 export const Button: FC<ButtonProps> = (props) => {
@@ -81,7 +62,7 @@ export const Button: FC<ButtonProps> = (props) => {
     const glyph =
         busy || icon !== undefined ? (
             <span aria-hidden="true" className="inline-flex shrink-0 items-center">
-                {busy || icon === undefined ? <Spinner /> : <Icon name={icon} size={20} />}
+                {busy || icon === undefined ? <Spinner className="animate-spin" /> : <Icon name={icon} size={20} />}
             </span>
         ) : null;
 

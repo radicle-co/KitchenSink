@@ -34,6 +34,7 @@ import type { EditorSeed } from '@commise/features-recipes/hooks';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useSyncQueue } from '@commise/query/sync';
+import { LoadingNotice } from '@commise/ui/loading-notice';
 import { useAuth } from '@clerk/expo';
 import { knownPaidFeaturesOf, paidFeatureStateOf } from '@commise/features-account';
 import type { RecipeDetail } from '@kitchensink/recipe-core';
@@ -42,7 +43,6 @@ import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { useState, type JSX } from 'react';
 
-import { LoadingState } from '../components/LoadingState.js';
 import { RecipePhotoUploader } from '../components/RecipePhotoUploader.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
 import { reportErrorToSentry } from '../observability/sentryErrorReporter.js';
@@ -95,7 +95,7 @@ export function RecipeEditorScreen(props: RecipeEditorScreenProps): JSX.Element 
 
     return (
         <QueryBoundary
-            loading={<LoadingState label={loadCopy.loadingLabel} />}
+            loading={<LoadingNotice label={loadCopy.loadingLabel} />}
             renderError={({ error, resetErrorBoundary }) => (
                 <RecipeLoadError
                     error={error}

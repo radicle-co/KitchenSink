@@ -13,6 +13,7 @@ const motion = vi.hoisted(() => ({ reduce: false }));
 vi.mock('../../motion/useReduceMotion.native.js', () => ({ useReduceMotion: () => motion.reduce }));
 
 import type { ScrollBind, ScrollHostApi, ScrollReport } from '../props.js';
+import { useFieldTarget } from '../fieldTarget.js';
 import { ScrollHost } from '../ScrollHost.native.js';
 import { useScrollHost } from '../scrollHostContext.js';
 
@@ -293,13 +294,119 @@ describe('ScrollHost (native)', () => {
         act(() => api().sectionLayout('ingredients')({ nativeEvent: { layout: { y: 520, height: 900 } } }));
         expect(scrollView.scrollTo).toHaveBeenCalledTimes(1);
     });
+    // §16.3: a native field is not found by id; it hears that it was named. `scrollToField` counts the naming, each
+    // field reads its own count (`useFieldTarget`), and the field asks the reveal host to show it. Answering `true`
+    // is what keeps the caller from falling back to the section heading as well.
+    describe('scrollToField', () => {
+        /** Render a host whose child reads the counts of the ids it is given. */
+        function renderCounted(ids: readonly string[]): {
+            api: () => ScrollHostApi;
+            counts: () => Record<string, number>;
+        } {
+            const seen: { api?: ScrollHostApi; counts: Record<string, number> } = { counts: {} };
 
-    // E7: native fields are not addressable by id (a field holds no registry entry), so the host answers that it found
-    // none and the section's heading, which the jump already focuses, takes the cook.
-    it('finds no field by id: the caller falls back to the section heading', () => {
-        const { api } = renderHost(['details']);
+            const Reader = ({ id }: { readonly id: string }): null => {
+                seen.counts[id] = useFieldTarget(id);
 
-        expect(api().scrollToField('recipe-title')).toBe(false);
+                return null;
+            };
+
+            const Probe = (): null => {
+                seen.api = useScrollHost();
+
+                return null;
+            };
+
+            render(
+                <ScrollHost sections={['details', 'steps']}>
+                    <Probe />
+                    {ids.map((id) => (
+                        <Reader key={id} id={id} />
+                    ))}
+                </ScrollHost>,
+            );
+
+            return {
+                api: () => {
+                    if (seen.api === undefined) {
+                        throw new Error('no api');
+                    }
+
+                    return seen.api;
+                },
+                counts: () => ({ ...seen.counts }),
+            };
+        }
+
+        it('answers that it found the field, so the caller does not fall back to the section heading', () => {
+            const { api } = renderCounted([]);
+
+            expect(api().scrollToField('recipe-title')).toBe(true);
+        });
+
+        it('moves the named field’s cursor once per call, and no other field’s', () => {
+            const { api, counts } = renderCounted(['a', 'b']);
+
+            act(() => {
+                api().scrollToField('a');
+            });
+            act(() => {
+                api().scrollToField('b');
+            });
+            act(() => {
+                api().scrollToField('a');
+            });
+
+            expect(counts()).toEqual({ a: 2, b: 1 });
+        });
+
+        it('releases a section hold: the section a jump named is no longer current once the field is named', () => {
+            const { api } = renderCounted(['a']);
+            act(() => api().sectionLayout('details')({ nativeEvent: { layout: { y: 0, height: 500 } } }));
+            act(() => api().sectionLayout('steps')({ nativeEvent: { layout: { y: 500, height: 900 } } }));
+            act(() => {
+                api().scrollToSection('steps');
+            });
+            expect(api().current).toBe('steps');
+
+            act(() => {
+                api().scrollToField('a');
+            });
+
+            expect(api().current).not.toBe('steps');
+        });
+
+        it('cancels a jump still waiting for its section’s layout, so the layout does not drag the cook off the field', () => {
+            const scrollView = { scrollTo: vi.fn() };
+            const seen: { api?: ScrollHostApi; bind?: ScrollBind } = {};
+
+            const Probe = (): null => {
+                seen.api = useScrollHost();
+
+                return null;
+            };
+
+            render(
+                <ScrollHost sections={['details', 'steps']}>
+                    {(bind) => {
+                        seen.bind = bind;
+
+                        return <Probe />;
+                    }}
+                </ScrollHost>,
+            );
+            act(() => seen.bind?.ref(scrollView));
+            act(() => {
+                seen.api?.scrollToSection('steps');
+            });
+            act(() => {
+                seen.api?.scrollToField('a');
+            });
+
+            act(() => seen.api?.sectionLayout('steps')({ nativeEvent: { layout: { y: 500, height: 900 } } }));
+
+            expect(scrollView.scrollTo).not.toHaveBeenCalled();
+        });
     });
 
     // An arrival on native goes through the field reveal host (`FieldRevealContext`), so this host finds no span by id.

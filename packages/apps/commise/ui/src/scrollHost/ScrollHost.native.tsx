@@ -32,6 +32,7 @@ import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import type { LayoutReport, ScrollBind, ScrollHostApi, ScrollHostProps, ScrollReport, ScrollTarget } from './props.js';
 import { createCurrentChangeSubject } from './currentChange.js';
 import { currentSectionOf } from './currentSection.js';
+import { FieldTargetContext } from './fieldTarget.js';
 import { ScrollHostContext } from './scrollHostContext.js';
 import { INITIAL_SCROLL_STATE, nextScrollState } from './scrollState.js';
 
@@ -79,6 +80,8 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = [], activationOffse
     const settling = held !== undefined && !held.settled;
     // A jump asked for before its section reported its layout (a deep link, on mount): it lands when the layout does.
     const [pendingJump, setPendingJump] = useState<string | undefined>(undefined);
+    // How many times each field was named by `scrollToField`; the fields read their own count.
+    const [targets, setTargets] = useState<Readonly<Record<string, number>>>({});
 
     const sectionTops = useMemo(
         () => sections.flatMap((id) => (tops[id] === undefined ? [] : [{ id, top: tops[id] }])),
@@ -150,8 +153,16 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = [], activationOffse
                     setPendingJump(id);
                 }
             },
-            // Native fields hold no registry entry, so none can be found by id; the section heading takes the cook.
-            scrollToField: () => false,
+            // A native field is not found by id: it hears that it was named (`FieldTargetContext`) and asks the field
+            // reveal host to centre it. The field's own scroll replaces the section jump's, so the jump's hold and its
+            // wait for a layout both end here (§16.3).
+            scrollToField: (id) => {
+                setHeld(undefined);
+                setPendingJump(undefined);
+                setTargets((previous) => ({ ...previous, [id]: (previous[id] ?? 0) + 1 }));
+
+                return true;
+            },
             // Nor by id here: a native field asks the field reveal host (`FieldRevealContext`) to show an arrival.
             revealSpan: () => false,
             headingLayout: (event: LayoutReport) => {
@@ -185,7 +196,9 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = [], activationOffse
 
     return (
         <ScrollHostContext.Provider value={api}>
-            {typeof children === 'function' ? <BoundScreen render={children} bind={bind} /> : children}
+            <FieldTargetContext.Provider value={targets}>
+                {typeof children === 'function' ? <BoundScreen render={children} bind={bind} /> : children}
+            </FieldTargetContext.Provider>
         </ScrollHostContext.Provider>
     );
 };

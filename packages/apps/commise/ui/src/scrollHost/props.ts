@@ -84,8 +84,11 @@ export interface ScrollHostApi {
      * Scroll a field to the middle of the viewport (the sticky chrome sits at both edges) and focus it: where a refused
      * Publish takes the cook (build spec §7.8). Unlike a section it is not addressable, so no hash is recorded.
      *
-     * @returns Whether a field with that id was found. Native holds no field registry, so it always answers `false`
-     *     and the caller falls back to the section's heading.
+     * @returns Whether a field with that id was found. Web looks the element up. Native holds no field registry: it
+     *     names the field to every field (`FieldTargetContext`), which the one with that id answers by asking the field
+     *     reveal host to centre it and moving the screen-reader cursor to itself, and the keyboard stays down. It cannot
+     *     know whether a field with that id is mounted, so it always answers `true`, and the caller does not fall back
+     *     to the section's heading. A named field's scroll replaces the section jump's, and releases its hold.
      */
     readonly scrollToField: (id: string) => boolean;
     /**

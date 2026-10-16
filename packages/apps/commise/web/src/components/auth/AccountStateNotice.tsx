@@ -1,12 +1,12 @@
-import type { AuthBlockMessage } from '@commise/features-account';
+import type { AuthBlockCopy } from '@commise/features-account';
 
 interface AccountStateNoticeProps {
-    message: AuthBlockMessage;
+    message: AuthBlockCopy;
 }
 
 /**
  * Presentational block notice for a security-relevant account state (suspended / impersonation). The copy
- * comes from the shared @commise/features-account block messages so it matches mobile; this leaf owns only
+ * comes from the shared, localized `authBlockMessages` of @commise/features-account so it matches mobile; this leaf owns only
  * the presentation — a real error-toned alert surface (bordered, tinted card) so the blocked state reads as
  * a genuine warning rather than unstyled body text.
  */

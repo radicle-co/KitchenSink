@@ -1,6 +1,6 @@
 /**
  * The error taxonomy for the security-relevant blocked account states (`docs/CODING_STANDARDS.md` §1,
- * "Error taxonomy") — one class per `AuthBlockMessage` code, so a caller that must react to a block
+ * "Error taxonomy") — one class per `AuthBlockReason` code, so a caller that must react to a block
  * *by throwing* discriminates on the same two cases `deriveAuthState` returns.
  *
  * They live beside `authState.ts` rather than inside it because that module's subject is the STATE

@@ -16,6 +16,7 @@ import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { authBlockMessages } from '@commise/features-account';
 import { accountDangerMessages } from '@commise/features-account/danger';
 import { profileMessages } from '@commise/features-account/profile';
 import { role, roleDark } from '@commise/ui/colors';
@@ -96,7 +97,7 @@ vi.mock('../../src/components/account/AvatarField.js', () => ({
 
 const t = profileMessages.en;
 const { close, erase } = accountDangerMessages.en;
-const { suspension } = mobileMessages.en;
+const suspension = authBlockMessages.en.account_suspended;
 
 const useUserProfileMock = vi.mocked(useUserProfile);
 const useUpdateProfileMock = vi.mocked(useUpdateProfile);

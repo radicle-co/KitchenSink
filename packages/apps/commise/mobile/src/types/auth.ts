@@ -21,6 +21,6 @@ export {
     IMPERSONATION_BLOCK,
     SUSPENDED_BLOCK,
 } from '@commise/features-account';
-export type { AuthBlockMessage, AuthState } from '@commise/features-account';
+export type { AuthBlockReason, AuthState } from '@commise/features-account';
 
 export type { UserStatus };

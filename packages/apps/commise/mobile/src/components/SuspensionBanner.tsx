@@ -4,11 +4,11 @@
  * Renders the shared {@link AlertBanner} in the block tone, and only for a `suspended` account — the status
  * check lives here so no caller has to remember it.
  */
+import { authBlockMessages } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
 import type { UserStatus } from '@kitchensink/schema-identity';
 import type { JSX } from 'react';
 
-import { mobileMessages } from '../i18n/messages';
 import { AlertBanner } from './AlertBanner';
 
 /** Props for {@link SuspensionBanner}. */
@@ -24,11 +24,11 @@ interface SuspensionBannerProps {
  * @returns The banner for a suspended account, otherwise `null`.
  */
 export function SuspensionBanner({ status }: SuspensionBannerProps): JSX.Element | null {
-    const { suspension } = useMessages(mobileMessages);
+    const { account_suspended: suspended } = useMessages(authBlockMessages);
 
     if (status !== 'suspended') {
         return null;
     }
 
-    return <AlertBanner accent="danger" title={suspension.title} body={suspension.message} />;
+    return <AlertBanner accent="danger" title={suspended.title} body={suspended.body} />;
 }

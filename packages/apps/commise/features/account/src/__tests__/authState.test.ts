@@ -10,6 +10,15 @@ const base = {
     userPublicMetadata: {} as Record<string, unknown>,
 };
 
+describe('the block reasons', () => {
+    // The user-facing words live in `authBlockMessages` (localized); a pure state derivation must carry none, or the
+    // notice a blocked viewer sees cannot be localized and the platforms can word one fact two ways.
+    it('carry only their code, never English', () => {
+        expect(SUSPENDED_BLOCK).toEqual({ code: 'account_suspended' });
+        expect(IMPERSONATION_BLOCK).toEqual({ code: 'impersonation_blocked' });
+    });
+});
+
 describe('deriveAuthState', () => {
     it('returns loading before the IdP has loaded', () => {
         expect(deriveAuthState({ ...base, isLoaded: false })).toEqual({ status: 'loading' });

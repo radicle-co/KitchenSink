@@ -21,6 +21,7 @@
  * supply (the username, and with Apple possibly the names). The gate then shows `CompleteSignUpScreen` with the sign-up
  * the provider hook RETURNED; "Start over" comes back to the sign-in form. It is a signed-out SURFACE, not a route.
  */
+import { authBlockMessages } from '@commise/features-account';
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { useMessages } from '@commise/i18n/react';
 import { SyncNoticeHost } from '@commise/query/sync-notice-host';
@@ -91,6 +92,7 @@ function SignedOutSurfaces(): JSX.Element {
  */
 export function AuthGate({ children }: AuthGateProps): JSX.Element {
     const { auth, common } = useMessages(mobileMessages);
+    const blockCopy = useMessages(authBlockMessages);
     const { state } = useAuth();
     const { colors } = useTheme();
     const offline = useMessages(offlineNoticeMessages);
@@ -107,8 +109,8 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
         case 'blocked':
             return (
                 <View style={styles.center}>
-                    <Text style={title}>{state.reason.title}</Text>
-                    <Text style={body}>{state.reason.body}</Text>
+                    <Text style={title}>{blockCopy[state.reason.code].title}</Text>
+                    <Text style={body}>{blockCopy[state.reason.code].body}</Text>
                 </View>
             );
         case 'error':

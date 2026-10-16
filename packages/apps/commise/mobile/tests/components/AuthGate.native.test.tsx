@@ -15,6 +15,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Text } from 'react-native';
 
+import { authBlockMessages } from '@commise/features-account';
+
 import { AuthGate } from '../../src/components/AuthGate.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
 import { useAuth } from '../../src/hooks/useAuth.js';
@@ -187,20 +189,21 @@ describe('AuthGate', () => {
         expect(screen.queryByText(/stub-complete-signup/u)).toBeNull();
     });
 
-    it('shows the shared block reason for a blocked session', () => {
-        useAuthMock.mockReturnValue(
-            authState({ status: 'blocked', reason: { title: 'Account suspended', body: 'Contact support.' } }),
-        );
+    it.each(['account_suspended', 'impersonation_blocked'] as const)(
+        'shows the shared, localized %s copy for a blocked session',
+        (code) => {
+            useAuthMock.mockReturnValue(authState({ status: 'blocked', reason: { code } }));
 
-        render(
-            <AuthGate>
-                <Text>app</Text>
-            </AuthGate>,
-        );
+            render(
+                <AuthGate>
+                    <Text>app</Text>
+                </AuthGate>,
+            );
 
-        expect(screen.getByText('Account suspended')).toBeTruthy();
-        expect(screen.getByText('Contact support.')).toBeTruthy();
-    });
+            expect(screen.getByText(authBlockMessages.en[code].title)).toBeTruthy();
+            expect(screen.getByText(authBlockMessages.en[code].body)).toBeTruthy();
+        },
+    );
 
     it('localizes the failure heading and passes the provider diagnostic through', () => {
         useAuthMock.mockReturnValue(authState({ status: 'error', error: new Error('token endpoint down') }));

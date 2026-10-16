@@ -25,6 +25,7 @@ vi.mock('../../src/screens/login', () => ({ LoginScreen: () => null }));
 vi.mock('../../src/screens/signup', () => ({ SignUpScreen: () => null }));
 vi.mock('../../src/screens/CompleteSignUpScreen', () => ({ CompleteSignUpScreen: () => null }));
 
+import { authBlockMessages } from '@commise/features-account';
 import { BoundaryErrorNotice, boundaryMessages } from '@commise/features-core/boundary';
 
 import { AuthGate } from '../../src/components/AuthGate.js';
@@ -63,7 +64,7 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
     it('AuthGate states a blocked session in ink, with its body in inkMuted', () => {
         systemScheme.current = scheme;
         vi.mocked(useAuth).mockReturnValue({
-            state: { status: 'blocked', reason: { title: 'Account suspended', body: 'Contact support.' } },
+            state: { status: 'blocked', reason: { code: 'account_suspended' } },
         } as unknown as ReturnType<typeof useAuth>);
         render(
             <AuthGate>
@@ -71,8 +72,10 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
             </AuthGate>,
         );
 
-        expect(colourOf(screen.getByText('Account suspended'))).toBe(rgb(colours.ink));
-        expect(colourOf(screen.getByText('Contact support.'))).toBe(rgb(colours.inkMuted));
+        const suspended = authBlockMessages.en.account_suspended;
+
+        expect(colourOf(screen.getByText(suspended.title))).toBe(rgb(colours.ink));
+        expect(colourOf(screen.getByText(suspended.body))).toBe(rgb(colours.inkMuted));
     });
 
     it('BoundaryErrorNotice titles the crash in ink, with its body in inkMuted', () => {

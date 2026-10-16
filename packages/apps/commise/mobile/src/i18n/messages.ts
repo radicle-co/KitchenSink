@@ -174,18 +174,6 @@ export interface MobileMessages {
         /** Shown when a sign-up needs something neither the sign-up form nor its finish step can ask for. */
         readonly signUpUnsupported: string;
     };
-    /**
-     * Copy for the mobile impersonation notice. Administrator impersonation is deliberately unavailable in
-     * the app, and the viewer is told so rather than shown a dead end.
-     */
-    readonly impersonation: {
-        /** Heading of the notice. */
-        readonly title: string;
-        /** Body explaining why impersonation is unavailable on mobile. */
-        readonly message: string;
-        /** Appended when a session id is known, for support to correlate. Contains `{sessionId}`. */
-        readonly sessionLabel: string;
-    };
     /** The native-only photo control's copy. The rest of the Profile page's copy is `profileMessages`. */
     readonly profile: {
         /** Section label above the avatar picker. */
@@ -200,10 +188,6 @@ export interface MobileMessages {
         readonly avatarTooLargeError: string;
         /** Alert shown when the picked avatar's type is outside the JPEG/PNG/WebP allowlist. */
         readonly avatarUnsupportedTypeError: string;
-    };
-    readonly suspension: {
-        readonly title: string;
-        readonly message: string;
     };
     readonly recipes: {
         /** Accessible label shown while a single recipe's detail is loading. */
@@ -397,11 +381,6 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             passwordRequired: 'Enter a password.',
             signUpUnsupported: 'We can’t finish creating your account in the app. Try again on the Commise website.',
         },
-        impersonation: {
-            title: 'Impersonation blocked on mobile',
-            message: 'For account safety, administrator impersonation is not available in the mobile app.',
-            sessionLabel: 'Session: {sessionId}',
-        },
         profile: {
             avatarLabel: 'Profile photo',
             avatarImageLabel: 'Your profile photo',
@@ -409,12 +388,6 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             avatarUploadError: 'We couldn’t update your photo. Please try again.',
             avatarTooLargeError: 'That photo is larger than 5 MB. Choose a smaller file.',
             avatarUnsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
-        },
-        suspension: {
-            title: 'Account Suspended',
-            message:
-                'Your account is suspended. Commise access is paused until support restores your account. ' +
-                'Please contact support if you believe this is a mistake.',
         },
         recipes: {
             detailLoading: 'Loading recipe…',

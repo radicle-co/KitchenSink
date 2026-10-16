@@ -201,16 +201,6 @@ export interface MobileMessages {
         /** Alert shown when the picked avatar's type is outside the JPEG/PNG/WebP allowlist. */
         readonly avatarUnsupportedTypeError: string;
     };
-    /** Copy the Profile page's danger zone needs beyond `accountDangerMessages`. */
-    readonly account: {
-        /**
-         * Alert shown when an account ERASURE was accepted (202) but the follow-up sign-out failed.
-         * Deliberately distinct from `signOutFailed` and from the erasure dialog's own submit error: the
-         * erasure DID succeed server-side, so telling the viewer to retry it would be a lie — the only
-         * outstanding action is leaving the (now-destroyed) account's session.
-         */
-        readonly eraseSignOutFailed: string;
-    };
     readonly suspension: {
         readonly title: string;
         readonly message: string;
@@ -419,10 +409,6 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             avatarUploadError: 'We couldn’t update your photo. Please try again.',
             avatarTooLargeError: 'That photo is larger than 5 MB. Choose a smaller file.',
             avatarUnsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
-        },
-        account: {
-            eraseSignOutFailed:
-                'Your data is being erased, but we couldn’t sign you out. Sign out to finish leaving this account.',
         },
         suspension: {
             title: 'Account Suspended',

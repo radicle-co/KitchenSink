@@ -81,3 +81,12 @@ export interface DisplayNameSheetProps {
     readonly failed: boolean;
     readonly onSave: () => void;
 }
+
+/** The sign-out row: an ink row named by its state, with the localized failure beneath it. */
+export interface SignOutRowProps {
+    /** The sign-out is in flight: the row says "Signing out…" and cannot be pressed again. */
+    readonly busy: boolean;
+    /** The last attempt failed: the localized alert shows and the row stays retryable. */
+    readonly failed: boolean;
+    readonly onPress: () => void;
+}

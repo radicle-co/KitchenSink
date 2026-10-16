@@ -2,8 +2,8 @@
  * @module components/account/SignOutButton — the mobile sign-out control: the Profile page's sign-out row (the
  * counterpart of the web `LogoutButton`).
  *
- * The orchestration half of the sign-out surface: it owns only the control's own state (busy, failed) and
- * issues the app's one sign-out command,
+ * The orchestration half of the sign-out surface: it binds the shared control state (`useSignOutControl`, busy and
+ * failed) and the shared row (`SignOutRow`) to the app's one sign-out command,
  * `useSignOutAndVerify` — which owns the mechanism
  * (Clerk's load-safe `signOut`), the ordering, and the post-condition that the session really ended. Read
  * that module, and ADR-0009, before changing anything here.
@@ -18,68 +18,19 @@
  * `ink`, not red: signing out is not destructive (`buildSpec.md` §9.1). Colour comes from the theme at render.
  *
  * @pattern Command over the app's one sign-out use case, `useSignOutAndVerify` — that module owns the mechanism, the
- *     ordering and the session-ended post-condition (ADR-0009); this leaf owns only busy and failed.
+ *     ordering and the session-ended post-condition (ADR-0009); this leaf only binds it to the shared control state and row.
  */
-import { ProfileRow, profileMessages } from '@commise/features-account/profile';
-import { useMessages } from '@commise/i18n/react';
-import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
+import { SignOutRow, useSignOutControl } from '@commise/features-account/profile';
 import type { JSX } from 'react';
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
 
 import { useSignOutAndVerify } from '../../hooks/useSignOutAndVerify.js';
 
 /** The mobile sign-out control: issues the sign-out command and surfaces its failure. */
 export function SignOutButton(): JSX.Element {
-    const t = useMessages(profileMessages);
-    const { colors } = useTheme();
     const { signOutAndVerify } = useSignOutAndVerify();
-    const [signingOut, setSigningOut] = useState(false);
-    const [failed, setFailed] = useState(false);
+    // The busy state is deliberately NOT released on success: the session is gone, so the auth gate replaces this tree
+    // (see `useSignOutControl`). The row is `ink`, not red: signing out is not destructive.
+    const { busy, failed, run } = useSignOutControl(signOutAndVerify);
 
-    /**
-     * Issue the sign-out command, surfacing a rejection instead of leaving the viewer silently signed in.
-     *
-     * @sideEffect Destroys the Clerk session (the auth gate then re-renders the unauthenticated tree).
-     */
-    const handleSignOut = async (): Promise<void> => {
-        setSigningOut(true);
-        setFailed(false);
-
-        try {
-            await signOutAndVerify();
-        } catch {
-            // Generic on purpose — never echoes the raw error to the viewer (B17).
-            setFailed(true);
-            setSigningOut(false);
-        }
-    };
-
-    return (
-        <View>
-            {/* The busy state is deliberately NOT released on success: the session is gone, so the auth gate
-                replaces this tree — clearing it first would flash an idle control. */}
-            <ProfileRow
-                label={signingOut ? t.signingOut : t.signOut}
-                tone="ink"
-                chevron={false}
-                busy={signingOut}
-                onPress={() => void handleSignOut()}
-            />
-            {failed ? (
-                <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
-                    {t.signOutFailed}
-                </Text>
-            ) : null}
-        </View>
-    );
+    return <SignOutRow busy={busy} failed={failed} onPress={run} />;
 }
-
-const styles = StyleSheet.create({
-    error: {
-        ...nativeTokens.type.meta,
-        paddingHorizontal: nativeTokens.spacing[4],
-        paddingBottom: nativeTokens.spacing[3],
-    },
-});

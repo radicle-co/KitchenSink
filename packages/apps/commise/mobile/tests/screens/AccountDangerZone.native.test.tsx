@@ -34,7 +34,6 @@ import { accountDangerMessages } from '@commise/features-account/danger';
 import { profileMessages } from '@commise/features-account/profile';
 
 import { AccountDangerZone } from '../../src/components/account/AccountDangerZone.js';
-import { mobileMessages } from '../../src/i18n/messages.js';
 import { useDeleteAccount } from '../../src/hooks/useDeleteAccount.js';
 
 vi.mock('react-native', async (importOriginal) => {
@@ -102,7 +101,6 @@ function setRecipes(data: unknown[], state: { isLoading?: boolean; isError?: boo
 }
 
 const { close, erase } = accountDangerMessages.en;
-const { account } = mobileMessages.en;
 
 function setDeleteAccount(state: { isPending?: boolean; failedAt?: ClosureStep } = {}): void {
     useDeleteAccountMock.mockReturnValue({
@@ -435,7 +433,7 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
         confirmErasure();
 
         const alert = await screen.findByRole('alert');
-        expect(alert.textContent).toBe(account.eraseSignOutFailed);
+        expect(alert.textContent).toBe(erase.signOutFailed);
         // `role="alert"` alone is silent on iOS; the live region speaks it on both platforms (SC 4.1.3).
         expect(alert.getAttribute('aria-live')).toBe('assertive');
         // The erasure DID succeed (202), so inviting a retry of it would be a lie.

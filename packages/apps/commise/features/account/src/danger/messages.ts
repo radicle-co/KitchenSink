@@ -66,6 +66,12 @@ export interface AccountEraseMessages {
     readonly busyLabel: string;
     /** Error shown when starting the erasure fails, so it never silently stops (B17). */
     readonly error: string;
+    /**
+     * Alert under the row when the erasure WAS accepted (202) and only the sign-out failed (B17). It never invites a
+     * retry of the erasure, which would be a lie: the only outstanding action is leaving the session. Both apps render
+     * it beside their sign-out control; it used to be authored in each app's own dictionary.
+     */
+    readonly signOutFailed: string;
 }
 
 /** The shape of the account danger-zone's shared copy. */
@@ -120,6 +126,8 @@ export const accountDangerMessages: LocalizedMessages<AccountDangerMessages> = {
             cancel: 'Cancel',
             busyLabel: 'Erasing…',
             error: 'We couldn’t start erasing your data. Please try again.',
+            signOutFailed:
+                'Your data is being erased, but we couldn’t sign you out. Sign out to finish leaving this account.',
         },
     },
 };

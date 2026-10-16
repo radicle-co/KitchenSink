@@ -36,8 +36,8 @@
  */
 import { useState } from 'react';
 import { useMessages } from '@commise/i18n/react';
-import { isClosureStepError, useClosureSequence } from '@commise/features-account';
-import { accountDangerMessages } from '@commise/features-account/danger';
+import { useClosureSequence } from '@commise/features-account';
+import { accountDangerMessages, closeConfirmOf, closeRowOf } from '@commise/features-account/danger';
 import { ProfileRow } from '@commise/features-account/profile';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 
@@ -57,10 +57,8 @@ export function AccountCloseForm() {
         close: async () => client.deleteMe(),
         leave: signOutAndLeave,
     });
-    // The account is closed and only leaving failed: the row is a fact now, not an action.
-    const closed = isClosureStepError(sequence.error, 'exit');
-    // B17 — never fail silently. Generic on purpose: the raw error is never echoed to the UI.
-    const closeFailed = isClosureStepError(sequence.error, 'close');
+    // The row, its failure kind and the confirmation are decided once for both apps (`closeRowOf`, `closeConfirmOf`).
+    const row = closeRowOf(sequence, close);
 
     const handleConfirm = () => {
         setOpen(false);
@@ -70,20 +68,21 @@ export function AccountCloseForm() {
     return (
         <>
             <ProfileRow
-                label={closed ? close.closedLabel : sequence.isPending ? close.busyLabel : close.trigger}
+                label={row.label}
                 hint={close.rowHint}
                 tone="danger"
-                chevron={!closed}
-                busy={sequence.isPending}
-                inert={closed}
+                chevron={row.chevron}
+                busy={row.busy}
+                inert={row.inert}
                 onPress={() => setOpen(true)}
             />
-            {closeFailed && (
+            {/* B17 — never fail silently. Generic on purpose: the raw error is never echoed to the UI. */}
+            {row.failure === 'close' && (
                 <p role="alert" className="px-4 pb-3 text-meta text-danger-text">
                     {close.error}
                 </p>
             )}
-            {closed && (
+            {row.failure === 'exit' && (
                 <>
                     <p role="alert" className="px-4 pb-3 text-meta text-danger-text">
                         {close.signOutFailed}
@@ -92,11 +91,8 @@ export function AccountCloseForm() {
                 </>
             )}
             <ConfirmDialog
+                {...closeConfirmOf(close)}
                 open={open}
-                title={close.title}
-                body={close.description}
-                confirm={{ label: close.confirm, icon: 'userX' }}
-                keep={{ label: close.cancel }}
                 onConfirm={handleConfirm}
                 onKeep={() => setOpen(false)}
             />

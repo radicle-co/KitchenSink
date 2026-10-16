@@ -11,6 +11,9 @@ export { ProfileGroup } from './ProfileGroup.js';
 export { ProfileHeader } from './ProfileHeader.js';
 export { ProfileRow } from './ProfileRow.js';
 export { ProfileValueRow } from './ProfileValueRow.js';
+export { SignOutRow } from './SignOutRow.js';
+export { useSignOutControl } from './useSignOutControl.js';
+export type { SignOutControl } from './useSignOutControl.js';
 
 export {
     DISPLAY_NAME_MAX_LENGTH,
@@ -29,4 +32,5 @@ export type {
     ProfileHeaderProps,
     ProfileRowProps,
     ProfileValueRowProps,
+    SignOutRowProps,
 } from './props.js';

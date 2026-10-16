@@ -33,13 +33,15 @@
  *     and the close and erasure Commands, and hands each to the shared cross-platform render half.
  */
 import { useMessages } from '@commise/i18n/react';
+import { type ErasureSteps } from '@commise/features-account';
 import {
-    isClosureStepError,
-    isErasureStepError,
-    selectDonatableRecipes,
-    useErasureSequence,
-} from '@commise/features-account';
-import { AccountEraseDialog, accountDangerMessages } from '@commise/features-account/danger';
+    AccountEraseDialog,
+    accountDangerMessages,
+    closeConfirmOf,
+    closeRowOf,
+    useAccountEraseControl,
+    useAccountEraseFlow,
+} from '@commise/features-account/danger';
 import { useEraseAccount } from '../../hooks/useEraseAccount.js';
 import { ProfileGroup, ProfileRow, profileMessages } from '@commise/features-account/profile';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
@@ -54,11 +56,11 @@ import { StyleSheet, View } from 'react-native';
 
 import { useSignOutAndVerify } from '../../hooks/useSignOutAndVerify.js';
 import { useDeleteAccount } from '../../hooks/useDeleteAccount.js';
-import { mobileMessages } from '../../i18n/messages.js';
 import { SignOutButton } from './SignOutButton.js';
 
 /**
- * The mounted-while-open erasure flow: owns the recipe fetch, the mutation, and the form state.
+ * The mounted-while-open erasure flow: owns the recipe fetch and the mobile-bound steps, and hands the rest to the
+ * shared `useAccountEraseFlow` (phrase, election, the sequence, which failure the dialog owns).
  *
  * @param props - `onClose`, invoked on any dismissal (Cancel / Escape / backdrop), and `onExitFailed`,
  *   invoked when the erasure was ACCEPTED but the follow-up sign-out failed.
@@ -80,97 +82,45 @@ function AccountEraseFlow({
      * ⛔ The recipe mutation above erases RECIPES and reaches no other service, so while it was the whole
      * flow, "erase my data" left the identity row, the Clerk account, the avatar object and food's requester
      * rows intact — the viewer could sign straight back in. Identity owns the user and is the only service
-     * that can start the cross-service erasure. Mirrors the web `AccountEraseForm` exactly, per the
-     * cross-platform rule: a fix to one platform must not silently miss the other.
+     * that can start the cross-service erasure (it enqueues the message whose worker deletes the Clerk account and fans out to recipe and food).
      */
     const accountErasure = useEraseAccount();
 
     /**
-     * Recipes → account → sign-out as ONE mutation (`useErasureSequence`, `@commise/features-account`), the same
-     * sequence web runs, so it finishes even if this screen unmounts mid-way: the chained `onSuccess` callbacks it
-     * replaces were dropped on unmount, leaving recipes erased and the account and session alive. `isPending` stays
-     * true through the sign-out. The last step is `signOutAndVerify`, which keeps ADR-0009's verified post-condition.
+     * Recipes -> account -> sign-out, run by the shared flow's `useErasureSequence` (the same sequence web runs), so it
+     * finishes even if this screen unmounts mid-way. The last step is `signOutAndVerify`, which keeps ADR-0009's
+     * verified post-condition.
      */
-    const sequence = useErasureSequence({
+    const steps: ErasureSteps = {
         eraseRecipes: erasure.mutateAsync,
         eraseAccount: accountErasure.mutateAsync,
         leave: signOutAndVerify,
         recipesAlreadyErased: isGoneError,
+    };
+
+    const flow = useAccountEraseFlow({
+        recipes: { recipes: recipes.recipes, isLoading: recipes.isLoading, isError: recipes.isError },
+        steps,
+        onExitFailed,
+        onCancel: onClose,
     });
 
-    const [phrase, setPhrase] = useState('');
-    const [selectedRecipeIds, setSelectedRecipeIds] = useState<readonly string[]>([]);
-
-    const donatableRecipes = selectDonatableRecipes(recipes.recipes).map((recipe) => ({
-        id: recipe.id,
-        title: recipe.title,
-    }));
-
-    const toggleRecipe = (recipeId: string) => {
-        setSelectedRecipeIds((current) =>
-            current.includes(recipeId) ? current.filter((id) => id !== recipeId) : [...current, recipeId],
-        );
-    };
-
-    const handleConfirm = () => {
-        sequence.mutate(
-            { confirmationPhrase: phrase, publishRecipeIds: selectedRecipeIds },
-            {
-                // The erasure was ACCEPTED and only leaving failed (B17): report it upward instead of swallowing
-                // it, because a silent failure strands the viewer on a dead account surface. A failed recipe or
-                // account step is the dialog's own `submitError` below.
-                onError: (error) => {
-                    if (isErasureStepError(error, 'exit')) {
-                        onExitFailed();
-                    }
-                },
-            },
-        );
-    };
-
-    return (
-        <AccountEraseDialog
-            open
-            donatableRecipes={donatableRecipes}
-            recipesLoading={recipes.isLoading}
-            // ⛔ `isError` DELIBERATELY, not a loading error: a failed refresh blocks the donate election rather than
-            // offering a list that may be stale, because erasure destroys every recipe the viewer is not shown.
-            recipesError={recipes.isError}
-            selectedRecipeIds={selectedRecipeIds}
-            onToggleRecipe={toggleRecipe}
-            phrase={phrase}
-            onPhraseChange={setPhrase}
-            submitting={sequence.isPending}
-            // A failed EXIT is not a submit error — the erasure succeeded; it has its own alert (see `onExitFailed`).
-            submitError={isErasureStepError(sequence.error, 'recipes') || isErasureStepError(sequence.error, 'account')}
-            onConfirm={handleConfirm}
-            onCancel={onClose}
-        />
-    );
+    return <AccountEraseDialog {...flow} />;
 }
 
 /** The account danger-zone controls (close + erase) for the mobile account surface. */
 export function AccountDangerZone(): JSX.Element {
     const { close, erase } = useMessages(accountDangerMessages);
-    const { account } = useMessages(mobileMessages);
     const profile = useMessages(profileMessages);
     const { colors } = useTheme();
     const deleteAccount = useDeleteAccount();
-    // The account is closed and only leaving failed: the row is a fact now, not an action (`buildSpec.md` §9.1).
-    const closed = isClosureStepError(deleteAccount.error, 'exit');
-    const closeFailed = isClosureStepError(deleteAccount.error, 'close');
+    // The row, its failure kind and the confirmation are decided once for both apps (`closeRowOf`, `closeConfirmOf`).
+    // A failed close and a failed exit say different things: the account is still open, or it IS closed.
+    const row = closeRowOf(deleteAccount, close);
     const [closeOpen, setCloseOpen] = useState(false);
-    const [eraseOpen, setEraseOpen] = useState(false);
-    const [eraseExitFailed, setEraseExitFailed] = useState(false);
-
-    /**
-     * The erasure was accepted but the exit failed: dismiss the now-dead dialog (it would otherwise hold the
-     * viewer inside a flow whose account no longer exists) and surface the alert + its recovery instead.
-     */
-    const handleEraseExitFailed = (): void => {
-        setEraseOpen(false);
-        setEraseExitFailed(true);
-    };
+    // The erasure was accepted but the exit failed: the shared control dismisses the now-dead dialog and shows the
+    // alert + its recovery instead.
+    const eraseControl = useAccountEraseControl();
 
     return (
         <View style={styles.container}>
@@ -178,12 +128,12 @@ export function AccountDangerZone(): JSX.Element {
                 {/* Recoverable closure. Its `busy` state disables the row while in flight, so an in-progress closure
                     cannot be double-fired, and the label says so. */}
                 <ProfileRow
-                    label={closed ? close.closedLabel : deleteAccount.isPending ? close.busyLabel : close.trigger}
+                    label={row.label}
                     hint={close.rowHint}
                     tone="danger"
-                    chevron={!closed}
-                    busy={deleteAccount.isPending}
-                    inert={closed}
+                    chevron={row.chevron}
+                    busy={row.busy}
+                    inert={row.inert}
                     onPress={() => setCloseOpen(true)}
                 />
                 {/* Irreversible erasure. It opens the phrase-gated dialog; the erasure's own in-flight state belongs to
@@ -193,27 +143,23 @@ export function AccountDangerZone(): JSX.Element {
                     hint={erase.rowHint}
                     tone="danger"
                     chevron
-                    onPress={() => setEraseOpen(true)}
+                    onPress={eraseControl.openDialog}
                 />
             </ProfileGroup>
             {/* Mounted BEFORE there is anything to say, because Android speaks a CHANGE to a live region it already
-                holds. Assertive, because React Native's `role="alert"` does not announce on iOS. A failed close and a
-                failed exit say different things: the account is still open, or it IS closed. */}
+                holds. Assertive, because React Native's `role="alert"` does not announce on iOS. */}
             <LiveRegion politeness="assertive" style={[styles.error, { color: colors.dangerText }]}>
-                {closed ? close.signOutFailed : closeFailed ? close.error : ''}
+                {row.failure === 'exit' ? close.signOutFailed : row.failure === 'close' ? close.error : ''}
             </LiveRegion>
-            {closed ? (
+            {row.failure === 'exit' ? (
                 <ProfileGroup label={profile.signOut}>
                     <SignOutButton />
                 </ProfileGroup>
             ) : null}
 
             <ConfirmDialog
+                {...closeConfirmOf(close)}
                 open={closeOpen}
-                title={close.title}
-                body={close.description}
-                confirm={{ label: close.confirm, icon: 'userX' }}
-                keep={{ label: close.cancel }}
                 onConfirm={() => {
                     setCloseOpen(false);
                     deleteAccount.mutate();
@@ -221,14 +167,16 @@ export function AccountDangerZone(): JSX.Element {
                 onKeep={() => setCloseOpen(false)}
             />
 
-            {eraseOpen && <AccountEraseFlow onClose={() => setEraseOpen(false)} onExitFailed={handleEraseExitFailed} />}
+            {eraseControl.open && (
+                <AccountEraseFlow onClose={eraseControl.closeDialog} onExitFailed={eraseControl.onExitFailed} />
+            )}
 
             {/* The erasure SUCCEEDED; only leaving failed. The copy says exactly that, and the recovery is the
                 sign-out control — never a prompt to retry an erasure that already happened. */}
             <LiveRegion politeness="assertive" style={[styles.error, { color: colors.dangerText }]}>
-                {eraseExitFailed ? account.eraseSignOutFailed : ''}
+                {eraseControl.exitFailed ? erase.signOutFailed : ''}
             </LiveRegion>
-            {eraseExitFailed ? (
+            {eraseControl.exitFailed ? (
                 <ProfileGroup label={profile.signOut}>
                     <SignOutButton />
                 </ProfileGroup>

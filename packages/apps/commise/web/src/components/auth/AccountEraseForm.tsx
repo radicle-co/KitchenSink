@@ -35,22 +35,26 @@
  * @pattern Orchestration half of the orchestration/render split — it owns the deferred recipe fetch and the erasure
  *     Command, and hands both to the pure cross-platform `AccountEraseDialog`, which owns the phrase gate.
  */
-import { useState } from 'react';
 import { useMessages } from '@commise/i18n/react';
 import { ProfileRow } from '@commise/features-account/profile';
-import { isErasureStepError, selectDonatableRecipes, useErasureSequence } from '@commise/features-account';
-import { AccountEraseDialog, accountDangerMessages } from '@commise/features-account/danger';
+import { type ErasureSteps } from '@commise/features-account';
+import {
+    AccountEraseDialog,
+    accountDangerMessages,
+    useAccountEraseControl,
+    useAccountEraseFlow,
+} from '@commise/features-account/danger';
 import { isGoneError } from '@kitchensink/recipe-service-client';
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 
-import { authMessages } from '@/components/auth/messages';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { useSignOutAndLeave } from '@/components/auth/useSignOutAndLeave';
 import { useEraseAccount } from '@/components/auth/useEraseAccount';
 
 /**
- * The mounted-while-open erasure flow: owns the recipe fetch, the mutation, and the form state. Mounted only
- * when the flow is open (so the recipe fetch fires on demand), and always renders the dialog as `open`.
+ * The mounted-while-open erasure flow: owns the recipe fetch and the web-bound steps, and hands the rest to the shared
+ * `useAccountEraseFlow` (phrase, election, the sequence, which failure the dialog owns). Mounted only when the flow is
+ * open (so the recipe fetch fires on demand), and always renders the dialog as `open`.
  *
  * @param props - `onClose`, invoked on any dismissal (Cancel / Escape / backdrop), and `onExitFailed`,
  *   invoked when the erasure was ACCEPTED but the follow-up sign-out / navigation failed.
@@ -74,100 +78,39 @@ function AccountEraseFlow({
     const accountErasure = useEraseAccount();
 
     /**
-     * Recipes → account → sign-out as ONE mutation (`useErasureSequence`, `@commise/features-account`), so the
-     * sequence finishes even if this flow unmounts mid-way (browser Back, a route change): the chained
-     * `onSuccess` callbacks it replaces were dropped on unmount, leaving recipes erased and the account and
-     * session alive. `isPending` stays true through the sign-out, so the flow is busy until the viewer has left.
-     * The sign-out step is `signOutAndLeave`, which keeps ADR-0009's verified post-condition.
+     * Recipes -> account -> sign-out, as `useErasureSequence` runs them inside the shared flow, so the sequence finishes
+     * even if this flow unmounts mid-way (browser Back, a route change). The last step is `signOutAndLeave`, which keeps
+     * ADR-0009's verified post-condition.
      */
-    const sequence = useErasureSequence({
+    const steps: ErasureSteps = {
         eraseRecipes: erasure.mutateAsync,
         eraseAccount: accountErasure.mutateAsync,
         leave: signOutAndLeave,
         recipesAlreadyErased: isGoneError,
+    };
+
+    const flow = useAccountEraseFlow({
+        recipes: { recipes: recipes.recipes, isLoading: recipes.isLoading, isError: recipes.isError },
+        steps,
+        onExitFailed,
+        onCancel: onClose,
     });
 
-    const [phrase, setPhrase] = useState('');
-    const [selectedRecipeIds, setSelectedRecipeIds] = useState<readonly string[]>([]);
-
-    const donatableRecipes = selectDonatableRecipes(recipes.recipes).map((recipe) => ({
-        id: recipe.id,
-        title: recipe.title,
-    }));
-
-    const toggleRecipe = (recipeId: string) => {
-        setSelectedRecipeIds((current) =>
-            current.includes(recipeId) ? current.filter((id) => id !== recipeId) : [...current, recipeId],
-        );
-    };
-
-    const handleConfirm = () => {
-        sequence.mutate(
-            { confirmationPhrase: phrase, publishRecipeIds: selectedRecipeIds },
-            {
-                // The erasure was ACCEPTED and only leaving failed (B17): report it upward instead of swallowing
-                // it, because a silent failure strands the viewer on a dead account page. A failed recipe or
-                // account step is the dialog's own `submitError` below. (An observer callback: if the flow has
-                // unmounted there is no surface left to report to; the sequence itself is unaffected.)
-                onError: (error) => {
-                    if (isErasureStepError(error, 'exit')) {
-                        onExitFailed();
-                    }
-                },
-            },
-        );
-    };
-
-    return (
-        <AccountEraseDialog
-            open
-            donatableRecipes={donatableRecipes}
-            recipesLoading={recipes.isLoading}
-            // ⛔ `isError` DELIBERATELY, not a loading error: a failed refresh blocks the donate election rather than
-            // offering a list that may be stale, because erasure destroys every recipe the viewer is not shown.
-            recipesError={recipes.isError}
-            selectedRecipeIds={selectedRecipeIds}
-            onToggleRecipe={toggleRecipe}
-            phrase={phrase}
-            onPhraseChange={setPhrase}
-            submitting={sequence.isPending}
-            // A failed EXIT is not a submit error — the erasure succeeded; it has its own alert (see `onExitFailed`).
-            submitError={isErasureStepError(sequence.error, 'recipes') || isErasureStepError(sequence.error, 'account')}
-            onConfirm={handleConfirm}
-            onCancel={onClose}
-        />
-    );
+    return <AccountEraseDialog {...flow} />;
 }
 
 export function AccountEraseForm() {
     const { erase } = useMessages(accountDangerMessages);
-    const { session } = useMessages(authMessages);
-    const [open, setOpen] = useState(false);
-    const [exitFailed, setExitFailed] = useState(false);
-
-    /**
-     * The erasure was accepted but the exit failed: dismiss the now-dead dialog (Radix would otherwise trap
-     * focus inside it, away from the message) and surface the alert + its recovery on the page itself.
-     */
-    const handleExitFailed = (): void => {
-        setOpen(false);
-        setExitFailed(true);
-    };
+    const control = useAccountEraseControl();
 
     return (
         <>
-            <ProfileRow
-                label={erase.trigger}
-                hint={erase.rowHint}
-                tone="danger"
-                chevron
-                onPress={() => setOpen(true)}
-            />
-            {open && <AccountEraseFlow onClose={() => setOpen(false)} onExitFailed={handleExitFailed} />}
-            {exitFailed && (
+            <ProfileRow label={erase.trigger} hint={erase.rowHint} tone="danger" chevron onPress={control.openDialog} />
+            {control.open && <AccountEraseFlow onClose={control.closeDialog} onExitFailed={control.onExitFailed} />}
+            {control.exitFailed && (
                 <>
                     <p role="alert" className="px-4 pb-3 text-meta text-danger-text">
-                        {session.eraseSignOutFailed}
+                        {erase.signOutFailed}
                     </p>
                     <LogoutButton />
                 </>

@@ -22,3 +22,5 @@ export { useOncePerSessionNudge } from './useOncePerSessionNudge.js';
 export type { OncePerSessionNudge } from './useOncePerSessionNudge.js';
 export { createHomeContainer } from './createHomeContainer.js';
 export type { CreateHomeContainerInput } from './createHomeContainer.js';
+export { useHomeGreeting } from './useHomeGreeting.js';
+export type { HomeGreeting } from './useHomeGreeting.js';

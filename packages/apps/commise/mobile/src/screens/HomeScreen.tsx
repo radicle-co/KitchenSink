@@ -12,6 +12,7 @@
  * @pattern Mediator — floats the condensed bar and the create button over the Home surface's one scroller
  */
 import { profileEntryOf } from '@commise/features-core';
+import { useHomeGreeting } from '@commise/features-core/home';
 import { RecipeCreateButton } from '@commise/features-recipes';
 import { useHomeFirstRun } from '@commise/features-recipes/widget';
 import { CondensedTitleBar } from '@commise/ui/large-title-header';
@@ -20,7 +21,6 @@ import type { JSX } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { HomeWidgetSurface } from '../components/home/HomeWidgetSurface.js';
-import { useHomeGreeting } from '../components/home/HomeGreeting.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
 import { ProfileAvatarEntry } from '../navigation/ProfileAvatarEntry.js';
 
@@ -58,7 +58,7 @@ export function HomeScreen({
     onFindOnDiscover,
 }: HomeScreenProps): JSX.Element {
     const { condensed } = useScrollHost();
-    const greeting = useHomeGreeting(profileEntryOf(useUserProfile()).name);
+    const { title: greeting } = useHomeGreeting(profileEntryOf(useUserProfile()).name);
     // The recent-recipes read the widget makes, read from the cache: a settled page of no recipes is Home's first run,
     // whose own start buttons take the floating button's place (§3.4).
     const firstRun = useHomeFirstRun();

@@ -3,32 +3,16 @@
  * §4.2): the time-of-day greeting as the screen's header, "Good afternoon, Eliza" ("Good afternoon" without a name),
  * over the local calendar date, drawn by the design system's `LargeTitleHeader` with the avatar as its action.
  *
- * Both lines derive from the viewer's local clock via the SHARED formatters in `@commise/features-core`
- * ({@link homeGreetingOf} + {@link formatHomeDate}), so web and mobile greet identically (FR-044). The surface is
+ * Both lines derive from the viewer's local clock via the SHARED `useHomeGreeting` in `@commise/features-core/home`,
+ * so web and mobile greet identically (FR-044). The surface is
  * client-rendered on device, so (unlike web) there is no hydration concern — reading the clock in render is fine.
  */
-import { formatHomeDate } from '@commise/features-core';
-import { homeGreetingOf } from '@commise/features-core/home';
-import { homeMessages } from '@commise/features-core/home';
-import { useLocale, useMessages } from '@commise/i18n/react';
+import { useHomeGreeting } from '@commise/features-core/home';
 import { LargeTitleHeader, type HeaderAction } from '@commise/ui/large-title-header';
 import type { JSX } from 'react';
 
 /** The id of Home's large title. */
 const HOME_TITLE_ID = 'home-title';
-
-/**
- * Home's title now: the greeting for the hour, with the cook's name when there is one.
- *
- * @param name - The cook's display name, if any.
- * @returns The greeting.
- * @sideEffect Reads the clock.
- */
-export function useHomeGreeting(name: string | undefined): string {
-    const home = useMessages(homeMessages);
-
-    return homeGreetingOf(home, name, new Date().getHours());
-}
 
 /** Props for {@link HomeGreeting}. */
 export interface HomeGreetingProps {
@@ -45,14 +29,13 @@ export interface HomeGreetingProps {
  * @returns The greeting as the header and the localized full date under it.
  */
 export function HomeGreeting({ name, action }: HomeGreetingProps = {}): JSX.Element {
-    const locale = useLocale();
-    const greeting = useHomeGreeting(name);
+    const { title, subtitle } = useHomeGreeting(name);
 
     return (
         <LargeTitleHeader
             headingId={HOME_TITLE_ID}
-            title={greeting}
-            subtitle={formatHomeDate(new Date(), locale)}
+            title={title}
+            subtitle={subtitle}
             {...(action === undefined ? {} : { action })}
         />
     );

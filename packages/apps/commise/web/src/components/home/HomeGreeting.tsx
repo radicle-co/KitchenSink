@@ -6,9 +6,8 @@
  * header's action (the avatar) and the floating create button right after the H1.
  *
  * "Good afternoon, Eliza" over "Sunday, May 31, 2026"; "Good afternoon" when the cook has no name yet. Both are derived from the viewer's
- * LOCAL clock: the greeting from the hour-of-day bucket ({@link homeGreetingOf}) and the subtitle from
- * {@link formatHomeDate} — the shared, locale-aware formatters in `@commise/features-core`, so web and mobile
- * greet identically (FR-044).
+ * LOCAL clock, by the shared `useHomeGreeting` in `@commise/features-core/home`, so web and mobile greet
+ * identically (FR-044).
  *
  * ## Why the clock is read AFTER hydration, not during the server render (#144)
  *
@@ -35,10 +34,7 @@
  * former is provider-coupled and wrong behind a VPN, the latter is wrong on the first visit — and neither is
  * reachable from a browser test, so both would keep the masks.
  */
-import { formatHomeDate } from '@commise/features-core';
-import { homeGreetingOf } from '@commise/features-core/home';
-import { homeMessages } from '@commise/features-core/home';
-import { useLocale, useMessages } from '@commise/i18n/react';
+import { useHomeGreeting } from '@commise/features-core/home';
 import {
     LARGE_SUBTITLE_CLASS,
     LARGE_TITLE_CLASS,
@@ -82,8 +78,9 @@ const PLACEHOLDER_BAR = 'max-w-full rounded-md bg-surface-muted';
  *          before that, the same two lines reserved as an `aria-hidden` placeholder.
  */
 export function HomeGreeting({ name, action, afterTitle }: HomeGreetingProps = {}): JSX.Element {
-    const home = useMessages(homeMessages);
-    const locale = useLocale();
+    // Read unconditionally (hook order), but SHOWN only once hydrated: before that the clock is the server's, not the
+    // viewer's, and the placeholder below stands in for it.
+    const { title, subtitle } = useHomeGreeting(name);
     const hydrated = useIsHydrated();
 
     if (!hydrated) {
@@ -98,14 +95,11 @@ export function HomeGreeting({ name, action, afterTitle }: HomeGreetingProps = {
         );
     }
 
-    const now = new Date();
-    const greeting = homeGreetingOf(home, name, now.getHours());
-
     return (
         <LargeTitleHeader
             headingId={HOME_TITLE_ID}
-            title={greeting}
-            subtitle={formatHomeDate(now, locale)}
+            title={title}
+            subtitle={subtitle}
             {...(action === undefined ? {} : { action })}
             {...(afterTitle === undefined ? {} : { afterTitle })}
         />

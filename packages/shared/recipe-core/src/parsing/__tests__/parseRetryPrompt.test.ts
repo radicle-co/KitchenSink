@@ -10,12 +10,14 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { PARSE_SYSTEM_PROMPT } from '../parsePrompt.js';
+import { MAX_PARSE_PROMPT_CHARS, PARSE_SYSTEM_PROMPT } from '../parsePrompt.js';
 import {
     MAX_RETRY_CONTEXT_CHARS,
     PARSE_RETRY_SUFFIX_SHA256,
     PARSE_RETRY_SUFFIX_TEMPLATE,
+    ParseRetryPromptTooLargeError,
     buildParseRetryPrompt,
+    isParseRetryPromptTooLargeError,
     type RetryFailure,
 } from '../parseRetryPrompt.js';
 
@@ -78,6 +80,24 @@ describe('buildParseRetryPrompt', () => {
         const prompt = buildParseRetryPrompt('1 cup flour', [FAILURE]);
 
         expect(prompt.userMessage).toBe('<input>1 cup flour</input>');
+    });
+
+    /** A caller tells the cap refusal from any other throw through the guard, as it does for the first attempt. */
+    it('refuses a prompt over the parse cap with an error its guard recognises, and nothing else matches', () => {
+        const caught = (() => {
+            try {
+                buildParseRetryPrompt('x'.repeat(MAX_PARSE_PROMPT_CHARS), [FAILURE]);
+            } catch (error) {
+                return error;
+            }
+
+            return undefined;
+        })();
+
+        expect(isParseRetryPromptTooLargeError(caught)).toBe(true);
+        expect(caught).toBeInstanceOf(ParseRetryPromptTooLargeError);
+        expect((caught as Error).name).toBe('ParseRetryPromptTooLargeError');
+        expect(isParseRetryPromptTooLargeError(new Error('other'))).toBe(false);
     });
 });
 

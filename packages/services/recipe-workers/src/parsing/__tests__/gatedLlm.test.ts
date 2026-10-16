@@ -40,6 +40,7 @@ import {
 } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 import { FOODNESS_MAX_OUTPUT_TOKENS, FOODNESS_MODEL_ID } from '@kitchensink/recipe-core/parsing/foodness-prompt';
 import { VERIFICATION_MAX_OUTPUT_TOKENS } from '@kitchensink/recipe-core/resolution/verification-prompt';
+import { MAX_PARSE_PROMPT_CHARS } from '@kitchensink/recipe-core/parsing/parse-prompt';
 import type { RetryFailure } from '@kitchensink/recipe-core/parsing/parse-retry-prompt';
 import type { ConverseRequest } from '@kitchensink/bedrock-client';
 
@@ -577,5 +578,26 @@ describe('a settle failure on the parse leg reaches the shared alarm', () => {
         await createGatedFoodnessValidator(deps).judge('flour');
 
         expect(emit).not.toHaveBeenCalledWith(expect.objectContaining({ name: SETTLE_FAILURE_METRIC_NAME }));
+    });
+});
+
+/**
+ * A RETRY PROMPT OVER THE CAP IS AN ABSENT ANSWER, as it is on the first attempt.
+ *
+ * `buildParseRetryPrompt` throws when the line plus the failure context passes the cap. The first-attempt port turns
+ * its own cap refusal into `{ unavailable: true }`; the retry port let the throw escape, so the line failed the whole
+ * message and was redelivered with the same answer every time.
+ */
+describe('createGatedRetryPort — a retry prompt over the parse cap', () => {
+    it('answers unavailable and makes no Bedrock call', async () => {
+        const { deps, converse, reserve } = makeDeps({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
+
+        const answer = await createGatedRetryPort(deps, NOVA_LITE_MODEL_ID).parse('x'.repeat(MAX_PARSE_PROMPT_CHARS), [
+            { kind: 'measurement', statedByModel: '2 cups' },
+        ]);
+
+        expect(answer).toStrictEqual({ unavailable: true });
+        expect(converse).not.toHaveBeenCalled();
+        expect(reserve).not.toHaveBeenCalled();
     });
 });

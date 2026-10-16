@@ -144,9 +144,15 @@ export class ParseRetryPromptTooLargeError extends Error {
 
     public constructor(observedChars: number) {
         super(`retry prompt is ${String(observedChars)} code points; the cap is ${String(MAX_PARSE_PROMPT_CHARS)}`);
+        this.name = 'ParseRetryPromptTooLargeError';
         this.observedChars = observedChars;
         Object.setPrototypeOf(this, ParseRetryPromptTooLargeError.prototype);
     }
+}
+
+/** Type guard for {@link ParseRetryPromptTooLargeError}. */
+export function isParseRetryPromptTooLargeError(error: unknown): error is ParseRetryPromptTooLargeError {
+    return error instanceof ParseRetryPromptTooLargeError;
 }
 
 /**

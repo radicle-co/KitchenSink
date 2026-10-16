@@ -64,7 +64,10 @@ import {
     buildParsePrompt,
     isParsePromptTooLargeError,
 } from '@kitchensink/recipe-core/parsing/parse-prompt';
-import { buildParseRetryPrompt } from '@kitchensink/recipe-core/parsing/parse-retry-prompt';
+import {
+    buildParseRetryPrompt,
+    isParseRetryPromptTooLargeError,
+} from '@kitchensink/recipe-core/parsing/parse-retry-prompt';
 import { modelParseAnswerSchema, normalizeParseAnswer } from '@kitchensink/recipe-core/parsing/parse-answer';
 import {
     VERIFICATION_MAX_OUTPUT_TOKENS,
@@ -445,7 +448,18 @@ export function createGatedLlmEngine(deps: GatedLlmDeps, modelId: string): Parse
 export function createGatedRetryPort(deps: GatedLlmDeps, modelId: string): RetryParsePort {
     return {
         async parse(line, failures) {
-            const prompt = buildParseRetryPrompt(line, failures);
+            let prompt;
+
+            try {
+                prompt = buildParseRetryPrompt(line, failures);
+            } catch (error) {
+                if (isParseRetryPromptTooLargeError(error)) {
+                    return { unavailable: true };
+                }
+
+                throw error;
+            }
+
             const outcome = await gatedConverse(deps, {
                 callSite: INGREDIENT_PARSE_CALL_SITE,
                 modelId,

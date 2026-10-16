@@ -17,6 +17,7 @@
  * layers.
  */
 import type { HomeWidgetDescriptor, HomeWidgetLoader } from '@commise/features-core';
+import { componentPerLoader } from '@commise/features-core/home';
 import { Suspense, lazy, type ComponentType, type JSX } from 'react';
 
 /** Props for {@link RoadmapWidgetSlot}. */
@@ -26,31 +27,12 @@ export interface RoadmapWidgetSlotProps {
 }
 
 /**
- * One `lazy()` skeleton component per loader, built OUTSIDE render — see the web twin for why not `useMemo`: a
- * component type created during render remounts its subtree and re-imports the chunk whenever the memo misses.
+ * The skeleton component for a loader, built ONCE per loader (see `componentPerLoader` for why not a `useMemo` in the
+ * slot).
  */
-const skeletons = new WeakMap<HomeWidgetLoader, ComponentType>();
-
-/**
- * The skeleton component for `load`, building it on first use.
- *
- * @param load - The descriptor's loader seam.
- * @returns The same lazy component for every call with the same loader.
- * @sideEffect Records the built component in the module's loader-keyed cache on first use.
- */
-function skeletonFor(load: HomeWidgetLoader): ComponentType {
-    const cached = skeletons.get(load);
-
-    if (cached !== undefined) {
-        return cached;
-    }
-
-    const built = lazy<ComponentType>(() => load().then((module) => ({ default: module.default as ComponentType })));
-
-    skeletons.set(load, built);
-
-    return built;
-}
+const skeletonFor = componentPerLoader((load: HomeWidgetLoader) =>
+    lazy<ComponentType>(() => load().then((module) => ({ default: module.default as ComponentType }))),
+);
 
 /**
  * The roadmap placeholder slot (mobile): code-splits and renders the skeleton the descriptor's loader

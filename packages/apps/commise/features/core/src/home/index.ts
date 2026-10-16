@@ -24,3 +24,4 @@ export { createHomeContainer } from './createHomeContainer.js';
 export type { CreateHomeContainerInput } from './createHomeContainer.js';
 export { useHomeGreeting } from './useHomeGreeting.js';
 export type { HomeGreeting } from './useHomeGreeting.js';
+export { componentPerLoader } from './componentPerLoader.js';

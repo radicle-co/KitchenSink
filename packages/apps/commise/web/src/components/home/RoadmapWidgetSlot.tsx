@@ -19,6 +19,7 @@
  * difference must not put the two leaves on different layers.
  */
 import type { HomeWidgetDescriptor, HomeWidgetLoader } from '@commise/features-core';
+import { componentPerLoader } from '@commise/features-core/home';
 import dynamic from 'next/dynamic';
 import type { ComponentType, JSX } from 'react';
 
@@ -29,41 +30,15 @@ export interface RoadmapWidgetSlotProps {
 }
 
 /**
- * One code-split skeleton component per loader, built OUTSIDE render.
- *
- * ⛔ Not `useMemo` inside the slot. A component type created during render is a new type whenever the memo misses
- * — a descriptor re-created by its parent, or a remount — and a new type remounts its subtree and re-imports the
- * chunk (`react-hooks/static-components`). The loader is the descriptor's stable identity, so the built component
- * is keyed on it for the life of the page, the per-descriptor equivalent of a module-scope `dynamic()`. A
- * `WeakMap` so a loader nothing references any more takes its component with it.
+ * The skeleton component for a loader, built ONCE per loader (see `componentPerLoader` for why not a `useMemo` in the
+ * slot). `ssr: false` because the whole Home surface is client-rendered (it needs the viewer's auth token), so there is
+ * no server pass to hydrate.
  */
-const skeletons = new WeakMap<HomeWidgetLoader, ComponentType>();
-
-/**
- * The skeleton component for `load`, building it on first use.
- *
- * @param load - The descriptor's loader seam.
- * @returns The same code-split component for every call with the same loader.
- * @sideEffect Records the built component in the module's loader-keyed cache on first use.
- */
-function skeletonFor(load: HomeWidgetLoader): ComponentType {
-    const cached = skeletons.get(load);
-
-    if (cached !== undefined) {
-        return cached;
-    }
-
-    // `ssr: false` because the whole Home surface is client-rendered (it needs the viewer's auth token), so there
-    // is no server pass to hydrate.
-    const built = dynamic<Record<string, never>>(
-        () => load().then((module) => ({ default: module.default as ComponentType })),
-        { ssr: false },
-    );
-
-    skeletons.set(load, built);
-
-    return built;
-}
+const skeletonFor = componentPerLoader((load: HomeWidgetLoader) =>
+    dynamic<Record<string, never>>(() => load().then((module) => ({ default: module.default as ComponentType })), {
+        ssr: false,
+    }),
+);
 
 /**
  * The roadmap placeholder slot: code-splits and renders the skeleton the descriptor's loader resolves.

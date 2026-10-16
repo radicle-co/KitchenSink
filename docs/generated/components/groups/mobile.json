@@ -11,7 +11,7 @@
         "implementationsWithModuleDoc": 53,
         "implementationsWithComponentDoc": 40,
         "documentedProps": 148,
-        "classifiedComponents": 36,
+        "classifiedComponents": 38,
         "componentsWithPatternTag": 25,
         "crossPlatformComponents": 0
     },
@@ -1671,7 +1671,7 @@
             "packageName": "@commise/mobile",
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/components/home",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
                 "Context-injected dependency — a stable component reads what the composition root provides"
             ],
@@ -1687,7 +1687,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/RecipeWidgetHost.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home",
-                    "moduleDoc": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (mobile).\n\nThe render map needs a `ComponentType`, and the slot needs the surface's navigation intents and error reporter.\nClosing over them inside the surface made the component TYPE a function of those values, so any unstable one handed\nReact a new type every render and REMOUNTED the slot (its in-flight read and retry state reset). This module-level\ncomponent has one identity for the life of the app and takes the slot's props from {@link RecipeWidgetPropsContext},\nwhich the surface provides — a changed prop re-renders the slot, it never remounts it.",
+                    "moduleDoc": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (mobile).\n\nThe render map needs a `ComponentType`, and the slot needs the surface's navigation intents and error reporter.\nClosing over them inside the surface made the component TYPE a function of those values, so any unstable one handed\nReact a new type every render and REMOUNTED the slot (its in-flight read and retry state reset). This module-level\ncomponent has one identity for the life of the app and takes the slot's props from {@link RecipeWidgetPropsContext},\nwhich the surface provides — a changed prop re-renders the slot, it never remounts it.\n\nBoth exports are orchestration: the context carries the surface's wiring, and the host reads it and renders the\nslot; neither draws anything of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1712,7 +1712,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -1724,7 +1724,7 @@
             "packageName": "@commise/mobile",
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/components/home",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
                 "Context-injected dependency — a stable component reads what the composition root provides"
             ],
@@ -1740,7 +1740,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/RecipeWidgetHost.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home",
-                    "moduleDoc": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (mobile).\n\nThe render map needs a `ComponentType`, and the slot needs the surface's navigation intents and error reporter.\nClosing over them inside the surface made the component TYPE a function of those values, so any unstable one handed\nReact a new type every render and REMOUNTED the slot (its in-flight read and retry state reset). This module-level\ncomponent has one identity for the life of the app and takes the slot's props from {@link RecipeWidgetPropsContext},\nwhich the surface provides — a changed prop re-renders the slot, it never remounts it.",
+                    "moduleDoc": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (mobile).\n\nThe render map needs a `ComponentType`, and the slot needs the surface's navigation intents and error reporter.\nClosing over them inside the surface made the component TYPE a function of those values, so any unstable one handed\nReact a new type every render and REMOUNTED the slot (its in-flight read and retry state reset). This module-level\ncomponent has one identity for the life of the app and takes the slot's props from {@link RecipeWidgetPropsContext},\nwhich the surface provides — a changed prop re-renders the slot, it never remounts it.\n\nBoth exports are orchestration: the context carries the surface's wiring, and the host reads it and renders the\nslot; neither draws anything of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1760,7 +1760,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]

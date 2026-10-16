@@ -9,7 +9,7 @@
         "implementationsWithModuleDoc": 509,
         "implementationsWithComponentDoc": 374,
         "documentedProps": 1934,
-        "classifiedComponents": 269,
+        "classifiedComponents": 273,
         "componentsWithPatternTag": 204,
         "crossPlatformComponents": 164
     },
@@ -85,7 +85,7 @@
                 "implementationsWithModuleDoc": 62,
                 "implementationsWithComponentDoc": 57,
                 "documentedProps": 65,
-                "classifiedComponents": 32,
+                "classifiedComponents": 34,
                 "componentsWithPatternTag": 29,
                 "crossPlatformComponents": 0
             }
@@ -104,7 +104,7 @@
                 "implementationsWithModuleDoc": 53,
                 "implementationsWithComponentDoc": 40,
                 "documentedProps": 148,
-                "classifiedComponents": 36,
+                "classifiedComponents": 38,
                 "componentsWithPatternTag": 25,
                 "crossPlatformComponents": 0
             }

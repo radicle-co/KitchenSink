@@ -11,7 +11,7 @@
         "implementationsWithModuleDoc": 62,
         "implementationsWithComponentDoc": 57,
         "documentedProps": 65,
-        "classifiedComponents": 32,
+        "classifiedComponents": 34,
         "componentsWithPatternTag": 29,
         "crossPlatformComponents": 0
     },
@@ -3009,7 +3009,7 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/home",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
                 "Context-injected dependency — a stable component reads what the composition root provides"
             ],
@@ -3025,7 +3025,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/RecipeWidgetHost.tsx",
                     "dir": "packages/apps/commise/web/src/components/home",
-                    "moduleDoc": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (web).\n\nThe render map needs a `ComponentType`, and the slot needs the surface's error reporter. Closing over the reporter\ninside the surface made the component TYPE a function of the reporter, so an unstable reporter handed React a new\ntype every render and REMOUNTED the slot (its retry counter and in-flight read reset). This module-level component\nhas one identity for the life of the app and takes the reporter from {@link RecipeWidgetErrorContext}, which the\nsurface provides — a changed reporter re-renders the slot, it never remounts it.",
+                    "moduleDoc": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (web).\n\nThe render map needs a `ComponentType`, and the slot needs the surface's error reporter. Closing over the reporter\ninside the surface made the component TYPE a function of the reporter, so an unstable reporter handed React a new\ntype every render and REMOUNTED the slot (its retry counter and in-flight read reset). This module-level component\nhas one identity for the life of the app and takes the reporter from {@link RecipeWidgetErrorContext}, which the\nsurface provides — a changed reporter re-renders the slot, it never remounts it.\n\nBoth exports are orchestration: the context carries the surface's wiring, and the host reads it and renders the\nslot; neither draws anything of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3045,7 +3045,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -3057,7 +3057,7 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/home",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
                 "Context-injected dependency — a stable component reads what the composition root provides"
             ],
@@ -3073,7 +3073,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/RecipeWidgetHost.tsx",
                     "dir": "packages/apps/commise/web/src/components/home",
-                    "moduleDoc": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (web).\n\nThe render map needs a `ComponentType`, and the slot needs the surface's error reporter. Closing over the reporter\ninside the surface made the component TYPE a function of the reporter, so an unstable reporter handed React a new\ntype every render and REMOUNTED the slot (its retry counter and in-flight read reset). This module-level component\nhas one identity for the life of the app and takes the reporter from {@link RecipeWidgetErrorContext}, which the\nsurface provides — a changed reporter re-renders the slot, it never remounts it.",
+                    "moduleDoc": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (web).\n\nThe render map needs a `ComponentType`, and the slot needs the surface's error reporter. Closing over the reporter\ninside the surface made the component TYPE a function of the reporter, so an unstable reporter handed React a new\ntype every render and REMOUNTED the slot (its retry counter and in-flight read reset). This module-level component\nhas one identity for the life of the app and takes the reporter from {@link RecipeWidgetErrorContext}, which the\nsurface provides — a changed reporter re-renders the slot, it never remounts it.\n\nBoth exports are orchestration: the context carries the surface's wiring, and the host reads it and renders the\nslot; neither draws anything of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3098,7 +3098,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]

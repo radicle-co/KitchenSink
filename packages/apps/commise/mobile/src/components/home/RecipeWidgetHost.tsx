@@ -7,6 +7,9 @@
  * component has one identity for the life of the app and takes the slot's props from {@link RecipeWidgetPropsContext},
  * which the surface provides — a changed prop re-renders the slot, it never remounts it.
  *
+ * Both exports are orchestration: the context carries the surface's wiring, and the host reads it and renders the
+ * slot; neither draws anything of its own.
+ *
  * @pattern Context-injected dependency — a stable component reads what the composition root provides
  */
 import { createContext, useContext, type JSX } from 'react';

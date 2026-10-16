@@ -51,7 +51,14 @@ permissions:
 
 concurrency:
     # One shared sandbox env — serialize deploys (no cancel, so an in-flight deploy completes).
-    group: sandbox-identity-deploy
+    #
+    # ⛔ ONLY the pull_request path uses the shared group. GitHub keeps ONE pending run per group, so when Sandbox Up's
+    # called run shared it, a PR push arriving while that run was pending REPLACED it and the press that asked for the
+    # tier was cancelled without a word. Every other event (a dispatch; a call from Sandbox Up, where `github.event_name`
+    # is the CALLER's) gets a group of its own per run, which nothing can replace, and the first step below does the
+    # serialising by WAITING for an in-progress PR run instead of by cancelling. In a called workflow `github.run_id`
+    # is the caller's run, which is exactly the uniqueness wanted.
+    group: ${{ github.event_name == 'pull_request' && 'sandbox-identity-deploy' || format('sandbox-identity-deploy-{0}', github.run_id) }}
     cancel-in-progress: false
 
 env:
@@ -74,6 +81,7 @@ jobs:
         permissions:
             contents: read
             packages: read # zizmor: ignore[use-trusted-publishing]
+            actions: read # `gh run list` — the wait for an in-progress pull-request run (called path)
             id-token: write # awsAuth: the non-prod role; the stacks deploy through the CDK deploy role
 
         # Binds the one job here — which deploys the PERSISTENT shared sandbox identity tier — to the `Sandbox`
@@ -105,6 +113,14 @@ jobs:
             # gating it to `pull_request` only) means dropping BOTH the credential and this ignore.
             - name: Checkout # zizmor: ignore[artipacked]
               uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+            # ⛔ A dispatch or a Sandbox Up call WAITS for an in-progress pull-request run of this workflow rather than being
+            # cancelled by it (see `concurrency` above, and `waitForPrIdentityDeploy.sh`).
+            - name: Wait for an in-progress pull-request deploy
+              if: github.event_name != 'pull_request'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: bash .github/scripts/waitForPrIdentityDeploy.sh
 
             - name: Detect changes
               uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
@@ -188,7 +204,29 @@ jobs:
                   rc=0
                   bash .github/scripts/sandboxWake.sh check "${DEFAULT_AWS_REGION}" || rc=$?
                   case "$rc" in
-                      0) echo 'up=true' >>"$GITHUB_OUTPUT" ;;
+                      0)
+                          # ⛔ THE SHARED TIER ITSELF (ADR-0060). The database being up says nothing about the ALB and the
+                          # identity service Sandbox Down deleted when the last preview went. On a pull_request an absent
+                          # tier is NOT this run's to rebuild — only Sandbox Up starts it — so it deploys nothing and says
+                          # so. A dispatch or a Sandbox Up call asked for the tier, so those keep the rebuild.
+                          if [ "$EVENT_NAME" = 'pull_request' ]; then
+                              standing_rc=0
+                              bash .github/scripts/sandboxSharedTier.sh standing "${DEFAULT_AWS_REGION}" || standing_rc=$?
+                              case "$standing_rc" in
+                                  0) echo 'up=true' >>"$GITHUB_OUTPUT" ;;
+                                  3)
+                                      echo 'up=false' >>"$GITHUB_OUTPUT"
+                                      echo '::notice::SKIPPED, not passed: the shared sandbox tier (ALB and identity service) has been released, so nothing deploys. Only Sandbox Up rebuilds it — press it for a PR.'
+                                      ;;
+                                  *)
+                                      echo "::error::could not tell whether the shared sandbox tier stands (sandboxSharedTier.sh standing exited ${standing_rc})." >&2
+                                      exit 1
+                                      ;;
+                              esac
+                          else
+                              echo 'up=true' >>"$GITHUB_OUTPUT"
+                          fi
+                          ;;
                       3)
                           if [ "$EVENT_NAME" = 'pull_request' ]; then
                               echo 'up=false' >>"$GITHUB_OUTPUT"

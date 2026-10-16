@@ -49,11 +49,20 @@
 #   sandboxSharedTier.sh live-tokens < names       # pure: the `pr-{N}` tokens that still own a stack
 #   sandboxSharedTier.sh down [region]             # delete the allowlist, in order, idempotently
 #   sandboxSharedTier.sh release-if-idle [region]  # `down`, but only when no preview is left or being started
+#   sandboxSharedTier.sh release-in-progress [region]  # 0 = clear, 3 = a release is under way, 1 = cannot tell
+#   sandboxSharedTier.sh anchor                    # pure: the stack whose absence means the tier is released
+#   sandboxSharedTier.sh standing [region]         # 0 = the anchor stack stands, 3 = released, 1 = cannot tell
 #
 # ## When the tier is released (ADR-0060)
 #
 # Sandbox Down runs `release-if-idle` after tearing its PR down, so the LAST preview to go takes the ALB and the
 # identity service with it; the manual reconciler runs the same verb. ONE definition of "idle", for both.
+#
+# ⛔ The idle question is asked again before EVERY delete, not once: the deletes take minutes, and a Sandbox Up pressed
+# inside that window used to find the ALB still standing, build on it, and have it deleted underneath. The other half
+# is `release-in-progress`, which Sandbox Up asks BEFORE it starts and which refuses while a release is under way. Each
+# side sees the other (a running Up is `busy` here; a running Down or a stack mid-delete is `in progress` there), so
+# neither can begin after the other has passed its own check.
 set -uo pipefail
 
 
@@ -64,6 +73,53 @@ SHARED_TIER_DELETE_ORDER=(
     'kitchensink-identity-schema-sandbox'
     'kitchensink-alb-sandbox'
 )
+
+# The stack whose absence MEANS the tier has been released: the ALB, the exporter every other entry imports from, so it
+# is the last to be deleted and the first to be built. A pull-request deploy reads it to decide that the tier is not
+# its to rebuild (ADR-0060: only Sandbox Up starts it).
+SHARED_TIER_ANCHOR='kitchensink-alb-sandbox'
+
+# shared_tier_anchor
+#
+# Print the anchor stack's name. Pure.
+shared_tier_anchor() {
+    printf '%s\n' "$SHARED_TIER_ANCHOR"
+}
+
+# shared_tier_standing <region>
+#
+# Does the shared tier stand? Exit 0 = the anchor stack exists and is not on its way out, 3 = it does not (absent, or
+# deleting), 1 = the lookup failed. "Could not tell" is never 0 and never 3: a throttled call must neither start a
+# rebuild nor claim the tier is gone.
+#
+# @sideEffect Calls CloudFormation.
+shared_tier_standing() {
+    local region="$1" out status=0
+
+    out=$(aws cloudformation describe-stacks --region "$region" --stack-name "$SHARED_TIER_ANCHOR" \
+        --query 'Stacks[0].StackStatus' --output text 2>&1) || status=$?
+
+    if [ "$status" -ne 0 ]; then
+        case "$out" in
+            *'does not exist'*)
+                echo "${SHARED_TIER_ANCHOR}: absent"
+                return 3
+                ;;
+            *)
+                echo "could not read ${SHARED_TIER_ANCHOR}: ${out}" >&2
+                return 1
+                ;;
+        esac
+    fi
+
+    case "$out" in
+        DELETE_*)
+            echo "${SHARED_TIER_ANCHOR}: ${out}"
+            return 3
+            ;;
+        *) return 0 ;;
+    esac
+}
 
 # shared_tier_order
 #
@@ -183,17 +239,63 @@ shared_tier_release_if_idle() {
     fi
 
     echo '[shared-tier] no preview is left and nothing is starting one — releasing the shared tier'
-    shared_tier_down "$region"
+    shared_tier_down "$region" recheck-busy
 }
 
-# shared_tier_down <region>
+# shared_tier_release_in_progress <region>
+#
+# Is the shared tier being released right now? Exit 0 = no (clear to start), 3 = yes (names why on stdout),
+# 1 = could not tell. "Could not tell" is never 0: a lookup that fails must not read as "nothing is being deleted".
+# A release is either a shared-tier stack mid-delete, or a workflow that deletes them (Sandbox Down, the manual
+# reconciler) queued or running.
+#
+# @sideEffect Calls CloudFormation and the GitHub API; deletes nothing.
+shared_tier_release_in_progress() {
+    local region="$1" stack status workflow state count why='' unknown=''
+
+    for stack in "${SHARED_TIER_DELETE_ORDER[@]}"; do
+        status=$(aws cloudformation describe-stacks --region "$region" --stack-name "$stack" \
+            --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo ABSENT)
+        if [ "$status" = 'DELETE_IN_PROGRESS' ]; then
+            why="${why} ${stack}(DELETE_IN_PROGRESS)"
+        fi
+    done
+
+    for workflow in sandboxDown.yml sandboxReconcile.yml; do
+        for state in in_progress queued; do
+            if ! count=$(gh run list --workflow "$workflow" --status "$state" --limit 1 --json databaseId --jq 'length' 2>/dev/null); then
+                unknown="${unknown} ${workflow}"
+                continue
+            fi
+            if [ "${count:-0}" != '0' ]; then
+                why="${why} ${workflow}(${state})"
+            fi
+        done
+    done
+
+    if [ -n "${why// /}" ]; then
+        echo "release in progress:${why}"
+        return 3
+    fi
+    if [ -n "${unknown// /}" ]; then
+        echo "could not tell whether a release is in progress (gh run list failed for:${unknown})" >&2
+        return 1
+    fi
+
+    return 0
+}
+
+# shared_tier_down <region> [recheck-busy]
+#
+# With `recheck-busy`, ask `shared_tier_busy` again before EACH delete and stop (success, tier kept) the moment
+# something is standing a preview up. Without it the reconciler's `down` verb deletes unconditionally, as before.
 #
 # Delete both stacks in mirror order. An absent stack is a SUCCESS (idempotent — the reconciler runs hourly
 # and must converge, not alternate between green and red). A real failure aborts before the next stack.
 #
 # @sideEffect Deletes CloudFormation stacks.
 shared_tier_down() {
-    local region="$1" stack status
+    local region="$1" recheck="${2:-}" stack status why
 
     for stack in "${SHARED_TIER_DELETE_ORDER[@]}"; do
         # Belt and braces: the loop already reads the allowlist, but the predicate is what a future edit
@@ -209,6 +311,11 @@ shared_tier_down() {
         if [ "$status" = 'ABSENT' ] || [ "$status" = 'None' ]; then
             echo "[shared-tier] ${stack}: already absent"
             continue
+        fi
+
+        if [ "$recheck" = 'recheck-busy' ] && why=$(shared_tier_busy); then
+            echo "::notice::[shared-tier] kept from ${stack} on: something started a preview while the tier was being released (${why}); the next Sandbox Down or a manual reconcile releases the rest."
+            return 0
         fi
 
         echo "[shared-tier] ${stack}: deleting (was ${status})"
@@ -236,12 +343,15 @@ shared_tier_down() {
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     case "${1-}" in
         order) shared_tier_order ;;
+        anchor) shared_tier_anchor ;;
+        standing) shared_tier_standing "${2:-${REGION:-us-east-1}}" ;;
         may-delete) shared_tier_may_delete "${2-}" ;;
         live-tokens) shared_tier_live_tokens ;;
         down) shared_tier_down "${2:-${REGION:-us-east-1}}" ;;
         release-if-idle) shared_tier_release_if_idle "${2:-${REGION:-us-east-1}}" ;;
+        release-in-progress) shared_tier_release_in_progress "${2:-${REGION:-us-east-1}}" ;;
         *)
-            echo 'usage: sandboxSharedTier.sh {order|may-delete <stack>|live-tokens|down [region]|release-if-idle [region]}' >&2
+            echo 'usage: sandboxSharedTier.sh {order|anchor|standing [region]|may-delete <stack>|live-tokens|down [region]|release-if-idle [region]|release-in-progress [region]}' >&2
             exit 2
             ;;
     esac

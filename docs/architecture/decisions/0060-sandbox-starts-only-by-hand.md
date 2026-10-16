@@ -154,6 +154,16 @@ reports each DLQ when the stage is up again. The nine-hour budget is kept, so no
   already up. It never starts it: Sandbox Up stays the only start. The job picks the Vercel deployment built from the
   PR head commit and waits for it to be READY. While the sandbox is down, a push publishes nothing, and the deployed
   web tier is skipped with the rest.
+- Sandbox Up and the release of the shared tier cannot overlap. Sandbox Down asks again whether a start is under way
+  before EACH stack delete, and stops with the rest of the tier kept when one is. Sandbox Up refuses, with an error,
+  while a shared-tier stack is DELETE_IN_PROGRESS or a Sandbox Down or reconcile run is live
+  (`sandboxSharedTier.sh release-in-progress`). Each side sees the other, so neither can begin after the other has
+  passed its check.
+- A push to a PR deploys nothing when the shared tier (the ALB and identity service) has been released. Only Sandbox
+  Up rebuilds it; a dispatch or Sandbox Up's call of `sandbox-identity-deploy.yml` keeps the rebuild. That called run
+  has a concurrency group of its own and waits for an in-progress PR run, so a PR push can no longer replace Sandbox
+  Up's pending identity run. A second Sandbox Up for another PR can still overlap it. CloudFormation then refuses the
+  second update of a busy stack, and the run fails.
 - Nothing retries a failed PR-close teardown by itself. The midnight stop still scales the ECS of a leaked preview
   to zero. So a leak costs idle resources, not compute.
 

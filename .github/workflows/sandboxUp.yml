@@ -79,6 +79,7 @@ jobs:
         permissions:
             contents: read # checkout of this repo's workflow scripts
             pull-requests: read # `gh pr view` — refuse a PR that is not open
+            actions: read # `gh run list` — is a Sandbox Down releasing the shared tier right now?
             id-token: write # awsAuth: the non-prod role
         outputs:
             stage: ${{ steps.pr.outputs.stage }}
@@ -150,6 +151,28 @@ jobs:
                           ;;
                       *)
                           echo "::error::could not tell whether the midnight reclaim is running (sandboxScheduler.sh reclaim-status exited ${rc})." >&2
+                          exit 1
+                          ;;
+                  esac
+
+            # ⛔ REFUSE A PRESS WHILE THE SHARED TIER IS BEING RELEASED (ADR-0060). Sandbox Down's release deletes the
+            # identity service, its schema stack and the ALB over several minutes. A start now would build on an ALB that
+            # is about to disappear. The release re-checks for a running Up before each delete; this is the other half, so
+            # neither side can begin after the other has passed its own check. Only a clear answer (0) lets the press
+            # through: a release under way (3) refuses it, and so does a lookup that could not be made.
+            - name: Refuse a start while the shared tier is being released
+              run: |
+                  set -uo pipefail
+                  rc=0
+                  why=$(bash .github/scripts/sandboxSharedTier.sh release-in-progress "$AWS_REGION") || rc=$?
+                  case "$rc" in
+                      0) echo 'no release is in progress' ;;
+                      3)
+                          echo "::error::A Sandbox Down is releasing the shared tier (${why}). Press Sandbox Up again when it has finished." >&2
+                          exit 1
+                          ;;
+                      *)
+                          echo "::error::could not tell whether the shared tier is being released (sandboxSharedTier.sh release-in-progress exited ${rc})." >&2
                           exit 1
                           ;;
                   esac
@@ -227,6 +250,7 @@ jobs:
         permissions:
             contents: read
             packages: read # zizmor: ignore[use-trusted-publishing]
+            actions: read # sandbox-identity-deploy.yml lists a pull-request run it must wait for (a callee can only downgrade)
             id-token: write # awsAuth in sandbox-identity-deploy.yml (a callee can only downgrade)
         secrets:
             SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}

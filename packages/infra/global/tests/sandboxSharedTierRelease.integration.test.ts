@@ -42,9 +42,18 @@ interface World {
     readonly listFails?: boolean;
     /** `gh run list` fails. */
     readonly ghFails?: boolean;
+    /** Stacks CloudFormation reports as DELETE_IN_PROGRESS. */
+    readonly deleting?: readonly string[];
+    /** A Sandbox Up appears (queued) once this many stacks have been deleted. */
+    readonly upAppearsAfterDeletes?: number;
 }
 
-function release(world: World): {
+type Verb = 'release-if-idle' | 'release-in-progress';
+
+function release(
+    world: World,
+    verb: Verb = 'release-if-idle',
+): {
     readonly status: number | null;
     readonly deleted: readonly string[];
     readonly out: string;
@@ -64,6 +73,7 @@ case "$1 $2" in
     'cloudformation describe-stacks')
         shift 2
         while [ "$#" -gt 0 ]; do [ "$1" = --stack-name ] && name="$2"; shift; done
+        case " \${STUB_DELETING:-} " in *" $name "*) echo DELETE_IN_PROGRESS; exit 0 ;; esac
         case " \${STUB_STACKS:-} " in *" $name "*) echo UPDATE_COMPLETE ;; *) exit 255 ;; esac
         ;;
     'cloudformation delete-stack')
@@ -80,13 +90,15 @@ esac
         `#!/usr/bin/env bash
 [ -n "\${STUB_GH_FAILS:-}" ] && exit 1
 while [ "$#" -gt 0 ]; do [ "$1" = --workflow ] && wf="$2"; shift; done
+if [ -n "\${STUB_UP_AFTER_DELETES:-}" ] && [ "$wf" = sandboxUp.yml ] && [ -f "${deletedLog}" ] &&
+    [ "$(wc -l <"${deletedLog}")" -ge "$STUB_UP_AFTER_DELETES" ]; then echo 1; exit 0; fi
 case " \${STUB_RUNNING:-} " in *" $wf "*) echo 1 ;; *) echo 0 ;; esac
 `,
     );
     chmodSync(path.join(workspace, 'aws'), 0o755);
     chmodSync(path.join(workspace, 'gh'), 0o755);
 
-    const result = spawnSync('bash', [SCRIPT, 'release-if-idle', 'us-east-1'], {
+    const result = spawnSync('bash', [SCRIPT, verb, 'us-east-1'], {
         cwd: repoRoot,
         encoding: 'utf8',
         env: {
@@ -96,6 +108,10 @@ case " \${STUB_RUNNING:-} " in *" $wf "*) echo 1 ;; *) echo 0 ;; esac
             STUB_RUNNING: (world.running ?? []).join(' '),
             ...(world.listFails ? { STUB_LIST_FAILS: '1' } : {}),
             ...(world.ghFails ? { STUB_GH_FAILS: '1' } : {}),
+            STUB_DELETING: (world.deleting ?? []).join(' '),
+            ...(world.upAppearsAfterDeletes === undefined
+                ? {}
+                : { STUB_UP_AFTER_DELETES: String(world.upAppearsAfterDeletes) }),
         },
     });
 
@@ -173,5 +189,51 @@ describe('sandboxSharedTier.sh release-if-idle', () => {
         ]) {
             expect(deleted).not.toContain(kept);
         }
+    });
+});
+
+describe('sandboxSharedTier.sh release-if-idle — re-checks before EACH delete (triage [7])', () => {
+    it('⛔ stops, with the ALB kept, when a Sandbox Up appears after the first delete', () => {
+        // The idle check ran once and the deletes then took minutes. A press landing in that window found the ALB
+        // still there, built on it, and had it deleted underneath. Busy is asked again before EVERY delete-stack.
+        const result = release({ stacks: SHARED, upAppearsAfterDeletes: 1 });
+
+        expect(result.deleted).toEqual(['kitchensink-identity-service-sandbox']);
+        expect(result.status).toBe(0);
+        expect(result.out).toContain('kept');
+    });
+
+    it('deletes all three when nothing appears between the deletes', () => {
+        expect(release({ stacks: SHARED }).deleted).toHaveLength(3);
+    });
+});
+
+describe('sandboxSharedTier.sh release-in-progress — what Sandbox Up asks before it starts (triage [7])', () => {
+    it('answers 0 (clear) when nothing is being released', () => {
+        expect(release({ stacks: SHARED }, 'release-in-progress').status).toBe(0);
+    });
+
+    it.each(['kitchensink-identity-service-sandbox', 'kitchensink-identity-schema-sandbox', 'kitchensink-alb-sandbox'])(
+        '⛔ answers 3 while %s is DELETE_IN_PROGRESS',
+        (stack) => {
+            const result = release({ stacks: SHARED, deleting: [stack] }, 'release-in-progress');
+
+            expect(result.status).toBe(3);
+            expect(result.out).toContain(stack);
+        },
+    );
+
+    it.each(['sandboxDown.yml', 'sandboxReconcile.yml'])('⛔ answers 3 while %s is queued or running', (workflow) => {
+        expect(release({ stacks: SHARED, running: [workflow] }, 'release-in-progress').status).toBe(3);
+    });
+
+    it('⛔ answers 1 (cannot tell), never 0, when GitHub cannot be asked', () => {
+        expect(release({ stacks: SHARED, ghFails: true }, 'release-in-progress').status).toBe(1);
+    });
+
+    it('deletes nothing, whatever it answers', () => {
+        expect(
+            release({ stacks: SHARED, deleting: ['kitchensink-alb-sandbox'] }, 'release-in-progress').deleted,
+        ).toEqual([]);
     });
 });

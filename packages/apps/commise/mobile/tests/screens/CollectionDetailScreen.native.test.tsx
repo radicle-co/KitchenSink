@@ -478,6 +478,24 @@ describe('CollectionDetailScreen — rename, delete and Save a copy', () => {
         expect(deleteSpy).toHaveBeenCalledWith('col_1');
     });
 
+    it('closes the confirm dialog before it leaves, so no window is open while the screen pops', async () => {
+        vi.spyOn(client, 'deleteCollection').mockResolvedValue(undefined);
+        // What is on screen at the moment the navigator is told to leave: a Modal still open then is re-parented by the
+        // pop (Android `addViewAt ... already has a parent`).
+        const dialogOpenWhenLeaving: boolean[] = [];
+        const onDeleted = vi.fn(() => {
+            dialogOpenWhenLeaving.push(screen.queryByText('Delete Dinners?') !== null);
+        });
+
+        renderOver(<CollectionDetailScreen {...props} onDeleted={onDeleted} />);
+        await screen.findByRole('heading', { name: 'Dinners' });
+        pressMenuItem('Dinners', 'Delete collection');
+        fireEvent.click(await screen.findByRole('button', { name: 'Delete collection' }));
+
+        await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(1));
+        expect(dialogOpenWhenLeaving).toEqual([false]);
+    });
+
     it('says a failed delete in the dialog, which stays open', async () => {
         vi.spyOn(client, 'deleteCollection').mockRejectedValue(new Error('nope'));
         vi.spyOn(console, 'error').mockImplementation(() => undefined);

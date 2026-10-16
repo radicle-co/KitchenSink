@@ -70,7 +70,7 @@ import {
     useUpdateCollection,
 } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from '@tanstack/react-query';
-import { useCallback, useMemo, useState, type FC, type JSX } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FC, type JSX } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { LoadingState } from '../components/LoadingState.js';
@@ -289,6 +289,18 @@ function CollectionDetailView({
         [nutritionFor],
     );
 
+    // Leave AFTER the dialog has closed, never in the same tick as the success: the confirm dialog is a native window of
+    // its own, and popping the screen that hosts it while it is open makes Android re-parent a view that already has a
+    // parent (`addViewAt ... The specified child already has a parent`, a process crash). The success closes the dialog
+    // (below), and this effect runs after that commit, when the dialog frame has unmounted its `Modal`. A repeat call
+    // (the navigator's `onDeleted` is an inline closure, so its identity changes) is a `popToTop` on a stack already popped.
+    const leaving = deleteCollection.isSuccess && !deleteOpen;
+    useEffect(() => {
+        if (leaving) {
+            onDeleted();
+        }
+    }, [leaving, onDeleted]);
+
     const openPicker = (): void => {
         setMembersAtOpen(memberIds);
         setPickerQuery('');
@@ -379,7 +391,11 @@ function CollectionDetailView({
                 busy={deleteCollection.isPending}
                 failed={deleteCollection.isError}
                 onKeep={() => setDeleteOpen(false)}
-                onConfirm={() => deleteCollection.mutate(collectionId, { onSuccess: onDeleted })}
+                onConfirm={() =>
+                    deleteCollection.mutate(collectionId, {
+                        onSuccess: () => setDeleteOpen(false),
+                    })
+                }
             />
 
             <CollectionUpsellSheet

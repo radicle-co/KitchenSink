@@ -125,6 +125,42 @@ describe('AdminService.reactivateUser', () => {
     });
 });
 
+describe('AdminService.suspendUser / unsuspendUser — no status intent, guarded transitions', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    // Suspension is not a provider state: the deletion worker converges `shouldBeBanned = tombstoned`, so an
+    // active and a suspended account are both UNBANNED. Advancing `status_version` here made a row "owed"
+    // that no queue message ever settles, and the queue check escalated it as a lost trigger forever.
+    it.each([
+        ['suspendUser', 'active', 'suspended'],
+        ['unsuspendUser', 'suspended', 'active'],
+    ] as const)('%s does not advance the status intent', async (method, from, to) => {
+        const { service, setMock, sqs } = buildMocks({ id: TARGET, identityId: 'user_abc', status: from });
+
+        await service[method](TARGET, adminCtx);
+
+        const set = setMock.mock.calls[0]?.[0];
+        expect(set.status).toBe(to);
+        expect(set).not.toHaveProperty('statusVersion');
+        expect(sqs.enqueueDeletion).not.toHaveBeenCalled();
+    });
+
+    // Suspending a tombstoned or erased row used to overwrite it, leaving R10's non-revivable states.
+    it.each([
+        ['suspendUser', 'tombstoned'],
+        ['suspendUser', 'erased'],
+        ['suspendUser', 'suspended'],
+        ['unsuspendUser', 'active'],
+        ['unsuspendUser', 'tombstoned'],
+        ['unsuspendUser', 'erased'],
+    ] as const)('%s refuses a %s account', async (method, status) => {
+        const { service, setMock } = buildMocks({ id: TARGET, identityId: 'user_abc', status });
+
+        await expect(service[method](TARGET, adminCtx)).rejects.toBeInstanceOf(ConflictException);
+        expect(setMock).not.toHaveBeenCalled();
+    });
+});
+
 describe('AdminService — a target that is no user id', () => {
     it.each([
         ['suspendUser', (service: AdminService) => service.suspendUser('usr_01', adminCtx)],

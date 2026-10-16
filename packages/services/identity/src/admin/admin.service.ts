@@ -102,12 +102,18 @@ export class AdminService {
     ): Promise<{ sub: string; status: 'suspended'; suspendedAt: string }> {
         const existing = await this.requireUser(targetSub);
 
+        if (existing.status !== 'active') {
+            // Suspending a closed or erased row would overwrite it out of R10's non-revivable states.
+            throw new ConflictException(
+                `User ${targetSub} is '${existing.status}', not 'active'; only an active account can be suspended`,
+            );
+        }
+
         const now = new Date();
-        // U10/R26: the intent advances with the status (see `users.status_version`).
-        await this.db
-            .update(users)
-            .set({ status: 'suspended', updatedAt: now, statusVersion: sql`${users.statusVersion} + 1` })
-            .where(eq(users.id, existing.id));
+        // No `status_version` bump on purpose: suspension is not a PROVIDER state. The deletion worker converges
+        // `shouldBeBanned = tombstoned`, so active and suspended are both unbanned and nothing would ever settle
+        // an advanced intent, which the queue check would then escalate as a lost trigger forever.
+        await this.db.update(users).set({ status: 'suspended', updatedAt: now }).where(eq(users.id, existing.id));
 
         this.logger.warn('user suspended', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 
@@ -120,11 +126,15 @@ export class AdminService {
     ): Promise<{ sub: string; status: 'active'; unsuspendedAt: string }> {
         const existing = await this.requireUser(targetSub);
 
+        if (existing.status !== 'suspended') {
+            throw new ConflictException(
+                `User ${targetSub} is '${existing.status}', not 'suspended'; only a suspended account can be unsuspended`,
+            );
+        }
+
         const now = new Date();
-        await this.db
-            .update(users)
-            .set({ status: 'active', updatedAt: now, statusVersion: sql`${users.statusVersion} + 1` })
-            .where(eq(users.id, existing.id));
+        // No `status_version` bump: see `suspendUser`.
+        await this.db.update(users).set({ status: 'active', updatedAt: now }).where(eq(users.id, existing.id));
 
         this.logger.warn('user unsuspended', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 

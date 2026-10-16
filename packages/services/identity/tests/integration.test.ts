@@ -415,6 +415,7 @@ describe('AdminService', () => {
     });
 
     it('unsuspendUser updates db status to active', async () => {
+        mockDb.select = vi.fn().mockReturnValue(makeChain([{ ...mockUser, status: 'suspended' }]));
         const result = await adminService.unsuspendUser('01HZZZZZZZZZZZZZZZZZZZZZZB', adminCtx);
 
         expect(result.status).toBe('active');

@@ -16,7 +16,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import { scrubLog } from '../src/observability/sentryScrubbers.js';
+import { scrubLog } from '@kitchensink/observability-scrubbers';
 
 /** One captured Sentry log call, in the shape `beforeSendLog` receives. */
 interface CapturedLog {

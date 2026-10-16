@@ -9,7 +9,7 @@ import {
     scrubEvent,
     scrubLog,
     scrubText,
-} from '../src/observability/sentryScrubbers.js';
+} from '@kitchensink/observability-scrubbers';
 
 describe('sentry-scrubbers', () => {
     describe('isDeniedKey', () => {

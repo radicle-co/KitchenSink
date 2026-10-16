@@ -63,7 +63,7 @@ export function isDeletionEnqueueError(error: unknown): error is DeletionEnqueue
  *
  * Mirrors the shape of the read-through provisioning alert (`auth.provisioning: failed`) so this is a filterable
  * Sentry tag an alert rule can select, rather than a `warn` buried in a log stream. The person-linked ids travel
- * through `contexts`, which `sentryScrubbers.ts` PSEUDONYMIZES (`userid`/`identityid` are both `ID_KEYS`), so
+ * through `contexts`, which `@kitchensink/observability-scrubbers` PSEUDONYMIZES (`userid`/`identityid` are both `ID_KEYS`), so
  * the signal is correlatable without putting a raw Clerk `sub` in an issue.
  *
  * @param input - Which transition failed to queue, for whom, and why.

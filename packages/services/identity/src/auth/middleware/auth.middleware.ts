@@ -6,7 +6,7 @@ import type { AuthorizerContext, UserId } from '../../types/index.js';
 import { ClerkAuthService } from '../clerkAuth.service.js';
 import { UsersService } from '../../users/users.service.js';
 import { createServiceLogger } from '@kitchensink/service-logging';
-import { scrubText } from '../../observability/sentryScrubbers.js';
+import { scrubText } from '@kitchensink/observability-scrubbers';
 import { traceAuth } from '../../observability/authTrace.js';
 
 // `/health` (liveness) and `/health/ready` (readiness) are the only unauthenticated routes — the ALB

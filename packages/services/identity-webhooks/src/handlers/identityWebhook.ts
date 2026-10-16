@@ -160,7 +160,7 @@ const handleUserCreated = async (data: IdentityUserData, db: IdentityWriter, req
     // ⛔ NO `identityId` DIMENSION. In EMF every distinct dimension VALUE is a separately billed custom metric
     // (~$0.30/mo, 15-month retention), so a per-user dimension costs one metric PER USER — ~$3,000/mo at 10k
     // users — for a series holding one datapoint that aggregates to nothing. The id is on the log line below,
-    // where it is searchable AND pseudonymized by `sentryScrubbers.ts`; the EMF line goes straight to stdout
+    // where it is searchable AND pseudonymized by `@kitchensink/observability-scrubbers`; the EMF line goes straight to stdout
     // and never passes a scrubber. Enforced repo-wide by
     // `packages/infra/global/__tests__/emfIdentifierDimensionRepoGate.test.ts`.
     emitMetric('UserCreatedWebhook', 1);

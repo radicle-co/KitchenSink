@@ -318,7 +318,7 @@ describe('identity-webhook handler', () => {
     // retention). `{ identityId: data.id }` therefore bought one metric PER USER — ~$3,000/mo at 10k users —
     // holding a single datapoint each. This asserts BOTH halves of the fix on the same invocation: the metric
     // carries no per-user dimension, AND the identifier is still emitted, as a structured log attribute (where
-    // `sentryScrubbers.ts` pseudonymizes it; the EMF line goes to raw stdout and passes no scrubber).
+    // `@kitchensink/observability-scrubbers` pseudonymizes it; the EMF line goes to raw stdout and passes no scrubber).
     // `packages/infra/global/__tests__/emfIdentifierDimensionRepoGate.test.ts` is the repo-wide version of the same rule.
     it('user.created -> counts the event with NO per-user dimension, and keeps the id on the log line', async () => {
         const { db } = buildMockDb();

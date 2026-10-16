@@ -3,7 +3,7 @@ import type { Handler } from 'aws-lambda';
 
 import { METRIC_STAGE_DIMENSION, metricStage } from '@kitchensink/metric-dimensions';
 
-import { scrubEvent, scrubLog } from './sentryScrubbers.js';
+import { scrubEvent, scrubLog } from '@kitchensink/observability-scrubbers';
 
 /**
  * Observability for the identity-webhooks Lambdas.

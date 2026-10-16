@@ -622,6 +622,29 @@ describe('Publish', () => {
         expect(result.current.state.status).toBe('done');
     });
 
+    /**
+     * ⛔ A PARKED SLOT'S RECORD IS NOT THIS EDITOR'S WRITE. The outbox answers `parked` when an older record of the recipe
+     * stands in the way: the draft just submitted was NOT queued. The lane must track that record as one this editor did
+     * not send (`sent` undefined), so when a drain later re-sends it the server's own answer is adopted — and a Publish
+     * pressed into the parked slot is not reported as published.
+     */
+    it('⛔ a Publish answered `parked` does not own the parked record: its later sync is not a publish', async () => {
+        const { result, port, onExit } = mount({ recipe: NEVER_PUBLISHED });
+
+        port.submitExclusive.mockResolvedValueOnce({ kind: 'parked', seq: 7 });
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+
+        act(() => {
+            port.sync(7, { ...NEVER_PUBLISHED, currentVersion: 4, title: 'Older parked body' });
+        });
+        await settle();
+
+        expect(onExit).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'published' }));
+    });
+
     it('publishes a never-published draft with an update that names its version', async () => {
         const { result, port, onExit } = mount({ recipe: NEVER_PUBLISHED });
 

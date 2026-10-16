@@ -586,6 +586,17 @@ function recordSubmit(
         return;
     }
 
+    if (outcome.kind === 'parked') {
+        // ⛔ A write parked earlier stands in the way, and the draft just submitted was NOT queued behind it. The lane tracks
+        // that record as one this editor did not send (`sent` undefined, not finishing), so a drain's later re-send is
+        // adopted as the server states it, and a Publish pressed into the slot is not reported as published. It shows
+        // as parked, so Retry can withdraw it with the cook's consent.
+        ctx.lane.dispatch({ type: 'tracked', seq: outcome.seq, kind: sent.kind });
+        ctx.lane.dispatch({ type: 'parked', seq: outcome.seq });
+
+        return;
+    }
+
     ctx.lane.dispatch({
         type: 'queued',
         seq: outcome.seq,
@@ -593,12 +604,6 @@ function recordSubmit(
         sent: sent.sent,
         finishing: sent.finishing,
     });
-
-    if (outcome.kind === 'parked') {
-        // A write parked earlier stands in the way: the lane tracks it, so its failure shows and Retry can withdraw it
-        // with the cook's consent.
-        ctx.lane.dispatch({ type: 'parked', seq: outcome.seq });
-    }
 }
 
 /** A Save changes the held rebinds completed on their own: the device draft is done, and the editor hands off. */

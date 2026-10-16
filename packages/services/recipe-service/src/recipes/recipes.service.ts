@@ -1078,6 +1078,10 @@ export class RecipesService {
         // raised outside; nothing was written, so committing an empty transaction is correct and cheaper
         // than forcing a rollback.
         const updated = await this.dal.transaction(async (tx) => {
+            // The version's attribution: the editor's byline, read-model-first inside this transaction (plan
+            // 2026-10-15-010 D8). Read BEFORE the recipe row is written, as `create` and `clone` do: the handle-sync
+            // fan-out locks `author_handles` and then the cook's recipes, so the opposite order here can deadlock.
+            const editor = await this.bylineIn(tx, principal);
             const result = await this.dal.update(
                 id,
                 {
@@ -1117,10 +1121,6 @@ export class RecipesService {
             if (!result) {
                 return undefined;
             }
-
-            // The version's attribution: the editor's byline, read-model-first inside this transaction (plan
-            // 2026-10-15-010 D8). `author_handles` is now seeded when a cook is created, so it is the source here too.
-            const editor = await this.bylineIn(tx, principal);
 
             await this.recordSnapshotIn(
                 tx,

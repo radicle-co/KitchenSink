@@ -1376,6 +1376,39 @@ describe('RecipesService.update', () => {
         );
     });
 
+    /**
+     * ⛔ THE BYLINE ROW IS LOCKED BEFORE THE RECIPE ROW, as `create` and `clone` already do. The handle-sync fan-out
+     * (recipe-workers `applyHandleRename`) takes `author_handles` first and then the cook's recipes, so an update that
+     * locked the recipe first and then read the byline `FOR SHARE` took the two locks in the opposite order, and a
+     * save racing a rename could deadlock. A deadlock cannot be seen without a real database; this pins the order.
+     */
+    it('⛔ reads the editor’s byline before it writes the recipe row', async () => {
+        const order: string[] = [];
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(publishable({ currentVersion: 1 })),
+            update: vi.fn(async () => {
+                order.push('update');
+
+                return aggregate({ currentVersion: 2 });
+            }),
+        });
+        const findByline = vi.fn(async () => {
+            order.push('byline');
+
+            return { displayName: 'Clara O.', username: 'clara' };
+        });
+        const service = makeRecipesService({
+            dal,
+            versions: makeFakeVersionsService(),
+            foodNutrition: nutritionGatewayDouble,
+            authorHandles: { findByline },
+        });
+
+        await service.update(principal({ firstName: 'Clara', lastName: 'Oswald' }), 'r-1', patch, undefined);
+
+        expect(order).toStrictEqual(['byline', 'update']);
+    });
+
     it('omits the editor handle on update when the principal has no derivable name (graceful, matches create)', async () => {
         const versions = makeFakeVersionsService();
         const dal = fakeRecipesDal({

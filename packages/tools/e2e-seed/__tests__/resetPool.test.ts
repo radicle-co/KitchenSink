@@ -231,6 +231,7 @@ describe('resetSlots', () => {
                 deletedRecipes: 2,
                 deletedCollections: 1,
                 authoredFoods: 'notPurged',
+                pickedRoots: 'notPurged',
             },
             {
                 slot: bravo,
@@ -239,6 +240,7 @@ describe('resetSlots', () => {
                 deletedRecipes: 1,
                 deletedCollections: 0,
                 authoredFoods: 'notPurged',
+                pickedRoots: 'notPurged',
             },
         ]);
         expect(libraries.get(alfa?.email)?.state).toMatchObject({ posts: 1, polls: 3, recipes: [], collections: [] });
@@ -438,7 +440,9 @@ describe('resetSlots', () => {
                 purgeOwn: async (handle) => {
                     events.push(`foods ${handle.email}`);
 
-                    return handle.email === alfa?.email ? 3 : 0;
+                    return handle.email === alfa?.email
+                        ? { authoredFoods: 3, pickedRoots: 1 }
+                        : { authoredFoods: 0, pickedRoots: 0 };
                 },
             },
         });
@@ -468,7 +472,7 @@ describe('resetSlots', () => {
 
     it('never purges authored foods for a slot whose recipe purge failed', async () => {
         const library = fakeLibrary(['r1'], [], { polls: ['failed'] });
-        const purgeOwn = vi.fn(async () => 0);
+        const purgeOwn = vi.fn(async () => ({ authoredFoods: 0, pickedRoots: 0 }));
 
         await resetSlots([alfa!], {
             session: async (slot) => handleFor(slot.email),
@@ -553,12 +557,20 @@ describe('describeOutcomes', () => {
 
     it('names each slot and ends in the verdict the CLI exits on', () => {
         const lines = describeOutcomes([
-            { slot: alfa!, ok: true, jobId: 'job-1', deletedRecipes: 2, deletedCollections: 0, authoredFoods: 4 },
+            {
+                slot: alfa!,
+                ok: true,
+                jobId: 'job-1',
+                deletedRecipes: 2,
+                deletedCollections: 0,
+                authoredFoods: 4,
+                pickedRoots: 1,
+            },
             { slot: bravo!, ok: false, reason: 'boom' },
         ]);
 
         expect(lines).toEqual([
-            'reset k6/alfa: purged by job job-1, -2 recipes, -0 collections, -4 authored foods',
+            'reset k6/alfa: purged by job job-1, -2 recipes, -0 collections, -4 authored foods, -1 picked roots',
             'FAILED k6/bravo: boom',
             '1 of 2 slots could NOT be reset',
         ]);
@@ -573,6 +585,7 @@ describe('describeOutcomes', () => {
                 deletedRecipes: 0,
                 deletedCollections: 0,
                 authoredFoods: 'notPurged',
+                pickedRoots: 'notPurged',
             },
         ]);
 
@@ -582,7 +595,15 @@ describe('describeOutcomes', () => {
     it('reports success only when every slot reset', () => {
         expect(
             describeOutcomes([
-                { slot: alfa!, ok: true, jobId: 'job-1', deletedRecipes: 0, deletedCollections: 0, authoredFoods: 0 },
+                {
+                    slot: alfa!,
+                    ok: true,
+                    jobId: 'job-1',
+                    deletedRecipes: 0,
+                    deletedCollections: 0,
+                    authoredFoods: 0,
+                    pickedRoots: 0,
+                },
             ]).at(-1),
         ).toBe('all 1 slots reset');
     });

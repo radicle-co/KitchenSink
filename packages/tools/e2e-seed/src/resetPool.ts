@@ -31,10 +31,13 @@
  *
  * What it still cannot reach: object VERSIONS in the versioned buckets (the purge leaves delete markers — ADR-0040's
  * residual risk, the gap ADR-0013 records for erasure); consumable erasure subjects, which are destroyed rather
- * than reset; and IMPORTED food, which the catalog keeps by owner ruling. A slot's AUTHORED foods ARE purged — owner
- * ruling 2026-09-14, "purge them too as long as it doesn't change the desired flow for normal users" — through
- * food-service's own test-purge door (`POST /api/v1/foods/authored/test-purge`), after the recipe purge completes;
- * a refusal there fails the slot like a refusal of the recipe purge.
+ * than reset; and IMPORTED food, which the catalog keeps by owner ruling — EXCEPT the root a slot's own remote pick
+ * created. A slot's AUTHORED foods ARE purged — owner ruling 2026-09-14, "purge them too as long as it doesn't change
+ * the desired flow for normal users" — and so are the catalog roots its own picks created — owner ruling 2026-10-16,
+ * "Clean up test-picked foods": such a root hides the hit it came from, so a flow that picks the same word on every run
+ * could not repeat. Both go through food-service's own test-purge door (`POST /api/v1/foods/authored/test-purge`),
+ * after the recipe purge completes; a refusal there fails the slot like a refusal of the recipe purge. A seed root, a
+ * real cook's root and a root a real cook has been answered with are never reached (`testPickedRootPolicy.ts`).
  *
  * ## Sessions
  *
@@ -100,6 +103,8 @@ export type SlotResetOutcome =
           readonly deletedRecipes: number;
           readonly deletedCollections: number;
           readonly authoredFoods: number | 'notPurged';
+          /** The catalog roots the slot's own remote picks created, which the same door took back. */
+          readonly pickedRoots: number | 'notPurged';
       }
     | { readonly slot: PoolSlot; readonly ok: false; readonly reason: string };
 
@@ -112,12 +117,18 @@ export type SlotResetOutcome =
  */
 export interface AuthoredFoodPurgePort {
     /**
-     * Remove the session's own PRIVATE authored foods; resolves to how many were deleted.
+     * Remove the session's own PRIVATE authored foods and the catalog roots its own remote picks created; resolves to
+     * how many of each were deleted.
+     *
+     * A pick makes a catalog root that then hides the hit it came from (ADR-0055 point 4), so a slot that picks the
+     * same word on every run would meet a hidden hit on every run after the first. Only a root a signed test principal's
+     * pick created goes; a seed root, a real cook's root and one a real cook has since been answered with stay
+     * (owner ruling 2026-10-16, "Clean up test-picked foods").
      *
      * ⚠️ The door also reports how many PROMOTED authored foods it kept, because other cooks may depend on them. A
      * pool slot cannot promote a food (a promotion is human-moderated, ADR-0029), so that count is not reported here.
      */
-    readonly purgeOwn: (handle: SessionHandle) => Promise<number>;
+    readonly purgeOwn: (handle: SessionHandle) => Promise<{ authoredFoods: number; pickedRoots: number }>;
 }
 
 /** How the food half rides out a cold food-service task. */
@@ -170,7 +181,7 @@ export function authoredFoodPurgeVia(
                     shouldRetry: ({ error }) => isTransientFoodFailure(error),
                 });
 
-                return counts.deletedAuthoredFoods;
+                return { authoredFoods: counts.deletedAuthoredFoods, pickedRoots: counts.deletedPickedRoots };
             } catch (error) {
                 if (isFoodNotFoundError(error)) {
                     throw new Error(
@@ -381,13 +392,16 @@ async function settle(
             };
         }
 
+        const foods = authoredFoods === undefined ? undefined : await purgeAuthoredFoods(authoredFoods, purge);
+
         return {
             slot: purge.slot,
             ok: true,
             jobId: purge.jobId,
             deletedRecipes: purge.before.recipes,
             deletedCollections: purge.before.collections,
-            authoredFoods: authoredFoods === undefined ? 'notPurged' : await purgeAuthoredFoods(authoredFoods, purge),
+            authoredFoods: foods?.authoredFoods ?? 'notPurged',
+            pickedRoots: foods?.pickedRoots ?? 'notPurged',
         };
     } catch (error) {
         return { slot: purge.slot, ok: false, reason: reasonOf(error) };
@@ -399,7 +413,10 @@ async function settle(
  *
  * @sideEffect Calls food-service through the port.
  */
-async function purgeAuthoredFoods(port: AuthoredFoodPurgePort, purge: RequestedPurge): Promise<number> {
+async function purgeAuthoredFoods(
+    port: AuthoredFoodPurgePort,
+    purge: RequestedPurge,
+): Promise<{ authoredFoods: number; pickedRoots: number }> {
     try {
         return await port.purgeOwn(purge.handle);
     } catch (error) {
@@ -453,7 +470,7 @@ export function describeOutcomes(outcomes: readonly SlotResetOutcome[]): readonl
                   `-${outcome.deletedRecipes} recipes, -${outcome.deletedCollections} collections, ` +
                   (outcome.authoredFoods === 'notPurged'
                       ? 'authored foods NOT purged (no food-service port passed)'
-                      : `-${outcome.authoredFoods} authored foods`)
+                      : `-${outcome.authoredFoods} authored foods, -${outcome.pickedRoots} picked roots`)
                 : `FAILED ${outcome.slot.tier}/${outcome.slot.id}: ${outcome.reason}`,
         ),
         failed === 0

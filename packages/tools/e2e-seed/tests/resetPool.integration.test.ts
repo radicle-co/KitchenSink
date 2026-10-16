@@ -41,6 +41,8 @@ let notTestPrincipals: Set<string>;
 let jobs: Map<string, { id: string; polls: number }>;
 /** Each bearer's private authored foods on the fake food service. A bearer absent here is not a test principal. */
 let authoredFoods: Map<string, string[]>;
+/** Per bearer, the catalog roots its picks created (ADR-0040 food half; owner ruling 2026-10-16). */
+let pickedRoots: Map<string, number>;
 /** How many food-purge calls answer 503 before the door answers, per bearer (a cold food-service task). */
 let coldFoodCalls: Map<string, number>;
 /** `bearer METHOD path` for every request, so a test asserts on the traffic, not only the outcome. */
@@ -151,9 +153,11 @@ beforeAll(async () => {
             }
 
             const deleted = foods.length;
+            const roots = pickedRoots.get(bearer) ?? 0;
 
             foods.length = 0;
-            send(200, { deletedAuthoredFoods: deleted, retainedPromotedFoods: 0 });
+            pickedRoots.set(bearer, 0);
+            send(200, { deletedAuthoredFoods: deleted, retainedPromotedFoods: 0, deletedPickedRoots: roots });
 
             return;
         }
@@ -246,6 +250,7 @@ beforeEach(() => {
     notTestPrincipals = new Set();
     jobs = new Map();
     authoredFoods = new Map();
+    pickedRoots = new Map();
     coldFoodCalls = new Map();
 });
 
@@ -373,6 +378,8 @@ describe('resetSlots over a real wire', () => {
             authoredFoods.set('alfa', ['f1', 'f2']);
             authoredFoods.set('bravo', []);
             authoredFoods.set('realUser', ['keep']);
+            pickedRoots.set('alfa', 2);
+            pickedRoots.set('realUser', 5);
 
             const outcomes = await resetSlots([alfa!, bravo!], {
                 session: async (slot) => handle(slot.id),
@@ -382,9 +389,11 @@ describe('resetSlots over a real wire', () => {
             });
 
             expect(outcomes).toMatchObject([
-                { ok: true, authoredFoods: 2 },
-                { ok: true, authoredFoods: 0 },
+                { ok: true, authoredFoods: 2, pickedRoots: 2 },
+                { ok: true, authoredFoods: 0, pickedRoots: 0 },
             ]);
+            // The purge is the slot's own: another principal's picked roots are not touched.
+            expect(pickedRoots.get('realUser')).toBe(5);
             expect(authoredFoods.get('alfa')).toEqual([]);
             expect(authoredFoods.get('realUser')).toEqual(['keep']);
             const order = traffic.filter((line) => line.startsWith('alfa '));

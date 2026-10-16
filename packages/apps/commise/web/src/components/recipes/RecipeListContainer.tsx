@@ -23,18 +23,18 @@ import {
     RecipeListLoadError,
     RecipeListLoading,
     RecipeListResults,
-    cardVariantOf,
-    useMainContainerClass,
     viewModeCookieFor,
-    viewModeOf,
-    type CardVariant,
     type ListViewMode,
 } from '@commise/features-recipes';
-import { useRecipeLibrary, useRecipeLibraryControls, type LibraryRead } from '@commise/features-recipes/list';
+import {
+    useRecipeLibraryControls,
+    useRecipeListPresentation,
+    useSettledRecipeList,
+    type RecipeLibraryControls,
+    type RecipeListPresentation,
+} from '@commise/features-recipes/list';
 import { useRecoverySignal } from '@commise/query/recovery-signal';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
-import type { ChipRowOverflow } from '@commise/ui/chip';
-import type { RecipeListSortBy } from '@kitchensink/recipe-service-client';
 import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
@@ -66,22 +66,10 @@ export interface RecipeListContainerProps {
  */
 export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale, storedViewMode, avatar }) => {
     const router = useRouter();
-    const {
-        searchValue,
-        onSearchChange,
-        onClearSearch,
-        searchVisible,
-        activeFacets,
-        onActiveFacetsChange,
-        sort,
-        onSortChange,
-        read,
-    } = useRecipeLibraryControls();
+    const controls = useRecipeLibraryControls();
     const [viewChoice, setViewChoice] = useState<ListViewMode | undefined>(storedViewMode);
     const recovery = useRecoverySignal();
-    const container = useMainContainerClass();
-    const viewMode = viewModeOf(viewChoice, container);
-    const variant = cardVariantOf(container, viewMode, 'library');
+    const presentation = useRecipeListPresentation(viewChoice);
     const onCreateRecipe = () => router.push(`/${locale}/recipes/new` as Route);
     // Paste lives in the editor's Ingredients section (slice 8): the new editor opens there with its sheet up.
     const onPasteIngredients = () => router.push(pasteIngredientsHref(locale) as Route);
@@ -89,9 +77,9 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale, stor
     return (
         <RecipeListFrame
             {...(avatar === undefined ? {} : { headerAction: { kind: 'avatar', avatar } })}
-            searchValue={searchValue}
-            onSearchChange={onSearchChange}
-            searchVisible={searchVisible}
+            searchValue={controls.searchValue}
+            onSearchChange={controls.onSearchChange}
+            searchVisible={controls.searchVisible}
             segments={{
                 current: 'mine',
                 href: { mine: `/${locale}/recipes`, collections: `/${locale}/collections` },
@@ -104,29 +92,21 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale, stor
             headingFocusSignal={recovery.signal}
         >
             <ClientQueryBoundary
-                prefetchedKeys={[read.queryKey]}
-                loading={<RecipeListLoading variant={variant} />}
+                prefetchedKeys={[controls.read.queryKey]}
+                loading={<RecipeListLoading variant={presentation.variant} />}
                 renderError={({ resetErrorBoundary }) => (
                     <RecipeListLoadError onRetry={resetErrorBoundary} onCreateRecipe={onCreateRecipe} />
                 )}
             >
                 <SettledRecipeList
-                    read={read}
                     locale={locale}
-                    searchValue={searchValue}
-                    onClearSearch={onClearSearch}
-                    activeFacets={activeFacets}
-                    onActiveFacetsChange={onActiveFacetsChange}
-                    sort={sort}
-                    onSortChange={onSortChange}
-                    viewMode={viewMode}
+                    controls={controls}
+                    presentation={presentation}
                     onViewModeChange={(mode) => {
                         setViewChoice(mode);
                         // The cookie the page reads on the server, so the next visit renders this view first.
                         document.cookie = viewModeCookieFor(mode);
                     }}
-                    variant={variant}
-                    chipOverflow={container === 'narrow' ? 'scroll' : 'wrap'}
                     onSelectRecipe={(id) => router.push(`/${locale}/recipes/${id}` as Route)}
                     onCreateRecipe={onCreateRecipe}
                     onPasteIngredients={onPasteIngredients}
@@ -139,18 +119,10 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale, stor
 
 /** Props for {@link SettledRecipeList}. */
 interface SettledRecipeListProps {
-    readonly read: LibraryRead;
     readonly locale: string;
-    readonly searchValue: string;
-    readonly onClearSearch: () => void;
-    readonly activeFacets: readonly string[];
-    readonly onActiveFacetsChange: (update: (current: readonly string[]) => readonly string[]) => void;
-    readonly sort: RecipeListSortBy;
-    readonly onSortChange: (sort: RecipeListSortBy) => void;
-    readonly viewMode: ListViewMode;
+    readonly controls: RecipeLibraryControls;
+    readonly presentation: RecipeListPresentation;
     readonly onViewModeChange: (mode: ListViewMode) => void;
-    readonly variant: CardVariant;
-    readonly chipOverflow: ChipRowOverflow;
     readonly onSelectRecipe: (id: string) => void;
     readonly onCreateRecipe: () => void;
     readonly onPasteIngredients: () => void;
@@ -158,56 +130,20 @@ interface SettledRecipeListProps {
 }
 
 /**
- * The library once it has settled: the facets and their counts over the whole library, the rows the narrowing leaves,
- * the state they put the results in, and one calorie batch per chunk.
+ * The library once it has settled: the shared results props over the whole library, plus the web-only pieces — the
+ * failed-refresh notice, the cards' links and one calorie batch per chunk.
  *
- * @param props - The read, the viewer's narrowing and presentation, and the intents to forward.
+ * @param props - The viewer's narrowing and presentation, and the intents to forward.
  * @returns The results.
  */
-const SettledRecipeList: FC<SettledRecipeListProps> = ({
-    read,
-    locale,
-    searchValue,
-    onClearSearch,
-    activeFacets,
-    onActiveFacetsChange,
-    sort,
-    onSortChange,
-    viewMode,
-    onViewModeChange,
-    variant,
-    chipOverflow,
-    onSelectRecipe,
-    onCreateRecipe,
-    onPasteIngredients,
-    onRecovered,
-}) => {
-    const query = useSuspenseInfiniteQuery(read);
+const SettledRecipeList: FC<SettledRecipeListProps> = ({ locale, controls, onRecovered, ...rest }) => {
+    const query = useSuspenseInfiniteQuery(controls.read);
     const refreshNotice = useRefreshNotice(query, { onRecovered });
-    const library = useRecipeLibrary({ query, locale, searchValue, activeFacets, onActiveFacetsChange });
+    const { results, chunkIds } = useSettledRecipeList({ query, locale, controls, refreshNotice, ...rest });
     // One calorie batch per CHUNK, keyed by the loaded chunks (see `chunkIds`) so a keystroke never re-keys the read.
-    const renderNutrition = useHydratedNutrition(library.chunkIds);
+    const renderNutrition = useHydratedNutrition(chunkIds);
 
     return (
-        <RecipeListResults
-            recipes={library.recipes}
-            state={library.state}
-            searchValue={searchValue}
-            onClearSearch={onClearSearch}
-            clearCount={library.clearCount}
-            onClearFilters={library.onClearFilters}
-            onSelectRecipe={onSelectRecipe}
-            hrefOf={(id) => `/${locale}/recipes/${id}`}
-            variant={variant}
-            chipOverflow={chipOverflow}
-            facets={library.facets}
-            view={{ mode: viewMode, onChange: onViewModeChange }}
-            sort={{ value: sort, onChange: onSortChange }}
-            loadMore={library.loadMore}
-            onCreateRecipe={onCreateRecipe}
-            onPasteIngredients={onPasteIngredients}
-            refreshNotice={refreshNotice}
-            renderNutrition={renderNutrition}
-        />
+        <RecipeListResults {...results} hrefOf={(id) => `/${locale}/recipes/${id}`} renderNutrition={renderNutrition} />
     );
 };

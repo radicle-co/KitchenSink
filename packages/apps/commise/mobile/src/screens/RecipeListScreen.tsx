@@ -25,23 +25,23 @@ import {
     RecipeListLoading,
     RecipeListResults,
     nutritionSlotRenderer,
-    cardVariantOf,
-    useMainContainerClass,
-    viewModeOf,
-    type CardVariant,
     type ListViewMode,
     type RecipesSegmentControl,
 } from '@commise/features-recipes';
 import { useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
-import { useRecipeLibrary, useRecipeLibraryControls, type LibraryRead } from '@commise/features-recipes/list';
+import {
+    useRecipeLibraryControls,
+    useRecipeListPresentation,
+    useSettledRecipeList,
+    type RecipeLibraryControls,
+    type RecipeListPresentation,
+} from '@commise/features-recipes/list';
 import { useLocale } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useRecoverySignal } from '@commise/query/recovery-signal';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
-import type { ChipRowOverflow } from '@commise/ui/chip';
 import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
-import type { RecipeListSortBy } from '@kitchensink/recipe-service-client';
 import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { JSX } from 'react';
 
@@ -82,50 +82,30 @@ export function RecipeListScreen({
     headerAction,
     scrollBind,
 }: RecipeListScreenProps): JSX.Element {
-    const {
-        searchValue,
-        onSearchChange,
-        onClearSearch,
-        searchVisible,
-        activeFacets,
-        onActiveFacetsChange,
-        sort,
-        onSortChange,
-        read,
-    } = useRecipeLibraryControls();
+    const controls = useRecipeLibraryControls();
     const [viewChoice, setViewChoice] = useStoredViewMode();
     const recovery = useRecoverySignal();
-    const container = useMainContainerClass();
-    const viewMode = viewModeOf(viewChoice, container);
-    const variant = cardVariantOf(container, viewMode, 'library');
+    const presentation = useRecipeListPresentation(viewChoice);
 
     return (
         <RecipeListFrame
-            searchValue={searchValue}
-            onSearchChange={onSearchChange}
-            searchVisible={searchVisible}
+            searchValue={controls.searchValue}
+            onSearchChange={controls.onSearchChange}
+            searchVisible={controls.searchVisible}
             {...(segments === undefined ? {} : { segments })}
             {...(headerAction === undefined ? {} : { headerAction })}
             headingFocusSignal={recovery.signal}
         >
             <QueryBoundary
-                loading={<RecipeListLoading variant={variant} />}
+                loading={<RecipeListLoading variant={presentation.variant} />}
                 renderError={({ resetErrorBoundary }) => (
                     <RecipeListLoadError onRetry={resetErrorBoundary} onCreateRecipe={onCreateRecipe} />
                 )}
             >
                 <SettledRecipeList
-                    read={read}
-                    searchValue={searchValue}
-                    onClearSearch={onClearSearch}
-                    activeFacets={activeFacets}
-                    onActiveFacetsChange={onActiveFacetsChange}
-                    sort={sort}
-                    onSortChange={onSortChange}
-                    viewMode={viewMode}
+                    controls={controls}
+                    presentation={presentation}
                     onViewModeChange={setViewChoice}
-                    variant={variant}
-                    chipOverflow={container === 'narrow' ? 'scroll' : 'wrap'}
                     onSelectRecipe={onSelectRecipe}
                     onCreateRecipe={onCreateRecipe}
                     onPasteIngredients={onPasteIngredients}
@@ -139,17 +119,9 @@ export function RecipeListScreen({
 
 /** Props for {@link SettledRecipeList}. */
 interface SettledRecipeListProps {
-    readonly read: LibraryRead;
-    readonly searchValue: string;
-    readonly onClearSearch: () => void;
-    readonly activeFacets: readonly string[];
-    readonly onActiveFacetsChange: (update: (current: readonly string[]) => readonly string[]) => void;
-    readonly sort: RecipeListSortBy;
-    readonly onSortChange: (sort: RecipeListSortBy) => void;
-    readonly viewMode: ListViewMode;
+    readonly controls: RecipeLibraryControls;
+    readonly presentation: RecipeListPresentation;
     readonly onViewModeChange: (mode: ListViewMode) => void;
-    readonly variant: CardVariant;
-    readonly chipOverflow: ChipRowOverflow;
     readonly onSelectRecipe: (id: string) => void;
     readonly onCreateRecipe: () => void;
     readonly onPasteIngredients?: () => void;
@@ -158,60 +130,41 @@ interface SettledRecipeListProps {
 }
 
 /**
- * The library once it has settled: the facets and their counts over the whole library, the rows the narrowing leaves,
- * their state, and one calorie batch per chunk.
+ * The library once it has settled: the shared results props over the whole library, plus the native-only pieces — the
+ * failed-refresh notice, pull-to-refresh, the scroll bind and one calorie batch per chunk.
  *
- * @param props - The read, the viewer's narrowing and presentation, and the intents to forward.
+ * @param props - The viewer's narrowing and presentation, and the intents to forward.
  * @returns The results.
  */
 function SettledRecipeList({
-    read,
-    searchValue,
-    onClearSearch,
-    activeFacets,
-    onActiveFacetsChange,
-    sort,
-    onSortChange,
-    viewMode,
-    onViewModeChange,
-    variant,
-    chipOverflow,
-    onSelectRecipe,
-    onCreateRecipe,
-    onPasteIngredients,
+    controls,
     onRecovered,
     scrollBind,
+    onPasteIngredients,
+    ...rest
 }: SettledRecipeListProps): JSX.Element {
     const viewerLocale = useLocale();
-    const query = useSuspenseInfiniteQuery(read);
+    const query = useSuspenseInfiniteQuery(controls.read);
     const refreshNotice = useRefreshNotice(query, { onRecovered });
-    const library = useRecipeLibrary({ query, locale: viewerLocale, searchValue, activeFacets, onActiveFacetsChange });
+    const { results, chunkIds } = useSettledRecipeList({
+        query,
+        locale: viewerLocale,
+        controls,
+        refreshNotice,
+        onPasteIngredients,
+        ...rest,
+    });
     // ⛔ THE LOADED CHUNKS (`chunkIds`), never the narrowed rows: one batch per chunk (≤ 500).
-    const nutritionFor = useRecipeNutritionBatches(library.chunkIds);
+    const nutritionFor = useRecipeNutritionBatches(chunkIds);
 
     return (
         <RecipeListResults
             {...(scrollBind === undefined ? {} : { scrollBind })}
-            recipes={library.recipes}
-            state={library.state}
-            searchValue={searchValue}
-            onClearSearch={onClearSearch}
-            clearCount={library.clearCount}
-            onClearFilters={library.onClearFilters}
-            onSelectRecipe={onSelectRecipe}
-            variant={variant}
-            chipOverflow={chipOverflow}
-            facets={library.facets}
-            view={{ mode: viewMode, onChange: onViewModeChange }}
-            sort={{ value: sort, onChange: onSortChange }}
-            loadMore={library.loadMore}
-            onCreateRecipe={onCreateRecipe}
-            onPasteIngredients={onPasteIngredients}
+            {...results}
             // ONE promise, N slots: `null` means no batch covers this recipe — render nothing.
             renderNutrition={nutritionSlotRenderer(nutritionFor)}
             // Pull-to-refresh (L8): the spinner tracks the in-flight refetch; pulling re-runs the read.
             refresh={{ refreshing: query.isRefetching, onRefresh: () => void query.refetch() }}
-            refreshNotice={refreshNotice}
         />
     );
 }

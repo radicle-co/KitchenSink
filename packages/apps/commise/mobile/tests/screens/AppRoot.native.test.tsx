@@ -132,7 +132,7 @@ describe('AppRoot — each screen’s crash boundary (slice 3: per routed screen
 
         fireEvent.click(screen.getByRole('button', { name: 'Open profile' }));
         expect(screen.getByRole('alert')).toBeTruthy();
-        expect(screen.getByText('We hit a snag loading this screen. Try again, or go back to Home.')).toBeTruthy();
+        expect(screen.getByText('We couldn’t load this. Please try again.')).toBeTruthy();
 
         fireEvent.click(screen.getByRole('button', { name: 'Back to Home' }));
 
@@ -144,6 +144,6 @@ describe('AppRoot — each screen’s crash boundary (slice 3: per routed screen
         renderWithProviders(<AppRoot />);
 
         expect(screen.queryByRole('button', { name: 'Back to Home' })).toBeNull();
-        expect(screen.getByText('We hit a snag loading Home. Please try again.')).toBeTruthy();
+        expect(screen.getByText('We couldn’t load Home. Please try again.')).toBeTruthy();
     });
 });

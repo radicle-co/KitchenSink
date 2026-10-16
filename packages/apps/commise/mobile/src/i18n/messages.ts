@@ -115,12 +115,6 @@ export interface MobileMessages {
         /** Shown when a sign-up needs something neither the sign-up form nor its finish step can ask for. */
         readonly signUpUnsupported: string;
     };
-    readonly common: {
-        /** Body copy for the root-level crash fallback (B18) — the app-wide safety net around `AppRoot`. */
-        readonly rootErrorBody: string;
-        /** Body copy for the same fallback when Home is what crashed, where Back to Home is not offered. */
-        readonly rootErrorBodyHome: string;
-    };
 }
 
 export const mobileMessages: LocalizedMessages<MobileMessages> = {
@@ -175,10 +169,6 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             usernameRequired: 'Choose a username.',
             passwordRequired: 'Enter a password.',
             signUpUnsupported: 'We can’t finish creating your account in the app. Try again on the Commise website.',
-        },
-        common: {
-            rootErrorBody: 'We hit a snag loading this screen. Try again, or go back to Home.',
-            rootErrorBodyHome: 'We hit a snag loading Home. Please try again.',
         },
     },
 };

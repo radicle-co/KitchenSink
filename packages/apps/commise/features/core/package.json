@@ -10,6 +10,7 @@
         "./offline": "./src/offline/messages.ts",
         "./home": "./src/home/index.ts",
         "./boundary": "./src/boundary/index.ts",
+        "./boundary/messages": "./src/boundary/messages.ts",
         "./config/stageCoherence": "./src/config/stageCoherence.ts",
         "./config/envScaffolding": "./src/config/envScaffolding.ts"
     },

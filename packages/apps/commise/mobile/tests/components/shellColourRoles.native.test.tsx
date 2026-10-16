@@ -37,9 +37,6 @@ import { ResumeCookingWidgetSkeleton } from '../../src/components/home/skeletons
 import { SubscriptionNudge } from '../../src/components/home/SubscriptionNudge.js';
 import { useAuth } from '../../src/hooks/useAuth.js';
 import { homeMessages } from '@commise/features-core/home';
-import { mobileMessages } from '../../src/i18n/messages.js';
-
-const copy = mobileMessages.en;
 
 afterEach(() => {
     cleanup();
@@ -81,10 +78,10 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
 
     it('BoundaryErrorNotice titles the crash in ink, with its body in inkMuted', () => {
         systemScheme.current = scheme;
-        render(<BoundaryErrorNotice body={copy.common.rootErrorBodyHome} onRetry={() => undefined} />);
+        render(<BoundaryErrorNotice body={boundaryMessages.en.errorBodyHome} onRetry={() => undefined} />);
 
         expect(colourOf(screen.getByText(boundaryMessages.en.errorTitle))).toBe(rgb(colours.ink));
-        expect(colourOf(screen.getByText(copy.common.rootErrorBodyHome))).toBe(rgb(colours.inkMuted));
+        expect(colourOf(screen.getByText(boundaryMessages.en.errorBodyHome))).toBe(rgb(colours.inkMuted));
     });
 
     it('HomeWidgetErrorNotice says the failure in inkMuted', () => {

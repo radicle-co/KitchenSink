@@ -28,7 +28,7 @@ describe('GlobalError', () => {
         render(<GlobalError error={new Error('boom')} retry={vi.fn()} />);
 
         expect(screen.getByRole('heading', { name: 'Something went wrong.' })).toBeTruthy();
-        expect(screen.getByText('We couldn’t load this page. Please try again.')).toBeTruthy();
+        expect(screen.getByText('We couldn’t load this. Please try again.')).toBeTruthy();
         expect(
             document.documentElement.getAttribute('lang') ?? document.querySelector('html')?.getAttribute('lang'),
         ).toBe('en');

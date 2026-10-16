@@ -26,19 +26,12 @@ export interface WebMessages {
      */
     readonly boundary: {
         /**
-         * Copy for a route segment's `error.tsx` — a render throw Next caught, never silent (DA9-reported). The
-         * segment boundary draws the shared `BoundaryErrorNotice` (its title and labels are `boundaryMessages`);
-         * `global-error.tsx` renders its own `<html>` and must not import the design system, so it alone reads
-         * `title`, `retry` and `home` from here.
+         * Copy only the last-resort `global-error.tsx` owns. Its title, body and retry label are the shared
+         * `boundaryMessages` (`@commise/features-core/boundary/messages`, which imports no design system); the
+         * Home link is a full page load rather than the notice's in-app navigation, so its label stays here.
          */
         readonly error: {
-            /** Heading of the last-resort page (`global-error.tsx` only). */
-            readonly title: string;
-            /** Supporting body copy. Deliberately generic — never echoes the raw error message to the viewer. */
-            readonly description: string;
-            /** Label of the last-resort page's retry action, wired to Next's `retry()` (`global-error.tsx` only). */
-            readonly retry: string;
-            /** Label of the last-resort page's full page load of Home (`global-error.tsx` only). */
+            /** Label of the last-resort page's full page load of Home. */
             readonly home: string;
         };
         /** Copy for a route segment's `loading.tsx` (the Suspense fallback shown while it streams in). */
@@ -123,9 +116,6 @@ export const webMessages: LocalizedMessages<WebMessages> = {
     en: {
         boundary: {
             error: {
-                title: 'Something went wrong.',
-                description: 'We couldn’t load this page. Please try again.',
-                retry: 'Try again',
                 home: 'Go to Home',
             },
             loading: {

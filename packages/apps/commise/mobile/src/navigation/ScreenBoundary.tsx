@@ -12,14 +12,13 @@
  * @pattern Bulkhead — one crash boundary per routed screen, so a failure stays inside the screen that threw
  */
 import { resolveErrorReporter } from '@commise/features-core';
-import { BoundaryErrorNotice } from '@commise/features-core/boundary';
+import { BoundaryErrorNotice, boundaryMessages } from '@commise/features-core/boundary';
 import { useMessages } from '@commise/i18n/react';
 import { useQueryErrorResetBoundary } from '@tanstack/react-query';
 import type { JSX, ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
 import { homeContainer } from '../components/home/homeContainer.js';
-import { mobileMessages } from '../i18n/messages.js';
 import { resetToHome } from './navigationRef.js';
 
 /** The DA9 reporter resolved once from the shared appShell container (bound to Sentry in production). */
@@ -38,13 +37,13 @@ export interface ScreenBoundaryProps {
  */
 export function ScreenBoundary({ atHome, children }: ScreenBoundaryProps): JSX.Element {
     const { reset: resetQueryErrors } = useQueryErrorResetBoundary();
-    const { common } = useMessages(mobileMessages);
+    const boundary = useMessages(boundaryMessages);
 
     return (
         <ErrorBoundary
             fallbackRender={({ resetErrorBoundary }) => (
                 <BoundaryErrorNotice
-                    body={atHome ? common.rootErrorBodyHome : common.rootErrorBody}
+                    body={atHome ? boundary.errorBodyHome : boundary.errorBody}
                     onRetry={resetErrorBoundary}
                     {...(atHome
                         ? {}

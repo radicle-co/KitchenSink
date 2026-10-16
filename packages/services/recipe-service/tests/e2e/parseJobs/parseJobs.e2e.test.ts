@@ -361,12 +361,14 @@ describe('recipe parse jobs (integration)', () => {
     describe('retry re-drives orphaned lines (the commit-then-enqueue gap)', () => {
         const retryJob = async (jobId: string): Promise<Response> =>
             fetch(`${baseUrl}/api/v1/recipe-parse-jobs/${jobId}/retry`, { method: 'POST' });
+
         const quiet = async (jobId: string): Promise<void> => {
             await pool.query(
                 `UPDATE recipe_parse_job_lines SET updated_at = now() - interval '1 hour' WHERE job_id = $1`,
                 [jobId],
             );
         };
+
         const queued = async (jobId: string, max: number): Promise<Record<string, unknown>[]> =>
             (await drainQueue(max)).filter((message) => message['jobId'] === jobId);
 

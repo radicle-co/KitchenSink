@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 
 import { GithubActionsAccessStack } from '../lib/platform/GithubActionsAccessStack.js';
 import { SHARED_TIER_DELETE_ORDER } from '../lib/sandbox-scheduler/reclaim.js';
+import { OBSERVE_SERVICE, OBSERVE_TIERS, TEARDOWN, observeCommands, type ObserveTier } from './ciAwsCommands.js';
 import { policyAdmits, policyAdmitsTagged, type PolicyStatementJson } from './iamGlob.js';
 import { repoRoot } from './serviceSources.js';
 import { testApp } from './testApp.js';
@@ -665,87 +666,14 @@ describe('GithubActionsAccessStack: the observe grants are the enumerated CI com
     const t = template();
     const { account, region } = env;
     const arn = (service: string, rest: string): string => `arn:aws:${service}:${region}:${account}:${rest}`;
-    const CLUSTER = 'kitchensink-food-service-pr-91-FoodServiceCluster442EDB29-QR9FHWWoNVeo';
-    const QUEUE_CHECK_ROLE = `arn:aws:iam::${account}:role/kitchensink-recipe-workers-p-QueueCheckRole90B692FA-blEhaaA5OyQT`;
-    const MANAGED_POLICY = 'arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole';
-    const STATE_MACHINE = arn('states', 'stateMachine:ReclaimStateMachineAB12-xYz');
-    const GROUP = arn('logs', 'log-group:/aws/lambda/kitchensink-recipe-workers-pr-91');
-    const ALL = ['nonprod', 'prod'] as const;
-    type Tier = (typeof ALL)[number];
+    const ALL = OBSERVE_TIERS;
+    type Tier = ObserveTier;
     const ROLE: Record<Tier, string> = { nonprod: 'kitchensink-gha-nonprod', prod: 'kitchensink-gha-prod' };
-
-    type Row = readonly [caller: string, action: string, resource: string, tiers: readonly Tier[]];
 
     /** `*` is the only scope these actions have: the Service Authorization Reference lists no resource type for them. */
     const UNSCOPABLE = ['ecs:DescribeTaskDefinition', 'ecs:ListClusters', 'ec2:DescribeInstances', 'tag:GetResources'];
 
-    const commands: readonly Row[] = [
-        ['deploy checks: aws ecs describe-services', 'ecs:DescribeServices', arn('ecs', `service/${CLUSTER}/api`), ALL],
-        ['deploy checks: aws ecs describe-task-definition', 'ecs:DescribeTaskDefinition', '*', ALL],
-        ['deploy checks: aws ecs list-clusters', 'ecs:ListClusters', '*', ALL],
-        ['deploy checks: aws ecs list-services', 'ecs:ListServices', arn('ecs', `cluster/${CLUSTER}`), ALL],
-        ['ecsQuiesce.sh: aws ecs list-tasks', 'ecs:ListTasks', arn('ecs', `cluster/${CLUSTER}`), ALL],
-        ['ecsQuiesce.sh: aws ecs wait tasks-stopped', 'ecs:DescribeTasks', arn('ecs', `task/${CLUSTER}/0123abcd`), ALL],
-        ['verifyDeployment.sh: aws logs describe-log-groups', 'logs:DescribeLogGroups', GROUP, ALL],
-        ['verifyDeployment.sh: aws logs describe-subscription-filters', 'logs:DescribeSubscriptionFilters', GROUP, ALL],
-        [
-            'verifyDeployment.sh: aws rds describe-db-instances',
-            'rds:DescribeDBInstances',
-            arn('rds', 'db:kitchensink-data-sandbox-db'),
-            ALL,
-        ],
-        [
-            'verifyDeployment.sh: aws rds describe-db-clusters',
-            'rds:DescribeDBClusters',
-            arn('rds', 'cluster:kitchensink-data-sandbox'),
-            ALL,
-        ],
-        ['sandboxWake.sh: aws ec2 describe-instances', 'ec2:DescribeInstances', '*', ALL],
-        [
-            'verifyDeployment.sh: aws sqs get-queue-attributes',
-            'sqs:GetQueueAttributes',
-            arn('sqs', 'kitchensink-recipe-parse-pr-91'),
-            ALL,
-        ],
-        [
-            'verifyDeployment.sh: aws sqs get-queue-url',
-            'sqs:GetQueueUrl',
-            arn('sqs', 'kitchensink-recipe-parse-pr-91'),
-            ALL,
-        ],
-        [
-            'verifyDeployment.sh: aws sns get-topic-attributes',
-            'sns:GetTopicAttributes',
-            arn('sns', 'kitchensink-handle-sync-sandbox'),
-            ALL,
-        ],
-        [
-            'verifyDeployment.sh: aws stepfunctions describe-state-machine',
-            'states:DescribeStateMachine',
-            STATE_MACHINE,
-            ALL,
-        ],
-        ['sandboxScheduler.sh: aws stepfunctions list-executions', 'states:ListExecutions', STATE_MACHINE, ALL],
-        ['ecsQuiesce.sh, teardownSandboxPr.sh: resourcegroupstaggingapi get-resources', 'tag:GetResources', '*', ALL],
-        // The queue-guarantee tier (deployedE2eTiers.yml) reads the backstop role's policies at any target stage.
-        ['deployedE2eTiers.yml: aws iam list-role-policies', 'iam:ListRolePolicies', QUEUE_CHECK_ROLE, ALL],
-        [
-            'deployedE2eTiers.yml: aws iam list-attached-role-policies',
-            'iam:ListAttachedRolePolicies',
-            QUEUE_CHECK_ROLE,
-            ALL,
-        ],
-        ['deployedE2eTiers.yml: aws iam get-role-policy', 'iam:GetRolePolicy', QUEUE_CHECK_ROLE, ALL],
-        ['deployedE2eTiers.yml: aws iam get-policy', 'iam:GetPolicy', MANAGED_POLICY, ALL],
-        ['deployedE2eTiers.yml: aws iam get-policy-version', 'iam:GetPolicyVersion', MANAGED_POLICY, ALL],
-        // `food-loadtest.yml`'s collector (`collectMetrics.mjs`, run by `run.mjs`) samples the food queue gauges on
-        // every tier: the workflow signs in as `nonprod` for a preview target.
-        ['food-loadtest.yml collector', 'cloudwatch:GetMetricStatistics', '*', ALL],
-    ];
-
-    /** Services whose Allows are "observe" grants. The teardown verbs are `teardownGrants`', held by its own table. */
-    const OBSERVE_SERVICE = /^(ecs|logs|rds|ec2|states|sns|sqs|tag|cloudwatch|iam):/u;
-    const TEARDOWN = new Set(['ecs:DeleteService', 'ecs:StopTask', 'logs:DeleteLogGroup']);
+    const commands = observeCommands(env);
 
     it.each(
         commands.flatMap(([caller, action, resource, tiers]) =>

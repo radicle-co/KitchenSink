@@ -1,13 +1,7 @@
 import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 
-import {
-    InvalidConfigError,
-    isInvalidConfigError,
-    isMissingConfigError,
-    MissingConfigError,
-    requireEnv,
-    requirePositiveEnv,
-} from '../config.js';
+import { isMissingConfigError, MissingConfigError, requireEnv, requirePositiveEnv } from '../config.js';
+import { InvalidConfigError, isInvalidConfigError } from '../invalidConfigError.js';
 
 const TEST_KEY = 'RECIPE_WORKERS_TEST_VAR';
 

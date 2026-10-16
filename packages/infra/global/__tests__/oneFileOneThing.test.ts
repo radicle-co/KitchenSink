@@ -184,7 +184,7 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             'it, or argue a new ruling.',
         files: [
             { file: 'packages/services/food-service/src/foods/dto/foods.dto.ts', classes: 11, components: 0 },
-            { file: 'packages/services/identity/src/admin/dto/admin.dto.ts', classes: 5, components: 0 },
+            { file: 'packages/services/identity/src/admin/dto/admin.dto.ts', classes: 3, components: 0 },
             { file: 'packages/services/identity/src/users/dto/user.dto.ts', classes: 3, components: 0 },
             { file: 'packages/services/recipe-service/src/recipes/dto/createRecipe.dto.ts', classes: 3, components: 0 },
         ],

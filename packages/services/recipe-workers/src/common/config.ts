@@ -1,3 +1,5 @@
+import { InvalidConfigError } from './invalidConfigError.js';
+
 /**
  * Raised when a required environment variable is absent or empty. Extends `Error` with a matching
  * `isMissingConfigError` guard per the repo custom-error convention.
@@ -15,24 +17,6 @@ export class MissingConfigError extends Error {
 
 export const isMissingConfigError = (error: unknown): error is MissingConfigError =>
     error instanceof MissingConfigError;
-
-/**
- * Raised when a required environment variable is PRESENT but not a usable value (for example not a positive
- * integer). The sibling of {@link MissingConfigError}: absent and malformed are different operator mistakes.
- */
-export class InvalidConfigError extends Error {
-    public readonly variableName: string;
-
-    constructor(variableName: string, message: string) {
-        super(message);
-        this.name = 'InvalidConfigError';
-        this.variableName = variableName;
-        Object.setPrototypeOf(this, InvalidConfigError.prototype);
-    }
-}
-
-export const isInvalidConfigError = (error: unknown): error is InvalidConfigError =>
-    error instanceof InvalidConfigError;
 
 /**
  * Read a required environment variable, throwing `MissingConfigError` when unset or empty. Uses

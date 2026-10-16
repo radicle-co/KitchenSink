@@ -18,18 +18,11 @@ export interface AccountStateMessages {
     readonly loading: string;
 }
 
-/** Copy for the sign-in and sign-up forms (`buildSpec.md` §8). */
+/**
+ * Copy for the sign-in and sign-up forms that only web has. The sentences both platforms say (the brand line, the sign-up
+ * prompt and link, the two email messages) are `authSurfaceMessages` in `@commise/features-account`.
+ */
 export interface AuthSurfaceMessages {
-    /** The brand line under the sign-in title. It becomes "Cook with confidence. Plan with ease." when Plan ships. */
-    readonly brandLine: string;
-    /** The sign-in footer's question; Clerk's `actionText`. */
-    readonly signUpPrompt: string;
-    /** The sign-in footer's link, the only way to register; Clerk's `actionLink`. */
-    readonly signUpAction: string;
-    /** Shown under the sign-in identifier field when it is submitted empty. */
-    readonly emailRequired: string;
-    /** Shown under the sign-in identifier field when what was typed is not an email address. */
-    readonly emailInvalid: string;
     /** Shown when no account has the email address that was typed. */
     readonly accountNotFound: string;
 }
@@ -46,11 +39,6 @@ export interface AuthMessages {
 export const authMessages: LocalizedMessages<AuthMessages> = {
     en: {
         surface: {
-            brandLine: 'Your recipes, in one place.',
-            signUpPrompt: 'New to Commise?',
-            signUpAction: 'Create an account',
-            emailRequired: 'Enter your email address.',
-            emailInvalid: 'Enter a valid email address.',
             accountNotFound: 'We couldn’t find an account with that email address.',
         },
         state: {

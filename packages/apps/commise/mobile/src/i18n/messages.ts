@@ -3,6 +3,7 @@
  * copy lives in the feature packages' `messages.ts`. A {@link LocalizedMessages} dictionary resolved per
  * active locale via `useMessages` from `@commise/i18n/react`. The `en` set is required.
  */
+import { authSurfaceMessages, type AuthSurfaceMessages } from '@commise/features-account';
 import type { GreetingBucket, HomeNavItemId, RoadmapWidgetId } from '@commise/features-core';
 import type { LocalizedMessages } from '@commise/i18n';
 
@@ -72,13 +73,15 @@ export interface MobileMessages {
         };
     };
     /** Copy for the sign-in / sign-up surface (U2). All auth copy is localized (repo mandate). */
-    readonly auth: {
+    /**
+     * The sign-in and sign-up screens' copy. The sentences both platforms say (brand line, sign-up prompt and link, the
+     * two email messages) are `authSurfaceMessages` in `@commise/features-account`, spread into the `en` set below.
+     */
+    readonly auth: AuthSurfaceMessages & {
         /** Brand wordmark shown atop the sign-in / sign-up screens. */
         readonly brand: string;
         /** The sign-in screen's H1 (`buildSpec.md` §8: "Sign in to Commise"). */
         readonly signInTitle: string;
-        /** The one line under the H1 on both auth screens (`buildSpec.md` §8). */
-        readonly brandLine: string;
         /** The sign-up screen's H1. */
         readonly createHeading: string;
         /** Alert above the primary action when Clerk could not be reached (`buildSpec.md` §8 "States"). */
@@ -107,18 +110,10 @@ export interface MobileMessages {
         readonly startOverAction: string;
         /** Primary create-account submit label. */
         readonly createAccountAction: string;
-        /** Prompt beside the link that toggles from sign-in to sign-up. */
-        readonly noAccountPrompt: string;
-        /** Label of the link that toggles from sign-in to sign-up. */
-        readonly signUpLink: string;
         /** Prompt beside the link that toggles from sign-up to sign-in. */
         readonly haveAccountPrompt: string;
         /** Label of the link that toggles from sign-up to sign-in. */
         readonly signInLink: string;
-        /** Said when the email field is empty (also the wording for Clerk's "missing identifier"). */
-        readonly emailRequired: string;
-        /** Said when the email is not a valid address (also the wording for Clerk's "identifier is invalid"). */
-        readonly emailInvalid: string;
         /** Localized fallback when a sign-in fails without a Clerk-supplied message. */
         readonly signInFailed: string;
         /** Localized fallback when a sign-up fails without a Clerk-supplied message. */
@@ -323,9 +318,9 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             },
         },
         auth: {
+            ...authSurfaceMessages.en,
             brand: 'Commise',
             signInTitle: 'Sign in to Commise',
-            brandLine: 'Your recipes, in one place.',
             createHeading: 'Create your account',
             networkError: 'We couldn’t reach the sign-in service. Check your connection and try again.',
             emailLabel: 'Email',
@@ -340,12 +335,8 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             resendCodeAction: 'Send a new code',
             startOverAction: 'Start over',
             createAccountAction: 'Create account',
-            noAccountPrompt: 'New to Commise?',
-            signUpLink: 'Create an account',
             haveAccountPrompt: 'Already have an account?',
             signInLink: 'Sign in',
-            emailRequired: 'Enter your email address.',
-            emailInvalid: 'Enter a valid email address.',
             signInFailed: 'We couldn’t sign you in. Please try again.',
             signUpFailed: 'We couldn’t create your account. Please try again.',
             verifyFailed: 'We couldn’t verify that code. Please try again.',

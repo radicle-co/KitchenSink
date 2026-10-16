@@ -46,6 +46,10 @@ describe('clerkLocalizationFor', () => {
             expect(errors()?.form_param_format_invalid__identifier).toBe('Enter a valid email address.');
         });
 
+        it('treats a wrongly typed identifier as a malformed one, as mobile does', () => {
+            expect(errors()?.form_param_type_invalid__identifier).toBe('Enter a valid email address.');
+        });
+
         it('says no account was found, and does not blame the address’s format', () => {
             expect(errors()?.form_identifier_not_found).toBe('We couldn’t find an account with that email address.');
         });
@@ -56,6 +60,7 @@ describe('clerkLocalizationFor', () => {
                     'form_identifier_not_found',
                     'form_param_format_invalid__identifier',
                     'form_param_nil__identifier',
+                    'form_param_type_invalid__identifier',
                 ].sort(),
             );
         });

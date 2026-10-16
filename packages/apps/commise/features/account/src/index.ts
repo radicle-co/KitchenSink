@@ -59,6 +59,9 @@ export type { PaidFeatureState, ProfileQueryState } from './paidFeatures.js';
 export type { AuthBlockReason, AuthState, DeriveAuthStateInput } from './authState.js';
 // The localized words a blocked viewer reads, keyed by the block's code: ONE wording for both gates and the profile banner.
 export { authBlockMessages } from './authBlockMessages.js';
+// The sign-in sentences both platforms say (brand line, sign-up prompt and link, the two email messages), authored once.
+export { authSurfaceMessages } from './authSurfaceMessages.js';
+export type { AuthSurfaceMessages } from './authSurfaceMessages.js';
 export type { AuthBlockCopy, AuthBlockMessages } from './authBlockMessages.js';
 export {
     AccountSuspendedError,

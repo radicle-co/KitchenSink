@@ -51,6 +51,7 @@ function migrationsThrough(last: string): string {
         .filter((file) => file.endsWith('.sql'))
         .sort()
         .filter((file) => file.replace(/\.sql$/, '') <= last);
+
     for (const file of files) {
         copyFileSync(join(migrationsDir, file), join(directory, file));
     }

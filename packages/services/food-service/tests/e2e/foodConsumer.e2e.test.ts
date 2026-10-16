@@ -30,6 +30,7 @@ import { RollingWindowLimiter } from '../../src/sources/RollingWindowLimiter.js'
 import type { SourceLimitOverrides } from '../../src/sources/transport/limitOverride.js';
 import { admittingAdapter } from '../support/admittingAdapter.js';
 import { FoodConsumerService } from '../../src/worker/foodConsumer.service.js';
+import { MAX_TIMEOUT_DEFERRALS } from '../../src/worker/backoff.js';
 import { workerCatalogOf } from '../../src/worker/workerCatalog.js';
 import { FoodMetrics } from '../../src/observability/emfMetrics.js';
 import { SilentWorkerLogger } from '../../src/worker/SilentWorkerLogger.js';
@@ -519,6 +520,31 @@ describe('FoodConsumerService (integration)', () => {
         ]);
         expect(await consumer.processNext()).toBe('deferred');
         expect(adapter.searchByName).toHaveBeenCalledTimes(2); // retried — the source was never paused
+    });
+
+    it('⛔ a food that times out on EVERY pass is failed at the timeout cap, not deferred for ever', async () => {
+        const id = await enqueueFood('always timing-out food');
+        const adapter = makeFakeUsdaAdapter();
+        adapter.searchByName.mockRejectedValue(new SourceApiError('usda', 0, 'USDA request timed out'));
+        const { consumer, publisher } = build(adapter);
+
+        for (let pass = 1; pass < MAX_TIMEOUT_DEFERRALS; pass += 1) {
+            expect(await consumer.processNext()).toBe('deferred');
+            expect((await queue.getByFoodId(id))?.timeoutCount).toBe(pass);
+            await pool.query(`UPDATE fetch_queue SET last_requested = now() - interval '1 minute' WHERE food_id = $1`, [
+                id,
+            ]);
+        }
+
+        // The capping pass fails the row through the existing failure path.
+        expect(await consumer.processNext()).toBe('failed');
+
+        const qrow = await queue.getByFoodId(id);
+        expect(qrow).toMatchObject({ status: 'tombstone', lastError: 'source_timeout', attempts: 0 });
+        expect(qrow?.timeoutCount).toBe(MAX_TIMEOUT_DEFERRALS);
+        expect((await foodDao.getById(id))?.status).toBe('FAILED');
+        expect(publisher.messages.length).toBeGreaterThan(0);
+        expect(await consumer.processNext()).toBe('idle');
     });
 
     it('schema drift (422) → attempts++ genuine failure (a persistently malformed item, not backpressure)', async () => {

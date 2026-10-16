@@ -107,6 +107,7 @@ function workerOver(spec: WorldSpec) {
         lastRequested: at,
         status: 'in_flight',
         attempts: 0,
+        timeoutCount: 0,
         lastError: null,
         fetchedAt: null,
         leasedAt: at,

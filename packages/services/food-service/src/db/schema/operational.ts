@@ -38,6 +38,8 @@ export const fetchQueue = pgTable(
         lastRequested: timestamp('last_requested', { withTimezone: true }).notNull().defaultNow(),
         status: text('status').notNull().default('pending'),
         attempts: integer('attempts').notNull().default(0),
+        /** Client timeouts deferred so far (0023); `attempts` stays the real-failure count a timeout never spends. */
+        timeoutCount: integer('timeout_count').notNull().default(0),
         lastError: text('last_error'),
         fetchedAt: timestamp('fetched_at', { withTimezone: true }),
         leasedAt: timestamp('leased_at', { withTimezone: true }),

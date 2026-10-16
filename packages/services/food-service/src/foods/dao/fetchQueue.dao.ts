@@ -478,6 +478,39 @@ export class FetchQueueDao {
     }
 
     /**
+     * Defer a leased row after a source CLIENT TIMEOUT, and count it (DSN-5): like {@link deferLease} it releases the
+     * lease for `seconds` and leaves `attempts` alone, because a timeout is not a per-food failure. Unlike it, it adds
+     * one to `timeout_count`, so the caller can stop deferring a food that times out on every pass.
+     *
+     * @param foodId - Internal food id.
+     * @param seconds - How long to hold the row off the eligible set.
+     * @param authority - The claim's fence (R16), or `'out-of-band'` for a caller holding no claim.
+     * @returns The re-queued row; its `timeoutCount` is the value the caller checks against the cap.
+     * @throws {LeaseLostError} when the claim was reaped or reclaimed — nothing is counted.
+     * @sideEffect Updates `fetch_queue` (status/leased_at/last_requested/timeout_count); `attempts` unchanged.
+     */
+    public async deferTimeout(foodId: string, seconds: number, authority: SettleAuthority): Promise<FetchQueueRow> {
+        const result = await this.db.execute(sql`
+            UPDATE fetch_queue SET
+                status = 'pending',
+                leased_at = NULL,
+                timeout_count = timeout_count + 1,
+                last_requested = now() + make_interval(secs => ${seconds})
+            WHERE food_id = ${foodId} AND ${FetchQueueDao.fenceTerm(authority)}
+        `);
+
+        FetchQueueDao.refuseWhenLost(result.rowCount ?? 0, foodId, authority, 'deferTimeout');
+
+        const row = await this.getByFoodId(foodId);
+
+        if (!row) {
+            throw new Error('deferTimeout produced no row');
+        }
+
+        return row;
+    }
+
+    /**
      * Release EVERY `in_flight` lease back to `pending` immediately (graceful shutdown, FR-017/FR-022):
      * on `SIGTERM` the single drainer reverts the rows it holds so a replacement instance can re-claim
      * them at once rather than waiting out the reaper window. Does NOT touch `attempts` — a

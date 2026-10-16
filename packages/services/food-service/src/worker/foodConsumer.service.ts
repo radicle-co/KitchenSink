@@ -54,7 +54,7 @@ import {
 import { backpressureReasonOf, isSourceBackpressure } from '../sources/transport/blockRule.js';
 import { FoodMetrics } from '../observability/emfMetrics.js';
 import { isLeaseLostError, type LeaseFence } from '../foods/dao/leaseFence.js';
-import { isRetryBudgetExhausted } from './backoff.js';
+import { isRetryBudgetExhausted, isTimeoutBudgetExhausted } from './backoff.js';
 import { hasValidProvenance } from './provenance.js';
 import { RoutedWorkerLogger } from './RoutedWorkerLogger.js';
 import { type WorkerLogger } from './workerLogger.js';
@@ -85,6 +85,12 @@ const DEFER_TIMEOUT_SECONDS = 30;
 /** The outcome of a per-source fan-out pass over the wired adapters. */
 type FanOutResult =
     | { readonly kind: 'deferred' }
+    | {
+          /** A source timed out on this food for the last time its timeout budget allows. */
+          readonly kind: 'timeout_exhausted';
+          /** The real-failure attempts the row holds, for the failure event. */
+          readonly attempts: number;
+      }
     | {
           readonly kind: 'collected';
           /** The fetched candidates the catalog does not hold. */
@@ -412,6 +418,10 @@ export class FoodConsumerService {
             return 'deferred';
         }
 
+        if (result.kind === 'timeout_exhausted') {
+            return this.tombstoneFailed(foodId, result.attempts, 'source_timeout');
+        }
+
         const { candidates, holders, failedSources } = result;
         const answered = candidates.length > 0 || holders.length > 0;
 
@@ -713,8 +723,17 @@ export class FoodConsumerService {
                         // evidence of source-wide distress, so it writes no block. This is self-inflicted latency
                         // under our own concurrency, not a per-food defect → no attempts++ (so a transient timeout
                         // can't burn the failure budget / tombstone a good food).
-                        await this.queue.deferLease(foodId, DEFER_TIMEOUT_SECONDS, fence);
-                        this.logger.warn('defer-timeout', { foodId, source });
+                        //
+                        // It counts against the row's OWN timeout budget (`timeout_count`), so a food that times out on
+                        // every pass is not deferred for ever. At the cap the row fails through the same path as an
+                        // exhausted retry budget, which the queue watcher reports as dead-lettered.
+                        const timedOut = await this.queue.deferTimeout(foodId, DEFER_TIMEOUT_SECONDS, fence);
+
+                        this.logger.warn('defer-timeout', { foodId, source, timeouts: timedOut.timeoutCount });
+
+                        if (isTimeoutBudgetExhausted(timedOut.timeoutCount)) {
+                            return { kind: 'timeout_exhausted', attempts: timedOut.attempts };
+                        }
 
                         return { kind: 'deferred' };
                     }

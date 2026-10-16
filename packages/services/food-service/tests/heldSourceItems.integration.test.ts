@@ -191,6 +191,7 @@ describe('the fan-out worker over the real catalog Facades (DAOs and merge seam 
             lastRequested: at,
             status: 'in_flight',
             attempts: 0,
+            timeoutCount: 0,
             lastError: null,
             fetchedAt: null,
             leasedAt: at,

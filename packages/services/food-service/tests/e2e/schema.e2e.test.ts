@@ -308,6 +308,19 @@ describe('kitchensink_food schema (integration)', () => {
             expect(rows[0]?.is_nullable).toBe('YES');
         });
 
+        it('has a NOT NULL timeout_count that defaults to 0 (0023, the source-timeout budget)', async () => {
+            const { rows } = await pool.query<{
+                is_nullable: string;
+                column_default: string | null;
+                data_type: string;
+            }>(
+                `SELECT is_nullable, column_default, data_type FROM information_schema.columns
+                  WHERE table_name = 'fetch_queue' AND column_name = 'timeout_count'`,
+            );
+            expect(rows).toHaveLength(1);
+            expect(rows[0]).toEqual({ is_nullable: 'NO', column_default: '0', data_type: 'integer' });
+        });
+
         it('creates the pending-priority and inflight-lease partial indexes', async () => {
             const { rows } = await pool.query<{ indexname: string }>(
                 `SELECT indexname FROM pg_indexes WHERE schemaname = 'public'`,

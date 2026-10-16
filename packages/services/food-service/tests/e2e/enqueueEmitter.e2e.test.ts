@@ -21,6 +21,7 @@ interface QueueRow {
     readonly status: string;
     readonly request_count: number;
     readonly attempts: number;
+    readonly timeout_count: number;
     readonly last_error: string | null;
     readonly leased_at: Date | null;
 }
@@ -32,7 +33,7 @@ describe('EnqueueEmitter — the fetch_queue writer, LOCAL e2e', () => {
     /** Every queue row for a food (the idempotency rules count them). */
     async function queueRows(foodId: string): Promise<QueueRow[]> {
         const { rows } = await pool.query<QueueRow>(
-            'SELECT status, request_count, attempts, last_error, leased_at FROM fetch_queue WHERE food_id = $1',
+            'SELECT status, request_count, attempts, timeout_count, last_error, leased_at FROM fetch_queue WHERE food_id = $1',
             [foodId],
         );
 
@@ -98,7 +99,8 @@ describe('EnqueueEmitter — the fetch_queue writer, LOCAL e2e', () => {
         const id = await food();
         await emitter.publishFoodRequested({ id, requestedBy: 'user_a' });
         await pool.query(
-            `UPDATE fetch_queue SET status = 'tombstone', attempts = 5, last_error = 'source down', leased_at = now()
+            `UPDATE fetch_queue SET status = 'tombstone', attempts = 5, timeout_count = 5, last_error = 'source down',
+                    leased_at = now()
               WHERE food_id = $1`,
             [id],
         );
@@ -106,7 +108,7 @@ describe('EnqueueEmitter — the fetch_queue writer, LOCAL e2e', () => {
         await emitter.publishFoodRequested({ id, requestedBy: 'svc_admin_requeue', reactivate: true });
 
         expect(await queueRows(id)).toStrictEqual([
-            { status: 'pending', request_count: 2, attempts: 0, last_error: null, leased_at: null },
+            { status: 'pending', request_count: 2, attempts: 0, timeout_count: 0, last_error: null, leased_at: null },
         ]);
     });
 

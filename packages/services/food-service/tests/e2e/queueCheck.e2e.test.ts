@@ -19,6 +19,7 @@ import pg from 'pg';
 
 import { FoodDao } from '../../src/foods/dao/food.dao.js';
 import { FetchQueueDao } from '../../src/foods/dao/fetchQueue.dao.js';
+import { isTimeoutBudgetExhausted, MAX_TIMEOUT_DEFERRALS } from '../../src/worker/backoff.js';
 import { readOnlyCounts, runQueueCheck } from '../../src/worker/queueCheck.js';
 import { makeDb, makePool, type TestDb } from '../support/db.js';
 import { foodDb } from '../support/roleDb.js';
@@ -103,6 +104,62 @@ describe('the food queue check (integration)', () => {
         expect(payload?.condition).toBe('lost');
         expect(payload?.owedCount).toBe(1);
         expect(escalate).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * ⛔ THE CASE THE TIMEOUT CAP EXISTS FOR. A row that keeps being deferred after source timeouts is `pending` with a
+     * future `last_requested`: neither pending-with-no-row nor a stale lease, so the check classified NOTHING for it,
+     * however old it grew (`oldestPendingSeconds` is reported but never decides). At the cap the row is a FAILED
+     * tombstone, which the check reports as dead-lettered.
+     */
+    it('⛔ a row deferred by timeouts is silent while it defers, and escalates as DEAD-LETTERED once it hits the cap', async () => {
+        const { id } = await foods.createByName({ normalizedName: 'always timing out' });
+        await makeRequesterRow(db, { foodId: id, requesterId: 'a' });
+        await makeQueueRow(db, id);
+        await pool.query(`UPDATE fetch_queue SET first_requested = now() - interval '2 hours' WHERE food_id = $1`, [
+            id,
+        ]);
+
+        const check = async () => {
+            const escalate = vi.fn();
+            const payload = await withClient(async (session) =>
+                runQueueCheck({
+                    stage: 'sandbox',
+                    counts: () => readOnlyCounts(session, 250),
+                    escalate,
+                    checkIn: () => undefined,
+                }),
+            );
+
+            return { payload, escalate };
+        };
+
+        for (let pass = 1; pass < MAX_TIMEOUT_DEFERRALS; pass += 1) {
+            const claimed = await queue.leaseNext();
+            expect(claimed?.foodId).toBe(id);
+            await queue.deferTimeout(id, 30, claimed?.fence ?? 'out-of-band');
+            await pool.query(`UPDATE fetch_queue SET last_requested = now() - interval '1 minute' WHERE food_id = $1`, [
+                id,
+            ]);
+        }
+
+        // Still deferring: nothing is classified, though the row is two hours old.
+        const deferring = await check();
+        expect(deferring.payload).toBeUndefined();
+        expect((await withClient((session) => readOnlyCounts(session, 250))).oldestPendingSeconds).toBeGreaterThan(
+            7000,
+        );
+
+        // The capping timeout: the consumer's failure path tombstones the food FAILED.
+        const claimed = await queue.leaseNext();
+        const capped = await queue.deferTimeout(id, 30, claimed?.fence ?? 'out-of-band');
+        expect(isTimeoutBudgetExhausted(capped.timeoutCount)).toBe(true);
+        await foods.setStatus({ id, status: 'FAILED' });
+        await queue.tombstone(id, 'source_timeout', 'out-of-band');
+
+        const dead = await check();
+        expect(dead.payload?.condition).toBe('dead-lettered');
+        expect(dead.escalate).toHaveBeenCalledTimes(1);
     });
 
     it('a queue row within its lease produces no escalation', async () => {

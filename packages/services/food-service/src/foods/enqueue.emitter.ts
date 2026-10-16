@@ -175,7 +175,7 @@ export class EnqueueEmitter {
             // Terminal-state reactivation (DSN-1): reset the tombstoned row; insert a fresh one if absent.
             const updated = await client.query(
                 `UPDATE fetch_queue SET
-                     status = 'pending', attempts = 0, leased_at = NULL, last_error = NULL, last_requested = now(),
+                     status = 'pending', attempts = 0, timeout_count = 0, leased_at = NULL, last_error = NULL, last_requested = now(),
                      request_count = (SELECT count(*) FROM fetch_requesters WHERE food_id = $1)
                  WHERE food_id = $1`,
                 [id],

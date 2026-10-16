@@ -43,6 +43,11 @@ const accounts: readonly ColumnAccount[] = [
         why: 'Server-incremented demand counter (how many callers have asked for this food); no wire field sets it.',
     },
     {
+        table: 'fetch_queue',
+        column: 'timeout_count',
+        why: 'Server-incremented count of source timeouts the worker deferred a food for, capped at MAX_TIMEOUT_DEFERRALS; no wire field sets it.',
+    },
+    {
         table: 'search_gap',
         column: 'occurrences',
         why: 'Server-incremented count of searches that met the gap; no wire field sets it.',

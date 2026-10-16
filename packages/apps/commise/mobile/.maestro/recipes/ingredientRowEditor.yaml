@@ -78,10 +78,14 @@ appId: ${APP_ID}
 - tapOn: 'Change food'
 - eraseText: 40
 - inputText: 'smoked flour'
+# ⚠️ Centred, so the tap lands mid-screen: with the held text's option list open the page is long, and an element
+# scrolled only just into view sits under the floating action bar, where the tap reaches Publish (run 38973223138
+# showed "Fix 2 things to publish" with no step added).
 - scrollUntilVisible:
       element: 'Add step'
       direction: DOWN
       timeout: 20000
+      centerElement: true
 - tapOn: 'Add step'
 - tapOn: 'Step 1'
 - inputText: 'Roast.'

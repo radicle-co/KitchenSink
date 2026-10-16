@@ -326,4 +326,30 @@ describe('MergeAndPersistService (integration)', () => {
         expect(record?.nutrients).toHaveLength(1);
         expect(record?.nutrients[0]?.name).toBe('Protein');
     });
+
+    // The catalog seed retires AND forwards a claimed food itself (KTD-12), so settling it writes no forward: the
+    // status moves, the offered candidates go, and the food row is left as the seed left it.
+    it('settleForwarded: RESOLVED, candidates cleared, no forward written, and a stale observation is refused', async () => {
+        const { id: foodId } = await foods.createByName({ normalizedName: 'broccoli, raw' });
+        await foods.setStatus({ id: foodId, status: 'UNRESOLVED' });
+        await candidates.persistCandidates({
+            foodId,
+            candidates: [{ source: 'usda', externalKey: '171688', name: 'Broccoli, raw', summary: null }],
+        });
+
+        await expect(service.settleForwarded({ foodId, from: ['PENDING'] })).rejects.toThrow();
+        expect(await candidates.getCandidates(foodId)).toHaveLength(1);
+
+        const result = await service.settleForwarded({ foodId, from: ['UNRESOLVED'] });
+
+        expect(result).toEqual({ outcome: 'RESOLVED', status: 'RESOLVED' });
+        expect((await foods.getById(foodId))?.status).toBe('RESOLVED');
+        expect(await candidates.getCandidates(foodId)).toHaveLength(0);
+        const forwards = await pool.query('SELECT 1 FROM food_forward WHERE source_id = $1', [foodId]);
+        expect(forwards.rowCount).toBe(0);
+        // Idempotent for a food that is already RESOLVED.
+        await expect(service.settleForwarded({ foodId, from: ['RESOLVED'] })).resolves.toMatchObject({
+            status: 'RESOLVED',
+        });
+    });
 });

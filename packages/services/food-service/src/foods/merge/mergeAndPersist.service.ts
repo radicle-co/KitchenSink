@@ -69,6 +69,14 @@ export interface ResolveToHolderInput {
     readonly from: readonly FoodStatus[];
 }
 
+/** Input for {@link MergeAndPersistService.settleForwarded}. */
+export interface SettleForwardedInput {
+    /** The by-name food the catalog seed already retired and forwarded (KTD-12). */
+    readonly foodId: string;
+    /** The statuses the caller observed it in: the move to `RESOLVED` is a compare-and-set on them. */
+    readonly from: readonly FoodStatus[];
+}
+
 /** Input for {@link MergeAndPersistService.resolveFromPicks} (the manual `PATCH`-resolve path). */
 export interface ResolveFromPicksInput {
     /** The internal food id (currently `UNRESOLVED`). */
@@ -353,6 +361,30 @@ export class MergeAndPersistService {
      */
     public async resolveToHolder(input: ResolveToHolderInput): Promise<PersistResult> {
         return this.db.transaction(async (tx) => this.forward(tx, input));
+    }
+
+    /**
+     * Settle a by-name food the catalog seed ALREADY retired and forwarded (KTD-12): report it `RESOLVED` and clear
+     * its candidate set, writing NO forward, because the seed wrote it. The defined outcome for a food that was queued
+     * or offered candidates before the seed claimed its name: {@link forward} would throw (the root is no longer
+     * live), so the worker would retry the row to `FAILED` and a cook's pick would answer 500.
+     *
+     * @param input - The food and the statuses the caller observed it in.
+     * @returns `RESOLVED`; a reader of the food's ref follows the seed's forward.
+     * @throws {IllegalStatusTransitionError} when the food left the observed statuses; nothing is written.
+     * @sideEffect Updates `food`, deletes `food_candidates`, in one transaction.
+     */
+    public async settleForwarded(input: SettleForwardedInput): Promise<PersistResult> {
+        return this.db.transaction(async (tx) => {
+            // A food already `RESOLVED` has nothing to move (the status machine has no RESOLVED -> RESOLVED edge).
+            if (!input.from.every((status) => status === 'RESOLVED')) {
+                await new FoodDao(tx).setStatus({ id: input.foodId, status: 'RESOLVED', from: input.from });
+            }
+
+            await new CandidateStore(tx).clear(input.foodId);
+
+            return { outcome: 'RESOLVED', status: 'RESOLVED' };
+        });
     }
 
     /**

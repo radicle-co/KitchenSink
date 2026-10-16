@@ -104,7 +104,7 @@ describe('the API doors onto a held item (booted Nest, real catalog Facades, DAO
     beforeAll(async () => {
         api = await bootMockedFoodsApi({
             foodDao: {
-                getById: async (id: string) => ({ id, status: 'UNRESOLVED' }),
+                getById: async (id: string) => ({ id, status: 'UNRESOLVED', retiredAt: null }),
                 readRefFacts: async (ids: readonly string[]) => ROOT_FACTS.filter((root) => ids.includes(root.id)),
                 createByName,
             },

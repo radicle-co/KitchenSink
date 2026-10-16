@@ -153,9 +153,11 @@ function workerOver(spec: WorldSpec) {
         outcome: 'RESOLVED',
         status: 'RESOLVED',
     }));
+    const settleForwarded = vi.fn(async (): Promise<PersistResult> => ({ outcome: 'RESOLVED', status: 'RESOLVED' }));
     const merge = Object.assign(new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry)), {
         resolveAndPersist,
         resolveToHolder,
+        settleForwarded,
         mergeChangedSources,
     });
     const standingOf = (keys: readonly string[]): KeyStanding => ({
@@ -202,6 +204,7 @@ function workerOver(spec: WorldSpec) {
         standingOfItems,
         resolveAndPersist,
         resolveToHolder,
+        settleForwarded,
         mergeChangedSources,
         resolve,
         tombstone,
@@ -228,6 +231,23 @@ describe('FoodConsumerService — catalog first', () => {
         await worker.consumer.processNext();
 
         expect(worker.resolveToHolder).toHaveBeenCalledWith({ foodId: FOOD_ID, to: ROOT, from: ['UNRESOLVED'] });
+    });
+
+    // The seed retired AND forwarded this food (KTD-12) after it was queued. Forwarding it again throws (the
+    // root is no longer live), which used to retry the row to FAILED for a food the seed had answered correctly.
+    it('⛔ settles a food the seed already retired as forwarded, without asking a source or forwarding again', async () => {
+        const worker = workerOver({
+            entry: ROOT,
+            food: foodRow({ status: 'AWAITING_RETRY', retiredAt: new Date('2026-10-09T00:00:00.000Z') }),
+        });
+
+        await expect(worker.consumer.processNext()).resolves.toBe('forwarded');
+
+        expect(worker.settleForwarded).toHaveBeenCalledWith({ foodId: FOOD_ID, from: ['AWAITING_RETRY'] });
+        expect(worker.resolveToHolder).not.toHaveBeenCalled();
+        expect(worker.usda.searchByName).not.toHaveBeenCalled();
+        expect(worker.resolve).toHaveBeenCalledTimes(1);
+        expect(worker.published).toEqual([{ id: FOOD_ID, status: 'RESOLVED' }]);
     });
 
     it('fans out as before when the name is no catalog entry', async () => {

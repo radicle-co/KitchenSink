@@ -373,6 +373,18 @@ export class FoodConsumerService {
             return 'rejected_provenance';
         }
 
+        // The catalog seed already retired this food and wrote its forward (KTD-12), after it was queued: answer it
+        // as the forwarded food it is. Asking a source, or forwarding again, would throw on a root that is no longer
+        // live and retry the row to FAILED.
+        if (food.retiredAt !== null) {
+            await this.merge.settleForwarded({ foodId, from: [food.status] });
+            await this.queue.resolve(foodId, fence);
+            await this.events.publishFoodFetchCompleted({ id: foodId, status: 'RESOLVED' });
+            this.logger.info('forwarded-by-seed', { foodId });
+
+            return 'forwarded';
+        }
+
         // Change-refresh branch (DSN-4/FR-031/FR-032): a RESOLVED food only reaches the drainer because the
         // change-refresh scheduler re-enqueued it (a fresh add never re-enqueues a RESOLVED food, DSN-1), so
         // a RESOLVED row on the queue is unambiguously a refresh. Take the SELECTIVE in-place re-pull —

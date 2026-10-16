@@ -87,6 +87,8 @@ interface WorldSpec {
     /** The catalog's standing, by key; read once per call in order when an array is given. */
     readonly standings?: readonly Readonly<Record<string, CatalogOwner>>[];
     readonly retired?: readonly string[];
+    /** The food itself was retired (and forwarded) by the catalog seed. */
+    readonly foodRetired?: boolean;
     readonly resolveFromPicks?: () => Promise<PersistResult>;
 }
 
@@ -106,7 +108,7 @@ function serviceOver(spec: WorldSpec) {
         itemId: 'I-self',
         itemOwnerKind: 'root',
         seedKey: null,
-        retiredAt: null,
+        retiredAt: spec.foodRetired === true ? new Date('2026-10-09T00:00:00.000Z') : null,
         userId: null,
         visibility: 'public',
         tombstonedAt: null,
@@ -155,9 +157,11 @@ function serviceOver(spec: WorldSpec) {
     const resolveFromPicks = vi.fn(
         spec.resolveFromPicks ?? (async (): Promise<PersistResult> => ({ outcome: 'RESOLVED', status: 'RESOLVED' })),
     );
+    const settleForwarded = vi.fn(async (): Promise<PersistResult> => ({ outcome: 'RESOLVED', status: 'RESOLVED' }));
     const merge = Object.assign(new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry)), {
         resolveToHolder,
         resolveFromPicks,
+        settleForwarded,
     });
     const publishFoodRequested = vi.fn(async () => undefined);
     const publishFoodBatchRequested = vi.fn(async () => undefined);
@@ -214,6 +218,7 @@ function serviceOver(spec: WorldSpec) {
         fetchByKey,
         resolveToHolder,
         resolveFromPicks,
+        settleForwarded,
         standingOfItems,
     };
 }
@@ -290,6 +295,25 @@ describe('FoodsService.patchResolve — a pick of a held item', () => {
             to: { kind: 'root', id: 'R-broccoli' },
             from: ['UNRESOLVED'],
         });
+        expect(world.fetchByKey).not.toHaveBeenCalled();
+        expect(world.resolveFromPicks).not.toHaveBeenCalled();
+    });
+
+    // The seed retired AND forwarded this food (KTD-12) while its candidates were still on offer. Forwarding it
+    // again throws a plain Error (-> 500); the defined outcome is "already resolved by the seed's forward".
+    it('⛔ answers RESOLVED, not a 500, for a food the seed already retired and forwarded', async () => {
+        const world = serviceOver({
+            foodRetired: true,
+            set: [candidateRow('c-held', HELD_KEY)],
+            standings: [{ [HELD_KEY]: owner('R-broccoli') }],
+        });
+
+        await expect(world.service.patchResolve(FOOD_ID, ['c-held'])).resolves.toEqual({
+            id: FOOD_ID,
+            status: 'RESOLVED',
+        });
+        expect(world.settleForwarded).toHaveBeenCalledWith({ foodId: FOOD_ID, from: ['UNRESOLVED'] });
+        expect(world.resolveToHolder).not.toHaveBeenCalled();
         expect(world.fetchByKey).not.toHaveBeenCalled();
         expect(world.resolveFromPicks).not.toHaveBeenCalled();
     });

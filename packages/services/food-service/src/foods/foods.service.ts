@@ -833,6 +833,14 @@ export class FoodsService {
             return row;
         });
 
+        // The catalog seed already retired this food and wrote its forward (KTD-12) while the cook was choosing: it IS
+        // resolved, and forwarding it again would throw on a root that is no longer live (a 500).
+        if (food.retiredAt !== null) {
+            await this.merge.settleForwarded({ foodId: id, from: ['UNRESOLVED'] });
+
+            return { id, status: 'RESOLVED' };
+        }
+
         // A pick of an item the catalog holds resolves to its holder, with no source call (FOOD-SERVICE-6).
         const picked: SourceItemRef[] = picks.flatMap((pick) =>
             isWiredSourceId(pick.source) ? [{ source: pick.source, externalKey: pick.externalKey }] : [],

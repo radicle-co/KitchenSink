@@ -14,7 +14,7 @@
  *
  * THE PHOTO. The spec's 72 pt avatar is "initials, or the native `AvatarField` photo". The native `ProfileHeader` takes
  * the photo control as its `avatar` slot, so the page has ONE avatar (the initials are the control's own fallback).
- * A picked photo is an explicit act and is written ALONE (`{ avatarUrl }`) through its own mutation; the display name is
+ * A picked photo is an explicit act and is written ALONE (`{ avatarKey }`) through its own mutation; the display name is
  * written only from the sheet's Save, so the two never share a pending or failed state. A failed pick or a failed save
  * of the photo shows one alert under the header.
  *
@@ -90,10 +90,13 @@ function ProfileSurface({ scrollBind, onBack, onOpenDataSources }: ProfileSurfac
     const photoUpdate = useUpdateProfile();
     // A pick that failed on the device (type, size, upload) is reported by the control; a failed save by the mutation.
     const [pickError, setPickError] = useState<string | undefined>(undefined);
+    // The LOCAL file just picked: the server composes the avatar URL from the saved key, so this is what can be shown
+    // while the write is in flight.
+    const [pickedPreview, setPickedPreview] = useState('');
     const user = query.data?.user;
     const back = { label: t.back, parent: t.homeParent, onPress: onBack };
     // While a new photo is being saved the preview shows it, so the pick does not appear to be lost.
-    const photoUrl = photoUpdate.isPending ? (photoUpdate.variables.avatarUrl ?? '') : (user?.avatarUrl ?? '');
+    const photoUrl = photoUpdate.isPending ? pickedPreview : (user?.avatarUrl ?? '');
     const photoError = pickError ?? (photoUpdate.isError ? t.avatarUploadError : undefined);
     const initials = read.status === 'ready' ? initialsFor(read.displayName) : '';
 
@@ -115,7 +118,10 @@ function ProfileSurface({ scrollBind, onBack, onOpenDataSources }: ProfileSurfac
                         <AvatarField
                             value={photoUrl}
                             initials={initials}
-                            onChange={(avatarUrl) => photoUpdate.mutate({ avatarUrl })}
+                            onChange={({ key, previewUri }) => {
+                                setPickedPreview(previewUri);
+                                photoUpdate.mutate({ avatarKey: key });
+                            }}
                             onError={setPickError}
                             messages={avatarCopyOf(t)}
                         />

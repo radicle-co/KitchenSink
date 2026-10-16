@@ -121,15 +121,17 @@ describe('AvatarField', () => {
         expect(glyphs()).toEqual(['camera']);
     });
 
-    it('picks an allowlisted image, uploads it, and reports the new URL through onChange', async () => {
+    it('picks an allowlisted image, uploads it, and reports the new object key and a local preview through onChange', async () => {
         const onChange = vi.fn();
         fetchMock.mockResolvedValueOnce({ blob: async () => new Blob([new Uint8Array(1024)], { type: 'image/png' }) });
-        uploadMock.mockResolvedValue('https://cdn/new-avatar.png');
+        uploadMock.mockResolvedValue('avatars/usr_1/1.png');
 
         render(<AvatarField value="" initials="EM" onChange={onChange} onError={vi.fn()} messages={messages} />);
         fireEvent.click(screen.getByRole('button', { name: messages.changeAction }));
 
-        await waitFor(() => expect(onChange).toHaveBeenCalledWith('https://cdn/new-avatar.png'));
+        await waitFor(() =>
+            expect(onChange).toHaveBeenCalledWith({ key: 'avatars/usr_1/1.png', previewUri: expect.any(String) }),
+        );
         expect(uploadMock).toHaveBeenCalledWith(
             expect.objectContaining({ contentType: 'image/png', blob: expect.any(Blob) }),
         );

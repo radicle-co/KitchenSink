@@ -32,8 +32,11 @@ export interface AvatarFieldProps {
     readonly value: string;
     /** The cook's initials, shown when there is no photo. Empty when the cook has no name. */
     readonly initials: string;
-    /** Reports a freshly uploaded avatar's durable public URL for the form to persist. */
-    readonly onChange: (url: string) => void;
+    /**
+     * Reports a freshly uploaded avatar for the form to persist: the object `key` to save as `avatarKey`, and the
+     * LOCAL file to preview while it saves (the CDN URL is composed by the server, so the key alone cannot be shown).
+     */
+    readonly onChange: (change: { readonly key: string; readonly previewUri: string }) => void;
     /** Reports why a pick failed, or `undefined` when a new pick starts and the earlier failure no longer applies. */
     readonly onError: (message: string | undefined) => void;
     /** Localized copy. */
@@ -102,8 +105,8 @@ export const AvatarField: FC<AvatarFieldProps> = ({ value, initials, onChange, o
             }
 
             try {
-                const url = await upload({ blob, contentType });
-                onChange(url);
+                const key = await upload({ blob, contentType });
+                onChange({ key, previewUri: asset.uri });
             } catch {
                 onError(messages.uploadError);
             }

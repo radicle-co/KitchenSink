@@ -154,11 +154,11 @@
                         },
                         {
                             "name": "onChange",
-                            "type": "(url: string) => void",
+                            "type": "(change: { readonly key: string; readonly previewUri: string; }) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Reports a freshly uploaded avatar's durable public URL for the form to persist.",
+                            "description": "Reports a freshly uploaded avatar for the form to persist: the object `key` to save as `avatarKey`, and the\nLOCAL file to preview while it saves (the CDN URL is composed by the server, so the key alone cannot be shown).",
                             "declaredIn": "packages/apps/commise/mobile/src/components/account/AvatarField.tsx"
                         },
                         {
@@ -3650,7 +3650,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/profile.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "screens/profile — the one Profile page (native; `docs/design/uiOverhaul/buildSpec.md` §9.1), pushed from the\navatar. It replaces the old profile form AND the `AccountSettings` hub: who the cook is, the one thing they can\nchange (the display name), preferences, sign out, and the danger zone.\n\nORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the display-name editor and\nthe photo write, and hands the render leaves from `@commise/features-account/profile` their state. The read decides\none of three states — loading, failed, ready — and ONLY the Account group depends on it: sign out and the danger zone\nneed no profile, so a failed read never takes them away (E15). That is why this is a plain query and not a suspense\nread under a boundary: a boundary would replace the whole page with its error.\n\nSign out is `SignOutButton`, which issues the one verified sign-out command (ADR-0009); close and erase are\n`AccountDangerZone`, which keeps its own dialogs and flows. Nothing here calls Clerk's `signOut`.\n\nTHE PHOTO. The spec's 72 pt avatar is \"initials, or the native `AvatarField` photo\". The native `ProfileHeader` takes\nthe photo control as its `avatar` slot, so the page has ONE avatar (the initials are the control's own fallback).\nA picked photo is an explicit act and is written ALONE (`{ avatarUrl }`) through its own mutation; the display name is\nwritten only from the sheet's Save, so the two never share a pending or failed state. A failed pick or a failed save\nof the photo shows one alert under the header.",
+                    "moduleDoc": "screens/profile — the one Profile page (native; `docs/design/uiOverhaul/buildSpec.md` §9.1), pushed from the\navatar. It replaces the old profile form AND the `AccountSettings` hub: who the cook is, the one thing they can\nchange (the display name), preferences, sign out, and the danger zone.\n\nORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the display-name editor and\nthe photo write, and hands the render leaves from `@commise/features-account/profile` their state. The read decides\none of three states — loading, failed, ready — and ONLY the Account group depends on it: sign out and the danger zone\nneed no profile, so a failed read never takes them away (E15). That is why this is a plain query and not a suspense\nread under a boundary: a boundary would replace the whole page with its error.\n\nSign out is `SignOutButton`, which issues the one verified sign-out command (ADR-0009); close and erase are\n`AccountDangerZone`, which keeps its own dialogs and flows. Nothing here calls Clerk's `signOut`.\n\nTHE PHOTO. The spec's 72 pt avatar is \"initials, or the native `AvatarField` photo\". The native `ProfileHeader` takes\nthe photo control as its `avatar` slot, so the page has ONE avatar (the initials are the control's own fallback).\nA picked photo is an explicit act and is written ALONE (`{ avatarKey }`) through its own mutation; the display name is\nwritten only from the sheet's Save, so the two never share a pending or failed state. A failed pick or a failed save\nof the photo shows one alert under the header.",
                     "moduleTags": [
                         {
                             "name": "module",

@@ -3,7 +3,7 @@
  * (U2). It mirrors the recipe-photo model rather than reinventing it: the identity service exposes a
  * presigned-PUT contract (`POST /api/v1/users/me/avatar/presign`), so the client never streams image bytes
  * through the API — it asks for a short-lived S3 URL scoped to the exact type + size, PUTs the blob straight
- * to S3, and persists only the durable public URL (via the profile PATCH the caller already owns).
+ * to S3, and persists only the object KEY it was given (via the profile PATCH the caller already owns, as `avatarKey`).
  *
  * @module
  */
@@ -16,7 +16,7 @@
  *    the published contract, and reports contract skew.
  * 2. PUT the exact blob to the returned presigned URL WITHOUT the Authorization header (the presigned URL is
  *    the credential) and with a matching `Content-Type`.
- * 3. Resolve the durable public URL on success; reject (never silently succeed) if either the presign or the
+ * 3. Resolve the uploaded object's KEY on success (the server composes the CDN URL at read time, ADR-0064); reject (never silently succeed) if either the presign or the
  *    S3 PUT fails, so the caller can surface a localized error and leave the stored avatar unchanged.
  */
 import { useMutation } from '@tanstack/react-query';
@@ -34,7 +34,7 @@ export interface AvatarUploadInput {
 /** The avatar upload seam consumed by the profile screen's `../components/account/AvatarField.tsx`. */
 export interface UseAvatarUpload {
     /**
-     * Presign, PUT the bytes to S3, and resolve the durable public URL.
+     * Presign, PUT the bytes to S3, and resolve the uploaded object's key (what to send back as `avatarKey`).
      *
      * @sideEffect Two network requests: the identity presign (authenticated) and the S3 PUT (presigned).
      */
@@ -52,10 +52,10 @@ export interface UseAvatarUpload {
  * ⚠️ The whole presign → PUT sequence is ONE `mutationFn`, deliberately. The S3 PUT cannot be a react-query
  * call of its own: the presigned URL IS the credential, it is minted by the step before it, and adding an
  * `Authorization` header would break the S3 signature. One mutation is what makes the pair atomic from the
- * caller's point of view — either a durable public URL comes back, or the attempt failed.
+ * caller's point of view — either an object key comes back, or the attempt failed.
  *
  * ⚠️ It deliberately invalidates NOTHING. The presign mints a URL and changes no server state the UI reads;
- * the durable write is the profile PATCH the caller performs with the returned URL, and that mutation owns
+ * the durable write is the profile PATCH the caller performs with the returned key, and that mutation owns
  * its own invalidation. Adding a speculative invalidation here would refetch the profile to no effect.
  */
 export function useAvatarUpload(): UseAvatarUpload {
@@ -85,7 +85,7 @@ export function useAvatarUpload(): UseAvatarUpload {
                 throw new Error(`Avatar upload failed with status ${putResponse.status}`);
             }
 
-            return presign.publicUrl;
+            return presign.key;
         },
     });
 

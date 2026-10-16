@@ -313,7 +313,7 @@ export class ProfileServiceClient {
      * `POST /api/v1/users/me/avatar/presign` — authorize a direct-to-S3 avatar upload.
      *
      * Image bytes never traverse the identity service: it signs a short-lived `PUT` bound to the exact `type` and
-     * `size`, so the caller PUTs the blob itself and then persists `publicUrl` via {@link patchMe}. Presigning is on
+     * `size`, so the caller PUTs the blob itself and then persists the returned `key` as `avatarKey` via {@link patchMe}. Presigning is on
      * THIS client — rather than in each app — because this is the funnel that parses both directions against
      * `@kitchensink/schema-identity` and reports contract skew; mobile previously reached this endpoint through its
      * own `services/api.ts` transport, where neither applied (GR-017 §17-b.5).
@@ -322,7 +322,7 @@ export class ProfileServiceClient {
      *   signature. The allowed-type list and the byte cap are the CONTROLLER's, deliberately not restated in the
      *   schema, so an unlisted type or an oversized image is a {@link BadRequestError} rather than a local rejection.
      * @param options - Per-call token/refresh options.
-     * @returns The presigned `PUT` URL and the durable public URL the object will be readable at.
+     * @returns The presigned `PUT` URL and the object `key` to save as `avatarKey` (the server composes the CDN URL).
      * @throws {InvalidRequestError} when the type/size cannot satisfy the published contract — no request is sent;
      *   {@link BadRequestError} when the controller refuses the type or size; {@link UnauthorizedError} on auth
      *   failure.

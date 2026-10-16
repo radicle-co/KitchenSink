@@ -66,7 +66,7 @@ vi.mock('../../src/components/account/AvatarField.js', () => ({
         value,
         initials,
     }: {
-        onChange: (url: string) => void;
+        onChange: (change: { key: string; previewUri: string }) => void;
         onError: (message: string | undefined) => void;
         value: string;
         initials: string;
@@ -82,7 +82,7 @@ vi.mock('../../src/components/account/AvatarField.js', () => ({
                     onClick: () => {
                         // The real control clears the earlier failure the moment a new pick starts.
                         onError(undefined);
-                        onChange('https://cdn.example/new.png');
+                        onChange({ key: 'avatars/usr_1/2.png', previewUri: 'file:///picked.png' });
                     },
                 },
                 'Pick photo',
@@ -425,7 +425,21 @@ describe('ProfileScreen — the photo (native-only AvatarField)', () => {
 
         // A picked photo is its own explicit act: it is written alone, never with the name.
         expect(mutate).toHaveBeenCalledTimes(1);
-        expect(mutate.mock.calls[0]?.[0]).toEqual({ avatarUrl: 'https://cdn.example/new.png' });
+        expect(mutate.mock.calls[0]?.[0]).toEqual({ avatarKey: 'avatars/usr_1/2.png' });
+    });
+
+    // The key cannot be shown (the CDN URL is composed by the server), so while the write is in flight the preview is
+    // the LOCAL file the cook picked, and the pick does not appear to be lost.
+    it('previews the picked file while the key is being saved', () => {
+        useUserProfileMock.mockReturnValue(ready({ avatarUrl: 'https://cdn.example/old.png' }));
+        setMutation({ isPending: true });
+        renderProfile();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Pick photo' }));
+
+        expect(screen.getByRole('button', { name: 'Pick photo' }).getAttribute('data-photo')).toBe(
+            'file:///picked.png',
+        );
     });
 
     it('says so in one alert when the picker reports a failed pick, and clears it on the next pick', () => {

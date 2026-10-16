@@ -45,7 +45,7 @@ const SERVED_HASH = 'b'.repeat(64);
 
 const PRESIGNED = {
     uploadUrl: 'https://s3.example.com/avatars/usr_1/put',
-    publicUrl: 'https://media.example.com/avatars/usr_1/1.jpg',
+    key: 'avatars/usr_1/1.jpg',
 };
 
 /**
@@ -134,9 +134,9 @@ describe('useAvatarUpload', () => {
 
         const { result } = renderUploadHook();
         const blob = new Blob([new Uint8Array(2048)], { type: 'image/png' });
-        const publicUrl = await result.current.upload({ blob, contentType: 'image/png' });
+        const key = await result.current.upload({ blob, contentType: 'image/png' });
 
-        expect(publicUrl).toBe(PRESIGNED.publicUrl);
+        expect(key).toBe(PRESIGNED.key);
 
         // The native token template is used for the identity call (native tokens are azp-less and only admitted
         // when minted from it); the presign accepts a cached token — only the profile READ force-refreshes.
@@ -173,7 +173,7 @@ describe('useAvatarUpload', () => {
         const { result } = renderUploadHook();
         const blob = new Blob([new Uint8Array(2048)], { type: 'image/png' });
 
-        await expect(result.current.upload({ blob, contentType: 'image/png' })).resolves.toBe(PRESIGNED.publicUrl);
+        await expect(result.current.upload({ blob, contentType: 'image/png' })).resolves.toBe(PRESIGNED.key);
 
         await vi.waitFor(() => {
             expect(warn).toHaveBeenCalledTimes(1);
@@ -229,7 +229,7 @@ describe('useAvatarUpload', () => {
     });
 
     /*
-     * A presign body missing `publicUrl` used to be CAST, so `upload` resolved `undefined` and the caller persisted
+     * A presign body missing `key` used to be CAST, so `upload` resolved `undefined` and the caller persisted
      * it as the viewer's avatar — a drift surfacing as a broken image instead of a failure. It must reject, and it
      * must not PUT bytes it cannot report a URL for.
      */
@@ -242,7 +242,7 @@ describe('useAvatarUpload', () => {
         const { result } = renderUploadHook();
         const blob = new Blob(['x'], { type: 'image/png' });
 
-        await expect(result.current.upload({ blob, contentType: 'image/png' })).rejects.toThrow(/publicUrl/iu);
+        await expect(result.current.upload({ blob, contentType: 'image/png' })).rejects.toThrow(/key/iu);
         expect(apiCalls()).toHaveLength(1);
     });
 
@@ -307,7 +307,7 @@ describe('useAvatarUpload', () => {
 
         releasePresign();
 
-        await expect(inFlight).resolves.toBe(PRESIGNED.publicUrl);
+        await expect(inFlight).resolves.toBe(PRESIGNED.key);
         await waitFor(() => expect(client.isMutating()).toBe(0));
     });
 

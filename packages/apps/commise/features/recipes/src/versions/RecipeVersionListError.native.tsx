@@ -4,7 +4,8 @@
  *
  * The settled list's title, so nothing moves between loading, failed and loaded; then an alert and a secondary Try again.
  * The way back is the SCREEN's — it sits above the read boundary in every state — so the header draws a Back only when it
- * is given one, as the native skeleton does. The copy arrives as props from the app's boundary dictionary.
+ * is given one, as the native skeleton does. The copy arrives as props from the app's boundary dictionary. The props are the
+ * web leaf's (`backHref` is the one that has no meaning here and is ignored).
  *
  * Presentational: props → JSX.
  */
@@ -17,20 +18,7 @@ import { useId, type FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { recipeVersionMessages } from './messages.js';
-
-/** Props for {@link RecipeVersionListError}. */
-export interface RecipeVersionListErrorProps {
-    /** Why there is no history: "We couldn’t load the history." */
-    readonly title: string;
-    /** The retry control's label: "Try again". */
-    readonly retryLabel: string;
-    /** Read the history again. */
-    readonly onRetry: () => void;
-    /** Back to the recipe; absent draws no Back (the screen keeps its own above the read boundary). */
-    readonly onBack?: () => void;
-    /** Web only: the recipe's address. Native has none. */
-    readonly backHref?: string;
-}
+import type { RecipeVersionListErrorProps } from './RecipeVersionListError.js';
 
 /**
  * @param props - The words, the retry and, when given, the way back.

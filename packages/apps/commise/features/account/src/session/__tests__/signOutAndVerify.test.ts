@@ -154,6 +154,19 @@ describe('signOutAndVerify — the device session end', () => {
         expect(order).toEqual(['signOut', 'endDeviceSession']);
     });
 
+    // ADR-0009: the command never says something false about whether the session ended. Once it is proven ended, a
+    // failed clear (a storage write that rejects) must not report "we couldn't sign you out" and skip leaving.
+    it('resolves when the session is proven ended even if clearing the device state rejects', async () => {
+        const client = makeClient();
+        const signOut = vi.fn(async () => {
+            client.session = null;
+        });
+        const endDeviceSession = vi.fn(async () => Promise.reject(new Error('storage write failed')));
+
+        await expect(signOutAndVerify(client, signOut, endDeviceSession)).resolves.toBeUndefined();
+        expect(endDeviceSession).toHaveBeenCalledTimes(1);
+    });
+
     it('never runs when the sign-out could not be proven, so a live session keeps its device state', async () => {
         const client = makeClient();
         const endDeviceSession = vi.fn(async () => undefined);

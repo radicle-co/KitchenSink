@@ -159,7 +159,10 @@ Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aw
 
 Construct `DomainStack` — `packages/infra/global/lib/platform/DomainStack.ts`
 
-_No Lambda, queue, topic, alarm, ECS service or SSM parameter is declared in this stack._
+| kind | logical id | handler / name template | only when |
+| --- | --- | --- | --- |
+| ssmParameter | `CertificateArnParameter` | `—` | — |
+| ssmParameter | `HostedZoneIdParameter` | `—` | — |
 
 Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-certificatemanager.Certificate`, `aws-cdk-lib/aws-secretsmanager.Secret`.
 

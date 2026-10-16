@@ -214,7 +214,24 @@
                     "source": "packages/infra/global/lib/platform/DomainStack.ts",
                     "stackNameTemplate": "kitchensink-domain-{stage}",
                     "condition": null,
-                    "resources": [],
+                    "resources": [
+                        {
+                            "kind": "ssmParameter",
+                            "logicalId": "CertificateArnParameter",
+                            "nameTemplate": null,
+                            "handler": null,
+                            "condition": null,
+                            "notes": []
+                        },
+                        {
+                            "kind": "ssmParameter",
+                            "logicalId": "HostedZoneIdParameter",
+                            "nameTemplate": null,
+                            "handler": null,
+                            "condition": null,
+                            "notes": []
+                        }
+                    ],
                     "importedExports": [],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",

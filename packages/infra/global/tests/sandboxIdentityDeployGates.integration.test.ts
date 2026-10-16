@@ -218,7 +218,9 @@ echo "\${answers[$n]:-\${answers[-1]}}"
     });
 
     it('⛔ waits while a PR run is in progress, and goes on when it ends', () => {
-        const result = wait('1 1 0');
+        // Two 1-second polls must fit inside the deadline, and bash's whole-second SECONDS can tick early, so the
+        // default 3-second bound raced them; only the never-ends case below needs a tight bound.
+        const result = wait('1 1 0', { WAIT_TIMEOUT_SECONDS: '30' });
 
         expect(result.status).toBe(0);
         expect(result.calls).toHaveLength(3);

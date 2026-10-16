@@ -40,6 +40,16 @@ export interface OfflineNoticeMessages {
     readonly syncingBodyOne: string;
     /** Body while several drain. */
     readonly syncingBodyOther: string;
+    /** Heading of the notice that work on this device was set aside because it could not be read (ADR-0057). */
+    readonly unreadableTitle: string;
+    /**
+     * Its body. ⛔ NO COUNT: a draft quarantine is the whole key as raw bytes, so how many drafts it held is unknowable.
+     * ⛔ IT SAYS PLAINLY THAT THE WORK CANNOT BE RECOVERED, and names the one thing the cook can check (what reached
+     * their account).
+     */
+    readonly unreadableBody: string;
+    /** The dismiss control's visible label. */
+    readonly unreadableDismiss: string;
 }
 
 /** The offline copy, per locale. */
@@ -54,5 +64,9 @@ export const offlineNoticeMessages: LocalizedMessages<OfflineNoticeMessages> = {
         syncingTitle: 'Back online',
         syncingBodyOne: 'Syncing {count} change\u2026',
         syncingBodyOther: 'Syncing {count} changes\u2026',
+        unreadableTitle: 'Some work on this device couldn\u2019t be opened',
+        unreadableBody:
+            'We can\u2019t show it or send it, and it can\u2019t be recovered. Recipes saved to your account are safe. Check My recipes for your latest changes.',
+        unreadableDismiss: 'Dismiss',
     },
 };

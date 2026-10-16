@@ -57,6 +57,7 @@ export {
     type OutboxStore,
 } from './outboxStore.js';
 export { appendToQuarantine } from './quarantine.js';
+export { unreadableLedgerFor, type UnreadableLedger } from './unreadableLedger.js';
 export { createSerialQueue, type SerialQueue } from './serialQueue.js';
 export { createTabCopyProbe, type LockManagerLike, type TabCopyProbeSources } from './tabCopyProbe.js';
 export { createWebStorageStore, type WebStorageLike, type WebStorageStoreOptions } from './webStorageStore.js';

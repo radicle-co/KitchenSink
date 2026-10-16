@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { recoveringOf, syncNoticeState, type SyncFacts } from '../syncNoticeState.js';
+import { dismissalFor, recoveringOf, syncNoticeState, unreadableShown, type SyncFacts } from '../syncNoticeState.js';
 
 const COPY = {
     offlineTitle: 'You’re offline',
@@ -16,6 +16,9 @@ const COPY = {
     syncingTitle: 'Back online',
     syncingBodyOne: 'Syncing {count} change…',
     syncingBodyOther: 'Syncing {count} changes…',
+    unreadableTitle: 'Some work on this device couldn’t be opened',
+    unreadableBody: 'We can’t show it or send it, and it can’t be recovered.',
+    unreadableDismiss: 'Dismiss',
 };
 
 /** Online, nothing queued, never offline: the quiet baseline each case moves one fact from. */
@@ -105,5 +108,33 @@ describe('recoveringOf', () => {
 
     it('never starts without an offline spell', () => {
         expect(recoveringOf(false, { offline: false, unsynced: 4 })).toBe(false);
+    });
+});
+
+/**
+ * ⛔ THE UNREADABLE-WORK NOTICE (`specSharedSystem.md` §17). The host keeps the count at which the cook dismissed, so
+ * the notice is shown while the session's set-asides exceed it: a second set-aside after a dismissal shows it again.
+ */
+describe('unreadableShown', () => {
+    it.each([
+        ['nothing set aside', 0, 0, false],
+        ['one set aside, not dismissed', 1, 0, true],
+        ['one set aside, dismissed', 1, 1, false],
+        ['a second set-aside after the dismissal', 2, 1, true],
+        ['two set aside, both dismissed', 2, 2, false],
+    ])('%s', (_label, count, dismissedAt, shown) => {
+        expect(unreadableShown(count, dismissedAt)).toBe(shown);
+    });
+});
+
+describe('dismissalFor', () => {
+    it('keeps a dismissal while the count has not fallen below it', () => {
+        expect(dismissalFor(1, 1)).toBe(1);
+        expect(dismissalFor(1, 3)).toBe(1);
+    });
+
+    it('⛔ follows the count down, so a reset session does not hide the next cook`s first set-aside', () => {
+        expect(dismissalFor(2, 0)).toBe(0);
+        expect(unreadableShown(1, dismissalFor(2, 0))).toBe(true);
     });
 });

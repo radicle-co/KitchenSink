@@ -32,6 +32,7 @@ import { recoverInterrupted, type OutboxLog } from './outboxLog.js';
 import { parseOutbox, quarantineKeyFor, saveOutbox, storeKeyFor, type OutboxStore } from './outboxStore.js';
 import { appendToQuarantine } from './quarantine.js';
 import { createSerialQueue } from './serialQueue.js';
+import { unreadableLedgerFor } from './unreadableLedger.js';
 
 /** A user's outbox, changed only through here. */
 export interface OutboxMutator {
@@ -76,7 +77,7 @@ export function createOutboxMutator(store: OutboxStore, subject: string): Outbox
 
         if (loaded.quarantined > 0 && raw !== null) {
             // Set aside, then the key starts empty, so a second process start cannot quarantine the same bytes twice.
-            await appendToQuarantine(store, quarantineKeyFor(subject), raw);
+            await appendToQuarantine(store, subject, quarantineKeyFor(subject), raw);
             await store.removeItem(storeKeyFor(subject));
         }
 
@@ -122,6 +123,8 @@ export function createOutboxMutator(store: OutboxStore, subject: string): Outbox
             serialized(async () => {
                 await store.removeItem(storeKeyFor(subject));
                 await store.removeItem(quarantineKeyFor(subject));
+                // The session's count ends with the session, so the next cook's load starts from none.
+                unreadableLedgerFor(store, subject).reset();
             }),
     };
 }

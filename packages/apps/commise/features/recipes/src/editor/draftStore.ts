@@ -32,7 +32,7 @@ import {
     unresolvedFoodReasonSchema,
 } from '@kitchensink/recipe-core';
 import { rebindIngredientLineRequestSchema } from '@kitchensink/schema-recipe';
-import { appendToQuarantine, createSerialQueue, type OutboxStore } from '@kitchensink/sync';
+import { appendToQuarantine, createSerialQueue, unreadableLedgerFor, type OutboxStore } from '@kitchensink/sync';
 
 import { isIngredientLineKey, type IngredientLineKey } from '../form/lineKey.js';
 import type { RecipeFormValues } from '../form/values.js';
@@ -252,7 +252,7 @@ export function createDraftStore(store: OutboxStore, subject: string): DraftStor
             return parsed;
         }
 
-        await appendToQuarantine(store, quarantineKey, raw);
+        await appendToQuarantine(store, subject, quarantineKey, raw);
         await store.removeItem(key);
 
         return {};
@@ -306,6 +306,8 @@ export function createDraftStore(store: OutboxStore, subject: string): DraftStor
             serialized(async () => {
                 await store.removeItem(key);
                 await store.removeItem(quarantineKey);
+                // The session's count ends with the session (`unreadableLedgerFor`).
+                unreadableLedgerFor(store, subject).reset();
             }),
     };
 }

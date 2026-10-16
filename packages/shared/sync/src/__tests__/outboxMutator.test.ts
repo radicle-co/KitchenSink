@@ -14,6 +14,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createOutboxMutator, outboxMutatorFor } from '../outboxMutator.js';
 import { EMPTY_OUTBOX, appendIntent, markSending, settle, supersede } from '../outboxLog.js';
 import { createMemoryOutboxStore, loadOutbox, quarantineKeyFor, saveOutbox, storeKeyFor } from '../outboxStore.js';
+import { unreadableLedgerFor } from '../unreadableLedger.js';
 import type { Intent } from '../record.js';
 
 function intent(over: Partial<Intent> & Pick<Intent, 'entity' | 'intentKind' | 'localId'>): Intent {
@@ -284,5 +285,44 @@ describe('outboxMutatorFor', () => {
         expect(outboxMutatorFor(store, 'user_a')).toBe(outboxMutatorFor(store, 'user_a'));
         expect(outboxMutatorFor(store, 'user_a')).not.toBe(outboxMutatorFor(store, 'user_b'));
         expect(outboxMutatorFor(store, 'user_a')).not.toBe(outboxMutatorFor(createMemoryOutboxStore(), 'user_a'));
+    });
+});
+
+/**
+ * ⛔ THE UI IS TOLD ONCE PER LOAD THAT SET DATA ASIDE (`specSharedSystem.md` §17), through the unreadable-work ledger.
+ * It is a count of this session's set-asides, never a reading of whether the quarantine key exists.
+ */
+describe('createOutboxMutator — the unreadable-work ledger', () => {
+    it('⛔ counts one set-aside for a load that quarantined, however many reads follow', async () => {
+        const store = createMemoryOutboxStore();
+        await store.setItem(storeKeyFor('user_a'), '{ not json');
+        const mutator = createOutboxMutator(store, 'user_a');
+
+        await mutator.read();
+        await mutator.read();
+        await mutator.mutate((log) => appendIntent(log, update('r1')));
+
+        expect(unreadableLedgerFor(store, 'user_a').count()).toBe(1);
+    });
+
+    it('⛔ counts nothing for a load that quarantined nothing, even with an old quarantine key on the device', async () => {
+        const store = createMemoryOutboxStore();
+        await store.setItem(quarantineKeyFor('user_a'), JSON.stringify(['from an earlier launch']));
+        await saveOutbox(store, 'user_a', appendIntent(EMPTY_OUTBOX, update('r1')));
+
+        await createOutboxMutator(store, 'user_a').read();
+
+        expect(unreadableLedgerFor(store, 'user_a').count()).toBe(0);
+    });
+
+    it('resets with the session-end clear', async () => {
+        const store = createMemoryOutboxStore();
+        await store.setItem(storeKeyFor('user_a'), '{ not json');
+        const mutator = createOutboxMutator(store, 'user_a');
+        await mutator.read();
+
+        await mutator.clear();
+
+        expect(unreadableLedgerFor(store, 'user_a').count()).toBe(0);
     });
 });

@@ -27,6 +27,7 @@ import {
     outboxMutatorFor,
     settle,
     supersede,
+    unreadableLedgerFor,
     withdraw as withdrawRecord,
     type DiscardOutcome,
     type DiscardRequest,
@@ -103,6 +104,12 @@ export interface SyncQueue {
     readonly pendingCount: number;
     /** Failures, each carrying the item it belongs to so the UI can render it in place. */
     readonly failures: readonly ParkedFailure[];
+    /**
+     * How many times this session set the signed-in cook's unreadable work aside (ADR-0057): the outbox's load and the
+     * editor's draft store. A count of events, never a reading of the quarantine key (which lives until sign-out), and
+     * never a count of records (unknowable when the bytes do not parse). Zero for no cook.
+     */
+    readonly unreadableCount: number;
 }
 
 const refuseUnmounted = async (): Promise<never> => {
@@ -118,6 +125,7 @@ const NOT_MOUNTED: SyncQueue = {
     resolutionOf: () => undefined,
     pendingCount: 0,
     failures: [],
+    unreadableCount: 0,
 };
 
 /** A set of listeners to the drain's settlements. */
@@ -235,6 +243,11 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
     const [log, setLog] = useState<OutboxLog>(EMPTY_OUTBOX);
     // Set when the server asked for a wait too long to sleep through inside a drain; the effect below re-drains.
     const [retryInMs, setRetryInMs] = useState<number | undefined>(undefined);
+    // The ledger's count for the signed-in cook, and for whom it was read: a mirror, like `log`, never written back.
+    const [unreadable, setUnreadable] = useState<{ readonly subject: string | undefined; readonly count: number }>({
+        subject: undefined,
+        count: 0,
+    });
     const storeRef = useRef<OutboxStore>(store ?? createMemoryOutboxStore());
     const flushRef = useRef<() => Promise<void>>(async () => undefined);
     // One bus and one session gate for the provider's life: created once by the initializer, never by a render.
@@ -256,6 +269,19 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
                 setLog(next);
             }
         });
+        // ⛔ SUBSCRIBED BEFORE THE LOAD BELOW, and seeded from the ledger: the editor's draft store may have set drafts
+        // aside before this effect ran, and the outbox's own load reports through the same ledger.
+        const ledger = unreadableLedgerFor(storeRef.current, subject);
+
+        const hearLedger = (count: number): void => {
+            if (!cancelled) {
+                setUnreadable({ subject, count });
+            }
+        };
+
+        const unsubscribeLedger = ledger.subscribe(hearLedger);
+
+        hearLedger(ledger.count());
 
         // ⛔ THE REJECTION HANDLER IS NOT OPTIONAL. A store whose read REJECTS (AsyncStorage can) would otherwise be
         // an UNHANDLED REJECTION — a redbox in React Native dev and a silently dead effect in production. Nothing is
@@ -275,6 +301,7 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
             cancelled = true;
             endSession();
             unsubscribe();
+            unsubscribeLedger();
         };
     }, [sessions, subject]);
 
@@ -508,8 +535,10 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
             resolutionOf: (ref) => log.resolutions[ref],
             pendingCount: log.records.length,
             failures: failuresOf(log),
+            // Only the signed-in cook's own count: after a change of cook the mirror may still hold the last one's.
+            unreadableCount: unreadable.subject === subject ? unreadable.count : 0,
         }),
-        [bus, discard, log, submit, submitExclusive, withdraw],
+        [bus, discard, log, subject, submit, submitExclusive, unreadable, withdraw],
     );
 
     return <SyncQueueContext.Provider value={value}>{children}</SyncQueueContext.Provider>;

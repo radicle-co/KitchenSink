@@ -4,4 +4,6 @@
  * A barrel ONLY because it is the target of a `package.json` `exports` entry.
  */
 export { SyncNotice } from './SyncNotice.js';
-export type { SyncNoticeProps, SyncNoticeState } from './props.js';
+export { SyncNoticeStack } from './SyncNoticeStack.js';
+export { UnreadableWorkNotice } from './UnreadableWorkNotice.js';
+export type { SyncNoticeProps, SyncNoticeStackProps, SyncNoticeState, UnreadableWorkNoticeProps } from './props.js';

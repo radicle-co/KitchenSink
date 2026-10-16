@@ -14,11 +14,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     EMPTY_OUTBOX,
     appendIntent,
+    appendToQuarantine,
     claimForSending,
     createMemoryOutboxStore,
     loadOutbox,
     outboxMutatorFor,
+    quarantineKeyFor,
     saveOutbox,
+    storeKeyFor,
     settle,
     type Intent,
     type OutboxStore,
@@ -35,6 +38,7 @@ function Probe(): ReactElement {
         <>
             <span>pending:{queue.pendingCount}</span>
             <span>failed:{queue.failures.length}</span>
+            <span>unreadable:{queue.unreadableCount}</span>
         </>
     );
 }
@@ -1296,5 +1300,120 @@ describe('SyncProvider — a change of cook while a drain is on the wire', () =>
             expect(sendAgain).toHaveBeenCalledTimes(1);
             expect(await storedOf(store, 'cook_a')).toStrictEqual([]);
         });
+    });
+});
+
+/**
+ * ⛔ `unreadableCount` IS THIS SESSION'S SET-ASIDES (`specSharedSystem.md` §17): the outbox's load and the editor's draft
+ * store both report through `appendToQuarantine`, and the provider only mirrors the ledger. It is never a reading of
+ * whether a quarantine key exists, because that key lives until sign-out.
+ */
+describe('SyncProvider — unreadableCount', () => {
+    it('is zero for a clean load', () => {
+        render(
+            <SyncProvider subject="user_a" send={vi.fn()}>
+                <Probe />
+            </SyncProvider>,
+        );
+
+        expect(screen.getByText('unreadable:0')).toBeTruthy();
+    });
+
+    it('⛔ counts the outbox bytes the mount load set aside', async () => {
+        const store = createMemoryOutboxStore();
+        await store.setItem(storeKeyFor('user_a'), '{ not json');
+
+        render(
+            <SyncProvider subject="user_a" send={vi.fn()} store={store}>
+                <Probe />
+            </SyncProvider>,
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText('unreadable:1')).toBeTruthy();
+        });
+    });
+
+    it('⛔ stays zero when only a quarantine key from an earlier launch is on the device', async () => {
+        const store = createMemoryOutboxStore();
+        await store.setItem(quarantineKeyFor('user_a'), JSON.stringify(['from an earlier launch']));
+
+        render(
+            <SyncProvider subject="user_a" send={vi.fn()} store={store}>
+                <Probe />
+            </SyncProvider>,
+        );
+        await act(async () => {
+            await outboxMutatorFor(store, 'user_a').read();
+        });
+
+        expect(screen.getByText('unreadable:0')).toBeTruthy();
+    });
+
+    it('hears a set-aside that happens after mount, such as the editor opening on unreadable drafts', async () => {
+        const store = createMemoryOutboxStore();
+
+        render(
+            <SyncProvider subject="user_a" send={vi.fn()} store={store}>
+                <Probe />
+            </SyncProvider>,
+        );
+        await act(async () => {
+            await appendToQuarantine(store, 'user_a', 'editor.draft.quarantine.user_a', 'bytes');
+        });
+
+        expect(screen.getByText('unreadable:1')).toBeTruthy();
+    });
+
+    it('⛔ starts from a set-aside that happened before the provider mounted', async () => {
+        const store = createMemoryOutboxStore();
+
+        await appendToQuarantine(store, 'user_a', 'editor.draft.quarantine.user_a', 'bytes');
+        render(
+            <SyncProvider subject="user_a" send={vi.fn()} store={store}>
+                <Probe />
+            </SyncProvider>,
+        );
+
+        expect(screen.getByText('unreadable:1')).toBeTruthy();
+    });
+
+    it('⛔ shows none for another cook, or for no cook', async () => {
+        const store = createMemoryOutboxStore();
+
+        await appendToQuarantine(store, 'user_a', 'editor.draft.quarantine.user_a', 'bytes');
+        const view = render(
+            <SyncProvider subject="user_b" send={vi.fn()} store={store}>
+                <Probe />
+            </SyncProvider>,
+        );
+        expect(screen.getByText('unreadable:0')).toBeTruthy();
+
+        view.rerender(
+            <SyncProvider subject={undefined} send={vi.fn()} store={store}>
+                <Probe />
+            </SyncProvider>,
+        );
+        expect(screen.getByText('unreadable:0')).toBeTruthy();
+    });
+
+    it('drops to zero when the session-end clear resets the ledger', async () => {
+        const store = createMemoryOutboxStore();
+        await store.setItem(storeKeyFor('user_a'), '{ not json');
+
+        render(
+            <SyncProvider subject="user_a" send={vi.fn()} store={store}>
+                <Probe />
+            </SyncProvider>,
+        );
+        await waitFor(() => {
+            expect(screen.getByText('unreadable:1')).toBeTruthy();
+        });
+
+        await act(async () => {
+            await outboxMutatorFor(store, 'user_a').clear();
+        });
+
+        expect(screen.getByText('unreadable:0')).toBeTruthy();
     });
 });

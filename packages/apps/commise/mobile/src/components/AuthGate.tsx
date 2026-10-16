@@ -11,11 +11,19 @@
  * (whose locale root now redirects a signed-out caller straight to `/sign-in`). Sign-UP stays reachable from
  * the sign-in form's own control, which is now its ONLY entry point on mobile.
  *
+ * ⛔ THE SIGNED-IN APP IS A COLUMN, NOT A BARE FRAGMENT: `SyncNoticeHost` — the offline / syncing notice and the
+ * unreadable-work notice (ADR-0057) — is a sibling ABOVE the app, in flow, so the app simply gets less height while a
+ * notice shows (`docs/design/offlineNotice.md` §7). Mobile mounted no host at all before, so a cook offline on a phone
+ * was told nothing. It is signed-in only: the signed-out surfaces have no cook and no queue. `SyncProvider` sits above
+ * `AuthGate` (in `RecipeServiceGate`), so the host reads a real queue here.
+ *
  * Plan 012: either form's "Continue with Apple / Google" may end at a sign-up still missing fields the provider did not
  * supply (the username, and with Apple possibly the names). The gate then shows `CompleteSignUpScreen` with the sign-up
  * the provider hook RETURNED; "Start over" comes back to the sign-in form. It is a signed-out SURFACE, not a route.
  */
+import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { useMessages } from '@commise/i18n/react';
+import { SyncNoticeHost } from '@commise/query/sync-notice-host';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { JSX, ReactNode } from 'react';
@@ -85,6 +93,7 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
     const { auth, common } = useMessages(mobileMessages);
     const { state } = useAuth();
     const { colors } = useTheme();
+    const offline = useMessages(offlineNoticeMessages);
     const title = [styles.title, { color: colors.ink }];
     const body = [styles.body, { color: colors.inkMuted }];
 
@@ -112,11 +121,18 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
                 </View>
             );
         case 'authenticated':
-            return <>{children}</>;
+            return (
+                <View style={styles.app}>
+                    <SyncNoticeHost copy={offline} />
+                    {children}
+                </View>
+            );
     }
 }
 
 const styles = StyleSheet.create({
+    // Fills the canvas, so the app below the notices keeps the whole remaining height as it had as a direct child.
+    app: { flex: 1 },
     center: {
         flex: 1,
         alignItems: 'center',

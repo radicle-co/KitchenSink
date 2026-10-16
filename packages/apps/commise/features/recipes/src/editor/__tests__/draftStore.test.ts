@@ -13,7 +13,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { createMemoryOutboxStore } from '@kitchensink/sync';
+import { createMemoryOutboxStore, unreadableLedgerFor } from '@kitchensink/sync';
 
 import { makeRecipeFormValues } from '../../__fixtures__/index.js';
 import { seedLineKey } from '../../form/lineKey.js';
@@ -300,5 +300,45 @@ describe('unreadable drafts', () => {
 
         expect(await createDraftStore(store, 'user_a').load(LOCAL_REF)).toBeUndefined();
         expect(values.ingredients[0]?.key).toBe(seedLineKey(1, 0));
+    });
+});
+
+/**
+ * ⛔ THE UI IS TOLD ONCE PER LOAD THAT SET DRAFTS ASIDE (`specSharedSystem.md` §17). The count is this session's
+ * set-asides, so a quarantine key left by an earlier launch tells it nothing, and the session-end clear resets it.
+ */
+describe('the unreadable-work ledger', () => {
+    it('⛔ counts one set-aside when a read quarantines the key, and not again for the reads after', async () => {
+        const store = createMemoryOutboxStore();
+        await store.setItem(draftStoreKeyFor('user_a'), '{ not json');
+        const drafts = createDraftStore(store, 'user_a');
+
+        await drafts.load(LOCAL_REF);
+        await drafts.load(LOCAL_REF);
+        await drafts.save(memento());
+
+        expect(unreadableLedgerFor(store, 'user_a').count()).toBe(1);
+    });
+
+    it('⛔ counts nothing when a key left by an earlier launch is the only thing set aside', async () => {
+        const store = createMemoryOutboxStore();
+        await store.setItem(draftQuarantineKeyFor('user_a'), '["from an earlier launch"]');
+        const drafts = createDraftStore(store, 'user_a');
+        await drafts.save(memento());
+
+        await drafts.load(LOCAL_REF);
+
+        expect(unreadableLedgerFor(store, 'user_a').count()).toBe(0);
+    });
+
+    it('resets with the session-end clear', async () => {
+        const store = createMemoryOutboxStore();
+        await store.setItem(draftStoreKeyFor('user_a'), '{ not json');
+        const drafts = createDraftStore(store, 'user_a');
+        await drafts.load(LOCAL_REF);
+
+        await drafts.clear();
+
+        expect(unreadableLedgerFor(store, 'user_a').count()).toBe(0);
     });
 });

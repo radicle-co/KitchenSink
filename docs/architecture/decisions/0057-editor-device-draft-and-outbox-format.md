@@ -145,6 +145,12 @@ Save changes, because every write of that recipe makes a version (D1):
     - Each record is the intent plus `seq` and `state`. A parked record also has `lastStatus`. The states are
       `pending`, `sending`, `blocked` and `parked`.
 - **Quarantine:** `sync.outbox.quarantine.{subject}`, the same list format as the draft's.
+- **The cook is told once per load that set something aside.** `appendToQuarantine` is the one place bytes are set aside,
+  for the outbox and the draft alike, and it counts each set-aside in an in-memory ledger per store object and cook
+  (`unreadableLedgerFor`, `@kitchensink/sync`). `SyncQueue.unreadableCount` mirrors it, the session-end clear resets it,
+  and the dismissible `UnreadableWorkNotice` shows while the count is above the count at which the cook dismissed. The
+  notice is never derived from a quarantine key existing, because the key lives until sign-out. No persisted format
+  changes.
 - **Where it is kept:** AsyncStorage on mobile, and the tab's `sessionStorage` on web. The journal must live at least
   as long as the draft its records came from. The no-blind-retry rule below parks an unknown outcome for the cook, and
   that only prevents a second write while the parked record exists. An in-memory web journal under a draft that

@@ -7,17 +7,23 @@
  * the editor's draft store each keep one (ADR-0057).
  */
 import type { OutboxStore } from './outboxStore.js';
+import { unreadableLedgerFor } from './unreadableLedger.js';
 
 /**
  * Append `raw` to the quarantine list at `key`.
  *
+ * ⛔ THE ONE PLACE BYTES ARE SET ASIDE, so it is the one place the cook's unreadable-work ledger counts
+ * (`unreadableLedgerFor`). It counts only after the bytes are safe under the quarantine key.
+ *
  * @param store - The platform adapter.
+ * @param subject - The IdP subject whose work this was.
  * @param key - The quarantine key.
  * @param raw - The unreadable bytes.
- * @returns Nothing. @sideEffect Reads and writes `key`.
+ * @returns Nothing. @sideEffect Reads and writes `key`, and counts one set-aside for `subject`.
  */
-export async function appendToQuarantine(store: OutboxStore, key: string, raw: string): Promise<void> {
+export async function appendToQuarantine(store: OutboxStore, subject: string, key: string, raw: string): Promise<void> {
     await store.setItem(key, JSON.stringify([...blobsIn(await store.getItem(key)), raw]));
+    unreadableLedgerFor(store, subject).record();
 }
 
 /** The blobs a quarantine key already holds. A value that is not this module's list is itself kept as a blob. Pure. */

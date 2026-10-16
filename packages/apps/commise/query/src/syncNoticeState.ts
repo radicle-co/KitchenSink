@@ -47,6 +47,12 @@ export interface SyncNoticeCopy {
     readonly syncingTitle: string;
     readonly syncingBodyOne: string;
     readonly syncingBodyOther: string;
+    /** The unreadable-work notice's heading. */
+    readonly unreadableTitle: string;
+    /** Its body: no count, and plain that the work cannot be recovered. */
+    readonly unreadableBody: string;
+    /** Its dismiss control's visible label. */
+    readonly unreadableDismiss: string;
 }
 
 /** Substitute the one placeholder these strings carry. */
@@ -84,4 +90,28 @@ export function syncNoticeState(facts: SyncFacts, copy: SyncNoticeCopy): SyncNot
     }
 
     return { kind: 'hidden' };
+}
+
+/**
+ * Whether the unreadable-work notice shows: the session set work aside more times than the count at which the cook last
+ * dismissed it. Pure.
+ *
+ * @param unreadableCount - How many times this session set the cook's work aside.
+ * @param dismissedAt - The count when the cook dismissed (0 before any dismissal).
+ * @returns Whether to show it.
+ */
+export function unreadableShown(unreadableCount: number, dismissedAt: number): boolean {
+    return unreadableCount > dismissedAt;
+}
+
+/**
+ * The dismissal count to keep for the count now: it follows the count DOWN, so a session-end reset does not leave a stale
+ * dismissal hiding the next session's first set-aside. Pure.
+ *
+ * @param dismissedAt - The count when the cook dismissed.
+ * @param unreadableCount - The count now.
+ * @returns The dismissal to keep.
+ */
+export function dismissalFor(dismissedAt: number, unreadableCount: number): number {
+    return Math.min(dismissedAt, unreadableCount);
 }

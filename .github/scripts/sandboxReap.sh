@@ -47,6 +47,8 @@ SANDBOX_REAP_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "${SANDBOX_REAP_SCRIPT_DIR}/prScope.sh"
 # shellcheck source=./cfnRestingStates.sh
 source "${SANDBOX_REAP_SCRIPT_DIR}/cfnRestingStates.sh"
+# shellcheck source=./sandboxSharedTier.sh
+source "${SANDBOX_REAP_SCRIPT_DIR}/sandboxSharedTier.sh"
 
 # ⛔ REAP WHAT IS ABOUT TO EXPIRE, NOT ONLY WHAT ALREADY HAS — so the sweep lands BEFORE the nightly shutdown
 # rather than 17 minutes after it.
@@ -75,9 +77,10 @@ SANDBOX_REAP_LOOKAHEAD_SECONDS=4500
 # one per line. Pure.
 #
 # ⚠️ Discovery is by stack NAME, not by tag. A tag is written by a deploy and can be stripped by one; the name is
-# fixed at creation and is the only identifier a half-failed deploy cannot lose.
+# fixed at creation and is the only identifier a half-failed deploy cannot lose. The name rule is
+# `shared_tier_live_tokens`'s, the one the reclaim mirrors (`reclaimShellParity.test.ts` holds all three equal).
 sandbox_reap_tokens() {
-    tr '\t' '\n' | sed -nE 's/^kitchensink-[a-z-]+-(pr-[0-9]+)$/\1/p' | sort -u
+    tr '\t' '\n' | shared_tier_live_tokens
 }
 
 # sandbox_reap_latest_deploy

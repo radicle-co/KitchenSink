@@ -28,6 +28,7 @@ import { repoRoot } from './serviceSources.js';
 
 const PR_SCOPE = path.join(repoRoot, '.github/scripts/prScope.sh');
 const SHARED_TIER = path.join(repoRoot, '.github/scripts/sandboxSharedTier.sh');
+const SANDBOX_REAP = path.join(repoRoot, '.github/scripts/sandboxReap.sh');
 
 /** Run bash with a byte-order locale, so `sort -u` agrees with JavaScript's default sort. */
 function bash(args: readonly string[], input = ''): { readonly status: number | null; readonly stdout: string } {
@@ -122,6 +123,27 @@ describe('the reclaim mirrors the shell it restates (ADR-0061)', () => {
     it('liveTokens equals sandboxSharedTier.sh live-tokens, for the whole table and for every name alone', () => {
         const expectFor = (names: readonly string[]): void => {
             const shell = bash([SHARED_TIER, 'live-tokens'], `${names.join('\n')}\n`)
+                .stdout.split('\n')
+                .filter((line) => line.length > 0);
+
+            expect(liveTokens(names), JSON.stringify(names)).toEqual(shell);
+        };
+
+        expectFor(NAMES);
+
+        for (const name of NAMES) {
+            expectFor([name]);
+        }
+    });
+
+    /**
+     * The daily reaper discovers candidate previews by the same stack-name rule, so it is held to the same answer: a
+     * reaper that disagreed with the reclaim on which stacks belong to a preview would act on a different set, on a
+     * path that deletes stacks.
+     */
+    it('sandboxReap.sh tokens equals liveTokens, for the whole table and for every name alone', () => {
+        const expectFor = (names: readonly string[]): void => {
+            const shell = bash([SANDBOX_REAP, 'tokens'], `${names.join('\t')}\n`)
                 .stdout.split('\n')
                 .filter((line) => line.length > 0);
 

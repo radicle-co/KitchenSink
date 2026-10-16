@@ -128,7 +128,15 @@ describe('the lifecycle facts are read from their real sources', () => {
     it('discovers previews from CloudFormation stack NAMES', () => {
         // Names, not tags: a tag is written by a deploy and can be stripped by one; a stack's name is fixed
         // at creation and survives a half-failed deploy, which is exactly the preview a reaper must find.
-        expect(reaper()).toMatch(/kitchensink-\[a-z-\]\+-\(pr-\[0-9\]\+\)/u);
+        // The reaper takes the name rule from `shared_tier_live_tokens` (the one the reclaim mirrors), so the
+        // rule itself is read where it lives, in the script the reaper sources.
+        const sharedTier = withoutComments(
+            readFileSync(path.join(repoRoot, '.github/scripts/sandboxSharedTier.sh'), 'utf8'),
+        );
+
+        expect(reaper()).toMatch(/source "\$\{SANDBOX_REAP_SCRIPT_DIR\}\/sandboxSharedTier\.sh"/u);
+        expect(reaper()).toMatch(/\|\s*shared_tier_live_tokens\b/u);
+        expect(sharedTier).toMatch(/kitchensink-\[a-z-\]\+-\(pr-\[0-9\]\+\)/u);
     });
 
     it('takes the deadline from a deploy time, through the shared pure function', () => {

@@ -30,7 +30,7 @@
  *     and the close and erasure Commands, and hands each to the shared cross-platform render half.
  */
 import { useMessages } from '@commise/i18n/react';
-import { selectDonatableRecipes } from '@commise/features-account';
+import { isErasureStepError, selectDonatableRecipes, useErasureSequence } from '@commise/features-account';
 import { AccountEraseDialog, accountDangerMessages } from '@commise/features-account/danger';
 import { useEraseAccount } from '../../hooks/useEraseAccount.js';
 import { ProfileGroup, ProfileRow, profileMessages } from '@commise/features-account/profile';
@@ -74,10 +74,21 @@ function AccountEraseFlow({
      * cross-platform rule: a fix to one platform must not silently miss the other.
      */
     const accountErasure = useEraseAccount();
+
+    /**
+     * Recipes → account → sign-out as ONE mutation (`useErasureSequence`, `@commise/features-account`), the same
+     * sequence web runs, so it finishes even if this screen unmounts mid-way: the chained `onSuccess` callbacks it
+     * replaces were dropped on unmount, leaving recipes erased and the account and session alive. `isPending` stays
+     * true through the sign-out. The last step is `signOutAndVerify`, which keeps ADR-0009's verified post-condition.
+     */
+    const sequence = useErasureSequence({
+        eraseRecipes: erasure.mutateAsync,
+        eraseAccount: accountErasure.mutateAsync,
+        leave: signOutAndVerify,
+    });
+
     const [phrase, setPhrase] = useState('');
     const [selectedRecipeIds, setSelectedRecipeIds] = useState<readonly string[]>([]);
-    /** Both legs answered and the sign-out is running: the flow stays busy until the viewer has left. */
-    const [leaving, setLeaving] = useState(false);
 
     const donatableRecipes = selectDonatableRecipes(recipes.recipes).map((recipe) => ({
         id: recipe.id,
@@ -90,31 +101,17 @@ function AccountEraseFlow({
         );
     };
 
-    /**
-     * End the session once the erasure has been accepted, reporting a failure upward instead of swallowing
-     * it — by this point the erasure is already done server-side, so a silent failure strands the viewer on a
-     * dead account surface.
-     *
-     * @sideEffect Destroys the Clerk session.
-     */
-    const leaveSignedOut = async (): Promise<void> => {
-        setLeaving(true);
-
-        try {
-            await signOutAndVerify();
-        } catch {
-            onExitFailed();
-        }
-    };
-
     const handleConfirm = () => {
-        erasure.mutate(
+        sequence.mutate(
             { confirmationPhrase: phrase, publishRecipeIds: selectedRecipeIds },
             {
-                // Only leave once the ACCOUNT erasure is accepted too — signing out after the recipe leg
-                // alone is what made the old flow look successful while the account still existed.
-                onSuccess: () => {
-                    accountErasure.mutate(undefined, { onSuccess: () => void leaveSignedOut() });
+                // The erasure was ACCEPTED and only leaving failed (B17): report it upward instead of swallowing
+                // it, because a silent failure strands the viewer on a dead account surface. A failed recipe or
+                // account step is the dialog's own `submitError` below.
+                onError: (error) => {
+                    if (isErasureStepError(error, 'exit')) {
+                        onExitFailed();
+                    }
                 },
             },
         );
@@ -132,8 +129,9 @@ function AccountEraseFlow({
             onToggleRecipe={toggleRecipe}
             phrase={phrase}
             onPhraseChange={setPhrase}
-            submitting={erasure.isPending || accountErasure.isPending || leaving}
-            submitError={erasure.isError || accountErasure.isError}
+            submitting={sequence.isPending}
+            // A failed EXIT is not a submit error — the erasure succeeded; it has its own alert (see `onExitFailed`).
+            submitError={isErasureStepError(sequence.error, 'recipes') || isErasureStepError(sequence.error, 'account')}
             onConfirm={handleConfirm}
             onCancel={onClose}
         />

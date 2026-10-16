@@ -38,7 +38,7 @@
 import { useState } from 'react';
 import { useMessages } from '@commise/i18n/react';
 import { ProfileRow } from '@commise/features-account/profile';
-import { selectDonatableRecipes } from '@commise/features-account';
+import { isErasureStepError, selectDonatableRecipes, useErasureSequence } from '@commise/features-account';
 import { AccountEraseDialog, accountDangerMessages } from '@commise/features-account/danger';
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 
@@ -72,10 +72,21 @@ function AccountEraseFlow({
      */
     const accountErasure = useEraseAccount();
 
+    /**
+     * Recipes → account → sign-out as ONE mutation (`useErasureSequence`, `@commise/features-account`), so the
+     * sequence finishes even if this flow unmounts mid-way (browser Back, a route change): the chained
+     * `onSuccess` callbacks it replaces were dropped on unmount, leaving recipes erased and the account and
+     * session alive. `isPending` stays true through the sign-out, so the flow is busy until the viewer has left.
+     * The sign-out step is `signOutAndLeave`, which keeps ADR-0009's verified post-condition.
+     */
+    const sequence = useErasureSequence({
+        eraseRecipes: erasure.mutateAsync,
+        eraseAccount: accountErasure.mutateAsync,
+        leave: signOutAndLeave,
+    });
+
     const [phrase, setPhrase] = useState('');
     const [selectedRecipeIds, setSelectedRecipeIds] = useState<readonly string[]>([]);
-    /** Both legs answered and the sign-out is running: the flow stays busy until the viewer has left. */
-    const [leaving, setLeaving] = useState(false);
 
     const donatableRecipes = selectDonatableRecipes(recipes.recipes).map((recipe) => ({
         id: recipe.id,
@@ -88,32 +99,18 @@ function AccountEraseFlow({
         );
     };
 
-    /**
-     * End the session, then leave the app with a full document load (see the module doc). Reports a failure
-     * upward instead of swallowing it — by this point the erasure has already been accepted, so a silent
-     * failure strands the viewer on a dead account page.
-     *
-     * @sideEffect Destroys the Clerk session and replaces the current document.
-     */
-    const leaveSignedOut = async (): Promise<void> => {
-        setLeaving(true);
-
-        try {
-            await signOutAndLeave();
-        } catch {
-            onExitFailed();
-        }
-    };
-
     const handleConfirm = () => {
-        erasure.mutate(
+        sequence.mutate(
             { confirmationPhrase: phrase, publishRecipeIds: selectedRecipeIds },
             {
-                onSuccess: () => {
-                    // Only leave once the ACCOUNT erasure is accepted too. Signing out after the recipe leg
-                    // alone is what made the old flow look successful while the account still existed — the
-                    // viewer was returned to a sign-in page they could sign straight back in through.
-                    accountErasure.mutate(undefined, { onSuccess: () => void leaveSignedOut() });
+                // The erasure was ACCEPTED and only leaving failed (B17): report it upward instead of swallowing
+                // it, because a silent failure strands the viewer on a dead account page. A failed recipe or
+                // account step is the dialog's own `submitError` below. (An observer callback: if the flow has
+                // unmounted there is no surface left to report to; the sequence itself is unaffected.)
+                onError: (error) => {
+                    if (isErasureStepError(error, 'exit')) {
+                        onExitFailed();
+                    }
                 },
             },
         );
@@ -131,8 +128,9 @@ function AccountEraseFlow({
             onToggleRecipe={toggleRecipe}
             phrase={phrase}
             onPhraseChange={setPhrase}
-            submitting={erasure.isPending || accountErasure.isPending || leaving}
-            submitError={erasure.isError || accountErasure.isError}
+            submitting={sequence.isPending}
+            // A failed EXIT is not a submit error — the erasure succeeded; it has its own alert (see `onExitFailed`).
+            submitError={isErasureStepError(sequence.error, 'recipes') || isErasureStepError(sequence.error, 'account')}
             onConfirm={handleConfirm}
             onCancel={onClose}
         />

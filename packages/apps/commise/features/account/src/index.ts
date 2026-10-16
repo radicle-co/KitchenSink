@@ -71,6 +71,8 @@ export {
     isErasureDonationEligible,
     selectDonatableRecipes,
 } from './erasure.js';
+export { ErasureStepError, isErasureStepError, useErasureSequence } from './erasureSequence.js';
+export type { ErasureStep, ErasureSteps, RecipeErasureInput } from './erasureSequence.js';
 export { SignOutNotVerifiedError, isSignOutNotVerifiedError, signOutAndVerify } from './session/signOutAndVerify.js';
 export type { SignOutClientStatus, SignOutVerificationClient } from './session/signOutAndVerify.js';
 export {

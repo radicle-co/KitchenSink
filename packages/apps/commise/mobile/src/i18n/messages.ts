@@ -180,14 +180,6 @@ export interface MobileMessages {
         readonly avatarLabel: string;
         /** Accessible name of the avatar image preview. */
         readonly avatarImageLabel: string;
-        /** Label of the control that opens the image picker to change the avatar. */
-        readonly avatarChangeAction: string;
-        /** Alert shown when picking or uploading a new avatar fails. */
-        readonly avatarUploadError: string;
-        /** Alert shown when the picked avatar exceeds the 5 MB limit, before upload. */
-        readonly avatarTooLargeError: string;
-        /** Alert shown when the picked avatar's type is outside the JPEG/PNG/WebP allowlist. */
-        readonly avatarUnsupportedTypeError: string;
     };
     readonly recipes: {
         /** Accessible label shown while a single recipe's detail is loading. */
@@ -384,10 +376,6 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
         profile: {
             avatarLabel: 'Profile photo',
             avatarImageLabel: 'Your profile photo',
-            avatarChangeAction: 'Change photo',
-            avatarUploadError: 'We couldn’t update your photo. Please try again.',
-            avatarTooLargeError: 'That photo is larger than 5 MB. Choose a smaller file.',
-            avatarUnsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
         },
         recipes: {
             detailLoading: 'Loading recipe…',

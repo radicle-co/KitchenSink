@@ -71,6 +71,14 @@ export interface ProfileMessages {
     readonly signOutFailed: string;
     /** The Danger zone group's heading. */
     readonly dangerZone: string;
+    /** The name of the control that changes the profile photo (the avatar itself). */
+    readonly avatarChangeAction: string;
+    /** Reported when picking or uploading a new photo fails. */
+    readonly avatarUploadError: string;
+    /** Reported when the picked photo is over the limit, before any upload. Contains `{maxMb}`, filled from `AVATAR_MAX_MB`. */
+    readonly avatarTooLargeError: string;
+    /** Reported when the picked photo's type is outside the JPEG/PNG/WebP allowlist. */
+    readonly avatarUnsupportedTypeError: string;
 }
 
 /** The Profile page's localized copy. */
@@ -107,5 +115,9 @@ export const profileMessages: LocalizedMessages<ProfileMessages> = {
         signingOut: 'Signing out…',
         signOutFailed: 'We couldn’t sign you out. Try again.',
         dangerZone: 'Danger zone',
+        avatarChangeAction: 'Change photo',
+        avatarUploadError: 'We couldn’t update your photo. Please try again.',
+        avatarTooLargeError: 'That photo is larger than {maxMb} MB. Choose a smaller file.',
+        avatarUnsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
     },
 };

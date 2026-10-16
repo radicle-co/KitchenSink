@@ -23,13 +23,13 @@ import { initialsFor } from '@commise/features-core';
 import {
     DisplayNameSheet,
     formatUsername,
+    ProfileAccountGroup,
     ProfileGroup,
     ProfileHeader,
     ProfileRow,
     ProfileValueRow,
     profileMessages,
-    profileReadOf,
-    useDisplayNameEditor,
+    useProfileScreen,
 } from '@commise/features-account/profile';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { LargeTitleHeader } from '@commise/ui/large-title-header';
@@ -55,14 +55,12 @@ export const ProfileSurface: FC = () => {
     const router = useRouter();
     const headingId = useId();
     const query = useUserProfile();
-    const read = profileReadOf(query);
-    const saved = read.status === 'ready' ? read.displayName : '';
     const { user } = useUser();
     // The client mints its token per call (see `useProfileServiceClient`): a session token lives about a minute, so one
     // captured at render would be stale for a cook who typed slowly.
     const client = useProfileServiceClient();
     const update = useMutation(profileMutations(client).update());
-    const editor = useDisplayNameEditor({ saved, user, update });
+    const { read, editor } = useProfileScreen({ query, user, update });
     const settings = useUserSettings();
     const patchSettings = useMutation(profileMutations(client).patchSettings());
     const sourcesPath = `/${locale}/legal/sources`;
@@ -86,19 +84,12 @@ export const ProfileSurface: FC = () => {
                 onRetry={() => void query.refetch()}
             />
             {read.status === 'ready' ? (
-                <ProfileGroup label={t.account}>
-                    <ProfileRow
-                        label={t.displayName}
-                        value={read.displayName === '' ? t.displayNameUnset : read.displayName}
-                        tone="ink"
-                        chevron
-                        onPress={editor.openSheet}
-                    />
+                <ProfileAccountGroup displayName={read.displayName} onEditDisplayName={editor.openSheet}>
                     {read.username === null ? null : (
                         <ProfileValueRow label={t.username} value={formatUsername(t.usernameValue, read.username)} />
                     )}
                     <ProfileValueRow label={t.email} value={read.email} />
-                </ProfileGroup>
+                </ProfileAccountGroup>
             ) : null}
             <ProfileGroup heading={t.preferences}>
                 <ProfileRow

@@ -15,6 +15,7 @@
  * `expo-image-picker` is imported lazily on first use (it pulls `expo-modules-core`, which only evaluates in
  * the native runtime) — mirroring the recipe uploader.
  */
+import { AVATAR_MAX_BYTES, isAllowedAvatarType, type AvatarCopy } from '@commise/features-account/profile';
 import { nativeTokens } from '@commise/ui/native';
 import { Icon } from '@commise/ui/icon';
 import { useTheme } from '@commise/ui/theme';
@@ -24,19 +25,6 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAvatarUpload } from '../../hooks/useAvatarUpload.js';
-import { AVATAR_MAX_BYTES, isAllowedAvatarType } from './avatarConstraints.js';
-
-/** Localized copy the field renders (supplied by the profile screen from `mobileMessages.profile`). */
-export interface AvatarFieldMessages {
-    /** The control's accessible name: what pressing the avatar does. */
-    readonly changeAction: string;
-    /** Reported when picking or uploading fails. */
-    readonly uploadError: string;
-    /** Reported when the picked image exceeds {@link AVATAR_MAX_BYTES}. */
-    readonly tooLargeError: string;
-    /** Reported when the picked image's type is outside the allowlist. */
-    readonly unsupportedTypeError: string;
-}
 
 /** Props for {@link AvatarField}. */
 export interface AvatarFieldProps {
@@ -49,7 +37,7 @@ export interface AvatarFieldProps {
     /** Reports why a pick failed, or `undefined` when a new pick starts and the earlier failure no longer applies. */
     readonly onError: (message: string | undefined) => void;
     /** Localized copy. */
-    readonly messages: AvatarFieldMessages;
+    readonly messages: AvatarCopy;
 }
 
 /** The avatar and its change-photo control. */

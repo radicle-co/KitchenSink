@@ -25,12 +25,13 @@ import { useUser } from '@clerk/expo';
 import { initialsFor } from '@commise/features-core';
 import {
     DisplayNameSheet,
+    ProfileAccountGroup,
     ProfileGroup,
     ProfileHeader,
     ProfileRow,
+    avatarCopyOf,
     profileMessages,
-    profileReadOf,
-    useDisplayNameEditor,
+    useProfileScreen,
 } from '@commise/features-account/profile';
 import { useMessages } from '@commise/i18n/react';
 import { CondensedTitleBar, LargeTitleHeader } from '@commise/ui/large-title-header';
@@ -46,7 +47,6 @@ import { SignOutButton } from '../components/account/SignOutButton.js';
 import { SuspensionBanner } from '../components/SuspensionBanner.js';
 import { useUpdateProfile } from '../hooks/useUpdateProfile.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
-import { mobileMessages } from '../i18n/messages.js';
 
 /** Props for {@link ProfileScreen}. */
 export interface ProfileScreenProps {
@@ -79,17 +79,14 @@ export function ProfileScreen({ onBack, onOpenDataSources }: ProfileScreenProps)
 /** The page. */
 function ProfileSurface({ scrollBind, onBack, onOpenDataSources }: ProfileSurfaceProps): JSX.Element {
     const t = useMessages(profileMessages);
-    const { profile: photo } = useMessages(mobileMessages);
     const { colors } = useTheme();
     const { condensed } = useScrollHost();
     const headingId = useId();
     const query = useUserProfile();
-    const read = profileReadOf(query);
-    const saved = read.status === 'ready' ? read.displayName : '';
     const { user: clerkUser } = useUser();
     // The name and the photo are two mutations, so a photo upload never reads as the name saving, and back.
     const nameUpdate = useUpdateProfile();
-    const editor = useDisplayNameEditor({ saved, user: clerkUser, update: nameUpdate });
+    const { read, editor } = useProfileScreen({ query, user: clerkUser, update: nameUpdate });
     const photoUpdate = useUpdateProfile();
     // A pick that failed on the device (type, size, upload) is reported by the control; a failed save by the mutation.
     const [pickError, setPickError] = useState<string | undefined>(undefined);
@@ -97,7 +94,7 @@ function ProfileSurface({ scrollBind, onBack, onOpenDataSources }: ProfileSurfac
     const back = { label: t.back, parent: t.homeParent, onPress: onBack };
     // While a new photo is being saved the preview shows it, so the pick does not appear to be lost.
     const photoUrl = photoUpdate.isPending ? (photoUpdate.variables.avatarUrl ?? '') : (user?.avatarUrl ?? '');
-    const photoError = pickError ?? (photoUpdate.isError ? photo.avatarUploadError : undefined);
+    const photoError = pickError ?? (photoUpdate.isError ? t.avatarUploadError : undefined);
     const initials = read.status === 'ready' ? initialsFor(read.displayName) : '';
 
     return (
@@ -120,12 +117,7 @@ function ProfileSurface({ scrollBind, onBack, onOpenDataSources }: ProfileSurfac
                             initials={initials}
                             onChange={(avatarUrl) => photoUpdate.mutate({ avatarUrl })}
                             onError={setPickError}
-                            messages={{
-                                changeAction: photo.avatarChangeAction,
-                                uploadError: photo.avatarUploadError,
-                                tooLargeError: photo.avatarTooLargeError,
-                                unsupportedTypeError: photo.avatarUnsupportedTypeError,
-                            }}
+                            messages={avatarCopyOf(t)}
                         />
                     }
                 />
@@ -135,15 +127,7 @@ function ProfileSurface({ scrollBind, onBack, onOpenDataSources }: ProfileSurfac
                     </Text>
                 )}
                 {read.status === 'ready' ? (
-                    <ProfileGroup label={t.account}>
-                        <ProfileRow
-                            label={t.displayName}
-                            value={read.displayName === '' ? t.displayNameUnset : read.displayName}
-                            tone="ink"
-                            chevron
-                            onPress={editor.openSheet}
-                        />
-                    </ProfileGroup>
+                    <ProfileAccountGroup displayName={read.displayName} onEditDisplayName={editor.openSheet} />
                 ) : null}
                 <ProfileGroup heading={t.preferences}>
                     <ProfileRow label={t.dataSources} tone="ink" chevron onPress={onOpenDataSources} />

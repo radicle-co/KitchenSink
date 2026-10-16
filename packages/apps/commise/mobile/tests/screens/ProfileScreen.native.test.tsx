@@ -442,7 +442,7 @@ describe('ProfileScreen — the photo (native-only AvatarField)', () => {
         setMutation({ isError: true });
         renderProfile();
 
-        expect(screen.getByRole('alert').textContent).toBe(mobileMessages.en.profile.avatarUploadError);
+        expect(screen.getByRole('alert').textContent).toBe(profileMessages.en.avatarUploadError);
     });
 
     it('is not offered while the profile has not loaded', () => {

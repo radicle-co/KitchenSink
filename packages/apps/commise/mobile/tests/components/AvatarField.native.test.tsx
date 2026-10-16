@@ -14,6 +14,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
+import { avatarCopyOf, profileMessages } from '@commise/features-account/profile';
 import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 import * as ImagePicker from 'expo-image-picker';
@@ -34,17 +35,12 @@ vi.mock('expo-image-picker', () => ({
 }));
 
 // Stub the network seam only; the client-side size/type validators live in the pure `avatarConstraints`
-// module (imported by AvatarField directly), so they run for real without pulling `@clerk/expo` in here.
+// module of `@commise/features-account/profile` (imported by AvatarField directly), so they run for real without pulling `@clerk/expo` in here.
 vi.mock('../../src/hooks/useAvatarUpload.js', () => ({ useAvatarUpload: vi.fn() }));
 
 const { profile } = mobileMessages.en;
 
-const messages = {
-    changeAction: profile.avatarChangeAction,
-    uploadError: profile.avatarUploadError,
-    tooLargeError: profile.avatarTooLargeError,
-    unsupportedTypeError: profile.avatarUnsupportedTypeError,
-};
+const messages = avatarCopyOf(profileMessages.en);
 
 const launchMock = vi.mocked(ImagePicker.launchImageLibraryAsync);
 const useAvatarUploadMock = vi.mocked(useAvatarUpload);

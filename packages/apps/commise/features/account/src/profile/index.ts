@@ -6,7 +6,11 @@
  */
 export { DisplayNameSheet } from './DisplayNameSheet.js';
 export { useDisplayNameEditor } from './useDisplayNameEditor.js';
+export { useProfileScreen } from './useProfileScreen.js';
+export type { ProfileScreen, ProfileScreenInput } from './useProfileScreen.js';
 export type { DisplayNameEditor, DisplayNameEditorInput, DisplayNameSave } from './useDisplayNameEditor.js';
+export { ProfileAccountGroup } from './ProfileAccountGroup.js';
+export type { ProfileAccountGroupProps } from './ProfileAccountGroup.js';
 export { ProfileGroup } from './ProfileGroup.js';
 export { ProfileHeader } from './ProfileHeader.js';
 export { ProfileRow } from './ProfileRow.js';
@@ -24,6 +28,9 @@ export {
     profileReadOf,
 } from './model.js';
 export type { GivenNameSource, ProfileQueryState, ProfileRead } from './model.js';
+export { AVATAR_ALLOWED_TYPES, AVATAR_MAX_BYTES, AVATAR_MAX_MB, isAllowedAvatarType } from './avatarConstraints.js';
+export { avatarCopyOf } from './avatarCopy.js';
+export type { AvatarCopy } from './avatarCopy.js';
 export { profileMessages } from './messages.js';
 export type { ProfileMessages } from './messages.js';
 export type {

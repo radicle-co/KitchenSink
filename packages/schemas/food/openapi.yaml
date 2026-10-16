@@ -2420,6 +2420,7 @@ components:
           type: array
           items:
             type: string
+      additionalProperties: false
     HealthStatus:
       type: object
       properties:

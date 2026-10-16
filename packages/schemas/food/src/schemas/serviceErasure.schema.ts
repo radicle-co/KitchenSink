@@ -60,7 +60,9 @@ export const foodServiceErasureRequestSchema = z.preprocess(
     // body-less POST, and a bare object schema refuses that with a 400 — which is a wire break for the
     // deployed worker. An absent body IS the empty request.
     (value) => value ?? {},
-    z.object({
+    // Strict: the body carries no authority, so an unknown key (a smuggled `ownerId`) is REFUSED with a 400
+    // rather than stripped and accepted.
+    z.strictObject({
         referencedFoodIds: z.array(z.string()).max(10_000).optional(),
     }),
 );

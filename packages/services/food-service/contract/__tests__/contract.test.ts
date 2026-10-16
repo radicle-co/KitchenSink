@@ -341,6 +341,8 @@ describe('openapi coverage', () => {
             'AuthoredPortionInput',
             'BatchAddFoodRequest',
             'CreateAuthoredFoodRequest',
+            // The erasure body carries no authority, so an unknown key (a smuggled ownerId) is refused.
+            'FoodServiceErasureRequest',
             'ResolveFoodRefsRequest',
             'ResolveFoodRequest',
             'UpdateAuthoredFoodRequest',

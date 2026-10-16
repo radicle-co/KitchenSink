@@ -100,3 +100,6 @@ export type { CollectionVisibilityControl } from './useCollectionVisibility.js';
 export { useCollectionPull } from './useCollectionPull.js';
 export type { CollectionPull, CollectionPullError } from './useCollectionPull.js';
 export { useLastDefined } from './useLastDefined.js';
+export { usePreviousPages } from './usePreviousPages.js';
+export { useRailRetries } from './useRailRetries.js';
+export type { RailRetries } from './useRailRetries.js';

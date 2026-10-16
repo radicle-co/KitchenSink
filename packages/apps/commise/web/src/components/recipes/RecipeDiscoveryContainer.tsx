@@ -82,6 +82,8 @@ import {
     useDeferredDiscoveryCriteria,
     useIngredientFilterSearch,
     useLastDefined,
+    usePreviousPages,
+    useRailRetries,
     useRecentSearches,
     useSaveCopy,
     type SaveCopy,
@@ -90,7 +92,7 @@ import { useMessages } from '@commise/i18n/react';
 import { useRecoverySignal } from '@commise/query/recovery-signal';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { RecipeSearchSortBy, type RecipeSearchResult } from '@kitchensink/recipe-core';
-import { recipeQueries, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useInfiniteQuery, useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
@@ -142,9 +144,6 @@ const SettledRail: FC<SettledRailProps> = ({ read, ...actions }) => {
     );
 };
 
-/** No rail has been retried yet. */
-const NO_RAIL_RETRIES: Readonly<Record<RecipeBrowseRailId, number>> = { trending: 0, new: 0, quick: 0 };
-
 /** Props for {@link BrowseRailsSection}. */
 interface BrowseRailsSectionProps extends DiscoveryCardActions {
     readonly cuisines: readonly RecipeBrowseCuisineShortcut[];
@@ -164,7 +163,7 @@ const BrowseRailsSection: FC<BrowseRailsSectionProps> = ({ cuisines, onSeeAll, o
     const refreshNotice = useRefreshNotice(useBrowseRailsRefresh());
     // How many times each rail's own Try again was pressed: the rail's heading takes focus when its count moves, because
     // the pressed button unmounts as the rail reloads.
-    const [railRetries, setRailRetries] = useState<Readonly<Record<RecipeBrowseRailId, number>>>(NO_RAIL_RETRIES);
+    const { retries: railRetries, retry: retryRail } = useRailRetries();
     const rails: readonly RecipeBrowseRailView[] = RECIPE_BROWSE_RAILS.filter(
         (rail) => only === undefined || rail.id === only,
     ).map((rail) => {
@@ -181,7 +180,7 @@ const BrowseRailsSection: FC<BrowseRailsSectionProps> = ({ cuisines, onSeeAll, o
                     renderError={({ resetErrorBoundary }) => (
                         <RecipeBrowseRailLoadError
                             onRetry={() => {
-                                setRailRetries((current) => ({ ...current, [rail.id]: current[rail.id] + 1 }));
+                                retryRail(rail.id);
                                 resetErrorBoundary();
                             }}
                         />
@@ -304,25 +303,6 @@ const SettledDiscoveryResults: FC<SettledDiscoveryResultsProps> = ({ read, onRec
         />
     );
 };
-
-/**
- * The previous results kept under a failed search: the last criteria whose read settled, read PASSIVELY (`enabled: false`)
- * from the cache — it never fetches, so a failed search cannot trigger a second request.
- *
- * @param client - The recipe-service client.
- * @param criteria - The last criteria that settled, if any.
- * @returns The pages that were on screen, or `undefined` on a first load.
- */
-function usePreviousPages(client: RecipeServiceClient, criteria: RecipeDiscoveryCriteria | undefined) {
-    const read = recipeQueries(client).searchInfinite(
-        discoverySearchParams(
-            criteria ?? { filters: {}, query: '', sortBy: RecipeSearchSortBy.RELEVANCE, browseDismissed: false },
-        ),
-    );
-    const previous = useInfiniteQuery({ ...read, enabled: false });
-
-    return criteria === undefined ? undefined : previous.data?.pages;
-}
 
 /**
  * The live public-discovery container.

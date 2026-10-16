@@ -51,6 +51,16 @@ interface RecipeHomeWidgetProps {
     readonly renderNutrition?: RenderRecipeNutrition;
 }
 
+/** The slot's props. */
+export interface RecipeWidgetSlotProps {
+    /**
+     * Invoked when the READ or the WIDGET BODY fails. Both inner boundaries catch the throw before the host's per-widget
+     * boundary sees it, so the report has to be threaded in or the failure goes unobserved (B23/DA9). Optional only so
+     * the happy-path tests need not supply it; the host always does. Takes `unknown`: a throw need not be an `Error`.
+     */
+    readonly onWidgetError?: (error: unknown) => void;
+}
+
 /** The code-split widget, client-only (it reads the browser's session). */
 const RecipeHomeWidget = dynamic<RecipeHomeWidgetProps>(
     () =>
@@ -68,7 +78,10 @@ const RecipeHomeWidget = dynamic<RecipeHomeWidgetProps>(
  * @param props - The widget's props.
  * @returns The widget with its calorie slot.
  */
-const RecipeWidgetNutritionContainer: FC<RecipeHomeWidgetProps> = (props) => {
+const RecipeWidgetNutritionContainer: FC<RecipeHomeWidgetProps & RecipeWidgetSlotProps> = ({
+    onWidgetError,
+    ...props
+}) => {
     const recipes = use(props.recipesPromise);
     const renderNutrition = useRecentRecipesNutrition(recipes);
 
@@ -78,6 +91,7 @@ const RecipeWidgetNutritionContainer: FC<RecipeHomeWidgetProps> = (props) => {
         // READ (the promise above) is caught by the slot's boundary instead, where a retry starts a fresh read.
         <ErrorBoundary
             fallback={<RecipeWidgetLoadError {...(props.seeAll === undefined ? {} : { seeAll: props.seeAll })} />}
+            onError={(error) => onWidgetError?.(error)}
         >
             <RecipeHomeWidget {...props} renderNutrition={renderNutrition} />
         </ErrorBoundary>
@@ -87,9 +101,10 @@ const RecipeWidgetNutritionContainer: FC<RecipeHomeWidgetProps> = (props) => {
 /**
  * The recipe Home widget's slot.
  *
+ * @param props - The failure reporter.
  * @returns The block, with its loading and failure states.
  */
-export function RecipeWidgetSlot(): JSX.Element {
+export function RecipeWidgetSlot({ onWidgetError }: RecipeWidgetSlotProps = {}): JSX.Element {
     const client = useRecipeServiceClient();
     const locale = useLocale();
     const router = useRouter();
@@ -127,10 +142,12 @@ export function RecipeWidgetSlot(): JSX.Element {
         // "See all", rather than escaping to the host's boundary and taking the route off Home with it.
         <ErrorBoundary
             resetKeys={[attempt]}
+            onError={(error) => onWidgetError?.(error)}
             fallbackRender={() => <RecipeWidgetLoadError onRetry={() => setAttempt((n) => n + 1)} seeAll={seeAll} />}
         >
             <Suspense fallback={<RecipeWidgetLoadingCard variant={variant} seeAll={seeAll} />}>
                 <RecipeWidgetNutritionContainer
+                    {...(onWidgetError === undefined ? {} : { onWidgetError })}
                     recipesPromise={recipesPromise}
                     variant={variant}
                     onSelectRecipe={(id) => go(`/${locale}/recipes/${id}`)}

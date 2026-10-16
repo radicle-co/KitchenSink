@@ -38,7 +38,7 @@ import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import type { Container } from 'ditox';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { Suspense, useId, type ComponentType, type JSX, type ReactNode } from 'react';
+import { Suspense, useId, useMemo, type ComponentType, type JSX, type ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
 import { AppShell } from '@/components/app/AppShell';
@@ -81,21 +81,13 @@ function comingSoonSpanOf(id: string): string {
     return Object.entries(COMING_SOON_SPAN).find(([key]) => key === id)?.[1] ?? '@wide/main:col-span-3';
 }
 
-/** The v1 render map: the recipe widget is the only one with a slot. */
-const DEFAULT_RENDERERS: Readonly<Record<HomeWidgetId, ComponentType>> = {
-    [RECIPE_HOME_WIDGET_ID]: RecipeWidgetSlot,
-};
-
 /**
  * The Home widget surface.
  *
  * @param props - Optional injectable `container` / `renderers` seams (tests only).
  * @returns The greeting header, the capability/tier-gated widget grid, and the once-per-session nudge.
  */
-export function HomeWidgetSurface({
-    container = homeContainer,
-    renderers = DEFAULT_RENDERERS,
-}: HomeWidgetSurfaceProps = {}): JSX.Element {
+export function HomeWidgetSurface({ container = homeContainer, renderers }: HomeWidgetSurfaceProps = {}): JSX.Element {
     const home = useMessages(homeMessages);
     const profile = useUserProfile();
     const locale = useLocale();
@@ -114,7 +106,26 @@ export function HomeWidgetSurface({
     // The recent-recipes page the widget reads, from the cache: settled empty is Home's first run (§3.4).
     const firstRun = useLibraryEmpty(recipeServiceKeys.recipeList({ pageSize: RECENT_RECIPE_LIMIT }));
 
-    const curated = useHomeWidgets({ container, renderers, liveCapabilities: LIVE_CAPABILITIES, paidFeatures });
+    // The v1 render map: the recipe widget is the only one with a slot. `onWidgetError` routes the slot's OWN inner
+    // boundaries through this same reporting seam: they catch a throw before the per-widget boundary below ever sees
+    // it, so without it a recipe-widget failure goes unobserved (B23/DA9) — mobile threads it the same way.
+    const defaultRenderers = useMemo<Readonly<Record<HomeWidgetId, ComponentType>>>(
+        () => ({
+            [RECIPE_HOME_WIDGET_ID]: () => (
+                <RecipeWidgetSlot
+                    onWidgetError={(error) => reportWidgetError(error, { widget: RECIPE_HOME_WIDGET_ID })}
+                />
+            ),
+        }),
+        [reportWidgetError],
+    );
+
+    const curated = useHomeWidgets({
+        container,
+        renderers: renderers ?? defaultRenderers,
+        liveCapabilities: LIVE_CAPABILITIES,
+        paidFeatures,
+    });
     const comingSoonHeadingId = useId();
 
     /**

@@ -64,7 +64,7 @@ const HostBoundary = ({ children }: { readonly children: ReactNode }): JSX.Eleme
  * `renderWithRecipeClient` supplies the production provider pair (`QueryClientProvider` +
  * `RecipeServiceProvider`, as `RecipeProviders` mounts them), since the slot now reads the query cache.
  */
-const renderSlot = async (): Promise<void> => {
+const renderSlot = async (onWidgetError?: (error: unknown) => void, readError?: Error): Promise<void> => {
     const client = createFakeRecipeServiceClient();
 
     // Stub the read even though the widget body is mocked to throw. The fake client's un-stubbed methods
@@ -72,18 +72,18 @@ const renderSlot = async (): Promise<void> => {
     // leaving it un-stubbed leaks an UNHANDLED REJECTION. Vitest then fails the whole file on unhandled
     // errors even while both assertions pass, and whether the rejection lands before the run ends depends
     // on machine load — which is exactly how it turned `turbo run test` nondeterministic.
-    vi.spyOn(client, 'listRecipes').mockResolvedValue({
-        data: [],
-        total: 0,
-        page: 1,
-        pageSize: 0,
-        hasMore: false,
-    });
+    const listRecipes = vi.spyOn(client, 'listRecipes');
+
+    if (readError === undefined) {
+        listRecipes.mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 0, hasMore: false });
+    } else {
+        listRecipes.mockRejectedValue(readError);
+    }
 
     await act(async () => {
         renderWithRecipeClient(
             <HostBoundary>
-                <RecipeWidgetSlot />
+                <RecipeWidgetSlot {...(onWidgetError === undefined ? {} : { onWidgetError })} />
             </HostBoundary>,
             client,
         );
@@ -144,5 +144,26 @@ describe('RecipeWidgetSlot (web) — the widget body fails to render', () => {
 
         expect(controls).toHaveLength(1);
         expect(controls[0]?.getAttribute('aria-label')).toBe('See all recipes');
+    });
+
+    // B23/DA9 — both of the slot's inner boundaries catch a throw before the host's per-widget boundary ever sees it,
+    // so the report must be threaded in or the failure is unobserved. Mobile has threaded `onWidgetError` into both
+    // since the boundaries were added; web did not, so a recipe-widget failure never reached the injected reporter.
+    it('reports a widget-body failure through onWidgetError (the chunk boundary)', async () => {
+        const onWidgetError = vi.fn();
+
+        await renderSlot(onWidgetError);
+
+        expect(onWidgetError).toHaveBeenCalledTimes(1);
+        expect(onWidgetError).toHaveBeenCalledWith(expect.objectContaining({ message: 'widget body failed' }));
+    });
+
+    it('reports a failed recent-recipes READ through onWidgetError (the read boundary)', async () => {
+        const onWidgetError = vi.fn();
+        const readError = new Error('recent recipes read failed');
+
+        await renderSlot(onWidgetError, readError);
+
+        expect(onWidgetError).toHaveBeenCalledWith(readError);
     });
 });

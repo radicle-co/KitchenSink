@@ -12,7 +12,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createOutboxMutator, outboxMutatorFor } from '../outboxMutator.js';
-import { EMPTY_OUTBOX, appendIntent, markSending, settle } from '../outboxLog.js';
+import { EMPTY_OUTBOX, appendIntent, markSending, settle, supersede } from '../outboxLog.js';
 import { createMemoryOutboxStore, loadOutbox, quarantineKeyFor, saveOutbox, storeKeyFor } from '../outboxStore.js';
 import type { Intent } from '../record.js';
 
@@ -171,6 +171,41 @@ describe('createOutboxMutator — the first read', () => {
 
         expect((await mutator.read()).records[0]?.state).toBe('pending');
         expect(isCopy).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * ⛔ A RECOVERY THAT ONLY REMOVES RECORDS IS STILL SAVED. A create left `sending` with a Discard's delete waiting on
+     * its ref is parked and then settled as moot, so both records leave. The save used to be decided by comparing the
+     * records position by position, which saw no difference when the removed records were the tail; the next read then
+     * returned the stored, unrecovered log, with the create still `sending`.
+     */
+    it.each([
+        ['alone', []],
+        ['behind an unchanged record', [update('r0')]],
+    ] as const)('⛔ saves a first-read recovery that only removes records (%s)', async (_label, ahead) => {
+        const REF = 'local:recipe:r1';
+        const store = createMemoryOutboxStore();
+        const leading = ahead.reduce(appendIntent, EMPTY_OUTBOX);
+        const created = appendIntent(
+            leading,
+            intent({ entity: 'recipe', intentKind: 'create', localId: REF, produces: REF }),
+        );
+        const sending = markSending(created, created.records.length);
+        await saveOutbox(
+            store,
+            'user_a',
+            supersede(sending, intent({ entity: 'recipe', intentKind: 'delete', localId: REF })),
+        );
+        const mutator = createOutboxMutator(store, 'user_a');
+
+        await mutator.read();
+
+        expect((await loadOutbox(store, 'user_a')).records.map((record) => record.localId)).toStrictEqual(
+            ahead.map((queued) => queued.localId),
+        );
+        expect((await mutator.read()).records.map((record) => record.localId)).toStrictEqual(
+            ahead.map((queued) => queued.localId),
+        );
     });
 
     it('does not park a record its OWN drain marked sending', async () => {

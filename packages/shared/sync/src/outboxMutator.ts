@@ -82,7 +82,10 @@ export function createOutboxMutator(store: OutboxStore, subject: string): Outbox
 
         const recovered = recoverInterrupted(log, { copied: (await store.isCopy?.()) ?? false });
 
-        if (recovered.records.some((record, at) => record !== log.records[at])) {
+        if (
+            recovered.records.length !== log.records.length ||
+            recovered.records.some((record, at) => record !== log.records[at])
+        ) {
             await saveOutbox(store, subject, recovered);
         }
 

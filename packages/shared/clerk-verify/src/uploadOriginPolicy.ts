@@ -2,7 +2,7 @@
  * The origins a browser may PUT a presigned object from, for the media buckets' CORS rule.
  *
  * The pages that upload are exactly the pages the Clerk `azp` boundary admits, so the list is DERIVED from
- * {@link resolveAzpEnforcement} — the resolver the token check and {@link resolveCorsPolicy} already use (ADR-0047).
+ * `resolveAzpEnforcement` — the resolver the token check and `resolveCorsPolicy` already use (ADR-0047).
  * The three boundaries therefore cannot disagree about which origins are ours, including the `transition` widening.
  *
  * It is a SEPARATE function from `resolveCorsPolicy` on purpose: that one answers for a bearer-only HTTP service

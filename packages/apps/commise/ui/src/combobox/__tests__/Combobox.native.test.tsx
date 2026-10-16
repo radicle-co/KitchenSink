@@ -20,6 +20,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 
 import { FieldRevealContext, type FieldRevealer } from '../../fieldReveal/fieldRevealContext.js';
 import { ScrollerDragContext } from '../../fieldReveal/scrollerDrag.js';
+import { FieldTargetContext } from '../../scrollHost/fieldTarget.js';
 import { Combobox } from '../Combobox.native.js';
 import type { ComboboxGroup, ComboboxProps, ComboboxStatus } from '../props.js';
 import { watchRegion } from './regionSpeech.js';
@@ -776,7 +777,70 @@ describe('Combobox (native) — the field reveal (E1)', () => {
 
         rerender({ focusRequested: true, listRequested: true, status: { kind: 'loading', label: 'Searching…' } });
 
-        expect(revealer).toHaveBeenCalledExactlyOnceWith({ field: field(), below: BELOW, kind: 'list' });
+        // The request also focuses the field, which holds it in view (a `focus` request); the LIST asks once.
+        expect(revealer.mock.calls.filter(([asked]) => asked.kind === 'list')).toEqual([
+            [{ field: field(), below: BELOW, kind: 'list' }],
+        ]);
+    });
+
+    it('sends a focus request carrying its field when it gains focus, and releases it on blur', () => {
+        const { revealer, release } = hosted();
+
+        act(() => {
+            fireEvent.focus(field());
+        });
+
+        const [request] = revealer.mock.calls.flatMap(([asked]) => (asked.kind === 'focus' ? [asked] : []));
+        expect(request?.field).toBe(field());
+        expect(release).not.toHaveBeenCalled();
+
+        act(() => {
+            fireEvent.blur(field());
+        });
+
+        expect(release).toHaveBeenCalledTimes(1);
+    });
+
+    describe('when the screen names it (§16.3)', () => {
+        /** Render under a spy host, with the counts a case can change. */
+        function named(initial: Readonly<Record<string, number>>) {
+            const release = vi.fn();
+            const revealer = vi.fn<FieldRevealer>(() => release);
+            const tree = (counts: Readonly<Record<string, number>>) => (
+                <FieldRevealContext.Provider value={revealer}>
+                    <FieldTargetContext.Provider value={counts}>
+                        <Host />
+                    </FieldTargetContext.Provider>
+                </FieldRevealContext.Provider>
+            );
+            const rendered = render(tree(initial));
+            const targets = () => revealer.mock.calls.flatMap(([asked]) => (asked.kind === 'target' ? [asked] : []));
+
+            return { targets, name: (counts: Readonly<Record<string, number>>) => rendered.rerender(tree(counts)) };
+        }
+
+        it('does nothing for a count that stood when it mounted', () => {
+            const { targets } = named({ 'add-ingredient': 2 });
+
+            expect(targets()).toHaveLength(0);
+        });
+
+        it('is shown when its count goes up, then moves the screen-reader cursor to itself without opening its list', () => {
+            const { name, targets } = named({ 'add-ingredient': 0 });
+            name({ 'add-ingredient': 1 });
+
+            const [target] = targets();
+            expect(target?.field).toBe(field());
+            expect(AccessibilityInfo.sendAccessibilityEvent).not.toHaveBeenCalled();
+
+            act(() => {
+                target?.onShown();
+            });
+
+            expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledExactlyOnceWith(field(), 'focus');
+            expect(field().getAttribute('aria-expanded')).toBe('false');
+            expect(document.activeElement).not.toBe(field());
+        });
     });
 
     it('asks nothing, and still opens its list, where no host provides a revealer', () => {

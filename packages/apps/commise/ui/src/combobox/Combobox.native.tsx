@@ -42,8 +42,9 @@
  *   field's top (the row's, plus where the field's row sits in the combobox, as laid out), and releases the ask when
  *   the key goes.
  *
- * One ref, for what has no declarative form: the field, for `.focus()` and the caret on a host's focus request, and as
- * the node a reveal request hands the host to measure.
+ * One ref, for what has no declarative form: the field, for `.focus()` and the caret on a host's focus request, as
+ * the node a reveal request hands the host to measure, and as the node the screen-reader cursor moves to when the
+ * screen names the field (`docs/design/uiOverhaul/specSharedSystem.md` §16.3).
  *
  * @pattern Adapter over TextInput
  * @pattern Adapter over the React Native focus API — a level-triggered focus request, acknowledged once taken
@@ -61,6 +62,8 @@ import {
 } from 'react-native';
 
 import { FieldRevealContext } from '../fieldReveal/fieldRevealContext.js';
+import { useFieldTargetReveal } from '../fieldReveal/useFieldTargetReveal.native.js';
+import { useFocusReveal } from '../fieldReveal/useFocusReveal.native.js';
 import { ScrollerDragContext } from '../fieldReveal/scrollerDrag.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
@@ -160,6 +163,10 @@ export const Combobox: FC<ComboboxProps> = ({
     // gone — invisible to a cook and to the tests both.
     const closedByBlur = useRef(false);
     const field = useRef<NativeTextInput>(null);
+    // While it has focus the reveal host holds it in view; when the screen names it the host centres it and the
+    // screen-reader cursor moves to it, and the list stays shut (moving that cursor raises no `onFocus`).
+    useFocusReveal(field, focused);
+    useFieldTargetReveal(id, field);
     // Reads the text and the host's callback as they are when the request is taken; neither re-runs a request.
     useFocusRequest(
         focusRequested,

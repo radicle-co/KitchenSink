@@ -158,15 +158,15 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
     },
     'designSystem/combobox/Combobox': {
         verdict: 'sanctioned',
-        why: "One node handle, the field, for `.focus()` and the caret (`setSelectionRange` on web, `setSelection` on native) when a host requests focus. Neither has a declarative form, and the web leaf holds the input node in state through a callback ref (as floating-ui holds its reference node) rather than holding a ref object. On native the same node also leaves the leaf through `FieldRevealContext` (`@commise/ui/field-reveal`), typed as `Pick<HostInstance, 'measureLayout'>`, so the host can measure it for the reveal.",
+        why: "One node handle, the field, for `.focus()` and the caret (`setSelectionRange` on web, `setSelection` on native) when a host requests focus. Neither has a declarative form, and the web leaf holds the input node in state through a callback ref (as floating-ui holds its reference node) rather than holding a ref object. On native the same node also leaves the leaf through `FieldRevealContext` (`@commise/ui/field-reveal`), typed as `Pick<HostInstance, 'measureLayout'>`, so the host can measure it for the reveal. The same node is the screen-reader cursor's target when the screen names the field (`moveScreenReaderFocus`).",
     },
     'designSystem/input/Input': {
         verdict: 'sanctioned',
-        why: "One node handle, the field, for a host focus request (a field the host has just shown, such as an ingredient group's name): `.focus()` on web and `TextInput.focus()` on native, neither of which has a declarative form. The same level-triggered request, acknowledged once taken, that Button and Combobox take.",
+        why: "One node handle, the field, for a host focus request (a field the host has just shown, such as an ingredient group's name): `.focus()` on web and `TextInput.focus()` on native, neither of which has a declarative form. The same level-triggered request, acknowledged once taken, that Button and Combobox take. On native the same node is also the one the field reveal host measures to hold the field in view, and the one the screen-reader cursor moves to when the screen names the field.",
     },
     'designSystem/input/TextArea': {
         verdict: 'sanctioned',
-        why: 'One node handle, the field, for a host focus request (the step the editor has just added): `.focus()` on web and `TextInput.focus()` on native, neither of which has a declarative form. The same level-triggered request, acknowledged once taken, that Input, Button and Combobox take.',
+        why: 'One node handle, the field, for a host focus request (the step the editor has just added): `.focus()` on web and `TextInput.focus()` on native, neither of which has a declarative form. The same level-triggered request, acknowledged once taken, that Input, Button and Combobox take. On native the same node is also the one the field reveal host measures to hold the field in view, and the one the screen-reader cursor moves to when the screen names the field.',
     },
     'featuresRecipes/form/IngredientRow': {
         verdict: 'sanctioned',

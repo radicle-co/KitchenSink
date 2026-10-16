@@ -12,13 +12,20 @@
  * following field; every other key blurs, as a single-line field does by default. It renders through `@commise/ui/text-input`, which
  * keeps Android's full-screen editor away from every field.
  *
+ * While it has focus it asks the field reveal host to hold it in view (`useFocusReveal`), and when the screen names it
+ * (`ScrollHost.scrollToField`) the host centres it and the screen-reader cursor moves to it, with the keyboard left down
+ * (`useFieldTargetReveal`, `docs/design/uiOverhaul/specSharedSystem.md` §16.3).
+ *
  * @pattern Template — one field geometry (`fieldStyle.ts`), rendered by both native text-field leaves
  * @pattern Adapter over `TextInput.focus()` — a level-triggered focus request, acknowledged once taken. It is the one
- *     reason this leaf holds a ref: focusing a field has no declarative form.
+ *     reason this leaf holds a ref: focusing a field has no declarative form. The same node is what the reveal host
+ *     measures and what the screen-reader cursor moves to.
  */
-import { useRef, type FC } from 'react';
+import { useRef, useState, type FC } from 'react';
 import { StyleSheet, type TextInput as NativeTextInput } from 'react-native';
 
+import { useFieldTargetReveal } from '../fieldReveal/useFieldTargetReveal.native.js';
+import { useFocusReveal } from '../fieldReveal/useFocusReveal.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { TextInput } from '../textInput/TextInput.native.js';
 import { fieldDisabled, fieldGeometry, fieldPaint } from './fieldStyle.js';
@@ -50,11 +57,17 @@ export const Input: FC<InputProps> = ({
     const theme = useTheme();
     const node = useRef<NativeTextInput>(null);
     useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
+    // Whether the field has focus: the reveal host holds it in view while it does (§16.3).
+    const [focused, setFocused] = useState(false);
+    useFocusReveal(node, focused);
+    useFieldTargetReveal(id, node);
 
     return (
         <TextInput
             ref={node}
             nativeID={id}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             value={value}
             onChangeText={onChangeText}
             aria-labelledby={fieldLabelId(id)}

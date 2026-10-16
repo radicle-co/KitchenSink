@@ -10,13 +10,20 @@
  * `scrollHeight`, which includes padding. The clamp keeps both inside the bounds, but the web shim can read a field one
  * padding taller than a device would — a device check, recorded in the slice report.
  *
+ * While it has focus it asks the field reveal host to hold it in view (`useFocusReveal`), and when the screen names it
+ * (`ScrollHost.scrollToField`) the host centres it and the screen-reader cursor moves to it, with the keyboard left down
+ * (`useFieldTargetReveal`, `docs/design/uiOverhaul/specSharedSystem.md` §16.3).
+ *
  * @pattern Template — one field geometry (`fieldStyle.ts`), rendered by both native text-field leaves
  * @pattern Adapter over `TextInput.focus()` — a level-triggered focus request, acknowledged once taken. It is the one
- *     reason this leaf holds a ref: focusing a field has no declarative form.
+ *     reason this leaf holds a ref: focusing a field has no declarative form. The same node is what the reveal host
+ *     measures and what the screen-reader cursor moves to.
  */
 import { useRef, useState, type FC } from 'react';
 import { StyleSheet, type TextInput as NativeTextInput } from 'react-native';
 
+import { useFieldTargetReveal } from '../fieldReveal/useFieldTargetReveal.native.js';
+import { useFocusReveal } from '../fieldReveal/useFocusReveal.native.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
@@ -63,11 +70,17 @@ export const TextArea: FC<TextAreaProps> = ({
     const theme = useTheme();
     const node = useRef<NativeTextInput>(null);
     useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
+    // Whether the field has focus: the reveal host holds it in view while it does (§16.3).
+    const [focused, setFocused] = useState(false);
+    useFocusReveal(node, focused);
+    useFieldTargetReveal(id, node);
 
     return (
         <TextInput
             ref={node}
             nativeID={id}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             multiline
             value={value}
             onChangeText={onChangeText}

@@ -800,11 +800,26 @@ function adoptWritten(ctx: EditorContext, detail: RecipeDetail, pending: Outstan
 
 /** A phantom 409: the server already holds the draft's content. Withdraw and resend at its version. @sideEffect */
 function resendPhantom(ctx: EditorContext, seq: number, version: number, trigger: CheckpointTrigger): void {
-    void ctx.opts.port.withdraw(seq).then(() => {
-        ctx.lane.dispatch({ type: 'withdrawn', seq });
-        ctx.core.dispatch({ type: 'versionAdopted', version });
-        runCheckpoint(ctx, trigger, { withdrawn: seq });
-    });
+    void ctx.opts.port.withdraw(seq).then(
+        () => {
+            ctx.lane.dispatch({ type: 'withdrawn', seq });
+            ctx.core.dispatch({ type: 'versionAdopted', version });
+            runCheckpoint(ctx, trigger, { withdrawn: seq });
+        },
+        (error: unknown) => {
+            withdrawRefused(ctx, error, 'recipeRetry');
+        },
+    );
+}
+
+/**
+ * The outbox refused a withdrawal by number: a drain claimed the record first, or storage refused the write. The lane
+ * stays as it is — the record's own settlement moves it — and the refusal is reported rather than left unhandled.
+ *
+ * @sideEffect Reports the error.
+ */
+function withdrawRefused(ctx: EditorContext, error: unknown, operation: 'recipeRetry' | 'recipeDiscard'): void {
+    ctx.opts.reportError(error, { operation });
 }
 
 /** A parked answer for the outstanding write. @sideEffect */
@@ -1087,10 +1102,15 @@ function retry(ctx: EditorContext): void {
 
     const trigger = parked.finishing ? finishingTrigger(lifecycleNow(ctx)) : 'sectionChange';
 
-    void ctx.opts.port.withdraw(parked.seq).then(() => {
-        ctx.lane.dispatch({ type: 'withdrawn', seq: parked.seq });
-        runCheckpoint(ctx, trigger, { withdrawn: parked.seq });
-    });
+    void ctx.opts.port.withdraw(parked.seq).then(
+        () => {
+            ctx.lane.dispatch({ type: 'withdrawn', seq: parked.seq });
+            runCheckpoint(ctx, trigger, { withdrawn: parked.seq });
+        },
+        (error: unknown) => {
+            withdrawRefused(ctx, error, 'recipeRetry');
+        },
+    );
 }
 
 /** What a Discard does as of now (`discardPlanOf`). */
@@ -1485,9 +1505,14 @@ function discardAndClose(ctx: EditorContext): void {
     ctx.core.dispatch({ type: 'conflictClosed' });
 
     if (parkedSeq !== undefined) {
-        void ctx.opts.port.withdraw(parkedSeq).then(() => {
-            ctx.lane.dispatch({ type: 'withdrawn', seq: parkedSeq });
-        });
+        void ctx.opts.port.withdraw(parkedSeq).then(
+            () => {
+                ctx.lane.dispatch({ type: 'withdrawn', seq: parkedSeq });
+            },
+            (error: unknown) => {
+                withdrawRefused(ctx, error, 'recipeDiscard');
+            },
+        );
     }
 
     handOffToRecipe(ctx);

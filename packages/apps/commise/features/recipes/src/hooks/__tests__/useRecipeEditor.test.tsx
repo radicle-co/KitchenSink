@@ -878,6 +878,35 @@ describe('409 → conflict (the handled-409 invariant)', () => {
         expect(view.port.withdrawn).toEqual([seq]);
         expect(view.port.submitted.at(-1)).toMatchObject({ payload: { input: { expectedVersion: 6 } } });
     });
+
+    it('a phantom 409 whose withdrawal is refused is reported, and nothing is resent', async () => {
+        const draft = { ...toRecipeFormValues(NEVER_PUBLISHED), description: 'Mine.' };
+        const view = mount({ recipe: NEVER_PUBLISHED });
+
+        act(() => {
+            view.result.current.setValues(draft);
+        });
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        const seq = view.port.lastSeq();
+        const before = view.port.submitted.length;
+        const refusal = new Error('storage');
+        view.port.withdraw.mockRejectedValueOnce(refusal);
+
+        act(() => {
+            view.port.park(seq, 409, {
+                kind: 'recipeConflict',
+                server: sideAt(6, draftToSnapshot(view.result.current.values, 6)),
+            });
+        });
+        await settle();
+        await settle();
+
+        expect(view.reportError).toHaveBeenCalledWith(refusal, { operation: 'recipeRetry' });
+        expect(view.port.submitted).toHaveLength(before);
+    });
 });
 
 describe('a parked write the cook has to decide on', () => {
@@ -908,6 +937,34 @@ describe('a parked write the cook has to decide on', () => {
         expect(port.withdrawn).toEqual([seq]);
         expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create', 'create']);
         expect(result.current.parked).toBeUndefined();
+    });
+
+    it('a Retry whose withdrawal is refused (a drain claimed the record, or storage) is reported, and Retry stays', async () => {
+        const { result, port, reportError } = mount();
+
+        typeTitle(result);
+        act(() => {
+            result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        const seq = port.lastSeq();
+
+        act(() => {
+            port.park(seq);
+        });
+        await settle();
+        const refusal = new Error(`outbox: refusing to withdraw record ${String(seq)}, which is sending`);
+        port.withdraw.mockRejectedValueOnce(refusal);
+
+        act(() => {
+            result.current.retry();
+        });
+        await settle();
+        await settle();
+
+        expect(reportError).toHaveBeenCalledWith(refusal, { operation: 'recipeRetry' });
+        expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create']);
+        expect(result.current.parked).toEqual({ failure: 'unknown', kind: 'create' });
     });
 });
 
@@ -1968,6 +2025,20 @@ describe('characterization: the conflict view`s other exits', () => {
         expect(drafts.discard).toHaveBeenCalledWith('rec_1');
         expect(onExit).toHaveBeenCalledWith({ kind: 'leftForRecipe', recipeId: 'rec_1' });
         expect(result.current.state.status).toBe('done');
+    });
+
+    it('Discard and close still returns to the recipe when the withdrawal is refused, and reports it', async () => {
+        const { result, port, onExit, reportError } = await conflictedOver('Theirs.');
+        const refusal = new Error('storage');
+        port.withdraw.mockRejectedValueOnce(refusal);
+
+        act(() => {
+            result.current.discardAndClose();
+        });
+        await settle();
+
+        expect(reportError).toHaveBeenCalledWith(refusal, { operation: 'recipeDiscard' });
+        expect(onExit).toHaveBeenCalledWith({ kind: 'leftForRecipe', recipeId: 'rec_1' });
     });
 
     it('setMergeSelections records the choice, and merge resends the composed draft at the server version', async () => {

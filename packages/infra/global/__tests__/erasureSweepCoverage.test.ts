@@ -472,7 +472,14 @@ function writtenColumnsIn(source: SourceFile, functionName: string): readonly st
     const written = new Set<string>();
 
     for (const text of statementTextsIn(source, functionName)) {
-        const update = /\bUPDATE\s+"?([a-z_][a-z0-9_]*)"?\s+SET\s+([\s\S]*?)(?:\sWHERE\s[\s\S]*)?$/i.exec(text);
+        // Two forms write columns: `UPDATE <t> SET …`, and an upsert — `INSERT INTO <t> … ON CONFLICT … DO UPDATE
+        // SET …`, whose assignments are writes to the INSERTed table (the author_handles tombstone, 0056). A plain
+        // INSERT assigns no columns by this reading, exactly as it did before.
+        const update =
+            /\bUPDATE\s+"?([a-z_][a-z0-9_]*)"?\s+SET\s+([\s\S]*?)(?:\sWHERE\s[\s\S]*)?$/i.exec(text) ??
+            /\bINSERT\s+INTO\s+"?([a-z_][a-z0-9_]*)"?[\s\S]*?\bON\s+CONFLICT\b[\s\S]*?\bDO\s+UPDATE\s+SET\s+([\s\S]*?)(?:\sWHERE\s[\s\S]*)?$/i.exec(
+                text,
+            );
         const [, table, assignments] = update ?? [];
 
         if (table === undefined || assignments === undefined) {
@@ -962,6 +969,58 @@ describe('account-erasure sweep coverage', () => {
         // …and the sweep's own pseudonym write IS recognised as covering the column it assigns to, so the
         // verdict tracks the statement rather than something incidental about the fake.
         expect(written.has('recipes.author_handle')).toBe(true);
+    });
+
+    describe('an UPSERT is a write to the INSERTed table (the author_handles tombstone, migration 0056)', () => {
+        const upsertSweep = {
+            file: 'fake/sweep.ts',
+            contents: `
+                export const eraseRows = async (tx) => {
+                    await tx.execute(sql\`
+                        INSERT INTO author_handles (user_id, display_name, username, source_timestamp, erased_at)
+                        VALUES (\${ownerId}, \${pseudonym}, NULL, now(), now())
+                        ON CONFLICT (user_id) DO UPDATE
+                           SET display_name = EXCLUDED.display_name, username = NULL,
+                               source_timestamp = EXCLUDED.source_timestamp,
+                               erased_at = COALESCE(author_handles.erased_at, EXCLUDED.erased_at)
+                    \`);
+                    await tx.execute(sql\`UPDATE recipes SET author_handle = \${pseudonym} WHERE owner_id = \${ownerId}\`);
+                    await tx.execute(sql\`DELETE FROM collections WHERE owner_id = \${ownerId}\`);
+                };
+            `,
+        };
+
+        it('reads the columns an ON CONFLICT … DO UPDATE SET assigns, as writes to the INSERTed table', () => {
+            // ⚠️ The columns AS WRITTEN: `EXCLUDED.erased_at` inside COALESCE is a value, not an assignment target.
+            expect(writtenColumnsIn(upsertSweep, 'eraseRows')).toEqual([
+                'author_handles.display_name',
+                'author_handles.erased_at',
+                'author_handles.source_timestamp',
+                'author_handles.username',
+                'recipes.author_handle',
+            ]);
+        });
+
+        it('⛔ never reads `DO UPDATE SET` as an UPDATE of a table named `set`', () => {
+            // The mutating-form regex matched `UPDATE SET` and reported a table called `set` as swept.
+            expect(sweptTablesIn(upsertSweep, 'eraseRows')).toEqual(['author_handles', 'recipes', 'collections']);
+        });
+
+        it('leaves a plain INSERT (no ON CONFLICT) writing no columns, and plain UPDATE / DELETE unchanged', () => {
+            const plain = {
+                file: 'fake/sweep.ts',
+                contents: `
+                    export const eraseRows = async (tx) => {
+                        await tx.execute(sql\`INSERT INTO audit_log (user_id, note) VALUES (\${ownerId}, 'x')\`);
+                        await tx.execute(sql\`UPDATE notes SET body = 'x' WHERE owner_id = \${ownerId}\`);
+                        await tx.execute(sql\`DELETE FROM widgets WHERE owner_id = \${ownerId}\`);
+                    };
+                `,
+            };
+
+            expect(writtenColumnsIn(plain, 'eraseRows')).toEqual(['notes.body']);
+            expect(sweptTablesIn(plain, 'eraseRows')).toEqual(['audit_log', 'notes', 'widgets']);
+        });
     });
 
     it('⛔ counts a column WRITTEN by the sweep, never one it merely filters on', () => {

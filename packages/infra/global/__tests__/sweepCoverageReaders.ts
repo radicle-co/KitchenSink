@@ -614,7 +614,11 @@ export function sweptTablesIn(source: SourceFile, functionName: string): readonl
         // ⛔ MUTATING forms only. A bare `FROM` would count a table the sweep merely READS — the removed-
         // set `SELECT … FROM recipes` is one — as covered, which is a false NEGATIVE in the one direction
         // that matters: a table this sweep looks at but never erases would be reported as reached.
-        for (const match of text.matchAll(/\b(?:UPDATE|DELETE\s+FROM|INSERT\s+INTO)\s+"?([a-z_][a-z0-9_]*)"?/gi)) {
+        // ⚠️ `(?<!\bDO\s+)` — the `UPDATE` of an upsert's `ON CONFLICT … DO UPDATE SET` names no table, and without
+        // the lookbehind the word after it (`SET`) was read as one. The upsert's own table is the `INSERT INTO`'s.
+        for (const match of text.matchAll(
+            /(?:(?<!\bDO\s+)\bUPDATE|\bDELETE\s+FROM|\bINSERT\s+INTO)\s+"?([a-z_][a-z0-9_]*)"?/gi,
+        )) {
             if (match[1] !== undefined) {
                 swept.add(match[1]);
             }

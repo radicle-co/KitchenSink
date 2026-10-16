@@ -197,6 +197,26 @@ describe('the native editor', () => {
         expect(onOpenMyRecipes).toHaveBeenCalledTimes(1);
     });
 
+    it('a refused write says the changes are kept, with ONE action, Try again', () => {
+        const retry = vi.fn();
+        render(view(makeEditorResult({ parked: { failure: 'terminal', kind: 'update' }, retry })));
+
+        const alert = screen.getByRole('alert');
+        expect(within(alert).getByText(/We couldn't save your latest changes\./)).toBeTruthy();
+
+        const buttons = within(alert).getAllByRole('button');
+        expect(buttons.map((button) => button.textContent)).toEqual(['Try again']);
+
+        fireEvent.click(buttons[0]!);
+        expect(retry).toHaveBeenCalledTimes(1);
+    });
+
+    it('a write that is only retrying shows no alert: the status says it', () => {
+        render(view(makeEditorResult({ parked: { failure: 'transient', kind: 'update' } })));
+
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
     it('shows the resume notice for a published recipe`s device changes', () => {
         render(
             view(

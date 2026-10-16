@@ -26,7 +26,8 @@ export interface RecipeReadErrorProps {
 }
 
 /**
- * The recipe read failed.
+ * The recipe read failed. Orchestration: it reads the route locale and the router, and hands the shared presentational
+ * notice its way back.
  *
  * @param props - What the read failed with, and the boundary's reset.
  * @returns The notice.

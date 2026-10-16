@@ -11,7 +11,7 @@
         "implementationsWithModuleDoc": 62,
         "implementationsWithComponentDoc": 57,
         "documentedProps": 65,
-        "classifiedComponents": 32,
+        "classifiedComponents": 33,
         "componentsWithPatternTag": 28,
         "crossPlatformComponents": 0
     },
@@ -4373,7 +4373,7 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
                 "Adapter — the shared `RecipeLoadError` over Next's router and the route locale"
             ],
@@ -4400,7 +4400,7 @@
                             "text": "Adapter — the shared `RecipeLoadError` over Next's router and the route locale"
                         }
                     ],
-                    "description": "The recipe read failed.",
+                    "description": "The recipe read failed. Orchestration: it reads the route locale and the router, and hands the shared presentational\nnotice its way back.",
                     "tags": [
                         {
                             "name": "param",
@@ -4436,8 +4436,8 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
+                        "presentational": true,
+                        "orchestration": true
                     }
                 }
             ]

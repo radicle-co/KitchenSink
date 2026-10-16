@@ -1,14 +1,14 @@
 {
     "schemaVersion": 1,
     "counts": {
-        "ambiguous-layer-signal": 8,
+        "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 8,
         "cross-platform-props-diverge": 15,
         "missing-component-doc": 156,
         "missing-module-doc": 21,
         "platform-singleton": 63,
         "ref-api": 13,
-        "unclassified-layer": 97,
+        "unclassified-layer": 96,
         "undocumented-prop": 176
     },
     "findings": [
@@ -4860,11 +4860,11 @@
             ]
         },
         {
-            "rule": "unclassified-layer",
-            "severity": "gap",
+            "rule": "ambiguous-layer-signal",
+            "severity": "review",
             "component": "web/components/recipes/RecipeReadError",
             "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeReadError.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "message": "the docblock names BOTH layers; the catalogue resolved it to orchestration",
             "evidence": []
         },
         {

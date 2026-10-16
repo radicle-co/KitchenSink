@@ -33,6 +33,22 @@ export interface DuplicateCopy {
 }
 
 /**
+ * Whether a loaded value is a dictionary tree: nested objects ending in strings.
+ *
+ * @param value - Anything.
+ * @returns True for a non-empty object whose every leaf is a string. Pure.
+ */
+export function isCopyTree(value: unknown): value is CopyTree {
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        !Array.isArray(value) &&
+        Object.keys(value).length > 0 &&
+        Object.values(value).every((leaf) => typeof leaf === 'string' || isCopyTree(leaf))
+    );
+}
+
+/**
  * Flatten a dictionary into `[dotted path, trimmed value]` pairs.
  *
  * @param tree - The dictionary (one locale's set).

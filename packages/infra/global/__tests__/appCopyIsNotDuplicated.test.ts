@@ -19,12 +19,48 @@
  * The allow-list below is the escape hatch, and every entry owes a reason. Adding one to silence a failure is the
  * mistake the guard exists to stop: move the sentence to a shared `messages.ts` instead.
  */
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
-import { mobileMessages } from '../../../apps/commise/mobile/src/i18n/messages.js';
-import { webMessages } from '../../../apps/commise/web/src/i18n/messages.js';
+import {
+    copyEntriesOf,
+    duplicateCopyOf,
+    isCopyTree,
+    type AllowedDuplicate,
+    type CopyTree,
+} from './appCopyDuplicates.js';
 
-import { copyEntriesOf, duplicateCopyOf, type AllowedDuplicate, type CopyTree } from './appCopyDuplicates.js';
+/** The repo root — this file sits at `packages/infra/global/__tests__/`. */
+const REPO_ROOT = join(import.meta.dirname, '../../../..');
+
+/**
+ * One app's English dictionary, loaded from its source.
+ *
+ * Loaded by a computed specifier on purpose: the web dictionary imports a type through the web app's `@/` alias, which this
+ * package's compiler cannot resolve, and a static import would make this package type-check another app's tree. Vitest
+ * resolves the module at run time, where the alias is already erased (it is a type-only import).
+ *
+ * @param file - Repo-relative path of the app's `messages.ts`.
+ * @param exportName - The dictionary's export name.
+ * @returns The `en` set.
+ * @sideEffect Imports a source module.
+ */
+async function englishCopyOf(file: string, exportName: string): Promise<CopyTree> {
+    const loaded: unknown = await import(pathToFileURL(join(REPO_ROOT, file)).href);
+    const dictionary = (loaded as Record<string, unknown>)[exportName];
+    const en = (dictionary as { en?: unknown } | undefined)?.en;
+
+    if (!isCopyTree(en)) {
+        throw new Error(`${file} must export ${exportName} with an "en" set of strings`);
+    }
+
+    return en;
+}
+
+const webCopy = await englishCopyOf('packages/apps/commise/web/src/i18n/messages.ts', 'webMessages');
+const mobileCopy = await englishCopyOf('packages/apps/commise/mobile/src/i18n/messages.ts', 'mobileMessages');
 
 /**
  * Sentences that may appear in both apps' own dictionaries.
@@ -43,7 +79,13 @@ const ALLOWED: readonly AllowedDuplicate[] = [
 describe('duplicateCopyOf (the rule, over fixtures)', () => {
     const web: CopyTree = { home: { greeting: 'Good morning', unique: 'Web only' }, empty: '   ' };
 
-    it.each([
+    interface Case {
+        readonly name: string;
+        readonly mobile: CopyTree;
+        readonly expected: readonly { value: string; web: readonly string[]; mobile: readonly string[] }[];
+    }
+
+    it.each<Case>([
         {
             name: 'finds the same sentence under different keys',
             mobile: { hello: 'Good morning' },
@@ -89,7 +131,7 @@ describe('duplicateCopyOf (the rule, over fixtures)', () => {
 
 describe('the apps’ own dictionaries', () => {
     it('share no sentence outside the reasoned allow-list', () => {
-        const duplicates = duplicateCopyOf(webMessages.en, mobileMessages.en, ALLOWED);
+        const duplicates = duplicateCopyOf(webCopy, mobileCopy, ALLOWED);
         const report = duplicates.map(
             (entry) => `"${entry.value}" — web: ${entry.web.join(', ')}; mobile: ${entry.mobile.join(', ')}`,
         );
@@ -102,7 +144,7 @@ describe('the apps’ own dictionaries', () => {
         for (const entry of ALLOWED) {
             expect(entry.reason.length).toBeGreaterThan(20);
             // An entry that no longer shadows a real duplicate is dead weight that would hide a future one.
-            expect(duplicateCopyOf(webMessages.en, mobileMessages.en)).toContainEqual(
+            expect(duplicateCopyOf(webCopy, mobileCopy)).toContainEqual(
                 expect.objectContaining({ value: entry.value }),
             );
         }

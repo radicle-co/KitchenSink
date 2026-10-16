@@ -15,8 +15,11 @@
 /** The library's grid of full cards. */
 export const LIBRARY_GRID_CLASS = 'grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-4 @regular/main:gap-6';
 
-/** One cell of a grid of full cards: a subgrid spanning the card's six rows, so the rows align across the grid row. */
-export const GRID_CELL_CLASS = 'row-span-6 grid grid-rows-subgrid gap-0';
+/**
+ * One cell of a grid of full cards: a subgrid spanning the card's six rows, so the rows align across the grid row. Its
+ * one column is `minmax(0, 1fr)`, never the implicit `auto`, which grows to the min-content of a long unbroken word.
+ */
+export const GRID_CELL_CLASS = 'row-span-6 grid grid-cols-[minmax(0,1fr)] grid-rows-subgrid gap-0';
 
 /** The library's list of row cards. */
 export const LIBRARY_LIST_CLASS = 'flex flex-col gap-2';

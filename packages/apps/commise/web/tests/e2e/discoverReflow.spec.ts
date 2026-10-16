@@ -71,6 +71,15 @@ test.describe('Discover rail cards — W-03: a long attribution cannot widen a c
         for (const width of widths) {
             expect(width).toBeLessThanOrEqual(256);
         }
+
+        // The Save a copy button must stay INSIDE its card: an `auto` grid column once let the long word push it out.
+        const cardBox = await card.boundingBox();
+        const saveBox = await card.getByRole('button', { name: 'Save a copy of Imported Stew' }).boundingBox();
+
+        expect(cardBox).not.toBeNull();
+        expect(saveBox).not.toBeNull();
+        expect(saveBox!.x).toBeGreaterThanOrEqual(cardBox!.x);
+        expect(saveBox!.x + saveBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
     });
 
     test('no card says "Cloned from" a raw id', async ({ page }) => {

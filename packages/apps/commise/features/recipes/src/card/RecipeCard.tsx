@@ -34,6 +34,7 @@ import { isModifiedClick } from '@commise/ui/route-link';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { createContext, useContext, type FC, type ReactNode } from 'react';
 
+import { GRID_CELL_CLASS } from './cardGridClass.js';
 import type { CardVariant } from './cardVariant.js';
 import { STAR_COUNT } from './model.js';
 import {
@@ -461,7 +462,7 @@ const ARRANGEMENT: Readonly<Record<CardVariant, FC<ArrangementSlots>>> = {
 
 /** The shell each variant sits in. The grid card is a subgrid so its rows align with its neighbours'. */
 const SHELL_CLASS: Readonly<Record<CardVariant | 'custom', string>> = {
-    grid: 'row-span-6 grid grid-rows-subgrid gap-0',
+    grid: GRID_CELL_CLASS,
     row: '',
     compact: 'flex flex-col',
     custom: 'flex flex-col',

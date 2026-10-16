@@ -94,4 +94,18 @@ describe('RecipeDiscoveryCard (web)', () => {
 
         expect(screen.getByText('From Serious Eats')).toBeTruthy();
     });
+
+    it('keeps a long unbroken source inside its cell: a shrinkable column, a truncated line, Save still there', () => {
+        const source = 'A'.repeat(300);
+
+        renderCard({ authorUsername: undefined, authorDisplayName: undefined, sourceAttribution: source });
+        const card = screen.getByRole('article', { name: 'Lamb Shoulder' });
+
+        // An implicit grid column is `auto`, so the unbreakable word's min-content widened the cell and pushed Save out.
+        expect(card.className.split(/\s+/u)).toContain('grid-cols-[minmax(0,1fr)]');
+        expect(screen.getByText(`From ${source}`).className.split(/\s+/u)).toEqual(
+            expect.arrayContaining(['truncate', 'min-w-0']),
+        );
+        expect(within(card).getByRole('button', { name: 'Save a copy of Lamb Shoulder' })).toBeTruthy();
+    });
 });

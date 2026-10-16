@@ -24,28 +24,21 @@ import {
     RecipeListLoading,
     RecipeListResults,
     cardVariantOf,
-    libraryFacetsOf,
-    libraryStateOf,
-    narrowLibrary,
-    recipeMessages,
-    toRecipeListItem,
     useMainContainerClass,
     viewModeCookieFor,
     viewModeOf,
     type CardVariant,
     type ListViewMode,
 } from '@commise/features-recipes';
-import { useLibraryEmpty } from '@commise/features-recipes/hooks';
-import { useMessages } from '@commise/i18n/react';
+import { useRecipeLibrary, useRecipeLibraryControls, type LibraryRead } from '@commise/features-recipes/list';
 import { useRecoverySignal } from '@commise/query/recovery-signal';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import type { ChipRowOverflow } from '@commise/ui/chip';
-import { recipeQueries, type RecipeListSortBy } from '@kitchensink/recipe-service-client';
-import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
+import type { RecipeListSortBy } from '@kitchensink/recipe-service-client';
 import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useState } from 'react';
 import type { FC, ReactNode } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
@@ -65,9 +58,6 @@ export interface RecipeListContainerProps {
     readonly avatar?: ReactNode;
 }
 
-/** The library read the page prefetches and the results render. */
-type LibraryRead = ReturnType<ReturnType<typeof recipeQueries>['library']>;
-
 /**
  * The live My recipes container.
  *
@@ -76,22 +66,22 @@ type LibraryRead = ReturnType<ReturnType<typeof recipeQueries>['library']>;
  */
 export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale, storedViewMode, avatar }) => {
     const router = useRouter();
-    const client = useRecipeServiceClient();
-    const [searchValue, setSearchValue] = useState('');
-    const [activeFacets, setActiveFacets] = useState<readonly string[]>([]);
-    const [sort, setSort] = useState<RecipeListSortBy>('updatedAt');
+    const {
+        searchValue,
+        onSearchChange,
+        onClearSearch,
+        searchVisible,
+        activeFacets,
+        onActiveFacetsChange,
+        sort,
+        onSortChange,
+        read,
+    } = useRecipeLibraryControls();
     const [viewChoice, setViewChoice] = useState<ListViewMode | undefined>(storedViewMode);
     const recovery = useRecoverySignal();
     const container = useMainContainerClass();
     const viewMode = viewModeOf(viewChoice, container);
     const variant = cardVariantOf(container, viewMode, 'library');
-    // The cards on screen stay while a new sort's first chunk is in flight; the boundary does not fall back.
-    const deferredSort = useDeferredValue(sort);
-    // Built ONCE and handed to both sides, so the key the boundary checks for a prefetch and the read it gates agree.
-    // Memoized: the boundary keys on this read, so a new options object per render would reset it on every cache event.
-    const read = useMemo(() => recipeQueries(client).library({ sortBy: deferredSort }), [client, deferredSort]);
-    // A cache-only read of the same key (it never fetches): the frame hides the search on a settled empty library.
-    const libraryEmpty = useLibraryEmpty(read.queryKey);
     const onCreateRecipe = () => router.push(`/${locale}/recipes/new` as Route);
     // Paste lives in the editor's Ingredients section (slice 8): the new editor opens there with its sheet up.
     const onPasteIngredients = () => router.push(pasteIngredientsHref(locale) as Route);
@@ -100,8 +90,8 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale, stor
         <RecipeListFrame
             {...(avatar === undefined ? {} : { headerAction: { kind: 'avatar', avatar } })}
             searchValue={searchValue}
-            onSearchChange={setSearchValue}
-            searchVisible={!libraryEmpty || searchValue.length > 0}
+            onSearchChange={onSearchChange}
+            searchVisible={searchVisible}
             segments={{
                 current: 'mine',
                 href: { mine: `/${locale}/recipes`, collections: `/${locale}/collections` },
@@ -124,11 +114,11 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale, stor
                     read={read}
                     locale={locale}
                     searchValue={searchValue}
-                    onClearSearch={() => setSearchValue('')}
+                    onClearSearch={onClearSearch}
                     activeFacets={activeFacets}
-                    onActiveFacetsChange={setActiveFacets}
+                    onActiveFacetsChange={onActiveFacetsChange}
                     sort={sort}
-                    onSortChange={setSort}
+                    onSortChange={onSortChange}
                     viewMode={viewMode}
                     onViewModeChange={(mode) => {
                         setViewChoice(mode);
@@ -192,58 +182,28 @@ const SettledRecipeList: FC<SettledRecipeListProps> = ({
     onPasteIngredients,
     onRecovered,
 }) => {
-    const { list } = useMessages(recipeMessages);
     const query = useSuspenseInfiniteQuery(read);
-    const [clearCount, setClearCount] = useState(0);
     const refreshNotice = useRefreshNotice(query, { onRecovered });
-    const library = useMemo(() => query.data.pages.flatMap((chunk) => chunk.data), [query.data.pages]);
-    const facets = useMemo(
-        () => libraryFacetsOf(library, searchValue, activeFacets, list.filterQuick, locale),
-        [library, searchValue, activeFacets, list.filterQuick, locale],
-    );
-    const recipes = useMemo(
-        () => narrowLibrary(library, searchValue, activeFacets).map(toRecipeListItem),
-        [library, searchValue, activeFacets],
-    );
-    // One calorie batch per CHUNK (each at most 500, the batch's cap), keyed by the loaded chunks — never the narrowed
-    // rows, which would re-key the read on every keystroke and blink every figure back to its skeleton.
-    const idPages = useMemo(
-        () => query.data.pages.map((chunk) => chunk.data.map((recipe) => recipe.id)),
-        [query.data.pages],
-    );
-    const renderNutrition = useHydratedNutrition(idPages);
+    const library = useRecipeLibrary({ query, locale, searchValue, activeFacets, onActiveFacetsChange });
+    // One calorie batch per CHUNK, keyed by the loaded chunks (see `chunkIds`) so a keystroke never re-keys the read.
+    const renderNutrition = useHydratedNutrition(library.chunkIds);
 
     return (
         <RecipeListResults
-            recipes={recipes}
-            state={libraryStateOf({ visibleCount: recipes.length, searchValue, activeFacets })}
+            recipes={library.recipes}
+            state={library.state}
             searchValue={searchValue}
             onClearSearch={onClearSearch}
-            clearCount={clearCount}
-            onClearFilters={() => {
-                setClearCount((count) => count + 1);
-                onActiveFacetsChange(() => []);
-            }}
+            clearCount={library.clearCount}
+            onClearFilters={library.onClearFilters}
             onSelectRecipe={onSelectRecipe}
             hrefOf={(id) => `/${locale}/recipes/${id}`}
             variant={variant}
             chipOverflow={chipOverflow}
-            facets={{
-                facets,
-                onToggle: (facet) =>
-                    onActiveFacetsChange((current) =>
-                        current.includes(facet) ? current.filter((value) => value !== facet) : [...current, facet],
-                    ),
-                onClear: () => onActiveFacetsChange(() => []),
-            }}
+            facets={library.facets}
             view={{ mode: viewMode, onChange: onViewModeChange }}
             sort={{ value: sort, onChange: onSortChange }}
-            loadMore={{
-                hasMore: query.hasNextPage,
-                loading: query.isFetchingNextPage,
-                failed: query.isFetchNextPageError,
-                onLoadMore: () => void query.fetchNextPage(),
-            }}
+            loadMore={library.loadMore}
             onCreateRecipe={onCreateRecipe}
             onPasteIngredients={onPasteIngredients}
             refreshNotice={refreshNotice}

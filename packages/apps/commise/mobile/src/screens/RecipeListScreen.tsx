@@ -26,30 +26,24 @@ import {
     RecipeListResults,
     RecipeNutritionSlot,
     cardVariantOf,
-    libraryFacetsOf,
-    libraryStateOf,
-    narrowLibrary,
-    recipeMessages,
-    toRecipeListItem,
     useMainContainerClass,
     viewModeOf,
     type CardVariant,
     type ListViewMode,
     type RecipesSegmentControl,
 } from '@commise/features-recipes';
-import { useLibraryEmpty, useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
-import { useLocale, useMessages } from '@commise/i18n/react';
+import { useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
+import { useRecipeLibrary, useRecipeLibraryControls, type LibraryRead } from '@commise/features-recipes/list';
+import { useLocale } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useRecoverySignal } from '@commise/query/recovery-signal';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import type { ChipRowOverflow } from '@commise/ui/chip';
 import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
-import { recipeQueries, type RecipeListSortBy } from '@kitchensink/recipe-service-client';
-import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
+import type { RecipeListSortBy } from '@kitchensink/recipe-service-client';
 import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { JSX } from 'react';
-import { useDeferredValue, useMemo, useState } from 'react';
 
 import { useStoredViewMode } from '../hooks/useStoredViewMode.js';
 
@@ -90,26 +84,28 @@ export function RecipeListScreen({
     headerAction,
     scrollBind,
 }: RecipeListScreenProps): JSX.Element {
-    const client = useRecipeServiceClient();
-    const [searchValue, setSearchValue] = useState('');
-    const [activeFacets, setActiveFacets] = useState<readonly string[]>([]);
-    const [sort, setSort] = useState<RecipeListSortBy>('updatedAt');
+    const {
+        searchValue,
+        onSearchChange,
+        onClearSearch,
+        searchVisible,
+        activeFacets,
+        onActiveFacetsChange,
+        sort,
+        onSortChange,
+        read,
+    } = useRecipeLibraryControls();
     const [viewChoice, setViewChoice] = useStoredViewMode();
     const recovery = useRecoverySignal();
     const container = useMainContainerClass();
     const viewMode = viewModeOf(viewChoice, container);
     const variant = cardVariantOf(container, viewMode, 'library');
-    const deferredSort = useDeferredValue(sort);
-    // Memoized: a new options object per render would hand the boundary a new read on every cache event.
-    const read = useMemo(() => recipeQueries(client).library({ sortBy: deferredSort }), [client, deferredSort]);
-    // A cache-only read of the same key (it never fetches): the frame hides the search on a settled empty library.
-    const libraryEmpty = useLibraryEmpty(read.queryKey);
 
     return (
         <RecipeListFrame
             searchValue={searchValue}
-            onSearchChange={setSearchValue}
-            searchVisible={!libraryEmpty || searchValue.length > 0}
+            onSearchChange={onSearchChange}
+            searchVisible={searchVisible}
             {...(segments === undefined ? {} : { segments })}
             {...(headerAction === undefined ? {} : { headerAction })}
             headingFocusSignal={recovery.signal}
@@ -123,11 +119,11 @@ export function RecipeListScreen({
                 <SettledRecipeList
                     read={read}
                     searchValue={searchValue}
-                    onClearSearch={() => setSearchValue('')}
+                    onClearSearch={onClearSearch}
                     activeFacets={activeFacets}
-                    onActiveFacetsChange={setActiveFacets}
+                    onActiveFacetsChange={onActiveFacetsChange}
                     sort={sort}
-                    onSortChange={setSort}
+                    onSortChange={onSortChange}
                     viewMode={viewMode}
                     onViewModeChange={setViewChoice}
                     variant={variant}
@@ -145,7 +141,7 @@ export function RecipeListScreen({
 
 /** Props for {@link SettledRecipeList}. */
 interface SettledRecipeListProps {
-    readonly read: ReturnType<ReturnType<typeof recipeQueries>['library']>;
+    readonly read: LibraryRead;
     readonly searchValue: string;
     readonly onClearSearch: () => void;
     readonly activeFacets: readonly string[];
@@ -188,57 +184,29 @@ function SettledRecipeList({
     onRecovered,
     scrollBind,
 }: SettledRecipeListProps): JSX.Element {
-    const { list } = useMessages(recipeMessages);
     const viewerLocale = useLocale();
     const query = useSuspenseInfiniteQuery(read);
-    const [clearCount, setClearCount] = useState(0);
     const refreshNotice = useRefreshNotice(query, { onRecovered });
-    const library = useMemo(() => query.data.pages.flatMap((chunk) => chunk.data), [query.data.pages]);
-    const facets = useMemo(
-        () => libraryFacetsOf(library, searchValue, activeFacets, list.filterQuick, viewerLocale),
-        [library, searchValue, activeFacets, list.filterQuick, viewerLocale],
-    );
-    const recipes = useMemo(
-        () => narrowLibrary(library, searchValue, activeFacets).map(toRecipeListItem),
-        [library, searchValue, activeFacets],
-    );
-    // ⛔ THE LOADED CHUNKS, never the narrowed rows: narrowing runs on every keystroke, and narrowed ids would change the
-    // batch's key per character while every figure on screen fell back to its skeleton. One batch per chunk (≤ 500).
-    const nutritionFor = useRecipeNutritionBatches(
-        query.data.pages.map((chunk) => chunk.data.map((recipe) => recipe.id)),
-    );
+    const library = useRecipeLibrary({ query, locale: viewerLocale, searchValue, activeFacets, onActiveFacetsChange });
+    // ⛔ THE LOADED CHUNKS (`chunkIds`), never the narrowed rows: one batch per chunk (≤ 500).
+    const nutritionFor = useRecipeNutritionBatches(library.chunkIds);
 
     return (
         <RecipeListResults
             {...(scrollBind === undefined ? {} : { scrollBind })}
-            recipes={recipes}
-            state={libraryStateOf({ visibleCount: recipes.length, searchValue, activeFacets })}
+            recipes={library.recipes}
+            state={library.state}
             searchValue={searchValue}
             onClearSearch={onClearSearch}
-            clearCount={clearCount}
-            onClearFilters={() => {
-                setClearCount((count) => count + 1);
-                onActiveFacetsChange(() => []);
-            }}
+            clearCount={library.clearCount}
+            onClearFilters={library.onClearFilters}
             onSelectRecipe={onSelectRecipe}
             variant={variant}
             chipOverflow={chipOverflow}
-            facets={{
-                facets,
-                onToggle: (facet) =>
-                    onActiveFacetsChange((current) =>
-                        current.includes(facet) ? current.filter((value) => value !== facet) : [...current, facet],
-                    ),
-                onClear: () => onActiveFacetsChange(() => []),
-            }}
+            facets={library.facets}
             view={{ mode: viewMode, onChange: onViewModeChange }}
             sort={{ value: sort, onChange: onSortChange }}
-            loadMore={{
-                hasMore: query.hasNextPage,
-                loading: query.isFetchingNextPage,
-                failed: query.isFetchNextPageError,
-                onLoadMore: () => void query.fetchNextPage(),
-            }}
+            loadMore={library.loadMore}
             onCreateRecipe={onCreateRecipe}
             onPasteIngredients={onPasteIngredients}
             // ONE promise, N slots: `null` means no batch covers this recipe — render nothing.

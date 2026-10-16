@@ -1,9 +1,12 @@
 /**
- * @module @commise/features-recipes/list — the recipe library list's shared state (flatten, facets, narrowing,
- * load-more).
+ * @module @commise/features-recipes/list — the recipe library list's shared state: the controls above the suspense
+ * boundary (search, chips, sort, the read they key) and the settled library's view-model (flatten, facets, narrowing,
+ * state, load-more).
  *
- * A package-export entry (the one kind of barrel this repo keeps), registered ahead of the web/mobile UI
- * consolidation so the slice that fills it (S6 of `docs/plans/2026-10-13-007-chore-finish-pr91-plan.md`) edits
- * neither the package root index nor `package.json`.
+ * A package-export entry (the one kind of barrel this repo keeps). The list's render leaves stay on the package root;
+ * this entry carries only the hooks, which both platforms' containers share.
  */
-export {};
+export { useRecipeLibrary } from './useRecipeLibrary.js';
+export type { LibraryQuery, RecipeLibraryInput, RecipeLibraryModel } from './useRecipeLibrary.js';
+export { useRecipeLibraryControls } from './useRecipeLibraryControls.js';
+export type { LibraryRead, RecipeLibraryControls } from './useRecipeLibraryControls.js';

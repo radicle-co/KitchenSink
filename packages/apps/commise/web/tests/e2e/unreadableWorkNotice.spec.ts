@@ -2,8 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { signInWithTicket } from './utils/auth';
 import { route } from './utils/basePath';
-import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import { openNewRecipe } from './utils/recipeEditor';
+import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * The "unreadable work" notice, as only a browser shows it (`specSharedSystem.md` §17; ADR-0057). When the outbox or
@@ -24,6 +24,9 @@ const BODY =
 /** Bytes no strict parse of either format accepts: valid JSON never ends mid-list. */
 const UNREADABLE = '{"formatVersion":1,"records":[';
 
+/** The recipe the editor opens: the draft store is read only for a recipe that exists (a new one has no draft yet). */
+const DRAFT_ID = 'ec000000-0000-4000-8000-0000000000d1';
+
 /** The two stores that report through the one notice. Each is read on a different page. */
 const STORES = [
     {
@@ -40,7 +43,7 @@ const STORES = [
         storeKey: (subject: string) => `editor.draft.v1.${subject}`,
         quarantineKey: (subject: string) => `editor.draft.quarantine.${subject}`,
         open: async (page: Page) => {
-            await openNewRecipe(page);
+            await openRecipeEditor(page, DRAFT_ID);
         },
     },
 ] as const;
@@ -73,7 +76,11 @@ for (const store of STORES) {
             await signInWithTicket(page);
             const subject = await readClerkSubject(page);
             const viewerId = await readViewerAppId(page);
-            await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
+            await mockRecipeApi(page, {
+                viewerId,
+                paidFeatures: 'granted',
+                recipes: [makeRecipeDetail({ id: DRAFT_ID, ownerId: viewerId, title: 'Green Curry', status: 'draft' })],
+            });
 
             // Plant once per tab. `about:blank` (where `mockRecipeApi` leaves the page) has an opaque origin, so the
             // script guards its own storage access.

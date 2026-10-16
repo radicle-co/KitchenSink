@@ -76,7 +76,9 @@ test.describe('the Cuisine field', () => {
         const cuisine = page.getByRole('combobox', { name: 'Cuisine' });
         await expect(cuisine).toBeFocused();
         await expect(cuisine).toHaveAttribute('aria-invalid', 'true');
-        await expect(page.getByRole('alert').filter({ hasText: 'Choose a cuisine, or type your own.' })).toBeVisible();
+        // The error is the field's own description, not a separate alert (cuisineField.md P4: the slot is never live;
+        // the refusal is spoken by the action bar's status line and by focusing the field).
+        await expect(cuisine).toHaveAccessibleDescription(/Choose a cuisine, or type your own\./u);
         expect(store.get(DRAFT_ID)?.status).toBe('draft');
     });
 });

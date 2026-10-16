@@ -26,10 +26,9 @@
  * for a feature that has not shipped, so a notice there would announce the loss of something the viewer was
  * never promised. That arm keeps `fallback={null}` (the throw is still reported) and is pinned by a test.
  */
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
-
-import { webMessages } from '@/i18n/messages';
 
 /**
  * The stand-in for a Home widget whose body failed to render.
@@ -37,7 +36,7 @@ import { webMessages } from '@/i18n/messages';
  * @returns A localized, POLITELY announced one-line notice.
  */
 export function HomeWidgetErrorNotice(): JSX.Element {
-    const { home } = useMessages(webMessages);
+    const home = useMessages(homeMessages);
 
     // A LIVE REGION, but a POLITE one — `role="status"`, not `role="alert"`.
     //
@@ -60,7 +59,7 @@ export function HomeWidgetErrorNotice(): JSX.Element {
     // region), so the two platforms cannot disagree about how loudly a broken widget speaks.
     return (
         <p role="status" className="text-body-sm text-ink-muted">
-            {home.surface.widgetError}
+            {home.widgetError}
         </p>
     );
 }

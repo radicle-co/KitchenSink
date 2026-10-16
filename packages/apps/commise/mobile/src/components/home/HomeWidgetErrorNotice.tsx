@@ -5,7 +5,7 @@
  * per-widget error boundaries on this surface: the host's (`./HomeWidgetSurface.tsx`) and the
  * recipe slot's inner one (`./RecipeWidgetSlot.tsx`). Both previously rendered `null`, so a
  * failed widget left unexplained blank space — and, for a screen-reader user, nothing whatsoever. This is the
- * mobile counterpart of the web host's localized `home.surface.widgetError` fallback: mirroring web's
+ * mobile counterpart of the web host's localized `home.widgetError` fallback: mirroring web's
  * CONTRACT (a localized explanation, and no recovery affordance) rather than its markup.
  *
  * It exists as a component rather than inline JSX at each boundary so "what a broken widget looks like" has
@@ -16,13 +16,12 @@
  * reached through `React.lazy`, which caches a rejected loader permanently, so a retry that merely reset the
  * boundary would re-throw instantly and read as a dead button.
  */
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { StyleSheet, Text } from 'react-native';
-
-import { mobileMessages } from '../../i18n/messages.js';
 
 /**
  * The stand-in for a Home widget whose body failed to render.
@@ -30,7 +29,7 @@ import { mobileMessages } from '../../i18n/messages.js';
  * @returns A localized, POLITELY announced one-line notice.
  */
 export function HomeWidgetErrorNotice(): JSX.Element {
-    const { home } = useMessages(mobileMessages);
+    const home = useMessages(homeMessages);
     const { colors } = useTheme();
 
     // A LIVE REGION, but a POLITE one — `status`, not `alert`. The region is required (the notice appears

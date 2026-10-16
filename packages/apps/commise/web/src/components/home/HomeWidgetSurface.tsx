@@ -31,6 +31,7 @@ import {
 import { RECIPE_HOME_WIDGET_ID, RecipeCreateButton } from '@commise/features-recipes';
 import { useLibraryEmpty } from '@commise/features-recipes/hooks';
 import { LIVE_CAPABILITIES, RECENT_RECIPE_LIMIT } from '@commise/features-recipes/widget';
+import { homeMessages } from '@commise/features-core/home';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { paidFeatureStateOf } from '@commise/features-account';
 import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
@@ -42,7 +43,6 @@ import { ErrorBoundary } from 'react-error-boundary';
 
 import { AppShell } from '@/components/app/AppShell';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { webMessages } from '@/i18n/messages';
 
 import { ProfileAvatarEntry } from './chrome/ProfileAvatarEntry';
 import { HomeGreeting } from './HomeGreeting';
@@ -96,7 +96,7 @@ export function HomeWidgetSurface({
     container = homeContainer,
     renderers = DEFAULT_RENDERERS,
 }: HomeWidgetSurfaceProps = {}): JSX.Element {
-    const { home } = useMessages(webMessages);
+    const home = useMessages(homeMessages);
     const profile = useUserProfile();
     const locale = useLocale();
     const router = useRouter();
@@ -191,7 +191,7 @@ export function HomeWidgetSurface({
                 />
 
                 <HomeNudgeContext.Provider value={{ trigger: nudge.trigger }}>
-                    <section role="region" aria-label={home.surface.regionLabel} className="flex flex-col gap-6">
+                    <section role="region" aria-label={home.regionLabel} className="flex flex-col gap-6">
                         {curated.live.map(renderWidget)}
 
                         {/* The placeholders sit together, AFTER the recent recipes, under one "Coming soon" heading

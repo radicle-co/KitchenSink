@@ -233,7 +233,7 @@ function renderRoot(): void {
     renderWithProviders(<AppRoot />);
 }
 
-const tabBar = () => screen.queryByRole('tablist', { name: 'Main' });
+const tabBar = () => screen.queryByRole('tablist', { name: 'Tabs' });
 const tab = (name: string) => within(tabBar() as HTMLElement).getByRole('tab', { name });
 const press = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
 const showing = (name: string) => screen.queryByRole('heading', { name }) !== null;

@@ -8,6 +8,7 @@
  * replaces it with a live `meal-plan` widget.
  */
 import { weekdayLabels } from '@commise/features-core';
+import { homeMessages } from '@commise/features-core/home';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useContainerClass } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
@@ -15,7 +16,6 @@ import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { mobileMessages } from '../../../i18n/messages.js';
 import { PlaceholderWidgetCard } from './PlaceholderWidgetCard.js';
 
 /**
@@ -27,7 +27,7 @@ import { PlaceholderWidgetCard } from './PlaceholderWidgetCard.js';
  * @returns The week strip's shape: real weekdays, no meals.
  */
 export function MealPlanWidgetSkeleton(): JSX.Element {
-    const { home } = useMessages(mobileMessages);
+    const home = useMessages(homeMessages);
     const locale = useLocale();
     const { colors } = useTheme();
     const shown = weekdayLabels(locale, useContainerClass() === 'narrow' ? 'narrow' : 'short');

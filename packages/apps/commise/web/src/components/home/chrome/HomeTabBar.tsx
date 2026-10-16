@@ -22,6 +22,7 @@
  * @pattern Adapter from the shared nav model and the current route to tab links
  */
 import { NAV_ITEM_GLYPH, resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import type { HomeChromeMessages } from '@commise/features-core/home';
 import { ChromeSurface } from '@commise/ui/chrome-surface';
 import { Icon } from '@commise/ui/icon';
 import { useScrollHost } from '@commise/ui/scroll-host';
@@ -29,14 +30,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { JSX, MouseEvent, Ref } from 'react';
 
-import type { WebMessages } from '@/i18n/messages';
-
 import { homeNavHref, tabRootOf } from './navHref';
 
 /** Props for {@link HomeTabBar}. */
 export interface HomeTabBarProps {
     /** The chrome copy, resolved for the active locale. */
-    readonly chrome: WebMessages['home']['chrome'];
+    readonly chrome: HomeChromeMessages;
     /** The active locale segment. */
     readonly locale: string;
     /** Capabilities whose backing service is live — which destinations show. */

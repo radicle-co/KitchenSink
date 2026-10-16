@@ -6,12 +6,12 @@
  * button: a real control here would either do nothing or need a destination that does not exist, and a
  * placeholder must not offer an action it cannot honour. Feature 009 replaces it with a live widget.
  */
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { mobileMessages } from '../../../i18n/messages.js';
 import { PlaceholderWidgetCard } from './PlaceholderWidgetCard.js';
 
 /**
@@ -20,7 +20,7 @@ import { PlaceholderWidgetCard } from './PlaceholderWidgetCard.js';
  * @returns The resume-cooking strip's shape with no session data in it.
  */
 export function ResumeCookingWidgetSkeleton(): JSX.Element {
-    const { home } = useMessages(mobileMessages);
+    const home = useMessages(homeMessages);
     const { colors } = useTheme();
     const shape = { backgroundColor: colors.surfaceMuted };
 

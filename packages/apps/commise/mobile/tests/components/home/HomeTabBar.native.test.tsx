@@ -8,14 +8,14 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
 import type { HomeNavItemId } from '@commise/features-core';
+import { homeMessages } from '@commise/features-core/home';
 import { role } from '@commise/ui/colors';
 
 import { HomeTabBar } from '../../../src/components/home/chrome/HomeTabBar.js';
-import { mobileMessages } from '../../../src/i18n/messages.js';
 
 afterEach(cleanup);
 
-const chrome = mobileMessages.en.home.chrome;
+const chrome = homeMessages.en.chrome;
 
 const renderBar = (
     activeId: HomeNavItemId = 'home',

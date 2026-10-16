@@ -9,12 +9,12 @@
  * @pattern Adapter — the profile read, as the design-system Avatar's props
  */
 import { profileAvatarPropsOf } from '@commise/features-core/home';
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import { Avatar } from '@commise/ui/avatar';
 import type { JSX } from 'react';
 
 import { useUserProfile } from '../hooks/useUserProfile.js';
-import { mobileMessages } from '../i18n/messages.js';
 
 /** Props for {@link ProfileAvatarEntry}. */
 export interface ProfileAvatarEntryProps {
@@ -27,7 +27,7 @@ export interface ProfileAvatarEntryProps {
  * @returns The tab root's profile entry.
  */
 export function ProfileAvatarEntry({ onPress }: ProfileAvatarEntryProps): JSX.Element {
-    const { home } = useMessages(mobileMessages);
+    const home = useMessages(homeMessages);
     const profile = useUserProfile();
 
     return <Avatar {...profileAvatarPropsOf(profile, home.chrome)} onPress={onPress} />;

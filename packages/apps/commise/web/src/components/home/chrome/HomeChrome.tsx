@@ -19,7 +19,7 @@ import type { HomeNavItemId } from '@commise/features-core';
 import { PopupInsetsContext } from '@commise/ui/popup-insets';
 import { useCallback, useState, type JSX, type ReactNode } from 'react';
 
-import type { WebMessages } from '@/i18n/messages';
+import type { WebChromeMessages } from '@/i18n/messages';
 
 import { HomeSidebar } from './HomeSidebar';
 import { HomeTabBar } from './HomeTabBar';
@@ -29,7 +29,7 @@ import { tabBarInsets } from './tabBarInsets';
 
 /** Props for {@link HomeChrome}. */
 export interface HomeChromeProps {
-    readonly chrome: WebMessages['home']['chrome'];
+    readonly chrome: WebChromeMessages;
     readonly locale: string;
     readonly liveCapabilities: readonly string[];
     readonly activeId: HomeNavItemId | null;

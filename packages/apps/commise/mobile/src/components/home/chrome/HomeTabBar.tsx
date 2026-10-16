@@ -17,6 +17,7 @@
  * Presentational: props → JSX. `AppTabBar` adapts React Navigation's tab state to it.
  */
 import { NAV_ITEM_GLYPH, resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import type { HomeChromeMessages } from '@commise/features-core/home';
 import { ChromeSurface } from '@commise/ui/chrome-surface';
 import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
@@ -24,12 +25,10 @@ import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { MobileMessages } from '../../../i18n/messages.js';
-
 /** Props for {@link HomeTabBar}. */
 export interface HomeTabBarProps {
     /** The chrome copy, resolved for the active locale. */
-    readonly chrome: MobileMessages['home']['chrome'];
+    readonly chrome: HomeChromeMessages;
     /** Capabilities whose backing service is live — which destinations show. */
     readonly liveCapabilities: readonly string[];
     /** The active destination. */

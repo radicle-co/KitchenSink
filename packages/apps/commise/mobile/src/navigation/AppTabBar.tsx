@@ -17,12 +17,12 @@
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import type { HomeNavItemId } from '@commise/features-core';
 import { LIVE_CAPABILITIES } from '@commise/features-recipes/widget';
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import { useCompactHeight, useFrameCollapsed } from '@commise/ui/layout';
 import type { JSX } from 'react';
 
 import { HomeTabBar } from '../components/home/chrome/HomeTabBar.js';
-import { mobileMessages } from '../i18n/messages.js';
 import { isTabRoute } from './routes.js';
 
 /**
@@ -30,7 +30,7 @@ import { isTabRoute } from './routes.js';
  * @returns The app's tab bar.
  */
 export function AppTabBar({ state, navigation, insets }: BottomTabBarProps): JSX.Element | null {
-    const { home } = useMessages(mobileMessages);
+    const home = useMessages(homeMessages);
     const compact = useCompactHeight();
     const collapsed = useFrameCollapsed();
     const active = state.routes[state.index];

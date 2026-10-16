@@ -21,7 +21,6 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { AvatarField } from '../../src/components/account/AvatarField.js';
 import { useAvatarUpload } from '../../src/hooks/useAvatarUpload.js';
-import { mobileMessages } from '../../src/i18n/messages.js';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -37,8 +36,6 @@ vi.mock('expo-image-picker', () => ({
 // Stub the network seam only; the client-side size/type validators live in the pure `avatarConstraints`
 // module of `@commise/features-account/profile` (imported by AvatarField directly), so they run for real without pulling `@clerk/expo` in here.
 vi.mock('../../src/hooks/useAvatarUpload.js', () => ({ useAvatarUpload: vi.fn() }));
-
-const { profile } = mobileMessages.en;
 
 const messages = avatarCopyOf(profileMessages.en);
 
@@ -81,7 +78,6 @@ describe('AvatarField', () => {
 
         expect(window.getComputedStyle(control).width).toBe('72px');
         expect(window.getComputedStyle(control).height).toBe('72px');
-        expect(screen.queryByText(profile.avatarLabel)).toBeNull();
     });
 
     it('shows the cook’s initials when there is no photo, and not when there is one', () => {

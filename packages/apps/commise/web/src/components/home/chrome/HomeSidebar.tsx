@@ -21,14 +21,14 @@ import type { Route } from 'next';
 import Link from 'next/link';
 import type { JSX, ReactNode } from 'react';
 
-import type { WebMessages } from '@/i18n/messages';
+import type { WebChromeMessages } from '@/i18n/messages';
 
 import { homeNavHref } from './navHref';
 import { profileLabelOf, type ProfileEntry } from '@commise/features-core';
 
 /** Props for {@link HomeSidebar}. */
 export interface HomeSidebarProps {
-    readonly chrome: WebMessages['home']['chrome'];
+    readonly chrome: WebChromeMessages;
     readonly locale: string;
     readonly liveCapabilities: readonly string[];
     /** The active destination, marked `aria-current`; `null` on a page that is none of them. */

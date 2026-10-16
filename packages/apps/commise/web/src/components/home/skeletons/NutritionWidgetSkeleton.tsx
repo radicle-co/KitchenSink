@@ -12,9 +12,8 @@
  */
 import type { JSX } from 'react';
 
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
-
-import { webMessages } from '@/i18n/messages';
 
 import { PlaceholderWidgetCard } from './PlaceholderWidgetCard';
 
@@ -24,7 +23,7 @@ import { PlaceholderWidgetCard } from './PlaceholderWidgetCard';
  * @returns The nutrition panel's shape with no data in it.
  */
 export function NutritionWidgetSkeleton(): JSX.Element {
-    const { home } = useMessages(webMessages);
+    const home = useMessages(homeMessages);
 
     return (
         <PlaceholderWidgetCard title={home.roadmap.titles.nutrition}>

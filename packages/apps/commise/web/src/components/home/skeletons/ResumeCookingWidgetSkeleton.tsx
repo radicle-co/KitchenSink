@@ -13,9 +13,8 @@
  */
 import type { JSX } from 'react';
 
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
-
-import { webMessages } from '@/i18n/messages';
 
 import { PlaceholderWidgetCard } from './PlaceholderWidgetCard';
 
@@ -25,7 +24,7 @@ import { PlaceholderWidgetCard } from './PlaceholderWidgetCard';
  * @returns The resume-cooking strip's shape with no session data in it.
  */
 export function ResumeCookingWidgetSkeleton(): JSX.Element {
-    const { home } = useMessages(webMessages);
+    const home = useMessages(homeMessages);
 
     return (
         <PlaceholderWidgetCard title={home.roadmap.titles['resume-cooking']}>

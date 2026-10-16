@@ -8,6 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 
+import { homeMessages } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
 import { ScrollHost } from '@commise/ui/scroll-host';
 
@@ -18,7 +19,7 @@ import { HomeTabBar } from '../HomeTabBar';
 
 vi.mock('next/navigation', () => ({ usePathname: () => '/en' }));
 
-const chrome = webMessages.en.home.chrome;
+const chrome = { ...homeMessages.en.chrome, ...webMessages.en.home.chrome };
 
 beforeEach(() => {
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;

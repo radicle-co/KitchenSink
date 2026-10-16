@@ -27,7 +27,6 @@ import { useDeleteAccount } from '../../src/hooks/useDeleteAccount.js';
 import { useEraseAccount } from '../../src/hooks/useEraseAccount.js';
 import { useUpdateProfile } from '../../src/hooks/useUpdateProfile.js';
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
-import { mobileMessages } from '../../src/i18n/messages.js';
 import { ProfileScreen } from '../../src/screens/profile.js';
 
 vi.mock('react-native', async (importOriginal) => {
@@ -217,7 +216,6 @@ describe('ProfileScreen — the one page (§9.1)', () => {
         renderProfile();
 
         expect(screen.getAllByRole('button', { name: 'Pick photo' })).toHaveLength(1);
-        expect(screen.queryByText(mobileMessages.en.profile.avatarLabel)).toBeNull();
         // The initials disc is the photo control's fallback, not a second disc beside it.
         expect(screen.queryByText('EM')).toBeNull();
         // It stands in the header row, beside the name and the address (not in the Account group's card).

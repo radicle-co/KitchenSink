@@ -33,10 +33,9 @@
  * "in progress"; nothing is in progress. Its absence keeps the semantics honest and, as a bonus, leaves
  * nothing for `prefers-reduced-motion` to have to suppress.
  */
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import { useId, type JSX, type ReactNode } from 'react';
-
-import { webMessages } from '@/i18n/messages';
 
 /** Props for {@link PlaceholderWidgetCard}. */
 export interface PlaceholderWidgetCardProps {
@@ -62,7 +61,7 @@ export interface PlaceholderWidgetCardProps {
  * @returns A labelled region presenting the coming widget without inventing any of its data.
  */
 export function PlaceholderWidgetCard({ title, children }: PlaceholderWidgetCardProps): JSX.Element {
-    const { home } = useMessages(webMessages);
+    const home = useMessages(homeMessages);
     const headingId = useId();
 
     return (

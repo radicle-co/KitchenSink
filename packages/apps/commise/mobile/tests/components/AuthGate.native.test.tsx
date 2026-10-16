@@ -18,6 +18,7 @@ import { Text } from 'react-native';
 import { authBlockMessages } from '@commise/features-account';
 
 import { AuthGate } from '../../src/components/AuthGate.js';
+import { boundaryMessages } from '@commise/features-core/boundary';
 import { mobileMessages } from '../../src/i18n/messages.js';
 import { useAuth } from '../../src/hooks/useAuth.js';
 
@@ -214,8 +215,8 @@ describe('AuthGate', () => {
             </AuthGate>,
         );
 
-        // The heading is APP copy → dictionary. A regression to a hardcoded literal fails here.
-        expect(screen.getByText(mobileMessages.en.common.somethingWentWrong)).toBeTruthy();
+        // The heading is the shared crash-fallback title. A regression to a hardcoded literal fails here.
+        expect(screen.getByText(boundaryMessages.en.errorTitle)).toBeTruthy();
         expect(screen.getByText('token endpoint down')).toBeTruthy();
     });
 

@@ -18,6 +18,7 @@
  *
  * @pattern Adapter over `@commise/ui/sheet` — the platform expression of the web leaf's Radix dialog.
  */
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
@@ -49,6 +50,7 @@ export interface SubscriptionNudgeProps {
  */
 export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): JSX.Element {
     const { home } = useMessages(mobileMessages);
+    const { nudge } = useMessages(homeMessages);
     const { colors } = useTheme();
 
     return (
@@ -60,25 +62,25 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
                     onDismiss();
                 }
             }}
-            title={home.nudge.title}
+            title={nudge.title}
             closeLabel={home.nudge.close}
             size="content"
             footer={
                 <View style={styles.actions}>
                     <View style={styles.action}>
                         <Button variant="secondary" icon="clock" onPress={onDismiss}>
-                            {home.nudge.dismiss}
+                            {nudge.dismiss}
                         </Button>
                     </View>
                     <View style={styles.action}>
                         <Button icon="chevronRight" onPress={onDismiss}>
-                            {home.nudge.upgrade}
+                            {nudge.upgrade}
                         </Button>
                     </View>
                 </View>
             }
         >
-            <Text style={[styles.body, { color: colors.inkMuted }]}>{home.nudge.body}</Text>
+            <Text style={[styles.body, { color: colors.inkMuted }]}>{nudge.body}</Text>
         </Sheet>
     );
 }

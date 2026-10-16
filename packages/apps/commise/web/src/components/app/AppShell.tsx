@@ -18,6 +18,7 @@
  * @pattern Composition root binding the signed-in profile read and the app-wide capability set to the pure
  *     `HomeChrome` shell — the one place chrome learns who is signed in and what is deployed.
  */
+import { homeMessages } from '@commise/features-core/home';
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { SyncNoticeHost } from '@commise/query/sync-notice-host';
@@ -70,6 +71,7 @@ export const AppShell: FC<AppShellProps> = ({
     children,
 }) => {
     const { home } = useMessages(webMessages);
+    const homeCopy = useMessages(homeMessages);
     const offline = useMessages(offlineNoticeMessages);
     const locale = useLocale();
     const router = useRouter();
@@ -87,7 +89,7 @@ export const AppShell: FC<AppShellProps> = ({
     return (
         <ScrollHost>
             <HomeChrome
-                chrome={home.chrome}
+                chrome={{ ...homeCopy.chrome, ...home.chrome }}
                 locale={locale}
                 liveCapabilities={LIVE_CAPABILITIES}
                 activeId={activeId}

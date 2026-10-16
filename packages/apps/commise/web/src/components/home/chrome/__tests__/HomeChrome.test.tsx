@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 
+import { homeMessages } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
 import { ScrollHost } from '@commise/ui/scroll-host';
 
@@ -19,7 +20,7 @@ import { SidebarPreferenceProvider } from '../sidebarPreferenceContext';
 
 vi.mock('next/navigation', () => ({ usePathname: () => '/en' }));
 
-const chrome = webMessages.en.home.chrome;
+const chrome = { ...homeMessages.en.chrome, ...webMessages.en.home.chrome };
 
 beforeEach(() => {
     document.cookie = `${SIDEBAR_COOKIE}=; max-age=0; path=/`;

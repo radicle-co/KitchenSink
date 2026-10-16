@@ -16,10 +16,9 @@ import { act } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
 
+import { homeMessages } from '@commise/features-core/home';
 import { LocaleProvider } from '@commise/i18n/react';
 import { renderWithProviders } from '@commise/test-utils';
-
-import { webMessages } from '@/i18n/messages';
 
 import { HomeGreeting } from '../HomeGreeting';
 
@@ -37,7 +36,7 @@ const renderAt = (year: number, monthIndex: number, day: number, hour: number, l
 };
 
 /** Every greeting string the dictionary can produce — used to assert that NO bucket leaks into the SSR pass. */
-const EVERY_GREETING: readonly string[] = Object.values(webMessages.en.home.greetings);
+const EVERY_GREETING: readonly string[] = Object.values(homeMessages.en.greetings);
 
 describe('HomeGreeting (web) — time-of-day bucket', () => {
     // Each row is [hour, expected greeting]. The boundary hours (5, 12, 17, 22) are chosen on purpose: they

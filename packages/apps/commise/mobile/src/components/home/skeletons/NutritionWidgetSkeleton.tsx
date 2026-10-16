@@ -6,12 +6,12 @@
  * "1,240", "of 2,000 cal") is deliberately absent: a hard-coded figure would read as the viewer's real
  * intake, the specific harm CR-001 forbids. Feature 007 replaces it by registering a live `nutrition` widget.
  */
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { mobileMessages } from '../../../i18n/messages.js';
 import { PlaceholderWidgetCard } from './PlaceholderWidgetCard.js';
 
 /**
@@ -20,7 +20,7 @@ import { PlaceholderWidgetCard } from './PlaceholderWidgetCard.js';
  * @returns The nutrition panel's shape with no data in it.
  */
 export function NutritionWidgetSkeleton(): JSX.Element {
-    const { home } = useMessages(mobileMessages);
+    const home = useMessages(homeMessages);
     const { colors } = useTheme();
     const shape = { backgroundColor: colors.surfaceMuted };
 

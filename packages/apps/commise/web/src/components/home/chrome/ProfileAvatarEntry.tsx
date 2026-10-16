@@ -11,6 +11,7 @@
  * @pattern Adapter — the profile read and the router, as the design-system Avatar's props
  */
 import { profileAvatarPropsOf } from '@commise/features-core/home';
+import { homeMessages } from '@commise/features-core/home';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Avatar } from '@commise/ui/avatar';
 import type { Route } from 'next';
@@ -18,11 +19,10 @@ import { useRouter } from 'next/navigation';
 import type { JSX } from 'react';
 
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { webMessages } from '@/i18n/messages';
 
 /** The page header's profile entry. */
 export function ProfileAvatarEntry(): JSX.Element {
-    const { home } = useMessages(webMessages);
+    const home = useMessages(homeMessages);
     const locale = useLocale();
     const router = useRouter();
     const profile = useUserProfile();

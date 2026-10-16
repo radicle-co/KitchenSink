@@ -14,9 +14,8 @@
 import type { JSX } from 'react';
 
 import { weekdayLabels } from '@commise/features-core';
+import { homeMessages } from '@commise/features-core/home';
 import { useLocale, useMessages } from '@commise/i18n/react';
-
-import { webMessages } from '@/i18n/messages';
 
 import { PlaceholderWidgetCard } from './PlaceholderWidgetCard';
 
@@ -30,7 +29,7 @@ import { PlaceholderWidgetCard } from './PlaceholderWidgetCard';
  * @returns The week strip's shape: real weekdays, no meals.
  */
 export function MealPlanWidgetSkeleton(): JSX.Element {
-    const { home } = useMessages(webMessages);
+    const home = useMessages(homeMessages);
     const locale = useLocale();
     const narrow = weekdayLabels(locale, 'narrow');
     const short = weekdayLabels(locale, 'short');

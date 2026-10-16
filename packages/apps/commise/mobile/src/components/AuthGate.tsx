@@ -23,6 +23,7 @@
  */
 import { authBlockMessages } from '@commise/features-account';
 import { offlineNoticeMessages } from '@commise/features-core/offline';
+import { boundaryMessages } from '@commise/features-core/boundary';
 import { useMessages } from '@commise/i18n/react';
 import { SyncNoticeHost } from '@commise/query/sync-notice-host';
 import { nativeTokens } from '@commise/ui/native';
@@ -91,7 +92,8 @@ function SignedOutSurfaces(): JSX.Element {
  * @returns The surface matching the current auth state.
  */
 export function AuthGate({ children }: AuthGateProps): JSX.Element {
-    const { auth, common } = useMessages(mobileMessages);
+    const { auth } = useMessages(mobileMessages);
+    const boundary = useMessages(boundaryMessages);
     const blockCopy = useMessages(authBlockMessages);
     const { state } = useAuth();
     const { colors } = useTheme();
@@ -114,11 +116,11 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
                 </View>
             );
         case 'error':
-            // The heading is app copy and MUST come from the dictionary; `state.error.message` is the
+            // The heading is the shared crash-fallback title (`boundaryMessages`), never a literal; `state.error.message` is the
             // provider's own diagnostic and is passed through as-is.
             return (
                 <View style={styles.center}>
-                    <Text style={title}>{common.somethingWentWrong}</Text>
+                    <Text style={title}>{boundary.errorTitle}</Text>
                     <Text style={body}>{state.error.message}</Text>
                 </View>
             );

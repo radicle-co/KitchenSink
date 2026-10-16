@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
+import { homeMessages } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
 import type { HomeNavItemId } from '@commise/features-core';
 import { ScrollHost } from '@commise/ui/scroll-host';
@@ -19,7 +20,7 @@ const route = vi.hoisted(() => ({ pathname: '/en' }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => route.pathname }));
 
-const chrome = webMessages.en.home.chrome;
+const chrome = { ...homeMessages.en.chrome, ...webMessages.en.home.chrome };
 
 beforeEach(() => {
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;

@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { homeMessages } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
 
 import { webMessages } from '@/i18n/messages';
@@ -16,7 +17,7 @@ import { HomeSidebar, type HomeSidebarProps } from '../HomeSidebar';
 
 afterEach(cleanup);
 
-const chrome = webMessages.en.home.chrome;
+const chrome = { ...homeMessages.en.chrome, ...webMessages.en.home.chrome };
 
 const renderSidebar = (overrides: Partial<HomeSidebarProps> = {}) =>
     render(

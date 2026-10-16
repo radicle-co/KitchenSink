@@ -27,6 +27,7 @@ import {
 } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { LIVE_CAPABILITIES } from '@commise/features-recipes/widget';
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import { paidFeatureStateOf } from '@commise/features-account';
 import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
@@ -39,7 +40,6 @@ import { Suspense, useMemo, type ComponentType, type JSX, type ReactNode } from 
 import { ErrorBoundary } from 'react-error-boundary';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { mobileMessages } from '../../i18n/messages.js';
 import { useUserProfile } from '../../hooks/useUserProfile.js';
 import { HomeGreeting } from './HomeGreeting.js';
 import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice.js';
@@ -87,7 +87,7 @@ export function HomeWidgetSurface({
     container = homeContainer,
     renderers,
 }: HomeWidgetSurfaceProps): JSX.Element {
-    const { home } = useMessages(mobileMessages);
+    const home = useMessages(homeMessages);
     const { colors } = useTheme();
     const profile = useUserProfile();
 

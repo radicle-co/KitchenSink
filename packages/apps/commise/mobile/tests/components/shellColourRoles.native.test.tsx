@@ -36,6 +36,7 @@ import { ResumeCookingWidgetSkeleton } from '../../src/components/home/skeletons
 import { SubscriptionNudge } from '../../src/components/home/SubscriptionNudge.js';
 import { LoadingState } from '../../src/components/LoadingState.js';
 import { useAuth } from '../../src/hooks/useAuth.js';
+import { homeMessages } from '@commise/features-core/home';
 import { mobileMessages } from '../../src/i18n/messages.js';
 
 const copy = mobileMessages.en;
@@ -97,16 +98,16 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
         systemScheme.current = scheme;
         render(<SubscriptionNudge open onDismiss={() => undefined} />);
 
-        expect(colourOf(screen.getByText(copy.home.nudge.body))).toBe(rgb(colours.inkMuted));
+        expect(colourOf(screen.getByText(homeMessages.en.nudge.body))).toBe(rgb(colours.inkMuted));
     });
 
     it('a roadmap card titles itself in ink, its badge in inkMuted, inside a lineDivider edge', () => {
         systemScheme.current = scheme;
         renderWithProviders(<NutritionWidgetSkeleton />);
-        const title = screen.getByText(copy.home.roadmap.titles.nutrition);
+        const title = screen.getByText(homeMessages.en.roadmap.titles.nutrition);
 
         expect(colourOf(title)).toBe(rgb(colours.ink));
-        expect(colourOf(screen.getByText(copy.home.roadmap.soon))).toBe(rgb(colours.inkMuted));
+        expect(colourOf(screen.getByText(homeMessages.en.roadmap.soon))).toBe(rgb(colours.inkMuted));
 
         let card: Element | null = title;
 

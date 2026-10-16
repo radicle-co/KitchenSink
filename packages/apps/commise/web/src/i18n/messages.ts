@@ -1,10 +1,12 @@
 /**
- * Web-app-specific user-facing copy (strings that live only in the web app — home shell, nav). Shared,
- * cross-platform copy lives in the feature packages' `messages.ts` (e.g. `@commise/features-recipes`).
- * A {@link LocalizedMessages} dictionary resolved per request by `getDictionary` (server) / `useMessages`
+ * Web-app-specific user-facing copy (strings that live only in the web app — the shell chrome, page titles, route
+ * boundaries). Copy that web and mobile say identically lives in the feature packages' `messages.ts`
+ * (`@commise/features-core/home`'s `homeMessages`, `@commise/features-recipes`'s recipe, collection and version sets), and
+ * `packages/infra/global/__tests__/appCopyIsNotDuplicated.test.ts` fails when a sentence is authored in both apps' own
+ * dictionaries. A {@link LocalizedMessages} dictionary resolved per request by `getDictionary` (server) / `useMessages`
  * (client). The `en` set is required; adding a locale is another key.
  */
-import type { GreetingBucket, HomeNavItemId, RoadmapWidgetId } from '@commise/features-core';
+import type { HomeChromeMessages } from '@commise/features-core/home';
 import type { LocalizedMessages } from '@commise/i18n';
 
 import type { ShellSurfaceId } from '@/components/app/shellSurfaces';
@@ -20,16 +22,21 @@ export interface WebMessages {
     /**
      * Copy for the shared App Router resilience boundaries (B18) — the `error.tsx` / `loading.tsx` /
      * `not-found.tsx` files under `[locale]` and each data segment render this ONE localized set through
-     * `RouteErrorState` / `RouteLoadingState` / `RouteNotFoundState`, so a segment never invents its own copy.
+     * `RouteErrorBoundary` / `RouteLoadingState` / `RouteNotFoundState`, so a segment never invents its own copy.
      */
     readonly boundary: {
-        /** Copy for a route segment's `error.tsx` — a render throw Next caught, never silent (DA9-reported). */
+        /**
+         * Copy for a route segment's `error.tsx` — a render throw Next caught, never silent (DA9-reported). The
+         * segment boundary draws the shared `BoundaryErrorNotice` (its title and labels are `boundaryMessages`);
+         * `global-error.tsx` renders its own `<html>` and must not import the design system, so it alone reads
+         * `title`, `retry` and `home` from here.
+         */
         readonly error: {
-            /** Heading of the error state. */
+            /** Heading of the last-resort page (`global-error.tsx` only). */
             readonly title: string;
             /** Supporting body copy. Deliberately generic — never echoes the raw error message to the viewer. */
             readonly description: string;
-            /** Label of the retry action, wired to Next's `retry()` (which re-fetches). */
+            /** Label of the last-resort page's retry action, wired to Next's `retry()` (`global-error.tsx` only). */
             readonly retry: string;
             /** Label of the last-resort page's full page load of Home (`global-error.tsx` only). */
             readonly home: string;
@@ -50,179 +57,51 @@ export interface WebMessages {
         };
     };
     readonly home: {
+        /** The site's document title (the root layout's metadata). */
         readonly title: string;
+        /** The site's description (the root layout's metadata). */
         readonly tagline: string;
-        readonly welcome: string;
-        readonly nav: {
-            readonly label: string;
-            readonly recipes: string;
-            readonly profile: string;
-        };
         /**
-         * Copy for the Home chrome (sidebar, top bar, mobile tab bar) — US-000 / FR-046. Keyed by the SHARED
-         * models in `@commise/features-core`, so a destination or roadmap widget added there without copy is
-         * a compile error rather than a blank label discovered in review.
+         * Copy for the web-only Home chrome (sidebar, top bar) — US-000 / FR-046. The labels both tab bars draw are
+         * `homeMessages.chrome`; the page titles are keyed by the closed {@link ShellSurfaceId} union, so a surface added
+         * without copy is a compile error rather than a blank bar.
          */
         readonly chrome: {
             /** The product wordmark beside the logo in the sidebar. */
             readonly wordmark: string;
             /** Accessible name of the logo/wordmark. */
             readonly logoAlt: string;
-            /** Accessible name of the primary (sidebar) navigation landmark. */
+            /** Accessible name of the primary (sidebar) navigation landmark. The tab bar's is `homeMessages.chrome.tabNavLabel`. */
             readonly primaryNavLabel: string;
-            /** Accessible name of the mobile tab-bar navigation landmark. */
-            readonly tabNavLabel: string;
             /**
-             * Title shown in the sticky top bar, one per shell-hosted SURFACE — keyed by the closed
-             * {@link ShellSurfaceId} union, so a surface added without copy is a compile error rather than a
-             * blank bar. This replaced a single `pageTitle` that was hard-coded 'Home' on all 15 shell routes.
+             * Title shown in the sticky top bar, one per shell-hosted SURFACE. This replaced a single `pageTitle` that was
+             * hard-coded 'Home' on all 15 shell routes.
              *
-             * Deliberately NOT shared with `destinations` (nav labels) or with a page's own `<h1>` copy:
-             * the three slots happen to read alike on some routes today, but they change for different reasons
-             * (a nav label may shorten to fit a collapsed rail; a page heading may carry context a 56px bar
-             * cannot), so they are separate knowledge, not duplication.
+             * Deliberately NOT shared with `destinations` (nav labels) or with a page's own `<h1>` copy: the three slots
+             * happen to read alike on some routes today, but they change for different reasons (a nav label may shorten to
+             * fit a collapsed rail; a page heading may carry context a 56px bar cannot), so they are separate knowledge,
+             * not duplication.
              */
             readonly pageTitles: Readonly<Record<ShellSurfaceId, string>>;
             /** The sidebar's collapse control: its visible label and, expanded, its name. */
             readonly collapseNav: string;
             /** The collapsed sidebar's expand control's name (the glyph alone shows). */
             readonly expandNav: string;
-            /** The avatar's and the profile row's name, with the cook's name in `{name}` (`buildSpec.md` §3.3). */
-            readonly profileButton: string;
-            /** The same name when the cook has none yet. */
-            readonly profileButtonNoName: string;
             /** Web's "Back to top" on a long list (§3.6). */
             readonly backToTop: string;
-            /** Label of each navigation destination, keyed by the shared nav model's id. */
-            readonly destinations: Readonly<Record<HomeNavItemId, string>>;
-        };
-        /**
-         * Home's H1 when the cook has no name yet, one per time-of-day bucket (`buildSpec.md` §4.2). Keyed by the shared
-         * {@link GreetingBucket} union.
-         */
-        readonly greetings: Readonly<Record<GreetingBucket, string>>;
-        /** Home's H1 with the cook's name in `{name}`: "Good afternoon, Eliza". */
-        readonly greetingsNamed: Readonly<Record<GreetingBucket, string>>;
-        /**
-         * Copy for the roadmap skeleton placeholders (FR-046 / R6 as amended by CR-001). Titles are the REAL
-         * widget headings from the mockup — the placeholder shows what is coming, never invented data.
-         */
-        readonly roadmap: {
-            /** The H2 above the placeholder group (`buildSpec.md` §4.2). */
-            readonly comingSoonHeading: string;
-            /** The one body line under the "Coming soon" heading. */
-            readonly comingSoonBody: string;
-            /** Visible "Soon" badge on every placeholder. Visible (not sr-only) so it reads the same to everyone. */
-            readonly soon: string;
-            /** The real heading of each roadmap widget, keyed by the shared roadmap registry's id. */
-            readonly titles: Readonly<Record<RoadmapWidgetId, string>>;
-        };
-        /**
-         * Copy owned by the Home widget-surface host (US-000 / FR-046): the greeting header and the
-         * accessible name of the widget-surface region. The widgets localize their own content via their
-         * feature packages; these are the host-chrome strings.
-         */
-        readonly surface: {
-            /** Accessible name of the widget-surface region (`role="region"`). */
-            readonly regionLabel: string;
-            /** Accessible label + text of the recipe widget's "see all" entry point into the recipes surface. */
-            readonly seeAllRecipes: string;
-            /** Fallback shown when a live Home widget throws (B23) — replaces the silent `null`. */
-            readonly widgetError: string;
-        };
-        /**
-         * Copy for the once-per-session subscription upgrade nudge shown when a free-tier viewer taps a
-         * premium-gated entry point on Home (FR-046). The mechanism is host-owned; in v1 no live widget is
-         * premium-gated, so it ships ready for the first gated widget (005–009).
-         */
-        readonly nudge: {
-            /** Nudge heading. */
-            readonly title: string;
-            /** Nudge body copy. */
-            readonly body: string;
-            /** Label of the primary upgrade action. */
-            readonly upgrade: string;
-            /** Label of the dismiss action. */
-            readonly dismiss: string;
         };
     };
     /**
-     * Web-only recipe copy — the fetch-state affordances the detail route owns (the shared list/detail
-     * building blocks localize their own content via `@commise/features-recipes`).
+     * Copy owned by the web photo-uploader container: the accessible names of the two hidden file inputs it
+     * supplies. Every sentence the cook reads (upload, remove, size, type, cap) is `photoMessages` in
+     * `@commise/features-recipes`, shared with mobile.
      */
     readonly recipes: {
-        readonly detail: {
-            /** Accessible label for the detail loading state. */
-            readonly loadingLabel: string;
-            /** Message shown when the recipe fails to load. */
-            readonly errorTitle: string;
-            /** Message shown when the requested recipe does not exist (or is not the caller's). */
-            readonly notFoundTitle: string;
-            /** Label of the retry action in the error state. */
-            readonly retry: string;
-            /** The way back from a recipe that could not be shown (`buildSpec.md` §6.7). */
-            readonly backToRecipes: string;
-        };
-        /**
-         * Web-only copy for the owner/viewer action controls composed onto the detail route (T068/T074/T075).
-         * The shared building blocks localize their own copy; these are the app-owned strings — the delete
-         * trigger that opens the shared dialog, and the premium gate reason for the visibility toggle.
-         */
-        /**
-         * Web-only fetch-state affordances the version-history route owns. The shared `RecipeVersionList`
-         * building block localizes its own list/empty content via `@commise/features-recipes`; the
-         * loading + error states around the fetch belong to the app.
-         */
-        readonly versions: {
-            /** Accessible label for the version-history loading state. */
-            readonly loadingLabel: string;
-            /** Message shown when the version history fails to load. */
-            readonly errorTitle: string;
-            /** Label of the retry action in the error state. */
-            readonly retry: string;
-        };
-        /** Copy owned by the create/edit containers (the shared form block localizes its own field copy). */
-        readonly form: {
-            /** Error shown when persisting a create/edit fails. */
-            readonly submitError: string;
-            /**
-             * Shown after a successful create while chosen photos are still uploading (U33).
-             *
-             * ⛔ REPLACES `photosAfterCreateNotice` ("Save this recipe first — you can add photos from its
-             * edit page"), which was the notice a cook met INSTEAD of an uploader. Photos are a field now;
-             * this sentence exists for the window AFTER the recipe is saved, because a save is two calls and
-             * the cook must not be told it is one.
-             */
-            readonly photosFlushingNotice: string;
-            /** The explicit "leave without the photos that would not upload" action (U33). */
-            readonly photosFinishWithout: string;
-        };
-        /**
-         * Copy owned by the web photo-uploader container: the accessible names of the two hidden file inputs it
-         * supplies. Every sentence the cook reads (upload, remove, size, type, cap) is `photoMessages` in
-         * `@commise/features-recipes`, shared with mobile.
-         */
         readonly photos: {
             /** Accessible label of the add-photo file-input control the container supplies to the block. */
             readonly addLabel: string;
             /** Accessible label of the hidden single-select input that picks a photo's replacement (U6). */
             readonly replaceInputLabel: string;
-        };
-    };
-    /**
-     * Web-only collection copy — the fetch-state affordances the detail route owns (the shared
-     * collection building blocks localize their own content via `@commise/features-recipes`).
-     */
-    readonly collections: {
-        readonly detail: {
-            /** Accessible label for the detail loading state. */
-            readonly loadingLabel: string;
-            /** Message shown when the collection fails to load. */
-            readonly errorTitle: string;
-            /** Message shown when the requested collection does not exist (or is not the caller's). */
-            readonly notFoundTitle: string;
-            /** Label of the retry action in the error state. */
-            readonly retry: string;
         };
     };
     /**
@@ -236,6 +115,9 @@ export interface WebMessages {
         readonly signUp: PageMetadataMessages;
     };
 }
+
+/** The whole shell chrome copy the web sidebar and top bar draw: the shared navigation labels plus the web-only ones. */
+export type WebChromeMessages = HomeChromeMessages & WebMessages['home']['chrome'];
 
 export const webMessages: LocalizedMessages<WebMessages> = {
     en: {
@@ -258,17 +140,10 @@ export const webMessages: LocalizedMessages<WebMessages> = {
         home: {
             title: 'Commise',
             tagline: 'Your personal AI-powered recipe assistant.',
-            welcome: 'Welcome to Commise',
-            nav: {
-                label: 'Account',
-                recipes: 'Recipes',
-                profile: 'Profile',
-            },
             chrome: {
                 wordmark: 'Commise',
                 logoAlt: 'Commise',
                 primaryNavLabel: 'Main',
-                tabNavLabel: 'Tabs',
                 pageTitles: {
                     home: 'Home',
                     recipes: 'Recipes',
@@ -285,80 +160,13 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 },
                 collapseNav: 'Collapse',
                 expandNav: 'Expand sidebar',
-                profileButton: 'Profile, {name}',
-                profileButtonNoName: 'Profile',
                 backToTop: 'Back to top',
-                destinations: {
-                    home: 'Home',
-                    recipes: 'Recipes',
-                    discover: 'Discover',
-                    'meal-plan': 'Plan',
-                    grocery: 'Shop',
-                },
-            },
-            greetings: {
-                morning: 'Good morning',
-                afternoon: 'Good afternoon',
-                evening: 'Good evening',
-                night: 'Still up?',
-            },
-            greetingsNamed: {
-                morning: 'Good morning, {name}',
-                afternoon: 'Good afternoon, {name}',
-                evening: 'Good evening, {name}',
-                night: 'Still up, {name}?',
-            },
-            roadmap: {
-                comingSoonHeading: 'Coming soon',
-                comingSoonBody: 'Meal plans, a grocery list and daily nutrition are on the way.',
-                soon: 'Soon',
-                titles: {
-                    nutrition: 'Today’s nutrition',
-                    'resume-cooking': 'Resume cooking',
-                    'meal-plan': 'This week’s meals',
-                },
-            },
-            surface: {
-                regionLabel: 'Home',
-                seeAllRecipes: 'See all recipes',
-                widgetError: 'This section couldn’t load.',
-            },
-            nudge: {
-                title: 'Unlock Commise Pro',
-                body: 'Upgrade to Commise Pro to use this feature.',
-                upgrade: 'See plans',
-                dismiss: 'Maybe later',
             },
         },
         recipes: {
-            detail: {
-                loadingLabel: 'Loading recipe',
-                errorTitle: 'We couldn’t load this recipe.',
-                notFoundTitle: 'This recipe isn’t available.',
-                retry: 'Try again',
-                backToRecipes: 'Back to My recipes',
-            },
-            versions: {
-                loadingLabel: 'Loading version history',
-                errorTitle: 'We couldn’t load the version history.',
-                retry: 'Try again',
-            },
-            form: {
-                submitError: 'We couldn’t save this recipe. Please try again.',
-                photosFlushingNotice: 'Recipe saved. Finishing your photo uploads…',
-                photosFinishWithout: 'Finish without the remaining photos',
-            },
             photos: {
                 addLabel: 'Add photo',
                 replaceInputLabel: 'Choose a replacement photo',
-            },
-        },
-        collections: {
-            detail: {
-                loadingLabel: 'Loading collection',
-                errorTitle: 'We couldn’t load this collection.',
-                notFoundTitle: 'We couldn’t find that collection.',
-                retry: 'Try again',
             },
         },
         pageMetadata: {

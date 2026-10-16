@@ -17,12 +17,11 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import type { JSX } from 'react';
 
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import { Button, buttonSurfaceClass } from '@commise/ui/button';
 import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
-
-import { webMessages } from '@/i18n/messages';
 
 /** Props for `SubscriptionNudge`. */
 export interface SubscriptionNudgeProps {
@@ -52,7 +51,7 @@ export interface SubscriptionNudgeProps {
  * the `onCloseAutoFocus` handler that restores it.
  */
 export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): JSX.Element | null {
-    const { home } = useMessages(webMessages);
+    const home = useMessages(homeMessages);
 
     // Snapshot whatever had focus right before this dialog opened, and restore it on close — see the module
     // doc. The false→true edge guard lives inside the hook.

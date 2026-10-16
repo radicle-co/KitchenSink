@@ -9,11 +9,10 @@
  */
 import { formatHomeDate } from '@commise/features-core';
 import { homeGreetingOf } from '@commise/features-core/home';
+import { homeMessages } from '@commise/features-core/home';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { LargeTitleHeader, type HeaderAction } from '@commise/ui/large-title-header';
 import type { JSX } from 'react';
-
-import { mobileMessages } from '../../i18n/messages.js';
 
 /** The id of Home's large title. */
 export const HOME_TITLE_ID = 'home-title';
@@ -26,7 +25,7 @@ export const HOME_TITLE_ID = 'home-title';
  * @sideEffect Reads the clock.
  */
 export function useHomeGreeting(name: string | undefined): string {
-    const { home } = useMessages(mobileMessages);
+    const home = useMessages(homeMessages);
 
     return homeGreetingOf(home, name, new Date().getHours());
 }

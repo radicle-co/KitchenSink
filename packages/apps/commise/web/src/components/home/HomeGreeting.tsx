@@ -37,6 +37,7 @@
  */
 import { formatHomeDate } from '@commise/features-core';
 import { homeGreetingOf } from '@commise/features-core/home';
+import { homeMessages } from '@commise/features-core/home';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import {
     LARGE_SUBTITLE_CLASS,
@@ -47,7 +48,6 @@ import {
 import type { JSX, ReactNode } from 'react';
 
 import { useIsHydrated } from '@/hooks/useIsHydrated';
-import { webMessages } from '@/i18n/messages';
 
 /**
  * The greeting line's typography, stated ONCE so the real line and the reserved placeholder cannot drift into
@@ -82,7 +82,7 @@ const PLACEHOLDER_BAR = 'max-w-full rounded-md bg-surface-muted';
  *          before that, the same two lines reserved as an `aria-hidden` placeholder.
  */
 export function HomeGreeting({ name, action, afterTitle }: HomeGreetingProps = {}): JSX.Element {
-    const { home } = useMessages(webMessages);
+    const home = useMessages(homeMessages);
     const locale = useLocale();
     const hydrated = useIsHydrated();
 

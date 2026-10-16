@@ -10,6 +10,7 @@
 import { z } from 'zod';
 import { hasExactlyOneAzpMode } from '@kitchensink/clerk-verify';
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
+import { BASE_RECIPE_DATABASE_NAME } from '@kitchensink/recipe-core/database-name';
 import { TEST_PRINCIPAL_CONTAINMENT_MODES } from '../common/containmentPolicy.js';
 import { RATE_LIMIT_DEFAULTS } from '../common/throttle/throttleDefaults.js';
 
@@ -136,8 +137,11 @@ export type BaseConfig = z.infer<typeof baseConfigSchema>;
 // Database Config
 // ---------------------------------------------------------------------------
 
-/** The recipe service's logical database on the shared RDS cluster. */
-export const RECIPE_DB_NAME = 'kitchensink_recipes';
+/**
+ * The recipe service's logical database on the shared RDS cluster when `DB_NAME` is unset. The env schema's
+ * default and the pool builder's fallback both read this one constant (`database/poolConfig.ts`).
+ */
+export const RECIPE_DB_NAME = BASE_RECIPE_DATABASE_NAME;
 
 /** The least-privilege role the recipe workloads authenticate as (passwordless, RDS-IAM). */
 export const RECIPE_DB_USERNAME = DATABASE_ROLES.recipe.app;

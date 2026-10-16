@@ -12,15 +12,10 @@
  * The role is provisioned by DataStack's `RecipeDbRoleModel` custom resource; this module defines the pool
  * contract the DatabaseModule provider depends on.
  */
-import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
 import { rdsPoolConfigFromEnv } from '@kitchensink/rds-iam-auth';
 import type pg from 'pg';
 
-/** The recipe service's logical database on the shared RDS instance. */
-export const RECIPE_DB_NAME = 'kitchensink_recipes';
-
-/** The `recipe_app` least-privilege role — the only DB principal the recipe workloads use (RDS-IAM). */
-export const RECIPE_DB_USERNAME = DATABASE_ROLES.recipe.app;
+import { RECIPE_DB_NAME, RECIPE_DB_USERNAME } from '../config/config.types.js';
 
 /**
  * Build a `pg` pool config from the standard recipe service environment. Prefers `DATABASE_URL` (local

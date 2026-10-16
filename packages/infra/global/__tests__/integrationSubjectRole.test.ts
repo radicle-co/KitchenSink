@@ -58,6 +58,8 @@ const MASTER_CONSUMERS: readonly string[] = [
     'packages/services/food-service/tests/e2e/perPrDatabaseCreation.e2e.test.ts',
     // Identity's runner suite: same shape.
     'packages/services/identity/tests/e2e/migrate.e2e.test.ts',
+    // Identity's 0017-over-existing-rows suite: it provisions a scratch database at migration 0016 to apply 0017 over.
+    'packages/services/identity/tests/e2e/migration0017OverExistingRows.e2e.test.ts',
     // Recipe's runner suite, and the pool whose database is dropped underneath it — the FORCE drop IS its subject.
     'packages/services/recipe-service/tests/e2e/database/migrationRunner.e2e.test.ts',
     'packages/services/recipe-service/tests/e2e/database/droppableDatabasePool.e2e.test.ts',

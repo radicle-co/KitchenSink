@@ -80,7 +80,7 @@ async function seedCommunity(page: Page): Promise<void> {
         makeRecipeDetail({
             id,
             ownerId: `usr_${handle}`,
-            authorDisplayName: handle,
+            authorUsername: handle,
             title,
             visibility: 'public',
             status: 'published',

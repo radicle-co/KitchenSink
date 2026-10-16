@@ -43,7 +43,7 @@ export type ClientAccessor = () => RecipeServiceClient | undefined;
  * A refusal this sender produces itself, for a record it has no call for.
  *
  * ⛔ A TERMINAL STATUS, CHOSEN SO `classifyFailure` PARKS IT. `501` is not `409`, so it is not a conflict,
- * and it is not in the transient set (`429/502/503/504`), so it is not retried — it parks and surfaces in
+ * and `classifyFailure` does not class it `transient`, so it is not retried — it parks and surfaces in
  * `failures` for the cook. Reporting `failed` with NO status would classify `unknown`, which
  * `itemStatus.ts` defines as "may have been processed server-side", and that is the one thing this case
  * provably is not: nothing was sent at all.

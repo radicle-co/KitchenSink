@@ -2,7 +2,7 @@
  * @module @kitchensink/sync — the drain: sending queued intents when connectivity returns.
  *
  * ⛔ THE RULE THAT REMOVES THE NEED FOR SERVER-SIDE IDEMPOTENCY — WHILE THE JOURNAL OUTLIVES THE WORK IT RECORDS. The
- * drainer auto-retries ONLY a request the server demonstrably did not process (429/502/503/504). A request whose
+ * drainer auto-retries ONLY a request the server demonstrably did not process (`classifyFailure`'s `transient`). A request whose
  * outcome is UNKNOWN — a timeout, a socket dropped mid-send, a process that died with it on the wire — may ALREADY have
  * been applied, so replaying it could write twice; it parks and the cook decides. That holds only while the parked
  * record lives at least as long as whatever could send the same write again: a journal that dies while the draft it

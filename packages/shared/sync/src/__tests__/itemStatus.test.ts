@@ -52,6 +52,15 @@ describe('classifyFailure — what kind of failure is it', () => {
     it('⛔ treats an unknown outcome as needing the USER to decide, never an automatic replay', () => {
         expect(classifyFailure(failure({ status: undefined }))).toBe('unknown');
     });
+
+    /**
+     * ⛔ A GATEWAY'S 502 OR 504 IS AN UNKNOWN OUTCOME TOO. The load balancer answers them when the target closed the
+     * connection or did not answer in time, which can be after the service committed the write, so a replay could
+     * create a second recipe. Only 429 and 503 are refused before any work.
+     */
+    it.each([502, 504])('⛔ treats a gateway %i as an unknown outcome, never an automatic replay', (status) => {
+        expect(classifyFailure(failure({ status }))).toBe('unknown');
+    });
 });
 
 describe('scopeOf — WHERE the error is rendered', () => {

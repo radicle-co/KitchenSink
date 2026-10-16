@@ -35,8 +35,14 @@ export type FailureScope =
 /** What the cook is offered. */
 export type Remedy = 'retry' | 'edit' | 'resolve' | 'confirm';
 
-/** Statuses the server returns having NOT processed the request, so a replay cannot duplicate anything. */
-const TRANSIENT: ReadonlySet<number> = new Set([429, 502, 503, 504]);
+/**
+ * Statuses the server returns having NOT processed the request, so a replay cannot duplicate anything. A gateway's 502
+ * and 504 are not among them: the load balancer can answer either after the service committed the write.
+ */
+const TRANSIENT: ReadonlySet<number> = new Set([429, 503]);
+
+/** A gateway's answers that say nothing about whether the service processed the request. */
+const GATEWAY_UNKNOWN: ReadonlySet<number> = new Set([502, 504]);
 
 /**
  * Classify a failure.
@@ -59,6 +65,10 @@ export function classifyFailure(failure: SyncFailure): FailureClass {
 
     if (TRANSIENT.has(failure.status)) {
         return 'transient';
+    }
+
+    if (GATEWAY_UNKNOWN.has(failure.status)) {
+        return 'unknown';
     }
 
     return 'terminal';

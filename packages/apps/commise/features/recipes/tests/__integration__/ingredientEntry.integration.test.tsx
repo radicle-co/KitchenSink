@@ -144,6 +144,9 @@ describe('the entry, on the create form (integration)', () => {
         act(() => result.current.entry.setText({ kind: 'newLine' }, 'chickpeas'));
         await waitFor(() => expect(remoteFoodsOf(result.current.entry.view)).toHaveLength(1));
         const [dry] = remoteFoodsOf(result.current.entry.view);
+        // Taken BEFORE the press, so it is never later than the moment the 429 is received; reading the clock after the
+        // answer let a slow run push "now" past the window and fail a correct deadline.
+        const beforePress = Date.now();
 
         await act(async () => {
             result.current.entry.selectRemoteFood(dry!);
@@ -152,8 +155,8 @@ describe('the entry, on the create form (integration)', () => {
 
         const adopts = () => origins.sentTo('food').filter((each) => each.path === '/api/v1/foods/remote/adopt');
         expect(adopts()).toHaveLength(1);
-        // Received now plus 120 s, rounded up to the minute: never sooner than the server's window.
-        expect(result.current.sourceLimit.retryAt).toBeGreaterThanOrEqual(Date.now() + 119_000);
+        // Received plus 120 s, rounded up to the minute: never sooner than the server's window.
+        expect(result.current.sourceLimit.retryAt).toBeGreaterThanOrEqual(beforePress + 120_000);
 
         await act(async () => {
             result.current.entry.selectRemoteFood(dry!);

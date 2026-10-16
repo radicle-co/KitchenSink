@@ -21,8 +21,9 @@ import { makeUserProfile, makeUserProfileUser } from '@commise/features-account/
 import type { DeleteUserMeResponse, EraseUserMeResponse } from '@kitchensink/schema-identity';
 
 import { isClosureStepError } from '@commise/features-account';
+import { useEraseAccount } from '@commise/features-account/danger';
 import { useDeleteAccount } from '../../src/hooks/useDeleteAccount.js';
-import { useEraseAccount } from '../../src/hooks/useEraseAccount.js';
+import { useProfileServiceClient } from '../../src/hooks/useProfileServiceClient.js';
 import { useUpdateProfile } from '../../src/hooks/useUpdateProfile.js';
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 
@@ -269,7 +270,7 @@ describe('useEraseAccount (mobile)', () => {
         useAuthMock.mockReturnValue({ getToken } as unknown as ReturnType<typeof useAuth>);
         stubAcceptedErasure();
 
-        const { result } = renderHook(() => useEraseAccount(), { wrapper });
+        const { result } = renderHook(() => useEraseAccount(useProfileServiceClient()), { wrapper });
         result.current.mutate();
 
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -300,7 +301,7 @@ describe('useEraseAccount (mobile)', () => {
         useAuthMock.mockReturnValue({ getToken, signOut } as unknown as ReturnType<typeof useAuth>);
         stubAcceptedErasure();
 
-        const { result } = renderHook(() => useEraseAccount(), { wrapper });
+        const { result } = renderHook(() => useEraseAccount(useProfileServiceClient()), { wrapper });
         result.current.mutate();
 
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -320,7 +321,7 @@ describe('useEraseAccount (mobile)', () => {
             text: () => Promise.resolve(JSON.stringify(failure)),
         } as Response);
 
-        const { result } = renderHook(() => useEraseAccount(), { wrapper });
+        const { result } = renderHook(() => useEraseAccount(useProfileServiceClient()), { wrapper });
         result.current.mutate();
 
         await waitFor(() => expect(result.current.isError).toBe(true));
@@ -336,7 +337,7 @@ describe('useEraseAccount (mobile)', () => {
         } as unknown as ReturnType<typeof useAuth>);
         stubAcceptedErasure();
 
-        const { result } = renderHook(() => useEraseAccount(), { wrapper });
+        const { result } = renderHook(() => useEraseAccount(useProfileServiceClient()), { wrapper });
         result.current.mutate();
 
         await waitFor(() => expect(result.current.isError).toBe(true));

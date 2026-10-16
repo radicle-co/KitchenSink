@@ -17,14 +17,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { authBlockMessages } from '@commise/features-account';
-import { accountDangerMessages } from '@commise/features-account/danger';
+import { accountDangerMessages, useEraseAccount } from '@commise/features-account/danger';
 import { profileMessages } from '@commise/features-account/profile';
 import { role, roleDark } from '@commise/ui/colors';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { useDeleteAccount } from '../../src/hooks/useDeleteAccount.js';
-import { useEraseAccount } from '../../src/hooks/useEraseAccount.js';
 import { useUpdateProfile } from '../../src/hooks/useUpdateProfile.js';
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { ProfileScreen } from '../../src/screens/profile.js';
@@ -49,7 +48,12 @@ vi.mock('../../src/hooks/useSignOutAndVerify.js', () => ({ useSignOutAndVerify: 
 vi.mock('../../src/hooks/useUserProfile.js', () => ({ useUserProfile: vi.fn() }));
 vi.mock('../../src/hooks/useUpdateProfile.js', () => ({ useUpdateProfile: vi.fn() }));
 vi.mock('../../src/hooks/useDeleteAccount.js', () => ({ useDeleteAccount: vi.fn() }));
-vi.mock('../../src/hooks/useEraseAccount.js', () => ({ useEraseAccount: vi.fn() }));
+// The shared account-erasure command is doubled at its seam; the platform-bound identity client it takes is a stub.
+vi.mock('@commise/features-account/danger', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/features-account/danger')>()),
+    useEraseAccount: vi.fn(),
+}));
+vi.mock('../../src/hooks/useProfileServiceClient.js', () => ({ useProfileServiceClient: () => ({}) }));
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useAllOwnerRecipes: () => ({ recipes: [], isLoading: false, isError: false, isComplete: true }),

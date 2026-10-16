@@ -6,7 +6,7 @@
  * DA10-c: goes through the typed `ProfileServiceClient`, built by the shared {@link useProfileServiceClient}
  * factory (which owns the identity origin and the native token policy, so the avatar presign cannot drift
  * from it). This READ force-refreshes its token; the update/delete/erase MUTATIONS accept a cached one — see
- * `useUpdateProfile`, `useDeleteAccount` and `useEraseAccount`.
+ * `useUpdateProfile`, `useDeleteAccount` and the shared `useEraseAccount`.
  *
  * B12: the profile query key + `staleTime` come from `@commise/features-account`'s `profileQueries` factory —
  * the same shared cache policy the web hook consumes — instead of a locally duplicated `PROFILE_KEY`

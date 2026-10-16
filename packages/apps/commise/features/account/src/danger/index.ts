@@ -16,3 +16,4 @@ export { useAccountEraseControl } from './useAccountEraseControl.js';
 export type { AccountEraseControl } from './useAccountEraseControl.js';
 export { useAccountEraseFlow } from './useAccountEraseFlow.js';
 export type { AccountEraseFlowInput, EraseFlowRecipes } from './useAccountEraseFlow.js';
+export { useEraseAccount } from './useEraseAccount.js';

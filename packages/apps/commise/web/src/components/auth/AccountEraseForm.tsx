@@ -43,13 +43,14 @@ import {
     accountDangerMessages,
     useAccountEraseControl,
     useAccountEraseFlow,
+    useEraseAccount,
 } from '@commise/features-account/danger';
 import { isGoneError } from '@kitchensink/recipe-service-client';
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { useSignOutAndLeave } from '@/components/auth/useSignOutAndLeave';
-import { useEraseAccount } from '@/components/auth/useEraseAccount';
+import { useProfileServiceClient } from '@/hooks/useProfileServiceClient';
 
 /**
  * The mounted-while-open erasure flow: owns the recipe fetch and the web-bound steps, and hands the rest to the shared
@@ -75,7 +76,7 @@ function AccountEraseFlow({
      * mutation above erases RECIPES and reaches no other service; this is what erases the identity row,
      * deletes the Clerk account and fans the erasure out to food. See `useEraseAccount`.
      */
-    const accountErasure = useEraseAccount();
+    const accountErasure = useEraseAccount(useProfileServiceClient());
 
     /**
      * Recipes -> account -> sign-out, as `useErasureSequence` runs them inside the shared flow, so the sequence finishes

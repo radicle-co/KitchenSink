@@ -65,8 +65,9 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
 // `useRequestAccountErasure` above, and the one that makes an erasure reach identity, Clerk and food.
 // Its default double ACCEPTS, so the tests below exercise the exit path they are about.
 vi.mock('../../src/hooks/useDeleteAccount.js', () => ({ useDeleteAccount: vi.fn() }));
-vi.mock('../../src/hooks/useEraseAccount.js', () => ({
-    useEraseAccount: () => useMutation({ mutationFn: () => accountEraseFn() }),
+// The shared `useEraseAccount` runs for real; only the platform-bound identity client behind it is doubled.
+vi.mock('../../src/hooks/useProfileServiceClient.js', () => ({
+    useProfileServiceClient: () => ({ eraseMe: () => accountEraseFn() }),
 }));
 
 const useRecipesMock = vi.mocked(useAllOwnerRecipes);

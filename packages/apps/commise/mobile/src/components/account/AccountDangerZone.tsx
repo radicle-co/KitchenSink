@@ -41,8 +41,9 @@ import {
     closeRowOf,
     useAccountEraseControl,
     useAccountEraseFlow,
+    useEraseAccount,
 } from '@commise/features-account/danger';
-import { useEraseAccount } from '../../hooks/useEraseAccount.js';
+import { useProfileServiceClient } from '../../hooks/useProfileServiceClient.js';
 import { ProfileGroup, ProfileRow, profileMessages } from '@commise/features-account/profile';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import { LiveRegion } from '@commise/ui/live-region';
@@ -84,7 +85,7 @@ function AccountEraseFlow({
      * rows intact — the viewer could sign straight back in. Identity owns the user and is the only service
      * that can start the cross-service erasure (it enqueues the message whose worker deletes the Clerk account and fans out to recipe and food).
      */
-    const accountErasure = useEraseAccount();
+    const accountErasure = useEraseAccount(useProfileServiceClient());
 
     /**
      * Recipes -> account -> sign-out, run by the shared flow's `useErasureSequence` (the same sequence web runs), so it

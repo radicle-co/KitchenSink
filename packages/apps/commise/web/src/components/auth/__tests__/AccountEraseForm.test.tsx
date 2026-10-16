@@ -53,11 +53,9 @@ const recipesState = vi.hoisted(() => ({
  * identity erases the account and fans out, and the flow is only complete when BOTH are accepted. */
 const { erasureFn, accountEraseFn } = vi.hoisted(() => ({ erasureFn: vi.fn(), accountEraseFn: vi.fn() }));
 
-vi.mock('@/components/auth/useEraseAccount', async () => {
-    const { useMutation } = await import('@tanstack/react-query');
-
-    return { useEraseAccount: () => useMutation({ mutationFn: () => accountEraseFn() }) };
-});
+// The shared `useEraseAccount` runs for real; only the platform-bound identity client behind it is doubled.
+const accountClient = vi.hoisted(() => ({ eraseMe: () => accountEraseFn() }));
+vi.mock('@/hooks/useProfileServiceClient', () => ({ useProfileServiceClient: () => accountClient }));
 
 // The election consumes the FULL owner list (paged to completion) — see useAllOwnerRecipes. A capped
 // single-page hook would silently omit (and then erasure would destroy) owner-only recipes past the cap.

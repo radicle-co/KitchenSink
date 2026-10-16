@@ -252,12 +252,21 @@ delete it.** `eraseIdentityRow` (`@kitchensink/identity-db`) states outright: _"
 hard-deleted (R1) and its `identityId` is left intact (so it stays resolvable)."_ What erasure there does is
 scrub the profile (name and picture destroyed, email replaced by a ULID-keyed placeholder), purge the
 `accounts`/`profiles` rows, and set `status = 'erased'` — the last of which is load-bearing for the R10
-anti-resurrection guard, which is why the row cannot simply be deleted. The Clerk account itself IS deleted
-first (`deleteUser(tombstone.identityId)` precedes the DB scrub).
+anti-resurrection guard, which is why the row cannot simply be deleted. The Clerk account is deleted on one of
+two orders. The 12-month tombstone sweep deletes it FIRST (`deleteUser(tombstone.identityId)` precedes the DB
+scrub). A self-service erasure scrubs the row FIRST and the deletion worker deletes the Clerk account afterwards,
+because the identity service holds no Clerk secret. The self-service order leaves a window in which the row is
+erased and the account still exists, so the defence below depends on a durable fact, `users.provider_deleted_at`
+("Clerk confirmed this account no longer exists"). The deletion worker, the `user.deleted` webhook and the sweep
+write it; the nightly erasure reconciliation treats a missing value as an incomplete erasure, re-enqueues the
+erasure message, and will not mark the erasure reconciled until it is set (a CHECK makes that combination
+unstorable).
 
-So the honest position is: after erasure the recipe-side `user_id` links to an identity row that carries **no
-PII** and a Clerk `sub` that no longer resolves to an account at Clerk. Re-identification would require a
-source outside this system that maps the ULID or the `sub` back to a person.
+So the honest position is: once `provider_deleted_at` is set, the recipe-side `user_id` links to an identity row
+that carries **no PII** and a Clerk `sub` that no longer resolves to an account at Clerk. Re-identification would
+require a source outside this system that maps the ULID or the `sub` back to a person. Until it is set, the
+account can still sign in; the reconciliation alarm (`ErasureIncomplete`) is what makes that window visible and
+bounded.
 
 ⚠️ **Two places the retained identifier ALSO survives, named so this survey is complete rather than
 convenient.** Neither is created by this change; both are in scope of the deliberate retention:
@@ -269,7 +278,8 @@ convenient.** Neither is created by this change; both are in scope of the delibe
   `eraseIdentityRow` deliberately APPENDS to it rather than clearing it.
 
 ⚠️ **One sentence above is a claim about a third party and is phrased as one deliberately.** What this system
-does is call `deleteUser(tombstone.identityId)` before the DB scrub. What Clerk retains after that call
+does is call `deleteUser` for the identity (the sweep before the DB scrub, the deletion worker after it) and
+record Clerk's answer in `provider_deleted_at`. What Clerk retains after that call
 returns — backups included — is not observable from here and is not asserted.
 
 **Re-open this ADR if any of these change:** the identity row starts retaining PII past erasure; a restored

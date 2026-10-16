@@ -448,13 +448,25 @@ describe('RecipeDiscoveryContainer — the deferred calorie lookup across the se
         const onRecoverableError = vi.fn();
         const hydratingClient = await prefetchedQueryClient(client);
 
-        await act(async () => {
-            hydrateRoot(container, page(client, hydratingClient), { onRecoverableError });
-        });
-        await settle();
+        // ⛔ `hydrateRoot` mounts OUTSIDE React Testing Library, so `cleanup()` never unmounts it. A root left
+        // mounted keeps its effects' timers (the search box's 250 ms debounce) alive past the test; when the file
+        // ends first they fire after jsdom is gone — `ReferenceError: window is not defined`, reported by vitest
+        // as an unhandled error against this file. Unmount it here, even when an assertion fails.
+        let root: ReturnType<typeof hydrateRoot> | undefined;
 
-        expect(onRecoverableError).not.toHaveBeenCalled();
-        expect(batch).toHaveBeenCalledTimes(1);
-        container.remove();
+        try {
+            await act(async () => {
+                root = hydrateRoot(container, page(client, hydratingClient), { onRecoverableError });
+            });
+            await settle();
+
+            expect(onRecoverableError).not.toHaveBeenCalled();
+            expect(batch).toHaveBeenCalledTimes(1);
+        } finally {
+            await act(async () => {
+                root?.unmount();
+            });
+            container.remove();
+        }
     });
 });

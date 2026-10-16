@@ -6,9 +6,10 @@
  * view state and clamps it into the row bounds (past `maxRows` it scrolls). The height is the lines plus 16 pt of
  * padding above and below and the 1 pt edge.
  *
- * ⚠️ `onContentSizeChange` reports the TEXT's height on iOS and Android; react-native-web measures the node's
- * `scrollHeight`, which includes padding. The clamp keeps both inside the bounds, but the web shim can read a field one
- * padding taller than a device would — a device check, recorded in the slice report.
+ * ⚠️ `onContentSizeChange` reports the TEXT's height on iOS and Android; react-native-web reports the node's
+ * `scrollHeight`, which includes the vertical padding. Taking that as the text height and adding the padding back grew
+ * the box by one padding per report, and each growth re-measured: an endless loop. {@link textContentHeight} takes the
+ * padding off a web report, so the height is a fixed point (text + padding + edge) that a re-measure reproduces.
  *
  * While it has focus it asks the field reveal host to hold it in view (`useFocusReveal`), and when the screen names it
  * (`ScrollHost.scrollToField`) the host centres it and the screen-reader cursor moves to it, with the keyboard left down
@@ -20,7 +21,7 @@
  *     measures and what the screen-reader cursor moves to.
  */
 import { useRef, useState, type FC } from 'react';
-import { StyleSheet, type TextInput as NativeTextInput } from 'react-native';
+import { Platform, StyleSheet, type TextInput as NativeTextInput } from 'react-native';
 
 import { useFieldTargetReveal } from '../fieldReveal/useFieldTargetReveal.native.js';
 import { useFocusReveal } from '../fieldReveal/useFocusReveal.native.js';
@@ -33,6 +34,18 @@ import { fieldAccessibilityHint, fieldLabelId, type TextAreaProps } from './prop
 
 /** One body line, in points. */
 const LINE = nativeTokens.type.body.lineHeight ?? 24;
+
+/**
+ * The text's own height from a reported content height. Pure.
+ *
+ * @param reported - The height `onContentSizeChange` delivered.
+ * @param platform - `Platform.OS`. react-native-web (`'web'`) reports the node's `scrollHeight`, which includes both
+ *     vertical paddings; a device reports the text alone.
+ * @returns The text height in points, padding excluded.
+ */
+export function textContentHeight(reported: number, platform: string): number {
+    return platform === 'web' ? Math.max(0, reported - 2 * FIELD_PADDING) : reported;
+}
 
 /**
  * The field's height for a measured content height, clamped into its row bounds. Pure.
@@ -84,7 +97,9 @@ export const TextArea: FC<TextAreaProps> = ({
             multiline
             value={value}
             onChangeText={onChangeText}
-            onContentSizeChange={(event) => setContent(event.nativeEvent.contentSize.height)}
+            onContentSizeChange={(event) =>
+                setContent(textContentHeight(event.nativeEvent.contentSize.height, Platform.OS))
+            }
             aria-labelledby={fieldLabelId(id)}
             accessibilityLabel={label}
             accessibilityHint={fieldAccessibilityHint(error, hint)}

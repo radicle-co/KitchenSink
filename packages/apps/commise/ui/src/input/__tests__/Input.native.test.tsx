@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { Platform } from 'react-native';
 
 import { placeholderContrast } from '@commise/test-utils';
 
@@ -253,26 +254,88 @@ describe('TextArea (native) — a focus request', () => {
 
 describe('TextArea (native)', () => {
     /**
-     * Type into the field with the content standing at `height`. react-native-web measures a multi-line field's content
-     * from the DOM node's `scrollHeight` on each change and reports it through `onContentSizeChange` — the same path a
-     * device takes — and jsdom lays nothing out, so the measurement is supplied here.
+     * jsdom lays nothing out, so the measurement is supplied. `textHeight` is the text's own height. With
+     * `reportsPadding` the stub measures like react-native-web, whose `scrollHeight` is the larger of the box's padding
+     * box (its current height less the edge) and the text plus BOTH paddings; without it, like a device, whose content
+     * size is the text alone. Typing re-measures, which is also how the web shim is re-measured after a height change.
      */
-    let contentHeight = 0;
+    let textHeight = 0;
+    let reportsPadding = true;
 
-    const grow = (height: number): void => {
-        contentHeight = height;
-        fireEvent.change(screen.getByRole('textbox', { name: 'Steps' }), { target: { value: `line ${height}` } });
+    const field = (): HTMLElement => screen.getByRole('textbox', { name: 'Steps' });
+    const heightOf = (): string => getComputedStyle(field()).height;
+
+    const renderSteps = (minRows: number, maxRows?: number): void => {
+        render(
+            <>
+                <FieldLabel forId="steps" label="Steps" />
+                <TextArea id="steps" value="" onChangeText={vi.fn()} minRows={minRows} maxRows={maxRows} />
+            </>,
+        );
+    };
+
+    const measure = (height: number): void => {
+        textHeight = height;
+        fireEvent.change(field(), { target: { value: `line ${height} ${Math.random()}` } });
     };
 
     beforeEach(() => {
+        textHeight = 0;
+        reportsPadding = true;
         Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
             configurable: true,
-            get: () => contentHeight,
+            get(this: HTMLElement) {
+                if (!reportsPadding) {
+                    return textHeight;
+                }
+
+                const box = parseFloat(getComputedStyle(this).height) - 2;
+
+                return Math.max(Number.isNaN(box) ? 0 : box, textHeight + 32);
+            },
         });
     });
 
     afterEach(() => {
         Reflect.deleteProperty(HTMLElement.prototype, 'scrollHeight');
+    });
+
+    it('reaches a fixed height under react-native-web and stays there when re-measured', () => {
+        renderSteps(2);
+
+        const line = nativeTokens.type.body.lineHeight ?? 0;
+        measure(3 * line);
+        const settled = heightOf();
+
+        expect(settled).toBe(`${3 * line + 34}px`);
+
+        for (let again = 0; again < 5; again += 1) {
+            measure(3 * line);
+        }
+
+        expect(heightOf()).toBe(settled);
+    });
+
+    it('still grows to fit a device-style report, the text height alone', () => {
+        reportsPadding = false;
+        const original = Platform.OS;
+        Object.defineProperty(Platform, 'OS', { value: 'ios', configurable: true });
+
+        try {
+            renderSteps(2, 4);
+
+            const line = nativeTokens.type.body.lineHeight ?? 0;
+            measure(3 * line);
+            expect(heightOf()).toBe(`${3 * line + 34}px`);
+
+            measure(10 * line);
+            expect(heightOf()).toBe(`${4 * line + 34}px`);
+
+            measure(line);
+            expect(heightOf()).toBe(`${2 * line + 34}px`);
+        } finally {
+            Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
+        }
     });
 
     it('is a multi-line field named by its FieldLabel', () => {
@@ -312,27 +375,6 @@ describe('TextArea (native)', () => {
         const field = screen.getByRole('textbox', { name: 'Steps' });
 
         expect(getComputedStyle(field).borderTopColor).toBe(rgb(role.danger));
-    });
-
-    it('grows with its content, and stops at its maximum rows', () => {
-        render(
-            <>
-                <FieldLabel forId="steps" label="Steps" />
-                <TextArea id="steps" value="" onChangeText={vi.fn()} minRows={2} maxRows={4} />
-            </>,
-        );
-
-        const line = nativeTokens.type.body.lineHeight ?? 0;
-        const field = (): HTMLElement => screen.getByRole('textbox', { name: 'Steps' });
-
-        grow(3 * line);
-        expect(getComputedStyle(field()).height).toBe(`${3 * line + 34}px`);
-
-        grow(10 * line);
-        expect(getComputedStyle(field()).height).toBe(`${4 * line + 34}px`);
-
-        grow(line);
-        expect(getComputedStyle(field()).height).toBe(`${2 * line + 34}px`);
     });
 });
 

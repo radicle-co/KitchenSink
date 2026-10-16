@@ -35,6 +35,13 @@ import { repoRoot } from '../__tests__/serviceSources.js';
 
 const SCRIPT = path.join(repoRoot, '.github/scripts/sandboxStatus.sh');
 
+/**
+ * The settle bound for every case that must complete several polls. The probe's deadline is bash's whole-second
+ * `$SECONDS` and each `aws` stub call spawns node, so a tight bound races the polls under CPU load; only the
+ * never-settles case is ABOUT the deadline, and it passes its own short one.
+ */
+const SETTLE_SECONDS = 60;
+
 let scratch = '';
 
 afterEach(() => {
@@ -54,7 +61,7 @@ afterEach(() => {
  */
 function probe(
     answers: Readonly<Record<string, readonly string[]>>,
-    settleSeconds = 4,
+    settleSeconds = SETTLE_SECONDS,
     resources: { readonly database?: string; readonly nat?: string } = {},
 ): {
     readonly up: string;
@@ -200,7 +207,7 @@ describe('sandboxStatus.sh probe — healthy stacks over a STOPPED database or N
     const healthy = { [IDENTITY]: ['UPDATE_COMPLETE'], [ALB]: ['UPDATE_COMPLETE'] };
 
     it('⛔ answers DOWN when every stack is healthy but the database is stopped', () => {
-        const result = probe(healthy, 4, { database: 'stopped' });
+        const result = probe(healthy, SETTLE_SECONDS, { database: 'stopped' });
 
         expect(result.up).toBe('false');
         expect(result.status).toBe(0);
@@ -208,7 +215,7 @@ describe('sandboxStatus.sh probe — healthy stacks over a STOPPED database or N
     });
 
     it('⛔ answers DOWN when every stack is healthy but the NAT is stopped', () => {
-        const result = probe(healthy, 4, { nat: 'stopped' });
+        const result = probe(healthy, SETTLE_SECONDS, { nat: 'stopped' });
 
         expect(result.up).toBe('false');
         expect(result.status).toBe(0);
@@ -226,7 +233,7 @@ describe('sandboxStatus.sh probe — healthy stacks over a STOPPED database or N
     });
 
     it('⛔ an ERROR from the status check is not "down": the probe exits non-zero', () => {
-        const result = probe(healthy, 4, { database: 'failed' });
+        const result = probe(healthy, SETTLE_SECONDS, { database: 'failed' });
 
         expect(result.status).not.toBe(0);
         expect(result.up).not.toBe('false');
@@ -234,7 +241,7 @@ describe('sandboxStatus.sh probe — healthy stacks over a STOPPED database or N
     });
 
     it('⛔ issues only read calls, whatever the answer', () => {
-        const result = probe(healthy, 4, { database: 'stopped', nat: 'stopped' });
+        const result = probe(healthy, SETTLE_SECONDS, { database: 'stopped', nat: 'stopped' });
 
         expect(
             result.awsVerbs.filter(

@@ -13,7 +13,7 @@
  *
  * ⛔ The URL follows a new recipe without a navigation, because a router navigation would remount the page and reseed
  * the editor mid-typing. It stays on the new route: `?draft=` names the recipe's local ref, and once the server has
- * created it, its server id. The new route, reopened (a reload, Back, Forward), goes to the edit route of a recipe the
+ * created it, its server id (beside the New recipe press token, `?fresh=`, which keys the subtree: `freshRecipeHref`). The new route, reopened (a reload, Back, Forward), goes to the edit route of a recipe the
  * server holds — named by id, or by a local ref the outbox's journal resolved after the editor had closed — and opens
  * the device draft otherwise (D7). ⛔ The URL is replaced through Next's own shallow-update path
  * (`history.replaceState(null, …)`): passing `history.state` carries Next's `__NA` flag, which makes Next skip its
@@ -72,6 +72,7 @@ import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { EditorStateFrame } from '@/components/recipes/EditorStateFrame';
 import { webDeviceStore } from '@/components/recipes/deviceSession';
 import { editorDraftsFor } from '@/components/recipes/editorDrafts';
+import { freshTokenOf, withDraftRef } from '@/components/recipes/freshRecipeHref';
 import { opensPasteSheet } from '@/components/recipes/pasteIngredientsHref';
 import { IngredientStatusPoller } from '@/components/recipes/IngredientStatusPoller';
 import { RecipeLoadError } from '@/components/recipes/RecipeLoadError';
@@ -143,8 +144,22 @@ export const RecipeEditorContainer: FC<RecipeEditorContainerProps> = ({ locale, 
     );
 };
 
-/** A new recipe: blank, its device draft when the URL names one, or — when the server holds it — its edit route. */
+/**
+ * A new recipe, keyed on the New recipe press token (`?fresh=`). Next keeps a page's state across a search-param-only
+ * navigation, so a press while this page is open would otherwise keep the draft in front of the cook; a new token
+ * remounts the subtree, which re-reads the URL and opens blank.
+ *
+ * ⛔ Keyed on the token and never on `?draft=`: the editor writes `?draft=` itself as its recipe gets a ref and a server
+ * id, and a key on that would remount the editor mid-typing. The editor's URL follow keeps the token, so it is stable.
+ */
 const NewRecipeEditor: FC<{ readonly locale: string; readonly opening: number }> = ({ locale, opening }) => {
+    const fresh = freshTokenOf(useSearchParams());
+
+    return <NewRecipeSeed key={fresh ?? 'unpressed'} locale={locale} opening={opening} />;
+};
+
+/** A new recipe: blank, its device draft when the URL names one, or — when the server holds it — its edit route. */
+const NewRecipeSeed: FC<{ readonly locale: string; readonly opening: number }> = ({ locale, opening }) => {
     const cook = useCookDrafts();
     const searchParams = useSearchParams();
     // ⛔ Read ONCE: the editor keeps the URL on its recipe through `history.replaceState`, which Next syncs into
@@ -331,7 +346,7 @@ function replaceUrlFor(locale: string, ref: string): void {
     }
 
     // Relative: only the query changes, so the path (and a preview's base path, ADR-0033) is kept as it is.
-    window.history.replaceState(null, '', `?draft=${encodeURIComponent(ref)}${window.location.hash}`);
+    window.history.replaceState(null, '', `${withDraftRef(window.location.search, ref)}${window.location.hash}`);
 }
 
 /** The editor over its seed. */

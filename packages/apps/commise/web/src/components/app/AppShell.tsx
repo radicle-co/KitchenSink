@@ -31,6 +31,7 @@ import { useEffect, type FC, type ReactNode } from 'react';
 
 import { DEFAULT_SHELL_SURFACE_ID, type ShellSurfaceId } from '@/components/app/shellSurfaces';
 import { useSearchShortcut } from '@/components/app/useSearchShortcut';
+import { freshRecipeHref, mintFreshToken } from '@/components/recipes/freshRecipeHref';
 import { HomeChrome } from '@/components/home/chrome/HomeChrome';
 import { profileEntryOf } from '@commise/features-core';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -104,7 +105,7 @@ export const AppShell: FC<AppShellProps> = ({
                 newRecipe={(collapsed) => (
                     <RecipeCreateButton
                         appearance={collapsed ? 'rail' : 'sidebar'}
-                        onCreateRecipe={() => router.push(`/${locale}/recipes/new` as Route)}
+                        onCreateRecipe={() => router.push(freshRecipeHref(locale, mintFreshToken()) as Route)}
                     />
                 )}
             >

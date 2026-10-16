@@ -48,6 +48,25 @@ test.describe('the editor session', () => {
         await expect(page).toHaveURL(/\/recipes$/u, { timeout: 15_000 });
     });
 
+    /**
+     * The sidebar's New recipe, pressed on the new-recipe page itself, is a search-param-only navigation, and Next keeps
+     * a page's state across one: the old draft stayed and the press looked dead. Each press carries a new `?fresh=`
+     * token, which the editor container keys its new-recipe subtree on.
+     */
+    test('⛔ the sidebar’s New recipe, pressed on the new-recipe page, opens a blank editor', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 800 });
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
+
+        await openNewRecipe(page);
+        await page.getByLabel('Title').fill('Soup I started');
+
+        await page.getByRole('button', { name: 'New recipe' }).filter({ visible: true }).click();
+
+        await expect(page).toHaveURL(/\/recipes\/new\?fresh=/u);
+        await expect(page.getByLabel('Title')).toHaveValue('');
+    });
+
     /** E4 (WCAG 2.2 SC 2.4.11): the document pads its scroll for the sticky header and the action bar. */
     test('pads the document’s scroll for the sticky chrome, and a keyboard-focused control stays above the bar', async ({
         page,

@@ -18,9 +18,10 @@ import { webMessages } from '@/i18n/messages';
 import { SHELL_SURFACE_IDS, type ShellSurfaceId } from '@/components/app/shellSurfaces';
 
 // The shell's sidebar opens the editor through the router and its tab bar reads the route (slice 3).
+const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
 vi.mock('next/navigation', async (importOriginal) => ({
     ...(await importOriginal<typeof import('next/navigation')>()),
-    useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+    useRouter: () => ({ push: pushMock, replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
     usePathname: () => '/en',
 }));
 vi.mock('@/hooks/useUserProfile', () => ({
@@ -31,7 +32,10 @@ vi.mock('@/hooks/useUserSettings', () => ({ useUserSettings: () => ({ data: { se
 
 const { AppShell } = await import('../AppShell');
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    pushMock.mockReset();
+});
 
 const titles = webMessages.en.home.chrome.pageTitles;
 
@@ -93,6 +97,24 @@ describe('AppShell — the page name', () => {
                 ? 0
                 : newRecipe.compareDocumentPosition(sidebarNav) & Node.DOCUMENT_POSITION_FOLLOWING,
         ).toBeTruthy();
+    });
+
+    /**
+     * Pressing New recipe on the new-recipe page itself is a search-param-only navigation, which Next answers by keeping
+     * the page's state — the old draft. A token that is new for every press is what tells the editor to start over.
+     */
+    it('⛔ opens the new recipe route with a token that is new for every press', async () => {
+        renderShell('recipes');
+        const press = screen.getByRole('button', { name: 'New recipe' });
+
+        await userEvent.click(press);
+        await userEvent.click(press);
+
+        const hrefs = pushMock.mock.calls.map(([href]) => String(href));
+        expect(hrefs).toHaveLength(2);
+        expect(hrefs[0]).toMatch(/^\/en\/recipes\/new\?fresh=[\w-]+$/u);
+        expect(hrefs[1]).toMatch(/^\/en\/recipes\/new\?fresh=[\w-]+$/u);
+        expect(hrefs[0]).not.toBe(hrefs[1]);
     });
 
     /**

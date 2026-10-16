@@ -582,6 +582,68 @@ describe('RecipeEditorContainer (web) — the signed-in cook changes', () => {
     });
 });
 
+/**
+ * Pressing the sidebar's New recipe while already on the new-recipe page navigates to the same path with a new
+ * `?fresh=` token. Next keeps a page's state on a search-param-only navigation, so without a key on that token the
+ * editor kept the old draft and the press looked dead.
+ */
+describe('RecipeEditorContainer (web) — a New recipe press on the new-recipe page', () => {
+    const SERVER_ID = '0b7f8a52-3c1d-4e2f-9a6b-5c4d3e2f1a0b';
+
+    function renderNewEditor(client: RecipeServiceClient) {
+        const tree = () =>
+            withFoodClient(
+                <SyncProvider subject="user_cook" send={recipeSender(() => client)}>
+                    <RecipeEditorContainer locale="en" />
+                </SyncProvider>,
+            );
+
+        return { view: renderWithRecipeClient(tree(), client), tree };
+    }
+
+    it('⛔ a new press token opens a blank editor, not the draft in front of the cook', async () => {
+        window.history.replaceState(null, '', '/en/recipes/new?fresh=press-1');
+        const { view, tree } = renderNewEditor(createFakeRecipeServiceClient());
+        await userEvent.type(await screen.findByRole('textbox', { name: /title/iu }), 'Old soup');
+
+        window.history.replaceState(null, '', '/en/recipes/new?fresh=press-2');
+        view.rerender(tree());
+
+        await waitFor(() => expect(screen.getByRole('textbox', { name: /title/iu })).toHaveProperty('value', ''));
+    });
+
+    it('⛔ the same token, with the editor`s own ?draft= added, keeps the cook`s typing', async () => {
+        window.history.replaceState(null, '', '/en/recipes/new?fresh=press-1');
+        const { view, tree } = renderNewEditor(createFakeRecipeServiceClient());
+        await userEvent.type(await screen.findByRole('textbox', { name: /title/iu }), 'Old soup');
+
+        window.history.replaceState(null, '', '/en/recipes/new?fresh=press-1&draft=local%3Arecipe%3Aabc');
+        view.rerender(tree());
+
+        expect(screen.getByRole('textbox', { name: /title/iu })).toHaveProperty('value', 'Old soup');
+    });
+
+    it('⛔ the editor`s URL follow keeps the press token, so the follow itself cannot remount the editor', async () => {
+        window.history.replaceState(null, '', '/en/recipes/new?fresh=press-1');
+        const replaceState = vi.spyOn(window.history, 'replaceState');
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'createRecipe').mockResolvedValue(
+            makeRecipeDetail({ id: SERVER_ID, title: 'Soup', status: RecipeStatus.DRAFT }),
+        );
+
+        renderNewEditor(client);
+        await userEvent.type(await screen.findByRole('textbox', { name: /title/iu }), 'Soup');
+        act(() => {
+            focusManager.setFocused(false);
+        });
+        focusManager.setFocused(undefined);
+
+        await waitFor(() =>
+            expect(replaceState).toHaveBeenLastCalledWith(null, '', `?fresh=press-1&draft=${SERVER_ID}`),
+        );
+    });
+});
+
 describe('RecipeEditorContainer (web) — the URL after the first save', () => {
     const SERVER_ID = '0b7f8a52-3c1d-4e2f-9a6b-5c4d3e2f1a0b';
 

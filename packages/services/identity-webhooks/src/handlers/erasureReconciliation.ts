@@ -1,10 +1,12 @@
 import type { Context, ScheduledEvent } from 'aws-lambda';
 import { and, eq, isNull, lte } from 'drizzle-orm';
 
+import { providerDeletionIsOwed } from '@kitchensink/identity-core';
 import { users, type UserId } from '@kitchensink/identity-db';
 
-import { getErasureFanoutConfig } from '../config/env.js';
+import { getConfig, getErasureFanoutConfig } from '../config/env.js';
 import { withDb, type DbContext } from '../common/handlerPipeline.js';
+import { enqueueErasure } from '../common/erasureEnqueue.js';
 import { runErasureFanout, type ErasureFanoutResult } from '../common/erasureFanout.js';
 import { emitMetric, logger, withObservability } from '../common/observability.js';
 
@@ -14,8 +16,19 @@ import { emitMetric, logger, withObservability } from '../common/observability.j
  * the three-leg erasure. An identity that reached `status='erased'` must have its recipe + food legs
  * jointly complete; a lost/stuck leg must NEVER leave a silently half-erased account.
  *
- * For each erased identity (correlation key = the owner ULID, the SAME `users.id` recipe/food key by), it
- * RE-DRIVES the idempotent recipe + food internal-erasure legs via {@link runErasureFanout}. The re-drive
+ * An erasure has THREE legs, not two: the identity provider's account (Clerk), recipe, and food. The recipe and food
+ * legs are checked by re-driving them; the Clerk leg is checked by the durable fact `users.provider_deleted_at`
+ * ("Clerk confirmed this account no longer exists"), which the deletion worker, the `user.deleted` webhook and the
+ * tombstone sweep write. A self-service erasure scrubs the row first and the worker deletes the account afterwards,
+ * so a lost or dead-lettered message used to leave a LIVE Clerk account behind a row reported as erased. A row with
+ * no confirmation is therefore an incomplete leg: this sweep RE-ENQUEUES an `erasure` message (the deletion worker
+ * stays the ONLY Clerk mutator, so the Clerk secret stays out of this Lambda), counts it into `ErasureIncomplete`,
+ * and neither fans out nor stamps `reconciled_at` until the worker has confirmed. A CHECK on the table makes
+ * "reconciled while the provider account may be alive" unstorable.
+ *
+ * For each erased identity whose provider deletion is confirmed (correlation key = the owner ULID, the SAME
+ * `users.id` recipe/food key by), it RE-DRIVES the idempotent recipe + food internal-erasure legs via
+ * {@link runErasureFanout}. The re-drive
  * is authoritative-idempotent — recipe returns `completed` (or re-creates a lost job), food deletes any
  * residual `fetch_requesters` rows (or 0) — so this sweep both HEALS an incomplete erasure and detects it:
  * a leg that is non-terminal, reports residual work, errored, or is unreachable is counted into the
@@ -42,10 +55,14 @@ import { emitMetric, logger, withObservability } from '../common/observability.j
 /** Don't reconcile an erasure younger than this — its async legs may legitimately still be in flight. */
 export const RECONCILE_GRACE_MS = 60 * 60 * 1000; // 1 hour
 
-/** An erased identity to reconcile — the durable ULID (recipe/food key) + its Clerk `sub` (correlation). */
+/**
+ * An erased identity to reconcile - the durable ULID (recipe/food key), its Clerk `sub`, and whether Clerk has
+ * confirmed the account gone.
+ */
 interface ErasedIdentity {
     id: UserId;
     identityId: string;
+    providerDeletedAt: Date | null;
 }
 
 /** The reconciliation result — how many erased identities were scanned and how many were incomplete. */
@@ -55,18 +72,38 @@ interface ReconcileResult {
 }
 
 /**
- * Whether a fan-out result shows the erasure jointly complete: recipe terminal (`completed`) AND food clean
- * (0 residual rows). Any other shape (non-terminal recipe, residual food rows, an unreachable leg) means the
- * erasure was NOT complete at scan time. Pure.
+ * Whether the erasure is complete at scan time: the provider account confirmed deleted, recipe terminal
+ * (`completed`) AND food clean (0 residual rows). Any other shape (an unconfirmed provider deletion, non-terminal
+ * recipe, residual food rows, an unreachable leg) means the erasure was NOT complete. Pure.
  *
  * @param result - The re-drive's per-leg result.
- * @returns True when both legs are complete/clean.
+ * @param providerDeletedAt - When Clerk confirmed the account gone, or `null` if it has not.
+ * @returns True when every leg is complete/clean.
  */
-export function isErasureComplete(result: ErasureFanoutResult): boolean {
+export function isErasureComplete(result: ErasureFanoutResult, providerDeletedAt: Date | null): boolean {
     const recipeComplete = result.recipe.ok && result.recipe.jobStatus === 'completed';
     const foodComplete = result.food.ok && (result.food.deletedRequesterRows ?? 0) === 0;
 
-    return recipeComplete && foodComplete;
+    return providerDeletedAt !== null && recipeComplete && foodComplete;
+}
+
+/**
+ * The erased identities this sweep must still reconcile: past the grace window and not yet proven complete
+ * (`reconciled_at IS NULL`). Each carries `providerDeletedAt` so the caller can tell a row waiting on Clerk from
+ * one waiting on recipe/food.
+ *
+ * @param db - The identity db handle.
+ * @param cutoff - Rows erased after this instant are still in their grace window and are excluded.
+ * @returns The pending erased identities.
+ * @sideEffect Reads `users`.
+ */
+export async function selectPendingErasures(db: DbContext['db'], cutoff: Date): Promise<ErasedIdentity[]> {
+    return (await db
+        .select({ id: users.id, identityId: users.identityId, providerDeletedAt: users.providerDeletedAt })
+        .from(users)
+        .where(
+            and(eq(users.status, 'erased'), lte(users.updatedAt, cutoff), isNull(users.reconciledAt)),
+        )) satisfies ErasedIdentity[];
 }
 
 /**
@@ -95,6 +132,44 @@ async function stampReconciled(db: DbContext['db'], userId: UserId): Promise<voi
 }
 
 /**
+ * Re-enqueue the erasure message for an identity whose Clerk account is not yet confirmed deleted, so the deletion
+ * worker finishes the job. Never throws: a lost enqueue is already counted by the caller as an incomplete erasure
+ * and is retried by tomorrow's sweep, and one user's failure must not stop the batch.
+ *
+ * @param identity - The erased identity owing a provider deletion.
+ * @param queueUrl - The deletion queue URL, or `undefined` when the stage has none configured.
+ * @sideEffect Sends an SQS message; emits a metric; logs.
+ */
+async function requestProviderDeletion(identity: ErasedIdentity, queueUrl: string | undefined): Promise<void> {
+    // Dimensionless - the owner id is on the log lines below (see the cardinality gate).
+    emitMetric('ErasureIncompleteOwner', 1);
+
+    if (queueUrl === undefined) {
+        logger.error(
+            'erasure-reconciliation: provider deletion owed but DELETION_QUEUE_URL is unset; cannot re-enqueue',
+            {
+                userId: identity.id,
+            },
+        );
+
+        return;
+    }
+
+    try {
+        await enqueueErasure(queueUrl, { identityId: identity.identityId, userId: identity.id });
+        emitMetric('ErasureProviderDeleteReEnqueued', 1);
+        logger.warn('erasure-reconciliation: Clerk deletion unconfirmed for erased identity; re-enqueued erasure', {
+            userId: identity.id,
+        });
+    } catch (err) {
+        logger.error('erasure-reconciliation: re-enqueueing the provider deletion failed; counting as incomplete', {
+            userId: identity.id,
+            error: err instanceof Error ? err.message : String(err),
+        });
+    }
+}
+
+/**
  * The scheduled erasure-completion reconciliation. Selects `erased` identities past the grace window and
  * re-drives each one's legs, counting the incomplete. One user's failure never aborts the batch — it is
  * itself an incompleteness signal and the rest are still reconciled.
@@ -103,28 +178,34 @@ async function stampReconciled(db: DbContext['db'], userId: UserId): Promise<voi
  */
 const innerHandler = async (_event: ScheduledEvent, _context: Context, { db }: DbContext): Promise<ReconcileResult> => {
     const config = getErasureFanoutConfig();
+    const { DELETION_QUEUE_URL } = getConfig();
     const cutoff = new Date(Date.now() - RECONCILE_GRACE_MS);
 
     // The BOUND: only erased identities not yet proven jointly complete (`reconciled_at IS NULL`) and past
-    // the grace window. A fully-reconciled identity has been stamped and is excluded — the sweep scans the
+    // the grace window. A fully-reconciled identity has been stamped and is excluded - the sweep scans the
     // still-pending working set, not the entire (ever-growing) erased population.
-    const erased = (await db
-        .select({ id: users.id, identityId: users.identityId })
-        .from(users)
-        .where(
-            and(eq(users.status, 'erased'), lte(users.updatedAt, cutoff), isNull(users.reconciledAt)),
-        )) satisfies ErasedIdentity[];
+    const erased = await selectPendingErasures(db, cutoff);
 
     let incomplete = 0;
 
     for (const identity of erased) {
         try {
+            if (providerDeletionIsOwed({ status: 'erased', providerDeletedAt: identity.providerDeletedAt })) {
+                // ⛔ The Clerk leg is incomplete, and fanning out to recipe and food now would only destroy data
+                // behind an account that may still sign in. Ask the deletion worker - the only Clerk mutator - to
+                // finish; this row stays unstamped and in tomorrow's scan until it has.
+                incomplete += 1;
+                await requestProviderDeletion(identity, DELETION_QUEUE_URL);
+
+                continue;
+            }
+
             const result = await runErasureFanout(
                 { userId: identity.id, eventId: `reconcile:${identity.id}`, actor: 'erasure-reconciliation' },
                 config,
             );
 
-            if (isErasureComplete(result)) {
+            if (isErasureComplete(result, identity.providerDeletedAt)) {
                 // Both legs verified complete — stamp reconciled_at so this identity leaves the nightly scan.
                 await stampReconciled(db, identity.id);
             } else {

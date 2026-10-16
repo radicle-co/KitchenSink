@@ -9,7 +9,10 @@
 import type { Context, ScheduledEvent } from 'aws-lambda';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRunErasureFanout } = vi.hoisted(() => ({ mockRunErasureFanout: vi.fn() }));
+const { mockRunErasureFanout, mockEnqueueErasure } = vi.hoisted(() => ({
+    mockRunErasureFanout: vi.fn(),
+    mockEnqueueErasure: vi.fn(),
+}));
 
 vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
 
@@ -21,6 +24,7 @@ vi.mock('@kitchensink/identity-db', () => ({
         status: 'status',
         updatedAt: 'updated_at',
         reconciledAt: 'reconciled_at',
+        providerDeletedAt: 'provider_deleted_at',
     },
 }));
 
@@ -32,6 +36,7 @@ vi.mock('drizzle-orm', () => ({
 }));
 
 vi.mock('../../common/erasureFanout.js', () => ({ runErasureFanout: mockRunErasureFanout }));
+vi.mock('../../common/erasureEnqueue.js', () => ({ enqueueErasure: mockEnqueueErasure }));
 
 const { emitMetric } = vi.hoisted(() => ({ emitMetric: vi.fn() }));
 vi.mock('../../common/observability.js', () => ({
@@ -40,7 +45,7 @@ vi.mock('../../common/observability.js', () => ({
     withObservability: <T, R>(fn: (event: T, ctx: unknown) => Promise<R>) => fn,
 }));
 
-import { handler as rawHandler } from '../erasureReconciliation.js';
+import { handler as rawHandler, isErasureComplete } from '../erasureReconciliation.js';
 import { getDb } from '../../common/db.js';
 import { resetConfigCacheForTests } from '../../config/env.js';
 
@@ -66,7 +71,17 @@ interface MockDb {
     stampedValues: unknown[];
 }
 
-const mockDbWith = (rows: Array<{ id: string; identityId: string }>): MockDb => {
+/** A scanned row. `providerDeletedAt` defaults to CONFIRMED, so a test that is not about it means "Clerk is gone". */
+interface Row {
+    id: string;
+    identityId: string;
+    providerDeletedAt?: Date | null;
+}
+
+const CONFIRMED = new Date('2026-09-01T00:00:00.000Z');
+
+const mockDbWith = (input: Row[]): MockDb => {
+    const rows = input.map((row) => ({ providerDeletedAt: CONFIRMED, ...row }));
     const db: MockDb = {
         selectWhere: undefined,
         stampedWhere: [],
@@ -104,6 +119,8 @@ beforeEach(() => {
     vi.clearAllMocks();
     resetConfigCacheForTests();
     mockRunErasureFanout.mockResolvedValue(complete);
+    mockEnqueueErasure.mockResolvedValue(undefined);
+    process.env['DELETION_QUEUE_URL'] = 'https://sqs.local/queue/deletion';
     process.env['DB_HOST'] = 'db.internal';
     process.env['DB_PORT'] = '5432';
     process.env['DB_NAME'] = 'kitchensink_identity';
@@ -254,5 +271,78 @@ describe('erasure-reconciliation handler', () => {
         // usr_01 errored (counted incomplete), usr_02 still reconciled cleanly.
         expect(mockRunErasureFanout).toHaveBeenCalledTimes(2);
         expect(result).toMatchObject({ scanned: 2, incomplete: 1 });
+    });
+
+    // --- P1 #5: a missing Clerk-deletion confirmation is an INCOMPLETE leg, repaired by re-enqueueing the worker.
+    describe('provider deletion still owed (users.provider_deleted_at IS NULL)', () => {
+        const owed: Row = { id: 'usr_01', identityId: 'user_a', providerDeletedAt: null };
+
+        it('⛔ re-enqueues an erasure message, does NOT fan out, does NOT stamp, and counts it incomplete', async () => {
+            const db = mockDbWith([owed]);
+            mockGetDb.mockResolvedValue(db as never);
+
+            const result = await handler(makeEvent(), makeContext());
+
+            expect(mockEnqueueErasure).toHaveBeenCalledTimes(1);
+            expect(mockEnqueueErasure).toHaveBeenCalledWith('https://sqs.local/queue/deletion', {
+                identityId: 'user_a',
+                userId: 'usr_01',
+            });
+            expect(mockRunErasureFanout).not.toHaveBeenCalled();
+            expect(db.stampedWhere).toHaveLength(0);
+            expect(result).toMatchObject({ scanned: 1, incomplete: 1 });
+            expect(emitMetric).toHaveBeenCalledWith('ErasureProviderDeleteReEnqueued', 1);
+            expect(emitMetric).toHaveBeenCalledWith('ErasureIncomplete', 1);
+        });
+
+        it('a row with the confirmation is fanned out and stamped exactly as before', async () => {
+            const db = mockDbWith([{ id: 'usr_01', identityId: 'user_a', providerDeletedAt: CONFIRMED }]);
+            mockGetDb.mockResolvedValue(db as never);
+
+            const result = await handler(makeEvent(), makeContext());
+
+            expect(mockEnqueueErasure).not.toHaveBeenCalled();
+            expect(mockRunErasureFanout).toHaveBeenCalledTimes(1);
+            expect(db.stampedWhere).toHaveLength(1);
+            expect(result).toMatchObject({ scanned: 1, incomplete: 0 });
+        });
+
+        it('an enqueue that throws is counted incomplete and the batch carries on', async () => {
+            mockGetDb.mockResolvedValue(
+                mockDbWith([owed, { id: 'usr_02', identityId: 'user_b', providerDeletedAt: CONFIRMED }]) as never,
+            );
+            mockEnqueueErasure.mockRejectedValueOnce(new Error('sqs down'));
+
+            const result = await handler(makeEvent(), makeContext());
+
+            expect(result).toMatchObject({ scanned: 2, incomplete: 1 });
+            expect(mockRunErasureFanout).toHaveBeenCalledTimes(1);
+            expect(mockRunErasureFanout.mock.calls[0]![0]).toMatchObject({ userId: 'usr_02' });
+        });
+
+        it('⛔ with no queue URL it cannot repair, so it counts incomplete rather than pretending', async () => {
+            delete process.env['DELETION_QUEUE_URL'];
+            resetConfigCacheForTests();
+            mockGetDb.mockResolvedValue(mockDbWith([owed]) as never);
+
+            const result = await handler(makeEvent(), makeContext());
+
+            expect(mockEnqueueErasure).not.toHaveBeenCalled();
+            expect(mockRunErasureFanout).not.toHaveBeenCalled();
+            expect(result).toMatchObject({ scanned: 1, incomplete: 1 });
+        });
+    });
+});
+
+describe('isErasureComplete', () => {
+    it('requires BOTH legs complete AND the provider deletion confirmed', () => {
+        expect(isErasureComplete(complete as never, CONFIRMED)).toBe(true);
+        expect(isErasureComplete(complete as never, null)).toBe(false);
+        expect(
+            isErasureComplete(
+                { recipe: { service: 'recipe', ok: true, jobStatus: 'running' }, food: complete.food } as never,
+                CONFIRMED,
+            ),
+        ).toBe(false);
     });
 });

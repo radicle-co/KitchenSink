@@ -172,9 +172,11 @@ export async function runIdentityQueueCheck(deps: IdentityCheckDeps): Promise<re
  * produce a combination that never existed, which `classifyOwed` would then name with confidence.
  *
  * ⚠️ `status_applied_version IS DISTINCT FROM status_version` is the SAME predicate as migration 0014's
- * partial index, so this read uses it rather than scanning. An `erased` account is excluded because its
- * provider account is already gone — there is nothing left to converge, and counting it would escalate a
- * completed erasure forever.
+ * partial index, so this read uses it rather than scanning. An `erased` account is excluded because ban/unban
+ * convergence does not apply to it: its provider debt is a DELETION, tracked by `users.provider_deleted_at` and
+ * enforced by the nightly erasure reconciliation (R7), which re-enqueues the erasure until Clerk confirms. This
+ * read is deliberately not a second detection path for it - counting erased rows here would escalate a normal
+ * in-flight erasure, and two detectors for one debt is how they disagree.
  */
 const IDENTITY_OWED_SQL = `
     SELECT

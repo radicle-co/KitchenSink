@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { providerChangeIsOwed } from '../statusConvergence.js';
+import { providerChangeIsOwed, providerDeletionIsOwed } from '../statusConvergence.js';
 
 describe('providerChangeIsOwed', () => {
     it('owes nothing when the applied version has caught up', () => {
@@ -39,5 +39,19 @@ describe('providerChangeIsOwed', () => {
 
     it('owes a change for a suspended account whose intent has moved', () => {
         expect(providerChangeIsOwed({ status: 'suspended', statusVersion: 2, statusAppliedVersion: 1 })).toBe(true);
+    });
+});
+
+describe('providerDeletionIsOwed', () => {
+    const confirmed = new Date('2026-10-01T00:00:00.000Z');
+
+    it.each([
+        ['an erased account the provider has not confirmed deleted', 'erased', null, true],
+        ['an erased account the provider confirmed deleted', 'erased', confirmed, false],
+        ['an active account (nothing was erased)', 'active', null, false],
+        ['a tombstoned account (closure bans, it does not delete)', 'tombstoned', null, false],
+        ['a suspended account', 'suspended', null, false],
+    ])('%s -> owed: %s', (_label, status, providerDeletedAt, owed) => {
+        expect(providerDeletionIsOwed({ status, providerDeletedAt })).toBe(owed);
     });
 });

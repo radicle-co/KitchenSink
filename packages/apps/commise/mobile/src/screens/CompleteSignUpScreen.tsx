@@ -38,6 +38,7 @@ import {
     type SignUpFieldName,
     type SignUpFieldSpec,
 } from '../auth/signUpFields.js';
+import { AuthFooter } from '../components/auth/AuthFooter.js';
 import { AuthHeader } from '../components/auth/AuthHeader.js';
 import { AuthScreenFrame } from '../components/auth/AuthScreenFrame.js';
 import { SignUpFields, type SignUpErrors, type SignUpValues } from '../components/auth/SignUpFields.js';
@@ -150,8 +151,23 @@ export function CompleteSignUpScreen({
         }
     }
 
+    const footer = (
+        <AuthFooter error={error}>
+            <Button icon="userPlus" size="lg" width="fill" busy={busy} onPress={() => void handleSubmit()}>
+                {t.createAccountAction}
+            </Button>
+        </AuthFooter>
+    );
+    const wayOut = (
+        <View style={styles.wayOut}>
+            <Button variant="ghost" icon="rotateCcw" disabled={busy} onPress={onStartOver}>
+                {t.startOverAction}
+            </Button>
+        </View>
+    );
+
     return (
-        <AuthScreenFrame>
+        <AuthScreenFrame footer={footer} trailing={wayOut}>
             <AuthHeader title={t.finishTitle} />
             <View style={styles.intro}>
                 <Text style={[nativeTokens.type.body, { color: colors.inkMuted }]}>{t.finishPrompt}</Text>
@@ -171,22 +187,9 @@ export function CompleteSignUpScreen({
                 busy={busy}
                 focusField={focusField}
                 onFocusHandled={() => setFocusField(null)}
+                onNext={setFocusField}
+                end={{ key: 'go', onSubmit: () => void handleSubmit() }}
             />
-
-            {error ? (
-                <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
-                    {error}
-                </Text>
-            ) : null}
-
-            <Button icon="userPlus" size="lg" width="fill" busy={busy} onPress={() => void handleSubmit()}>
-                {t.createAccountAction}
-            </Button>
-            <View style={styles.wayOut}>
-                <Button variant="ghost" icon="rotateCcw" disabled={busy} onPress={onStartOver}>
-                    {t.startOverAction}
-                </Button>
-            </View>
         </AuthScreenFrame>
     );
 }
@@ -194,5 +197,4 @@ export function CompleteSignUpScreen({
 const styles = StyleSheet.create({
     intro: { gap: nativeTokens.spacing[1] },
     wayOut: { alignItems: 'flex-start' },
-    error: { ...nativeTokens.type.meta },
 });

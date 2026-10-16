@@ -21,16 +21,16 @@ import { useClerk, useSignIn } from '@clerk/expo';
 import { Button } from '@commise/ui/button';
 import { FieldLabel, Input } from '@commise/ui/input';
 import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
 import { useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
 import { authFailureCopy, authFailureMessage } from '../auth/authFailureMessage.js';
 import { AuthCodeActions } from '../components/auth/AuthCodeActions.js';
 import { AuthCodeFields } from '../components/auth/AuthCodeFields.js';
+import { AuthFooter } from '../components/auth/AuthFooter.js';
 import { AuthHeader } from '../components/auth/AuthHeader.js';
 import { AuthScreenFrame } from '../components/auth/AuthScreenFrame.js';
 import { AuthSwitchLink } from '../components/auth/AuthSwitchLink.js';
@@ -46,7 +46,6 @@ export interface LoginScreenProps {
 
 export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.Element {
     const { auth: t } = useMessages(mobileMessages);
-    const { colors } = useTheme();
     const { setActive } = useClerk();
     const { signIn } = useSignIn();
     const [email, setEmail] = useState('');
@@ -56,6 +55,8 @@ export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.
     const [step, setStep] = useState<'credentials' | 'code'>('credentials');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    // The Next key on the email field asks the password field for focus; the field acknowledges once it has taken it.
+    const [passwordFocusRequested, setPasswordFocusRequested] = useState(false);
     const social = useSocialSignIn(onNeedsFields);
     // One lock for the whole screen: the email form, the provider group and the switch link (plan 012 D10).
     const locked = busy || social.busyProvider !== null;
@@ -211,8 +212,28 @@ export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.
 
     const onCredentials = step === 'credentials';
 
+    const footer = (
+        <AuthFooter error={error}>
+            <Button
+                icon={onCredentials ? 'logIn' : 'check'}
+                size="lg"
+                width="fill"
+                busy={busy}
+                disabled={!signIn || social.busyProvider !== null}
+                onPress={() => void (onCredentials ? handleSignIn() : handleVerifyCode())}
+            >
+                {onCredentials ? t.signInAction : t.verifyAction}
+            </Button>
+        </AuthFooter>
+    );
+    const trailing = onCredentials ? (
+        <AuthSwitchLink prompt={t.noAccountPrompt} label={t.signUpLink} disabled={locked} onPress={onSignUp} />
+    ) : (
+        <AuthCodeActions busy={busy} onResend={() => void handleResend()} onStartOver={() => void handleStartOver()} />
+    );
+
     return (
-        <AuthScreenFrame>
+        <AuthScreenFrame footer={footer} trailing={trailing}>
             <AuthHeader title={t.signInTitle} />
 
             {onCredentials ? (
@@ -240,6 +261,7 @@ export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.
                             autoComplete="email"
                             enterKeyHint="next"
                             disabled={locked}
+                            onSubmit={() => setPasswordFocusRequested(true)}
                         />
                     </View>
                     <View style={styles.field}>
@@ -254,6 +276,8 @@ export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.
                             autoComplete="current-password"
                             enterKeyHint="go"
                             disabled={locked}
+                            focusRequested={passwordFocusRequested}
+                            onFocusRequestHandled={() => setPasswordFocusRequested(false)}
                             onSubmit={() => void handleSignIn()}
                         />
                     </View>
@@ -267,33 +291,6 @@ export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.
                     onSubmit={() => void handleVerifyCode()}
                 />
             )}
-
-            {error ? (
-                <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
-                    {error}
-                </Text>
-            ) : null}
-
-            <Button
-                icon={onCredentials ? 'logIn' : 'check'}
-                size="lg"
-                width="fill"
-                busy={busy}
-                disabled={!signIn || social.busyProvider !== null}
-                onPress={() => void (onCredentials ? handleSignIn() : handleVerifyCode())}
-            >
-                {onCredentials ? t.signInAction : t.verifyAction}
-            </Button>
-
-            {onCredentials ? (
-                <AuthSwitchLink prompt={t.noAccountPrompt} label={t.signUpLink} disabled={locked} onPress={onSignUp} />
-            ) : (
-                <AuthCodeActions
-                    busy={busy}
-                    onResend={() => void handleResend()}
-                    onStartOver={() => void handleStartOver()}
-                />
-            )}
         </AuthScreenFrame>
     );
 }
@@ -302,5 +299,4 @@ const styles = StyleSheet.create({
     // A label and its field are one group: closer to each other than to the next field (spec §1.6).
     field: { gap: nativeTokens.spacing[1] },
     fields: { gap: nativeTokens.spacing[3] },
-    error: { ...nativeTokens.type.meta },
 });

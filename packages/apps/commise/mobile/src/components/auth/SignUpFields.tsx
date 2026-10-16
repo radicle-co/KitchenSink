@@ -4,7 +4,8 @@
  * Clerk still lists as missing. Each field carries its registry autofill and keyboard hints, and its error (ours for an
  * empty field, Clerk's for a rejected one) sits UNDER it and is repeated as the field's `error`, which leads its accessibility hint (WCAG 2.2 SC 3.3.1; React
  * Native has no `aria-describedby`).
- * The host names the one field that takes focus: the first in error.
+ * The host names the one field that takes focus: the first in error, or the one the return key moved on to.
+ * The return key chains the fields in order (`next`), and the last one either submits (`go`) or hands on (`end`).
  *
  * Presentational: props → JSX.
  */
@@ -24,6 +25,13 @@ export type SignUpValues = Readonly<Partial<Record<SignUpFieldName, string>>>;
 /** Each field's error, by Clerk field name. */
 export type SignUpErrors = Readonly<Partial<Record<SignUpFieldName, string>>>;
 
+/**
+ * What the return key does on the LAST field here (`buildSpec.md` §8.1): `go` submits the form it ends, `next` hands
+ * focus to a field the host renders after these (the typed form's password).
+ */
+export type SignUpFieldsEnd =
+    { readonly key: 'go'; readonly onSubmit: () => void } | { readonly key: 'next'; readonly onNext: () => void };
+
 /** Props for {@link SignUpFields}. */
 export interface SignUpFieldsProps {
     /** The fields to show, in order. */
@@ -42,6 +50,10 @@ export interface SignUpFieldsProps {
     readonly focusField: SignUpFieldName | null;
     /** Called once that field has taken focus; the host clears its request. */
     readonly onFocusHandled: () => void;
+    /** Called with the following field when the return key is pressed on any field but the last: the host sets `focusField`. */
+    readonly onNext: (field: SignUpFieldName) => void;
+    /** What the return key does on the last field. */
+    readonly end: SignUpFieldsEnd;
 }
 
 /**
@@ -59,6 +71,8 @@ export function SignUpFields({
     busy,
     focusField,
     onFocusHandled,
+    onNext,
+    end,
 }: SignUpFieldsProps): JSX.Element {
     const { auth: t } = useMessages(mobileMessages);
     const { colors } = useTheme();
@@ -72,7 +86,9 @@ export function SignUpFields({
 
     return (
         <View style={styles.fields}>
-            {fields.map((field) => {
+            {fields.map((field, at) => {
+                const following = fields[at + 1];
+                const submitsHere = following === undefined && end.key === 'go';
                 const id = `${idPrefix}-${field.name}`;
                 const hint = hints[field.name];
                 const error = errors[field.name];
@@ -88,7 +104,7 @@ export function SignUpFields({
                             autoComplete={field.autoComplete}
                             autoCapitalize={field.autoCapitalize}
                             autoCorrect={field.autoCorrect}
-                            enterKeyHint="next"
+                            enterKeyHint={submitsHere ? 'go' : 'next'}
                             label={labels[field.name]}
                             {...(hint === undefined ? {} : { hint })}
                             {...(error === undefined ? {} : { error })}
@@ -96,6 +112,15 @@ export function SignUpFields({
                             disabled={busy}
                             focusRequested={focusField === field.name}
                             onFocusRequestHandled={onFocusHandled}
+                            onSubmit={() => {
+                                if (following !== undefined) {
+                                    onNext(following.name);
+                                } else if (end.key === 'go') {
+                                    end.onSubmit();
+                                } else {
+                                    end.onNext();
+                                }
+                            }}
                         />
                         {error === undefined ? null : (
                             <Text style={[styles.error, { color: colors.dangerText }]}>{error}</Text>

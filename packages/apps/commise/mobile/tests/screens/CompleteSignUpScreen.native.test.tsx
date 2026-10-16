@@ -287,3 +287,54 @@ describe('CompleteSignUpScreen', () => {
         expect(signUp.update).not.toHaveBeenCalled();
     });
 });
+
+/** Press the keyboard's return key in a field, as react-native-web delivers it (`onSubmitEditing`). */
+const pressReturn = (label: string) => fireEvent.keyDown(screen.getByLabelText(label), { key: 'Enter' });
+
+describe('CompleteSignUpScreen — the return key (buildSpec.md §8.1)', () => {
+    it('chains the missing fields in registry order with `next`, and the last one asks for `go`', () => {
+        renderStep(makeSignUp(['first_name', 'last_name', 'username']));
+
+        expect(recordedTextInput('complete-signup-first_name').enterKeyHint).toBe('next');
+        expect(recordedTextInput('complete-signup-first_name').submitBehavior).toBe('submit');
+        expect(recordedTextInput('complete-signup-last_name').enterKeyHint).toBe('next');
+        expect(recordedTextInput('complete-signup-username').enterKeyHint).toBe('go');
+        expect(recordedTextInput('complete-signup-username').submitBehavior).toBe('blurAndSubmit');
+    });
+
+    it('moves focus to the following field on `next`, and sends nothing', async () => {
+        const signUp = makeSignUp(['first_name', 'last_name', 'username']);
+        renderStep(signUp);
+
+        pressReturn(auth.firstNameLabel);
+        await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(auth.lastNameLabel)));
+
+        pressReturn(auth.lastNameLabel);
+        await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(auth.usernameLabel)));
+
+        expect(signUp.update).not.toHaveBeenCalled();
+    });
+
+    it('submits on `go` in the last field', async () => {
+        const signUp = makeSignUp(['first_name', 'username']);
+        renderStep(signUp);
+        fireEvent.change(screen.getByLabelText(auth.firstNameLabel), { target: { value: 'Ada' } });
+        fireEvent.change(screen.getByLabelText(auth.usernameLabel), { target: { value: 'ada' } });
+
+        pressReturn(auth.usernameLabel);
+
+        await waitFor(() => expect(signUp.update).toHaveBeenCalledWith({ firstName: 'Ada', username: 'ada' }));
+    });
+
+    it('a lone missing field asks for `go` straight away', async () => {
+        const signUp = makeSignUp(['username']);
+        renderStep(signUp);
+
+        expect(recordedTextInput('complete-signup-username').enterKeyHint).toBe('go');
+
+        fireEvent.change(screen.getByLabelText(auth.usernameLabel), { target: { value: 'ada' } });
+        pressReturn(auth.usernameLabel);
+
+        await waitFor(() => expect(signUp.update).toHaveBeenCalledWith({ username: 'ada' }));
+    });
+});

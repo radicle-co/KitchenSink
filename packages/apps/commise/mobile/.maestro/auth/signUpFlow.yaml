@@ -40,7 +40,8 @@ appId: io.commise.mobile
 - inputText: 'maestro+clerk_test_${output.suffix}@example.com'
 - tapOn: 'Password'
 - inputText: 'Maestro-signup-pw-1'
-- hideKeyboard
+# The keyboard stays up: `Create account` is pinned above it (`buildSpec.md` §8.1). `hideKeyboard` was the workaround for
+# the primary sitting under it, and on Android it is a BACK event.
 - tapOn: 'Create account'
 
 # The emailed code: Clerk test emails accept 424242.

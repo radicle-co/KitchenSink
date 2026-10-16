@@ -39,6 +39,7 @@ import { signUpFailure, signUpFailureCopy, type SignUpErrorField } from '../auth
 import { normalizeSignUpValue, SIGN_UP_FIELDS, type SignUpFieldName } from '../auth/signUpFields.js';
 import { AuthCodeActions } from '../components/auth/AuthCodeActions.js';
 import { AuthCodeFields } from '../components/auth/AuthCodeFields.js';
+import { AuthFooter } from '../components/auth/AuthFooter.js';
 import { AuthHeader } from '../components/auth/AuthHeader.js';
 import { AuthScreenFrame } from '../components/auth/AuthScreenFrame.js';
 import { AuthSwitchLink } from '../components/auth/AuthSwitchLink.js';
@@ -264,8 +265,28 @@ export function SignUpScreen({ onBack, onNeedsFields }: SignUpScreenProps): JSX.
 
     const onCredentials = step === 'credentials';
 
+    const footer = (
+        <AuthFooter error={error}>
+            <Button
+                icon={onCredentials ? 'userPlus' : 'check'}
+                size="lg"
+                width="fill"
+                busy={busy}
+                disabled={!signUp || social.busyProvider !== null}
+                onPress={() => void (onCredentials ? handleSignUp() : handleVerifyCode())}
+            >
+                {onCredentials ? t.createAccountAction : t.verifyAction}
+            </Button>
+        </AuthFooter>
+    );
+    const trailing = onCredentials ? (
+        <AuthSwitchLink prompt={t.haveAccountPrompt} label={t.signInLink} disabled={locked} onPress={onBack} />
+    ) : (
+        <AuthCodeActions busy={busy} onResend={() => void handleResend()} onStartOver={() => void handleStartOver()} />
+    );
+
     return (
-        <AuthScreenFrame>
+        <AuthScreenFrame footer={footer} trailing={trailing}>
             <AuthHeader title={t.createHeading} />
 
             {onCredentials ? (
@@ -289,6 +310,8 @@ export function SignUpScreen({ onBack, onNeedsFields }: SignUpScreenProps): JSX.
                         busy={locked}
                         focusField={focusField === 'password' ? null : focusField}
                         onFocusHandled={() => setFocusField(null)}
+                        onNext={setFocusField}
+                        end={{ key: 'next', onNext: () => setFocusField('password') }}
                     />
                     <View style={styles.field}>
                         <FieldLabel forId={PASSWORD_ID} label={t.passwordLabel} />
@@ -319,33 +342,6 @@ export function SignUpScreen({ onBack, onNeedsFields }: SignUpScreenProps): JSX.
                     onChangeText={setCode}
                     busy={busy}
                     onSubmit={() => void handleVerifyCode()}
-                />
-            )}
-
-            {error ? (
-                <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
-                    {error}
-                </Text>
-            ) : null}
-
-            <Button
-                icon={onCredentials ? 'userPlus' : 'check'}
-                size="lg"
-                width="fill"
-                busy={busy}
-                disabled={!signUp || social.busyProvider !== null}
-                onPress={() => void (onCredentials ? handleSignUp() : handleVerifyCode())}
-            >
-                {onCredentials ? t.createAccountAction : t.verifyAction}
-            </Button>
-
-            {onCredentials ? (
-                <AuthSwitchLink prompt={t.haveAccountPrompt} label={t.signInLink} disabled={locked} onPress={onBack} />
-            ) : (
-                <AuthCodeActions
-                    busy={busy}
-                    onResend={() => void handleResend()}
-                    onStartOver={() => void handleStartOver()}
                 />
             )}
         </AuthScreenFrame>

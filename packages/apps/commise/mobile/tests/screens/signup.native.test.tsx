@@ -745,3 +745,82 @@ describe('SignUpScreen — Continue with Apple / Google', () => {
         );
     });
 });
+
+/** Press the keyboard's return key in a field, as react-native-web delivers it (`onSubmitEditing`). */
+const pressReturn = (label: string) => fireEvent.keyDown(screen.getByLabelText(label), { key: 'Enter' });
+
+describe('SignUpScreen — the return key (buildSpec.md §8.1)', () => {
+    const CHAIN = [
+        auth.firstNameLabel,
+        auth.lastNameLabel,
+        auth.usernameLabel,
+        auth.emailLabel,
+        auth.passwordLabel,
+    ] as const;
+
+    function setup(requirement: Requirement = 'emailCode') {
+        const signUp = makeSignUp(requirement);
+        useSignUpMock.mockReturnValue(partialHook({ signUp }));
+        useClerkMock.mockReturnValue(partialHook({ setActive }));
+        render(<SignUpScreen onBack={() => undefined} onNeedsFields={() => undefined} />);
+
+        return signUp;
+    }
+
+    it('asks every field but the last for `next` with the keyboard kept up, and the password for `go`', () => {
+        setup();
+
+        const ids = ['first_name', 'last_name', 'username', 'email_address'].map((name) => `signup-${name}`);
+
+        for (const id of ids) {
+            expect(recordedTextInput(id).enterKeyHint).toBe('next');
+            expect(recordedTextInput(id).submitBehavior).toBe('submit');
+        }
+
+        expect(recordedTextInput('signup-password').enterKeyHint).toBe('go');
+        expect(recordedTextInput('signup-password').submitBehavior).toBe('blurAndSubmit');
+    });
+
+    it.each(CHAIN.slice(0, -1).map((label, at) => [label, CHAIN[at + 1] as string] as const))(
+        '`next` in %s moves focus to %s and sends nothing',
+        async (from, to) => {
+            const signUp = setup();
+
+            pressReturn(from);
+
+            await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(to)));
+            expect(signUp.create).not.toHaveBeenCalled();
+        },
+    );
+
+    it('submits on `go` in the password, the last field', async () => {
+        const signUp = setup();
+
+        for (const [label, value] of Object.entries(PROFILE)) {
+            fireEvent.change(screen.getByLabelText(label), { target: { value } });
+        }
+
+        fireEvent.change(screen.getByLabelText(auth.passwordLabel), { target: { value: 'pw' } });
+
+        pressReturn(auth.passwordLabel);
+
+        await waitFor(() => expect(signUp.create).toHaveBeenCalledTimes(1));
+        expect(signUp.password).toHaveBeenCalledWith({ password: 'pw' });
+    });
+
+    it('does not auto-submit the emailed code as it is typed; `done` verifies', async () => {
+        const signUp = setup();
+        submitCredentials('pw');
+        const code = await screen.findByLabelText(auth.codeLabel);
+
+        expect(recordedTextInput('signup-code').enterKeyHint).toBe('done');
+
+        fireEvent.change(code, { target: { value: '424242' } });
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(signUp.verifications.verifyEmailCode).not.toHaveBeenCalled();
+
+        pressReturn(auth.codeLabel);
+
+        await waitFor(() => expect(signUp.verifications.verifyEmailCode).toHaveBeenCalledWith({ code: '424242' }));
+    });
+});

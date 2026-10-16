@@ -4,7 +4,7 @@
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 8,
         "cross-platform-props-diverge": 16,
-        "missing-component-doc": 148,
+        "missing-component-doc": 149,
         "missing-module-doc": 21,
         "platform-singleton": 47,
         "ref-api": 13,
@@ -4597,6 +4597,14 @@
             "severity": "gap",
             "component": "mobile/components/auth/AuthCodeFields",
             "sourcePath": "packages/apps/commise/mobile/src/components/auth/AuthCodeFields.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "mobile/components/auth/AuthFooter",
+            "sourcePath": "packages/apps/commise/mobile/src/components/auth/AuthFooter.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
         },

@@ -7,7 +7,9 @@
  * `aria-describedby` (they compile and do nothing on a device), so neither is passed: `invalid` is the `danger` edge
  * alone, and a message reaches a screen reader as `error`, the field's `accessibilityHint` (which also implies the edge). The
  * keyboard, autofill and return-key hints pass straight to React Native's `TextInput`, which maps them per OS (on iOS,
- * `autoComplete` also sets the `textContentType` autofill reads). It renders through `@commise/ui/text-input`, which
+ * `autoComplete` also sets the `textContentType` autofill reads). The return key's BEHAVIOUR is derived from its hint
+ * (`specSharedSystem.md` §16.1): `next` submits and keeps the keyboard up, so the host's `onSubmit` can move focus to the
+ * following field; every other key blurs, as a single-line field does by default. It renders through `@commise/ui/text-input`, which
  * keeps Android's full-screen editor away from every field.
  *
  * @pattern Template — one field geometry (`fieldStyle.ts`), rendered by both native text-field leaves
@@ -66,6 +68,7 @@ export const Input: FC<InputProps> = ({
             inputMode={inputMode}
             autoComplete={autoComplete}
             enterKeyHint={enterKeyHint}
+            submitBehavior={enterKeyHint === 'next' ? 'submit' : 'blurAndSubmit'}
             secureTextEntry={secret}
             onSubmitEditing={onSubmit}
             maxLength={maxLength}

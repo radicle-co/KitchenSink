@@ -771,3 +771,75 @@ describe('LoginScreen — Continue with Apple / Google', () => {
         );
     });
 });
+
+/** Press the keyboard's return key in a field, as react-native-web delivers it (`onSubmitEditing`). */
+const pressReturn = (label: string) => fireEvent.keyDown(screen.getByLabelText(label), { key: 'Enter' });
+
+describe('LoginScreen — the return key (buildSpec.md §8.1)', () => {
+    function setup(options: SignInDoubleOptions = {}) {
+        const signIn = makeSignIn(options);
+        useSignInMock.mockReturnValue(partialHook({ signIn }));
+        renderLogin();
+
+        return signIn;
+    }
+
+    it('asks the email field for `next` and keeps the keyboard up, the password field for `go`', () => {
+        setup();
+
+        expect(recordedTextInput('signin-email').enterKeyHint).toBe('next');
+        expect(recordedTextInput('signin-email').submitBehavior).toBe('submit');
+        expect(recordedTextInput('signin-password').enterKeyHint).toBe('go');
+        expect(recordedTextInput('signin-password').submitBehavior).toBe('blurAndSubmit');
+    });
+
+    it('moves focus from the email to the password on `next`, and sends nothing', async () => {
+        const signIn = setup();
+        fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
+
+        pressReturn(auth.emailLabel);
+
+        await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(auth.passwordLabel)));
+        expect(signIn.password).not.toHaveBeenCalled();
+    });
+
+    it('signs in on `go` in the password field', async () => {
+        const signIn = setup();
+        fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
+        fireEvent.change(screen.getByLabelText(auth.passwordLabel), { target: { value: 'pw' } });
+
+        pressReturn(auth.passwordLabel);
+
+        await waitFor(() => expect(signIn.password).toHaveBeenCalledWith({ identifier: 'a@b.com', password: 'pw' }));
+    });
+
+    it('moves focus again on a second `next`, once the first request has been taken', async () => {
+        setup();
+
+        pressReturn(auth.emailLabel);
+        await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(auth.passwordLabel)));
+        (document.activeElement as HTMLElement).blur();
+
+        pressReturn(auth.emailLabel);
+
+        await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(auth.passwordLabel)));
+    });
+
+    it('asks the code field for `done`, never submits as the code is typed, and verifies on `done`', async () => {
+        const signIn = setup({ afterPassword: 'needs_client_trust' });
+        submitCredentials('pw');
+        const code = await screen.findByLabelText(auth.codeLabel);
+
+        expect(recordedTextInput('signin-code').enterKeyHint).toBe('done');
+
+        fireEvent.change(code, { target: { value: '4' } });
+        fireEvent.change(code, { target: { value: '424242' } });
+        // A full code is not a submission: changing context on input is SC 3.2.2.
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(signIn.mfa.verifyEmailCode).not.toHaveBeenCalled();
+
+        pressReturn(auth.codeLabel);
+
+        await waitFor(() => expect(signIn.mfa.verifyEmailCode).toHaveBeenCalledWith({ code: '424242' }));
+    });
+});

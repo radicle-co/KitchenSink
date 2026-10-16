@@ -775,7 +775,11 @@ jobs:
                   ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
                   IMAGE_TAG: ${{ github.sha }}
               run: |
-                  docker buildx build --platform linux/amd64 -f packages/services/identity/Dockerfile -t ${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG} --push .
+                  # A release tag is immutable, so a rerun of this commit must not push it again (ecrPushVerdict.sh).
+                  verdict=$(bash .github/scripts/ecrPushVerdict.sh kitchensink-identity "${IMAGE_TAG}")
+                  if [ "${verdict}" = push ]; then
+                      docker buildx build --platform linux/amd64 -f packages/services/identity/Dockerfile -t ${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG} --push .
+                  fi
 
             # ⛔ NO `cdk bootstrap`. The account's bootstrap stack (`CDKToolkit`, qualifier `hnb659fds`) is already at the
             # version these apps need, and it is SHARED with another application in this account: re-running it from a
@@ -1153,8 +1157,12 @@ jobs:
                   ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
                   IMAGE_TAG: ${{ github.sha }}
               run: |
-                  docker buildx build --platform linux/amd64 -f packages/services/food-service/Dockerfile \
-                    -t ${ECR_REGISTRY}/kitchensink-food:${IMAGE_TAG} --push .
+                  # A release tag is immutable, so a rerun of this commit must not push it again (ecrPushVerdict.sh).
+                  verdict=$(bash .github/scripts/ecrPushVerdict.sh kitchensink-food "${IMAGE_TAG}")
+                  if [ "${verdict}" = push ]; then
+                      docker buildx build --platform linux/amd64 -f packages/services/food-service/Dockerfile \
+                        -t ${ECR_REGISTRY}/kitchensink-food:${IMAGE_TAG} --push .
+                  fi
 
             # ⛔ THE SCHEMA FIRST, IN ITS OWN STACK, AND UNGATED — the same argument as identity's above.
             # `kitchensink-food-schema-${STAGE}` holds the runner and nothing that runs by itself (ADR-0051), so this
@@ -1308,8 +1316,12 @@ jobs:
                   ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
                   IMAGE_TAG: ${{ github.sha }}
               run: |
-                  docker buildx build --platform linux/amd64 -f packages/services/recipe-service/Dockerfile \
-                    -t ${ECR_REGISTRY}/kitchensink-recipes:${IMAGE_TAG} --push .
+                  # A release tag is immutable, so a rerun of this commit must not push it again (ecrPushVerdict.sh).
+                  verdict=$(bash .github/scripts/ecrPushVerdict.sh kitchensink-recipes "${IMAGE_TAG}")
+                  if [ "${verdict}" = push ]; then
+                      docker buildx build --platform linux/amd64 -f packages/services/recipe-service/Dockerfile \
+                        -t ${ECR_REGISTRY}/kitchensink-recipes:${IMAGE_TAG} --push .
+                  fi
 
             # Pass 0 — the CRF ENGINE, before the worker that invokes it. No CloudFormation edge orders the
             # two: `RecipeWorkersStack` formats the parser's ARN by hand because the function lives in

@@ -118,23 +118,57 @@ const PARAMETER_READ_ACTIONS = ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:Ge
 /** Read a secret. */
 const SECRET_READ_ACTIONS = ['secretsmanager:GetSecretValue', 'secretsmanager:DescribeSecret'] as const;
 
-/** What a job reads to observe a deploy. */
-const OBSERVE_ACTIONS = [
-    'logs:Describe*',
-    'logs:GetLogEvents',
-    'logs:FilterLogEvents',
-    'rds:Describe*',
-    'ec2:Describe*',
-    'states:Describe*',
-    'states:List*',
-    'sns:Get*',
-    'sns:List*',
-    'sqs:Get*',
-    'sqs:List*',
-    'ecs:Describe*',
-    'ecs:List*',
-    'tag:GetResources',
-] as const;
+/**
+ * What a job reads to observe a deploy: one NAMED action per command a CI job runs (ADR-0063), never a `Describe*`
+ * wildcard. `GithubActionsAccessStack.test.ts` enumerates the commands and holds each role's set of observe actions
+ * equal to them. A reader that returns a document (log events, an execution's input, instance user data, an IAM
+ * account dump) is granted to no role; the one document reader left is `ecs:DescribeTaskDefinition`, which takes no
+ * resource and which a deploy check needs (ADR-0063 records the residual).
+ *
+ * Resource scopes are the narrowest the service supports:
+ * - ECS services, tasks and clusters: `kitchensink-*` clusters. `DescribeTaskDefinition` and `ListClusters` take no
+ *   resource type, so `*` is their only scope.
+ * - SQS and SNS: `kitchensink-*` names (CDK names every queue and topic from its stack, which starts `kitchensink-`).
+ * - RDS, log groups and state machines: the account and region, not a name. A list call (`describe-db-instances`
+ *   without an identifier, `describe-log-groups`) authorizes against the wildcard ARN, which a name pattern would
+ *   refuse, and a CloudFormation-generated state machine name carries no `kitchensink-` prefix. Their responses are
+ *   metadata (endpoints, retention, a definition), never log content or execution data.
+ * - EC2 `DescribeInstances` and `tag:GetResources` take no resource type.
+ *
+ * No CI job reads log events, an alarm, a queue or (outside the prod collector) a metric, so none is granted.
+ */
+const observeGrants = ({ account, region }: Scope): readonly Grant[] => {
+    const arn = (service: string, resource: string): string => `arn:aws:${service}:${region}:${account}:${resource}`;
+
+    return [
+        { actions: ['ecs:DescribeServices'], resources: [arn('ecs', 'service/kitchensink-*/*')] },
+        { actions: ['ecs:DescribeTasks'], resources: [arn('ecs', 'task/kitchensink-*/*')] },
+        { actions: ['ecs:ListServices', 'ecs:ListTasks'], resources: [arn('ecs', 'cluster/kitchensink-*')] },
+        { actions: ['ecs:DescribeTaskDefinition', 'ecs:ListClusters'], resources: ['*'] },
+        {
+            actions: ['logs:DescribeLogGroups', 'logs:DescribeSubscriptionFilters'],
+            resources: [arn('logs', 'log-group:*')],
+        },
+        { actions: ['rds:DescribeDBInstances'], resources: [arn('rds', 'db:*')] },
+        { actions: ['rds:DescribeDBClusters'], resources: [arn('rds', 'cluster:*')] },
+        { actions: ['ec2:DescribeInstances'], resources: ['*'] },
+        { actions: ['sqs:GetQueueAttributes', 'sqs:GetQueueUrl'], resources: [arn('sqs', 'kitchensink-*')] },
+        { actions: ['sns:GetTopicAttributes'], resources: [arn('sns', 'kitchensink-*')] },
+        {
+            actions: ['states:DescribeStateMachine', 'states:ListExecutions'],
+            resources: [arn('states', 'stateMachine:*')],
+        },
+        { actions: ['tag:GetResources'], resources: ['*'] },
+        // The queue-guarantee tier reads the backstop role's policies (ADR-0041) at whatever stage it targets, so
+        // both roles hold it. CloudFormation truncates a generated role name, which can drop the stage, so the role
+        // is named by its logical id.
+        {
+            actions: ['iam:ListRolePolicies', 'iam:ListAttachedRolePolicies', 'iam:GetRolePolicy'],
+            resources: [`arn:aws:iam::${account}:role/kitchensink-*QueueCheckRole*`],
+        },
+        { actions: ['iam:GetPolicy', 'iam:GetPolicyVersion'], resources: ['arn:aws:iam::aws:policy/*'] },
+    ];
+};
 
 /** Where a role's statements are written: the stack's account and region, resolved once. */
 interface Scope {
@@ -222,7 +256,8 @@ const permissionsNonprod = (role: iam.Role, scope: Scope): void => {
 
     allow(role, ['ecr:GetAuthorizationToken'], ['*']);
     // The repositories production pulls from are written here too: every preview pushes into them, and
-    // `ecrEnsureRepo.sh` (re)applies their retention policy on every run.
+    // `ecrEnsureRepo.sh` (re)applies their retention policy on every run. Their release tags are immutable, so a
+    // preview push can write only the preview prefixes; this role cannot change that setting (the prod role can).
     allow(role, IMAGE_REPOSITORY_ACTIONS, [`arn:aws:ecr:${region}:${account}:repository/kitchensink-*`]);
     // `teardownSandboxPr.sh` deletes what a PR left behind, by the same per-PR names `teardownGrants` uses.
     allow(role, ['ecr:DeleteRepository'], [`arn:aws:ecr:${region}:${account}:repository/${PER_PR_NAME_PATTERN}`]);
@@ -308,11 +343,10 @@ const permissionsNonprod = (role: iam.Role, scope: Scope): void => {
         // The store is addressed by an id CloudFormation generates, which a role cannot name before it exists.
         [`arn:aws:cloudfront::${account}:key-value-store/*`],
     );
-    allow(
-        role,
-        [...OBSERVE_ACTIONS, 'iam:Get*', 'iam:List*', 'cloudwatch:Describe*', 'cloudwatch:Get*', 'cloudwatch:List*'],
-        ['*'],
-    );
+
+    for (const grant of observeGrants(scope)) {
+        allow(role, grant.actions, grant.resources);
+    }
 };
 
 const permissionsProdRead = (role: iam.Role, scope: Scope): void => {
@@ -361,6 +395,9 @@ const permissionsProd = (role: iam.Role, scope: Scope): void => {
     allow(role, ACCOUNT_LIST_ACTIONS, ['*']);
     allow(role, ['ecr:GetAuthorizationToken'], ['*']);
     allow(role, IMAGE_REPOSITORY_ACTIONS, [`arn:aws:ecr:${region}:${account}:repository/kitchensink-*`]);
+    // Release tags are immutable (`ecrEnsureRepo.sh`). Only this role may change a repository's mutability: the
+    // non-prod role, which any branch's workflow can assume, could otherwise switch the protection off first.
+    allow(role, ['ecr:PutImageTagMutability'], [`arn:aws:ecr:${region}:${account}:repository/kitchensink-*`]);
     allow(role, FUNCTION_INVOKE_ACTIONS, [`arn:aws:lambda:${region}:${account}:function:kitchensink-*`]);
     allow(
         role,
@@ -390,17 +427,12 @@ const permissionsProd = (role: iam.Role, scope: Scope): void => {
         ['lambda:GetFunctionUrlConfig'],
         [`arn:aws:lambda:${region}:${account}:function:kitchensink-remote-search-prod`],
     );
-    // The queue-guarantee tier reads the backstop role's policies (ADR-0041). CloudFormation truncates a generated
-    // role name, which can drop the stage, so the role is named by its logical id.
-    allow(
-        role,
-        ['iam:ListRolePolicies', 'iam:ListAttachedRolePolicies', 'iam:GetRolePolicy'],
-        [`arn:aws:iam::${account}:role/kitchensink-*QueueCheckRole*`],
-    );
-    allow(role, ['iam:GetPolicy', 'iam:GetPolicyVersion'], ['arn:aws:iam::aws:policy/*']);
     // `food-loadtest.yml`'s collector samples the service's metrics. The action takes no resource.
     allow(role, ['cloudwatch:GetMetricStatistics'], ['*']);
-    allow(role, OBSERVE_ACTIONS, ['*']);
+
+    for (const grant of observeGrants(scope)) {
+        allow(role, grant.actions, grant.resources);
+    }
 };
 
 /** One entry per tier. A tier added to the union and not here is a compile error. */

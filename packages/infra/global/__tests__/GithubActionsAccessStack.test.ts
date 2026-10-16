@@ -649,3 +649,378 @@ describe('the non-prod role reaches only sandbox and per-PR functions (P1 #4)', 
         });
     });
 });
+
+/**
+ * MEDIUM-2 (CI roles security review): the "observe" grants used to be `Describe*`/`List*`/`Get*` wildcards on `*`, which
+ * let any CI job read other stacks' (and the other application's) task-definition environment, step-function
+ * input, instance user data and log events. Each grant is now a NAMED action, and this table is its only source of
+ * truth: one row per command a CI job runs, with the IAM action it needs and a real resource shape it targets.
+ *
+ * Three claims, each of which fails on its own mutation:
+ *   1. every row is admitted by the tier(s) that run it (no workflow is broken by the narrowing);
+ *   2. the observe actions each role holds are EXACTLY the rows' actions (a wildcard or an extra reader fails);
+ *   3. the refusal rows (the readers that leak a secret, and the other application's names) stay refused.
+ */
+describe('GithubActionsAccessStack: the observe grants are the enumerated CI commands and nothing more', () => {
+    const t = template();
+    const { account, region } = env;
+    const arn = (service: string, rest: string): string => `arn:aws:${service}:${region}:${account}:${rest}`;
+    const CLUSTER = 'kitchensink-food-service-pr-91-FoodServiceCluster442EDB29-QR9FHWWoNVeo';
+    const QUEUE_CHECK_ROLE = `arn:aws:iam::${account}:role/kitchensink-recipe-workers-p-QueueCheckRole90B692FA-blEhaaA5OyQT`;
+    const MANAGED_POLICY = 'arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole';
+    const STATE_MACHINE = arn('states', 'stateMachine:ReclaimStateMachineAB12-xYz');
+    const GROUP = arn('logs', 'log-group:/aws/lambda/kitchensink-recipe-workers-pr-91');
+    const ALL = ['nonprod', 'prod'] as const;
+    type Tier = (typeof ALL)[number];
+    const ROLE: Record<Tier, string> = { nonprod: 'kitchensink-gha-nonprod', prod: 'kitchensink-gha-prod' };
+
+    type Row = readonly [caller: string, action: string, resource: string, tiers: readonly Tier[]];
+
+    /** `*` is the only scope these actions have: the Service Authorization Reference lists no resource type for them. */
+    const UNSCOPABLE = ['ecs:DescribeTaskDefinition', 'ecs:ListClusters', 'ec2:DescribeInstances', 'tag:GetResources'];
+
+    const commands: readonly Row[] = [
+        ['deploy checks: aws ecs describe-services', 'ecs:DescribeServices', arn('ecs', `service/${CLUSTER}/api`), ALL],
+        ['deploy checks: aws ecs describe-task-definition', 'ecs:DescribeTaskDefinition', '*', ALL],
+        ['deploy checks: aws ecs list-clusters', 'ecs:ListClusters', '*', ALL],
+        ['deploy checks: aws ecs list-services', 'ecs:ListServices', arn('ecs', `cluster/${CLUSTER}`), ALL],
+        ['ecsQuiesce.sh: aws ecs list-tasks', 'ecs:ListTasks', arn('ecs', `cluster/${CLUSTER}`), ALL],
+        ['ecsQuiesce.sh: aws ecs wait tasks-stopped', 'ecs:DescribeTasks', arn('ecs', `task/${CLUSTER}/0123abcd`), ALL],
+        ['verifyDeployment.sh: aws logs describe-log-groups', 'logs:DescribeLogGroups', GROUP, ALL],
+        ['verifyDeployment.sh: aws logs describe-subscription-filters', 'logs:DescribeSubscriptionFilters', GROUP, ALL],
+        [
+            'verifyDeployment.sh: aws rds describe-db-instances',
+            'rds:DescribeDBInstances',
+            arn('rds', 'db:kitchensink-data-sandbox-db'),
+            ALL,
+        ],
+        [
+            'verifyDeployment.sh: aws rds describe-db-clusters',
+            'rds:DescribeDBClusters',
+            arn('rds', 'cluster:kitchensink-data-sandbox'),
+            ALL,
+        ],
+        ['sandboxWake.sh: aws ec2 describe-instances', 'ec2:DescribeInstances', '*', ALL],
+        [
+            'verifyDeployment.sh: aws sqs get-queue-attributes',
+            'sqs:GetQueueAttributes',
+            arn('sqs', 'kitchensink-recipe-parse-pr-91'),
+            ALL,
+        ],
+        [
+            'verifyDeployment.sh: aws sqs get-queue-url',
+            'sqs:GetQueueUrl',
+            arn('sqs', 'kitchensink-recipe-parse-pr-91'),
+            ALL,
+        ],
+        [
+            'verifyDeployment.sh: aws sns get-topic-attributes',
+            'sns:GetTopicAttributes',
+            arn('sns', 'kitchensink-handle-sync-sandbox'),
+            ALL,
+        ],
+        [
+            'verifyDeployment.sh: aws stepfunctions describe-state-machine',
+            'states:DescribeStateMachine',
+            STATE_MACHINE,
+            ALL,
+        ],
+        ['sandboxScheduler.sh: aws stepfunctions list-executions', 'states:ListExecutions', STATE_MACHINE, ALL],
+        ['ecsQuiesce.sh, teardownSandboxPr.sh: resourcegroupstaggingapi get-resources', 'tag:GetResources', '*', ALL],
+        // The queue-guarantee tier (deployedE2eTiers.yml) reads the backstop role's policies at any target stage.
+        ['deployedE2eTiers.yml: aws iam list-role-policies', 'iam:ListRolePolicies', QUEUE_CHECK_ROLE, ALL],
+        [
+            'deployedE2eTiers.yml: aws iam list-attached-role-policies',
+            'iam:ListAttachedRolePolicies',
+            QUEUE_CHECK_ROLE,
+            ALL,
+        ],
+        ['deployedE2eTiers.yml: aws iam get-role-policy', 'iam:GetRolePolicy', QUEUE_CHECK_ROLE, ALL],
+        ['deployedE2eTiers.yml: aws iam get-policy', 'iam:GetPolicy', MANAGED_POLICY, ALL],
+        ['deployedE2eTiers.yml: aws iam get-policy-version', 'iam:GetPolicyVersion', MANAGED_POLICY, ALL],
+        // `food-loadtest.yml`'s collector, prod only: no non-prod job reads a metric.
+        ['food-loadtest.yml collector', 'cloudwatch:GetMetricStatistics', '*', ['prod']],
+    ];
+
+    /** Services whose Allows are "observe" grants. The teardown verbs are `teardownGrants`', held by its own table. */
+    const OBSERVE_SERVICE = /^(ecs|logs|rds|ec2|states|sns|sqs|tag|cloudwatch|iam):/u;
+    const TEARDOWN = new Set(['ecs:DeleteService', 'ecs:StopTask', 'logs:DeleteLogGroup']);
+
+    it.each(
+        commands.flatMap(([caller, action, resource, tiers]) =>
+            tiers.map((tier) => [tier, caller, action, resource] as const),
+        ),
+    )('%s: %s needs %s on %s and is admitted', (tier, _caller, action, resource) => {
+        expect(policyAdmits(statementsOf(t, ROLE[tier]), action, resource)).toBe(true);
+    });
+
+    it.each(ALL)('%s: the observe actions it holds are exactly the enumerated commands', (tier) => {
+        const held = new Set(
+            actionsOf(statementsOf(t, ROLE[tier]), 'Allow').filter(
+                (action) => OBSERVE_SERVICE.test(action) && !TEARDOWN.has(action),
+            ),
+        );
+        const wanted = new Set(commands.filter((row) => row[3].includes(tier)).map((row) => row[1]));
+
+        expect(held).toEqual(wanted);
+    });
+
+    it.each(ALL)('%s: grants no wildcard action on an observe service', (tier) => {
+        const wild = actionsOf(statementsOf(t, ROLE[tier]), 'Allow').filter(
+            (action) => OBSERVE_SERVICE.test(action) && action.includes('*'),
+        );
+
+        expect(wild).toEqual([]);
+    });
+
+    it.each(ALL)('%s: only the actions with no resource type are granted on `*`', (tier) => {
+        const onStar = statementsOf(t, ROLE[tier])
+            .filter((s) => s.Effect === 'Allow' && asList(s.Resource).includes('*'))
+            .flatMap((s) => asList(s.Action))
+            .filter((action) => OBSERVE_SERVICE.test(action));
+
+        // cloudwatch:GetMetricStatistics takes no resource either (prod only, pinned by the set test above).
+        expect(new Set(onStar)).toEqual(
+            new Set([...UNSCOPABLE, ...(tier === 'prod' ? ['cloudwatch:GetMetricStatistics'] : [])]),
+        );
+    });
+
+    const refusals: readonly (readonly [string, string])[] = [
+        // Log CONTENT: no CI job reads it, and production's and the other application's groups hold it.
+        ['logs:GetLogEvents', arn('logs', 'log-group:/kitchensink/identity-service/prod:log-stream:x')],
+        ['logs:FilterLogEvents', arn('logs', 'log-group:/aws/lambda/armoury-production-api')],
+        ['logs:StartQuery', '*'],
+        // Readers that return a secret-bearing document.
+        ['ec2:DescribeInstanceAttribute', arn('ec2', 'instance/i-0123456789abcdef0')],
+        ['states:DescribeExecution', arn('states', 'execution:ReclaimStateMachineAB12-xYz:run1')],
+        ['states:GetExecutionHistory', arn('states', 'execution:ReclaimStateMachineAB12-xYz:run1')],
+        ['iam:GetAccountAuthorizationDetails', '*'],
+        ['iam:ListUsers', '*'],
+        ['iam:GetRole', `arn:aws:iam::${account}:role/armoury-production-api-role`],
+        ['sqs:ReceiveMessage', arn('sqs', 'kitchensink-recipe-parse-pr-91')],
+        ['sqs:ListQueues', '*'],
+        ['sns:ListTopics', '*'],
+        ['rds:DescribeDBSnapshots', arn('rds', 'snapshot:x')],
+        // The other application's names.
+        ['ecs:DescribeServices', arn('ecs', 'service/armoury-production/api')],
+        ['ecs:DescribeTasks', arn('ecs', 'task/armoury-production/abc')],
+        ['ecs:ListServices', arn('ecs', 'cluster/armoury-production')],
+        ['sqs:GetQueueAttributes', arn('sqs', 'armoury-production-jobs')],
+        ['sns:GetTopicAttributes', arn('sns', 'armoury-production-alarms')],
+        ['cloudwatch:DescribeAlarms', '*'],
+    ];
+
+    it.each(ALL.flatMap((tier) => refusals.map(([action, resource]) => [tier, action, resource] as const)))(
+        '%s refuses %s on %s',
+        (tier, action, resource) => {
+            expect(policyAdmits(statementsOf(t, ROLE[tier]), action, resource)).toBe(false);
+        },
+    );
+
+    it('non-prod holds no CloudWatch action: no non-prod job reads a metric or an alarm', () => {
+        const held = actionsOf(statementsOf(t, ROLE.nonprod), 'Allow').filter((action) => /^cloudwatch:/u.test(action));
+
+        expect(held).toEqual([]);
+    });
+});
+
+/**
+ * HIGH-1 cannot be closed here (the CDK deploy role is account administrator: ADR-0063, owner decision), so what this
+ * pins is that it cannot GET WIDER: the roles each tier may assume are exactly the bootstrap roles it needs today, and
+ * no other statement in any role names an `sts:` action.
+ */
+describe('GithubActionsAccessStack: the roles a CI role may assume are an enumerated set', () => {
+    const t = template();
+    const { account, region } = env;
+    const boot = (kind: string): string =>
+        `arn:aws:iam::${account}:role/cdk-hnb659fds-${kind}-role-${account}-${region}`;
+    const ALL_KINDS = ['deploy', 'file-publishing', 'image-publishing', 'lookup'].map(boot);
+
+    const stsGrants = (statements: readonly Statement[]): readonly Statement[] =>
+        statements.filter(
+            (s) => s.Effect === 'Allow' && asList(s.Action).some((action) => /^sts:/iu.test(action) || action === '*'),
+        );
+
+    /** Whether the assume grants are exactly `targets`, as one unconditioned `sts:AssumeRole`. The unit under test. */
+    const pinned = (statements: readonly Statement[], targets: readonly string[]): boolean => {
+        const sts = stsGrants(statements);
+
+        return (
+            new Set(sts.flatMap((s) => asList(s.Action))).size === 1 &&
+            asList(sts[0]?.Action)[0] === 'sts:AssumeRole' &&
+            sts.every((s) => s.Condition === undefined) &&
+            JSON.stringify([...new Set(sts.flatMap((s) => asList(s.Resource)))].sort()) ===
+                JSON.stringify([...targets].sort())
+        );
+    };
+
+    it.each([
+        ['kitchensink-gha-nonprod', ALL_KINDS],
+        ['kitchensink-gha-prod', ALL_KINDS],
+        ['kitchensink-gha-prod-read', [boot('lookup')]],
+    ])('%s may assume exactly the bootstrap roles %j', (name, targets) => {
+        expect(pinned(statementsOf(t, name), targets)).toBe(true);
+    });
+
+    // The shapes the pin must tell apart, so it is not green by accident: each is a way the grant could widen.
+    const base: Statement = { Effect: 'Allow', Action: 'sts:AssumeRole', Resource: ALL_KINDS };
+
+    it.each<[string, readonly Statement[]]>([
+        ['a wildcard resource added', [base, { ...base, Resource: '*' }]],
+        ['an account-wide role arn added', [base, { ...base, Resource: `arn:aws:iam::${account}:role/*` }]],
+        [
+            'a role outside the bootstrap set',
+            [{ ...base, Resource: [...ALL_KINDS, `arn:aws:iam::${account}:role/admin`] }],
+        ],
+        ['a wildcard sts action', [base, { ...base, Action: 'sts:*' }]],
+        ['a bare star action', [base, { ...base, Action: '*', Resource: boot('lookup') }]],
+        [
+            'a condition that is not asserted',
+            [{ ...base, Condition: { StringEquals: { 'aws:RequestedRegion': region } } }],
+        ],
+        ['a role dropped', [{ ...base, Resource: ALL_KINDS.slice(1) }]],
+    ])('the pin rejects %s', (_label, statements) => {
+        expect(pinned(statements, ALL_KINDS)).toBe(false);
+    });
+});
+
+/**
+ * The old "nothing names the production tree" check was a substring match on Allow resources: blind to a `*`
+ * resource, and to an action whose resource is a wildcard that happens to cover production. This one asks the
+ * policy: for every concrete action the non-prod role holds and every production resource shape, is the pair
+ * admitted? The answer must be EXACTLY the reviewed set below, so a new reach into production (a widened resource,
+ * a new action on `*`) appears as a diff. Conditions are ignored (`policyAdmits`), so a condition-protected Allow is
+ * listed and its protection is asserted by its own table.
+ */
+describe('GithubActionsAccessStack: what the non-prod role reaches in the production tree is a reviewed set', () => {
+    const t = template();
+    const nonprod = statementsOf(t, 'kitchensink-gha-nonprod');
+    const { account, region } = env;
+    const arn = (service: string, rest: string): string => `arn:aws:${service}:${region}:${account}:${rest}`;
+    const PROD_CLUSTER = 'kitchensink-identity-service-prod-IdentityServiceCluster3A4949E2-aB';
+
+    const PRODUCTION: Readonly<Record<string, string>> = {
+        'prod parameter': arn('ssm', 'parameter/kitchensink/prod/clerk/secret-key'),
+        'prod secret': arn('secretsmanager', 'secret:kitchensink/prod/identity/keys-AbCdEf'),
+        'prod stack': arn('cloudformation', 'stack/kitchensink-data-prod/0f1e2d3c-aaaa-bbbb-cccc-0123456789ab'),
+        'prod function': arn('lambda', 'function:kitchensink-identity-webhooks-prod-WebhookFn-Ab12'),
+        'prod ecs service': arn('ecs', `service/${PROD_CLUSTER}/api`),
+        'prod ecs task': arn('ecs', `task/${PROD_CLUSTER}/abc`),
+        'prod bucket': 'arn:aws:s3:::kitchensink-data-prod-mediabucketbcbb02ba-0000000000aa',
+        'prod log group': arn('logs', 'log-group:/kitchensink/identity-service/prod'),
+        'prod queue': arn('sqs', 'kitchensink-recipe-parse-prod'),
+        'prod topic': arn('sns', 'kitchensink-handle-sync-prod'),
+        'other application parameter': arn('ssm', 'parameter/armoury/production/key'),
+        'other application secret': arn('secretsmanager', 'secret:armoury/production/key-AbCdEf'),
+        'other application function': arn('lambda', 'function:armoury-production-api'),
+        'other application service': arn('ecs', 'service/armoury-production/api'),
+        'other application log group': arn('logs', 'log-group:/aws/lambda/armoury-production-api'),
+    };
+
+    const everyAction = [...new Set(actionsOf(nonprod, 'Allow').filter((action) => !action.includes('*')))].sort();
+    // An action granted on `*` reaches every resource by definition, so it is judged as a SET of its own: the shape of
+    // the per-resource answer below would otherwise repeat each of them once per production label.
+    const onStar = everyAction.filter((action) => policyAdmits(nonprod, action, '*'));
+    const concrete = everyAction.filter((action) => !onStar.includes(action) && !/^(sts|ecr):/u.test(action));
+
+    const reached = (): string[] =>
+        concrete
+            .flatMap((action) =>
+                Object.entries(PRODUCTION)
+                    .filter(([, resource]) => policyAdmits(nonprod, action, resource))
+                    .map(([label]) => `${action} -> ${label}`),
+            )
+            .sort();
+
+    // Each line is a reach that is deliberate. A stack's description and template hold no secret (parameters and
+    // secrets are by reference); no Lambda row appears because the unconditional name Deny on `kitchensink-*-prod*`
+    // refuses a prod function whatever its tags (the P1 #4 table evaluates the tag side); the ECS, queue, topic and
+    // log-group rows are metadata-only observe grants that cannot be narrowed to a stage (a service or queue name
+    // carries it only sometimes).
+    const REVIEWED = [
+        'cloudformation:DescribeStackEvents -> prod stack',
+        'cloudformation:DescribeStackResources -> prod stack',
+        'cloudformation:DescribeStacks -> prod stack',
+        'cloudformation:GetTemplate -> prod stack',
+        'cloudformation:GetTemplateSummary -> prod stack',
+        'cloudformation:ListStackResources -> prod stack',
+        'ecs:DescribeServices -> prod ecs service',
+        'ecs:DescribeTasks -> prod ecs task',
+        'logs:DescribeLogGroups -> other application log group',
+        'logs:DescribeLogGroups -> prod log group',
+        'logs:DescribeSubscriptionFilters -> other application log group',
+        'logs:DescribeSubscriptionFilters -> prod log group',
+        'sns:GetTopicAttributes -> prod topic',
+        'sqs:GetQueueAttributes -> prod queue',
+        'sqs:GetQueueUrl -> prod queue',
+    ].sort();
+
+    it('is exactly the reviewed set', () => {
+        expect(reached()).toEqual(REVIEWED);
+    });
+
+    // Every one of these takes no resource type (or is an account-wide listing) and returns names and statuses, never
+    // a document that carries a secret; adding to this list is a security decision, so it is a literal.
+    it('the actions granted on `*` are exactly the reviewed account-wide listings', () => {
+        expect(onStar).toEqual(
+            [
+                'cloudformation:ListExports',
+                'cloudformation:ListStacks',
+                'ec2:DescribeInstances',
+                'ecr:GetAuthorizationToken',
+                'ecs:DescribeTaskDefinition',
+                'ecs:ListClusters',
+                'route53:GetChange',
+                'route53:ListHostedZones',
+                'route53:ListHostedZonesByName',
+                'tag:GetResources',
+            ].sort(),
+        );
+    });
+
+    it('reaches no production parameter, secret or bucket, and nothing secret-bearing of the other application', () => {
+        const forbidden = reached().filter((line) =>
+            /-> (prod parameter|prod secret|prod bucket|other application (parameter|secret|function|service))$/u.test(
+                line,
+            ),
+        );
+
+        expect(forbidden).toEqual([]);
+    });
+
+    it('the guard sees a `*` resource, which the old substring check did not', () => {
+        const widened: readonly Statement[] = [
+            ...nonprod,
+            { Effect: 'Allow', Action: 'ssm:GetParameter', Resource: '*' },
+        ];
+        const parameter = PRODUCTION['prod parameter'] ?? '';
+
+        expect(policyAdmits(widened, 'ssm:GetParameter', parameter)).toBe(true);
+        expect(policyAdmits(nonprod, 'ssm:GetParameter', parameter)).toBe(false);
+    });
+});
+
+/**
+ * MEDIUM-1: release tags are immutable (`ecrEnsureRepo.sh`), which holds only while the role any branch can assume
+ * cannot switch that off or remove an image. Only the production role may change a repository's tag mutability.
+ */
+describe('GithubActionsAccessStack: only the production role may change image tag mutability', () => {
+    const t = template();
+    const repo = (name: string): string => `arn:aws:ecr:${env.region}:${env.account}:repository/${name}`;
+    const rows: readonly (readonly [string, string, string, boolean])[] = [
+        ['kitchensink-gha-prod', 'ecr:PutImageTagMutability', repo('kitchensink-food'), true],
+        ['kitchensink-gha-nonprod', 'ecr:PutImageTagMutability', repo('kitchensink-food'), false],
+        ['kitchensink-gha-nonprod', 'ecr:PutImageTagMutability', repo('kitchensink-food-pr-91'), false],
+        ['kitchensink-gha-prod-read', 'ecr:PutImageTagMutability', repo('kitchensink-food'), false],
+        ['kitchensink-gha-prod', 'ecr:PutImageTagMutability', repo('armoury-api'), false],
+        ['kitchensink-gha-nonprod', 'ecr:BatchDeleteImage', repo('kitchensink-food'), false],
+        ['kitchensink-gha-prod', 'ecr:BatchDeleteImage', repo('kitchensink-food'), false],
+        // What a preview push needs stays: the push and the repository's creation (born immutable).
+        ['kitchensink-gha-nonprod', 'ecr:PutImage', repo('kitchensink-food'), true],
+        ['kitchensink-gha-nonprod', 'ecr:CreateRepository', repo('kitchensink-food'), true],
+    ];
+
+    it.each(rows)('%s: %s on %s -> admitted=%s', (name, action, resource, expected) => {
+        expect(policyAdmits(statementsOf(t, name), action, resource)).toBe(expected);
+    });
+});

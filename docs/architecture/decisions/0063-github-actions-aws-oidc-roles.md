@@ -119,14 +119,48 @@ it later cannot turn it into a writer. No role holds `iam:*` or `organizations:*
   `nonprodLambdaScope.test.ts`, which judges the pattern against every stack name the sources assign.
 - **Follow-up: move the webhook secrets out of Lambda environment variables.** Defence in depth only: every principal that
   can still read the production environment can read the secret itself.
-- **Follow-up: `logs:GetLogEvents` and `logs:FilterLogEvents` on `*` for the non-prod role** can read production log
-  groups. Scope them to the sandbox and per-PR log-group names.
+- **The observe grants are named actions, one per command a CI job runs.** No role holds a `Describe*`, `List*` or `Get*`
+  wildcard on an observe service, and none holds `logs:GetLogEvents`, `logs:FilterLogEvents`, an IAM account read, an
+  alarm, a queue read or a step-function execution read: no CI job needs them, and each returns a document that can hold
+  a secret. What remains is scoped as far as the service allows. ECS services, tasks and clusters, SQS queues and SNS
+  topics are limited to `kitchensink-*`. RDS, log groups and state machines are limited to the account and region only: a
+  list call authorizes against the wildcard ARN, which a name pattern would refuse, and a CloudFormation-generated state
+  machine name has no prefix; they return metadata. `ecs:DescribeTaskDefinition`, `ecs:ListClusters`,
+  `ec2:DescribeInstances` and `tag:GetResources` take no resource type, so `*` is their only scope. The one residual is
+  `DescribeTaskDefinition`, whose response includes container environment variables for every task definition in the
+  account, the other application's included; it stays because every deploy check reads the running image and
+  `remoteSearchKeyRetirement.sh` reads the key an environment names. The non-prod role holds no CloudWatch action; the
+  prod role holds `cloudwatch:GetMetricStatistics` alone. `GithubActionsAccessStack.test.ts` lists every command with its
+  action and a real resource, requires each role's observe actions to equal that list, and requires the actions it holds
+  on `*` to equal the list above. The action-to-resource-type facts come from the AWS Service Authorization Reference as
+  last read; the first deploy after a change proves them, because a scope that is too narrow fails loudly in a deploy
+  check.
+- **The roles a CI role may assume are an enumerated set.** `nonprod` and `prod` may assume exactly the four CDK bootstrap
+  roles, and `prod-read` the lookup role, each with no condition; a test fails on any other `sts` grant. This does not
+  close the largest residual risk above, because the deploy role is still account administrator; it keeps that risk from
+  widening unnoticed. Closing it is an owner decision (a bootstrap qualifier of its own, or its own accounts).
+- **What the non-prod role reaches in the production tree is a reviewed list.** The guard evaluates every concrete action
+  the role holds against production and other-application resource shapes and compares the result with a literal set (the
+  stack reads, the ECS, queue, topic and log-group metadata reads). It sees `*` resources and name patterns, which a
+  substring match on the policy did not.
 - **Residual risk: the router's key-value store is addressed by an id CloudFormation generates**, so the non-prod role names
   the store by a wildcard within the account.
-- **Residual risk: the non-prod role writes the image repositories production pulls from.** Every preview pushes into
-  `kitchensink-identity`, `kitchensink-food` and `kitchensink-recipes`, and `ecrEnsureRepo.sh` applies their retention
-  policy on every run, so the role holds `ecr:PutLifecyclePolicy` there. A job on any branch could replace that policy with
-  one that expires the images production runs. It may not delete those repositories or change who may read them.
+- **Release image tags are immutable, so the non-prod role cannot re-point the image production runs.** Every preview
+  pushes into `kitchensink-identity`, `kitchensink-food` and `kitchensink-recipes`. Production pulls by tag, and the tag is
+  the commit (`<sha>` from `prod-deploy.yml`, `prod-<sha>` from `deployInfra.yml`), while previews write `sandbox-<sha>`
+  and `pr-<n>-<sha>`. `ecrEnsureRepo.sh` therefore creates and keeps each repository `IMMUTABLE_WITH_EXCLUSION`, and the
+  excluded (still mutable) tags are exactly the retention policy's preview prefixes, read from
+  `ecrLifecyclePolicy.json` so the two cannot disagree. Plain `IMMUTABLE` was rejected: previews are rebuilt on every
+  rerun of a commit and would fail. A release push to an existing immutable tag also fails, and a rebuild never reproduces
+  the digest, so a rerun of a production commit would break; `ecrPushVerdict.sh` runs before each release build and skips
+  it when the tag is already there (the tag is the commit, so it is the same image), and fails the step when ECR cannot
+  say. Only the prod role holds `ecr:PutImageTagMutability`, because the non-prod role could otherwise switch the
+  protection off first; a preview run that finds a repository not yet immutable warns and continues, and the next
+  production deploy sets it. Deploying production by digest was not chosen because it needs a change to every stack that
+  takes an image tag. **Residual risk:** the non-prod role still holds `ecr:PutLifecyclePolicy` on those repositories, so a
+  job on any branch could replace the retention policy with one that expires the images production runs; IAM cannot
+  condition that on the policy's content, and the real fix is a repository per tier. It may not delete the repositories,
+  an image, or change who may read them.
 - **Residual risk: the record-name condition also matches deeper names.** `StringLike` on `pr-*.sandbox.commise.app`
   matches `pr-1.anything.sandbox.commise.app` too, because `*` crosses dots. Such a name cannot reach the apex, the
   wildcard or the identity host, but it is wider than one label. The grant names `hostedzone/*`, but Route 53 accepts a

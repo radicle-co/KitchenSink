@@ -1,0 +1,229 @@
+/**
+ * CI roles security review, MEDIUM-1: the repositories production pulls from (`kitchensink-identity`, `-food`,
+ * `-recipes`) are also pushed to by every preview, through a role that any branch's workflow can assume. With MUTABLE
+ * tags such a job could re-point a tag production runs.
+ *
+ * How production pulls: by TAG, and the tag is the commit (`<sha>` from `prod-deploy.yml`, `prod-<sha>` from
+ * `deployInfra.yml`); previews write `sandbox-<sha>` and `pr-<n>-<sha>`. So the tags a preview legitimately writes are
+ * exactly the two lifecycle-policy prefixes, and everything else is a release. The repositories are therefore
+ * `IMMUTABLE_WITH_EXCLUSION`, excluding (= leaving mutable) the preview prefixes and nothing else.
+ *
+ * ⛔ A rerun of the same commit must still work. A release push to an immutable tag fails when the tag exists, and a
+ * rebuild never reproduces the digest, so the workflows ask `ecrPushVerdict.sh` first and skip the build when the
+ * release tag is already there (the same commit is the same image). Previews are always rebuilt: their tags stay
+ * mutable. These tests run both scripts against a fake `aws` and judge what it was asked.
+ *
+ * DESIGN PATTERN: Test double (a recording fake `aws` on PATH) over a Specification (the verdict) and a Policy (the
+ * mutability setting), each fired at the shapes that distinguish it from its mutations.
+ */
+import { spawnSync } from 'node:child_process';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+import { repoRoot } from './serviceSources.js';
+
+const SCRIPTS = path.join(repoRoot, '.github/scripts');
+const ENSURE = path.join(SCRIPTS, 'ecrEnsureRepo.sh');
+const VERDICT = path.join(SCRIPTS, 'ecrPushVerdict.sh');
+const POLICY = JSON.parse(readFileSync(path.join(SCRIPTS, 'ecrLifecyclePolicy.json'), 'utf8')) as {
+    rules: { selection: { tagPrefixList?: string[] } }[];
+};
+
+const SHA = '67f56925ef02406f9e6b4530c868e914cb555daa';
+const MUTABLE_FILTERS = [...new Set(POLICY.rules.flatMap((rule) => rule.selection.tagPrefixList ?? []))]
+    .map((prefix) => `${prefix}*`)
+    .sort();
+
+/** What the fake `aws` answers. Everything else it is asked is recorded and succeeds. */
+interface Scenario {
+    /** `describe-repositories`: absent (exit 254) or the repository as ECR returns it. */
+    readonly repository?: { readonly mutability: string; readonly filters: readonly string[] } | 'absent';
+    /** `describe-images`: present, absent (ImageNotFoundException) or a failure that says nothing about the image. */
+    readonly image?: 'present' | 'absent' | 'denied';
+    /** `put-image-tag-mutability` is refused (the non-prod role does not hold it). */
+    readonly putMutabilityDenied?: boolean;
+}
+
+interface Run {
+    readonly status: number | null;
+    readonly stdout: string;
+    readonly stderr: string;
+    /** One line per `aws` call, its arguments as given. */
+    readonly calls: readonly string[];
+}
+
+const FAKE_AWS = `#!/usr/bin/env bash
+echo "$*" >> "$FAKE_AWS_LOG"
+case "$1 $2" in
+    "ecr describe-repositories")
+        if [ -z "\${FAKE_REPOSITORY:-}" ]; then echo 'RepositoryNotFoundException' >&2; exit 254; fi
+        echo "$FAKE_REPOSITORY"
+        ;;
+    "ecr describe-images")
+        case "\${FAKE_IMAGE:-absent}" in
+            present) echo '{"imageDetails":[{"imageDigest":"sha256:abc"}]}' ;;
+            absent) echo 'An error occurred (ImageNotFoundException) when calling the DescribeImages operation' >&2; exit 254 ;;
+            *) echo 'An error occurred (AccessDeniedException) when calling the DescribeImages operation' >&2; exit 254 ;;
+        esac
+        ;;
+    "ecr put-image-tag-mutability")
+        if [ "\${FAKE_PUT_MUTABILITY_DENIED:-}" = 1 ]; then echo 'AccessDeniedException' >&2; exit 254; fi
+        ;;
+esac
+exit 0
+`;
+
+const run = (script: string, args: readonly string[], scenario: Scenario): Run => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'ecrEnsureRepo-'));
+    const bin = path.join(dir, 'bin');
+    const log = path.join(dir, 'calls.log');
+
+    mkdirSync(bin);
+    writeFileSync(path.join(bin, 'aws'), FAKE_AWS);
+    chmodSync(path.join(bin, 'aws'), 0o755);
+    writeFileSync(log, '');
+
+    const repository = scenario.repository ?? 'absent';
+    const result = spawnSync('bash', [script, ...args], {
+        encoding: 'utf8',
+        env: {
+            PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+            FAKE_AWS_LOG: log,
+            FAKE_REPOSITORY:
+                repository === 'absent'
+                    ? ''
+                    : JSON.stringify({
+                          repositories: [
+                              {
+                                  repositoryName: 'kitchensink-food',
+                                  imageTagMutability: repository.mutability,
+                                  imageTagMutabilityExclusionFilters: repository.filters.map((filter) => ({
+                                      filterType: 'WILDCARD',
+                                      filter,
+                                  })),
+                              },
+                          ],
+                      }),
+            FAKE_IMAGE: scenario.image ?? 'absent',
+            FAKE_PUT_MUTABILITY_DENIED: scenario.putMutabilityDenied === true ? '1' : '',
+        },
+    });
+
+    return {
+        status: result.status,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        calls: readFileSync(log, 'utf8').split('\n').filter(Boolean),
+    };
+};
+
+const callsTo = (r: Run, verb: string): readonly string[] => r.calls.filter((call) => call.startsWith(`ecr ${verb} `));
+
+const CONFIGURED = { mutability: 'IMMUTABLE_WITH_EXCLUSION', filters: MUTABLE_FILTERS } as const;
+
+describe('ecrEnsureRepo.sh: release tags are immutable, preview tags are not', () => {
+    it('the mutable filters are the lifecycle policy preview prefixes, each as a wildcard', () => {
+        expect(MUTABLE_FILTERS).toEqual(['pr-*', 'sandbox-*']);
+    });
+
+    it('creates a missing repository already immutable, excluding exactly the preview prefixes', () => {
+        const r = run(ENSURE, ['kitchensink-food'], { repository: 'absent' });
+        const create = callsTo(r, 'create-repository');
+
+        expect(r.status).toBe(0);
+        expect(create).toHaveLength(1);
+        expect(create[0]).toContain('--image-tag-mutability IMMUTABLE_WITH_EXCLUSION');
+
+        for (const filter of MUTABLE_FILTERS) {
+            expect(create[0]).toContain(`filterType=WILDCARD,filter=${filter}`);
+        }
+
+        expect(create[0]?.match(/filterType=/gu)).toHaveLength(MUTABLE_FILTERS.length);
+        expect(callsTo(r, 'put-lifecycle-policy')).toHaveLength(1);
+    });
+
+    it.each([
+        ['mutable', { mutability: 'MUTABLE', filters: [] }],
+        ['immutable with no exclusion', { mutability: 'IMMUTABLE', filters: [] }],
+        ['immutable but excluding a release shape', { mutability: 'IMMUTABLE_WITH_EXCLUSION', filters: ['*'] }],
+        ['missing one preview prefix', { mutability: 'IMMUTABLE_WITH_EXCLUSION', filters: ['sandbox-*'] }],
+        ['an extra exclusion', { mutability: 'IMMUTABLE_WITH_EXCLUSION', filters: [...MUTABLE_FILTERS, 'prod-*'] }],
+    ])('re-points an existing repository that is %s', (_label, repository) => {
+        const r = run(ENSURE, ['kitchensink-food'], { repository });
+        const put = callsTo(r, 'put-image-tag-mutability');
+
+        expect(r.status).toBe(0);
+        expect(put).toHaveLength(1);
+        expect(put[0]).toContain('--image-tag-mutability IMMUTABLE_WITH_EXCLUSION');
+        expect(put[0]?.match(/filterType=/gu)).toHaveLength(MUTABLE_FILTERS.length);
+        expect(callsTo(r, 'create-repository')).toEqual([]);
+    });
+
+    it('makes no mutability call when the repository is already as wanted, whatever order ECR lists the filters', () => {
+        const r = run(ENSURE, ['kitchensink-food'], {
+            repository: { ...CONFIGURED, filters: [...MUTABLE_FILTERS].reverse() },
+        });
+
+        expect(callsTo(r, 'put-image-tag-mutability')).toEqual([]);
+        expect(callsTo(r, 'create-repository')).toEqual([]);
+        expect(callsTo(r, 'put-lifecycle-policy')).toHaveLength(1);
+    });
+
+    // The non-prod role cannot change a repository's mutability (that is the point: it could otherwise turn the
+    // protection off), so on a repository that is not yet immutable its preview run must warn and carry on.
+    it('warns and continues when the mutability change is refused, still applying retention', () => {
+        const r = run(ENSURE, ['kitchensink-food'], {
+            repository: { mutability: 'MUTABLE', filters: [] },
+            putMutabilityDenied: true,
+        });
+
+        expect(r.status).toBe(0);
+        expect(r.stderr + r.stdout).toContain('::warning::');
+        expect(callsTo(r, 'put-lifecycle-policy')).toHaveLength(1);
+    });
+});
+
+describe('ecrPushVerdict.sh: a release tag already in the repository is not pushed again', () => {
+    const verdict = (tag: string, scenario: Scenario): Run => run(VERDICT, ['kitchensink-food', tag], scenario);
+
+    const rows: readonly (readonly [string, string, NonNullable<Scenario['image']>, string])[] = [
+        ['bare sha, already pushed (a rerun)', SHA, 'present', 'skip'],
+        ['bare sha, first push', SHA, 'absent', 'push'],
+        ['prod-prefixed sha, already pushed (a rerun)', `prod-${SHA}`, 'present', 'skip'],
+        ['prod-prefixed sha, first push', `prod-${SHA}`, 'absent', 'push'],
+        // Preview tags are mutable and always rebuilt, so a rerun refreshes them whether or not they exist.
+        ['sandbox preview, already pushed', `sandbox-${SHA}`, 'present', 'push'],
+        ['pr preview, already pushed', `pr-91-${SHA}`, 'present', 'push'],
+        ['pr preview, first push', `pr-91-${SHA}`, 'absent', 'push'],
+    ];
+
+    it.each(rows)('%s -> %s', (_label, tag, image, expected) => {
+        const r = verdict(tag, { image });
+
+        expect(r.status).toBe(0);
+        expect(r.stdout.trim()).toBe(expected);
+    });
+
+    it('never asks ECR about a preview tag', () => {
+        expect(verdict(`pr-91-${SHA}`, { image: 'present' }).calls).toEqual([]);
+    });
+
+    // A failure that says nothing about the image is not "absent": answering `push` would fail on an immutable tag
+    // that does exist, and `skip` would ship an image nobody pushed.
+    it('fails, answering nothing, when ECR cannot say whether the tag exists', () => {
+        const r = verdict(SHA, { image: 'denied' });
+
+        expect(r.status).not.toBe(0);
+        expect(r.stdout.trim()).toBe('');
+        expect(r.stderr).toContain('::error::');
+    });
+
+    it('refuses a missing argument', () => {
+        const r = run(VERDICT, ['kitchensink-food'], {});
+
+        expect(r.status).toBe(2);
+    });
+});

@@ -487,8 +487,13 @@ runs:
                       exit 1
                       ;;
               esac
-              docker buildx build --platform linux/amd64 -f "${DOCKERFILE}" \
-                  -t "${ECR_REGISTRY}/${REPO}:${IMAGE_TAG}" --push .
+              # A release tag (`prod-<sha>`) is immutable, so a rerun of this commit must not push it again;
+              # a preview tag is mutable and always rebuilt (ecrPushVerdict.sh decides).
+              verdict="$(bash .github/scripts/ecrPushVerdict.sh "${REPO}" "${IMAGE_TAG}")"
+              if [ "${verdict}" = push ]; then
+                  docker buildx build --platform linux/amd64 -f "${DOCKERFILE}" \
+                      -t "${ECR_REGISTRY}/${REPO}:${IMAGE_TAG}" --push .
+              fi
 
         # ⛔ ADR-0035: deploy-schema → migrate → deploy-everything-else, and the schema stack goes
         # `--exclusively` so it lands WITHOUT dragging the app stacks that read it. Ordering the other way

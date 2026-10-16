@@ -41,6 +41,12 @@ const REGISTER: Readonly<Record<string, readonly string[]>> = {
     // failure destination adds the same grant implicitly; it is stated here so the authority is a line in this register
     // rather than a side effect of a construct option.
     'packages/infra/global/lib/platform/AlarmRelayStack.ts': ['this.failureQueue.grantSendMessages(role)'],
+    // ADR-0063: the CI roles' deploy checks (`verifyDeployment.sh`) probe that a queue a Lambda names exists. Two READS,
+    // on `kitchensink-*` queues; neither produces or consumes a message.
+    'packages/infra/global/lib/platform/GithubActionsAccessStack.ts': [
+        'iam:sqs:GetQueueAttributes',
+        'iam:sqs:GetQueueUrl',
+    ],
     'packages/services/identity-webhooks/infra/lib/WebhooksStack.ts': [
         // The queue BACKSTOP (plan U12) reads depth and nothing else. `iam:sqs:GetQueueAttributes` appears
         // beside these because the raw-action regex also matches the action string inside `grant(…)` — the

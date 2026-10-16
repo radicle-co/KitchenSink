@@ -35,6 +35,7 @@ import {
     BEDROCK_MODEL_REGISTRY,
     NOVA_LITE_MODEL_ID,
     NOVA_MICRO_MODEL_ID,
+    actualCostMicros,
     inputTokenBound,
     worstCaseMicros,
 } from '@kitchensink/recipe-core/spend/spend-arithmetic';
@@ -42,7 +43,7 @@ import { FOODNESS_MAX_OUTPUT_TOKENS, FOODNESS_MODEL_ID } from '@kitchensink/reci
 import { VERIFICATION_MAX_OUTPUT_TOKENS } from '@kitchensink/recipe-core/resolution/verification-prompt';
 import { MAX_PARSE_PROMPT_CHARS } from '@kitchensink/recipe-core/parsing/parse-prompt';
 import type { RetryFailure } from '@kitchensink/recipe-core/parsing/parse-retry-prompt';
-import type { ConverseRequest } from '@kitchensink/bedrock-client';
+import { BedrockClientError, type ConverseRequest } from '@kitchensink/bedrock-client';
 
 import {
     INPUT_BOUND_EXCEEDED_METRIC_NAME,
@@ -578,6 +579,70 @@ describe('a settle failure on the parse leg reaches the shared alarm', () => {
         await createGatedFoodnessValidator(deps).judge('flour');
 
         expect(emit).not.toHaveBeenCalledWith(expect.objectContaining({ name: SETTLE_FAILURE_METRIC_NAME }));
+    });
+});
+
+/**
+ * ADR-0024's reserve → converse → settle rules on the gated path: a denial makes no call, a call Bedrock refused
+ * before billing refunds the WHOLE reservation, a failure that may have billed keeps it, a response with no usage
+ * keeps it, and a billed response settles at its actual cost. Settle is never retried, so a missing refund strands
+ * worst-case charges against the one monthly ceiling.
+ */
+describe('gatedConverse — the gated reserve and settle rules', () => {
+    const USAGE = { inputTokens: 120, outputTokens: 7, totalTokens: 127 };
+
+    it('throws on a ceiling denial and never calls Bedrock', async () => {
+        const { deps, reserve, converse } = makeDeps(USAGE);
+        reserve.mockResolvedValue({ kind: 'denied', period: '2026-09' });
+
+        await expect(createGatedFoodnessValidator(deps).judge('flour')).rejects.toThrow(/ceiling reached for 2026-09/u);
+        expect(converse).not.toHaveBeenCalled();
+        expect(deps.ledger.settle).not.toHaveBeenCalled();
+    });
+
+    it('refunds the whole reservation and rethrows when Bedrock refused before billing', async () => {
+        const { deps, converse } = makeDeps(USAGE);
+        const refused = new BedrockClientError('throttled', 'refund-full');
+        converse.mockRejectedValue(refused);
+
+        await expect(createGatedFoodnessValidator(deps).judge('flour')).rejects.toBe(refused);
+        expect(deps.ledger.settle).toHaveBeenCalledTimes(1);
+        expect(deps.ledger.settle).toHaveBeenCalledWith(expect.objectContaining({ actualMicros: 0 }));
+    });
+
+    it.each([
+        ['a Bedrock failure that may have billed', new BedrockClientError('timed out after send')],
+        ['any other error', new Error('socket hang up')],
+    ])('keeps the reservation and rethrows on %s', async (_label, failure) => {
+        const { deps, converse } = makeDeps(USAGE);
+        converse.mockRejectedValue(failure);
+
+        await expect(createGatedFoodnessValidator(deps).judge('flour')).rejects.toBe(failure);
+        expect(deps.ledger.settle).not.toHaveBeenCalled();
+    });
+
+    it('keeps the reservation when the response carries no usage', async () => {
+        const { deps, converse } = makeDeps(USAGE);
+        converse.mockResolvedValue({ kind: 'answered', text: '{}', stopReason: 'end_turn', usage: undefined });
+
+        await createGatedFoodnessValidator(deps).judge('flour');
+
+        expect(deps.ledger.settle).not.toHaveBeenCalled();
+    });
+
+    it('settles a billed response at its actual cost on the plan it reserved', async () => {
+        const { deps, reserve } = makeDeps(USAGE);
+
+        await createGatedFoodnessValidator(deps).judge('flour');
+
+        const reservedPlan = (reserve.mock.calls[0] as [{ rate: Parameters<typeof actualCostMicros>[0] }])[0];
+
+        expect(actualCostMicros(reservedPlan.rate, USAGE)).toBeGreaterThan(0);
+        expect(deps.ledger.settle).toHaveBeenCalledTimes(1);
+        expect(deps.ledger.settle).toHaveBeenCalledWith({
+            plan: reservedPlan,
+            actualMicros: actualCostMicros(reservedPlan.rate, USAGE),
+        });
     });
 });
 

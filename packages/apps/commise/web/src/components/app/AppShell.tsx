@@ -21,7 +21,8 @@
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { SyncNoticeHost } from '@commise/query/sync-notice-host';
-import { RECIPE_HOME_WIDGET_CAPABILITY, RecipeCreateButton } from '@commise/features-recipes';
+import { RecipeCreateButton } from '@commise/features-recipes';
+import { LIVE_CAPABILITIES } from '@commise/features-recipes/widget';
 import type { HomeNavItemId } from '@commise/features-core';
 import { ScrollHost } from '@commise/ui/scroll-host';
 import { SnackbarHost } from '@commise/ui/snackbar';
@@ -36,13 +37,6 @@ import { HomeChrome } from '@/components/home/chrome/HomeChrome';
 import { profileEntryOf } from '@commise/features-core';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { webMessages } from '@/i18n/messages';
-
-/**
- * The backend capabilities this app has actually deployed. Gates which nav destinations are reachable — the
- * unshipped roadmap surfaces (meal-plan / grocery / nutrition) stay gated everywhere. One source of truth,
- * consumed by the shell nav AND by Home's widget curation.
- */
-export const LIVE_CAPABILITIES: readonly string[] = [RECIPE_HOME_WIDGET_CAPABILITY];
 
 /** Props for {@link AppShell}. */
 export interface AppShellProps {

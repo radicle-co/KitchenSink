@@ -30,6 +30,7 @@ import {
     type HomeWidgetId,
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
+import { LIVE_CAPABILITIES } from '@commise/features-recipes/widget';
 import { useMessages } from '@commise/i18n/react';
 import { paidFeatureStateOf, type PaidFeatureState } from '@commise/features-account';
 import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
@@ -47,7 +48,6 @@ import { useUserProfile } from '../../hooks/useUserProfile.js';
 import { HomeGreeting } from './HomeGreeting.js';
 import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice.js';
 import { homeContainer } from './homeContainer.js';
-import { LIVE_CAPABILITIES } from './liveCapabilities.js';
 import { RecipeWidgetSlot } from './RecipeWidgetSlot.js';
 import { RoadmapWidgetSlot } from './RoadmapWidgetSlot.js';
 import { HomeNudgeContext } from './homeNudgeContext.js';

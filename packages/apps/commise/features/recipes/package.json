@@ -8,6 +8,14 @@
     "exports": {
         ".": "./src/index.ts",
         "./hooks": "./src/hooks/index.ts",
+        "./widget": "./src/widget/index.ts",
+        "./detail": "./src/detail/index.ts",
+        "./editor": "./src/editor/index.ts",
+        "./session": "./src/session/index.ts",
+        "./list": "./src/list/index.ts",
+        "./discovery": "./src/discovery/index.ts",
+        "./collections": "./src/collections/index.ts",
+        "./versions": "./src/versions/index.ts",
         "./widget/web": "./src/widget/RecipeHomeWidget.tsx",
         "./widget/mobile": "./src/widget/RecipeHomeWidget.native.tsx",
         "./data-sources/mobile": "./src/dataSources/mobileEntry.ts"

@@ -16,12 +16,12 @@
  */
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import type { HomeNavItemId } from '@commise/features-core';
+import { LIVE_CAPABILITIES } from '@commise/features-recipes/widget';
 import { useMessages } from '@commise/i18n/react';
 import { useCompactHeight, useFrameCollapsed } from '@commise/ui/layout';
 import type { JSX } from 'react';
 
 import { HomeTabBar } from '../components/home/chrome/HomeTabBar.js';
-import { LIVE_CAPABILITIES } from '../components/home/liveCapabilities.js';
 import { mobileMessages } from '../i18n/messages.js';
 import { isTabRoute } from './routes.js';
 

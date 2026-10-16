@@ -34,6 +34,7 @@ import {
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID, RecipeCreateButton } from '@commise/features-recipes';
 import { useLibraryEmpty } from '@commise/features-recipes/hooks';
+import { LIVE_CAPABILITIES } from '@commise/features-recipes/widget';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { paidFeatureStateOf, type PaidFeatureState } from '@commise/features-account';
 import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
@@ -43,7 +44,7 @@ import { useRouter } from 'next/navigation';
 import { Suspense, useId, useMemo, type ComponentType, type JSX, type ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
-import { AppShell, LIVE_CAPABILITIES } from '@/components/app/AppShell';
+import { AppShell } from '@/components/app/AppShell';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { webMessages } from '@/i18n/messages';
 

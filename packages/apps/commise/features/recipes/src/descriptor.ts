@@ -9,7 +9,7 @@
  * component code split out of the initial bundle.
  */
 
-import type { HomeWidgetDescriptor } from '@commise/features-core';
+import { registerHomeWidget, type AddFeature, type HomeWidgetDescriptor } from '@commise/features-core';
 
 /**
  * Stable Home-widget id for the recipe (recent-recipes) widget — the only
@@ -39,4 +39,15 @@ export const recipeHomeWidgetDescriptor: HomeWidgetDescriptor = {
     load: () => import('./widget/RecipeHomeWidget.js'),
     defaultWeight: RECIPE_HOME_WIDGET_DEFAULT_WEIGHT,
     capability: RECIPE_HOME_WIDGET_CAPABILITY,
+};
+
+/**
+ * The recipe feature's Home registration: contributes {@link recipeHomeWidgetDescriptor} to the appShell container's
+ * multi-value widget token. This is the feature's `addFeature` seam; both apps apply it to their Home container.
+ *
+ * @param container - The appShell container to register the recipe widget into.
+ * @sideEffect Binds the recipe widget descriptor onto the supplied container.
+ */
+export const addRecipeFeature: AddFeature = (container) => {
+    registerHomeWidget(container, recipeHomeWidgetDescriptor);
 };

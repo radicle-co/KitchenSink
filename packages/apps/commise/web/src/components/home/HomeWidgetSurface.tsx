@@ -5,7 +5,7 @@
  *
  * The composition root of the three-layer Home surface:
  *  - **discovery** — features register their widget descriptors into the ditox {@link homeContainer}
- *    (`createHomeContainer`); resolved here via `resolveHomeWidgets`.
+ *    (`createHomeContainer`, `@commise/features-core/home`); resolved here via `resolveHomeWidgets`.
  *  - **composition** — `curateHomeWidgets` gates the resolved descriptors by live **capability** and the
  *    viewer's subscription **tier**, applying personalization order/hidden (owned by identity 002, absent in
  *    v1). In Home v1 the recipe widget is the only **live** widget; the unshipped 005–009 cohort is present

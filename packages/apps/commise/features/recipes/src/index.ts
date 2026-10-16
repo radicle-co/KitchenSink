@@ -9,6 +9,7 @@ export {
     RECIPE_HOME_WIDGET_CAPABILITY,
     RECIPE_HOME_WIDGET_DEFAULT_WEIGHT,
     RECIPE_HOME_WIDGET_ID,
+    addRecipeFeature,
     recipeHomeWidgetDescriptor,
 } from './descriptor.js';
 export { RecipeCardGridSkeleton } from './card/RecipeCardGridSkeleton.js';

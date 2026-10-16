@@ -20,3 +20,5 @@ export { useHomeWidgets } from './useHomeWidgets.js';
 export type { HomeWidgetSlots, UseHomeWidgetsInput } from './useHomeWidgets.js';
 export { useOncePerSessionNudge } from './useOncePerSessionNudge.js';
 export type { OncePerSessionNudge } from './useOncePerSessionNudge.js';
+export { createHomeContainer } from './createHomeContainer.js';
+export type { CreateHomeContainerInput } from './createHomeContainer.js';

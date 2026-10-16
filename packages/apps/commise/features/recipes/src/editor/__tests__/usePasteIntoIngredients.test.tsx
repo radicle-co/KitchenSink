@@ -418,6 +418,10 @@ describe('usePasteIntoIngredients — a lookup that fails', () => {
         expect(mocks.polledId).not.toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111');
     });
 
+    // The guard's `done` half has no test, on purpose. `PasteSession.done` moves in exactly one place: the success
+    // updater of the join that holds that very `jobId:done` claim (Add as written and Try again replace the session
+    // without moving it). So no path advances `done` while that join is in flight, and a test could only fake the
+    // state, which would pass with the half deleted. The replaced-paste tests around this one pin the `jobId` half.
     it('⛔ a join that FAILS for a paste that was replaced does not mark the newer paste failed', async () => {
         let fail: () => void = () => undefined;
         mocks.byName.mockImplementationOnce(

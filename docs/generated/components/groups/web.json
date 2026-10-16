@@ -2081,11 +2081,11 @@
                     "dir": "packages/apps/commise/web/src/components/auth",
                     "moduleDoc": "",
                     "moduleTags": [],
-                    "description": "Presentational block notice for a security-relevant account state (suspended / impersonation). The copy\ncomes from the shared",
+                    "description": "Presentational block notice for a security-relevant account state (suspended / impersonation). The copy\ncomes from the shared, localized `authBlockMessages` of",
                     "tags": [
                         {
                             "name": "commise",
-                            "text": "/features-account block messages so it matches mobile; this leaf owns only\nthe presentation — a real error-toned alert surface (bordered, tinted card) so the blocked state reads as\na genuine warning rather than unstyled body text."
+                            "text": "/features-account so it matches mobile; this leaf owns only\nthe presentation — a real error-toned alert surface (bordered, tinted card) so the blocked state reads as\na genuine warning rather than unstyled body text."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
@@ -2093,7 +2093,7 @@
                     "props": [
                         {
                             "name": "message",
-                            "type": "AuthBlockMessage",
+                            "type": "AuthBlockCopy",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2218,7 +2218,7 @@
             "dir": "packages/apps/commise/web/src/components/auth",
             "kind": "orchestration",
             "patterns": [
-                "Command over the app's one sign-out use case, `useSignOutAndLeave` — that module owns the mechanism, the\n    ordering and the session-ended post-condition (ADR-0009); this leaf owns only busy and error."
+                "Command over the app's one sign-out use case, `useSignOutAndLeave` — that module owns the mechanism, the\n    ordering and the session-ended post-condition (ADR-0009); this leaf only binds it to the shared control state and row."
             ],
             "platforms": [
                 "web"
@@ -2232,7 +2232,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/auth/LogoutButton.tsx",
                     "dir": "packages/apps/commise/web/src/components/auth",
-                    "moduleDoc": "auth/LogoutButton — the web sign-out control: the Profile page's sign-out row.\n\nThe orchestration half of the sign-out surface: it owns only the control's own state (busy, error) and\nissues the app's one sign-out command, `useSignOutAndLeave` —\nwhich owns the mechanism (Clerk's load-safe `signOut`), the ordering (await the revoke, THEN replace the\ndocument), and the post-condition that the session really ended. Read that module before changing anything\nhere; the post-condition guards a real, observed security defect (B23), not a hypothetical one.\n\nB17/B23 — a sign-out that fails, OR that resolves without actually ending the session, is surfaced and never\nswallowed: the busy state is released and a localized alert appears, so the control is retryable instead of\nmarching the viewer to the public page on a session that is still live.",
+                    "moduleDoc": "auth/LogoutButton — the web sign-out control: the Profile page's sign-out row.\n\nThe orchestration half of the sign-out surface: it binds the shared control state (`useSignOutControl`, busy and\nfailed) and the shared row (`SignOutRow`) to the app's one sign-out command, `useSignOutAndLeave` —\nwhich owns the mechanism (Clerk's load-safe `signOut`), the ordering (await the revoke, THEN replace the\ndocument), and the post-condition that the session really ended. Read that module before changing anything\nhere; the post-condition guards a real, observed security defect (B23), not a hypothetical one.\n\nB17/B23 — a sign-out that fails, OR that resolves without actually ending the session, is surfaced and never\nswallowed: the busy state is released and a localized alert appears, so the control is retryable instead of\nmarching the viewer to the public page on a session that is still live.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2240,7 +2240,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Command over the app's one sign-out use case, `useSignOutAndLeave` — that module owns the mechanism, the\n    ordering and the session-ended post-condition (ADR-0009); this leaf owns only busy and error."
+                            "text": "Command over the app's one sign-out use case, `useSignOutAndLeave` — that module owns the mechanism, the\n    ordering and the session-ended post-condition (ADR-0009); this leaf only binds it to the shared control state and row."
                         }
                     ],
                     "description": "",

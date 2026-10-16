@@ -5,7 +5,7 @@
  * named by its state, with the localized failure beneath it as an alert. Signing out is not destructive, so it is never
  * red (`buildSpec.md` §9.1).
  *
- * It draws; it does not sign out. The app's control feeds it `useSignOutControl`'s state and its one verified sign-out
+ * Presentational: props → JSX. It draws; it does not sign out. The app's control feeds it `useSignOutControl`'s state and its one verified sign-out
  * command (ADR-0009), so the same leaf serves the Profile page's sign-out group and the danger zone's recovery after an
  * erasure that was accepted but whose exit failed.
  */

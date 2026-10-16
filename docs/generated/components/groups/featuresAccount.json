@@ -4,16 +4,16 @@
     "packageName": "@commise/features-account",
     "layer": "feature",
     "coverage": {
-        "components": 6,
-        "implementations": 12,
-        "props": 78,
-        "documentedComponents": 6,
-        "implementationsWithModuleDoc": 12,
-        "implementationsWithComponentDoc": 10,
-        "documentedProps": 58,
-        "classifiedComponents": 4,
+        "components": 8,
+        "implementations": 15,
+        "props": 87,
+        "documentedComponents": 8,
+        "implementationsWithModuleDoc": 15,
+        "implementationsWithComponentDoc": 13,
+        "documentedProps": 65,
+        "classifiedComponents": 6,
         "componentsWithPatternTag": 4,
-        "crossPlatformComponents": 6
+        "crossPlatformComponents": 7
     },
     "components": [
         {
@@ -547,6 +547,76 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresAccount/profile/ProfileAccountGroup",
+            "name": "ProfileAccountGroup",
+            "group": "featuresAccount",
+            "packageName": "@commise/features-account",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/account/src/profile",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ProfileAccountGroup",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileAccountGroup.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/ProfileAccountGroup — the Profile page's \"Account\" group, once for both apps:\nthe display-name row that opens the editor sheet, with whatever read-only rows the platform adds after it.\n\nBoth pages drew the same row with the same value rule (the name, or \"Add your name\" when none is saved). They differ\nonly in what follows it, and that is a decision for the page: web adds username and email rows, mobile adds none.\nThose rows arrive as `children`, so this group neither knows nor changes which rows either platform shows.\n\nPresentational: props → JSX. The leaves it composes (`ProfileGroup`, `ProfileRow`) resolve to their web or native file at bundle time, so this one\nmodule serves both platforms.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/ProfileAccountGroup — the Profile page's \"Account\" group, once for both apps:"
+                        }
+                    ],
+                    "description": "The \"Account\" group.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Read-only rows the platform shows after the display name.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/ProfileAccountGroup.tsx"
+                        },
+                        {
+                            "name": "displayName",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The saved display name (empty when none is saved).",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/ProfileAccountGroup.tsx"
+                        },
+                        {
+                            "name": "onEditDisplayName",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the display-name editor.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/ProfileAccountGroup.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -1181,6 +1251,129 @@
                         {
                             "name": "value",
                             "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresAccount/profile/SignOutRow",
+            "name": "SignOutRow",
+            "group": "featuresAccount",
+            "packageName": "@commise/features-account",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/account/src/profile",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "SignOutRow",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/SignOutRow.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/SignOutRow — the Profile page's sign-out row (web): an `ink` {@link ProfileRow}\nnamed by its state, with the localized failure beneath it as an alert. Signing out is not destructive, so it is never\nred (`buildSpec.md` §9.1).\n\nPresentational: props → JSX. It draws; it does not sign out. The app's control feeds it `useSignOutControl`'s state and its one verified sign-out\ncommand (ADR-0009), so the same leaf serves the Profile page's sign-out group and the danger zone's recovery after an\nerasure that was accepted but whose exit failed.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/SignOutRow — the Profile page's sign-out row (web): an `ink` {@link ProfileRow}"
+                        }
+                    ],
+                    "description": "The sign-out row and its failure alert.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The sign-out is in flight: the row says \"Signing out…\" and cannot be pressed again.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "failed",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The last attempt failed: the localized alert shows and the row stays retryable.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "SignOutRow",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/SignOutRow.native.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/SignOutRow — the Profile page's sign-out row (native): an `ink`\n{@link ProfileRow} named by its state, with the localized failure beneath it as an alert. Signing out is not\ndestructive, so it is never red (`buildSpec.md` §9.1). Colour comes from the theme at render.\n\nPresentational: props → JSX. It draws; it does not sign out. The app's control feeds it `useSignOutControl`'s state and its one verified sign-out\ncommand (ADR-0009), so the same leaf serves the Profile page's sign-out group and the danger zone's recovery after an\nerasure that was accepted but whose exit failed.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/SignOutRow — the Profile page's sign-out row (native): an `ink`"
+                        }
+                    ],
+                    "description": "The sign-out row and its failure alert.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The sign-out is in flight: the row says \"Signing out…\" and cannot be pressed again.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "failed",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The last attempt failed: the localized alert shows and the row stays retryable.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,

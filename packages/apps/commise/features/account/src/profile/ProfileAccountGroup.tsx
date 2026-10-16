@@ -8,7 +8,7 @@
  * only in what follows it, and that is a decision for the page: web adds username and email rows, mobile adds none.
  * Those rows arrive as `children`, so this group neither knows nor changes which rows either platform shows.
  *
- * The leaves it composes (`ProfileGroup`, `ProfileRow`) resolve to their web or native file at bundle time, so this one
+ * Presentational: props → JSX. The leaves it composes (`ProfileGroup`, `ProfileRow`) resolve to their web or native file at bundle time, so this one
  * module serves both platforms.
  */
 import { useMessages } from '@commise/i18n/react';

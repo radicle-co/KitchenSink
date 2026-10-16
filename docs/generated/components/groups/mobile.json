@@ -4,13 +4,13 @@
     "packageName": "@commise/mobile",
     "layer": "app",
     "coverage": {
-        "components": 56,
-        "implementations": 56,
-        "props": 157,
-        "documentedComponents": 55,
-        "implementationsWithModuleDoc": 54,
-        "implementationsWithComponentDoc": 41,
-        "documentedProps": 151,
+        "components": 55,
+        "implementations": 55,
+        "props": 156,
+        "documentedComponents": 54,
+        "implementationsWithModuleDoc": 53,
+        "implementationsWithComponentDoc": 40,
+        "documentedProps": 150,
         "classifiedComponents": 36,
         "componentsWithPatternTag": 24,
         "crossPlatformComponents": 0
@@ -145,7 +145,7 @@
                         },
                         {
                             "name": "messages",
-                            "type": "AvatarFieldMessages",
+                            "type": "AvatarCopy",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -198,7 +198,7 @@
             "dir": "packages/apps/commise/mobile/src/components/account",
             "kind": "orchestration",
             "patterns": [
-                "Command over the app's one sign-out use case, `useSignOutAndVerify` — that module owns the mechanism, the\n    ordering and the session-ended post-condition (ADR-0009); this leaf owns only busy and failed."
+                "Command over the app's one sign-out use case, `useSignOutAndVerify` — that module owns the mechanism, the\n    ordering and the session-ended post-condition (ADR-0009); this leaf only binds it to the shared control state and row."
             ],
             "platforms": [
                 "web"
@@ -212,7 +212,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/account/SignOutButton.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/account",
-                    "moduleDoc": "components/account/SignOutButton — the mobile sign-out control: the Profile page's sign-out row (the\ncounterpart of the web `LogoutButton`).\n\nThe orchestration half of the sign-out surface: it owns only the control's own state (busy, failed) and\nissues the app's one sign-out command,\n`useSignOutAndVerify` — which owns the mechanism\n(Clerk's load-safe `signOut`), the ordering, and the post-condition that the session really ended. Read\nthat module, and ADR-0009, before changing anything here.\n\nB17 — a sign-out that fails, OR that resolves without actually ending the session, is surfaced and never\nswallowed: the busy state is released and a localized alert appears, so the control is retryable instead of\nleaving the viewer silently signed in with no feedback. The previous shape was `onPress={() => void\nsignOut()}` — nothing awaited, nothing reported.\n\nIt exists as its own component because TWO surfaces need exactly this behaviour: the Profile page's sign-out\ngroup, and the danger zone's recovery after an erasure that was ACCEPTED but whose sign-out failed. The row is\n`ink`, not red: signing out is not destructive (`buildSpec.md` §9.1). Colour comes from the theme at render.",
+                    "moduleDoc": "components/account/SignOutButton — the mobile sign-out control: the Profile page's sign-out row (the\ncounterpart of the web `LogoutButton`).\n\nThe orchestration half of the sign-out surface: it binds the shared control state (`useSignOutControl`, busy and\nfailed) and the shared row (`SignOutRow`) to the app's one sign-out command,\n`useSignOutAndVerify` — which owns the mechanism\n(Clerk's load-safe `signOut`), the ordering, and the post-condition that the session really ended. Read\nthat module, and ADR-0009, before changing anything here.\n\nB17 — a sign-out that fails, OR that resolves without actually ending the session, is surfaced and never\nswallowed: the busy state is released and a localized alert appears, so the control is retryable instead of\nleaving the viewer silently signed in with no feedback. The previous shape was `onPress={() => void\nsignOut()}` — nothing awaited, nothing reported.\n\nIt exists as its own component because TWO surfaces need exactly this behaviour: the Profile page's sign-out\ngroup, and the danger zone's recovery after an erasure that was ACCEPTED but whose sign-out failed. The row is\n`ink`, not red: signing out is not destructive (`buildSpec.md` §9.1). Colour comes from the theme at render.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -220,7 +220,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Command over the app's one sign-out use case, `useSignOutAndVerify` — that module owns the mechanism, the\n    ordering and the session-ended post-condition (ADR-0009); this leaf owns only busy and failed."
+                            "text": "Command over the app's one sign-out use case, `useSignOutAndVerify` — that module owns the mechanism, the\n    ordering and the session-ended post-condition (ADR-0009); this leaf only binds it to the shared control state and row."
                         }
                     ],
                     "description": "The mobile sign-out control: issues the sign-out command and surfaces its failure.",
@@ -2161,67 +2161,6 @@
                             "defaultValue": null,
                             "description": "Whether the nudge is shown.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/SubscriptionNudge.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "mobile/components/ImpersonationWarning",
-            "name": "ImpersonationWarning",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/components",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "ImpersonationWarning",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/components/ImpersonationWarning.tsx",
-                    "dir": "packages/apps/commise/mobile/src/components",
-                    "moduleDoc": "components/ImpersonationWarning — the mobile impersonation-unavailable notice.\n\nAdministrator impersonation is deliberately not supported in the app, so the viewer is told why instead of\nbeing left at a dead end. Renders the shared {@link AlertBanner} in the caution tone.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "components/ImpersonationWarning — the mobile impersonation-unavailable notice."
-                        }
-                    ],
-                    "description": "The impersonation-unavailable notice.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The optional impersonated `sessionId`."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The caution banner."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "sessionId",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The impersonated session's id, appended for support correlation when known.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/ImpersonationWarning.tsx"
                         }
                     ],
                     "usesRefApi": [],

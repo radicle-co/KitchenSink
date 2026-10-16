@@ -374,8 +374,12 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  * was deleted; `RouteErrorState` (which did) was deleted too, and every component the slice added states its layer in
  * its own docblock. `RouteErrorState` also leaves `DECLARED_ORCHESTRATION` below: it was deleted, not reclassified —
  * `BoundaryErrorNotice` replaced it, and `RouteErrorBoundary` is the orchestration that remains.
+ *
+ * ⚠️ It went 97 → 96 with the account consolidation (UI consolidation S2). `ImpersonationWarning`, which stated no
+ * layer, was deleted as dead code (nothing rendered it), and every component the slice added (`SignOutRow`,
+ * `ProfileAccountGroup`) states its layer in its own docblock.
  */
-const LAYER_UNSTATED_CENSUS = 97;
+const LAYER_UNSTATED_CENSUS = 96;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.

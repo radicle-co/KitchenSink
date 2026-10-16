@@ -7,7 +7,7 @@
 appId: ${APP_ID}
 ---
 - runFlow: ../../auth/signinHome.yaml
-- tapOn: 'New recipe'
+- tapOn: 'New recipe|Add your first recipe'
 - assertVisible: 'Close editor'
 - scrollUntilVisible:
       element: 'Private, Only you can see it'

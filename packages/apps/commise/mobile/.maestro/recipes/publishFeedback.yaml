@@ -35,8 +35,12 @@ appId: ${APP_ID}
       timeout: 20000
 - tapOn: 'Edit recipe'
 - assertVisible: 'Close editor'
+# ⚠️ A tap on a filled Android field puts the caret where the finger landed, not at the end (run 38973223138 read
+# "Maestro Feedback Sou twop"), so an append splits the title. Erase back from the caret and retype the whole title: the
+# saved title still starts with "Maestro Feedback Soup", and the edit is dirty whatever the caret was.
 - tapOn: 'Title'
-- inputText: ' two'
+- eraseText: 64
+- inputText: 'Maestro Feedback Soup two'
 # Closes the keyboard before Save changes, for `common/typeTitle.yaml`'s reason.
 - tapOn: 'About the recipe'
 - tapOn: 'Save changes'

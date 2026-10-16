@@ -74,6 +74,8 @@ function AccountEraseFlow({
 
     const [phrase, setPhrase] = useState('');
     const [selectedRecipeIds, setSelectedRecipeIds] = useState<readonly string[]>([]);
+    /** Both legs answered and the sign-out is running: the flow stays busy until the viewer has left. */
+    const [leaving, setLeaving] = useState(false);
 
     const donatableRecipes = selectDonatableRecipes(recipes.recipes).map((recipe) => ({
         id: recipe.id,
@@ -94,6 +96,8 @@ function AccountEraseFlow({
      * @sideEffect Destroys the Clerk session and replaces the current document.
      */
     const leaveSignedOut = async (): Promise<void> => {
+        setLeaving(true);
+
         try {
             await signOutAndLeave();
         } catch {
@@ -127,7 +131,7 @@ function AccountEraseFlow({
             onToggleRecipe={toggleRecipe}
             phrase={phrase}
             onPhraseChange={setPhrase}
-            submitting={erasure.isPending || accountErasure.isPending}
+            submitting={erasure.isPending || accountErasure.isPending || leaving}
             submitError={erasure.isError || accountErasure.isError}
             onConfirm={handleConfirm}
             onCancel={onClose}

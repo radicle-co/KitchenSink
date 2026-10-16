@@ -135,6 +135,29 @@ describe('AccountEraseForm (web) — the exit RESOLVED without ending the sessio
     });
 });
 
+/**
+ * ⛔ THE FLOW STAYS BUSY UNTIL THE VIEWER HAS LEFT. Both legs answering ends both mutations' pending state, but the
+ * sign-out is still running; a dialog that went idle then offered Confirm again (a second recipe leg, against an
+ * account already erased) and Cancel.
+ */
+describe('AccountEraseForm (web) — busy through the sign-out', () => {
+    it('⛔ keeps Confirm blocked and Cancel disabled while the sign-out runs', async () => {
+        signOut.mockImplementation(() => new Promise<void>(() => undefined));
+        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
+            options?.onSuccess?.(),
+        );
+        const user = await openFlow();
+
+        await user.type(screen.getByLabelText('Confirmation phrase'), 'ERASE MY DATA');
+        await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Erase my data' }));
+
+        const dialog = screen.getByRole('dialog');
+        expect(within(dialog).getByRole('button', { name: 'Erase my data' }).getAttribute('aria-busy')).toBe('true');
+        expect(within(dialog).getByRole<HTMLButtonElement>('button', { name: 'Cancel' }).disabled).toBe(true);
+        expect(erasureMutate).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe('AccountEraseForm (web) — donate election wiring', () => {
     it('shows loading while the recipe list loads', async () => {
         recipesState.current = { recipes: [], isLoading: true, isError: false };

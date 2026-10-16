@@ -175,6 +175,21 @@ describe('AccountEraseDialog (native) — confirm / cancel', () => {
 
         expect(onCancel).toHaveBeenCalledTimes(1);
     });
+
+    /**
+     * ⛔ NO DISMISSAL MID-ERASURE, as on web. A dismissal unmounts the flow that chains the account leg and the
+     * sign-out off the recipe leg's answer. The hardware-back path (`onRequestClose`) follows the same rule; a
+     * react-native-web render cannot raise it, so only the Cancel control is driven here.
+     */
+    it('⛔ Cancel does not dismiss while erasing', () => {
+        const onCancel = vi.fn();
+        renderDialog({ phrase: PHRASE, submitting: true, onCancel });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+        expect(onCancel).not.toHaveBeenCalled();
+        expect(screen.getByRole('button', { name: 'Cancel' }).getAttribute('aria-disabled')).toBe('true');
+    });
 });
 
 describe('AccountEraseDialog (native) — submitting / error (B17: no silent stop)', () => {

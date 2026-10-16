@@ -290,6 +290,24 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
         expect(accountEraseMutate).toHaveBeenCalledTimes(1);
     });
 
+    /**
+     * ⛔ THE FLOW STAYS BUSY UNTIL THE VIEWER HAS LEFT, as on web. Both legs answering ends both mutations' pending
+     * state while the sign-out still runs; an idle dialog then offered Confirm again (a second recipe leg against an
+     * erased account) and Cancel.
+     */
+    it('⛔ keeps Confirm busy and Cancel disabled while the sign-out runs', () => {
+        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
+            options?.onSuccess?.(),
+        );
+        signOutAndVerify.mockImplementation(() => new Promise<void>(() => undefined));
+        confirmErasure();
+
+        const eraseButtons = screen.getAllByRole('button', { name: 'Erase my data' });
+        expect(eraseButtons[eraseButtons.length - 1]?.getAttribute('aria-busy')).toBe('true');
+        expect(screen.getByRole('button', { name: 'Cancel' }).getAttribute('aria-disabled')).toBe('true');
+        expect(erasureMutate).toHaveBeenCalledTimes(1);
+    });
+
     it('does NOT sign the viewer out when the account erasure fails — the account still exists', () => {
         erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
             options?.onSuccess?.(),

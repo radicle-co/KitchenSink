@@ -164,6 +164,22 @@ describe('AccountEraseDialog (web) — confirm / cancel', () => {
 
         expect(onCancel).toHaveBeenCalled();
     });
+
+    /**
+     * ⛔ NO DISMISSAL MID-ERASURE. The flow chains the account leg and the sign-out off the recipe leg's answer, and a
+     * dismissal unmounts the flow that owns that chain: the recipe leg finished with no account erasure and no sign-out.
+     */
+    it('⛔ neither Cancel nor Escape dismisses while erasing', async () => {
+        const user = userEvent.setup();
+        const onCancel = vi.fn();
+        renderDialog({ phrase: PHRASE, submitting: true, onCancel });
+
+        await user.click(screen.getByRole('button', { name: 'Cancel' }));
+        await user.keyboard('{Escape}');
+
+        expect(onCancel).not.toHaveBeenCalled();
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Cancel' }).disabled).toBe(true);
+    });
 });
 
 describe('AccountEraseDialog (web) — submitting / error (B17: no silent stop)', () => {

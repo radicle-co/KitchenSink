@@ -28,6 +28,9 @@ import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE, confirmsErasurePhrase } from '../e
 import { accountDangerMessages } from './messages.js';
 import type { AccountEraseDialogProps } from './model.js';
 
+/** The hardware-back handler while submitting: the dialog stays open. */
+const ignoreDismissal = (): void => undefined;
+
 export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
     open,
     donatableRecipes,
@@ -52,7 +55,14 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
     const danger = { color: colors.dangerText };
 
     return (
-        <DialogFrame open={open} onRequestClose={onCancel} title={erase.title} role="dialog">
+        // ⛔ No dismissal while `submitting`, as on web: the caller's erasure is still in flight, and dismissing
+        // unmounts the caller that finishes it.
+        <DialogFrame
+            open={open}
+            onRequestClose={submitting ? ignoreDismissal : onCancel}
+            title={erase.title}
+            role="dialog"
+        >
             {/* As the Close dialog's body: `inkMuted`, with the danger colour on a glyph and not on the whole sentence, so
                 colour is not the only cue (W-24; `buildSpec.md` §10). */}
             <View style={styles.warningRow}>
@@ -108,6 +118,8 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={erase.cancel}
+                    accessibilityState={{ disabled: submitting }}
+                    disabled={submitting}
                     onPress={onCancel}
                     style={styles.cancelButton}
                 >

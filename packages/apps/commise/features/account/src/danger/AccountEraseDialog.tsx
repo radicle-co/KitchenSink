@@ -53,7 +53,9 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
     const selected = new Set(selectedRecipeIds);
 
     return (
-        <Dialog.Root open={open} onOpenChange={(next) => (next ? undefined : onCancel())}>
+        // ⛔ No dismissal while `submitting`: the caller's erasure is still in flight, and dismissing unmounts the
+        // caller that finishes it.
+        <Dialog.Root open={open} onOpenChange={(next) => (next || submitting ? undefined : onCancel())}>
             <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                 <Dialog.Content className="@container/dialog fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-lg bg-paper-overlay p-6 shadow-lg">
@@ -115,6 +117,7 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                         <Dialog.Close asChild>
                             <button
                                 type="button"
+                                disabled={submitting}
                                 className={`${buttonSurfaceClass('secondary')} w-full @[25rem]/dialog:w-auto`}
                             >
                                 <Icon name="x" size={20} />

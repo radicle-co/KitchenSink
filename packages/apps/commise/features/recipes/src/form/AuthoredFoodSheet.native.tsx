@@ -69,7 +69,7 @@ const FormBody: FC<{
                     onChangeText={(value) => props.onFieldChange(name, value)}
                     editable={!submitting}
                     keyboardType={numeric ? 'decimal-pad' : 'default'}
-                    aria-invalid={error !== undefined}
+                    {...(error === undefined ? {} : { accessibilityHint: authoredFieldErrorText(copy, error) })}
                     style={[
                         formStyles.input,
                         fieldPaint(theme, error !== undefined),

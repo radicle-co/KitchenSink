@@ -9,7 +9,7 @@
  */
 import { Button } from '@commise/ui/button';
 import { Chip, ChipRow } from '@commise/ui/chip';
-import { FieldLabel, Input, fieldHintId } from '@commise/ui/input';
+import { FieldLabel, Input } from '@commise/ui/input';
 import { nativeTokens } from '@commise/ui/native';
 import type { FC } from 'react';
 import { useState } from 'react';
@@ -69,7 +69,8 @@ export const ChipInput: FC<ChipInputProps> = ({ id, label, hint, values, onChang
             <Input
                 id={id}
                 value={draft}
-                describedBy={fieldHintId(id)}
+                label={label}
+                hint={hint}
                 enterKeyHint="done"
                 onChangeText={(text) => {
                     const { finished, rest } = splitAtCommas(text);

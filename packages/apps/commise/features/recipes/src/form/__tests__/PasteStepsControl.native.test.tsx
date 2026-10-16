@@ -7,6 +7,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+import { recordedTextInput, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
+
+// react-native-web drops `accessibilityHint`, and iOS ignores `aria-labelledby`, so the field is wrapped to record the
+// accessibility props a screen reader is actually given (`recordedTextInput`).
+vi.mock('@commise/ui/text-input', async (importOriginal) => {
+    const { recordingTextInputModule } = await import('@commise/ui/testing/record-text-inputs');
+
+    return recordingTextInputModule(await importOriginal<typeof import('@commise/ui/text-input')>());
+});
+
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
@@ -14,13 +24,17 @@ vi.mock('react-native', async (importOriginal) => {
 });
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { pasteStepsFieldId } from '../fieldIds.js';
 import { recipeFormMessages } from '../messages.js';
 import { editorMessages } from '../../editor/messages.js';
 import { PasteStepsControl } from '../PasteStepsControl.native.js';
 
 const s = editorMessages.en.steps;
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    recordedTextInputs.clear();
+});
 
 const field = (): HTMLTextAreaElement => screen.getByRole<HTMLTextAreaElement>('textbox', { name: s.pasteLabel });
 
@@ -80,5 +94,15 @@ describe('PasteStepsControl (native)', () => {
 
         fireEvent.click(screen.getByRole('button', { name: s.paste }));
         expect(field().value).toBe('');
+    });
+});
+
+describe('PasteStepsControl (native) — what a screen reader receives', () => {
+    it('names the field by its label for iOS and speaks the visible hint', () => {
+        render(<PasteStepsControl onAdd={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: s.paste }));
+
+        expect(recordedTextInput(pasteStepsFieldId).accessibilityLabel).toBe(s.pasteLabel);
+        expect(recordedTextInput(pasteStepsFieldId).accessibilityHint).toBe(s.pasteHint);
     });
 });

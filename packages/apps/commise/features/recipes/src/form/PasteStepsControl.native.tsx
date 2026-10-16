@@ -8,7 +8,7 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
-import { FieldLabel, TextArea, fieldHintId } from '@commise/ui/input';
+import { FieldLabel, TextArea } from '@commise/ui/input';
 import { nativeTokens } from '@commise/ui/native';
 import { Sheet } from '@commise/ui/sheet';
 import type { FC } from 'react';
@@ -55,7 +55,8 @@ export const PasteStepsControl: FC<PasteStepsControlProps> = ({ onAdd }) => {
                         id={pasteStepsFieldId}
                         value={paste.text}
                         minRows={6}
-                        describedBy={fieldHintId(pasteStepsFieldId)}
+                        label={s.pasteLabel}
+                        hint={s.pasteHint}
                         onChangeText={paste.setText}
                     />
                 </View>

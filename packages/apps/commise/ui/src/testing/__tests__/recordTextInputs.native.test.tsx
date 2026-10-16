@@ -3,7 +3,12 @@ import type { FC } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { TextInputProps } from '../../textInput/TextInput.native.js';
-import { recordedTextInput, recordedTextInputs, recordingTextInputModule } from '../recordTextInputs.native.js';
+import {
+    recordedTextInput,
+    recordedTextInputLabelled,
+    recordedTextInputs,
+    recordingTextInputModule,
+} from '../recordTextInputs.native.js';
 
 afterEach(() => {
     cleanup();
@@ -34,6 +39,12 @@ describe('the recording TextInput', () => {
         expect(recordedTextInput('notes').accessibilityLabel).toBe('Notes');
     });
 
+    it('keys a field that has no nativeID by its accessibilityLabel', () => {
+        render(<TextInput accessibilityLabel="Protein" accessibilityHint="Out of range." />);
+
+        expect(recordedTextInput('Protein').accessibilityHint).toBe('Out of range.');
+    });
+
     it('keeps the latest props when a field re-renders', () => {
         const { rerender } = render(<TextInput nativeID="title" accessibilityHint="first" />);
         rerender(<TextInput nativeID="title" accessibilityHint="second" />);
@@ -47,5 +58,15 @@ describe('the recording TextInput', () => {
 
     it('throws, naming the id, when no field with that id rendered, so a typo cannot pass as "no hint"', () => {
         expect(() => recordedTextInput('missing')).toThrow('missing');
+    });
+
+    it('finds a field by its accessibilityLabel when its nativeID is generated', () => {
+        render(<TextInput nativeID=":r1:" accessibilityLabel="Display name" accessibilityHint="Too long." />);
+
+        expect(recordedTextInputLabelled('Display name').accessibilityHint).toBe('Too long.');
+    });
+
+    it('throws, naming the label, when no field carries it', () => {
+        expect(() => recordedTextInputLabelled('Nothing')).toThrow('Nothing');
     });
 });

@@ -12,12 +12,21 @@ import { AccessibilityInfo } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dialogTitled } from '@commise/test-utils';
 import { role, roleDark } from '@commise/ui/colors';
+import { recordedTextInput, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import type { AuthoredFoodCreateState } from '../../hooks/authoredFoodCreate.model.js';
 import { recipeMessages } from '../../messages.js';
 import { AuthoredFoodSheet } from '../AuthoredFoodSheet.native.js';
 import { recipeFormMessages } from '../messages.js';
+
+// React Native has no `aria-invalid`, and react-native-web drops `accessibilityHint`, so the fields are wrapped to
+// record what a screen reader is actually given (`recordedTextInput`).
+vi.mock('@commise/ui/text-input', async (importOriginal) => {
+    const { recordingTextInputModule } = await import('@commise/ui/testing/record-text-inputs');
+
+    return recordingTextInputModule(await importOriginal<typeof import('@commise/ui/text-input')>());
+});
 
 // react-native-web does not implement `sendAccessibilityEvent`; the duplicate case reads the calls.
 // The device's scheme is the shared test double, so the paint can be read in both schemes.
@@ -33,6 +42,7 @@ vi.mock('react-native', async (importOriginal) => {
 
 afterEach(() => {
     cleanup();
+    recordedTextInputs.clear();
     vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
     systemScheme.current = null;
 });
@@ -58,6 +68,21 @@ const renderSheet = (state: AuthoredFoodCreateState) => {
 };
 
 const field = (label: string): HTMLInputElement => screen.getByLabelText<HTMLInputElement>(label);
+
+describe('AuthoredFoodSheet (native) — what a screen reader receives', () => {
+    it('hands a field its error as the accessibility hint, and only that field', () => {
+        renderSheet({ ...OPEN, fieldErrors: { proteinG: 'out_of_range' } });
+
+        expect(recordedTextInput(copy.proteinLabel).accessibilityHint).toBe(copy.errorOutOfRange);
+        expect(recordedTextInput(copy.nameLabel).accessibilityHint).toBeUndefined();
+    });
+
+    it('hands a field no aria-invalid, which React Native ignores on device', () => {
+        renderSheet({ ...OPEN, fieldErrors: { proteinG: 'out_of_range' } });
+
+        expect(recordedTextInput(copy.proteinLabel)).not.toHaveProperty('aria-invalid');
+    });
+});
 
 describe('AuthoredFoodSheet (native)', () => {
     it('closed: no sheet, and the same sheet opened is a dialog', () => {

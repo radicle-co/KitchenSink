@@ -8,6 +8,16 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AccessibilityInfo } from 'react-native';
 
+import { recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
+
+// React Native has no `aria-invalid` or `aria-describedby`, and react-native-web drops `accessibilityHint`, so the field
+// is wrapped to record what a screen reader is actually given.
+vi.mock('@commise/ui/text-input', async (importOriginal) => {
+    const { recordingTextInputModule } = await import('@commise/ui/testing/record-text-inputs');
+
+    return recordingTextInputModule(await importOriginal<typeof import('@commise/ui/text-input')>());
+});
+
 /**
  * ⚠️ `sendAccessibilityEvent` is MOCKED because react-native-web does not implement it: what is proven is the contract
  * with React Native (the right node, the `'focus'` event, only on a CHANGED signal), not that a screen reader honours it.
@@ -29,6 +39,7 @@ import type { DisplayNameSheetProps, ProfileRowProps } from '../props.js';
 
 afterEach(() => {
     cleanup();
+    recordedTextInputs.clear();
     vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
 });
 
@@ -374,11 +385,23 @@ describe('DisplayNameSheet (native)', () => {
         expect(screen.getByRole('button', { name: /Sav/ }).getAttribute('aria-disabled')).toBe('true');
     });
 
-    it('announces a failed save and marks the field invalid', () => {
+    // The sheet has one field, whose `nativeID` is a generated id.
+    const nameField = () => [...recordedTextInputs.values()][0];
+
+    it('announces a failed save, and the field says it first in its accessibility hint', () => {
         render(<DisplayNameSheet {...sheet({ failed: true })} />);
 
         expect(screen.getByRole('alert').textContent).toBe('We couldn’t save your name. Try again.');
-        expect(screen.getByLabelText('Display name').getAttribute('aria-invalid')).toBe('true');
+        expect(nameField()?.accessibilityHint).toBe(
+            'We couldn’t save your name. Try again. Shown next to your username on recipes you publish.',
+        );
+    });
+
+    it('names the field by its label for iOS, and speaks the visible hint while nothing has failed', () => {
+        render(<DisplayNameSheet {...sheet()} />);
+
+        expect(nameField()?.accessibilityLabel).toBe('Display name');
+        expect(nameField()?.accessibilityHint).toBe('Shown next to your username on recipes you publish.');
     });
 
     it('closes through onOpenChange(false)', async () => {

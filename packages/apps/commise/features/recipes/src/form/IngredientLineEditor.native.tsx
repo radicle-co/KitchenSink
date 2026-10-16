@@ -24,7 +24,8 @@ import type { IngredientLineEditorProps } from './IngredientLineEditor.js';
  * One bound of the amount: empty means no amount, never "0" (R40). Its text is the view's (`amountLow`/`amountHigh`),
  * which keeps what the cook typed, so "1." is not rewritten to "1" on the way to "1.5".
  *
- * PLATFORM-FORK: native has no `aria-describedby`, so the amount note is the field's accessibility hint.
+ * PLATFORM-FORK: native has no `aria-describedby` or `aria-invalid`, so the amount note is the field's accessibility
+ * hint. `aria-labelledby` is Android-only, so the visible label is repeated as the `accessibilityLabel` iOS reads.
  */
 const AmountField: FC<{
     readonly id: string;
@@ -32,18 +33,16 @@ const AmountField: FC<{
     readonly invalid: boolean;
     readonly note: string | undefined;
     readonly onChange: (text: string) => void;
-    readonly accessibleName?: string;
+    readonly accessibleName: string;
 }> = ({ id, value, invalid, note, onChange, accessibleName }) => {
     const theme = useTheme();
 
     return (
         <TextInput
             nativeID={id}
-            {...(accessibleName === undefined
-                ? { 'aria-labelledby': fieldLabelId(id) }
-                : { accessibilityLabel: accessibleName })}
+            aria-labelledby={fieldLabelId(id)}
+            accessibilityLabel={accessibleName}
             {...(note === undefined ? {} : { accessibilityHint: note })}
-            aria-invalid={invalid}
             inputMode="decimal"
             value={value}
             onChangeText={onChange}
@@ -55,6 +54,9 @@ const AmountField: FC<{
 /** The row editor's fields. */
 export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, index, m, details }) => {
     const { colors } = useTheme();
+    // A refused amount that was not mistyped here (the form's refusal) has no note of its own, but an invalid field
+    // still has to say why to a screen reader: the sentence the row shows for it.
+    const amountHint = view.amountNote?.text ?? (view.amountInvalid ? m.rowAmountInvalid : undefined);
 
     return (
         <View style={styles.stack}>
@@ -74,8 +76,9 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                             id={view.ids.amount}
                             value={view.amountLow}
                             invalid={view.amountInvalid}
-                            note={view.amountNote?.text}
+                            note={amountHint}
                             onChange={view.onAmountLow}
+                            accessibleName={m.rowAmountLabel}
                         />
                         {view.rangeShown && (
                             <>
@@ -86,7 +89,7 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                                     id={view.ids.amountHigh}
                                     value={view.amountHigh}
                                     invalid={view.amountInvalid}
-                                    note={view.amountNote?.text}
+                                    note={amountHint}
                                     onChange={view.onAmountHigh}
                                     accessibleName={m.rowAmountHighLabel}
                                 />
@@ -110,7 +113,7 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                 </View>
                 <View style={[styles.cell, styles.prep]}>
                     <FieldLabel forId={view.ids.prep} label={m.rowPrepLabel} />
-                    <Input id={view.ids.prep} value={view.prep} onChangeText={view.onPrep} />
+                    <Input id={view.ids.prep} label={m.rowPrepLabel} value={view.prep} onChangeText={view.onPrep} />
                 </View>
             </View>
             <View style={styles.row}>

@@ -8,6 +8,7 @@ import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LocaleProvider } from '@commise/i18n/react';
+import { recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
 
 import {
     CollectionSheet,
@@ -15,7 +16,18 @@ import {
     type CollectionRenameSheetProps,
 } from '../CollectionSheet.native.js';
 
-afterEach(cleanup);
+// react-native-web drops `accessibilityHint` and iOS ignores `aria-labelledby`, so the fields are wrapped to record the
+// accessibility props a screen reader is actually given.
+vi.mock('@commise/ui/text-input', async (importOriginal) => {
+    const { recordingTextInputModule } = await import('@commise/ui/testing/record-text-inputs');
+
+    return recordingTextInputModule(await importOriginal<typeof import('@commise/ui/text-input')>());
+});
+
+afterEach(() => {
+    cleanup();
+    recordedTextInputs.clear();
+});
 
 function sheet(over: Partial<CollectionCreateSheetProps> = {}) {
     const props: CollectionCreateSheetProps = {
@@ -37,6 +49,34 @@ function sheet(over: Partial<CollectionCreateSheetProps> = {}) {
 }
 
 const nameField = () => screen.getByLabelText('Name');
+
+/** The recorded props of the field whose accessibility label is this (the sheet's ids are generated). */
+const recorded = (label: string) =>
+    [...recordedTextInputs.values()].find((props) => props.accessibilityLabel === label);
+
+describe('CollectionSheet (native) — what a screen reader receives', () => {
+    it('names the name and description fields by their visible labels, for iOS', () => {
+        sheet();
+
+        expect(recorded('Name')).toBeDefined();
+        expect(recorded('Description (optional)')).toBeDefined();
+    });
+
+    it('has no hint on the name field until it is refused', () => {
+        sheet();
+
+        expect(recorded('Name')?.accessibilityHint).toBeUndefined();
+    });
+
+    it('hands the refusal of an empty name to the name field as its hint', () => {
+        sheet();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Create collection' }));
+
+        expect(recorded('Name')?.accessibilityHint).toBe('Give your collection a name.');
+        expect(recorded('Description (optional)')?.accessibilityHint).toBeUndefined();
+    });
+});
 
 describe('CollectionSheet (native)', () => {
     it('creates with the trimmed name and description', () => {

@@ -35,7 +35,6 @@ export const CollectionSheet: FC<CollectionSheetProps> = (props) => {
     const { colors } = useTheme();
     const nameId = useId();
     const descriptionId = useId();
-    const errorId = useId();
     const draft = useCollectionSheetDraft(props);
     const { renaming, name, description, nameError, confirming, close, requestClose } = draft;
     const submit = (): void => draft.submit();
@@ -78,17 +77,14 @@ export const CollectionSheet: FC<CollectionSheetProps> = (props) => {
                             id={nameId}
                             value={name}
                             autoCapitalize="sentences"
-                            invalid={nameError}
-                            {...(nameError ? { describedBy: errorId } : {})}
+                            label={sheet.nameLabel}
+                            {...(nameError ? { error: sheet.nameRequired } : {})}
                             onChangeText={draft.typeName}
                             onSubmit={submit}
                         />
                         <View style={styles.underField}>
                             {nameError ? (
-                                <Text
-                                    nativeID={errorId}
-                                    style={[styles.meta, styles.grow, { color: colors.dangerText }]}
-                                >
+                                <Text style={[styles.meta, styles.grow, { color: colors.dangerText }]}>
                                     {sheet.nameRequired}
                                 </Text>
                             ) : (
@@ -108,6 +104,7 @@ export const CollectionSheet: FC<CollectionSheetProps> = (props) => {
                         <FieldLabel forId={descriptionId} label={sheet.descriptionLabel} />
                         <TextArea
                             id={descriptionId}
+                            label={sheet.descriptionLabel}
                             value={description}
                             minRows={2}
                             maxRows={6}

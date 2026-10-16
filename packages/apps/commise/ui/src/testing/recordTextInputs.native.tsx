@@ -1,6 +1,6 @@
 /**
  * @module @commise/ui/testing/record-text-inputs — a test double for `@commise/ui/text-input` that renders the REAL
- * field and records the props it was handed, keyed by `nativeID`.
+ * field and records the props it was handed, keyed by `nativeID` (else by `accessibilityLabel`).
  *
  * react-native-web drops `accessibilityHint` and reads `accessibilityLabel` into `aria-label`, so a DOM query cannot see
  * what VoiceOver and TalkBack are told, and a host suite that asserts `aria-invalid` or `aria-describedby` passes while
@@ -24,7 +24,7 @@ import { createElement, type FC } from 'react';
 
 import type { TextInputProps } from '../textInput/TextInput.native.js';
 
-/** The props each field last rendered with, keyed by its `nativeID`. */
+/** The props each field last rendered with, keyed by its `nativeID`, else its `accessibilityLabel`. */
 export const recordedTextInputs = new Map<string, TextInputProps>();
 
 /**
@@ -37,8 +37,10 @@ export const recordedTextInputs = new Map<string, TextInputProps>();
 export function recordingTextInputModule<M extends { readonly TextInput: FC<TextInputProps> }>(actual: M): M {
     const Real = actual.TextInput;
     const TextInput: FC<TextInputProps> = (props) => {
-        if (props.nativeID !== undefined) {
-            recordedTextInputs.set(props.nativeID, props);
+        const key = props.nativeID ?? props.accessibilityLabel;
+
+        if (key !== undefined) {
+            recordedTextInputs.set(key, props);
         }
 
         return createElement(Real, props);
@@ -50,7 +52,7 @@ export function recordingTextInputModule<M extends { readonly TextInput: FC<Text
 /**
  * The props the field with this id last rendered with.
  *
- * @param id - The field's `nativeID`.
+ * @param id - The field's `nativeID`, or its `accessibilityLabel` when it has none.
  * @returns Its props.
  * @throws When no such field rendered, so a wrong id cannot read as "the field has no hint".
  */
@@ -59,6 +61,23 @@ export function recordedTextInput(id: string): TextInputProps {
 
     if (found === undefined) {
         throw new Error(`No text input with the id "${id}" was rendered.`);
+    }
+
+    return found;
+}
+
+/**
+ * The props of the field whose `accessibilityLabel` is this, for a field whose `nativeID` is generated (`useId`).
+ *
+ * @param label - The field's accessibility label.
+ * @returns Its props.
+ * @throws When no rendered field carries it.
+ */
+export function recordedTextInputLabelled(label: string): TextInputProps {
+    const found = [...recordedTextInputs.values()].find((props) => props.accessibilityLabel === label);
+
+    if (found === undefined) {
+        throw new Error(`No text input labelled "${label}" was rendered.`);
     }
 
     return found;

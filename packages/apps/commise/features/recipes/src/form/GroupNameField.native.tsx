@@ -18,6 +18,7 @@ export const GroupNameField: FC<{ readonly field: GroupNameFieldView }> = ({ fie
         <FieldLabel forId={field.id} label={field.label} />
         <Input
             id={field.id}
+            label={field.label}
             value={field.value}
             onChangeText={field.onChange}
             onSubmit={field.onSubmit}

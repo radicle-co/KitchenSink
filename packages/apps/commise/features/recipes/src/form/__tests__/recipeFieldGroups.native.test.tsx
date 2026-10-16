@@ -14,12 +14,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dialogTitled } from '@commise/test-utils';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
+import { recordedTextInputLabelled, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
 import { cleanup, render as renderBare, screen, within } from '@testing-library/react';
 import { useState, type FC, type ReactElement, type ReactNode } from 'react';
 import { fireEvent } from '@testing-library/dom';
 
 // react-native-web does not implement `sendAccessibilityEvent`, which the ingredient rows call to move the
 // screen-reader cursor after a Remove (`@commise/ui/popover`'s focus request, V1 sign-off item 11).
+// React Native has no `aria-invalid` or `aria-describedby`, iOS ignores `aria-labelledby`, and react-native-web drops
+// `accessibilityHint`, so the fields are wrapped to record what a screen reader is actually given.
+vi.mock('@commise/ui/text-input', async (importOriginal) => {
+    const { recordingTextInputModule } = await import('@commise/ui/testing/record-text-inputs');
+
+    return recordingTextInputModule(await importOriginal<typeof import('@commise/ui/text-input')>());
+});
+
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
@@ -72,7 +81,10 @@ const FieldGroups: FC<FieldGroupsProps> = ({
     />
 );
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    recordedTextInputs.clear();
+});
 
 /** A row's food search registers an Android back guard, which throws outside a provider, deliberately. */
 const BackChain: FC<{ readonly children: ReactNode }> = ({ children }) => (
@@ -188,10 +200,11 @@ describe('the recipe field groups (native) — error wiring (WCAG 3.3.1)', () =>
 
         expect(screen.getAllByText(en.rowAmountInvalid)).toHaveLength(1);
 
-        const sheet = openEditor('Edit 2–100,000,000 Stock', 'Stock');
+        openEditor('Edit 2–100,000,000 Stock', 'Stock');
 
-        expect(within(sheet).getByLabelText(en.rowAmountLabel).getAttribute('aria-invalid')).toBe('true');
-        expect(within(sheet).getByLabelText(en.rowAmountHighLabel).getAttribute('aria-invalid')).toBe('true');
+        // REWRITTEN: this asserted `aria-invalid` in the DOM, which a device ignores. Both bounds say the note.
+        expect(recordedTextInputLabelled(en.rowAmountLabel).accessibilityHint).toBe(en.rowAmountInvalid);
+        expect(recordedTextInputLabelled(en.rowAmountHighLabel).accessibilityHint).toBe(en.rowAmountInvalid);
     });
 
     it('does not mark any row on an ingredientsEmpty error (no lines exist)', () => {

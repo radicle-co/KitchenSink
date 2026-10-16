@@ -7,7 +7,7 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
-import { FieldLabel, TextArea, fieldHintId } from '@commise/ui/input';
+import { FieldLabel, TextArea } from '@commise/ui/input';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { Sheet } from '@commise/ui/sheet';
@@ -47,7 +47,9 @@ export const PasteListSheet: FC<PasteListSheetProps> = ({ sheet, submitting, fai
                     id={pasteListFieldId}
                     value={sheet.text}
                     minRows={10}
-                    describedBy={fieldHintId(pasteListFieldId)}
+                    label={t.pasteLabel}
+                    hint={t.pasteHint}
+                    {...(refusals.length === 0 ? {} : { error: refusals.join(' ') })}
                     onChangeText={sheet.setText}
                 />
                 <Text style={[styles.count, { color: colors.inkMuted }]}>

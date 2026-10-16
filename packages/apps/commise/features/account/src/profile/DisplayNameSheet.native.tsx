@@ -13,7 +13,7 @@
  * @pattern Adapter over the design-system `Sheet`, `Input` and `FieldLabel`
  */
 import { Button } from '@commise/ui/button';
-import { FieldLabel, fieldHintId, Input } from '@commise/ui/input';
+import { FieldLabel, Input } from '@commise/ui/input';
 import { LiveRegion } from '@commise/ui/live-region';
 import { Sheet } from '@commise/ui/sheet';
 import { useTheme } from '@commise/ui/theme';
@@ -40,8 +40,6 @@ export const DisplayNameSheet: FC<DisplayNameSheetProps> = ({
     const t = useMessages(profileMessages);
     const { colors } = useTheme();
     const fieldId = useId();
-    const errorId = useId();
-    const counterId = useId();
     const counter = nameCounterOf(draft);
 
     return (
@@ -67,10 +65,9 @@ export const DisplayNameSheet: FC<DisplayNameSheetProps> = ({
                     autoCapitalize="words"
                     enterKeyHint="done"
                     maxLength={DISPLAY_NAME_MAX_LENGTH}
-                    invalid={failed}
-                    describedBy={[fieldHintId(fieldId), counter === undefined ? '' : counterId, failed ? errorId : '']
-                        .filter((id) => id !== '')
-                        .join(' ')}
+                    label={t.displayName}
+                    hint={t.nameHint}
+                    {...(failed ? { error: t.saveFailed } : {})}
                     onSubmit={() => {
                         if (canSave && !saving) {
                             onSave();
@@ -78,10 +75,7 @@ export const DisplayNameSheet: FC<DisplayNameSheetProps> = ({
                     }}
                 />
                 {counter === undefined ? null : (
-                    <Text
-                        nativeID={counterId}
-                        style={[styles.counter, { color: counter.atLimit ? colors.dangerText : colors.inkMuted }]}
-                    >
+                    <Text style={[styles.counter, { color: counter.atLimit ? colors.dangerText : colors.inkMuted }]}>
                         {formatNameCounter(t.nameCounter, counter)}
                     </Text>
                 )}
@@ -89,7 +83,7 @@ export const DisplayNameSheet: FC<DisplayNameSheetProps> = ({
                     {counter?.atLimit === true ? t.nameLimitReached : ''}
                 </LiveRegion>
                 {failed ? (
-                    <Text role="alert" nativeID={errorId} style={[styles.error, { color: colors.dangerText }]}>
+                    <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
                         {t.saveFailed}
                     </Text>
                 ) : null}

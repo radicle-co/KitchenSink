@@ -13,8 +13,17 @@ import { useState, type FC } from 'react';
 
 import { placeholderContrast } from '@commise/test-utils';
 import { role, roleDark } from '@commise/ui/colors';
+import { recordedTextInput, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 import { CUISINES, RecipeDifficulty } from '@kitchensink/recipe-core';
+
+// React Native has no `aria-invalid` or `aria-describedby`, and react-native-web drops `accessibilityHint`, so the
+// fields are wrapped to record what a screen reader is actually given (`recordedTextInput`).
+vi.mock('@commise/ui/text-input', async (importOriginal) => {
+    const { recordingTextInputModule } = await import('@commise/ui/testing/record-text-inputs');
+
+    return recordingTextInputModule(await importOriginal<typeof import('@commise/ui/text-input')>());
+});
 
 /** The system colour scheme and window width the next render sees. */
 const device = vi.hoisted(() => ({ width: 390 }));
@@ -31,6 +40,7 @@ vi.mock('react-native', async (importOriginal) => {
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { editorMessages } from '../../editor/messages.js';
+import { descriptionFieldId, titleFieldId } from '../fieldIds.js';
 import { RecipeBasicsFields } from '../RecipeBasicsFields.native.js';
 import { DESCRIPTION_COUNTER_FROM, DESCRIPTION_MAX_LENGTH, TITLE_COUNTER_FROM, TITLE_MAX_LENGTH } from '../limits.js';
 import { recipeFormMessages } from '../messages.js';
@@ -42,6 +52,7 @@ const e = editorMessages.en;
 
 afterEach(() => {
     cleanup();
+    recordedTextInputs.clear();
     systemScheme.current = null;
     device.width = 390;
 });
@@ -169,7 +180,7 @@ describe('RecipeBasicsFields (native) — title', () => {
         const counter = screen.getByText(`${String(TITLE_COUNTER_FROM)}/${String(TITLE_MAX_LENGTH)}`);
 
         expect(getComputedStyle(counter).color).toBe(rgb(role.inkMuted));
-        expect(field(m.titleLabel).getAttribute('aria-invalid')).not.toBe('true');
+        expect(recordedTextInput(titleFieldId).accessibilityHint).toBeUndefined();
     });
 
     it.each(['light', 'dark'] as const)(
@@ -184,8 +195,9 @@ describe('RecipeBasicsFields (native) — title', () => {
             const message = screen.getByText(e.details.titleLimit);
 
             expect(getComputedStyle(counter).color).toBe(rgb((scheme === 'dark' ? roleDark : role).dangerText));
-            expect(field(m.titleLabel).getAttribute('aria-invalid')).toBe('true');
-            expect(field(m.titleLabel).getAttribute('aria-describedby')?.split(' ')).toContain(message.id);
+            // REWRITTEN: this asserted `aria-invalid` and `aria-describedby` in the DOM, which a device ignores. The
+            // message is the field's accessibility hint.
+            expect(recordedTextInput(titleFieldId).accessibilityHint).toBe(message.textContent);
             expect(field(m.titleLabel).value).toHaveLength(TITLE_MAX_LENGTH + 1);
         },
     );
@@ -208,13 +220,13 @@ describe('RecipeBasicsFields (native) — title', () => {
         },
     );
 
-    it('a refused publish shows its title message, linked to the field', () => {
+    it('a refused publish shows its title message, and the field says it as its accessibility hint', () => {
         renderLive({ initial: filled({ title: '' }), errors: { title: 'titleRequired' } });
 
         const message = screen.getByRole('alert');
 
         expect(message.textContent).toBe(m.errors.titleRequired);
-        expect(field(m.titleLabel).getAttribute('aria-describedby')?.split(' ')).toContain(message.id);
+        expect(recordedTextInput(titleFieldId).accessibilityHint).toBe(m.errors.titleRequired);
     });
 
     it('a refused publish for a long title says the limit once', () => {
@@ -250,7 +262,7 @@ describe('RecipeBasicsFields (native) — description', () => {
                 screen.getByText(`${String(DESCRIPTION_MAX_LENGTH + 1)}/${String(DESCRIPTION_MAX_LENGTH)}`),
             ).color,
         ).toBe(rgb(role.dangerText));
-        expect(field(m.descriptionLabel).getAttribute('aria-invalid')).toBe('true');
+        expect(recordedTextInput(descriptionFieldId).accessibilityHint).toBe(e.details.descriptionLimit);
         expect(screen.getByText(e.details.descriptionLimit)).toBeTruthy();
         expect(field(m.descriptionLabel).value).toHaveLength(DESCRIPTION_MAX_LENGTH + 1);
     });

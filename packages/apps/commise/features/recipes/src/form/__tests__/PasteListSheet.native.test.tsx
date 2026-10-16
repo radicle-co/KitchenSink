@@ -7,20 +7,36 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import type { FC } from 'react';
 
+import { recordedTextInput, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
+
+// react-native-web drops `accessibilityHint`, and iOS ignores `aria-labelledby`, so the field is wrapped to record the
+// accessibility props a screen reader is actually given (`recordedTextInput`).
+vi.mock('@commise/ui/text-input', async (importOriginal) => {
+    const { recordingTextInputModule } = await import('@commise/ui/testing/record-text-inputs');
+
+    return recordingTextInputModule(await importOriginal<typeof import('@commise/ui/text-input')>());
+});
+
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
     return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
 });
 
+import { PARSE_JOB_LINE_MAX_CHARS } from '@kitchensink/recipe-core';
+
 import { editorMessages } from '../../editor/messages.js';
 import type { PasteIntoIngredients } from '../../editor/usePasteIntoIngredients.js';
 import { usePasteListSheet } from '../../editor/usePasteListSheet.js';
+import { pasteListFieldId } from '../fieldIds.js';
 import { recipeFormMessages } from '../messages.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PasteListSheet } from '../PasteListSheet.native.js';
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    recordedTextInputs.clear();
+});
 
 const t = editorMessages.en.ingredients;
 const form = recipeFormMessages.en;
@@ -94,5 +110,26 @@ describe('PasteListSheet (native)', () => {
 
         expect(screen.getByRole('alert').textContent).toBe(t.pasteFailed);
         expect(field().value).toBe('1 tsp salt');
+    });
+});
+
+describe('PasteListSheet (native) — what a screen reader receives', () => {
+    it('names the field by its label for iOS and speaks the visible hint', () => {
+        render(<Host paste={fakePaste()} />);
+
+        expect(recordedTextInput(pasteListFieldId).accessibilityLabel).toBe(t.pasteLabel);
+        expect(recordedTextInput(pasteListFieldId).accessibilityHint).toBe(t.pasteHint);
+    });
+
+    it('leads the hint with a refusal of the pasted text, then the visible hint', () => {
+        render(<Host paste={fakePaste()} />);
+
+        fireEvent.change(field(), { target: { value: 'x'.repeat(PARSE_JOB_LINE_MAX_CHARS + 1) } });
+
+        expect(recordedTextInput(pasteListFieldId).accessibilityHint).toBe(
+            `${form.pasteRefusalLineTooLong
+                .replace('{line}', '1')
+                .replace('{max}', String(PARSE_JOB_LINE_MAX_CHARS))} ${t.pasteHint}`,
+        );
     });
 });

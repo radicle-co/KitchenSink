@@ -96,6 +96,9 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
             ? undefined
             : fillTemplate(m.errors[errors.cuisine], { max: MAX_RECIPE_CUISINE_LENGTH });
 
+    // One refusal covers prep and cook, so both fields say it (React Native has no `aria-describedby` to link them).
+    const timesMessage = errors?.times === undefined ? undefined : m.errors[errors.times];
+
     const group = (heading: string, children: ReactNode) => (
         <View style={styles.group}>
             <Text accessibilityRole="header" style={[styles.heading, { color: colors.inkMuted }]}>
@@ -130,6 +133,7 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
             minutesUnit={m.timerMinutesUnit}
             value={durationOfMinutes(minutes)}
             onChange={(seconds) => onChange({ ...values, ...patch(minutesOfDuration(seconds)) })}
+            {...(timesMessage === undefined ? {} : { error: timesMessage })}
         />
     );
 
@@ -143,6 +147,7 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
             announce={(count) => fillTemplate(m.servingsAnnounce, { count })}
             decreaseLabel={m.servingsDecrease}
             increaseLabel={m.servingsIncrease}
+            {...(errors?.servings === undefined ? {} : { error: m.errors[errors.servings] })}
         />
     );
     // Two cells of one row at every width: the duration field fits the 136 dp a half cell has at 320 (build spec §7.4).

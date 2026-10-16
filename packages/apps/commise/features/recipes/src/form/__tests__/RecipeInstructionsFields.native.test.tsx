@@ -15,7 +15,16 @@ import { useState, type FC } from 'react';
 import { AccessibilityInfo } from 'react-native';
 
 import { role, roleDark } from '@commise/ui/colors';
+import { recordedTextInput, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
+
+// React Native has no `aria-invalid` or `aria-describedby`, and react-native-web drops `accessibilityHint`, so the
+// fields are wrapped to record what a screen reader is actually given (`recordedTextInput`).
+vi.mock('@commise/ui/text-input', async (importOriginal) => {
+    const { recordingTextInputModule } = await import('@commise/ui/testing/record-text-inputs');
+
+    return recordingTextInputModule(await importOriginal<typeof import('@commise/ui/text-input')>());
+});
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -29,6 +38,7 @@ vi.mock('react-native', async (importOriginal) => {
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { editorMessages } from '../../editor/messages.js';
+import { stepFieldId } from '../fieldIds.js';
 import { RecipeInstructionsFields } from '../RecipeInstructionsFields.native.js';
 import type { RecipeFormErrors } from '../validate.js';
 import { defaultRecipeFormValues, type RecipeFormStep, type RecipeFormValues } from '../values.js';
@@ -37,6 +47,7 @@ const e = editorMessages.en;
 
 afterEach(() => {
     cleanup();
+    recordedTextInputs.clear();
     systemScheme.current = null;
 });
 
@@ -251,7 +262,7 @@ describe('RecipeInstructionsFields (native) — adding, empty and refused', () =
         expect(screen.getByRole('alert').textContent).toBe(e.steps.required);
     });
 
-    it('a refused publish with an empty step marks that field, linked to the message', () => {
+    it('a refused publish with an empty step gives that field the message as its accessibility hint', () => {
         renderLive({
             initial: withSteps([{ instruction: 'Boil.' }, { instruction: '' }]),
             errors: { steps: 'stepsRequired' },
@@ -260,8 +271,8 @@ describe('RecipeInstructionsFields (native) — adding, empty and refused', () =
         const alert = screen.getByRole('alert');
 
         expect(alert.textContent).toBe(e.index.reason.stepBlank);
-        expect(stepBox(2).getAttribute('aria-invalid')).toBe('true');
-        expect(stepBox(2).getAttribute('aria-describedby')).toBe(alert.id);
-        expect(stepBox(1).getAttribute('aria-invalid')).not.toBe('true');
+        // REWRITTEN: this asserted `aria-invalid` and `aria-describedby` in the DOM, which a device ignores.
+        expect(recordedTextInput(stepFieldId(1)).accessibilityHint).toBe(e.index.reason.stepBlank);
+        expect(recordedTextInput(stepFieldId(0)).accessibilityHint).toBeUndefined();
     });
 });

@@ -15,12 +15,21 @@ import { cleanup, render as renderBare, screen, within } from '@testing-library/
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC, type ReactElement, type ReactNode } from 'react';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
+import { recordedTextInputLabelled, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
 
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { ContainerClass } from '@commise/ui/container-class';
 import { AccessibilityInfo } from 'react-native';
 
 const layout = vi.hoisted(() => ({ container: 'narrow' as ContainerClass }));
+
+// React Native has no `aria-invalid` or `aria-describedby`, iOS ignores `aria-labelledby`, and react-native-web drops
+// `accessibilityHint`, so the fields are wrapped to record what a screen reader is actually given.
+vi.mock('@commise/ui/text-input', async (importOriginal) => {
+    const { recordingTextInputModule } = await import('@commise/ui/testing/record-text-inputs');
+
+    return recordingTextInputModule(await importOriginal<typeof import('@commise/ui/text-input')>());
+});
 
 vi.mock('../../layout/useMainContainerClass.native.js', () => ({ useMainContainerClass: () => layout.container }));
 // Rows 6 and 7's panel searches the line's words through the progressive food search. This suite pins the panel's frame,
@@ -68,6 +77,7 @@ beforeEach(() => {
 });
 afterEach(() => {
     cleanup();
+    recordedTextInputs.clear();
     vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
 });
 
@@ -491,7 +501,8 @@ describe('RecipeIngredientsFields (native) — the row editor on a phone: a shee
 
         expect(seen.at(-1)?.ingredients[0]?.quantity).toBe(quantity);
         expect(amount.value).toBe(typed);
-        expect(amount.getAttribute('aria-invalid')).not.toBe('true');
+        // REWRITTEN: this asserted `aria-invalid` in the DOM, which a device ignores. A valid amount says nothing.
+        expect(recordedTextInputLabelled(en.rowAmountLabel).accessibilityHint).toBeUndefined();
     });
 
     it('an amount it cannot read stays in the field, marked invalid with its note; the draft keeps its amount', () => {
@@ -506,9 +517,20 @@ describe('RecipeIngredientsFields (native) — the row editor on a phone: a shee
         fireEvent.blur(amount);
 
         expect(amount.value).toBe('a few');
-        expect(amount.getAttribute('aria-invalid')).toBe('true');
+        // REWRITTEN: this asserted `aria-invalid` in the DOM, which a device ignores. The note is the field's hint.
+        expect(recordedTextInputLabelled(en.rowAmountLabel).accessibilityHint).toBe(en.rowAmountInvalid);
         expect(within(sheet).getByText(en.rowAmountInvalid)).toBeTruthy();
         expect(seen.filter((next) => next.ingredients[0]?.quantity !== 300)).toEqual([]);
+    });
+
+    it('names the amount, the range’s upper bound and the preparation by their labels, which iOS reads', () => {
+        render(<StatefulLeaf initial={[{ ...RICE, quantityHigh: 400 }]} seen={[]} />);
+
+        press('Edit 300–400 g Arborio rice');
+
+        expect(recordedTextInputLabelled(en.rowAmountLabel)).toBeDefined();
+        expect(recordedTextInputLabelled(en.rowAmountHighLabel)).toBeDefined();
+        expect(recordedTextInputLabelled(en.rowPrepLabel)).toBeDefined();
     });
 
     it('the amount keeps the text being typed, so "1." can become "1.5"', () => {

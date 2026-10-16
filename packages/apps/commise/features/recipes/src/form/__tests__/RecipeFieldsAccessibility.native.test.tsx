@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TextInput as TextInputAdapter } from '@commise/ui/text-input';
 
 import { editorMessages } from '../../editor/messages.js';
+import { fillTemplate } from '../../format/fillTemplate.js';
 import { descriptionFieldId, stepFieldId, titleFieldId } from '../fieldIds.js';
 import { RecipeBasicsFields } from '../RecipeBasicsFields.native.js';
 import { RecipeInstructionsFields } from '../RecipeInstructionsFields.native.js';
@@ -23,10 +24,30 @@ import { defaultRecipeFormValues, type RecipeFormValues } from '../values.js';
 
 const fields = vi.hoisted(() => new Map<string, ComponentProps<typeof TextInputAdapter>>());
 
+const stepper = vi.hoisted(() => ({ props: undefined as { readonly error?: string } | undefined }));
+
+// The Stepper is not a text input: wrap it to read the props the host hands it (its own leaf is covered in `@commise/ui`).
+vi.mock('@commise/ui/input', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@commise/ui/input')>();
+    const { createElement } = await import('react');
+
+    return {
+        ...actual,
+        Stepper: (props: ComponentProps<typeof actual.Stepper>) => {
+            stepper.props = props;
+
+            return createElement(actual.Stepper, props);
+        },
+    };
+});
+
 vi.mock('@commise/ui/text-input', () => ({
     TextInput: (props: ComponentProps<typeof TextInputAdapter>) => {
-        if (props.nativeID !== undefined) {
-            fields.set(props.nativeID, props);
+        // A duration box has no `nativeID`; its accessibility label is its name.
+        const key = props.nativeID ?? props.accessibilityLabel;
+
+        if (key !== undefined) {
+            fields.set(key, props);
         }
 
         return null;
@@ -37,6 +58,7 @@ vi.mock('@commise/ui/text-input', () => ({
 afterEach(() => {
     cleanup();
     fields.clear();
+    stepper.props = undefined;
 });
 
 const m = recipeFormMessages.en;
@@ -95,6 +117,39 @@ describe('RecipeBasicsFields (native) — title and description reach the screen
         renderBasics(filled({ description: 'a'.repeat(300) }), { description: 'descriptionTooLong' });
 
         expect(field(descriptionFieldId).accessibilityHint).toBe(m.errors.descriptionTooLong);
+    });
+});
+
+describe('RecipeBasicsFields (native) — servings and times reach the screen reader', () => {
+    it('hands a refused servings count to the stepper as its error', () => {
+        renderBasics(filled({ servings: 0 }), { servings: 'servingsPositive' });
+
+        expect(stepper.props?.error).toBe(m.errors.servingsPositive);
+    });
+
+    it('says nothing on the stepper while servings are fine', () => {
+        renderBasics(filled());
+
+        expect(stepper.props?.error).toBeUndefined();
+    });
+
+    it('hands a refused time to BOTH time fields, in both of their boxes, as the accessibility hint', () => {
+        renderBasics(filled(), { times: 'timesNonNegative' });
+
+        for (const label of [m.prepTimeLabel, m.cookTimeLabel]) {
+            expect(field(fillTemplate(m.durationHoursLabel, { field: label })).accessibilityHint).toBe(
+                m.errors.timesNonNegative,
+            );
+            expect(field(fillTemplate(m.durationMinutesLabel, { field: label })).accessibilityHint).toBe(
+                m.errors.timesNonNegative,
+            );
+        }
+    });
+
+    it('says nothing on the time boxes while the times are fine', () => {
+        renderBasics(filled());
+
+        expect(field(fillTemplate(m.durationHoursLabel, { field: m.prepTimeLabel })).accessibilityHint).toBeUndefined();
     });
 });
 

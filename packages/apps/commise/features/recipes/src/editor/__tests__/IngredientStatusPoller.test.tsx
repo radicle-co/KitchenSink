@@ -1,5 +1,5 @@
 /**
- * Component tests for IngredientStatusPoller (T067 web poll-after-add). The headless poller drives
+ * Component tests for IngredientStatusPoller (T067 poll-after-add; moved from the web app when its two copies became one in features-recipes). The headless poller drives
  * `useIngredientStatus` for one PENDING food-backed line and reports the observed status up via `onStatus`.
  * These pin: it renders nothing, it reports the observed status (with the line's id) once known, it stays
  * silent until a status is available, and it does not re-report an unchanged status.
@@ -13,15 +13,14 @@
  */
 import { cleanup, waitFor } from '@testing-library/react';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import { makeIngredient } from '@kitchensink/recipe-core/testing';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithRecipeClient } from '@commise/test-utils';
 
-import { IngredientStatusPoller } from '@/components/recipes/IngredientStatusPoller';
-
-import { makeIngredient } from './__fixtures__/ingredientFixtures';
+import { IngredientStatusPoller } from '../IngredientStatusPoller.js';
 
 afterEach(() => {
     cleanup();
@@ -43,7 +42,7 @@ describe('IngredientStatusPoller', () => {
             pendingClient(),
         );
 
-        expect(container).toBeEmptyDOMElement();
+        expect(container.innerHTML).toBe('');
     });
 
     it('polls the given id through the real client', () => {

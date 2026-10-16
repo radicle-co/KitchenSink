@@ -42,7 +42,7 @@ import {
     type EditorSectionId,
     type EditorFinish,
 } from '@commise/features-recipes';
-import { cookDraftsOf, type CookDrafts } from '@commise/features-recipes/editor';
+import { cookDraftsOf, IngredientStatusPoller, type CookDrafts } from '@commise/features-recipes/editor';
 import type { EditorSeed } from '@commise/features-recipes/hooks';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
@@ -57,7 +57,6 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import { useState, type JSX, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { IngredientStatusPoller } from '../components/IngredientStatusPoller.js';
 import { LoadingState } from '../components/LoadingState.js';
 import { RecipePhotoUploader } from '../components/RecipePhotoUploader.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';

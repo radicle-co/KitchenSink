@@ -53,7 +53,7 @@ import {
     type EditorNavigation,
     type EditorSectionId,
 } from '@commise/features-recipes';
-import { cookDraftsOf, type CookDrafts } from '@commise/features-recipes/editor';
+import { cookDraftsOf, IngredientStatusPoller, type CookDrafts } from '@commise/features-recipes/editor';
 import type { EditorSeed } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
@@ -74,7 +74,6 @@ import { EditorStateFrame } from '@/components/recipes/EditorStateFrame';
 import { webDeviceStore } from '@/components/recipes/deviceSession';
 import { freshTokenOf, withDraftRef } from '@/components/recipes/freshRecipeHref';
 import { opensPasteSheet } from '@/components/recipes/pasteIngredientsHref';
-import { IngredientStatusPoller } from '@/components/recipes/IngredientStatusPoller';
 import { RecipeLoadError } from '@/components/recipes/RecipeLoadError';
 import { RecipePhotoUploaderContainer } from '@/components/recipes/RecipePhotoUploaderContainer';
 import { useUserProfile } from '@/hooks/useUserProfile';

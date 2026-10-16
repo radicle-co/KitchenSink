@@ -4,16 +4,16 @@
     "packageName": "@commise/features-account",
     "layer": "feature",
     "coverage": {
-        "components": 8,
-        "implementations": 15,
-        "props": 87,
-        "documentedComponents": 8,
-        "implementationsWithModuleDoc": 15,
-        "implementationsWithComponentDoc": 13,
-        "documentedProps": 65,
-        "classifiedComponents": 6,
+        "components": 7,
+        "implementations": 13,
+        "props": 82,
+        "documentedComponents": 7,
+        "implementationsWithModuleDoc": 13,
+        "implementationsWithComponentDoc": 11,
+        "documentedProps": 64,
+        "classifiedComponents": 5,
         "componentsWithPatternTag": 4,
-        "crossPlatformComponents": 7
+        "crossPlatformComponents": 6
     },
     "components": [
         {
@@ -573,7 +573,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileAccountGroup.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileAccountGroup — the Profile page's \"Account\" group, once for both apps:\nthe display-name row that opens the editor sheet, with whatever read-only rows the platform adds after it.\n\nBoth pages drew the same row with the same value rule (the name, or \"Add your name\" when none is saved). They differ\nonly in what follows it, and that is a decision for the page: web adds username and email rows, mobile adds none.\nThose rows arrive as `children`, so this group neither knows nor changes which rows either platform shows.\n\nPresentational: props → JSX. The leaves it composes (`ProfileGroup`, `ProfileRow`) resolve to their web or native file at bundle time, so this one\nmodule serves both platforms.",
+                    "moduleDoc": "@commise/features-account/profile/ProfileAccountGroup — the Profile page's \"Account\" group, once for both apps:\nthe display-name row that opens the editor sheet.\n\nBoth pages draw the same row with the same value rule (the name, or \"Add your name\" when none is saved). The username\nand email are read once, in the header, on both apps (owner ruling 2026-10-16), so this group holds no read-only rows.\n\nPresentational: props → JSX. The leaves it composes (`ProfileGroup`, `ProfileRow`) resolve to their web or native file at bundle time, so this one\nmodule serves both platforms.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -585,15 +585,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "children",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Read-only rows the platform shows after the display name.",
-                            "declaredIn": "packages/apps/commise/features/account/src/profile/ProfileAccountGroup.tsx"
-                        },
                         {
                             "name": "displayName",
                             "type": "string",
@@ -1150,111 +1141,6 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The current value, one line, truncated.",
-                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresAccount/profile/ProfileValueRow",
-            "name": "ProfileValueRow",
-            "group": "featuresAccount",
-            "packageName": "@commise/features-account",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/account/src/profile",
-            "kind": "presentational",
-            "patterns": [],
-            "platforms": [
-                "web",
-                "native"
-            ],
-            "crossPlatform": true,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "ProfileValueRow",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileValueRow.tsx",
-                    "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileValueRow — a read-only Profile row (web): the label and the value\nthe cook cannot change here (their email). Not a control, so it is not focusable and not a button.\n\nPresentational: props → JSX.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-account/profile/ProfileValueRow — a read-only Profile row (web): the label and the value"
-                        }
-                    ],
-                    "description": "A read-only row. The value wraps anywhere: an email is one unbroken string at 320 px.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "label",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
-                        },
-                        {
-                            "name": "value",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                },
-                {
-                    "name": "ProfileValueRow",
-                    "platform": "native",
-                    "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileValueRow.native.tsx",
-                    "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileValueRow — a read-only Profile row (native): the label and the\nvalue the cook cannot change here. Not a control. Colour comes from the theme at render.\n\nPresentational: props → JSX.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-account/profile/ProfileValueRow — a read-only Profile row (native): the label and the"
-                        }
-                    ],
-                    "description": "A read-only row. The value wraps: an email is one unbroken string on a 320 pt screen.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "label",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
-                        },
-                        {
-                            "name": "value",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
                             "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
                         }
                     ],

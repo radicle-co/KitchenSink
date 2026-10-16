@@ -1397,7 +1397,7 @@
                         },
                         {
                             "name": "chrome",
-                            "type": "{ readonly profileButton: string; readonly profileButtonNoName: string; readonly tabNavLabel: string; readonly destinations: Readonly<Record<HomeNavItemId, string>>; }",
+                            "type": "HomeChromeMessages",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -1559,7 +1559,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/HomeWidgetErrorNotice.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home",
-                    "moduleDoc": "home/HomeWidgetErrorNotice — what a FAILED Home widget shows in place of its body (mobile).\n\nA pure render component (`props → JSX`, no props, no state, no effects) used as the `fallback` of BOTH\nper-widget error boundaries on this surface: the host's (`./HomeWidgetSurface.tsx`) and the\nrecipe slot's inner one (`./RecipeWidgetSlot.tsx`). Both previously rendered `null`, so a\nfailed widget left unexplained blank space — and, for a screen-reader user, nothing whatsoever. This is the\nmobile counterpart of the web host's localized `home.surface.widgetError` fallback: mirroring web's\nCONTRACT (a localized explanation, and no recovery affordance) rather than its markup.\n\nIt exists as a component rather than inline JSX at each boundary so \"what a broken widget looks like\" has\nONE representation — the copy, the live-region register, and the muted-caption treatment cannot drift between\nthe two boundaries, and the surface's tests can pin it once.\n\nNOT offered here: a \"try again\" control. See the boundary comment in `RecipeWidgetSlot.tsx` — the widget is\nreached through `React.lazy`, which caches a rejected loader permanently, so a retry that merely reset the\nboundary would re-throw instantly and read as a dead button.",
+                    "moduleDoc": "home/HomeWidgetErrorNotice — what a FAILED Home widget shows in place of its body (mobile).\n\nA pure render component (`props → JSX`, no props, no state, no effects) used as the `fallback` of BOTH\nper-widget error boundaries on this surface: the host's (`./HomeWidgetSurface.tsx`) and the\nrecipe slot's inner one (`./RecipeWidgetSlot.tsx`). Both previously rendered `null`, so a\nfailed widget left unexplained blank space — and, for a screen-reader user, nothing whatsoever. This is the\nmobile counterpart of the web host's localized `home.widgetError` fallback: mirroring web's\nCONTRACT (a localized explanation, and no recovery affordance) rather than its markup.\n\nIt exists as a component rather than inline JSX at each boundary so \"what a broken widget looks like\" has\nONE representation — the copy, the live-region register, and the muted-caption treatment cannot drift between\nthe two boundaries, and the surface's tests can pin it once.\n\nNOT offered here: a \"try again\" control. See the boundary comment in `RecipeWidgetSlot.tsx` — the widget is\nreached through `React.lazy`, which caches a rejected loader permanently, so a retry that merely reset the\nboundary would re-throw instantly and read as a dead button.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -4112,11 +4112,11 @@
                         },
                         {
                             "name": "onCreateRecipe",
-                            "type": "(() => void)",
+                            "type": "() => void",
                             "typeDetail": null,
-                            "required": false,
-                            "defaultValue": "(): void => undefined",
-                            "description": "Invoked when the create-recipe action is activated.",
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Invoked when the create-recipe action is activated. Required, as on web: an optional handler leaves a dead button.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeListScreen.tsx"
                         },
                         {
@@ -4125,7 +4125,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The first run's Paste ingredients: the new editor at Ingredients with its paste sheet open (build spec §7.5.4).\n\n⛔ Forwarded UNDEFAULTED, unlike `onCreateRecipe`'s `?? noop`: the first run removes the button when this is\nabsent, and defaulting it to a no-op would render a button that silently does nothing instead.",
+                            "description": "The first run's Paste ingredients: the new editor at Ingredients with its paste sheet open (build spec §7.5.4).\n\n⛔ Forwarded UNDEFAULTED: the first run removes the button when this is absent, and defaulting it to a no-op\nwould render a button that silently does nothing instead.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeListScreen.tsx"
                         },
                         {
@@ -4186,7 +4186,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeVersionsScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Recipe version-history screen (mobile, T069): the screen's read boundary around the shared `RecipeVersionsView`. The view\nreads the history and the recipe (for the authoritative current version, which the list marks as non-restorable) with\nsuspense queries, drives the shared native `RecipeVersionList`, the Preview full-screen modal and the two-version Compare\nsheet, and wires each restore action to `useRestoreRecipeVersion`; the session behind it (`useRecipeVersions`) is shared\nwith the web container, and its module docs carry the Preview, Compare and restore rationale.\n\nWhat stays here is what is mobile's: the boundary owns the localized loading state and the failure (whose retry\nrefetches), and Back sits above it, in the same place in every state. The restore invalidates the recipe and its\nversions, so the list refreshes itself.",
+                    "moduleDoc": "Recipe version-history screen (mobile, T069): the screen's read boundary around the shared `RecipeVersionsView`. The view\nreads the history and the recipe (for the authoritative current version, which the list marks as non-restorable) with\nsuspense queries, drives the shared native `RecipeVersionList`, the Preview full-screen modal and the two-version Compare\nsheet, and wires each restore action to `useRestoreRecipeVersion`; the session behind it (`useRecipeVersions`) is shared\nwith the web container, and its module docs carry the Preview, Compare and restore rationale.\n\nWhat stays here is what is mobile's: the boundary owns the localized loading state and the failure (whose retry\nrefetches), and Back is drawn by the list's own header in every state. The restore invalidates the recipe and its\nversions, so the list refreshes itself.",
                     "moduleTags": [],
                     "description": "The recipe version-history screen.",
                     "tags": [

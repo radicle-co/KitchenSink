@@ -4,15 +4,15 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 83,
-        "implementations": 83,
-        "props": 100,
-        "documentedComponents": 80,
-        "implementationsWithModuleDoc": 64,
-        "implementationsWithComponentDoc": 59,
-        "documentedProps": 66,
-        "classifiedComponents": 35,
-        "componentsWithPatternTag": 27,
+        "components": 81,
+        "implementations": 81,
+        "props": 98,
+        "documentedComponents": 78,
+        "implementationsWithModuleDoc": 62,
+        "implementationsWithComponentDoc": 57,
+        "documentedProps": 65,
+        "classifiedComponents": 32,
+        "componentsWithPatternTag": 28,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -2444,7 +2444,7 @@
                         },
                         {
                             "name": "chrome",
-                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"discover\" | \"recipeNew\" | ... 7 more ... | \"notFound\", string>>; ... 5 more ...; readonly destinations: Readonly<...>; }",
+                            "type": "WebChromeMessages",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2568,7 +2568,7 @@
                         },
                         {
                             "name": "chrome",
-                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"discover\" | \"recipeNew\" | ... 7 more ... | \"notFound\", string>>; ... 5 more ...; readonly destinations: Readonly<...>; }",
+                            "type": "WebChromeMessages",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2698,7 +2698,7 @@
                         },
                         {
                             "name": "chrome",
-                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"discover\" | \"recipeNew\" | ... 7 more ... | \"notFound\", string>>; ... 5 more ...; readonly destinations: Readonly<...>; }",
+                            "type": "HomeChromeMessages",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -3707,110 +3707,6 @@
             ]
         },
         {
-            "id": "web/components/recipes/CollectionLoadError",
-            "name": "CollectionLoadError",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "presentational",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "CollectionLoadError",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/recipes/CollectionLoadError.tsx",
-                    "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "CollectionLoadError — what a collection surface renders when reading the collection fails for a reason a\nretry may fix. Rendered by the read boundary of every surface that reads ONE collection (the detail route and the\nrename form), whose `resetErrorBoundary` is the retry — it resets the query error, so the retry refetches.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "CollectionLoadError — what a collection surface renders when reading the collection fails for a reason a"
-                        }
-                    ],
-                    "description": "Presentational: reading the collection failed for a reason a retry may fix.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "onRetry",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/components/recipes/CollectionNotFound",
-            "name": "CollectionNotFound",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "presentational",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "CollectionNotFound",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/recipes/CollectionNotFound.tsx",
-                    "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "CollectionNotFound — what a collection surface renders when the collection it reads does not exist or is\nnot the viewer's to see (`docs/design/uiOverhaul/buildSpec.md` §5.2: \"the 404 body inside the shell with 'Back to\nCollections'\"). It offers no retry, because nothing a retry could change, and a way out instead. Rendered by the read\nboundary of the collection detail route, which decides not-found from the owning client's `isNotFoundError`.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "CollectionNotFound — what a collection surface renders when the collection it reads does not exist or is"
-                        }
-                    ],
-                    "description": "Presentational: the collection does not exist, or is not the viewer's to see.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "locale",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The active route locale, for the way back.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/CollectionNotFound.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "web/components/recipes/EditorDraftAnswers",
             "name": "EditorDraftAnswers",
             "group": "web",
@@ -4335,67 +4231,6 @@
             ]
         },
         {
-            "id": "web/components/recipes/RecipeLoadError",
-            "name": "RecipeLoadError",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "presentational",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RecipeLoadError",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeLoadError.tsx",
-                    "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "RecipeLoadError — what a recipe read's boundary renders when the read fails: the editor's (new and edit) and\nthe recipe page's. A 404 is final, so it offers no retry; any other failure — including an id that cannot name a\nrecipe, where there is no evidence the recipe is gone — is the generic one, whose retry is the boundary's reset, which\nrefetches. The control is the design system's `Button`, as on native.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "RecipeLoadError — what a recipe read's boundary renders when the read fails: the editor's (new and edit) and"
-                        }
-                    ],
-                    "description": "Presentational: a recipe read failed (`buildSpec.md` §6.7). The page's heading says what happened, a missing recipe\noffers no retry, and both states keep a way back to My recipes — the bare two lines it replaces had neither (F18).",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "error",
-                            "type": "unknown",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "What the read failed with.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeLoadError.tsx"
-                        },
-                        {
-                            "name": "onRetry",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Read again: the boundary's reset.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeLoadError.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "web/components/recipes/RecipePhotoUploaderContainer",
             "name": "RecipePhotoUploaderContainer",
             "group": "web",
@@ -4527,6 +4362,82 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/components/recipes/RecipeReadError",
+            "name": "RecipeReadError",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/recipes",
+            "kind": "unclassified",
+            "patterns": [
+                "Adapter — the shared `RecipeLoadError` over Next's router and the route locale"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeReadError",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeReadError.tsx",
+                    "dir": "packages/apps/commise/web/src/components/recipes",
+                    "moduleDoc": "components/recipes/RecipeReadError — what the web recipe detail route and the editor render when the recipe\nread fails: the shared `RecipeLoadError`, with a way back to My recipes.\n\nIt replaces the web-only `RecipeLoadError` (the same sentences authored a second time, in the app's dictionary) and the\ndetail container's private wrapper: both hosts now share this one. The way back is a real link (a new tab works) and a\nrouter push on a plain click.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/recipes/RecipeReadError — what the web recipe detail route and the editor render when the recipe"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — the shared `RecipeLoadError` over Next's router and the route locale"
+                        }
+                    ],
+                    "description": "The recipe read failed.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - What the read failed with, and the boundary's reset."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The notice."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "error",
+                            "type": "unknown",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the read failed with.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeReadError.tsx"
+                        },
+                        {
+                            "name": "onRetry",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Read again: the boundary's reset.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeReadError.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
                     }
                 }
             ]

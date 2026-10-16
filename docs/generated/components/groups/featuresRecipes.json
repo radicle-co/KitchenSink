@@ -4,15 +4,15 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 151,
-        "implementations": 259,
-        "props": 1277,
-        "documentedComponents": 151,
-        "implementationsWithModuleDoc": 259,
-        "implementationsWithComponentDoc": 152,
-        "documentedProps": 998,
-        "classifiedComponents": 131,
-        "componentsWithPatternTag": 74,
+        "components": 152,
+        "implementations": 260,
+        "props": 1280,
+        "documentedComponents": 152,
+        "implementationsWithModuleDoc": 260,
+        "implementationsWithComponentDoc": 153,
+        "documentedProps": 1001,
+        "classifiedComponents": 132,
+        "componentsWithPatternTag": 75,
         "crossPlatformComponents": 108
     },
     "components": [
@@ -2188,6 +2188,82 @@
                             "defaultValue": null,
                             "description": "How many collections are loaded: the count the result bar says, and whether the search shows (from six).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/collections/CollectionLoadError",
+            "name": "CollectionLoadError",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/collections",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over the design system's `StateNotice` — picks the copy and whether a retry is on offer from the error"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CollectionLoadError",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionLoadError.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/collections",
+                    "moduleDoc": "@commise/features-recipes/collections — `CollectionLoadError`: what a collection read's boundary renders when\nthe read fails. A 404 is final (the collection was deleted, or is not the viewer's), so it says why and offers no retry;\nany other failure is the generic one, whose retry is the boundary's reset, which refetches. Both keep a way back, which\nthe host names because only it knows where back goes.\n\nONE file for both apps: the design system's `StateNotice` is a platform pair, so the web page gets an alert in its flow\nand the mobile screen gets the thumb-reach stack. It replaces the web app's raw-`<button>` copy and the mobile screen's\nhand-built fallback.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/collections — `CollectionLoadError`: what a collection read's boundary renders when"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design system's `StateNotice` — picks the copy and whether a retry is on offer from the error"
+                        }
+                    ],
+                    "description": "A collection read failed: presentational, props → JSX.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "back",
+                            "type": "StateNoticeAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The way back, if the host has one.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionLoadError.tsx"
+                        },
+                        {
+                            "name": "error",
+                            "type": "unknown",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the read failed with.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionLoadError.tsx"
+                        },
+                        {
+                            "name": "onRetry",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Read again: the boundary's reset.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionLoadError.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -21009,7 +21085,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionList.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/versions",
-                    "moduleDoc": "@commise/features-recipes — native recipe version-history view (T069 building block; build spec §6.6): the\nmirror of `RecipeVersionList.tsx`. The `LargeTitleHeader` (\"Version history\", the recipe as its subtitle — the\nscreen composes its own back chrome), then the versions newest first with the relative edit time, what each changed,\nthe editor and a ⋯ menu (a bottom sheet): Preview · Restore this version · Compare with current. The current version\nis marked and has no menu. Colours come from the theme at render.",
+                    "moduleDoc": "@commise/features-recipes — native recipe version-history view (T069 building block; build spec §6.6): the\nmirror of `RecipeVersionList.tsx`. The `LargeTitleHeader` (\"Version history\", the recipe as its subtitle, and a Back\nwhen the host gives a way back), then the versions newest first with the relative edit time, what each changed,\nthe editor and a ⋯ menu (a bottom sheet): Preview · Restore this version · Compare with current. The current version\nis marked and has no menu. Colours come from the theme at render.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21536,7 +21612,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionsView.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/versions",
-                    "moduleDoc": "@commise/features-recipes/versions — the SETTLED version history, composed once for web and mobile\n(`docs/design/uiOverhaul/buildSpec.md` §6.6): the version list, the Preview modal and the Compare sheet over one\n{@link useRecipeVersions} session.\n\nOrchestration: every piece it draws is a leaf pair that resolves per platform — plain `.tsx` with no native twin. The app keeps what\ndiffers — the read boundary and its loading and failed states, and the way back: web hands the list its Back link\n(`onBack`, `backHref`); mobile's screen keeps its own Back above the boundary in every state and hands none.",
+                    "moduleDoc": "@commise/features-recipes/versions — the SETTLED version history, composed once for web and mobile\n(`docs/design/uiOverhaul/buildSpec.md` §6.6): the version list, the Preview modal and the Compare sheet over one\n{@link useRecipeVersions} session.\n\nOrchestration: every piece it draws is a leaf pair that resolves per platform — plain `.tsx` with no native twin. The app keeps what\ndiffers — the read boundary and its loading and failed states, and the way back: both hand the list `onBack`\n(web adds `backHref` for a real link), so Back looks the same in the loading, failed and settled states.",
                     "moduleTags": [
                         {
                             "name": "module",

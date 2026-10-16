@@ -24,7 +24,7 @@ import {
     RecipeListLoadError,
     RecipeListLoading,
     RecipeListResults,
-    RecipeNutritionSlot,
+    nutritionSlotRenderer,
     cardVariantOf,
     useMainContainerClass,
     viewModeOf,
@@ -208,13 +208,7 @@ function SettledRecipeList({
             onCreateRecipe={onCreateRecipe}
             onPasteIngredients={onPasteIngredients}
             // ONE promise, N slots: `null` means no batch covers this recipe — render nothing.
-            renderNutrition={(recipeId) => {
-                const batch = nutritionFor(recipeId);
-
-                return batch === null ? null : (
-                    <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />
-                );
-            }}
+            renderNutrition={nutritionSlotRenderer(nutritionFor)}
             // Pull-to-refresh (L8): the spinner tracks the in-flight refetch; pulling re-runs the read.
             refresh={{ refreshing: query.isRefetching, onRefresh: () => void query.refetch() }}
             refreshNotice={refreshNotice}

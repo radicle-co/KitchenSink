@@ -18,13 +18,13 @@
  */
 import {
     RecipeCalorieSkeleton,
-    RecipeNutritionSlot,
+    nutritionSlotRenderer,
     recipeNutritionMessages,
     type RenderRecipeNutrition,
 } from '@commise/features-recipes';
 import { useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
-import { useCallback } from 'react';
+import { useMemo } from 'react';
 
 import { useIsHydrated } from '@/hooks/useIsHydrated';
 
@@ -43,18 +43,11 @@ export function useHydratedNutrition(recipeIdPages: readonly (readonly string[])
     const { loadingLabel } = useMessages(recipeNutritionMessages);
     const nutritionFor = useRecipeNutritionBatches(hydrated ? recipeIdPages : NO_PAGES);
 
-    return useCallback(
-        (recipeId: string) => {
-            if (!hydrated) {
-                return <RecipeCalorieSkeleton label={loadingLabel} />;
-            }
+    return useMemo(() => {
+        if (!hydrated) {
+            return () => <RecipeCalorieSkeleton label={loadingLabel} />;
+        }
 
-            const batch = nutritionFor(recipeId);
-
-            // `null` means no loaded page carries this recipe — we never asked, so the card says nothing rather than
-            // mounting a boundary with no promise to settle (a skeleton that renders forever).
-            return batch === null ? null : <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />;
-        },
-        [hydrated, loadingLabel, nutritionFor],
-    );
+        return nutritionSlotRenderer(nutritionFor);
+    }, [hydrated, loadingLabel, nutritionFor]);
 }

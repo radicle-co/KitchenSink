@@ -1,18 +1,18 @@
 /**
  * @module @commise/features-recipes/widget — the Home widget's deferred calorie lookup (ADR-0021 §6).
  */
-import { useCallback } from 'react';
+import { useMemo } from 'react';
 
 import type { Recipe } from '@kitchensink/recipe-core';
 
 import { MAX_RECENT_RECIPES } from '../components/props.js';
 import { useRecipeNutritionBatches } from '../hooks/useRecipeNutritionBatches.js';
-import { RecipeNutritionSlot } from '../nutrition/RecipeNutritionSlot.js';
 import type { RenderRecipeNutrition } from '../nutrition/model.js';
+import { nutritionSlotRenderer } from '../nutrition/nutritionSlotRenderer.js';
 
 /**
  * Start the deferred calorie batch for the recent recipes the widget is about to paint, and hand back the render prop
- * that mounts one {@link RecipeNutritionSlot} per card. One request covers every card.
+ * that mounts one `RecipeNutritionSlot` per card. One request covers every card.
  *
  * It asks about the first {@link MAX_RECENT_RECIPES} only: the widget paints no more, so an answer for a wider page is
  * invisible on screen and costs an endpoint priced by its id count.
@@ -29,12 +29,5 @@ import type { RenderRecipeNutrition } from '../nutrition/model.js';
 export function useRecentRecipesNutrition(recipes: readonly Recipe[]): RenderRecipeNutrition {
     const nutritionFor = useRecipeNutritionBatches([recipes.slice(0, MAX_RECENT_RECIPES).map((recipe) => recipe.id)]);
 
-    return useCallback(
-        (recipeId) => {
-            const batch = nutritionFor(recipeId);
-
-            return batch === null ? null : <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />;
-        },
-        [nutritionFor],
-    );
+    return useMemo(() => nutritionSlotRenderer(nutritionFor), [nutritionFor]);
 }

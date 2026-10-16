@@ -46,6 +46,7 @@ export { RecipeCalorieChip } from './nutrition/RecipeCalorieChip.js';
 export { RecipeCalorieSkeleton } from './nutrition/RecipeCalorieSkeleton.js';
 export { RecipeNutritionBoundary } from './nutrition/RecipeNutritionBoundary.js';
 export { RecipeNutritionSlot } from './nutrition/RecipeNutritionSlot.js';
+export { nutritionSlotRenderer } from './nutrition/nutritionSlotRenderer.js';
 export { recipeNutritionMessages } from './nutrition/messages.js';
 export { NUTRITION_FOOD_UNAVAILABLE, toCalorieChipModel, unaccountedReasonText } from './nutrition/model.js';
 export type { RecipeCalorieChipProps } from './nutrition/RecipeCalorieChip.js';

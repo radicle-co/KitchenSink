@@ -17,9 +17,9 @@
  * @pattern Strategy — the picker's read boundary, injected per platform
  */
 import { useMessages } from '@commise/i18n/react';
-import { type ComponentType, type FC, type ReactNode, useCallback } from 'react';
+import { type ComponentType, type FC, type ReactNode, useMemo } from 'react';
 
-import { RecipeNutritionSlot } from '../nutrition/RecipeNutritionSlot.js';
+import { nutritionSlotRenderer } from '../nutrition/nutritionSlotRenderer.js';
 import { CollectionDeleteDialog } from './CollectionDeleteDialog.js';
 import { CollectionDetailAlert } from './CollectionDetailAlert.js';
 import { CollectionHeader } from './CollectionHeader.js';
@@ -78,14 +78,7 @@ export const CollectionDetailBody: FC<CollectionDetailBodyProps> = ({
     const { member: copy } = useMessages(collectionMessages);
     const { collection, members, layout, picker, rename, deletion, pull, visibility, removal } = detail;
     const { nutritionFor } = detail;
-    const renderNutrition = useCallback(
-        (recipeId: string) => {
-            const batch = nutritionFor(recipeId);
-
-            return batch === null ? null : <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />;
-        },
-        [nutritionFor],
-    );
+    const renderNutrition = useMemo(() => nutritionSlotRenderer(nutritionFor), [nutritionFor]);
 
     return (
         <>

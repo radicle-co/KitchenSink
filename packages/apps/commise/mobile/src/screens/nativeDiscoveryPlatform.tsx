@@ -7,7 +7,7 @@
  *
  * @pattern Adapter — the discovery platform port over the mobile app's boundary, nutrition lookup and storage
  */
-import { RecipeNutritionSlot, type RenderRecipeNutrition } from '@commise/features-recipes';
+import { nutritionSlotRenderer, type RenderRecipeNutrition } from '@commise/features-recipes';
 import type { DiscoveryPlatform } from '@commise/features-recipes/discovery';
 import { useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
 import { QueryBoundary } from '@commise/query/boundary';
@@ -26,13 +26,7 @@ import { nativeRecentSearchStore } from '../storage/recentSearchStore.js';
  * @returns The `renderNutrition` render prop the presentational views call once per card.
  */
 function useNativeNutrition(recipeIdPages: readonly (readonly string[])[]): RenderRecipeNutrition {
-    const nutritionFor = useRecipeNutritionBatches(recipeIdPages);
-
-    return (recipeId) => {
-        const batch = nutritionFor(recipeId);
-
-        return batch === null ? null : <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />;
-    };
+    return nutritionSlotRenderer(useRecipeNutritionBatches(recipeIdPages));
 }
 
 /** The mobile discovery platform. */

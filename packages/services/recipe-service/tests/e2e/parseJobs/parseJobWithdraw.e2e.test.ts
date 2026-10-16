@@ -9,16 +9,20 @@
  *  - owner scoping is a WHERE clause: a stranger's withdrawal answers 404 and changes no row;
  *  - only still-open lines are withdrawn: a `parsed` line keeps its answer, and repeating the request changes nothing;
  *  - the job aggregate is recomputed in the same call: withdrawing the last open line completes the job;
+ *  - an EDIT re-opens a withdrawn line, exactly as it re-opens a landed one: the new phrase is `pending` under its
+ *    new digest and is sent to the queue again (withdraw -> edit -> resend);
  *  - THE RULE with the worker: a withdrawn line is not claimable, so its queued message invokes no engine (the
  *    worker half is `recipe-workers`' `parseLineClaim.e2e.test.ts`).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import pg from 'pg';
 
 import { parseJobResponseSchema, type ParseJobResponse } from '@kitchensink/schema-recipe';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { asPrincipal } from '../../support/asPrincipal.js';
+import { SEED_PARSE_QUEUE_URL } from '../../support/localHarness.js';
 import { recipeDb } from '../../support/roleDb.js';
 
 const OWNER = '01JPARSEWITHDRAWOWNER0000A';
@@ -27,15 +31,22 @@ const roleDb = recipeDb();
 describe('parse job line withdrawal (LOCAL e2e)', () => {
     let booted: BootedRecipeApp;
     let pool: pg.Pool;
+    let sqs: SQSClient;
 
     beforeAll(async () => {
         booted = await bootRecipeApp({ databaseUrl: roleDb.appUrl, devAuthUserId: OWNER });
         pool = new pg.Pool({ connectionString: roleDb.appUrl, max: 3 });
+        sqs = new SQSClient({
+            endpoint: process.env['SQS_ENDPOINT'] ?? 'http://localhost:4566',
+            region: process.env['AWS_REGION'] ?? 'us-east-1',
+            credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+        });
     });
 
     afterAll(async () => {
         await pool.query('DELETE FROM recipe_parse_jobs WHERE owner_id = $1', [OWNER]);
         await pool.end();
+        sqs.destroy();
         await booted.close();
     });
 
@@ -66,6 +77,39 @@ describe('parse job line withdrawal (LOCAL e2e)', () => {
         );
 
         return result.rows.map((row: { status: string }) => row.status);
+    }
+
+    async function edit(jobId: string, lineIndex: number, sourceLine: string): Promise<Response> {
+        return fetch(`${booted.baseUrl}/api/v1/recipe-parse-jobs/${jobId}/lines/${String(lineIndex)}`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ sourceLine }),
+        });
+    }
+
+    /** The messages for ONE job on the shared parse queue (other suites' messages are not ours). */
+    async function messagesFor(jobId: string, expected: number): Promise<Record<string, unknown>[]> {
+        const found: Record<string, unknown>[] = [];
+
+        for (let attempt = 0; attempt < 10 && found.length < expected; attempt += 1) {
+            const received = await sqs.send(
+                new ReceiveMessageCommand({
+                    QueueUrl: SEED_PARSE_QUEUE_URL,
+                    MaxNumberOfMessages: 10,
+                    WaitTimeSeconds: 1,
+                }),
+            );
+
+            for (const message of received.Messages ?? []) {
+                const body = JSON.parse(message.Body ?? '{}') as Record<string, unknown>;
+
+                if (body['jobId'] === jobId) {
+                    found.push(body);
+                }
+            }
+        }
+
+        return found;
     }
 
     it('⛔ migration 0054: the CHECK admits withdrawn and still refuses an invented status', async () => {
@@ -112,6 +156,68 @@ describe('parse job line withdrawal (LOCAL e2e)', () => {
 
         expect(response.status).toBe(200);
         expect(await statuses(job.id)).toEqual(['parsed', 'withdrawn', 'withdrawn']);
+    });
+
+    it('⛔ an edit RE-OPENS a withdrawn line: it is pending again under its new digest', async () => {
+        const job = await createJob('1 u54 withdrawn then edited');
+        const before = await pool.query(`SELECT line_digest FROM recipe_parse_job_lines WHERE job_id = $1`, [job.id]);
+
+        expect((await withdraw(job.id, [0])).status).toBe(200);
+        expect(await statuses(job.id)).toEqual(['withdrawn']);
+
+        const edited = await edit(job.id, 0, '2 u54 edited cups');
+
+        expect(edited.status).toBe(202);
+
+        const body = parseJobResponseSchema.parse(await edited.json());
+
+        expect(body.lines[0]).toMatchObject({ status: 'pending', sourceLine: '2 u54 edited cups' });
+        expect(body.status).toBe('running');
+
+        const after = await pool.query(`SELECT line_digest, status FROM recipe_parse_job_lines WHERE job_id = $1`, [
+            job.id,
+        ]);
+
+        expect(after.rows[0]).toMatchObject({ status: 'pending' });
+        expect(after.rows[0]?.line_digest).not.toBe(before.rows[0]?.line_digest);
+    }, 60_000);
+
+    it('⛔ withdraw -> edit -> resend: the edited phrase is sent to the queue under its new digest', async () => {
+        const job = await createJob('1 u54 withdrawn then resent');
+
+        // Consume the creation message, so only the edit's message can satisfy the assertion below.
+        expect(await messagesFor(job.id, 1)).toHaveLength(1);
+        expect((await withdraw(job.id, [0])).status).toBe(200);
+        expect((await edit(job.id, 0, '3 u54 resent cups')).status).toBe(202);
+
+        const resent = await messagesFor(job.id, 1);
+        const stored = await pool.query(`SELECT line_digest FROM recipe_parse_job_lines WHERE job_id = $1`, [job.id]);
+
+        expect(resent).toHaveLength(1);
+        expect(resent[0]).toMatchObject({
+            lineIndex: 0,
+            sourceLine: '3 u54 resent cups',
+            lineDigest: stored.rows[0]?.line_digest,
+        });
+        expect(await statuses(job.id)).toEqual(['pending']);
+    }, 60_000);
+
+    it('⛔ a stale landing for the withdrawn phrase cannot overwrite the edited line', async () => {
+        const job = await createJob('1 u54 stale landing');
+        const before = await pool.query(`SELECT line_digest FROM recipe_parse_job_lines WHERE job_id = $1`, [job.id]);
+
+        await withdraw(job.id, [0]);
+        await edit(job.id, 0, '4 u54 fresh phrase');
+
+        // The worker's own guarded UPDATE for the OLD message (digest), mirrored from parseLine.ts.
+        const landed = await pool.query(
+            `UPDATE recipe_parse_job_lines SET status = 'parsed', updated_at = now()
+              WHERE job_id = $1 AND line_index = 0 AND line_digest = $2 AND status <> 'withdrawn'`,
+            [job.id, before.rows[0]?.line_digest],
+        );
+
+        expect(landed.rowCount).toBe(0);
+        expect(await statuses(job.id)).toEqual(['pending']);
     });
 
     it("⛔ a stranger's withdrawal answers 404 and changes nothing", async () => {

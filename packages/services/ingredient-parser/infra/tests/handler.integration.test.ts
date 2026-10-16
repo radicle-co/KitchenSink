@@ -191,6 +191,96 @@ describe.skipIf(!engineInstalled())('the CRF handler, against the real engine', 
     });
 });
 
+/** The phrase the forced failure echoes, standing in for a cook's own words inside an exception message. */
+const ECHOED_PHRASE = 'grandma secret 2 cups';
+
+/**
+ * Invoke `handler.handle` with the engine forced to throw on ONE line, and with `observability.report` replaced by a
+ * recorder, so the per-line failure branch and what it reports are observable.
+ *
+ * @param lines - The batch. The line equal to `failingLine` throws `ValueError` echoing {@link ECHOED_PHRASE}.
+ * @param failingLine - Which line the engine chokes on.
+ * @returns The raw answer and every context `report` was handed.
+ * @sideEffect Spawns `python3`.
+ */
+function invokeWithFailingLine(
+    lines: readonly string[],
+    failingLine: string,
+): { readonly answer: unknown; readonly reported: readonly Record<string, unknown>[] } {
+    const program = [
+        'import json, sys',
+        'sys.path.insert(0, sys.argv[1])',
+        'import handler, observability',
+        'real = handler.parse_ingredient',
+        'def fake(line):',
+        '    if line == sys.argv[3]:',
+        `        raise ValueError("echo: " + ${JSON.stringify(ECHOED_PHRASE)})`,
+        '    return real(line)',
+        'handler.parse_ingredient = fake',
+        'reported = []',
+        'observability.report = lambda error, **context: reported.append({"type": type(error).__name__, **context})',
+        'answer = handler.handle(json.loads(sys.argv[2]))',
+        'print(json.dumps({"answer": answer, "reported": reported}))',
+    ].join('\n');
+
+    return JSON.parse(
+        execFileSync('python3', ['-c', program, sourceDirectory, JSON.stringify({ lines }), failingLine], {
+            encoding: 'utf8',
+        }),
+    ) as { answer: unknown; reported: Record<string, unknown>[] };
+}
+
+/**
+ * THE PER-LINE FAILURE BRANCH, forced. The real engine rarely throws, so `answers per line` above passes whether or
+ * not the `except` branch exists — or leaks. These pin what that branch owes: a `failed` row whose reason is the
+ * exception's CLASS NAME (its message can echo the cook's phrase), the rest of the batch still parsed, and a report
+ * carrying identifiers only.
+ */
+describe.skipIf(!engineInstalled())('the CRF handler, when the engine throws on one line', () => {
+    const failingLine = '!!! choke';
+    const lines = ['1 cup water', failingLine, '2 eggs'];
+
+    it('fails that line with the exception class name only, and still parses the others', () => {
+        const { answer } = invokeWithFailingLine(lines, failingLine);
+        const response = parseEngineResponse(answer);
+
+        expect(response.results[1]).toStrictEqual({ status: 'failed', sentence: failingLine, reason: 'ValueError' });
+        expect(response.results[0]?.status).toBe('parsed');
+        expect(response.results[2]?.status).toBe('parsed');
+        expect(JSON.stringify(answer)).not.toContain(ECHOED_PHRASE);
+    });
+
+    it('reports the failure once, with identifiers and never the line', () => {
+        const { reported } = invokeWithFailingLine(lines, failingLine);
+
+        expect(reported).toStrictEqual([{ type: 'ValueError', engine_version: '2.3.0' }]);
+        expect(JSON.stringify(reported)).not.toContain(failingLine);
+    });
+});
+
+/** Sentry is inert without a DSN, so a local run, a test, and a stage that sets none report nothing and never fail. */
+describe.skipIf(!engineInstalled())('the CRF engine observability module, without a DSN', () => {
+    it('does not initialise, and report() is a silent no-op', () => {
+        const program = [
+            'import json, sys',
+            'sys.path.insert(0, sys.argv[1])',
+            'import observability',
+            'initialised = observability.init("2.3.0")',
+            'observability.report(ValueError("x"), engine_version="2.3.0")',
+            'print(json.dumps({"initialised": initialised}))',
+        ].join('\n');
+        const environment = Object.fromEntries(
+            Object.entries(process.env).filter(([key]) => key !== 'SENTRY_DSN'),
+        ) as NodeJS.ProcessEnv;
+        const output = execFileSync('python3', ['-c', program, sourceDirectory], {
+            encoding: 'utf8',
+            env: environment,
+        });
+
+        expect(JSON.parse(output)).toStrictEqual({ initialised: false });
+    });
+});
+
 /**
  * THE PROOF OF THE FIX, by invocation rather than inspection.
  *

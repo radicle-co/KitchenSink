@@ -138,13 +138,13 @@ describe('redirectToSignInOnce (circuit breaker)', () => {
         expect(mockNavigateTo).not.toHaveBeenCalled();
     });
 
-    it('a pre-list marker from an earlier build (a bare path) is honoured as an attempted path', () => {
-        // A visitor mid-session across a deploy still carries the old scalar form. Treating it as garbage
-        // would re-arm the breaker for exactly the surface it had already tripped on.
+    it('a bare path is not a shape this module writes, so it reads as garbage — one bounce, then trips', () => {
+        // Only the JSON list was ever shipped; nothing writes a scalar marker, so there is no older form to honour.
         window.sessionStorage.setItem('commise.unauthorizedRecovery', '/en');
 
+        expect(redirectToSignInOnce()).toBe(true);
         expect(redirectToSignInOnce()).toBe(false);
-        expect(mockNavigateTo).not.toHaveBeenCalled();
+        expect(mockNavigateTo).toHaveBeenCalledExactlyOnceWith('/sign-in?redirect_url=%2Fen');
     });
 
     it('an unreadable marker degrades to one more bounce, then trips — never a loop', () => {

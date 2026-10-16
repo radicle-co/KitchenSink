@@ -76,11 +76,9 @@ const documentAttempts = new Set<string>();
 /**
  * Decode a stored marker into the set of paths already attempted. Pure.
  *
- * Three shapes are honoured. The JSON list this module writes. A bare path — the single-slot marker earlier
- * builds wrote; a visitor mid-session across a deploy still carries it, and reading it as garbage would re-arm
- * the breaker on exactly the surface it had tripped on. And anything else, which reads as NO attempts: that
- * is bounded rather than fail-open, because the write after the next bounce replaces it with a well-formed
- * list, so garbage costs at most one extra hop.
+ * The JSON list this module writes is the one shape honoured. Anything else reads as NO attempts: that is
+ * bounded rather than fail-open, because the write after the next bounce replaces it with a well-formed list,
+ * so garbage costs at most one extra hop.
  *
  * @param raw - The stored value, or `null` when nothing is stored.
  * @returns The attempted paths.
@@ -88,10 +86,6 @@ const documentAttempts = new Set<string>();
 function parseAttemptedPaths(raw: string | null): ReadonlySet<string> {
     if (raw === null) {
         return new Set();
-    }
-
-    if (raw.startsWith('/')) {
-        return new Set([raw]);
     }
 
     try {

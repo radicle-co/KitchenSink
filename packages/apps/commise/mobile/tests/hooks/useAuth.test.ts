@@ -30,7 +30,7 @@ vi.mock('@clerk/expo', () => ({
 
 const { useAuth: useClerkAuth, useUser: useClerkUser } = await import('@clerk/expo');
 const { useAuth } = await import('../../src/hooks/useAuth.js');
-const { IMPERSONATION_BLOCK, SUSPENDED_BLOCK } = await import('../../src/types/auth.js');
+const { IMPERSONATION_BLOCK, SUSPENDED_BLOCK } = await import('@commise/features-account');
 
 const clerkAuthMock = vi.mocked(useClerkAuth);
 const clerkUserMock = vi.mocked(useClerkUser);

@@ -17,7 +17,7 @@ vi.mock('@clerk/expo', () => ({
 }));
 
 const { deriveAuthState } = await import('../src/hooks/useAuth.js');
-const { IMPERSONATION_BLOCK, SUSPENDED_BLOCK } = await import('../src/types/auth.js');
+const { IMPERSONATION_BLOCK, SUSPENDED_BLOCK } = await import('@commise/features-account');
 const { tokenCache } = await import('../src/storage/tokenCache.js');
 
 describe('deriveAuthState', () => {

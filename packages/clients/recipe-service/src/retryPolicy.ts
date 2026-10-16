@@ -31,13 +31,13 @@
  * caused by OUR OWN stale-or-unminted secret is "transient and operator-fixable" rather than a verdict on
  * the caller.
  *
- * ⚠️ THE FLIP CONDITION, stated so it can actually be checked. Two token sources REACHED BY A RETRYABLE
- * QUERY still resolve an EMPTY bearer during the Clerk hydration window, which the service answers `401`:
- * `mobile/src/providers/RecipeServiceGate.tsx` and `web/src/hooks/useUserProfile.ts`. Seven further `?? ''`
- * sources exist and are deliberately NOT counted, each for a reason this policy cannot reach: five SSR
- * prefetch pages plus `[locale]/{account,profile}/page.tsx` run on a bare server-side client whose retry
- * default is `0`, and `web/src/components/auth/useEraseAccount.ts` is a MUTATION, which is never retried.
- * Count them before flipping — an audit of only the two named here would leave the hole open.
+ * ⚠️ THE FLIP CONDITION, stated so it can actually be checked. NO token source reached by a retryable query
+ * resolves an EMPTY bearer any more: web's `useUserProfile.ts` and `useEraseAccount.ts` and mobile's
+ * `RecipeServiceGate.tsx` now fail closed instead. Four `?? ''` sources remain, all server-side prefetch
+ * pages — web `[locale]/{collections,discover,recipes,recipes/[id]}/page.tsx` — and none is reached by this
+ * policy, because they run on a bare server-side client whose retry default is `0`. Re-count them
+ * (`grep "getToken()) ?? ''"` under `web/src/app`) before flipping: a new query-reached source would reopen
+ * the hole.
  *
  * `recipeAuthNotReady.ts` records what happens when the window is not outlasted: a transient pre-hydration
  * state reaching the redirect-to-sign-in handler as a user-visible auth failure, measured in production

@@ -1862,11 +1862,12 @@ reveal host's re-check on Android 15's edge-to-edge window (E2 I6). VoiceOver re
 phone 390, and 840+ in content-reading (640), left-aligned
 ┌──────────────────────────────────┐
 │ (‹) Profile                  H1  │
-│ (EM) Eliza Moreno                │ 72 avatar, name, email
+│ (EM) Eliza Moreno                │ 72 avatar, name, @username, email
+│      @braise                     │ (identity shown ONCE, here: §9.1a)
 │      eliza@example.com           │
+│ [Change photo] [Remove photo]    │ web; native: the disc is Change (§9.1a)
 │ ┌──────────────────────────────┐ │
 │ │ Display name      Eliza    › │ │ grouped rows, 56 px
-│ │ Email             eliza@…    │ │
 │ └──────────────────────────────┘ │
 │ Preferences                      │
 │ ┌──────────────────────────────┐ │
@@ -1886,15 +1887,18 @@ phone 390, and 840+ in content-reading (640), left-aligned
 
 - One page, one column at every width, `content-reading`. No section nav. `/settings` and `/account` are deleted
   (§3.1). Native: `AccountSettings.tsx` becomes these sections, and `AppRoot`'s `'account'` destination goes.
-- Header: back "Back to {parent}" on phones (Profile is pushed). H1 "Profile". Then a 72 px avatar (initials, or the
-  native `AvatarField` photo, which stays native-only), the display name (`sectionTitle`, wrap:2) and the email
+- Header: back "Back to {parent}" on phones (Profile is pushed). H1 "Profile". Then a 72 px avatar (the photo, else initials, else
+  the `user` glyph; the photo controls are §9.1a, on both platforms), the display name (`sectionTitle`, wrap:2), the
+  `@username` and the email
   (`meta`, `overflow-wrap: anywhere`, because it is one unbroken string).
 - **Grouped rows** (56 px, label, value truncate:1, chevron), the settings-list pattern both platforms use:
     - **Display name** opens a sheet titled "What should we call you?" with one field, prefilled from the Google given
       name when Clerk has it, and **Save** (primary). It saves only on Save, because the name shows publicly beside
       the cook's username on recipes they publish. This is the only place the app asks for it. The identity service
       fills the name in from the account at sign-up (D22), so the cook can change it here but does not have to set it.
-    - **Email**: shown once, in the header's identity block. Web's Account group also lists it as a read-only row; mobile has no Email row (owner, 2026-10-13: the header already shows it).
+    - **Email and username**: shown once each, in the header's identity block, on BOTH platforms. Neither has a
+      row. Web's two read-only rows are removed (§9.1a, 2026-10-16), which applies the owner's 2026-10-13 ruling
+      ("the header already shows it") to web and to the username.
     - **Preferences:** "Food data sources" → `/legal/sources`. **Keyboard shortcuts** (web only): a switch, on by
       default. Off, `/` types a slash like any other key (SC 2.1.4).
     - **Sign out**: a row button in `ink`, not red (it is not destructive). It issues `useSignOutAndLeave()` exactly as
@@ -1952,7 +1956,248 @@ true }}`, presses ignored. Label and hint keep their tone. It is not dimmed, bec
 - Keys (NEW in `webMessages` and `mobileMessages` unless noted): `profile.title`, `.displayName`, `.namePrompt` "What
   should we call you?", `.save`, `.saved`, `.email`, `.preferences`, `.dataSources`, `.shortcuts` "Keyboard
   shortcuts", `.signOut` "Sign out", `.dangerZone` "Danger zone", `danger.close.rowHint`, `danger.erase.rowHint`,
-  `profile.retry`. `loadError` (existing) keeps its value.
+  `profile.retry`. `loadError` (existing) keeps its value. `profile.email` and `profile.username` are deleted by
+  §9.1a (no reader is left).
+
+### 9.1a The one Profile both platforms ship (SPECIFY, 2026-10-16)
+
+The duplication audit (finding 11) found a gap each way: web has Username and Email rows but no photo control;
+mobile has the photo control but no rows. This section is the one Profile. Where it disagrees with §9.1 above or
+with plan 2026-10-15-010 D12 ("web Account group row"), this wins.
+
+**Owner decision needed (confirmation, two-way door).** The rows are not a mobile gap. Owner decision 11
+(2026-10-13) removed mobile's Email row because the header shows it, and `.maestro/profileUsername.yaml` asserts no
+`Username` row. Both headers already show `@username` and the email (`ProfileHeader.tsx:70-75`,
+`ProfileHeader.native.tsx:157-162`). So web shows identity twice. The fix is to drop web's rows, not add them to
+mobile. This is my call. It reverses D12's web row.
+
+**What the page holds, top to bottom (both platforms):**
+
+| #   | Element                                         | Editable         | Web                               | Native                           |
+| --- | ----------------------------------------------- | ---------------- | --------------------------------- | -------------------------------- |
+| 1   | `LargeTitleHeader` "Profile", back              | —                | as today                          | as today                         |
+| 2   | Identity block: 72 disc, name, @username, email | photo only       | disc is a picture, not a control  | disc IS the Change photo control |
+| 3   | Photo actions row (under the identity row)      | —                | Change photo · Remove photo       | Remove photo                     |
+| 4   | Photo status / problem line                     | —                | under row 3                       | under row 3                      |
+| 5   | Account group: **Display name** › (sheet)       | yes (unchanged)  | unchanged                         | unchanged                        |
+| 6   | Preferences, Sign out, Danger zone              | unchanged (§9.1) | Keyboard shortcuts stays web-only | —                                |
+
+Username: read-only, the public byline, shown as `@{username}`, the same form the Discover byline uses. Hidden when
+null. No control offers to change it. Email: read-only, `overflow-wrap: anywhere`. Display name: unchanged.
+
+**Platform translation.**
+
+| Element              | Web                                                                 | Native                                            | Disposition | Why                                                                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------- | ------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Change trigger       | `Button variant="secondary" size="sm" icon="camera"` "Change photo" | the 72 pt disc, with its camera badge (as today)  | moved       | Pointer and keyboard have no "press the photo" convention, and a badge-only cue is weak. On a phone the disc is the biggest target on screen and the settings-app convention. |
+| Picker               | hidden `<input type="file" accept={AVATAR_ACCEPT}>`                 | `expo-image-picker` library (as today). No camera | kept        | The house A-010 pattern (`RecipePhotoUploaderContainer.tsx:274`): a real button opens the dialog; a `<label>` has no tab stop.                                                |
+| Remove               | `Button variant="ghost" size="sm" icon="trash"` "Remove photo"      | the same Button, in row 3                         | kept        | Rare and undoable, so it is visible but quiet. Not `destructive`: Undo restores it (same reason Sign out is ink).                                                             |
+| Username, Email rows | removed                                                             | none (as today)                                   | dropped     | Shown once, in the header.                                                                                                                                                    |
+| Hover, drag          | none. No hover overlay on the disc. No drop target                  | n/a                                               | —           | Hover does not exist on touch. Drop is out of scope.                                                                                                                          |
+
+Rejected: a native action sheet (Choose / Remove) behind the disc. It adds a tap to every change, the common action,
+to save a line for the rare one, and `ActionMenu` has no avatar trigger.
+
+Row 3 is a full-width sibling under the disc and text row, `flex-wrap`, gap `spacing[2]`, start-aligned. The
+buttons wrap as items; a label never wraps (owner rule; never `nowrap`). At 320 CSS px the content width is 288,
+which holds "Profilbild entfernen" (+35%) on one line. No horizontal scroll. Scroll budget at 390 × 844: rows 1–5
+fit on the first screen (judgement, arithmetic). No text field in this block, so the keyboard never opens here.
+
+**States** (the identity block's ready state; loading and failed are §9.1's header states, with no photo controls):
+
+| State              | Disc                                                        | Row 3 (web · native)                                            | Row 4 / announcement                                                |
+| ------------------ | ----------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------- |
+| idle, no photo     | initials on `action`, or the `user` glyph                   | Change · (disc)                                                 | —                                                                   |
+| idle, photo        | the photo, `cover`                                          | Change, Remove · Remove                                         | —                                                                   |
+| photo won't load   | initials or glyph (`onError` fallback, never a broken icon) | as "idle, photo" (a saved URL exists)                           | —                                                                   |
+| picker cancelled   | unchanged                                                   | unchanged                                                       | nothing                                                             |
+| rejected file      | unchanged. No request sent                                  | idle                                                            | `avatarUnsupportedTypeError` or `avatarTooLargeError`, alert        |
+| uploading          | the CHOSEN image, at 0.6 opacity, `aria-busy`               | Change `busy`, Remove `disabled` · disc busy, Remove `disabled` | `avatarUploading` "Uploading your photo…", `meta` ink-muted, polite |
+| saved              | the new photo                                               | idle                                                            | snackbar `saved` "Saved."                                           |
+| upload failed      | back to the saved photo (or initials)                       | idle. Choosing again is the retry                               | `avatarUploadError`, alert                                          |
+| removing           | the photo at 0.6 opacity                                    | Remove `busy`, Change `disabled` · disc `disabled`              | —                                                                   |
+| removed            | initials or glyph                                           | Change · (disc). Remove is gone                                 | snackbar `avatarRemoved` "Photo removed." + action `undo` "Undo"    |
+| restoring (Undo)   | the previous photo at 0.6 opacity                           | both `disabled`                                                 | —                                                                   |
+| remove/undo failed | back to what the server holds                               | idle                                                            | `avatarUploadError` ("We couldn't update your photo…"), alert       |
+| offline            | as "upload failed", at once                                 | idle                                                            | `avatarUploadError`. Never queued (see below)                       |
+
+Permission denied cannot occur: the library picker (PHPicker on iOS, the Android photo picker) and the browser file
+dialog need no permission.
+
+**Rules (once, in the shared hook):**
+
+1. Validate before any request: `type` in `AVATAR_ALLOWED_TYPES` (an empty web `file.type` is unsupported), and
+   `blob.size <= AVATAR_MAX_BYTES` on the real blob, never a picker-reported size.
+2. Upload is presign → PUT → PATCH `{ avatarUrl: publicUrl }`. The client never builds a URL; it sends only the
+   presign's `publicUrl`. The PATCH requires `https` (`users.schema.ts:148`); a refusal is "upload failed".
+3. The photo has its OWN mutation, apart from the name's (mobile already does this, `profile.tsx:90`), so the two never
+   share a pending or failed state.
+4. Presign and the photo PATCH run with `networkMode: 'always'`. A paused mutation would leave the control busy for
+   ever, and a presigned URL expires in five minutes (`avatar.schema.ts:46`). This is the paste precedent: never
+   queued.
+5. One attempt at a time. A choose or remove while a phase is not `idle` is ignored.
+6. After a save, the disc keeps the new URL until the refetched profile carries it, so it never flashes back.
+7. Remove is `PATCH { avatarUrl: null }`. Undo is `PATCH { avatarUrl: previous }`. Removing deletes no S3 object
+   (only erasure does, `avatarObjectStore.ts`), so Undo is safe. No confirm dialog: it is undoable.
+8. A new choose clears the last problem.
+
+**Components and props.** Shared, in `packages/apps/commise/features/account/src/profile/`:
+
+```ts
+// avatar.ts (NEW, pure) — moved from mobile/src/components/account/avatarConstraints.ts, which is deleted
+export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+export const AVATAR_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export const AVATAR_ACCEPT: string; // AVATAR_ALLOWED_TYPES.join(',')
+export const AVATAR_MAX_MB: number; // derived from AVATAR_MAX_BYTES, fills {maxMb}
+export function avatarFileProblemOf(file: { contentType: string; size: number }): 'type' | 'size' | undefined;
+
+// useAvatarUpload.ts (NEW) — moved from mobile/src/hooks/useAvatarUpload.ts; now takes the client
+export interface AvatarFile {
+    readonly blob: Blob;
+    readonly contentType: string;
+    readonly previewUrl: string; // web: an object URL; native: the asset uri
+    readonly release?: () => void; // web: revokes the object URL
+}
+export function useAvatarUpload(client: Pick<ProfileServiceClient, 'presignAvatar'>): {
+    upload(file: AvatarFile): Promise<string>; // the presign's publicUrl
+};
+
+// useAvatarChange.ts (NEW) — owns rules 1–8 and both snackbars (useSnackbar, as useDisplayNameEditor does)
+export function useAvatarChange(input: {
+    saved: string | null;
+    upload: (file: AvatarFile) => Promise<string>;
+    save: (avatarUrl: string | null) => Promise<unknown>;
+}): AvatarChange;
+export interface AvatarChange {
+    readonly phase: 'idle' | 'uploading' | 'removing' | 'restoring';
+    readonly problem: 'type' | 'size' | 'upload' | undefined;
+    readonly photoUrl: string | null; // what the disc shows now
+    choose(file: AvatarFile): void; // calls file.release when the attempt settles
+    reportUnreadable(): void; // the picker could not read the file: problem = 'upload'
+    remove(): void;
+    readonly changeFocusRequested: boolean; // set after a Remove succeeds
+    onChangeFocusHandled(): void;
+}
+```
+
+- `avatar.ts` mirrors the authority, `identity/src/users/avatarUpload.controller.ts:16-17`. It does NOT reuse
+  recipe-core's photo constants: a recipe photo and an avatar are two policies that only match today (DRY governs
+  knowledge). Whether the controller should import these from `@kitchensink/schema-identity` is staff-architect's
+  call.
+- `ProfileServiceClient` is `features/account/src/profileServiceClient.ts`. Web passes the memoized client that audit
+  finding 3 proposes (`web/src/hooks/useProfileServiceClient.ts`, NOT built yet), so the presign does not send an empty
+  bearer. **Build order:** the bucket precondition below, then finding 3's client hook, then this section.
+- **`model.ts`**: `ProfileRead`'s ready member and `ProfileQueryState.data.user` gain `avatarUrl: string | null`;
+  `profileReadOf` copies it.
+- **`props.ts` `ProfileHeaderProps`**: remove `avatar`. Add `photoUrl: string | null`,
+  `photoPhase: AvatarChange['phase']` (each leaf derives the 0.6 opacity, `aria-busy` for `uploading`, and
+  `disabled` for `removing` / `restoring` from it),
+  `photoStatus?: string` (row 4, polite), `photoProblem?: string` (row 4, assertive), `photoActions?: ReactNode`
+  (row 3), and native-only `onChangePhoto?: () => void`, `changePhotoFocusRequested?: boolean`,
+  `onChangePhotoFocusHandled?: () => void` (web ignores them; its focus target is the Change button). Both leaves draw
+  the disc, rows 3 and 4, so the two apps cannot drift on them. The photo element is a plain `<img>` on web (not
+  `next/image`: this is a shared package) and React Native's `Image` on native (`features-account` declares
+  `react-native`, not `expo-image`). Both fall back to the initials disc on `onError`.
+- **Delete `ProfileValueRow.tsx`, `ProfileValueRow.native.tsx`**, `ProfileValueRowProps`, their export, and their
+  cases in `ProfileParts.test.tsx` / `ProfileParts.native.test.tsx`. No consumer is left.
+
+Web, `packages/apps/commise/web/src/components/profile/`:
+
+- **NEW `AvatarPhotoControls.tsx`** (row 3 on web). Props: `phase`, `hasPhoto: boolean`,
+  `onChoose(file: AvatarFile)`, `onRemove()`, `focusRequested: boolean`, `onFocusRequestHandled()`. Change opens the hidden input via a ref (the
+  external file dialog: the ref clause of `docs/CODING_STANDARDS.md` §11.2, so it carries `@pattern`). The input's value
+  is reset after each change, so the same file can be chosen again. Remove renders only when `hasPhoto`.
+- **`ProfileSurface.tsx`**: drop both `ProfileValueRow`s; add the photo mutation, `useAvatarUpload`, `useAvatarChange`,
+  and pass `photoActions={<AvatarPhotoControls … />}`.
+
+Native, `packages/apps/commise/mobile/src/`:
+
+- **`components/account/AvatarField.tsx`** becomes **`components/account/pickAvatarImage.ts`**, `@sideEffect`: it opens
+  the library and returns `AvatarFile | undefined` (undefined on cancel), or throws when the file cannot be read. The
+  screen calls `reportUnreadable()` on that throw. A missing `mimeType` stays `image/jpeg`, as today
+  (`AvatarField.tsx:90`). The disc
+  moves into `ProfileHeader.native`. `hooks/useAvatarUpload.ts` and `avatarConstraints.ts` are deleted.
+- **`screens/profile.tsx`**: pass `onChangePhoto`, `photoActions={hasPhoto ? <Button variant="ghost" size="sm" icon="trash">… : undefined}`,
+  and delete its own `role="alert"` `Text` (`profile.tsx:133`), which iOS does not announce.
+
+**Copy**, all in `profileMessages` (`features/account/src/profile/messages.ts`), none in `mobileMessages` or
+`webMessages`:
+
+| Key                          | en                                                              | Status                                            |
+| ---------------------------- | --------------------------------------------------------------- | ------------------------------------------------- |
+| `avatarChangeAction`         | Change photo                                                    | moved from `mobileMessages.profile`               |
+| `avatarImageLabel`           | Your profile photo                                              | moved; now the photo's alt text                   |
+| `avatarUploadError`          | We couldn’t update your photo. Please try again.                | moved; also the remove and Undo failure           |
+| `avatarTooLargeError`        | That photo is larger than {maxMb} MB. Choose a smaller file.    | moved; "5" becomes `{maxMb}` from `AVATAR_MAX_MB` |
+| `avatarUnsupportedTypeError` | That file type isn’t supported. Use a JPEG, PNG, or WebP photo. | moved                                             |
+| `avatarRemoveAction`         | Remove photo                                                    | NEW                                               |
+| `avatarUploading`            | Uploading your photo…                                           | NEW                                               |
+| `avatarRemoved`              | Photo removed.                                                  | NEW                                               |
+| `undo`                       | Undo                                                            | NEW (features-recipes' `undo` is another package) |
+| `saved`                      | Saved.                                                          | reused, after an upload                           |
+
+Deleted: `mobileMessages.profile` (whole block; `avatarLabel` had no reader), `profileMessages.email`,
+`profileMessages.username`.
+
+**Accessibility contract (WCAG 2.2 AA).**
+
+- **1.1.1:** the photo's text alternative is `avatarImageLabel` (web `<img alt>`; native: the disc's name is the action,
+  and the image is `accessible={false}`). The initials disc stays `aria-hidden`; the name is beside it.
+- **4.1.2:** web controls are the design-system `Button` (native `<button>`, `aria-busy` when busy). The native disc is
+  `role="button"`, named `avatarChangeAction`, `accessibilityState={{ busy, disabled }}`.
+- **2.1.1:** everything works from the keyboard on web. The file input is `hidden`, so it is never a tab stop.
+- **Tab order (web):** Back → Change photo → Remove photo → Display name → Food data sources → Keyboard shortcuts →
+  Sign out → Close account → Erase my data.
+- **2.4.3:** after the file dialog closes, focus is on Change photo. After Remove succeeds, Remove unmounts, so focus
+  goes to Change photo (web: `Button focusRequested`; native: the screen-reader cursor goes to the disc through
+  `changePhotoFocusRequested`). Focus never drops to `body`.
+- **4.1.3:** `photoStatus` is a `LiveRegion politeness="polite"` (`@commise/ui/live-region`). `photoProblem` is
+  `role="alert"` on web and `LiveRegion politeness="assertive"` on native. Success and removal use the snackbar.
+- **3.3.1 / 3.3.3:** each problem names the cause and the next step.
+- **2.5.8:** `size="sm"` keeps a 44 px hit area (48 dp on Android) (`ui/src/button/props.ts:28`). The disc is 72 pt.
+- **2.2.1:** the Undo snackbar pauses on focus and hover (the primitive's `onPause`), and choosing the photo again also
+  recovers it.
+- **Motion:** none beyond the Button's busy spinner.
+
+**Latency.** Validation is instant. A 5 MB upload on a slow link can take more than 10 s. `fetch` reports no upload
+progress. So the cook sees the busy state and the "Uploading your photo…" line, with no cancel. This is an accepted
+residual. A cheaper fix is to shrink the image to about 512 px before upload (it shows at 72). It is recommended, and
+out of scope here.
+
+**⛔ Build precondition: the media bucket cannot do this today (checked 2026-10-16, read-only AWS calls).**
+`get-bucket-cors` returns `NoSuchCORSConfiguration` for both `kitchensink-data-sandbox-mediabucket…` and
+`kitchensink-data-prod-mediabucket…`. Public access is `BLOCK_ALL`. The bucket policy only denies non-TLS and admits
+the auto-delete role. No `avatars/` object exists on either stage. So:
+
+1. A browser PUT to the presigned URL fails its CORS preflight. Native `fetch` does no CORS, which is why mobile never
+   hit this. Web needs a bucket CORS rule (`PUT`, header `Content-Type`, the prod web origin and
+   `https://*.sandbox.commise.app`).
+2. `publicUrl` is `https://{bucket}.s3.amazonaws.com/{key}` (`avatarUpload.controller.ts:65`). Public access is
+   blocked and nothing grants a read. So S3 refuses an unsigned GET, and a saved photo cannot show on EITHER platform.
+
+This is a class, not an avatar bug. Recipe photos use the same bucket (`RecipeServiceStack.ts:202`). The browser PUTs
+them too (`useRecipePhotoUpload.ts:148`). Their CDN URLs (`photoView.ts`, `resolveCdnUrl`) cannot read the bucket
+either: no CloudFront distribution in the account has it as an origin (`list-distributions` shows only the three
+`*.internal.commise.app` service origins and `placeholder.invalid`). The empty sandbox bucket fits: no browser upload has
+ever landed. The fix belongs ONCE, in `DataStack.ts:620`: CORS for browser PUT, and a CDN read grant. The avatar then
+uses the CDN URL. This goes to staff-architect. Until it lands, the "photo won't load" state keeps the page honest.
+
+**Tests owed.**
+
+- Vitest: `avatar.ts`, `useAvatarChange` (every row of the states table), both `ProfileHeader` leaves, and
+  `AvatarPhotoControls`. Rewrite the D12 case in `ProfileSurface.test.tsx:97` to assert that the username and the
+  email each show once.
+- Playwright `profile.spec.ts`: choose, reject (type, size), fail, remove and Undo, focus after Remove, 320 px.
+- Maestro `profileAvatar.yaml`: choose and remove. A deployed run waits for the precondition.
+
+**Out of scope:**
+
+- Taking a photo with the camera, crop, and drag-and-drop.
+- The photo in the chrome `Avatar`, the sidebar or bylines. They draw initials (`ui/src/avatar/props.ts`).
+- The web suspension notice (audit finding 12).
+
+**Success measure:** each identity fact shows once on both platforms (asserted). After the precondition lands, a photo
+saved on one platform shows on the other (Playwright and Maestro, one sandbox user).
 
 ### 9.2 Legal sources
 
@@ -2254,7 +2499,7 @@ slice here.
 ## 14. Out of scope, success measure, evidence
 
 **Out of scope:** dark mode. A tablet navigation rail (D6 keeps the tab bar). The import chooser's own spec. The share
-extension. The cook view. Avatar upload on web. Notifications. Meal Plan, Shopping and Nutrition. The pull-updates
+extension. The cook view. Notifications. Meal Plan, Shopping and Nutrition. The pull-updates
 preview dialog (unchanged).
 
 **Success measure:**

@@ -12,11 +12,14 @@ import { nativeTokens } from '../tokens/native.js';
 /** The chip's visual height, in points. */
 const CHIP_HEIGHT = 36;
 
+/** The most lines a chip's label takes before its ellipsis (`chipClass.ts`'s `CHIP_LABEL_CLASS`, the web twin). */
+export const CHIP_LABEL_LINES = 2;
+
 /** The hit area around the pill: 44 pt on iOS, 48 dp on Android (spec §1.6). */
 export const chipHitHeight = (): number => (Platform.OS === 'android' ? 48 : 44);
 
 /** The frame that carries the hit area. */
-export const chipHit: ViewStyle = { justifyContent: 'center' };
+export const chipHit: ViewStyle = { justifyContent: 'center', maxWidth: '100%' };
 
 /**
  * The pill for a chip's state, painted from the theme so it repaints in the dark scheme. Pure.
@@ -31,6 +34,7 @@ export function chipPill({ colors, wash }: Theme, selected: boolean, pressed: bo
         flexDirection: 'row',
         alignItems: 'center',
         gap: nativeTokens.spacing[1],
+        flexShrink: 1,
         minHeight: CHIP_HEIGHT,
         borderRadius: CHIP_HEIGHT / 2,
         paddingHorizontal: nativeTokens.spacing[3],
@@ -48,7 +52,7 @@ export function chipPill({ colors, wash }: Theme, selected: boolean, pressed: bo
  * @returns The label's style.
  */
 export function chipLabel({ colors }: Theme, selected: boolean): TextStyle {
-    return { ...nativeTokens.type.label, color: selected ? colors.actionText : colors.ink };
+    return { ...nativeTokens.type.label, flexShrink: 1, color: selected ? colors.actionText : colors.ink };
 }
 
 /** A count after the label: tabular digits, `inkMuted`, from the theme. Pure. */

@@ -254,6 +254,22 @@ describe('RecipeBrowseRails (native) — browse by cuisine', () => {
         expect(onSelect).toHaveBeenCalledTimes(1);
     });
 
+    it('shows a 100-character custom cuisine cut to 24 characters and named in full, and still selects', () => {
+        const onSelect = vi.fn();
+        const custom = 'Hawaiian-Portuguese '.repeat(5).trim();
+        renderRails({ cuisines: [{ value: custom, onSelect }] });
+
+        const chip = within(screen.getByRole('group', { name: 'Browse by cuisine' })).getByRole('checkbox', {
+            name: custom,
+        });
+
+        expect(within(chip).getByText(`${custom.slice(0, 23)}…`)).toBeTruthy();
+
+        fireEvent.click(chip);
+
+        expect(onSelect).toHaveBeenCalledTimes(1);
+    });
+
     it('omits the section when there are no shortcuts', () => {
         renderRails({ cuisines: [] });
 

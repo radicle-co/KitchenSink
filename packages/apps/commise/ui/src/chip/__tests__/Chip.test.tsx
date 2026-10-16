@@ -113,6 +113,45 @@ describe('Chip (web) — filter', () => {
 
         expect(within(chip).getByText('Gluten-free and dairy-f…')).toBeTruthy();
     });
+
+    it('cuts at the 24-character boundary: 24 whole, 25 to 23 plus an ellipsis, each named in full', () => {
+        const exact = 'a'.repeat(24);
+        const over = 'b'.repeat(25);
+        const veryLong = 'c'.repeat(100);
+        render(
+            <>
+                <Chip kind="filter" label={exact} selected={false} onPress={vi.fn()} />
+                <Chip kind="filter" label={over} selected={false} onPress={vi.fn()} />
+                <Chip kind="filter" label={veryLong} selected onPress={vi.fn()} />
+            </>,
+        );
+
+        expect(within(screen.getByRole('button', { name: exact })).getByText(exact)).toBeTruthy();
+        expect(within(screen.getByRole('button', { name: over })).getByText(`${'b'.repeat(23)}…`)).toBeTruthy();
+
+        const longest = screen.getByRole('button', { name: veryLong });
+
+        expect(within(longest).getByText(`${'c'.repeat(23)}…`)).toBeTruthy();
+        expect(longest.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('names a long chip in full with its count after it', () => {
+        const long = 'd'.repeat(100);
+        render(<Chip kind="filter" label={long} selected={false} count={3} onPress={vi.fn()} />);
+
+        expect(screen.getByRole('button', { name: `${long} 3` })).toBeTruthy();
+    });
+
+    it('never outgrows its row and clamps the label to two lines (320 px at font scale 2)', () => {
+        render(<Chip kind="filter" label={'e'.repeat(100)} selected={false} onPress={vi.fn()} />);
+
+        const chip = screen.getByRole('button');
+        const label = within(chip).getByText(`${'e'.repeat(23)}…`);
+
+        expect(tokensOf(chip)).toContain('max-w-full');
+        expect(tokensOf(label)).toEqual(expect.arrayContaining(['line-clamp-2', '[overflow-wrap:anywhere]']));
+        expect(tokensOf(chip)).not.toContain('whitespace-nowrap');
+    });
 });
 
 describe('Chip (web) — input', () => {

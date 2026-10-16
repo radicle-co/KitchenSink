@@ -1343,7 +1343,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/chip/Chip.tsx",
                     "dir": "packages/apps/commise/ui/src/chip",
-                    "moduleDoc": "@commise/ui/chip — the web design-system {@link Chip}.\n\nA `filter` chip is a toggle button (`aria-pressed`) with a 16 px check before its label while selected and an\noptional `figure` count after it; an `input` chip is a button named by the caller's remove label, with a trailing\n`x`. A label over 24 characters shows truncated (`visibleChipLabel`) and keeps the full label as the name.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleDoc": "@commise/ui/chip — the web design-system {@link Chip}.\n\nA `filter` chip is a toggle button (`aria-pressed`) with a 16 px check before its label while selected and an\noptional `figure` count after it; an `input` chip is a button named by the caller's remove label, with a trailing\n`x`. A label over 24 characters shows truncated (`visibleChipLabel`) and keeps the full label as the name; the label clamps to two lines and the chip never\noutgrows its row, so a 24-character label stays inside 320 px at a 200% font size.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
                     "moduleTags": [
                         {
                             "name": "module",

@@ -20,9 +20,16 @@ import type { ChipRowOverflow } from './props.js';
 
 /** Tier-independent chip geometry and states. */
 const CHIP_BASE =
-    "relative inline-flex min-h-9 shrink-0 snap-start items-center gap-1 rounded-full px-3 text-label transition before:absolute before:inset-x-0 before:content-[''] pointer-coarse:before:-inset-y-1.5 " +
+    "relative inline-flex min-h-9 max-w-full shrink-0 snap-start items-center gap-1 rounded-full px-3 text-label transition before:absolute before:inset-x-0 before:content-[''] pointer-coarse:before:-inset-y-1.5 " +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 ' +
     'disabled:cursor-not-allowed disabled:opacity-40';
+
+/**
+ * A chip's label: at most two lines, then an ellipsis, breaking inside a word if it must. A label is already cut to 24
+ * characters (`chipLabel.ts`); this is what keeps that cut chip inside a 320 px row at a 200% font size, where it can
+ * be wider than the row, rather than pushing the page sideways (SC 1.4.10). Never `nowrap`.
+ */
+export const CHIP_LABEL_CLASS = 'line-clamp-2 min-w-0 text-start [overflow-wrap:anywhere]';
 
 /** The resting and selected surfaces. */
 const CHIP_REST = 'border border-line-control bg-paper text-ink hover:bg-ink/6 active:bg-ink/6';

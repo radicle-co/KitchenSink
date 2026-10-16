@@ -26,7 +26,7 @@ import { Icon } from '../icon/Icon.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { visibleChipLabel } from './chipLabel.js';
-import { chipHit, chipHitHeight, chipLabel, chipPill } from './chipStyle.js';
+import { CHIP_LABEL_LINES, chipHit, chipHitHeight, chipLabel, chipPill } from './chipStyle.js';
 import type { ChipRowOverflow, ChipRowProps, ChipRowSurface, ChoiceRowProps } from './props.js';
 
 /** How wide the fade at a scrolling row's end is, in dp (`buildSpec.md` §1.11). */
@@ -158,7 +158,9 @@ const ChoiceRow: FC<ChoiceRowProps> = ({
                             {({ pressed }) => (
                                 <View style={chipPill(theme, chosen, pressed)}>
                                     {chosen ? <Icon name="check" size={16} tone="actionText" /> : null}
-                                    <Text style={chipLabel(theme, chosen)}>{visibleChipLabel(option.label)}</Text>
+                                    <Text style={chipLabel(theme, chosen)} numberOfLines={CHIP_LABEL_LINES}>
+                                        {visibleChipLabel(option.label)}
+                                    </Text>
                                 </View>
                             )}
                         </Pressable>

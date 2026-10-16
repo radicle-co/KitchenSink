@@ -381,9 +381,12 @@ out of it.
     - The two containers repeat the same mapping, so the fix belongs in one shared pure `cuisineShortcutsOf(facets)` in
       `discovery/noResults.ts`, beside `showsCuisineShortcuts`, used by both. This is the place to stop the per-screen
       copies drifting.
-- **Long custom values in chips:** I have not checked the `Chip` primitive's long-label rule. If it has none, a
-  100-character chip shows a primitive gap. Clamp to 2 lines at a 240 px / 240 dp maximum width, then ellipsis, with the
-  full value in the accessible name. Never `nowrap`.
+- **Long custom values in chips:** the `Chip` primitive already has a rule (`ui/src/chip/chipLabel.ts`, `buildSpec.md`
+  §1.11): a label over 24 characters shows its first 23 and `…`, and the full value is the accessible name (a count
+  follows it). A chip is a short-text tap target, so a 100-character cuisine is cut, not wrapped. Only at a large
+  font scale, where even 24 characters can be wider than a 320 px row, the label may take 2 lines inside
+  `max-width: 100%` of the row, then an ellipsis (`line-clamp-2` on web, `numberOfLines={2}` on native). Never
+  `nowrap`. The upstream fix is `cuisineShortcutsOf`'s 3-recipe floor, which keeps one-off values off the row.
 
 **For `staff-architect` (not decided here):**
 

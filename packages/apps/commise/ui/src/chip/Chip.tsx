@@ -3,7 +3,8 @@
  *
  * A `filter` chip is a toggle button (`aria-pressed`) with a 16 px check before its label while selected and an
  * optional `figure` count after it; an `input` chip is a button named by the caller's remove label, with a trailing
- * `x`. A label over 24 characters shows truncated (`visibleChipLabel`) and keeps the full label as the name.
+ * `x`. A label over 24 characters shows truncated (`visibleChipLabel`) and keeps the full label as the name; the label clamps to two lines and the chip never
+ * outgrows its row, so a 24-character label stays inside 320 px at a 200% font size.
  *
  * Presentational: props → JSX, with no data, no mutation and no effect of its own.
  *
@@ -12,7 +13,7 @@
 import type { FC } from 'react';
 
 import { Icon } from '../icon/Icon.js';
-import { chipClass } from './chipClass.js';
+import { CHIP_LABEL_CLASS, chipClass } from './chipClass.js';
 import { visibleChipLabel } from './chipLabel.js';
 import type { ChipProps, FilterChipProps } from './props.js';
 
@@ -35,7 +36,7 @@ export const Chip: FC<ChipProps> = (props) => {
                     className={chipClass(props.selected)}
                 >
                     {props.selected ? <Icon name="check" size={16} /> : null}
-                    <span>{visible}</span>
+                    <span className={CHIP_LABEL_CLASS}>{visible}</span>
                     {props.count === undefined ? null : (
                         <>
                             {' '}
@@ -54,7 +55,7 @@ export const Chip: FC<ChipProps> = (props) => {
                     onClick={props.onRemove}
                     className={chipClass(false)}
                 >
-                    <span>{visibleChipLabel(props.label)}</span>
+                    <span className={CHIP_LABEL_CLASS}>{visibleChipLabel(props.label)}</span>
                     <Icon name="x" size={16} />
                 </button>
             );

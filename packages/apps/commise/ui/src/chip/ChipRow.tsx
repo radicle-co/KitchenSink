@@ -29,7 +29,7 @@ import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import type { FC } from 'react';
 
 import { Icon } from '../icon/Icon.js';
-import { chipClass, chipRowClass } from './chipClass.js';
+import { CHIP_LABEL_CLASS, chipClass, chipRowClass } from './chipClass.js';
 import { visibleChipLabel } from './chipLabel.js';
 import type { ChipOption, ChipRowProps, ChoiceRowProps } from './props.js';
 
@@ -37,7 +37,7 @@ import type { ChipOption, ChipRowProps, ChoiceRowProps } from './props.js';
 const OptionFace: FC<{ readonly option: ChipOption; readonly chosen: boolean }> = ({ option, chosen }) => (
     <>
         {chosen ? <Icon name="check" size={16} /> : null}
-        <span>{visibleChipLabel(option.label)}</span>
+        <span className={CHIP_LABEL_CLASS}>{visibleChipLabel(option.label)}</span>
     </>
 );
 

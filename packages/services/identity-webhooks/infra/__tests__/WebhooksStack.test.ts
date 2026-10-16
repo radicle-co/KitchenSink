@@ -809,6 +809,36 @@ describe('⛔ the alarm feature flag (default OFF)', () => {
     }, 120_000);
 });
 
+describe('WebhooksStack - erasure reconciliation re-enqueues the Clerk deletion; it never performs it (P1 #5)', () => {
+    /**
+     * Reconciliation repairs an unconfirmed Clerk deletion by putting an `erasure` message back on the deletion
+     * queue. The deletion worker stays the ONLY Clerk mutator, so the Clerk secret key never enters a second Lambda's
+     * environment. The role therefore gets send-only authority on that one queue.
+     */
+    it('can SEND to the deletion queue, exactly as the tombstone sweep can, and cannot receive or delete', () => {
+        const template = synthWebhooks(true);
+        const actions = sqsActionsGrantedTo(template, 'ErasureReconciliationLambdaRole');
+
+        expect(actions).toEqual(sqsActionsGrantedTo(template, 'TombstoneSweepLambdaRole'));
+        expect(actions).toContain('sqs:SendMessage');
+        expect(actions).not.toContain('sqs:ReceiveMessage');
+        expect(actions).not.toContain('sqs:DeleteMessage');
+    });
+
+    it('is handed the deletion queue URL and still holds NO Clerk secret key', () => {
+        const [fn] = Object.values(
+            synthWebhooks(true).findResources('AWS::Lambda::Function', {
+                Properties: { Handler: 'handlers/erasureReconciliation.handler' },
+            }),
+        );
+        const variables = (fn as { Properties: { Environment: { Variables: Record<string, unknown> } } }).Properties
+            .Environment.Variables;
+
+        expect(variables).toHaveProperty('DELETION_QUEUE_URL');
+        expect(variables).not.toHaveProperty('IDP_SECRET_KEY');
+    });
+});
+
 describe('WebhooksStack — the queue backstop holds no queue mutation (plan U12)', () => {
     /**
      * ⛔ U12's VERIFICATION, at the template — and it matters most HERE. The deletion queue carries GDPR

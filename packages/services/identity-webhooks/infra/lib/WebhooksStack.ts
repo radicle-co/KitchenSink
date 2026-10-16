@@ -350,14 +350,18 @@ export class WebhooksStack extends Stack {
 
         // erasure-reconciliation (handlers/erasureReconciliation.ts, CR-002 R7 completion contract):
         // connects as identity_service (getDb) to scan `status='erased'` rows and RE-DRIVES the recipe + food erasure legs
-        // over HTTPS (egress via the VPC/NAT to the shared ALB). It does NOT call the Clerk SDK, drains no
-        // SQS, and touches no bucket — so no auth-secret read, no queue grant. The EdDSA signing key is
+        // over HTTPS (egress via the VPC/NAT to the shared ALB). It also checks the THIRD leg - that Clerk confirmed
+        // the account deleted (`users.provider_deleted_at`) - and repairs a missing confirmation by SENDING an `erasure`
+        // message back onto the deletion queue (the grant below). It does NOT call the Clerk SDK, so it holds no Clerk
+        // secret: the deletion worker stays the ONLY Clerk mutator and its secret stays out of a second Lambda's
+        // environment. It drains no SQS and touches no bucket - so no auth-secret read. The EdDSA signing key is
         // deploy-embedded (erasureFanoutEnv), so no runtime GetSecretValue grant is needed for it either.
         const erasureReconciliationRole = makeLambdaRole(
             'ErasureReconciliationLambdaRole',
-            'Least-privilege role for the scheduled erasure-completion reconciliation Lambda (DB read only)',
+            'Least-privilege role for the scheduled erasure-completion reconciliation Lambda (DB read, deletion-queue send)',
         );
         database.grantConnect(erasureReconciliationRole, DATABASE_ROLES.identity.app);
+        deletionQueue.grantSendMessages(erasureReconciliationRole);
 
         // ⛔ NO migration role here any more, and none should come back. The schema-migration runner moved
         // to `IdentityServiceStack` (with its own slim role) because a migration must be applied BEFORE the

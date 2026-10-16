@@ -49,6 +49,9 @@ const REGISTER: Readonly<Record<string, readonly string[]>> = {
         "deletionDlq.grant(queueCheckRole, 'sqs:GetQueueAttributes')",
         "deletionQueue.grant(queueCheckRole, 'sqs:GetQueueAttributes')",
         'deletionQueue.grantConsumeMessages(deletionWorkerRole)',
+        // P1 #5: erasure reconciliation re-enqueues an `erasure` message when Clerk has not confirmed the account
+        // deleted. Send only: the deletion worker stays the one consumer and the only Clerk mutator.
+        'deletionQueue.grantSendMessages(erasureReconciliationRole)',
         'deletionQueue.grantSendMessages(tombstoneSweepRole)',
         'deletionQueue.grantSendMessages(webhookRole)',
         'handleSyncTopic.grantPublish(webhookRole)',

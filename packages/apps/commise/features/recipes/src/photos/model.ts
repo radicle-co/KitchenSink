@@ -142,8 +142,8 @@ export const visibleQueueItems = (items: readonly RecipePhotoQueueItem[]): reado
  * and what the create containers derive their draft capacity from. It used to be written three times (the queue's own
  * slice and inline in both create containers), and the web edit container applied none, which is how a multi-file pick
  * past the cap was silently truncated. The manager leaves' "hide the add control" check still asks
- * {@link isAtPhotoCap} of its own count: a presentation question over the same constant, not a second admission rule. The server enforces `MAX_PHOTOS_EXCEEDED` independently; this is the client's policy,
- * not the authority.
+ * {@link isAtPhotoCap} of its own count: a presentation question over the same constant, not a second admission
+ * rule. The server enforces `MAX_PHOTOS_EXCEEDED` independently; this is the client's policy, not the authority.
  *
  * @param heldCount - Photos the recipe already has (confirmed, or held in a draft).
  * @param queueItems - The upload queue's current items.

@@ -308,7 +308,7 @@ describe('kitchensink_food schema (integration)', () => {
             expect(rows[0]?.is_nullable).toBe('YES');
         });
 
-        it('has a NOT NULL timeout_count that defaults to 0 (0023, the source-timeout budget)', async () => {
+        it('has a NOT NULL timeout_count that defaults to 0 (0024, the source-timeout budget)', async () => {
             const { rows } = await pool.query<{
                 is_nullable: string;
                 column_default: string | null;

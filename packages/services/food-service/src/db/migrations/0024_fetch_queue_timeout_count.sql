@@ -1,4 +1,4 @@
--- 0023 — a per-row count of source CLIENT TIMEOUTS, so a food that times out on every pass stops being deferred.
+-- 0024 — a per-row count of source CLIENT TIMEOUTS, so a food that times out on every pass stops being deferred.
 --
 -- Hand-authored, ordered DDL applied once by the migration runner, which wraps this file in one transaction.
 -- The Drizzle model in src/db/schema/operational.ts documents the same shape (`fetchQueue.timeoutCount`).

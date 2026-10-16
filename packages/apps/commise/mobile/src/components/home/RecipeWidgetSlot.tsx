@@ -32,10 +32,9 @@ import {
     type RecipeWidgetSeeAll,
     type RenderRecipeNutrition,
 } from '@commise/features-recipes';
-import { RECENT_RECIPE_LIMIT, useRecentRecipesNutrition } from '@commise/features-recipes/widget';
+import { recentRecipesQuery, useRecentRecipesNutrition } from '@commise/features-recipes/widget';
 import type { Recipe } from '@kitchensink/recipe-core';
 import { QueryBoundary } from '@commise/query/boundary';
-import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { Suspense, lazy, type ComponentType, type JSX } from 'react';
@@ -132,7 +131,7 @@ function RecentRecipesWidget({
     ...firstRun
 }: RecipeWidgetSlotProps & { readonly variant: CardVariant; readonly seeAll: RecipeWidgetSeeAll }): JSX.Element {
     const client = useRecipeServiceClient();
-    const { data: page } = useSuspenseQuery(recipeQueries(client).list({ pageSize: RECENT_RECIPE_LIMIT }));
+    const { data: page } = useSuspenseQuery(recentRecipesQuery(client));
     const recipes = page.data;
     // The deferred calorie lookup (ADR-0021 §6), started during render so the cards paint over an in-flight request.
     const renderNutrition = useRecentRecipesNutrition(recipes);

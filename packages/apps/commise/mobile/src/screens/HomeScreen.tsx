@@ -13,12 +13,10 @@
  */
 import { profileEntryOf } from '@commise/features-core';
 import { RecipeCreateButton } from '@commise/features-recipes';
-import { useLibraryEmpty } from '@commise/features-recipes/hooks';
-import { RECENT_RECIPE_LIMIT } from '@commise/features-recipes/widget';
+import { useHomeFirstRun } from '@commise/features-recipes/widget';
 import { CondensedTitleBar } from '@commise/ui/large-title-header';
 import { useScrollHost, type ScrollBind } from '@commise/ui/scroll-host';
 import type { JSX } from 'react';
-import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import { StyleSheet, View } from 'react-native';
 
 import { HomeWidgetSurface } from '../components/home/HomeWidgetSurface.js';
@@ -63,7 +61,7 @@ export function HomeScreen({
     const greeting = useHomeGreeting(profileEntryOf(useUserProfile()).name);
     // The recent-recipes read the widget makes, read from the cache: a settled page of no recipes is Home's first run,
     // whose own start buttons take the floating button's place (§3.4).
-    const firstRun = useLibraryEmpty(recipeServiceKeys.recipeList({ pageSize: RECENT_RECIPE_LIMIT }));
+    const firstRun = useHomeFirstRun();
 
     return (
         <View style={styles.container}>

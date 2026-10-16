@@ -26,10 +26,9 @@ import {
     type RecipeWidgetSeeAll,
     type RenderRecipeNutrition,
 } from '@commise/features-recipes';
-import { RECENT_RECIPE_LIMIT, useRecentRecipesNutrition } from '@commise/features-recipes/widget';
+import { recentRecipesQuery, useRecentRecipesNutrition } from '@commise/features-recipes/widget';
 import { useLocale } from '@commise/i18n/react';
 import type { Recipe } from '@kitchensink/recipe-core';
-import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Route } from 'next';
@@ -123,7 +122,7 @@ export function RecipeWidgetSlot({ onWidgetError }: RecipeWidgetSlotProps = {}):
     };
 
     const recipesPromise = useMemo<Promise<readonly Recipe[]>>(() => {
-        const read = recipeQueries(client).list({ pageSize: RECENT_RECIPE_LIMIT });
+        const read = recentRecipesQuery(client);
 
         if (typeof window === 'undefined') {
             return Promise.resolve<readonly Recipe[]>([]);

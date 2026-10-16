@@ -29,12 +29,10 @@ import {
     type HomeWidgetSlot,
 } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_ID, RecipeCreateButton } from '@commise/features-recipes';
-import { useLibraryEmpty } from '@commise/features-recipes/hooks';
-import { LIVE_CAPABILITIES, RECENT_RECIPE_LIMIT } from '@commise/features-recipes/widget';
+import { LIVE_CAPABILITIES, useHomeFirstRun } from '@commise/features-recipes/widget';
 import { homeMessages } from '@commise/features-core/home';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { paidFeatureStateOf } from '@commise/features-account';
-import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import type { Container } from 'ditox';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
@@ -104,7 +102,7 @@ export function HomeWidgetSurface({ container = homeContainer, renderers }: Home
     const reportWidgetError = resolveErrorReporter(container);
 
     // The recent-recipes page the widget reads, from the cache: settled empty is Home's first run (§3.4).
-    const firstRun = useLibraryEmpty(recipeServiceKeys.recipeList({ pageSize: RECENT_RECIPE_LIMIT }));
+    const firstRun = useHomeFirstRun();
 
     // The v1 render map: the recipe widget is the only one with a slot. `onWidgetError` routes the slot's OWN inner
     // boundaries through this same reporting seam: they catch a throw before the per-widget boundary below ever sees

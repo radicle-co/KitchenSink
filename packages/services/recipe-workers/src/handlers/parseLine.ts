@@ -513,14 +513,19 @@ async function parseAndLand(deps: ParseLineDeps, message: ParseLineJobMessage, r
                 // all; both return absence for a deterministic per-line outcome instead. So a captured
                 // engine failure re-throws after the run.
                 //
-                // ⛔ Stated as "not a STORE tier" rather than as the pair `'crf' | 'llm'`, and that is the
+                // ⛔ Stated as "not the CACHE" rather than as the pair `'crf' | 'llm'`, and that is the
                 // point: `ParsePipelineTier` is `'corrections' | 'cache' | ParseEngine`, so a future engine
                 // is transient by construction rather than by whoever remembers to extend a literal union.
                 // The CRF was missing from exactly such a list — the handler collected `tier === 'llm'`
                 // alone, so a line parsed during a CRF outage landed the LLM's single-engine reading as its
                 // PERMANENT answer, which is ADR-0026's 2026-08-31 rule ("a CRF invocation failure" is in
                 // the transient set) read backwards.
-                if (tier !== 'corrections' && tier !== 'cache') {
+                //
+                // ⛔ CORRECTIONS ARE TRANSIENT TOO (owner ruling: correction → cache → engines). A correction
+                // is the cook's own word and outranks every engine; a line that lands over a failed
+                // corrections read makes the machine parse permanent while a correction may exist. Only the
+                // CACHE is contained: a miss costs one call, never the cook's authority.
+                if (tier !== 'cache') {
                     transientFailures.push(error);
                 }
 

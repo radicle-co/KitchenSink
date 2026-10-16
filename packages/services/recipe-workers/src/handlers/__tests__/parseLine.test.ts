@@ -581,11 +581,11 @@ describe('the transient/terminal split', () => {
         expect(landings(queries).length > 0).toBe(false);
     });
 
-    it('a STORE tier failure is NOT transient — a broken cache costs a call, never the line', async () => {
-        // `corrections` and `cache` failures degrade into a re-parse, which is the pipeline's own rule
-        // ("failing the line because the cache would not take it would cost a correct answer in order to
-        // save a future call — exactly backwards"). Collecting every tier indiscriminately would make an
-        // unreachable cache an outage.
+    it('a CACHE failure is NOT transient — a broken cache costs a call, never the line', async () => {
+        // A `cache` failure degrades into a re-parse, which is the pipeline's own rule ("failing the line
+        // because the cache would not take it would cost a correct answer in order to save a future call —
+        // exactly backwards"). Collecting every tier indiscriminately would make an unreachable cache an
+        // outage. The CORRECTIONS tier is deliberately NOT in this class: see the next case.
         const { deps, queries, pool } = build({});
 
         pool.query.mockImplementation((text: string) => {
@@ -613,6 +613,32 @@ describe('the transient/terminal split', () => {
         await processParseLine(deps, { ...message(), lineDigest: computeRealDigest() });
 
         expect(landings(queries).length > 0).toBe(true);
+    });
+
+    /**
+     * ⛔ A CORRECTIONS-tier failure IS transient (owner ruling: correction → cache → engines). A correction is
+     * a cook's own word, ranked above everything the engines say. If the read that could have found one fails
+     * and the line lands anyway, the engines' answer becomes the line's PERMANENT answer over a correction that
+     * may exist — and the cook is shown a machine parse as if they had never corrected it. A cache miss costs a
+     * call; a missed correction costs the cook's authority, so only the first is contained.
+     */
+    it('⛔ a CORRECTIONS failure is transient — it re-throws for redelivery and lands nothing', async () => {
+        const { deps, queries, pool } = build({});
+        const original = pool.query.getMockImplementation();
+
+        pool.query.mockImplementation((text: string, params: unknown[]) => {
+            if (/FROM ingredient_parse_corrections/.test(text)) {
+                return Promise.reject(new Error('corrections unreachable'));
+            }
+
+            return original?.(text, params);
+        });
+
+        await expect(processParseLine(deps, { ...message(), lineDigest: computeRealDigest() })).rejects.toThrow(
+            'corrections unreachable',
+        );
+
+        expect(landings(queries).length > 0).toBe(false);
     });
 
     it('⛔ KTD-F: the surviving engine’s answer is CACHED before the re-throw', async () => {

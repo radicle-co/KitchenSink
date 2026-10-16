@@ -248,9 +248,11 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
         }
 
         claimed.add(claim);
-        const from = session;
         const total = lines.length;
         const keepsSourceNow = keepsSource;
+
+        // The session is still the step this join was started for: the same paste, not yet past this line.
+        const stillThisStep = (current: PasteSession): boolean => `${current.jobId}:${current.done}` === claim;
 
         join.mutate(next, {
             onSuccess: (admitted, line) => {
@@ -269,7 +271,7 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
                 setPasteState((state) => {
                     const current = state.session;
 
-                    if (current?.jobId !== from.jobId || current.done !== from.done) {
+                    if (current === undefined || !stillThisStep(current)) {
                         return state;
                     }
 
@@ -291,7 +293,7 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
                 setPasteState((state) => {
                     const current = state.session;
 
-                    if (current?.jobId !== from.jobId || current.done !== from.done) {
+                    if (current === undefined || !stillThisStep(current)) {
                         return state;
                     }
 

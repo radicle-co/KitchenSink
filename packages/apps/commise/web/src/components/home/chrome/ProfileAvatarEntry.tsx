@@ -10,7 +10,7 @@
  *
  * @pattern Adapter — the profile read and the router, as the design-system Avatar's props
  */
-import { initialsFor } from '@commise/features-core';
+import { profileAvatarPropsOf } from '@commise/features-core/home';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Avatar } from '@commise/ui/avatar';
 import type { Route } from 'next';
@@ -20,21 +20,17 @@ import type { JSX } from 'react';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { webMessages } from '@/i18n/messages';
 
-import { profileEntryOf, profileLabelOf } from '@commise/features-core';
-
 /** The page header's profile entry. */
 export function ProfileAvatarEntry(): JSX.Element {
     const { home } = useMessages(webMessages);
     const locale = useLocale();
     const router = useRouter();
-    const profile = profileEntryOf(useUserProfile());
+    const profile = useUserProfile();
     const href = `/${locale}/profile`;
 
     return (
         <Avatar
-            status={profile.status}
-            initials={initialsFor(profile.name)}
-            label={profileLabelOf(home.chrome, profile.name)}
+            {...profileAvatarPropsOf(profile, home.chrome)}
             href={href}
             onPress={() => router.push(href as Route)}
         />

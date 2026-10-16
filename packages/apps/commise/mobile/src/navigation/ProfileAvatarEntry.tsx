@@ -8,7 +8,7 @@
  *
  * @pattern Adapter — the profile read, as the design-system Avatar's props
  */
-import { initialsFor, profileEntryOf, profileLabelOf } from '@commise/features-core';
+import { profileAvatarPropsOf } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import { Avatar } from '@commise/ui/avatar';
 import type { JSX } from 'react';
@@ -28,14 +28,7 @@ export interface ProfileAvatarEntryProps {
  */
 export function ProfileAvatarEntry({ onPress }: ProfileAvatarEntryProps): JSX.Element {
     const { home } = useMessages(mobileMessages);
-    const profile = profileEntryOf(useUserProfile());
+    const profile = useUserProfile();
 
-    return (
-        <Avatar
-            status={profile.status}
-            initials={initialsFor(profile.name)}
-            label={profileLabelOf(home.chrome, profile.name)}
-            onPress={onPress}
-        />
-    );
+    return <Avatar {...profileAvatarPropsOf(profile, home.chrome)} onPress={onPress} />;
 }

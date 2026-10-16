@@ -32,14 +32,15 @@ export interface DiscoveryCriteriaState {
 }
 
 /**
- * Where the shareable criteria live. The screen READS `filters` and `query` on every render (so a change that arrives
- * from outside — a URL navigation — is followed) and WRITES through `commit`.
+ * Where the shareable criteria live. The screen READS `filters` on every render (so a change that arrives from outside —
+ * a URL navigation — is followed) and WRITES through `commit`. The `query` PROP is read ONCE, to seed the typed-term
+ * echo the field runs on; afterwards the store's query reaches the screen only as the `current` an update is handed.
  *
  * `commit` must not throw and must make the next render's `filters` / `query` equal what was committed (web by writing the
  * URL, mobile by setting state). It takes the next criteria or an UPDATE of the criteria current when it runs, applied in
  * order: the screen commits updates, so two actions in one event, or a keystroke between a render and a press, compose
- * instead of the later one overwriting the earlier with a stale snapshot. The screen keeps its own immediate copy of the typed term for the field, so a store
- * that applies a write late never makes a keystroke wait.
+ * instead of the later one overwriting the earlier with a stale snapshot. The screen keeps its own immediate copy of the
+ * typed term for the field, so a store that applies a write late never makes a keystroke wait.
  */
 export interface DiscoveryCriteriaStore extends DiscoveryCriteriaState {
     readonly commit: (

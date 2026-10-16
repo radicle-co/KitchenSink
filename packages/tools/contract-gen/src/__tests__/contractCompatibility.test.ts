@@ -140,7 +140,7 @@ const MUTATIONS: readonly Mutation[] = [
     {
         what: 'an existing required property becomes optional',
         mutant: withKeyword('required', ['id']),
-        breaking: false,
+        breaking: true,
         kind: 'property-now-optional',
     },
     // ── enums ──
@@ -153,7 +153,7 @@ const MUTATIONS: readonly Mutation[] = [
     {
         what: 'an enum gains a member',
         mutant: withProperty('tag', { type: 'string', enum: ['a', 'b', 'c'] }),
-        breaking: false,
+        breaking: true,
         kind: 'enum-widened',
     },
     {
@@ -165,7 +165,7 @@ const MUTATIONS: readonly Mutation[] = [
     {
         what: 'an enum is dropped entirely',
         mutant: withProperty('tag', { type: 'string' }),
-        breaking: false,
+        breaking: true,
         kind: 'enum-removed',
     },
     // ── numeric bounds ──
@@ -178,7 +178,7 @@ const MUTATIONS: readonly Mutation[] = [
     {
         what: 'a minimum is lowered',
         mutant: withProperty('size', { type: 'number', minimum: -5, maximum: 10 }),
-        breaking: false,
+        breaking: true,
         kind: 'bound-loosened',
     },
     {
@@ -190,7 +190,7 @@ const MUTATIONS: readonly Mutation[] = [
     {
         what: 'a maximum is raised',
         mutant: withProperty('size', { type: 'number', minimum: 0, maximum: 99 }),
-        breaking: false,
+        breaking: true,
         kind: 'bound-loosened',
     },
     {
@@ -215,13 +215,13 @@ const MUTATIONS: readonly Mutation[] = [
     {
         what: 'a maxLength is raised',
         mutant: withProperty('id', { type: 'string', minLength: 1, maxLength: 64 }),
-        breaking: false,
+        breaking: true,
         kind: 'bound-loosened',
     },
     {
         what: 'a maxLength is removed',
         mutant: withProperty('id', { type: 'string', minLength: 1 }),
-        breaking: false,
+        breaking: true,
         kind: 'bound-loosened',
     },
     {
@@ -246,7 +246,7 @@ const MUTATIONS: readonly Mutation[] = [
     {
         what: 'a closed object opens',
         mutant: { ...(BASE as Record<string, JsonValue>), additionalProperties: true },
-        breaking: false,
+        breaking: true,
         kind: 'additional-properties-opened',
     },
     // ── opaque constraints ──
@@ -370,14 +370,14 @@ describe('classifyContractChanges — nesting', () => {
         expect(summarize(changes)).toStrictEqual(['bound-tightened@widget/properties/outer/properties/inner']);
     });
 
-    it('treats a union losing a member as breaking and gaining one as safe', () => {
+    it('treats a union losing a member and gaining one as breaking, one direction each', () => {
         const lost = classify({ anyOf: [{ type: 'string' }, { type: 'null' }] }, { anyOf: [{ type: 'string' }] });
         const gained = classify({ anyOf: [{ type: 'string' }] }, { anyOf: [{ type: 'string' }, { type: 'null' }] });
 
         expect(summarize(lost)).toStrictEqual(['union-member-removed@widget/anyOf']);
         expect(hasBreakingChange(lost)).toBe(true);
         expect(summarize(gained)).toStrictEqual(['union-member-added@widget/anyOf']);
-        expect(hasBreakingChange(gained)).toBe(false);
+        expect(hasBreakingChange(gained)).toBe(true);
     });
 
     it('recurses into a union member that CHANGED rather than reporting a removal and an addition', () => {
@@ -460,10 +460,10 @@ describe('classifyContractChanges — const, which is an enum of one', () => {
     // zod emits `const` for a single literal and `enum` for a union of them, so a union GAINING its second
     // member changes the KEYWORD. Comparing the two keywords independently would report that safe widening as
     // a break — a false positive on the single most common additive change a contract makes.
-    it('treats a const widening into an enum that contains it as non-breaking', () => {
+    it('treats a const widening into an enum that contains it as breaking, because a reader relied on the one value', () => {
         const changes = classify({ const: 'a' }, { enum: ['a', 'b'] });
 
-        expect(hasBreakingChange(changes)).toBe(false);
+        expect(hasBreakingChange(changes)).toBe(true);
         expect(summarize(changes)).toStrictEqual(['enum-widened@widget']);
     });
 
@@ -487,11 +487,11 @@ describe('classifyContractChanges — type sets', () => {
         expect(hasBreakingChange(changes)).toBe(true);
     });
 
-    it('treats a type set gaining a member as widening', () => {
+    it('treats a type set gaining a member as widening, which breaks a reader of the narrower type', () => {
         const changes = classify({ type: 'string' }, { type: ['string', 'null'] });
 
         expect(summarize(changes)).toStrictEqual(['type-widened@widget']);
-        expect(hasBreakingChange(changes)).toBe(false);
+        expect(hasBreakingChange(changes)).toBe(true);
     });
 
     it('treats a type appearing where there was none as narrowing', () => {
@@ -499,7 +499,7 @@ describe('classifyContractChanges — type sets', () => {
     });
 
     it('treats a type disappearing as widening', () => {
-        expect(hasBreakingChange(classify({ type: 'string' }, {}))).toBe(false);
+        expect(hasBreakingChange(classify({ type: 'string' }, {}))).toBe(true);
     });
 });
 
@@ -523,9 +523,9 @@ describe('classifyContractChanges — additionalProperties', () => {
         expect(summarize(changes)).toStrictEqual(['additional-properties-closed@widget/additionalProperties']);
     });
 
-    it('treats a closed object opening as non-breaking', () => {
+    it('treats a closed object opening as breaking', () => {
         expect(hasBreakingChange(classify({ type: 'object', additionalProperties: false }, { type: 'object' }))).toBe(
-            false,
+            true,
         );
     });
 });
@@ -535,8 +535,8 @@ describe('classifyContractChanges — boolean schemas', () => {
         expect(hasBreakingChange(classify(true, false))).toBe(true);
     });
 
-    it('treats `false` becoming a real schema as non-breaking, since nothing validated before', () => {
-        expect(hasBreakingChange(classify(false, { type: 'string' }))).toBe(false);
+    it('treats `false` becoming a real schema as breaking, since it widens what is accepted', () => {
+        expect(hasBreakingChange(classify(false, { type: 'string' }))).toBe(true);
     });
 
     it('treats `true` becoming a real schema as breaking, since anything validated before', () => {
@@ -574,6 +574,49 @@ describe('classifyContractChanges — FAIL CLOSED on a keyword it does not model
         const same: JsonValue = { type: 'object', dependentRequired: { a: ['b'] } };
 
         expect(classify(same, same)).toStrictEqual([]);
+    });
+});
+
+describe('classifyContractChanges — direction', () => {
+    const loosening = { previous: { type: 'string', maxLength: 5 }, next: { type: 'string', maxLength: 9 } } as const;
+    const tightening = { previous: { type: 'string', maxLength: 9 }, next: { type: 'string', maxLength: 5 } } as const;
+    const verdict = (
+        pair: { readonly previous: JsonValue; readonly next: JsonValue },
+        directions?: Readonly<Record<string, 'request' | 'response'>>,
+    ): boolean =>
+        hasBreakingChange(
+            classifyContractChanges(documentOf(pair.previous), documentOf(pair.next), directions ? { directions } : {}),
+        );
+
+    // ⛔ One fingerprint holds requests AND responses, so an untagged schema answers for both readings: a loosening
+    // breaks a client that relied on the tighter type, a tightening breaks a client that sent the wider one.
+    it.each([
+        ['a loosening', loosening],
+        ['a tightening', tightening],
+    ] as const)('an UNTAGGED schema reports %s as breaking', (_name, pair) => {
+        expect(verdict(pair)).toBe(true);
+    });
+
+    it('a request-only schema is safe to loosen and unsafe to tighten', () => {
+        expect(verdict(loosening, { widget: 'request' })).toBe(false);
+        expect(verdict(tightening, { widget: 'request' })).toBe(true);
+    });
+
+    it('a response-only schema is safe to tighten and unsafe to loosen', () => {
+        expect(verdict(tightening, { widget: 'response' })).toBe(false);
+        expect(verdict(loosening, { widget: 'response' })).toBe(true);
+    });
+
+    it('a tag on ANOTHER schema changes nothing for this one', () => {
+        expect(verdict(loosening, { gadget: 'request' })).toBe(true);
+    });
+
+    it('a removed property stays breaking under either tag, since a reader or a sender may have used it', () => {
+        const before = { type: 'object', properties: { a: { type: 'string' } } } as const;
+        const after = { type: 'object', properties: {} } as const;
+
+        expect(verdict({ previous: before, next: after }, { widget: 'request' })).toBe(true);
+        expect(verdict({ previous: before, next: after }, { widget: 'response' })).toBe(true);
     });
 });
 

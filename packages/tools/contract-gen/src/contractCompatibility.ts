@@ -31,10 +31,12 @@
  * ── DIRECTION, AND WHY IT IS DELIBERATELY CONSERVATIVE ──
  *
  * One fingerprint holds both REQUEST and RESPONSE shapes, and nothing in JSON Schema says which is which. A
- * change that is safe for a response producer (a new required field) is a break for a request producer, so the
- * classifier answers for BOTH readings and reports the union: anything that could break either party is
- * breaking. The alternative — guessing the direction from an export's name — would be a gate whose correctness
- * depended on a naming convention.
+ * change that is safe for a response producer (a new required field) is a break for a request producer, and the
+ * reverse holds for a widened type: a client that relied on the tighter response type breaks. So an UNTAGGED
+ * schema is read for BOTH parties and anything that could break either one is breaking, tightenings AND
+ * loosenings. A caller that knows a schema is one-sided says so through `options.directions` (schema name →
+ * `request` | `response`): loosening a request, or tightening a response, is then safe. The alternative — guessing
+ * the direction from an export's name — would be a gate whose correctness depended on a naming convention.
  *
  * DESIGN PATTERN: Functional Core. Every export is a pure function; there is no I/O in this module.
  */
@@ -1222,6 +1224,68 @@ function reportUnmodelledKeywords(previous: JsonObject, next: JsonObject, path: 
     }
 }
 
+/** Which party a schema is for, when it is one-sided. An untagged schema is read for BOTH parties. */
+export type ContractDirection = 'request' | 'response';
+
+/** Options for {@link classifyContractChanges}. */
+export interface ClassifyOptions {
+    /** Exported schema name → the one party it is for. Absent means the schema is read by both. */
+    readonly directions?: Readonly<Record<string, ContractDirection>>;
+}
+
+/** Kinds that WIDEN what a schema accepts: a reader that relied on the tighter type breaks. */
+const LOOSENING_KINDS: ReadonlySet<ContractChangeKind> = new Set<ContractChangeKind>([
+    'additional-properties-opened',
+    'allof-member-removed',
+    'bound-loosened',
+    'constraint-removed',
+    'enum-removed',
+    'enum-widened',
+    'property-now-optional',
+    'required-removed',
+    'schema-widened',
+    'type-widened',
+    'union-member-added',
+]);
+
+/** Kinds that NARROW what a schema accepts: a sender of the wider shape breaks. */
+const TIGHTENING_KINDS: ReadonlySet<ContractChangeKind> = new Set<ContractChangeKind>([
+    'additional-properties-closed',
+    'allof-member-added',
+    'bound-tightened',
+    'constraint-added',
+    'enum-narrowed',
+    'property-added-required',
+    'property-now-required',
+    'required-added',
+    'schema-narrowed',
+    'type-narrowed',
+    'union-member-removed',
+]);
+
+/**
+ * Whether one finding breaks the party the schema is for.
+ *
+ * A loosening breaks a client that relied on the tighter type, and a tightening breaks a client that sent the wider
+ * one, so an untagged schema breaks on both. A `request` schema is only ever SENT by clients, so loosening it is safe;
+ * a `response` schema is only ever READ, so tightening it is safe. Every other kind keeps the verdict it was given.
+ *
+ * @param change - The finding.
+ * @param direction - The one party the schema is for, or `undefined` for both.
+ * @returns Whether the finding is breaking. Pure.
+ */
+function directedBreaking(change: ContractChange, direction: ContractDirection | undefined): boolean {
+    if (LOOSENING_KINDS.has(change.kind)) {
+        return direction !== 'request';
+    }
+
+    if (TIGHTENING_KINDS.has(change.kind)) {
+        return direction !== 'response';
+    }
+
+    return change.breaking;
+}
+
 /**
  * Classify every difference between two published contract fingerprints.
  *
@@ -1230,9 +1294,14 @@ function reportUnmodelledKeywords(previous: JsonObject, next: JsonObject, path: 
  *
  * @param previous - The fingerprint that is published today.
  * @param next - The fingerprint the generator just produced.
+ * @param options - Which exported schemas are one-sided.
  * @returns Every classified difference. Pure.
  */
-export function classifyContractChanges(previous: ContractDocument, next: ContractDocument): readonly ContractChange[] {
+export function classifyContractChanges(
+    previous: ContractDocument,
+    next: ContractDocument,
+    options: ClassifyOptions = {},
+): readonly ContractChange[] {
     const sink: Sink = [];
     const names = [...new Set([...Object.keys(previous.schemas), ...Object.keys(next.schemas)])].sort();
 
@@ -1262,7 +1331,13 @@ export function classifyContractChanges(previous: ContractDocument, next: Contra
             continue;
         }
 
-        compareNode(before as JsonValue, after as JsonValue, name, sink);
+        const found: Sink = [];
+
+        compareNode(before as JsonValue, after as JsonValue, name, found);
+
+        for (const change of found) {
+            record(sink, { ...change, breaking: directedBreaking(change, options.directions?.[name]) });
+        }
     }
 
     return sink;

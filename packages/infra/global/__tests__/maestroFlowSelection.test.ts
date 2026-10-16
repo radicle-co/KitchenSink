@@ -248,6 +248,12 @@ function visualBaselinesExist(): boolean {
  *     vertical when promoted.
  */
 const KNOWN_UNRUN_FLOWS: readonly string[] = [
+    // The two flows of the field reveal (`specSharedSystem.md` §16.2, §16.3): written with the slice and NOT run, because
+    // the keyboard rising, the pinned footer and the title landing mid-screen are device behaviour that only an emulator
+    // run can prove (this slice was built without a device). Promote both to FLOW_PLAN in the PR whose
+    // Maestro tier is watched, once an emulator run has passed them.
+    'auth/keyboardReveal',
+    'recipes/refusedPublishField',
     // A paste the server reads as stalled (plan 2026-10-15-011): only a stage whose parse worker is STOPPED says so,
     // after 360 s of nothing moving, and every planned run drives a deployed stage whose worker answers first. Hand-run on
     // a local stage without `recipe-workers`; there is no planned stage it could pass on.

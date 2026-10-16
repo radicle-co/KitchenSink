@@ -550,13 +550,20 @@ honoured on Android only. So a field's error reaches a screen reader as its `acc
   `automaticallyAdjustKeyboardInsets`, and that path compares against the keyboard top, not a pinned bar
   (`RCTScrollViewComponentView.mm`, `_keyboardWillChangeFrame`). With `KeyboardAvoider`'s padding nothing scrolls,
   so a field can sit under the keyboard or the pinned bar (SC 2.4.11).
-- **The rule.** `RevealRequest.kind` gains `'focus'`. `Input.native`, `TextArea.native` and `Combobox.native` ask for
-  it on focus and release it on blur, with `below: 0` and `above: 0`. The host treats it exactly as an `arrival`:
-  the smallest scroll that shows the field, checked on arrival and again each time the visible area changes height
-  (the keyboard rising after focus), and at most once. No blank space is ever laid out. A `Combobox` whose list opens
-  still sends its `list` request, which wins while it is armed. ⛔ A `focus` request never replaces a pending
-  `arrival`: the host keeps one arrival slot, and the arrival (a row that just landed above the field,
-  `ingredientArrival.md`) already shows the field. A focus that comes while an arrival is pending is dropped.
+- **The rule.** `RevealRequest` becomes a discriminated union on `kind` (`list`, `arrival`, `focus`, `target`), each
+  member carrying only what it needs: a `list` has `below`, an `arrival` has `above`, a `focus` has neither. Making
+  the shape a union, rather than adding a fourth `kind` to an interface whose `below` and `above` mean nothing for it,
+  turns a request that carries a field it cannot use into a compile error. `Input.native`, `TextArea.native` and
+  `Combobox.native` send a `focus` request on focus and release it on blur. The host shows the field by the smallest
+  scroll (`spanTarget`), checked when the request arrives, and lays no blank space out.
+  **A focus stays armed until the field blurs**, and re-checks each time the visible area gets SHORTER: the keyboard
+  rises, and then the pinned footer settles, and the field must end inside the last of those. It never re-checks when
+  the area gets taller or the content resizes, so the cook's own scrolling is not undone. (The earlier text, "at most
+  once", would have shown the field above the keyboard and then lost it behind the footer.) A `Combobox` whose list
+  opens still sends its `list` request: while a list is armed or open the host skips the focus check, and checks it
+  once the list closes. ⛔ A `focus` request never replaces a pending `arrival`: the host keeps one slot for both, and
+  the arrival (a row that just landed above the field, `ingredientArrival.md`) already shows the field. A focus that
+  comes while an arrival is pending is dropped, and an arrival replaces a focus the host held.
 - A screen with no host keeps the default `revealNothing` (Null Object), so nothing changes there. Hosts:
   `RecipeEditorView.native.tsx` (already) and `AuthScreenFrame` (new, `buildSpec.md` §8.1). Because the visible area
   is the scroller's own height, which ends at a pinned bar or the keyboard top, the bar is never counted twice.
@@ -566,16 +573,24 @@ honoured on Android only. So a field's error reaches a screen reader as its `acc
 
 - **The defect.** `ScrollHost.native.tsx:154` answers `scrollToField` with `false`, because the host holds no field
   registry. The editor then scrolls to the section and moves no screen-reader focus.
-- **The rule.** `scrollToField(id)` on native publishes a target `{ id, n }` (`n` counts the requests) through the
-  `ScrollHost` context and answers `true`. It also clears the host's `pendingJump` and `held`, so a section jump
-  the caller issued just before it (`useEditorPage.finish` keeps that order for web's hash) cannot land after the
-  field. A new hook, `useFieldTarget(id): number`, gives a field the count of
-  requests that named it. When it advances, `Input.native`, `TextArea.native` and `Combobox.native`:
+- **The rule.** `scrollToField(id)` on native counts the naming per id and answers `true`. The counts travel in a
+  sibling context, `FieldTargetContext`, that `ScrollHost.native` provides beside `ScrollHostContext`, not as a member
+  of `ScrollHostApi`: the counts change when a field is named, and the screen's chrome that reads the API must not
+  re-render for it. `ScrollHostApi` keeps its shape and changes only the docstring and the answer of
+  `scrollToField`. A new hook, `useFieldTarget(id): number`, gives a field the count of requests that named it;
+  it is internal to the package, and a field that mounts under a standing count is inert (only a later increase
+  moves it). **A named field's scroll replaces the section jump's.** `scrollToField` clears the host's `held` and its
+  `pendingJump`, so a section jump the caller issued just before it (`useEditorPage.finish` keeps that order for
+  web's hash) neither stays current nor lands after the field, and the field's own scroll is the last one. When the
+  count advances, `Input.native`, `TextArea.native` and `Combobox.native`:
     1. ask their host for a `'target'` reveal: the field's centre at the centre of the visible area, or its top 16 dp
        below the area's top when it is taller than the area. Animated, instant under reduced motion
-       (`useReduceMotion`). Same rule as web's `scrollToField` (`props.ts:84`).
-    2. then move the **screen-reader** cursor onto their own node with `moveScreenReaderFocus`, after the scroll. The
-       keyboard is not raised (`buildSpec.md` §7.8 gives the reason and the flip condition).
+       (`useReduceMotion`). Same rule as web's `scrollToField` (`props.ts:84`). The host calls the request's
+       `onShown` after the scroll, whether or not anything moved. A screen with no host (`revealNothing`, which
+       a `Modal` provides) calls it at once, so the cursor still moves.
+    2. in `onShown`, move the **screen-reader** cursor onto their own node with `moveScreenReaderFocus`. The
+       keyboard is not raised (`buildSpec.md` §7.8 gives the reason and the flip condition), and a `Combobox`'s list
+       stays shut, because moving that cursor raises no `onFocus`.
 - The host holds no node refs. Each field already holds its own node (`Input.native.tsx:50`, for `focus()`), so the
   ref exception is the one these primitives already take. `ScrollHostApi.scrollToField`'s docstring changes from
   "Native … always answers `false`" to "Native answers `true` and the field reveals itself". Its contract stays one

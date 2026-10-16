@@ -1,0 +1,31 @@
+appId: io.commise.mobile
+---
+# A refused Publish takes the cook to the field it refused (build spec §7.8; `specSharedSystem.md` §16.3), on a phone.
+# Native mirror of the web Playwright test in `recipeEditor.spec.ts`.
+#
+# The recipe has a cuisine, an ingredient and a step, and NO title, so Publish is refused for exactly one thing. The
+# page is long enough that the title is not where the cook is looking: the cook is in Photos & publish, at the bottom.
+# The refusal scrolls the title to the middle of the screen and moves the screen-reader cursor to it, with the keyboard
+# left down (the cook has not chosen to type).
+#
+# ⚠️ Written, NOT run. The scroll and the cursor are device behaviour: this flow asserts what is visible, and the
+# screen-reader cursor is a device check (TalkBack and VoiceOver), recorded in the slice report.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+
+# Cuisine is required to publish (2026-10-13).
+- runFlow: common/chooseCuisine.yaml
+- runFlow: common/addTomatoAndStep.yaml
+
+# The ingredient and step flows leave the cook near the bottom; Publish is the pinned primary.
+- tapOn: 'Publish'
+
+# The title field is on screen again, and the action bar still says what is wrong.
+- extendedWaitUntil:
+      visible: 'Title'
+      timeout: 20000
+- assertVisible: 'Title'
+- assertVisible: 'Fix 1 thing to publish'

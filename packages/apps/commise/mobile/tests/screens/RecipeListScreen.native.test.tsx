@@ -70,7 +70,7 @@ beforeEach(() => {
 
 describe('RecipeListScreen — while the library loads', () => {
     it('keeps the heading and search field on screen, and shows the loading region under them', () => {
-        render(<RecipeListScreen onSelectRecipe={noop} />);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
 
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
         expect(screen.getByLabelText('Search your recipes')).toBeTruthy();
@@ -79,7 +79,7 @@ describe('RecipeListScreen — while the library loads', () => {
     });
 
     it('mounts NO create control while the library is loading, so none can vanish as it settles', () => {
-        render(<RecipeListScreen onSelectRecipe={noop} />);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
 
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
         expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
@@ -97,7 +97,7 @@ describe('RecipeListScreen — a failed load', () => {
             .mockRejectedValueOnce(new Error('network down'))
             .mockResolvedValue(makeRecipePage([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]));
 
-        render(<RecipeListScreen onSelectRecipe={noop} />);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
 
         expect(await screen.findByRole('alert')).toBeTruthy();
         await act(async () => {
@@ -130,7 +130,7 @@ describe('RecipeListScreen — a failed load', () => {
                 ]),
             );
 
-        render(<RecipeListScreen onSelectRecipe={noop} />);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
         await screen.findByRole('alert');
         fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'taco' } });
 
@@ -152,7 +152,7 @@ describe('RecipeListScreen — a failed refresh of the rows on screen', () => {
             .mockRejectedValueOnce(new Error('network down'))
             .mockResolvedValue(makeRecipePage([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]));
 
-        render(<RecipeListScreen onSelectRecipe={noop} />);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
         await act(async () => {
             await queryClient.refetchQueries({
                 queryKey: recipeQueries(client).library({ sortBy: 'updatedAt' }).queryKey,
@@ -177,7 +177,7 @@ describe('RecipeListScreen — a failed refresh of the rows on screen', () => {
             .mockRejectedValueOnce(new Error('network down'))
             .mockResolvedValue(makeRecipePage([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]));
 
-        render(<RecipeListScreen onSelectRecipe={noop} />);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
         await act(async () => {
             await queryClient.refetchQueries({
                 queryKey: recipeQueries(client).library({ sortBy: 'updatedAt' }).queryKey,
@@ -222,7 +222,7 @@ describe('RecipeListScreen — a populated library', () => {
     });
 
     it('renders a pluralized count and one row per recipe', () => {
-        render(<RecipeListScreen onSelectRecipe={noop} />);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
 
         expect(screen.getByText('2 recipes')).toBeTruthy();
         expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toBeTruthy();
@@ -232,14 +232,14 @@ describe('RecipeListScreen — a populated library', () => {
     it('forwards the selected recipe id upward', () => {
         const onSelectRecipe = vi.fn();
 
-        render(<RecipeListScreen onSelectRecipe={onSelectRecipe} />);
+        render(<RecipeListScreen onSelectRecipe={onSelectRecipe} onCreateRecipe={noop} />);
         fireEvent.click(screen.getByRole('link', { name: 'Fish Tacos' }));
 
         expect(onSelectRecipe).toHaveBeenCalledWith('rec_2');
     });
 
     it('filters the loaded recipes by title as the search value changes', () => {
-        render(<RecipeListScreen onSelectRecipe={noop} />);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
         fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'taco' } });
 
         expect(screen.getByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
@@ -248,7 +248,7 @@ describe('RecipeListScreen — a populated library', () => {
     });
 
     it('says NO MATCH — not first-run copy — when the search filters every row out, and keeps the dial', () => {
-        render(<RecipeListScreen onSelectRecipe={noop} />);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
         fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'zzz' } });
 
         expect(screen.getByText('No recipes match')).toBeTruthy();
@@ -264,7 +264,7 @@ describe('RecipeListScreen — quick-filter chips (L4)', () => {
             makeRecipe({ id: 'rec_2', title: 'Sunday Roast', dietaryFlags: [], cuisine: 'British' }),
         ]);
 
-        render(<RecipeListScreen onSelectRecipe={noop} />);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
         fireEvent.click(screen.getByText('Vegetarian'));
 
         expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toBeTruthy();
@@ -279,7 +279,7 @@ describe('RecipeListScreen — quick-filter chips (L4)', () => {
             makeRecipe({ id: 'rec_2', title: 'Sunday Roast', dietaryFlags: [], cuisine: 'Italian' }),
         ]);
 
-        render(<RecipeListScreen onSelectRecipe={noop} />);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
         fireEvent.click(screen.getByText('Vegetarian'));
         fireEvent.click(screen.getByText('Italian'));
 
@@ -293,7 +293,7 @@ describe('RecipeListScreen — quick-filter chips (L4)', () => {
             makeRecipe({ id: 'rec_2', title: "Grandma's Pasta", totalTimeMinutes: 45 }),
         ]);
 
-        render(<RecipeListScreen onSelectRecipe={noop} />);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
 
         expect(screen.queryByText('quick')).toBeNull();
         fireEvent.click(screen.getByText('Under 30 min'));
@@ -305,7 +305,7 @@ describe('RecipeListScreen — quick-filter chips (L4)', () => {
     it('omits the "Under 30 min" chip when no loaded recipe qualifies (other facets still render)', () => {
         seedLibrary([makeRecipe({ id: 'rec_1', title: "Grandma's Pasta", totalTimeMinutes: 45, cuisine: 'Italian' })]);
 
-        render(<RecipeListScreen onSelectRecipe={noop} />);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
 
         const chips = screen.getByLabelText('Quick filters');
         expect(within(chips).getByText('Italian')).toBeTruthy();
@@ -322,7 +322,7 @@ describe('RecipeListScreen — the whole library (A11)', () => {
             makeRecipe({ id: 'rec_late', title: 'Ceviche', cuisine: 'Peruvian' }),
         ]);
 
-        render(<RecipeListScreen onSelectRecipe={noop} />);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
 
         expect(screen.getByText('121 recipes')).toBeTruthy();
         expect(screen.getByRole('checkbox', { name: 'Peruvian 1' })).toBeTruthy();

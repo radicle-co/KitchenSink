@@ -45,7 +45,7 @@ describe('RecipeListScreen (live seam) — a successful load with zero recipes',
     it('reaches the empty state, with the loading branch FLIPPED', async () => {
         const client = clientOver(answeringFetch(makeRecipePage([])));
 
-        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} />, client);
+        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />, client);
 
         expect(await screen.findByText('Your recipe box is empty')).toBeTruthy();
         // Not merely "the empty copy appeared": the skeleton region must be GONE.
@@ -55,7 +55,7 @@ describe('RecipeListScreen (live seam) — a successful load with zero recipes',
     it('offers the first-run create CTA (the FAB is suppressed on empty)', async () => {
         const client = clientOver(answeringFetch(makeRecipePage([])));
 
-        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} />, client);
+        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />, client);
 
         expect(await screen.findByRole('button', { name: 'Add your first recipe' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
@@ -66,7 +66,7 @@ describe('RecipeListScreen (live seam) — a HUNG request', () => {
     it('settles on the error state with a retry, never a permanent skeleton', async () => {
         const client = clientOver(hangingFetch());
 
-        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} />, client);
+        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />, client);
 
         expect(await screen.findByRole('alert')).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
@@ -82,7 +82,7 @@ describe('RecipeListScreen (live seam) — a populated load', () => {
         ]);
         const client = clientOver(answeringFetch(page));
 
-        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} />, client);
+        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />, client);
 
         expect(await screen.findByRole('link', { name: 'Weeknight Pasta' })).toBeTruthy();
         expect(screen.getByRole('link', { name: 'Fish Tacos' })).toBeTruthy();

@@ -211,7 +211,7 @@ function settledSearch(...pages: readonly (readonly string[])[]) {
 
 /** The four wired mobile surfaces, each rendered the way its navigator renders it. */
 const SCREENS: readonly (readonly [string, () => ReactElement])[] = [
-    ['RecipeListScreen', () => withQueryClient(<RecipeListScreen onSelectRecipe={noop} />)],
+    ['RecipeListScreen', () => withQueryClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />)],
     // A preset filter puts discovery in RESULT-LIST mode (with no query or filter it browses).
     [
         'RecipeDiscoveryScreen',
@@ -299,7 +299,7 @@ describe('which ids each screen batches', () => {
         );
 
         await act(async () => {
-            render(withQueryClient(<RecipeListScreen onSelectRecipe={noop} />));
+            render(withQueryClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />));
         });
         expect(useNutritionMock).toHaveBeenCalledWith([[RECIPE_ID, OTHER_ID]]);
 

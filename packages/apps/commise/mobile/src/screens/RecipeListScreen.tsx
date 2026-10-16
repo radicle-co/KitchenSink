@@ -51,13 +51,13 @@ import { useStoredViewMode } from '../hooks/useStoredViewMode.js';
 export interface RecipeListScreenProps {
     /** Invoked with the recipe id when a row is activated (the composing screen navigates to detail). */
     readonly onSelectRecipe: (id: string) => void;
-    /** Invoked when the create-recipe action is activated. */
-    readonly onCreateRecipe?: () => void;
+    /** Invoked when the create-recipe action is activated. Required, as on web: an optional handler leaves a dead button. */
+    readonly onCreateRecipe: () => void;
     /**
      * The first run's Paste ingredients: the new editor at Ingredients with its paste sheet open (build spec §7.5.4).
      *
-     * ⛔ Forwarded UNDEFAULTED, unlike `onCreateRecipe`'s `?? noop`: the first run removes the button when this is
-     * absent, and defaulting it to a no-op would render a button that silently does nothing instead.
+     * ⛔ Forwarded UNDEFAULTED: the first run removes the button when this is absent, and defaulting it to a no-op
+     * would render a button that silently does nothing instead.
      */
     readonly onPasteIngredients?: () => void;
     /** The My recipes · Collections segments, when the host shows them on this screen. */
@@ -68,8 +68,6 @@ export interface RecipeListScreenProps {
     readonly scrollBind?: ScrollBind;
 }
 
-const noop = (): void => undefined;
-
 /**
  * The recipe-list screen.
  *
@@ -78,7 +76,7 @@ const noop = (): void => undefined;
  */
 export function RecipeListScreen({
     onSelectRecipe,
-    onCreateRecipe = noop,
+    onCreateRecipe,
     onPasteIngredients,
     segments,
     headerAction,

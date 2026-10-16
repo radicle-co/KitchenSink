@@ -317,7 +317,7 @@ export { PullUpdatesDialog } from './collections/PullUpdatesDialog.js';
 export { collectionMessages } from './collections/messages.js';
 export { COLLECTION_SEARCH_FROM, formatCollectionDate, narrowCollections } from './collections/model.js';
 export { doneSummaryOf, narrowByTitle } from './collections/pickerModel.js';
-export { canUndoVisibilityChange, visibilityChangeNeedsPremium } from './collections/visibilityUndo.js';
+export { canUndoVisibilityChange } from './collections/visibilityUndo.js';
 export { MEMBER_WINDOW_SIZE } from './collections/detailModel.js';
 export type { CollectionMessages, PullUpdatesDialogMessages } from './collections/messages.js';
 export type {

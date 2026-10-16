@@ -297,7 +297,16 @@ export async function drain<A = unknown>(
         let deferMs: number | undefined;
 
         for (let attempt = 1; attempt <= MAX_TRANSIENT_ATTEMPTS; attempt += 1) {
-            result = await send({ ...queued, payload });
+            try {
+                result = await send({ ...queued, payload });
+            } catch {
+                // ⛔ A THROWING SENDER BREAKS ITS CONTRACT, AND THE REQUEST MAY HAVE LEFT: an unknown outcome, so the
+                // record parks with no status (re-sent only if it is a delete — `resendsWhenParked`) and the cook is
+                // told. Rejecting here would leave it `sending` with no settlement event, and the rest of the queue unsent.
+                result = { outcome: 'failed' };
+
+                break;
+            }
 
             if (result.outcome === 'ok' || classifyFailure({ ...queued, ...statusOf(result.status) }) !== 'transient') {
                 break;

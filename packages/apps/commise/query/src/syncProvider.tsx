@@ -144,7 +144,13 @@ function createSettlementBus(): SettlementBus {
         },
         publish: (event) => {
             for (const listener of [...listeners]) {
-                listener(event);
+                // ⛔ ONE LISTENER'S BUG MUST NOT REACH THE DRAIN OR THE OTHER LISTENERS: a throw here would reject the
+                // pass mid-queue (the rest unsent) and hide this settlement from every subscriber behind it.
+                try {
+                    listener(event);
+                } catch {
+                    // Isolated by design; the listener's owner has no channel back to this bus.
+                }
             }
         },
     };

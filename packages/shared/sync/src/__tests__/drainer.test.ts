@@ -21,6 +21,7 @@ import {
     drain,
     resendsWhenParked,
     type DrainJournal,
+    type SettlementEvent,
     type SendResult,
     type Sender,
 } from '../drainer.js';
@@ -512,6 +513,46 @@ describe('drain — the journal', () => {
         await drain(log, sender, { ...noSleep, journal });
 
         expect(events).toStrictEqual(['sending:1', 'send:1', 'synced:1', 'sending:2', 'send:2', 'parked:2']);
+    });
+});
+
+/**
+ * ⛔ A SENDER THAT THROWS IS AN UNKNOWN OUTCOME, AND THE COOK IS TOLD. The sender never throws by contract, but if it does
+ * the request may have left, so the record parks with no status (never re-sent blindly — ADR-0057) and the settlement is
+ * published; left `sending`, the editor's lane would wait for an event that never came.
+ */
+describe('drain — a sender that throws', () => {
+    it('⛔ parks the record with no status, reports it, and does not abort the rest of the queue', async () => {
+        const settled: { readonly seq: number; readonly outcome: string }[] = [];
+        const journal: DrainJournal = {
+            claim: async () => true,
+            settle: async (settlement) => {
+                settled.push({ seq: settlement.seq, outcome: settlement.outcome });
+            },
+        };
+        const events: SettlementEvent[] = [];
+        const sender: Sender = vi.fn(async (record): Promise<SendResult> => {
+            if (record.localId === 'r1') {
+                throw new Error('storage exploded');
+            }
+
+            return { outcome: 'ok', serverId: 's2' };
+        });
+        const log = appendIntent(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: 'r1' })),
+            intent({ entity: 'recipe', intentKind: 'create', localId: 'r2' }),
+        );
+
+        const report = await drain(log, sender, { ...noSleep, journal, onSettled: (event) => events.push(event) });
+
+        expect(settled).toStrictEqual([
+            { seq: 1, outcome: 'parked' },
+            { seq: 2, outcome: 'synced' },
+        ]);
+        expect(events.map((event) => `${String(event.seq)}:${event.outcome}`)).toStrictEqual(['1:parked', '2:synced']);
+        expect(report.failed).toHaveLength(1);
+        expect(report.log.records.find((record) => record.seq === 1)?.state).toBe('parked');
+        expect(sender).toHaveBeenCalledTimes(2);
     });
 });
 

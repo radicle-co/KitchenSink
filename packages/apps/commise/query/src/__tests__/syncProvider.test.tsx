@@ -737,6 +737,30 @@ describe('SyncProvider — the editor`s exclusive submit, replies and withdrawal
         expect(heard).toHaveLength(1);
     });
 
+    it('⛔ a subscriber that throws neither aborts the drain nor hides the settlement from the others', async () => {
+        const send = vi.fn(async (): Promise<SendResult> => ({ outcome: 'ok', serverId: 'r1' }));
+        const { current, Capture } = captureQueue();
+        const heard: unknown[] = [];
+
+        render(
+            <SyncProvider subject="user_a" send={send as never}>
+                <Capture />
+            </SyncProvider>,
+        );
+
+        current().subscribe(() => {
+            throw new Error('listener bug');
+        });
+        current().subscribe((event) => heard.push(event));
+
+        await act(async () => {
+            await current().submitExclusive(updateOf('r1'));
+            await current().submitExclusive(updateOf('r2'));
+        });
+        await waitFor(() => expect(heard).toHaveLength(2));
+        expect(send).toHaveBeenCalledTimes(2);
+    });
+
     it('a parked write carries its sequence number, blocks the lane, and leaves when withdrawn', async () => {
         const send = vi.fn(async (): Promise<SendResult> => ({ outcome: 'failed', status: 409 }));
         const { current, Capture } = captureQueue();

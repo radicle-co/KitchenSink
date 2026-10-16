@@ -3,12 +3,12 @@
     "info": {
         "title": "KitchenSink Identity API",
         "version": "1.0.0",
-        "description": "\u26d4 SUPERSEDED \u2014 HAND-WRITTEN, VERIFIED BY NOTHING. NOT THE CONTRACT AUTHORITY.\n\nPer GR-015 / CODING_STANDARDS \u00a715 / ADR-0014 the identity service AUTHORS its wire contract as zod in packages/services/identity/src/**/*.schema.ts, and the normative document is the openapi.yaml DERIVED into packages/schemas/identity (@kitchensink/schema-identity), which `npm run contract:verify` regenerates and diffs. This file is hand-maintained and nothing verifies it against the running service. Where this file and the service's *.schema.ts disagree, THE SERVICE'S ZOD WINS.\n\n\u26d4 DO NOT extend this file with a new endpoint, and do not \"fix\" a disagreement by editing it. Author the zod in the service and regenerate.\n\nIt is RETAINED, not deleted, as the historical record while documents under specs/ still cite it \u2014 deleting it first would turn every one of those citations into a dead link. No file under packages/ cites it, and packages/infra/global/__tests__/contractAuthority.test.ts keeps it that way.\n\nOriginal description: REST API for user authentication, profile management, and admin operations. Consumed by Commise web and mobile clients."
+        "description": "⛔ SUPERSEDED — HAND-WRITTEN, VERIFIED BY NOTHING. NOT THE CONTRACT AUTHORITY.\n\nPer GR-015 / CODING_STANDARDS §15 / ADR-0014 the identity service AUTHORS its wire contract as zod in packages/services/identity/src/**/*.schema.ts, and the normative document is the openapi.yaml DERIVED into packages/schemas/identity (@kitchensink/schema-identity), which `npm run contract:verify` regenerates and diffs. This file is hand-maintained and nothing verifies it against the running service. Where this file and the service's *.schema.ts disagree, THE SERVICE'S ZOD WINS.\n\n⛔ DO NOT extend this file with a new endpoint, and do not \"fix\" a disagreement by editing it. Author the zod in the service and regenerate.\n\nIt is RETAINED, not deleted, as the historical record while documents under specs/ still cite it — deleting it first would turn every one of those citations into a dead link. No file under packages/ cites it, and packages/infra/global/__tests__/contractAuthority.test.ts keeps it that way.\n\nOriginal description: REST API for user authentication, profile management, and admin operations. Consumed by Commise web and mobile clients."
     },
     "servers": [
         {
             "url": "https://identity.{stage}.{domain}/api/v1",
-            "description": "Identity API \u2014 canonical versioned base path (ADR-0011)",
+            "description": "Identity API — canonical versioned base path (ADR-0011)",
             "variables": {
                 "stage": {
                     "default": "dev",
@@ -34,7 +34,7 @@
         },
         {
             "url": "https://identity.{stage}.{domain}",
-            "description": "Origin root \u2014 serves the UNVERSIONED operational probes (/health, /health/ready) only. These are deliberately not under the version prefix because the shared-ALB target-group health check and the deploy smoke steps dial them at the root.",
+            "description": "Origin root — serves the UNVERSIONED operational probes (/health, /health/ready) only. These are deliberately not under the version prefix because the shared-ALB target-group health check and the deploy smoke steps dial them at the root.",
             "variables": {
                 "stage": {
                     "default": "dev",
@@ -68,10 +68,10 @@
                         }
                     },
                     "401": {
-                        "description": "Unauthorized \u2014 missing or invalid token"
+                        "description": "Unauthorized — missing or invalid token"
                     },
                     "403": {
-                        "description": "Forbidden \u2014 user suspended"
+                        "description": "Forbidden — user suspended"
                     }
                 }
             },
@@ -125,7 +125,7 @@
                 ],
                 "responses": {
                     "202": {
-                        "description": "Accepted \u2014 deletion queued",
+                        "description": "Accepted — deletion queued",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -214,7 +214,7 @@
                         "description": "Unauthorized"
                     },
                     "403": {
-                        "description": "Forbidden \u2014 admin role required"
+                        "description": "Forbidden — admin role required"
                     }
                 }
             }
@@ -289,77 +289,10 @@
                 }
             }
         },
-        "/admin/users/{userId}/impersonation/start": {
-            "post": {
-                "summary": "Start operator impersonation",
-                "operationId": "startImpersonation",
-                "security": [
-                    {
-                        "bearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "userId",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Impersonation started"
-                    },
-                    "401": {
-                        "description": "Unauthorized"
-                    },
-                    "403": {
-                        "description": "Forbidden"
-                    },
-                    "404": {
-                        "description": "User not found"
-                    }
-                }
-            }
-        },
-        "/admin/users/{userId}/impersonation/stop": {
-            "post": {
-                "summary": "Stop operator impersonation",
-                "operationId": "stopImpersonation",
-                "security": [
-                    {
-                        "bearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "userId",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Impersonation stopped"
-                    },
-                    "401": {
-                        "description": "Unauthorized"
-                    },
-                    "403": {
-                        "description": "Forbidden"
-                    }
-                }
-            }
-        },
         "/health": {
             "get": {
                 "summary": "Service health check",
-                "description": "Served at the ORIGIN ROOT, not under the versioned base path \u2014 use the origin-root server entry above. The shared-ALB target group, the ECS container health check and the deploy smoke steps all dial this unprefixed.",
+                "description": "Served at the ORIGIN ROOT, not under the versioned base path — use the origin-root server entry above. The shared-ALB target group, the ECS container health check and the deploy smoke steps all dial this unprefixed.",
                 "operationId": "getHealth",
                 "security": [],
                 "servers": [

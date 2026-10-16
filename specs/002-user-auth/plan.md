@@ -19,7 +19,7 @@ This feature delivers IdP-based authentication and user lifecycle management for
 - **Data storage**: **RDS PostgreSQL 16** (`db.t4g.micro`) using Drizzle ORM + `pg`
 - **IaC**: unified CDK v2 (`aws-cdk-lib`) for all infrastructure — network/data/compute foundations, Lambda + API Gateway wiring (including REQUEST authorizer)
 
-This preserves all functional scope in `spec.md` and `v-model/requirements.md`: signup sync, login/session, logout, profile, account edit, account deletion, password reset, social linking, suspension/reactivation, impersonation controls, and API authorization (REQ-001..REQ-050; FR-001..FR-044, excluding out-of-scope FR-035/FR-045).
+This preserves all functional scope in `spec.md` and `v-model/requirements.md`: signup sync, login/session, logout, profile, account edit, account deletion, password reset, social linking, suspension/reactivation, API authorization (REQ-001..REQ-050; FR-001..FR-044, excluding out-of-scope FR-035/FR-045).
 
 ---
 
@@ -427,7 +427,7 @@ When session approaches expiry (5 minutes remaining):
 - **Signup sync + reconciliation**: REQ-013..REQ-017 (FR-013..FR-017)
 - **User/account/profile lifecycle**: REQ-018..REQ-026 (FR-018..FR-026)
 - **Password/social**: REQ-027..REQ-034 (FR-027..FR-034)
-- **Impersonation + authorization + suspension**: REQ-035..REQ-044 (FR-036..FR-044)
+- **Impersonation + authorization + suspension**: REQ-035..REQ-044 (FR-036..FR-044). REQ-035..REQ-037 / FR-036, FR-037 withdrawn 2026-10-15.
 - **Cross-feature and infra constraints**: REQ-045..REQ-050 (NFR-001..NFR-017, NFR-011a)
 - **Out of scope**: FR-045 (subscription tier from 001), FR-035 (MFA deprecated per Q4 Round 2)
 
@@ -440,7 +440,7 @@ When session approaches expiry (5 minutes remaining):
 - No Terraform/Pulumi/SAM adoption
 - No external IaC repository dependencies
 - No changes to source-of-truth requirements documents in this rewrite
-- No admin dashboard UI (suspension/reactivation/impersonation are backend/API operations only)
+- No admin dashboard UI (suspension/reactivation are backend/API operations only; impersonation withdrawn 2026-10-15)
 - No MFA enrollment (out of scope per spec.md Q4 Round 2 clarification)
 
 ## Implementation Drift (Auth0 → Clerk migration status)
@@ -503,4 +503,4 @@ Added in response to sync-verify Run #1 Layer-3 findings (DRIFT-002..DRIFT-024).
 | FR-022..FR-026 | Account deletion: confirmation, DB+IdP delete, anonymization, post-delete state | Decision `Deletion resiliency`; package `packages/services/identity-webhooks/` (deletion worker); tasks T-022 |
 | FR-027..FR-028 | Password reset via IdP-hosted flow (no app-side password handling)              | Decision `Authorizer model` (IdP-managed); no app task — provided by Clerk hosted UI                          |
 
-**Out-of-scope FRs**: FR-029..FR-031 (MFA enrollment — see spec.md §Out of Scope). FR-032..FR-037 (social linking, operator impersonation) deferred to P2 — tracked in tasks.md US-009, US-012 but not exercised in v1 plan.
+**Out-of-scope FRs**: FR-029..FR-031 (MFA enrollment — see spec.md §Out of Scope). FR-032..FR-037 (social linking) deferred to P2; operator impersonation WITHDRAWN 2026-10-15 — tracked in tasks.md US-009, US-012 but not exercised in v1 plan.

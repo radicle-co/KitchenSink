@@ -34,7 +34,7 @@
 The following are explicitly **not** part of this feature and will be addressed as separate features if needed:
 
 - **Email change flow**: Users cannot change their email address through Commise. Email changes require a separate feature that coordinates with the IdP's email verification.
-- **Admin dashboard for user management**: No admin UI for viewing, searching, editing, or bulk-managing users. Suspension/reactivation (FR-035/FR-038) and impersonation (FR-042) are backend/API operations only; admin UI is a separate feature.
+- **Admin dashboard for user management**: No admin UI for viewing, searching, editing, or bulk-managing users. Suspension/reactivation (FR-035/FR-038) are backend/API operations only; admin UI is a separate feature. Operator impersonation is withdrawn (2026-10-15, see FR-036/FR-037).
 - **MFA**: Multi-factor authentication is out of scope for this feature.
 - **Passkeys**: Passkey authentication is out of scope for this feature.
 - **Custom sign-in UI**: The IdP-hosted sign-in UI is used; no custom sign-in components are built.
@@ -258,10 +258,12 @@ The authentication layer consists of:
 - **FR-043**: A suspended user who attempts to log in MUST be shown a clear message indicating their account has been suspended.
 - **FR-044**: The system MUST support reactivating a suspended user by unblocking them in the IdP and setting the User entity `status` back to `active`.
 
-**Impersonation Guardrails**
+**Impersonation Guardrails** — **⚠️ WITHDRAWN (2026-10-15).**
 
-- **FR-036**: System MUST log all impersonation actions (who initiated, target user, timestamp, action taken) to an immutable audit log.
-- **FR-037**: System MUST restrict impersonation initiation to users with explicit admin role permissions. Non-admin users MUST receive `403 Forbidden` when attempting impersonation.
+> Operator impersonation is no longer part of this feature. The two routes `POST /api/v1/admin/users/{userId}/impersonation/{start,stop}` granted nothing: they logged a line and returned a made-up session id. They are deleted from the identity service and from `contracts/identityApi.openapi.json`. **What remains:** an impersonated session (a Clerk token with an `act` claim) is refused on both web and mobile ("Impersonation blocked"). Known gap, tracked separately: no backend service refuses an `act` claim yet.
+
+- **FR-036**: **⚠️ WITHDRAWN (2026-10-15).** There is no impersonation to audit. System MUST log all impersonation actions (who initiated, target user, timestamp, action taken) to an immutable audit log.
+- **FR-037**: **⚠️ WITHDRAWN (2026-10-15).** There is no impersonation to restrict. System MUST restrict impersonation initiation to users with explicit admin role permissions. Non-admin users MUST receive `403 Forbidden` when attempting impersonation.
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -561,6 +563,10 @@ FR-021 and FR-039 already state the requirements; GR-016 states where they execu
 - **A-010**: Account deletion is a hard delete, not a soft delete. All user data is permanently removed from the Commise database. IdP user deletion is permanent and irreversible.
 
 ## Clarifications
+
+### Session 2026-10-15
+
+- Q: Should operator impersonation stay in this feature? → A: No. Owner ruling 2026-10-15, verbatim: "Delete the impersonation then". The stub admin routes granted nothing (they logged a line and returned a made-up session id), so they were deleted. FR-036 and FR-037 (and REQ-035..REQ-037, US-012) are withdrawn. The requirement that remains: an impersonated (Clerk `act` claim) session is refused on both web and mobile. Known gap, tracked separately: no backend service refuses an `act` claim yet.
 
 ### Session 2026-05-29
 

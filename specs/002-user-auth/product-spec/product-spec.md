@@ -83,7 +83,7 @@ Commise authentication should feel invisible when healthy and explicit when secu
 - **Account recovery**: Trigger password resets and unblock locked accounts on behalf of users who cannot self-serve.
 - **Suspension and reactivation**: Enforce account suspension quickly and consistently via backend/admin APIs; reactivate deterministically when the underlying issue resolves.
 - **Audit log review**: Inspect privileged-action logs (impersonation sessions, suspension events, deletion requests) to attribute actions and satisfy compliance requirements.
-- **Impersonation diagnostics**: Perform impersonation-backed debugging with explicit audit identity recorded; no anonymous privileged sessions permitted.
+- **Impersonation diagnostics** _(withdrawn 2026-10-15)_: Perform impersonation-backed debugging with explicit audit identity recorded; no anonymous privileged sessions permitted.
 
 ---
 
@@ -199,7 +199,9 @@ As a security-conscious user, I can enroll MFA (TOTP) and receive second-factor 
 
 ---
 
-#### US-012 — Operator Impersonation with Audit Safety
+#### US-012 — Operator Impersonation with Audit Safety — **WITHDRAWN (2026-10-15)**
+
+> Owner ruling 2026-10-15: "Delete the impersonation then". The stub routes granted nothing, so they are deleted. FR-035/FR-036/FR-037 are withdrawn. What remains: an impersonated (Clerk `act`) session is refused on web and mobile.
 
 As an authorized support operator, I can impersonate users for diagnostics with explicit session marking and restricted destructive actions.
 

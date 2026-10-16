@@ -76,7 +76,8 @@ export interface AuthorizerContext {
     /** User's account status as a string. Check for `'active'` before proceeding. */
     status: string;
     /**
-     * Whether this request is an impersonation session.
+     * Whether this request is an impersonation session. Operator impersonation was withdrawn
+     * (owner ruling 2026-10-15); the apps refuse a Clerk `act` session, so this is always `'false'`.
      * Stored as a string `'true'` or `'false'` due to API Gateway context scalar constraint.
      */
     isImpersonating: string;

@@ -21,7 +21,7 @@ import { RECIPE_PHOTOS_CDN_URL } from '../recipes/recipes.tokens.js';
 import type { CollectionRow } from '../database/schema/collections.js';
 import { AuthorHandlesDal } from '../authors/dal/authorHandles.dal.js';
 import { AnalyticsService } from '../analytics/analytics.service.js';
-import { COLLECTION_COVER_LIMIT, CollectionsDal } from './dal/collections.dal.js';
+import { CollectionsDal } from './dal/collections.dal.js';
 import { isRecipeViewableBy } from '../recipes/domain/recipeVisibility.js';
 import { recipeRowToDomain } from '../recipes/mappers/recipeRowToDomain.js';
 import {
@@ -34,6 +34,7 @@ import {
 } from './collections.errors.js';
 import { defaultCollectionVisibility, evaluateCollectionVisibility } from './domain/collectionVisibilityPolicy.js';
 import { computePullDiff, pullDiffsAgree } from './domain/pullDiff.js';
+import { COLLECTION_COVER_LIMIT } from './collections.schema.js';
 import type {
     CloneCollectionRequest,
     CollectionListItem,

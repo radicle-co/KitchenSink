@@ -35,6 +35,7 @@ import { coverPhotoLateral } from '../../recipes/dal/coverPhotoSql.js';
 import { activeRecipe, readableBy } from '../../recipes/dal/recipePredicates.js';
 import { withTransaction, type RecipeTx, type Writer } from '../../database/unitOfWork.js';
 import { collectionLimitReachedError } from '../collections.errors.js';
+import { COLLECTION_COVER_LIMIT } from '../collections.schema.js';
 import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 
 /** Row shape for creating a collection (owner resolved from the principal by the service). */
@@ -71,9 +72,6 @@ export interface CollectionPage {
     readonly rows: CollectionRow[];
     readonly total: number;
 }
-
-/** How many member covers a collection card shows (the 2x2 mosaic of buildSpec §5.1). */
-export const COLLECTION_COVER_LIMIT = 4;
 
 /** What a collection's card shows about its members, as the VIEWER may see them. */
 export interface CollectionMemberSummary {

@@ -247,7 +247,7 @@ export const collectionResponseSchema = collectionResponseShape.readonly();
 export type CollectionResponse = z.infer<typeof collectionResponseSchema>;
 
 /** How many member covers a collection card shows (buildSpec §5.1: a 2x2 album). */
-const COLLECTION_COVER_LIMIT = 4;
+export const COLLECTION_COVER_LIMIT = 4;
 
 /**
  * One element of the `GET /api/v1/collections` list: the collection body plus what its CARD shows about its members

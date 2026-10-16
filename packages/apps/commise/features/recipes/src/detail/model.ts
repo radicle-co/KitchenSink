@@ -930,6 +930,15 @@ export interface RecipeDetailViewProps {
      * review offers picks. Absent reads as not the owner, so nothing that could only fail is offered.
      */
     readonly viewerIsOwner?: boolean;
+    /**
+     * What the page says about its visibility, inline under the rating and visibility line (`buildSpec.md` §6.4): a
+     * refused Private, or the generic failure to change who can see the recipe. The body mounts an assertive `LiveRegion`
+     * for the OWNER and fills it with this, so a host passes `undefined` for "nothing to say" and the region stays
+     * mounted and empty. ⛔ The words must arrive AFTER the region mounts: a region that mounts with its text is not
+     * reliably spoken on Android, so a host sets this one render after the page draws (`visibilityNoticeOf` decides it).
+     * A viewer who is not the owner never gets the region.
+     */
+    readonly visibilityNotice?: string;
 }
 
 /** The sections the recipe page links to and the owner's Edit links open. */

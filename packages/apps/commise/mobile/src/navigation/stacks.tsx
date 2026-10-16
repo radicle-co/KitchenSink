@@ -21,7 +21,7 @@ import { createNativeStackNavigator, type NativeStackScreenProps } from '@react-
 import { useBottomTabBarHeight, type BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { BottomEdgeProvider } from '@commise/ui/layout';
-import type { JSX } from 'react';
+import { useCallback, useState, type JSX } from 'react';
 
 import { CollectionDetailScreen } from '../screens/CollectionDetailScreen.js';
 import { CollectionsScreen } from '../screens/CollectionsScreen.js';
@@ -52,9 +52,21 @@ const TabStackNavigator = createNativeStackNavigator<TabStackParamList>();
 
 /** A recipe's detail, on whichever tab pushed it. */
 function RecipeDetailRoute({ navigation, route }: TabScreenProps<'RecipeDetail'>): JSX.Element {
+    // §6.4: the editor's refusal arrives as a param. The screen reports it once its body has mounted; the route keeps it
+    // in state, so it persists while the page does, and clears the param, so returning to this entry does not speak it
+    // again.
+    const [finishRefused, setFinishRefused] = useState(false);
+    const keepFinishRefusal = useCallback((): void => {
+        setFinishRefused(true);
+        navigation.setParams({ privateRefused: undefined });
+    }, [navigation]);
+
     return (
         <RecipeDetailScreen
             recipeId={route.params.recipeId}
+            refusalArrived={route.params.privateRefused !== undefined}
+            finishRefused={finishRefused}
+            onFinishRefusalSeen={keepFinishRefusal}
             onBack={() => navigation.goBack()}
             onEdit={(recipeId) => navigation.navigate('RecipeEdit', { recipeId })}
             onViewVersions={(recipeId) => navigation.push('RecipeVersions', { recipeId })}

@@ -55,8 +55,9 @@ export interface RecipeVisibilityToggleMessages {
     /** Error shown when a visibility change fails and the toggle snaps back, so it never does so silently (B17). */
     readonly error: string;
     /**
-     * In place of `error` when the server refused a Private as `INVALID_VISIBILITY` (`useServerRefusedPrivate`):
-     * trying again cannot succeed, so it is not offered. `premium` under the upsell; otherwise `final`.
+     * In place of `error` when a Private is refused (`visibilityNoticeOf`): the server refused it as `INVALID_VISIBILITY`
+     * (`useServerRefusedPrivate`), or the editor withheld it because the server would. Trying again cannot succeed, so it
+     * is not offered. `premium` under the upsell; otherwise `final`.
      */
     readonly privateRefused: { readonly final: string; readonly premium: string };
 }

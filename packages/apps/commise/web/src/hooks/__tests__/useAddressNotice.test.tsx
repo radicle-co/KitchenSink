@@ -24,6 +24,13 @@ const Probe: FC = () => {
     return null;
 };
 
+/** The same, handing the value it consumed to `onSeen` (the recipe page keeps the refusal it carries). */
+const SeenProbe: FC<{ readonly onSeen: (value: string) => void }> = ({ onSeen }) => {
+    useAddressNotice('seen', (value) => (value === 'yes' ? 'Seen it' : undefined), onSeen);
+
+    return null;
+};
+
 /** Arrive at a page with `query` in the address and in what `useSearchParams` reads. */
 function arriveWith(query: string): void {
     searchState.value = query;
@@ -98,4 +105,40 @@ describe('useAddressNotice', () => {
             expect(window.location.search).toBe(query === '' ? '' : `?${query}`);
         },
     );
+});
+
+describe('useAddressNotice — onSeen', () => {
+    it('hands the consumed value to onSeen once, in the effect that takes the parameter off the address', async () => {
+        const onSeen = vi.fn();
+        arriveWith('seen=yes');
+        const { rerender } = render(
+            <SnackbarHost>
+                <SeenProbe onSeen={onSeen} />
+            </SnackbarHost>,
+        );
+        await screen.findByText('Seen it');
+
+        rerender(
+            <SnackbarHost>
+                <SeenProbe onSeen={onSeen} />
+            </SnackbarHost>,
+        );
+
+        expect(onSeen).toHaveBeenCalledTimes(1);
+        expect(onSeen).toHaveBeenCalledWith('yes');
+    });
+
+    it('does not call onSeen for a value the page does not know, which is left in the address', () => {
+        const onSeen = vi.fn();
+        arriveWith('seen=no');
+
+        render(
+            <SnackbarHost>
+                <SeenProbe onSeen={onSeen} />
+            </SnackbarHost>,
+        );
+
+        expect(onSeen).not.toHaveBeenCalled();
+        expect(window.location.search).toBe('?seen=no');
+    });
 });

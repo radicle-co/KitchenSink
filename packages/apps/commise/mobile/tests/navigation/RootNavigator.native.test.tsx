@@ -20,7 +20,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { renderWithProviders } from '@commise/test-utils';
@@ -129,7 +129,17 @@ vi.mock('../../src/screens/RecipeDetailScreen.js', () => ({
         onBack?: () => void;
         onDeleted?: () => void;
         onCloned?: (copyId: string) => void;
+        refusalArrived?: boolean;
+        finishRefused?: boolean;
+        onFinishRefusalSeen?: () => void;
     }) => {
+        // §6.4: the real screen reports an arrived claim once its body has mounted; the route keeps it and clears the param.
+        useEffect(() => {
+            if (props.refusalArrived === true) {
+                props.onFinishRefusalSeen?.();
+            }
+        }, [props, props.refusalArrived, props.onFinishRefusalSeen]);
+
         // The detail opens a sheet that claims hardware Back while it is open, as the real ⋯ menu does.
         const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -152,6 +162,7 @@ vi.mock('../../src/screens/RecipeDetailScreen.js', () => ({
                     'Open sheet': () => setSheetOpen(true),
                 })}
                 {sheetOpen ? <Text>Sheet open</Text> : null}
+                {props.finishRefused === true ? <Text>{`Refusal kept for ${props.recipeId}`}</Text> : null}
             </View>
         );
     },
@@ -188,6 +199,8 @@ vi.mock('../../src/screens/RecipeEditorScreen.js', () => ({
         props.recipeId === undefined
             ? stub(props.openPaste === true ? `Create wizard, pasting at ${props.section ?? 'top'}` : 'Create wizard', {
                   Publish: () => props.onFinished('fresh', { outcome: 'firstPublish', privateRefused: undefined }),
+                  'Publish, Private refused': () =>
+                      props.onFinished('fresh', { outcome: 'firstPublish', privateRefused: 'final' }),
                   Cancel: props.onClose,
               })
             : stub(`Edit ${props.recipeId}`, {
@@ -406,7 +419,13 @@ describe('focused tasks', () => {
         expect(screen.getByText('Changes saved.')).toBeTruthy();
     });
 
-    it('⛔ says the recipe stayed public when the editor`s Private was refused, in place of "Changes saved."', () => {
+    /**
+     * REWRITTEN (buildSpec §6.4, plan 2026-10-14-009 T3): the snackbar used to say "This recipe is public. Your other
+     * changes are saved, but…" in place of "Changes saved.". It says only the outcome now. The refusal rides to the recipe
+     * page as a route param, the page keeps it once its body has mounted, and the param is cleared so a return to the same
+     * stack entry does not speak it again.
+     */
+    it('⛔ keeps the snackbar to "Changes saved." and hands the refusal to the recipe page, which keeps it once', () => {
         renderRoot();
 
         fireEvent.click(tab('Recipes'));
@@ -414,12 +433,33 @@ describe('focused tasks', () => {
         press('Save a copy');
         press('Save changes, Private refused');
 
-        expect(
-            screen.getByText(
-                'This recipe is public. Your other changes are saved, but private recipes are part of Premium.',
-            ),
-        ).toBeTruthy();
-        expect(screen.queryByText('Changes saved.')).toBeNull();
+        expect(screen.getByText('Changes saved.')).toBeTruthy();
+        expect(screen.queryByText(/Your other changes are saved/u)).toBeNull();
+        expect(screen.getByText('Refusal kept for pasta-copy')).toBeTruthy();
+        // The same stack entry took the param: Back leaves the copy's detail for the one beneath, not for a second copy.
+        press('Back');
+        expect(showing('Detail pasta')).toBe(true);
+    });
+
+    it('⛔ hands a refusal from the CREATE route to the new recipe`s page too', () => {
+        renderRoot();
+
+        press('New recipe');
+        press('Publish, Private refused');
+
+        expect(screen.getByText('Recipe published.')).toBeTruthy();
+        expect(screen.getByText('Refusal kept for fresh')).toBeTruthy();
+    });
+
+    it('hands the recipe page no refusal after a plain save', () => {
+        renderRoot();
+
+        fireEvent.click(tab('Recipes'));
+        press('Open Pasta');
+        press('Save a copy');
+        press('Save changes');
+
+        expect(screen.queryByText(/Refusal kept/u)).toBeNull();
     });
 
     it('says nothing for a plain ×: nothing was published or saved', () => {

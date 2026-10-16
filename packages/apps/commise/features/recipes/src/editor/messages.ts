@@ -45,11 +45,6 @@ export interface EditorMessages {
     readonly published: string;
     readonly addToCollection: string;
     readonly changesSaved: string;
-    /**
-     * The finished notice when the cook's Private was not sent because the server would refuse it (`visibilityFollowUp`),
-     * in place of `published` / `changesSaved`: `final` under hidden paid features, `premium` under the upsell.
-     */
-    readonly privateRefused: { readonly final: string; readonly premium: string };
     readonly actionBarLabel: string;
 
     readonly index: {
@@ -241,10 +236,6 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
         published: 'Recipe published.',
         addToCollection: 'Add to a collection',
         changesSaved: 'Changes saved.',
-        privateRefused: {
-            final: "This recipe is public. Your other changes are saved, but it couldn't be made private.",
-            premium: 'This recipe is public. Your other changes are saved, but private recipes are part of Premium.',
-        },
         actionBarLabel: 'Recipe actions',
 
         index: {

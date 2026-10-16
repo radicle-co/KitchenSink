@@ -26,6 +26,7 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { KeepAwakeToggle } from '@commise/ui/keep-awake';
+import { LiveRegion } from '@commise/ui/live-region';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { useScrollHost } from '@commise/ui/scroll-host';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
@@ -74,6 +75,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     onEditSection,
     onViewVersions,
     viewerIsOwner,
+    visibilityNotice,
     marks,
     screenOn,
     descriptionExpanded,
@@ -163,6 +165,12 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                 {recipe.title}
             </Text>
             <DetailRatingLine ratingLine={detailRatingLine(recipe, owner, locale, { detail, card })} />
+            {/* The owner's visibility notice (§6.4): assertive, mounted empty and filled one render later by the host. */}
+            {owner && (
+                <LiveRegion politeness="assertive" style={[styles.meta, { color: colors.dangerText }]}>
+                    {visibilityNotice ?? ''}
+                </LiveRegion>
+            )}
             <DetailStatStrip
                 stats={detailStatCells(scaled, recipe.difficulty, { detail, duration, card })}
                 statsPerRow={layout.statsPerRow}

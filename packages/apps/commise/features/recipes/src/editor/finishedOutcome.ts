@@ -6,8 +6,8 @@
  *
  * ⛔ The three outcomes, their wire spelling and their words are defined HERE, once, for the editor (which names them),
  * the web recipe page (which reads the parameter back) and the native task route (which shows the snackbar). So is the
- * one thing a finish adds to its outcome: that the cook's Private was not sent because the server would refuse it, when
- * the notice says the recipe stayed public instead.
+ * one thing a finish adds to its outcome: that the cook's Private was not sent because the server would refuse it. The
+ * recipe page says that inline; the snackbar says only the outcome.
  *
  * "Add to a collection" after a FIRST publish waits for the chooser sheet (§6.4), which is a separate slice; the first
  * publish is already a distinct outcome so the action can be added without changing a caller.
@@ -56,7 +56,9 @@ export function outcomeOfExit(
 }
 
 /**
- * What the cook is told: the recipe stayed public when Private was refused, else how the editor finished.
+ * What the snackbar says: how the editor finished. A refused Private is NOT said here — a 6 s toast is gone before a cook
+ * who looked away reads it, and the recipe is now public against their own choice, so the recipe page says it inline
+ * (`visibilityNoticeOf`, `docs/design/uiOverhaul/buildSpec.md` §6.4).
  *
  * @param finish - How the editor finished.
  * @param messages - The editor's copy.
@@ -64,12 +66,8 @@ export function outcomeOfExit(
  */
 export function finishedNoticeOf(
     finish: EditorFinish,
-    messages: Pick<EditorMessages, 'published' | 'changesSaved' | 'privateRefused'>,
+    messages: Pick<EditorMessages, 'published' | 'changesSaved'>,
 ): string {
-    if (finish.privateRefused !== undefined) {
-        return messages.privateRefused[finish.privateRefused];
-    }
-
     return finish.outcome === 'changesSaved' ? messages.changesSaved : messages.published;
 }
 

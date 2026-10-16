@@ -6,11 +6,11 @@
     "coverage": {
         "components": 135,
         "implementations": 241,
-        "props": 1165,
+        "props": 1169,
         "documentedComponents": 135,
         "implementationsWithModuleDoc": 241,
         "implementationsWithComponentDoc": 141,
-        "documentedProps": 909,
+        "documentedProps": 913,
         "classifiedComponents": 117,
         "componentsWithPatternTag": 61,
         "crossPlatformComponents": 106
@@ -6639,6 +6639,15 @@
                             "defaultValue": null,
                             "description": "Whether the viewer owns this recipe (`isOwner`, which the container already evaluates for its owner controls).\nIt decides the meta line's author, the rating line's status, the section Edit links, and whether the ambiguity\nreview offers picks. Absent reads as not the owner, so nothing that could only fail is offered.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "visibilityNotice",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "What the page says about its visibility, inline under the rating and visibility line (`buildSpec.md` §6.4): a\nrefused Private, or the generic failure to change who can see the recipe. The body mounts an assertive `LiveRegion`\nfor the OWNER and fills it with this, so a host passes `undefined` for \"nothing to say\" and the region stays\nmounted and empty. ⛔ The words must arrive AFTER the region mounts: a region that mounts with its text is not\nreliably spoken on Android, so a host sets this one render after the page draws (`visibilityNoticeOf` decides it).\nA viewer who is not the owner never gets the region.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -6892,6 +6901,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Whether the viewer owns this recipe (`isOwner`, which the container already evaluates for its owner controls).\nIt decides the meta line's author, the rating line's status, the section Edit links, and whether the ambiguity\nreview offers picks. Absent reads as not the owner, so nothing that could only fail is offered.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "visibilityNotice",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "What the page says about its visibility, inline under the rating and visibility line (`buildSpec.md` §6.4): a\nrefused Private, or the generic failure to change who can see the recipe. The body mounts an assertive `LiveRegion`\nfor the OWNER and fills it with this, so a host passes `undefined` for \"nothing to say\" and the region stays\nmounted and empty. ⛔ The words must arrive AFTER the region mounts: a region that mounts with its text is not\nreliably spoken on Android, so a host sets this one render after the page draws (`visibilityNoticeOf` decides it).\nA viewer who is not the owner never gets the region.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         }
                     ],
@@ -7184,6 +7202,15 @@
                             "defaultValue": null,
                             "description": "Whether the viewer owns this recipe (`isOwner`, which the container already evaluates for its owner controls).\nIt decides the meta line's author, the rating line's status, the section Edit links, and whether the ambiguity\nreview offers picks. Absent reads as not the owner, so nothing that could only fail is offered.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "visibilityNotice",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "What the page says about its visibility, inline under the rating and visibility line (`buildSpec.md` §6.4): a\nrefused Private, or the generic failure to change who can see the recipe. The body mounts an assertive `LiveRegion`\nfor the OWNER and fills it with this, so a host passes `undefined` for \"nothing to say\" and the region stays\nmounted and empty. ⛔ The words must arrive AFTER the region mounts: a region that mounts with its text is not\nreliably spoken on Android, so a host sets this one render after the page draws (`visibilityNoticeOf` decides it).\nA viewer who is not the owner never gets the region.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -7347,6 +7374,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Whether the viewer owns this recipe (`isOwner`, which the container already evaluates for its owner controls).\nIt decides the meta line's author, the rating line's status, the section Edit links, and whether the ambiguity\nreview offers picks. Absent reads as not the owner, so nothing that could only fail is offered.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "visibilityNotice",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "What the page says about its visibility, inline under the rating and visibility line (`buildSpec.md` §6.4): a\nrefused Private, or the generic failure to change who can see the recipe. The body mounts an assertive `LiveRegion`\nfor the OWNER and fills it with this, so a host passes `undefined` for \"nothing to say\" and the region stays\nmounted and empty. ⛔ The words must arrive AFTER the region mounts: a region that mounts with its text is not\nreliably spoken on Android, so a host sets this one render after the page draws (`visibilityNoticeOf` decides it).\nA viewer who is not the owner never gets the region.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         }
                     ],

@@ -27,6 +27,7 @@ import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
 import { KeepAwakeToggle } from '@commise/ui/keep-awake';
 import { LARGE_TITLE_CLASS } from '@commise/ui/large-title-header';
+import { LiveRegion } from '@commise/ui/live-region';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { SectionSwitch } from '@commise/ui/section-switch';
 import { StatusBadge } from '@commise/ui/status-badge';
@@ -162,6 +163,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     editHref,
     versionsHref,
     viewerIsOwner,
+    visibilityNotice,
     marks,
     screenOn,
     descriptionExpanded,
@@ -275,6 +277,12 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                 </span>
                             )}
                         </p>
+                    )}
+                    {/* The owner's visibility notice (§6.4): assertive, mounted empty and filled one render later by the host. */}
+                    {owner && (
+                        <LiveRegion politeness="assertive" className="text-meta text-danger-text">
+                            {visibilityNotice ?? ''}
+                        </LiveRegion>
                     )}
                     {stats.length > 0 && (
                         <div className="@container/stats">

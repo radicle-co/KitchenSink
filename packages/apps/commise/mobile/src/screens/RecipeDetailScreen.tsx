@@ -42,6 +42,7 @@ import {
     useGatedPrivate,
     useMakePublicConfirm,
     useServerRefusedPrivate,
+    visibilityNoticeOf,
     isUnreachableRecovery,
     recipeMessages,
     ratingModeFor,
@@ -73,7 +74,7 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import { knownPaidFeaturesOf, paidFeatureStateOf } from '@commise/features-account';
 import { RecipeVisibility, canClone, isOwner, makeViewer } from '@kitchensink/recipe-core';
 import type { JSX } from 'react';
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { mobileMessages } from '../i18n/messages.js';
@@ -93,6 +94,20 @@ export interface RecipeDetailScreenProps {
     readonly onDeleted?: () => void;
     /** Invoked with the copy's id after Save a copy; the navigator opens it in the editor (FR-005b). */
     readonly onCloned?: (recipeId: string) => void;
+    /**
+     * The editor finished and reported that it withheld a Private the server would refuse (the route's param). This is
+     * a CLAIM, not a fact: the sentence shows only for the owner of a public recipe whose profile refuses Private
+     * (`visibilityNoticeOf`).
+     */
+    readonly refusalArrived?: boolean;
+    /** The route kept the claim, after {@link RecipeDetailScreenProps.onFinishRefusalSeen}; the sentence follows it. */
+    readonly finishRefused?: boolean;
+    /**
+     * Called once the BODY has mounted with the claim waiting, never while the skeleton shows: the live region must
+     * exist, empty, before its text arrives, because Android does not reliably speak a region that mounts with its text.
+     * The route keeps the claim and clears its param.
+     */
+    readonly onFinishRefusalSeen?: () => void;
 }
 
 /**
@@ -215,6 +230,9 @@ function SettledRecipeDetail({
     onViewVersions,
     onDeleted,
     onCloned,
+    refusalArrived,
+    finishRefused,
+    onFinishRefusalSeen,
 }: RecipeDetailScreenProps): JSX.Element {
     if (recipeId.length === 0) {
         throw new Error('A recipe detail needs a recipe id.');
@@ -232,7 +250,6 @@ function SettledRecipeDetail({
     // The view binds the cook's marks itself; the ⋯ menu reads the same marks to offer Clear checks.
     const marks = useCookMarks(recipeId);
     const { detailActions, moreMenu, visibility: visibilityCopy } = useMessages(recipeActionMessages);
-    const theme = useTheme();
     const snackbar = useSnackbar();
     const { recipes: t } = useMessages(mobileMessages);
     const profile = useUserProfile();
@@ -261,6 +278,15 @@ function SettledRecipeDetail({
             setVisibility.mutate({ id: recipeId, visibility: RecipeVisibility.PUBLIC }, { onSuccess: done }),
     });
 
+    // §6.4: tell the route its claim was seen, once the body is on screen. The effect runs after the commit that mounts
+    // the body, so the live region exists, empty, before the route's answer fills it. Never during the skeleton.
+    const bodyShown = !profile.isLoading;
+    useEffect(() => {
+        if (bodyShown && refusalArrived === true) {
+            onFinishRefusalSeen?.();
+        }
+    }, [bodyShown, refusalArrived, onFinishRefusalSeen]);
+
     // Wait for the viewer profile too before rendering the detail. Owner-gated UI (edit/delete/visibility actions)
     // and the rating mode are derived from `profile` (the viewer id + paid features); rendering before it lands would paint
     // the detail WITHOUT the owner actions and then pop them in — shifting the layout mid-interaction. A signed-out
@@ -275,6 +301,19 @@ function SettledRecipeDetail({
     // gate below through the shared policy predicates — the SAME predicates the web detail container evaluates (D7).
     const viewer = makeViewer({ id: viewerId });
     const viewerIsOwner = isOwner(recipe, viewer);
+    // §6.4: ONE slot under the rating and visibility line says every refusal of a Private, and the generic failure. The
+    // make-public confirm says its own failure inside itself, so it is not said twice. The web page reads the same.
+    const visibilityNotice = visibilityNoticeOf(
+        {
+            viewerIsOwner,
+            isPublic: recipe.visibility === RecipeVisibility.PUBLIC,
+            serverRefusal: serverRefusedPrivate,
+            finishRefused: finishRefused === true,
+            known: knownPaidFeaturesOf(profile),
+            writeFailed: setVisibility.error !== null && !makePublic.dialog.open,
+        },
+        visibilityCopy,
+    );
     // D7: a viewer may clone a PUBLIC recipe they do not own — the SAME `canClone` predicate web now
     // evaluates, closing the drift where web ignored ownership and mobile checked it.
     const viewerCanClone = canClone(recipe, viewer);
@@ -387,6 +426,7 @@ function SettledRecipeDetail({
         <RecipeDetailView
             recipe={recipe}
             viewerIsOwner={viewerIsOwner}
+            {...(visibilityNotice === undefined ? {} : { visibilityNotice })}
             refreshNotice={refreshNotice}
             unreachableRetry={unreachableRetry}
             headerActions={headerActions}
@@ -415,23 +455,6 @@ function SettledRecipeDetail({
             }
             scrollFooter={
                 <>
-                    {/* B17 — a failed visibility change snaps back to the query's value; say so rather than fail silently.
-                        The make-public confirm says its own failure inside itself, so it is not said twice. A Private
-                        the server refused — the editor's follow-up included — is said in its own words, because trying
-                        again cannot succeed. The web page reads the same. */}
-                    {serverRefusedPrivate ? (
-                        <Text accessibilityRole="alert" style={{ color: theme.colors.dangerText }}>
-                            {visibilityCopy.privateRefused[serverRefusedPrivate]}
-                        </Text>
-                    ) : (
-                        setVisibility.error !== null &&
-                        !makePublic.dialog.open && (
-                            <Text accessibilityRole="alert" style={{ color: theme.colors.dangerText }}>
-                                {visibilityCopy.error}
-                            </Text>
-                        )
-                    )}
-
                     {viewerIsOwner && <RecipeUpsellSheet {...privateGate.sheet} />}
 
                     {viewerIsOwner && (

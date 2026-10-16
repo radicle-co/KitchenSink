@@ -208,6 +208,8 @@ export { RecipeDeleteDialog } from './actions/RecipeDeleteDialog.js';
 export { RecipeMakePublicDialog } from './actions/RecipeMakePublicDialog.js';
 export { useMakePublicConfirm } from './actions/useMakePublicConfirm.js';
 export { useServerRefusedPrivate } from './actions/useServerRefusedPrivate.js';
+export { visibilityNoticeOf } from './actions/visibilityNotice.js';
+export type { VisibilityNoticeInput } from './actions/visibilityNotice.js';
 export type { MakePublicConfirm, UseMakePublicConfirmOptions } from './actions/useMakePublicConfirm.js';
 export { RecipeUpsellSheet } from './actions/RecipeUpsellSheet.js';
 export { usePrivateChoice } from './actions/usePrivateChoice.js';
@@ -220,7 +222,12 @@ export {
     privateNeedsPremium,
     showsPremiumBadge,
 } from './actions/privateGate.js';
-export type { MakePublicConsequence, PrivateChoiceInput, PrivateChoiceOutcome } from './actions/privateGate.js';
+export type {
+    MakePublicConsequence,
+    PrivateChoiceInput,
+    PrivateChoiceOutcome,
+    PrivateRefusal,
+} from './actions/privateGate.js';
 export { recipeActionMessages } from './actions/messages.js';
 export type {
     RecipeActionMessages,

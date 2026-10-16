@@ -6,11 +6,11 @@
     "coverage": {
         "components": 57,
         "implementations": 57,
-        "props": 153,
+        "props": 156,
         "documentedComponents": 56,
         "implementationsWithModuleDoc": 55,
         "implementationsWithComponentDoc": 43,
-        "documentedProps": 145,
+        "documentedProps": 148,
         "classifiedComponents": 35,
         "componentsWithPatternTag": 23,
         "crossPlatformComponents": 0
@@ -3806,6 +3806,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "finishRefused",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The route kept the claim, after {@link RecipeDetailScreenProps.onFinishRefusalSeen}; the sentence follows it.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
+                        },
+                        {
                             "name": "onBack",
                             "type": "(() => void)",
                             "typeDetail": null,
@@ -3842,6 +3851,15 @@
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
                         },
                         {
+                            "name": "onFinishRefusalSeen",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called once the BODY has mounted with the claim waiting, never while the skeleton shows: the live region must\nexist, empty, before its text arrives, because Android does not reliably speak a region that mounts with its text.\nThe route keeps the claim and clears its param.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
+                        },
+                        {
                             "name": "onViewVersions",
                             "type": "((recipeId: string) => void)",
                             "typeDetail": null,
@@ -3857,6 +3875,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The id of the recipe to display.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
+                        },
+                        {
+                            "name": "refusalArrived",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The editor finished and reported that it withheld a Private the server would refuse (the route's param). This is\na CLAIM, not a fact: the sentence shows only for the owner of a public recipe whose profile refuses Private\n(`visibilityNoticeOf`).",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
                         }
                     ],

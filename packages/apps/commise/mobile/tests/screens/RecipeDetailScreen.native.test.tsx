@@ -600,9 +600,11 @@ describe('RecipeDetailScreen — owner actions', () => {
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        expect(
-            await screen.findByText('This recipe is still public. Private recipes are part of Premium.'),
-        ).toBeTruthy();
+        const notice = await screen.findByText('This recipe is still public. Private recipes are part of Premium.');
+
+        // §6.4: in the header under the rating and visibility line, where the cook lands, not at the foot of the page.
+        expect(notice.closest('[aria-live="assertive"]')).not.toBeNull();
+        expect(screen.getByRole('heading', { name: 'Weeknight Pasta' }).parentElement?.contains(notice)).toBe(true);
     });
 
     // Review S3: an earlier failure is not news to a confirm opened afresh — the request clears it.
@@ -640,7 +642,10 @@ describe('RecipeDetailScreen — owner actions', () => {
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        expect(screen.getByText('We couldn’t change who can see this recipe. Please try again.')).toBeTruthy();
+        // §6.4: the generic failure shares the slot under the rating and visibility line, not the foot of the page.
+        const notice = screen.getByText('We couldn’t change who can see this recipe. Please try again.');
+
+        expect(screen.getByRole('heading', { name: 'Weeknight Pasta' }).parentElement?.contains(notice)).toBe(true);
     });
 
     it('offers Clear checks once a row is checked, and it clears them', () => {
@@ -928,3 +933,111 @@ describe('RecipeDetailScreen — Save a copy', () => {
 });
 
 /** A design-token hex (`#RRGGBB`) as the `rgb(r, g, b)` string a resolved computed style reports. */
+
+/**
+ * Plan 2026-10-14-009 T3 (buildSpec §6.4): a Private the editor withheld is said on the recipe page, inline, in the header.
+ * The route hands the screen a CLAIM (`refusalArrived`) and keeps the result (`finishRefused`); the screen reports the
+ * claim as seen only once its body has mounted, so the live region is filled one render after it exists.
+ *
+ * ⛔ The claim is not trusted: the sentence needs the owner, a public recipe and a profile that refuses Private.
+ */
+describe('RecipeDetailScreen — the refused Private, said inline (§6.4)', () => {
+    const FINAL = 'This recipe is still public: it couldn’t be made private.';
+    const PREMIUM = 'This recipe is still public. Private recipes are part of Premium.';
+    const seed = (visibility: RecipeVisibility = RecipeVisibility.PUBLIC): void =>
+        seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', visibility }));
+
+    it('⛔ says the recipe is still public, in the header, once the route has kept the claim', () => {
+        seed();
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'hidden'));
+
+        render(<RecipeDetailScreen recipeId="rec_1" finishRefused />);
+
+        const notice = screen.getByText(FINAL);
+
+        expect(notice.closest('[aria-live="assertive"]')).not.toBeNull();
+        expect(screen.getByRole('heading', { name: 'Weeknight Pasta' }).parentElement?.contains(notice)).toBe(true);
+    });
+
+    it('takes the words from the profile: the upsell gets the Premium sentence', () => {
+        seed();
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'upsell'));
+
+        render(<RecipeDetailScreen recipeId="rec_1" finishRefused />);
+
+        expect(screen.getByText(PREMIUM)).toBeTruthy();
+        expect(screen.queryByText(FINAL)).toBeNull();
+    });
+
+    it('mounts an empty assertive region for the owner when there is nothing to say', () => {
+        seed();
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'hidden'));
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        const regions = document.querySelectorAll('[aria-live="assertive"]');
+
+        expect(regions).toHaveLength(1);
+        expect(regions[0]?.textContent).toBe('');
+    });
+
+    it.each([
+        ['a cook who does not own the recipe', 'usr_viewer', 'hidden', RecipeVisibility.PUBLIC],
+        ['the owner of a PRIVATE recipe', 'usr_1', 'hidden', RecipeVisibility.PRIVATE],
+        ['an owner who may make recipes private', 'usr_1', 'granted', RecipeVisibility.PUBLIC],
+    ] as const)('⛔ says nothing for a forged claim for %s', (_who, viewer, paid, visibility) => {
+        seed(visibility);
+        useUserProfileMock.mockReturnValue(profile(viewer, paid));
+
+        render(<RecipeDetailScreen recipeId="rec_1" finishRefused refusalArrived />);
+
+        expect(screen.queryByText(FINAL)).toBeNull();
+        expect(screen.queryByText(PREMIUM)).toBeNull();
+    });
+
+    it('reports the arrived claim as seen once the body has mounted, and only once', () => {
+        seed();
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'hidden'));
+        const onFinishRefusalSeen = vi.fn();
+
+        const { rerender } = render(
+            <RecipeDetailScreen recipeId="rec_1" refusalArrived onFinishRefusalSeen={onFinishRefusalSeen} />,
+        );
+
+        expect(onFinishRefusalSeen).toHaveBeenCalledTimes(1);
+
+        rerender(
+            withFoodClient(
+                <SnackbarHost>
+                    <CookMarksProvider subject="user_test">
+                        <RecipeDetailScreen recipeId="rec_1" refusalArrived onFinishRefusalSeen={onFinishRefusalSeen} />
+                    </CookMarksProvider>
+                </SnackbarHost>,
+            ),
+        );
+
+        expect(onFinishRefusalSeen).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ does not report the claim while the skeleton shows: the body must mount empty first', () => {
+        seed();
+        useUserProfileMock.mockReturnValue({ isLoading: true, data: undefined } as unknown as ReturnType<
+            typeof useUserProfile
+        >);
+        const onFinishRefusalSeen = vi.fn();
+
+        render(<RecipeDetailScreen recipeId="rec_1" refusalArrived onFinishRefusalSeen={onFinishRefusalSeen} />);
+
+        expect(onFinishRefusalSeen).not.toHaveBeenCalled();
+    });
+
+    it('does not report a claim that never arrived', () => {
+        seed();
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'hidden'));
+        const onFinishRefusalSeen = vi.fn();
+
+        render(<RecipeDetailScreen recipeId="rec_1" onFinishRefusalSeen={onFinishRefusalSeen} />);
+
+        expect(onFinishRefusalSeen).not.toHaveBeenCalled();
+    });
+});

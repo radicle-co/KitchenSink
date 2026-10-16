@@ -1171,9 +1171,24 @@ These ship now with detail (owner). The full cook view (008 FR-032 to FR-035) fo
         - Web: set the page's `finishRefusal` state inside the effect that already consumes `?done=`
           (`useAddressNotice`), never from the first render's search params. That effect runs after mount, and it
           removes the parameter, so the value must be captured there anyway.
-        - Native: read the `privateRefused` route param in `useFocusEffect`, which runs after mount, into screen
-          state. Then clear it with `navigation.setParams({ privateRefused: undefined })`. That also means a return
-          to the same stack entry does not speak it again.
+        - Native: `RecipeDetailScreen` calls `onFinishRefusalSeen` from an effect once its BODY has mounted (never
+          while the skeleton shows, which the screen draws until the profile loads). The route adapter keeps the
+          claim in state and clears the param with `navigation.setParams({ privateRefused: undefined })`, so a return
+          to the same stack entry does not speak it again. The route owns the state and the screen only reports,
+          because a screen must render without a navigator and `useFocusEffect` needs one.
+    - ⛔ **The finish claim is not trusted (closes the tracker item "a forged `?done=published.final` link shows the
+      refusal sentence on any recipe page").** In case (1) the client withheld the Private, so the server never saw
+      it and there is no server answer to carry. So the parameter or route param is only a CLAIM that the editor
+      withheld a Private. `visibilityNoticeOf` (features-recipes, one pure function for both platforms) says the
+      sentence only when each clause of it is true by facts the page holds from the server: the viewer owns the
+      recipe, the recipe is public, and the profile refuses Private for this viewer (`privateRefusalOf`). The words
+      come from the profile's reason; the link's `.final` / `.premium` is never read. A forged link then shows nothing
+      to a cook who does not own the recipe, to the owner of a private recipe, to an owner who may make recipes
+      private, or while the profile is unknown. What remains: an owner who cannot make recipes private who opens a
+      forged link to their own public recipe sees a sentence that is true. Precedence is: a refusal the server gave,
+      then the failure of the page's own write, then the confirmed claim, because the page's own latest write is a
+      more recent word than a finish that happened before it. Tested as a table, and the web and native pages are
+      tested against the forged cases.
     - **How long.** For as long as the page shows the recipe AND the recipe is public. A later write that makes it
       private clears it, and so does leaving the page. There is no dismiss control, as for the page's other inline
       errors.

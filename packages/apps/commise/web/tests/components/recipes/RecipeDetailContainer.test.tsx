@@ -643,22 +643,115 @@ describe('RecipeDetailContainer', () => {
             expect((await screen.findByText(words)).closest('[role="status"]')).not.toBeNull();
         });
 
+        // REWRITTEN (buildSpec §6.4, plan 2026-10-14-009 T3): the snackbar used to say the refusal in place of the outcome.
+        // It now says only how the editor finished; the refusal is said inline, below.
         it.each([
-            [
-                'changesSaved.final',
-                "This recipe is public. Your other changes are saved, but it couldn't be made private.",
-            ],
-            [
-                'firstPublish.premium',
-                'This recipe is public. Your other changes are saved, but private recipes are part of Premium.',
-            ],
-        ])('⛔ says the recipe stayed public for “%s”, in place of how it finished', async (value, words) => {
+            ['changesSaved.final', 'Changes saved.'],
+            ['firstPublish.premium', 'Recipe published.'],
+        ])('keeps the snackbar to how the editor finished for “%s”', async (value, words) => {
             arriveWith(`done=${value}`);
 
             await renderDone();
 
             expect((await screen.findByText(words)).closest('[role="status"]')).not.toBeNull();
-            expect(screen.queryByText(/changes saved\.|recipe published\./i)).not.toBeInTheDocument();
+            expect(screen.queryByText(/couldn't be made private|part of Premium/iu)).not.toBeInTheDocument();
+        });
+
+        describe('the refused Private, said inline on the page (§6.4)', () => {
+            const FINAL = 'This recipe is still public: it couldn’t be made private.';
+            const PREMIUM = 'This recipe is still public. Private recipes are part of Premium.';
+
+            /** The recipe page for `ownerId` with `visibility`, arrived at through the editor's hand-off. */
+            const renderArrival = async (
+                query: string,
+                options: {
+                    paidFeatures?: 'granted' | 'upsell' | 'hidden';
+                    ownerId?: string;
+                    visibility?: RecipeVisibility;
+                } = {},
+            ): Promise<void> => {
+                const { paidFeatures = 'hidden', ownerId = OWNER_ID, visibility = RecipeVisibility.PUBLIC } = options;
+                useUserProfileMock.mockReturnValue(profileWith(paidFeatures));
+                arriveWith(query);
+                const client = createFakeRecipeServiceClient();
+                vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+                    makeRecipeDetail({ id: 'rec_1', title: 'Lamb', ownerId, visibility }),
+                );
+                renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
+                await screen.findByRole('heading', { level: 1, name: 'Lamb' });
+            };
+
+            it('⛔ says the recipe is still public, in the header, as a visible assertive alert', async () => {
+                await renderArrival('done=changesSaved.final');
+
+                const notice = await screen.findByText(FINAL);
+
+                expect(notice.closest('[role="alert"]')).not.toBeNull();
+                expect(notice.closest('header')).not.toBeNull();
+                expect(notice.className).not.toContain('sr-only');
+            });
+
+            it('does not move focus', async () => {
+                await renderArrival('done=changesSaved.final');
+                await screen.findByText(FINAL);
+
+                expect(document.activeElement).toBe(document.body);
+            });
+
+            it('takes the words from the PROFILE, never from the link', async () => {
+                // The link says `.final`; the profile says the upsell, so the Premium sentence is the true one.
+                await renderArrival('done=changesSaved.final', { paidFeatures: 'upsell' });
+
+                expect(await screen.findByText(PREMIUM)).toBeInTheDocument();
+                expect(screen.queryByText(FINAL)).not.toBeInTheDocument();
+            });
+
+            it('keeps saying it while the recipe is shown and public, after the parameter has gone', async () => {
+                await renderArrival('done=changesSaved.final');
+                await screen.findByText(FINAL);
+                await vi.waitFor(() => expect(window.location.search).toBe(''));
+
+                expect(screen.getByText(FINAL)).toBeInTheDocument();
+            });
+
+            // The tracker item: a forged `?done=published.final` link shows the refusal sentence on any recipe page.
+            // Case (1) has no server answer to carry (the client withheld the Private), so the sentence is confirmed
+            // against what the page holds from the server: the owner, a public recipe, a profile that refuses Private.
+            it.each([
+                ['a cook who does not own the recipe', 'hidden', 'usr_other', RecipeVisibility.PUBLIC],
+                ['the owner of a PRIVATE recipe', 'hidden', OWNER_ID, RecipeVisibility.PRIVATE],
+                ['an owner who may make recipes private', 'granted', OWNER_ID, RecipeVisibility.PUBLIC],
+            ] as const)(
+                '⛔ says nothing on a forged “?done=published.final” link for %s',
+                async (_who, paid, owner, vis) => {
+                    if (owner !== OWNER_ID) {
+                        useAuthMock.mockReturnValue({ sessionClaims: { external_id: owner } });
+                    }
+
+                    await renderArrival('done=published.final', {
+                        paidFeatures: paid,
+                        ownerId: OWNER_ID,
+                        visibility: vis,
+                    });
+                    await screen.findByText('Recipe published.');
+
+                    expect(screen.queryByText(FINAL)).not.toBeInTheDocument();
+                    expect(screen.queryByText(PREMIUM)).not.toBeInTheDocument();
+                },
+            );
+
+            it('says nothing without the claim, for the same owner of the same recipe', async () => {
+                await renderArrival('done=published');
+                await screen.findByText('Recipe published.');
+
+                expect(screen.queryByText(FINAL)).not.toBeInTheDocument();
+            });
+
+            it('mounts an empty alert region for the owner when there is nothing to say', async () => {
+                await renderArrival('');
+
+                expect(screen.getByRole('alert').textContent).toBe('');
+            });
         });
 
         it('removes the parameter from the address without a navigation, keeping any other', async () => {
@@ -965,9 +1058,12 @@ describe('RecipeDetailContainer', () => {
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
 
+            // §6.4: the generic failure shares the slot under the rating and visibility line, not the foot of the page.
             expect(
-                await screen.findByText('We couldn’t change who can see this recipe. Please try again.'),
-            ).toBeInTheDocument();
+                (await screen.findByText('We couldn’t change who can see this recipe. Please try again.')).closest(
+                    'header',
+                ),
+            ).not.toBeNull();
         });
 
         /**
@@ -1071,11 +1167,11 @@ describe('RecipeDetailContainer', () => {
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client, { queryClient });
 
-            expect(
-                (await screen.findByText('This recipe is still public: it couldn’t be made private.')).closest(
-                    '[role="alert"]',
-                ),
-            ).not.toBeNull();
+            const notice = await screen.findByText('This recipe is still public: it couldn’t be made private.');
+
+            expect(notice.closest('[role="alert"]')).not.toBeNull();
+            // §6.4: in the header under the rating and visibility line, where the cook lands, not at the page foot.
+            expect(notice.closest('header')).not.toBeNull();
             expect(screen.queryByText('We couldn’t change who can see this recipe. Please try again.')).toBeNull();
         });
 

@@ -65,7 +65,8 @@ import { visibilityFollowUp } from './visibilityFollowUp.js';
 export interface EditorNavigation {
     /**
      * The recipe was published, or its changes saved: show it, and tell the cook which (E8: "Recipe published." or
-     * "Changes saved.", or that it stayed public when its Private was refused, through `finishedNoticeOf`).
+     * "Changes saved."). When its Private was refused the finish carries that too, and the recipe page says the recipe
+     * stayed public, inline (`visibilityNoticeOf`).
      */
     readonly finished: (recipeId: string, finish: EditorFinish) => void;
     /** The cook kept the server's copy, or discarded a published recipe's device changes: back to the recipe. */

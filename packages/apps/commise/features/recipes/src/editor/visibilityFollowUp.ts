@@ -8,7 +8,7 @@
  * ⛔ A change TO private the server is known to refuse (`privateRefusalOf`) is not sent. It would be refused after the
  * editor had already left, and nothing would say so. That happens when the seed was stale (the recipe was made public
  * elsewhere while the editor held Private), or when the draft was kept from before the cook lost the paid features. The
- * editor says the recipe stayed public instead (`finishedNoticeOf`).
+ * finish carries the refusal to the recipe page, which says the recipe stayed public (`visibilityNoticeOf`).
  *
  * Pure and platform-agnostic.
  *

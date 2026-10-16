@@ -10,7 +10,7 @@
  *
  * @pattern Adapter — route params and navigator intents → each screen's callback props
  */
-import { editorMessages, finishedNoticeOf, type EditorFinish } from '@commise/features-recipes';
+import { editorMessages, finishedNoticeOf, type EditorFinish, type PrivateRefusal } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { useSnackbar } from '@commise/ui/snackbar';
 import type { NativeStackScreenProps, createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -33,9 +33,9 @@ function useLeaveSubscription(
 }
 
 /**
- * Tell the cook how the editor finished (E8; build spec §7.8), or that the recipe stayed public when its Private was
- * refused. The snackbar host sits above the stack, so the message survives the editor leaving and shows over the recipe
- * the cook lands on.
+ * Tell the cook how the editor finished (E8; build spec §7.8). The snackbar host sits above the stack, so the message
+ * survives the editor leaving and shows over the recipe the cook lands on. It says only the outcome: a refused Private
+ * is said on the recipe page, inline (§6.4), through the `privateRefused` route param.
  *
  * @returns A function to call with the outcome. @sideEffect Shows a snackbar.
  */
@@ -44,6 +44,16 @@ function useFinishedNotice(): (finish: EditorFinish) => void {
     const copy = useMessages(editorMessages);
 
     return useCallback((finish) => show({ message: finishedNoticeOf(finish, copy) }), [copy, show]);
+}
+
+/**
+ * The recipe page's route param for a finish whose Private was refused (§6.4), or nothing.
+ *
+ * @param finish - How the editor finished.
+ * @returns `{ privateRefused }` when it was refused, else an empty object. Pure.
+ */
+function refusalParam(finish: EditorFinish): { readonly privateRefused?: PrivateRefusal } {
+    return finish.privateRefused === undefined ? {} : { privateRefused: finish.privateRefused };
 }
 
 /**
@@ -65,7 +75,11 @@ function RecipeCreateRoute({ navigation, route }: TaskProps<'RecipeCreate'>): JS
             onFinished={(recipeId, finish) => {
                 navigation.popTo('Tabs', {
                     screen: 'recipes',
-                    params: { screen: 'RecipeDetail', params: { recipeId }, initial: false },
+                    params: {
+                        screen: 'RecipeDetail',
+                        params: { recipeId, ...refusalParam(finish) },
+                        initial: false,
+                    },
                 });
                 tell(finish);
             }}
@@ -85,8 +99,18 @@ function RecipeEditRoute({ navigation, route }: TaskProps<'RecipeEdit'>): JSX.El
         <RecipeEditorScreen
             recipeId={route.params.recipeId}
             {...(route.params.section === undefined ? {} : { section: route.params.section })}
-            onFinished={(_recipeId, finish) => {
-                navigation.goBack();
+            onFinished={(recipeId, finish) => {
+                if (finish.privateRefused === undefined) {
+                    navigation.goBack();
+                } else {
+                    // The recipe's detail is beneath the editor: pop back to THAT entry and hand it the refusal, rather
+                    // than push a second copy of it. `pop: true` goes to the existing entry of that screen.
+                    navigation.popTo('Tabs', {
+                        screen: 'recipes',
+                        params: { screen: 'RecipeDetail', params: { recipeId, ...refusalParam(finish) }, pop: true },
+                    });
+                }
+
                 tell(finish);
             }}
             onClose={() => navigation.goBack()}

@@ -11,12 +11,20 @@
  * @pattern Registry — the screens, keyed by route name, with their params
  */
 import type { HomeNavItemId } from '@commise/features-core';
-import type { EditorSectionId } from '@commise/features-recipes';
+import type { EditorSectionId, PrivateRefusal } from '@commise/features-recipes';
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
 /** The screens every tab stack can push. */
 export type PushedParamList = {
-    RecipeDetail: { readonly recipeId: string };
+    RecipeDetail: {
+        readonly recipeId: string;
+        /**
+         * Set by the editor's finish when it withheld a Private the server would refuse (`EditorFinish.privateRefused`).
+         * A claim, not a fact: the page cleans it up once its body has mounted and says the sentence only when the
+         * profile agrees (`visibilityNoticeOf`). Why the page reads it, not the snackbar: buildSpec §6.4.
+         */
+        readonly privateRefused?: PrivateRefusal;
+    };
     RecipeVersions: { readonly recipeId: string };
     CollectionDetail: { readonly collectionId: string };
     Profile: undefined;

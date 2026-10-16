@@ -57,6 +57,7 @@ import {
     recipeActionMessages,
     recipeMessages,
     useCookMarks,
+    visibilityNoticeOf,
     type DetailMenuItem,
     type RecipeRatingError,
 } from '@commise/features-recipes';
@@ -82,7 +83,7 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useState, type ComponentProps, type FC } from 'react';
+import { useCallback, useState, type ComponentProps, type FC } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { dataSourcesHref } from '@/components/app/dataSourcesHref';
@@ -198,13 +199,31 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     const { detail: detailCopy } = useMessages(recipeMessages);
     const editorCopy = useMessages(editorMessages);
 
-    // E8: the editor finished and navigated here with `?done=<outcome>[.<refusal>]`; say it once. The parameter is the
-    // reader's to forge: only the exact spellings count.
-    useAddressNotice(FINISHED_OUTCOME_PARAM, (value) => {
-        const finished = parseFinishedParam(value);
+    // E8: the editor finished and navigated here with `?done=<outcome>[.<refusal>]`; say how it finished once. The
+    // parameter is the reader's to forge: only the exact spellings count.
+    //
+    // A refusal in it (the editor withheld a Private the server would refuse) is not said by the snackbar. The same effect
+    // keeps it as a CLAIM, for this recipe, because it is the only place that sees the value before the parameter leaves
+    // the address, and it runs after the page mounted, so the live region below is filled one render after it exists.
+    // ⛔ A claim is not a fact: `visibilityNoticeOf` says it only when the owner's own public recipe and the profile agree.
+    const [finishRefusalFor, setFinishRefusalFor] = useState<string | undefined>(undefined);
+    const keepFinishRefusal = useCallback(
+        (value: string): void => {
+            if (parseFinishedParam(value)?.privateRefused !== undefined) {
+                setFinishRefusalFor(id);
+            }
+        },
+        [id],
+    );
+    useAddressNotice(
+        FINISHED_OUTCOME_PARAM,
+        (value) => {
+            const finished = parseFinishedParam(value);
 
-        return finished === undefined ? undefined : finishedNoticeOf(finished, editorCopy);
-    });
+            return finished === undefined ? undefined : finishedNoticeOf(finished, editorCopy);
+        },
+        keepFinishRefusal,
+    );
 
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
@@ -230,6 +249,19 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     // gate below through the shared policy predicates — the SAME predicates the mobile detail screen evaluates (D7).
     const viewer = makeViewer({ id: viewerId });
     const viewerIsOwner = isOwner(recipe, viewer);
+    // §6.4: ONE slot under the rating and visibility line says every refusal of a Private, and the generic failure. The
+    // make-public confirm says its own failure inside itself, so it is not said twice.
+    const visibilityNotice = visibilityNoticeOf(
+        {
+            viewerIsOwner,
+            isPublic: recipe.visibility === RecipeVisibility.PUBLIC,
+            serverRefusal: serverRefusedPrivate,
+            finishRefused: finishRefusalFor === id,
+            known: knownPaidFeaturesOf(profile),
+            writeFailed: setVisibility.error !== null && !makePublic.dialog.open,
+        },
+        visibilityCopy,
+    );
     // D7: a viewer may clone a PUBLIC recipe they do not own — the SAME `canClone` predicate mobile now
     // evaluates, closing the drift where web ignored ownership and mobile checked it.
     const viewerCanClone = canClone(recipe, viewer);
@@ -364,6 +396,7 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                     editHref={`/${locale}/recipes/${id}/edit`}
                     versionsHref={viewerIsOwner ? versionsHref : undefined}
                     viewerIsOwner={viewerIsOwner}
+                    {...(visibilityNotice === undefined ? {} : { visibilityNotice })}
                     refreshNotice={refreshNotice}
                     unreachableRetry={unreachableRetry}
                     headerActions={headerActions}
@@ -410,23 +443,6 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                     }
                 />
             </ScrollHost>
-
-            {/* B17 — a failed visibility change snaps back to the query's value; say so rather than fail silently. The
-                make-public confirm says its own failure inside itself, so it is not said twice. A Private the server
-                refused — the editor's follow-up included, answered after the editor left — is said in its own words,
-                because trying again cannot succeed. */}
-            {serverRefusedPrivate ? (
-                <p role="alert" className="max-w-detail text-meta text-danger-text">
-                    {visibilityCopy.privateRefused[serverRefusedPrivate]}
-                </p>
-            ) : (
-                setVisibility.error !== null &&
-                !makePublic.dialog.open && (
-                    <p role="alert" className="max-w-detail text-meta text-danger-text">
-                        {visibilityCopy.error}
-                    </p>
-                )
-            )}
 
             {viewerIsOwner && <RecipeUpsellSheet {...privateGate.sheet} />}
 

@@ -1509,3 +1509,62 @@ describe('RecipeDetailView (native) — N1: the title is said once, by its heade
         expect(screen.queryAllByLabelText('Mediterranean Grilled Lamb')).toEqual([]);
     });
 });
+
+/**
+ * The visibility notice (buildSpec §6.4, plan 2026-10-14-009 T3): an assertive live region in the header, directly under
+ * the rating and visibility line. For the owner it is mounted EMPTY at rest and filled one render later, because Android
+ * does not reliably speak a region that mounts with its text; for another cook it is not there at all.
+ */
+describe('RecipeDetailView (native) — the visibility notice', () => {
+    const NOTICE = 'This recipe is still public: it couldn’t be made private.';
+    const view = (visibilityNotice?: string, viewerIsOwner = true): ReactElement => (
+        <RecipeDetailView
+            unreachableRetry={idleUnreachableRetry}
+            {...(viewerIsOwner ? { viewerIsOwner } : {})}
+            {...(visibilityNotice === undefined ? {} : { visibilityNotice })}
+            recipe={makeRecipeDetail({ averageRating: 4.8, ratingCount: 12, visibility: RecipeVisibility.PUBLIC })}
+        />
+    );
+    const regions = (): NodeListOf<Element> => document.querySelectorAll('[aria-live="assertive"]');
+
+    it('mounts an empty assertive region for the owner when there is nothing to say', () => {
+        render(view(), ownerWrapper);
+
+        expect(regions()).toHaveLength(1);
+        expect(regions()[0]?.textContent).toBe('');
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('⛔ fills the region that is already mounted, rather than mounting it with its text', () => {
+        const { rerender } = render(view(), ownerWrapper);
+        const before = regions()[0];
+
+        rerender(view(NOTICE));
+
+        expect(regions()).toHaveLength(1);
+        expect(regions()[0]).toBe(before);
+        expect(screen.getByRole('alert').textContent).toBe(NOTICE);
+    });
+
+    it('shows the words in the danger colour', () => {
+        render(view(NOTICE), ownerWrapper);
+
+        expect(getComputedStyle(screen.getByRole('alert')).color).toBe(cssColor(palette['error-dark']));
+    });
+
+    it('sits directly under the rating and visibility line', () => {
+        render(view(NOTICE), ownerWrapper);
+
+        const region = screen.getByRole('alert');
+        const ratingLine = screen.getByText('Public').parentElement?.parentElement as HTMLElement;
+
+        expect(ratingLine.nextElementSibling).toBe(region);
+    });
+
+    it('mounts nothing for another cook, even when handed a notice', () => {
+        render(view(NOTICE, false));
+
+        expect(regions()).toHaveLength(0);
+        expect(screen.queryByText(NOTICE)).toBeNull();
+    });
+});

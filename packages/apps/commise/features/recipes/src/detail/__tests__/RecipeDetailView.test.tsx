@@ -27,7 +27,9 @@ import { RecipeDetailBody } from '../RecipeDetailBody.js';
 import { RecipeDetailView } from '../RecipeDetailView.js';
 import { resetServingScale } from '../servingScale.js';
 import { recipeMessages } from '../../messages.js';
-import type { ReactElement } from 'react';
+import type { FC, ReactElement, ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { idleDetailBodyState } from '../../__fixtures__/cookMarks.js';
 import { DetailTestScope } from '../../__fixtures__/detailScope.js';
 import { ScrollHost } from '@commise/ui/scroll-host';
@@ -1962,5 +1964,100 @@ describe('RecipeDetailView (web) — the top block with and without a photo (P1)
         expect(hero).not.toContain('@min-[60rem]/detail:col-span-7');
         expect(header).toContain('@min-[60rem]/detail:col-span-12');
         expect(header).toContain('@min-[60rem]/detail:row-start-2');
+    });
+});
+
+/**
+ * The visibility notice (buildSpec §6.4, plan 2026-10-14-009 T3): an assertive live region in the header, directly under
+ * the rating and visibility line. For the owner it is mounted EMPTY at rest and filled one render later, because a region
+ * that mounts with its text is not reliably spoken; for another cook it is not there at all.
+ */
+describe('RecipeDetailView (web) — the visibility notice', () => {
+    // One stable wrapper, so a rerender keeps the page mounted (`renderAsOwner` wraps by hand and a rerender would drop it).
+    const queryClient = new QueryClient();
+    const recipeClient = createFakeRecipeServiceClient();
+    const foodClient = new FoodServiceClient({
+        baseUrl: 'https://food.test',
+        fetch: () => Promise.reject(new Error('offline')),
+    });
+    const OwnerScope: FC<{ readonly children: ReactNode }> = ({ children }) => (
+        <QueryClientProvider client={queryClient}>
+            <RecipeServiceProvider client={recipeClient}>
+                <FoodServiceProvider client={foodClient} subject="user_test">
+                    <DetailTestScope>{children}</DetailTestScope>
+                </FoodServiceProvider>
+            </RecipeServiceProvider>
+        </QueryClientProvider>
+    );
+    const renderAsOwner = (ui: ReactElement): ReturnType<typeof renderUnscoped> =>
+        renderUnscoped(ui, { wrapper: OwnerScope });
+    const NOTICE = 'This recipe is still public: it couldn’t be made private.';
+    const ownerView = (visibilityNotice?: string, viewerIsOwner = true): ReactElement => (
+        <RecipeDetailView
+            dataSourcesHref="/en/legal/sources"
+            unreachableRetry={idleUnreachableRetry}
+            {...(viewerIsOwner ? { viewerIsOwner } : {})}
+            {...(visibilityNotice === undefined ? {} : { visibilityNotice })}
+            recipe={makeRecipeDetail({ averageRating: 4.8, ratingCount: 12, visibility: RecipeVisibility.PUBLIC })}
+        />
+    );
+
+    it('mounts an empty alert region for the owner when there is nothing to say', () => {
+        renderAsOwner(ownerView());
+
+        const region = screen.getByRole('alert');
+
+        expect(region.textContent).toBe('');
+        expect(region.className).toContain('sr-only');
+    });
+
+    it('⛔ fills the region that is already mounted, rather than mounting it with its text', () => {
+        const { rerender } = renderAsOwner(ownerView());
+        const before = screen.getByRole('alert');
+
+        rerender(ownerView(NOTICE));
+
+        const after = screen.getByRole('alert');
+
+        expect(after).toBe(before);
+        expect(after.textContent).toBe(NOTICE);
+    });
+
+    it('shows the words, visible, as meta text in the danger colour', () => {
+        renderAsOwner(ownerView(NOTICE));
+
+        const region = screen.getByRole('alert');
+
+        expect(region.className).not.toContain('sr-only');
+        expect(region.className).toContain('text-meta');
+        expect(region.className).toContain('text-danger-text');
+        expect(utilityContrast(region.className, { foreground: 'text' })).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('sits directly under the rating and visibility line and above the stat strip, in the header', () => {
+        renderAsOwner(ownerView(NOTICE));
+
+        const region = screen.getByRole('alert');
+        const ratingLine = screen.getByText('Public').closest('p') as HTMLElement;
+
+        expect(ratingLine.nextElementSibling).toBe(region);
+        expect(region.closest('header')).not.toBeNull();
+        expect(region.nextElementSibling?.querySelector('dl')).not.toBeNull();
+    });
+
+    it('does not move focus', () => {
+        const { rerender } = renderAsOwner(ownerView());
+        const focused = document.activeElement;
+
+        rerender(ownerView(NOTICE));
+
+        expect(document.activeElement).toBe(focused);
+    });
+
+    it('mounts nothing for another cook, even when handed a notice', () => {
+        render(ownerView(NOTICE, false));
+
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(screen.queryByText(NOTICE)).toBeNull();
     });
 });

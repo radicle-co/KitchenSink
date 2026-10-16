@@ -155,8 +155,14 @@ row above disagrees, this list wins.
   copy in `collections/messages.ts` ("Make this collection public?"), web and native; the UX SPECIFY pass recommends it.
 - **T2 — a downgraded-owner pool lane** (seeded `premium`, then downgraded by `poolAdmin`), so
   `recipes/makePublicConfirm.yaml` can leave `KNOWN_UNRUN_FLOWS`, and a confirm → statement leg can be added to it.
-- **T3 — `staff-ux-engineer` EVALUATE** of the refusal notice: it is the finish snackbar, not the inline alert the
-  SPECIFY pass named, because the inline slot cannot receive state across the editor's hand-off.
+- **T3 — the refusal notice is INLINE, on the recipe page (done 2026-10-16; `docs/design/uiOverhaul/buildSpec.md`
+  §6.4).** An earlier version of this task kept it a finish snackbar, on the premise that the inline slot cannot
+  receive state across the editor's hand-off. That premise was wrong. Web already carries the finish in `?done=`, and
+  native carries it as a `RecipeDetail` route param (`privateRefused`). The snackbar now says only how the editor
+  finished. One slot in `RecipeDetailBody` (`visibilityNotice`, an assertive `LiveRegion` under the rating and
+  visibility line) says all three refusals and the generic failure, decided in one pure function
+  (`visibilityNoticeOf`). The claim in the link is not trusted: the sentence shows only for the owner of a public recipe
+  whose profile refuses Private, and the words come from the profile, never from the link.
 
 ## Operations after merge (the owner's, not this change's)
 

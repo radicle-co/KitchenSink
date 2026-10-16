@@ -3,8 +3,9 @@
  * finish to the host; web carries it to the detail page in a one-shot query parameter, native shows the snackbar
  * itself. This is the one place the outcomes, their wire spelling and their words are defined.
  *
- * REWRITTEN for the stuck-save defect: a finish also says whether the cook's Private was refused (`privateRefusalOf`), and
- * then the notice says the recipe stayed public in place of "Recipe published." / "Changes saved.".
+ * REWRITTEN for the stuck-save defect: a finish also says whether the cook's Private was refused (`privateRefusalOf`).
+ * REWRITTEN AGAIN (buildSpec §6.4, plan 2026-10-14-009 T3): the refusal is no longer said by the snackbar. The recipe
+ * page says it inline (`visibilityNoticeOf`), so the snackbar keeps only how the editor finished.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -38,14 +39,17 @@ describe('finishedNoticeOf', () => {
         expect(finishedNoticeOf({ outcome: 'changesSaved', privateRefused: undefined }, m)).toBe('Changes saved.');
     });
 
-    it.each(OUTCOMES)('⛔ says the recipe stayed public when Private was refused (%s)', (outcome) => {
-        expect(finishedNoticeOf({ outcome, privateRefused: 'final' }, m)).toBe(
-            "This recipe is public. Your other changes are saved, but it couldn't be made private.",
-        );
-        expect(finishedNoticeOf({ outcome, privateRefused: 'premium' }, m)).toBe(
-            'This recipe is public. Your other changes are saved, but private recipes are part of Premium.',
-        );
-    });
+    it.each(
+        OUTCOMES.flatMap((outcome) => (['final', 'premium'] as const).map((refusal) => [outcome, refusal] as const)),
+    )(
+        '⛔ ignores a refusal: %s with %s still says how the editor finished (the page says the refusal inline)',
+        (outcome, privateRefused) => {
+            expect(finishedNoticeOf({ outcome, privateRefused }, m)).toBe(
+                finishedNoticeOf({ outcome, privateRefused: undefined }, m),
+            );
+            expect(finishedNoticeOf({ outcome, privateRefused }, m)).toMatch(/^(Recipe published|Changes saved)\.$/u);
+        },
+    );
 });
 
 describe('finishedParamOf / parseFinishedParam', () => {

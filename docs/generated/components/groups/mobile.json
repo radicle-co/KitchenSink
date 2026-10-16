@@ -888,7 +888,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/auth/SignUpFields.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/auth",
-                    "moduleDoc": "components/auth/SignUpFields — the labelled profile fields a sign-up asks for (plan 012 D8): the typed\nsign-up form shows all of `SIGN_UP_FIELDS`; the finish step after a Google / Apple sign-up shows only those\nClerk still lists as missing. Each field carries its registry autofill and keyboard hints, and its error (ours for an\nempty field, Clerk's for a rejected one) sits UNDER it, named by the field's `describedBy` (WCAG 2.2 SC 3.3.1).\nThe host names the one field that takes focus: the first in error.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "components/auth/SignUpFields — the labelled profile fields a sign-up asks for (plan 012 D8): the typed\nsign-up form shows all of `SIGN_UP_FIELDS`; the finish step after a Google / Apple sign-up shows only those\nClerk still lists as missing. Each field carries its registry autofill and keyboard hints, and its error (ours for an\nempty field, Clerk's for a rejected one) sits UNDER it and is repeated as the field's `error`, which leads its accessibility hint (WCAG 2.2 SC 3.3.1; React\nNative has no `aria-describedby`).\nThe host names the one field that takes focus: the first in error.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",

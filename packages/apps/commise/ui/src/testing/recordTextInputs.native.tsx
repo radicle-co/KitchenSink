@@ -36,6 +36,7 @@ export const recordedTextInputs = new Map<string, TextInputProps>();
  */
 export function recordingTextInputModule<M extends { readonly TextInput: FC<TextInputProps> }>(actual: M): M {
     const Real = actual.TextInput;
+
     const TextInput: FC<TextInputProps> = (props) => {
         const key = props.nativeID ?? props.accessibilityLabel;
 

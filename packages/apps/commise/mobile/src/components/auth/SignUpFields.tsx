@@ -76,6 +76,7 @@ export function SignUpFields({
                 const id = `${idPrefix}-${field.name}`;
                 const hint = hints[field.name];
                 const error = errors[field.name];
+
                 return (
                     <View key={field.name} style={styles.field}>
                         <FieldLabel forId={id} label={labels[field.name]} {...(hint === undefined ? {} : { hint })} />

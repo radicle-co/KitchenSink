@@ -63,6 +63,12 @@ export interface EditorPage {
     readonly close: () => void;
     /** The primary: Publish, or a published recipe's Save changes. A refusal jumps to the first section holding one. */
     readonly finish: () => void;
+    /**
+     * How many times a refused Publish pointed at a section's heading because the refusal has no single field to point
+     * at (the servings, the times). Native moves the screen-reader cursor to the heading each time the count rises
+     * (§7.8, `specSharedSystem.md` §16.3); web's jump already focuses it.
+     */
+    readonly refusalHeadings: Readonly<Partial<Record<EditorSectionId, number>>>;
     /** The control for one of a parked write's actions. */
     readonly actionOf: (kind: FailureActionKind) => FailureAction;
 }
@@ -94,6 +100,7 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
     const [confirming, setConfirming] = useState(false);
     const { checkpoint } = editor;
     const { scrollToSection, scrollToField } = host;
+    const [refusalHeadings, setRefusalHeadings] = useState<Readonly<Partial<Record<EditorSectionId, number>>>>({});
 
     // A deep link's section, once, on mount (blueprint A16: read on mount; it never reaches the server). A later prop
     // is not a deep link.
@@ -160,12 +167,16 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
                 scrollToSection(outcome.section);
             }
 
-            // §7.8: focus goes to the first invalid FIELD. The section's heading, which the jump focused, stays the
-            // answer where the error has no single field (native has none to find by id either).
+            // §7.8: focus goes to the first invalid FIELD. The section's heading stays the answer where the error has
+            // no single field: web's jump focused it, and native is asked to move the screen-reader cursor to it.
             const field = firstInvalidFieldOf(outcome.errors, editor.values);
 
             if (field !== undefined) {
                 scrollToField(field);
+            } else if (outcome.section !== undefined) {
+                const { section } = outcome;
+
+                setRefusalHeadings((counts) => ({ ...counts, [section]: (counts[section] ?? 0) + 1 }));
             }
 
             onRefused?.(outcome);
@@ -224,6 +235,7 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
             onClose();
         },
         finish,
+        refusalHeadings,
         actionOf,
     };
 }

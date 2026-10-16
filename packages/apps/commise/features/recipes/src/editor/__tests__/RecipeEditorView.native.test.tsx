@@ -4,15 +4,18 @@
  * discard confirm, and the conflict view. The editor's lifecycle is a fake result.
  */
 import { LocaleProvider } from '@commise/i18n/react';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { useContext, type ReactElement } from 'react';
-import { Text } from 'react-native';
+import { AccessibilityInfo, Text, type LayoutChangeEvent } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { makeEditorResult } from '../../__fixtures__/editorResult.js';
 import { makeFilledRecipeFormValues, withLineKeys } from '../../__fixtures__/index.js';
+import { titleFieldId } from '../../form/fieldIds.js';
+import { Input } from '@commise/ui/input';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import type { RecipeFormErrors } from '../../form/validate.js';
 import type { UseRecipeEditorResult } from '../../hooks/useRecipeEditor.js';
 import { SectionPresenceContext } from '../sectionPresence.js';
 import type { RecipeEditorViewProps } from '../frameProps.js';
@@ -23,7 +26,11 @@ const { keyboard, win, reveal } = vi.hoisted(() => ({
     keyboard: { shown: false },
     win: { width: undefined as number | undefined },
     // The scroller the editor hands the field reveal on its latest render.
-    reveal: { scroller: undefined as { readonly current: unknown } | undefined },
+    reveal: {
+        scroller: undefined as { readonly current: unknown } | undefined,
+        // The reveal host the editor drew with on its latest render: the test reports the visible area through it.
+        host: undefined as { readonly onViewportLayout: (event: LayoutChangeEvent) => void } | undefined,
+    },
 }));
 
 // The real field reveal, with the scroller it is handed recorded: react-native-web lays nothing out, so the reveal's
@@ -35,8 +42,15 @@ vi.mock('@commise/ui/field-reveal', async (importOriginal) => {
         ...actual,
         useFieldRevealHost: (scroller: Parameters<typeof actual.useFieldRevealHost>[0]) => {
             reveal.scroller = scroller;
+            // react-native-web's scroller never answers a native measure, so the host is handed one that has nothing to
+            // measure: a target is then shown at once, which is what these cases are about.
+            const host = actual.useFieldRevealHost({
+                current:
+                    scroller.current === null ? null : { getNativeScrollRef: () => null, scrollTo: () => undefined },
+            });
+            reveal.host = host;
 
-            return actual.useFieldRevealHost(scroller);
+            return host;
         },
     };
 });
@@ -67,6 +81,8 @@ afterEach(() => {
     keyboard.shown = false;
     win.width = undefined;
     reveal.scroller = undefined;
+    reveal.host = undefined;
+    vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
 });
 
 /** Says whether its section is the one the cook is in, as a leaf reads it. */
@@ -239,6 +255,70 @@ describe('the native editor', () => {
         // Two places by design (A-010b): the action bar's polite line, and the Ready line in Photos & publish.
         const bar = screen.getByRole('group', { name: 'Recipe actions' }).parentElement;
         expect(within(bar as HTMLElement).getByText('Fix 1 thing to publish')).toBeTruthy();
+    });
+
+    // §7.8 and `specSharedSystem.md` §16.3: a refused Publish takes the screen-reader cursor to the first invalid
+    // FIELD, and to the section's heading where the refusal names no single field.
+    describe('where a refused Publish sends the screen-reader cursor', () => {
+        const refusing = (errors: RecipeFormErrors): Partial<UseRecipeEditorResult> => ({
+            publish: () => ({ kind: 'refused', errors, section: 'details' }),
+        });
+        const cursorTargets = (): unknown[] =>
+            vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mock.calls.map(([node]) => node);
+
+        /** Report the visible area, as the scroller's layout does on a device. */
+        const layOut = (): void => {
+            act(() => {
+                reveal.host?.onViewportLayout({
+                    nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 400 } },
+                } as LayoutChangeEvent);
+            });
+        };
+
+        /** Press Publish inside `act`, as the editor's state updates and effects (the cursor move) run within it. */
+        const publish = async (): Promise<void> => {
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+                await Promise.resolve();
+            });
+        };
+
+        it('goes to the title when the title is what was refused', async () => {
+            render(
+                view(makeEditorResult(refusing({ title: 'titleRequired' })), {
+                    sections: {
+                        details: <Input id={titleFieldId} label="Title" value="" onChangeText={vi.fn()} />,
+                        ingredients: <></>,
+                        steps: <></>,
+                        photos: <></>,
+                    },
+                }),
+            );
+            layOut();
+
+            await publish();
+
+            expect(cursorTargets()).toEqual([screen.getByRole('textbox', { name: 'Title' })]);
+        });
+
+        it('goes to the section heading when the refusal names no single field', async () => {
+            render(view(makeEditorResult(refusing({ servings: 'servingsPositive' }))));
+            layOut();
+
+            await publish();
+
+            expect(cursorTargets()).toEqual([screen.getByRole('heading', { name: 'Details' })]);
+        });
+
+        it('goes there again on a second refusal', async () => {
+            render(view(makeEditorResult(refusing({ servings: 'servingsPositive' }))));
+            layOut();
+
+            await publish();
+            await publish();
+
+            expect(cursorTargets()).toHaveLength(2);
+        });
     });
 
     it('a never-published draft`s conflict replaces the form, in the draft`s words', () => {

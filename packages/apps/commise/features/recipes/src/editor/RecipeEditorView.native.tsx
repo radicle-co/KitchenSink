@@ -118,7 +118,8 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
         drag.onScrollBeginDrag();
     };
 
-    // A jump moves the screen-reader cursor to the section's heading: each section counts the jumps that landed on it.
+    // A jump moves the screen-reader cursor to the section's heading: each section counts the jumps that landed on it, and
+    // the refusals that had no single field to point at (`page.refusalHeadings`, §7.8).
     const [jumps, setJumps] = useState<Readonly<Partial<Record<EditorSectionId, number>>>>({});
     const [firstAction, secondAction] = chrome.failure?.actions ?? [];
 
@@ -222,7 +223,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                                             id={section}
                                             title={m.index.sections[section]}
                                             current={page.current === section}
-                                            focusSignal={jumps[section] ?? 0}
+                                            focusSignal={(jumps[section] ?? 0) + (page.refusalHeadings[section] ?? 0)}
                                             {...(headingActions?.[section] === undefined
                                                 ? {}
                                                 : { action: headingActions[section] })}

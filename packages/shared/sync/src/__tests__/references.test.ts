@@ -35,11 +35,12 @@ describe('mintLocalRef', () => {
 
 describe('substituteRefs', () => {
     const resolved: ResolutionMap = { 'local:ingredient:abc': 'srv-111' };
+    const declared: ReadonlySet<string> = new Set(['local:ingredient:abc', 'local:ingredient:missing']);
 
     it('rewrites a ref held in a nested payload', () => {
         const payload = { title: 'Stew', ingredients: [{ ingredientId: 'local:ingredient:abc', name: 'gochujang' }] };
 
-        const out = substituteRefs(payload, resolved) as typeof payload;
+        const out = substituteRefs(payload, resolved, declared) as typeof payload;
 
         expect(out.ingredients[0]?.ingredientId).toBe('srv-111');
     });
@@ -47,7 +48,7 @@ describe('substituteRefs', () => {
     it('leaves unrelated values untouched', () => {
         const payload = { title: 'Stew', servings: 4, tags: ['spicy'] };
 
-        expect(substituteRefs(payload, resolved)).toStrictEqual(payload);
+        expect(substituteRefs(payload, resolved, declared)).toStrictEqual(payload);
     });
 
     /**
@@ -58,11 +59,21 @@ describe('substituteRefs', () => {
     it('⛔ refuses to substitute when a ref it embeds is still unresolved', () => {
         const payload = { ingredients: [{ ingredientId: 'local:ingredient:missing' }] };
 
-        expect(() => substituteRefs(payload, resolved)).toThrow(/unresolved/iu);
+        expect(() => substituteRefs(payload, resolved, declared)).toThrow(/unresolved/iu);
+    });
+
+    /**
+     * ⛔ ONLY A DECLARED REF IS A REF. Cook-typed text such as a title `local: farm salad` begins with the marker but
+     * is not in the record's `dependsOn`, so it must pass through untouched rather than throw at the drain.
+     */
+    it('⛔ never reads cook-typed text that merely starts with `local:` as a reference', () => {
+        const payload = { title: 'local: farm salad', note: 'local:ingredient:abc', tags: ['local:x'] };
+
+        expect(substituteRefs(payload, resolved, new Set())).toStrictEqual(payload);
     });
 
     it('is a no-op for a payload holding no refs at all', () => {
-        expect(substituteRefs({ title: 'Plain' }, {})).toStrictEqual({ title: 'Plain' });
+        expect(substituteRefs({ title: 'Plain' }, {}, new Set())).toStrictEqual({ title: 'Plain' });
     });
 });
 

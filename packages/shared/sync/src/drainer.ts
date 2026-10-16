@@ -282,6 +282,9 @@ export async function drain<A = unknown>(
             continue;
         }
 
+        // ⛔ BUILT BEFORE THE CLAIM: a substitution fault must throw while the record is still pending, not after it
+        // has been saved as `sending` (an outcome-unknown state no drain re-sends).
+        const payload = substituteRefs(queued.payload, current.resolutions, new Set(queued.dependsOn));
         const claimed = options.journal === undefined ? true : await options.journal.claim(queued.seq);
 
         if (!claimed) {
@@ -294,7 +297,7 @@ export async function drain<A = unknown>(
         let deferMs: number | undefined;
 
         for (let attempt = 1; attempt <= MAX_TRANSIENT_ATTEMPTS; attempt += 1) {
-            result = await send({ ...queued, payload: substituteRefs(queued.payload, current.resolutions) });
+            result = await send({ ...queued, payload });
 
             if (result.outcome === 'ok' || classifyFailure({ ...queued, ...statusOf(result.status) }) !== 'transient') {
                 break;

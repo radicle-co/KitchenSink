@@ -401,6 +401,55 @@ describe('drain — what a parked record waits for', () => {
  * ⛔ AN ID RESOLVED BY AN EARLIER DRAIN STAYS RESOLVED. A checkpoint `update` queued after its `create` already synced
  * has no producer left in the log; without the persisted map it would be sent with the `local:` placeholder in it.
  */
+describe('drain — cook text that looks like a reference', () => {
+    it('⛔ sends a title starting with `local:` unchanged and syncs it', async () => {
+        const sent: unknown[] = [];
+        const sender: Sender = vi.fn(async (record): Promise<SendResult> => {
+            sent.push(record.payload);
+
+            return { outcome: 'ok', serverId: 'srv-1' };
+        });
+        const log = appendIntent(
+            EMPTY,
+            intent({
+                entity: 'recipe',
+                intentKind: 'create',
+                localId: 'r1',
+                payload: { input: { title: 'local: farm' } },
+            }),
+        );
+
+        const after = await drain(log, sender, noSleep);
+
+        expect(sent).toStrictEqual([{ input: { title: 'local: farm' } }]);
+        expect(after.synced).toHaveLength(1);
+    });
+
+    it('⛔ builds the payload BEFORE the claim, so a substitution bug leaves the record pending, not sending', async () => {
+        const claim = vi.fn(async () => true);
+        const sender: Sender = vi.fn(async (): Promise<SendResult> => ({ outcome: 'ok', serverId: 's' }));
+        const log: OutboxLog = {
+            ...appendIntent(
+                EMPTY,
+                intent({
+                    entity: 'recipe',
+                    intentKind: 'delete',
+                    localId: 'r1',
+                    dependsOn: ['local:recipe:a'],
+                    payload: { id: 'local:recipe:a' },
+                }),
+            ),
+            resolutions: { 'local:recipe:a': 'srv-a' },
+        };
+        const journal = { claim, settle: vi.fn(async () => undefined) };
+
+        await drain(log, sender, { ...noSleep, journal });
+
+        expect(claim).toHaveBeenCalledTimes(1);
+        expect(sender).toHaveBeenCalledWith(expect.objectContaining({ payload: { id: 'srv-a' } }));
+    });
+});
+
 describe('drain — resolutions outlive the drain that made them', () => {
     it('substitutes an id an earlier drain resolved, and carries new resolutions out', async () => {
         const sent: unknown[] = [];

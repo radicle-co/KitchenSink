@@ -74,19 +74,25 @@ export function resolveRef(map: ResolutionMap, ref: LocalRef, serverId: string):
 }
 
 /**
- * Rewrite every local reference in a payload to its resolved server id.
+ * Rewrite every DECLARED local reference in a payload to its resolved server id.
  *
- * ⛔ AN UNRESOLVED REF THROWS. Sending a payload still carrying `local:…` produces a server rejection later,
+ * ⛔ ONLY A DECLARED REF IS A REF. A string equal to one of the record's `dependsOn` is a placeholder; every other
+ * string — including a cook's title that merely starts with `local:` — is user text and passes through untouched.
+ * Reading the prefix alone made such a title throw after the record was claimed, stranding it as `sending`.
+ *
+ * ⛔ AN UNRESOLVED DECLARED REF THROWS. Sending a payload still carrying `local:…` produces a server rejection later,
  * attributed to the cook's data rather than to our bug — the worst possible failure attribution. Failing at
  * the drain keeps the blame where it belongs.
  *
  * @param payload - Any request body.
  * @param resolved - The resolutions recorded so far.
- * @returns The payload with refs replaced. Pure.
- * @throws If the payload embeds a reference that has not been resolved.
+ * @param declared - The refs the record declared it depends on (`dependsOn`). Required: a default would silently
+ *   decide, for every caller that had not thought about it, which strings are references.
+ * @returns The payload with declared refs replaced. Pure.
+ * @throws If the payload embeds a declared reference that has not been resolved.
  */
-export function substituteRefs(payload: unknown, resolved: ResolutionMap): unknown {
-    if (isLocalRef(payload)) {
+export function substituteRefs(payload: unknown, resolved: ResolutionMap, declared: ReadonlySet<string>): unknown {
+    if (typeof payload === 'string' && declared.has(payload)) {
         const serverId = resolved[payload];
 
         if (serverId === undefined) {
@@ -97,12 +103,12 @@ export function substituteRefs(payload: unknown, resolved: ResolutionMap): unkno
     }
 
     if (Array.isArray(payload)) {
-        return payload.map((item) => substituteRefs(item, resolved));
+        return payload.map((item) => substituteRefs(item, resolved, declared));
     }
 
     if (typeof payload === 'object' && payload !== null) {
         return Object.fromEntries(
-            Object.entries(payload).map(([key, value]) => [key, substituteRefs(value, resolved)]),
+            Object.entries(payload).map(([key, value]) => [key, substituteRefs(value, resolved, declared)]),
         );
     }
 

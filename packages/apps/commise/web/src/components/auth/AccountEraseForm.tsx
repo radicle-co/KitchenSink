@@ -40,6 +40,7 @@ import { useMessages } from '@commise/i18n/react';
 import { ProfileRow } from '@commise/features-account/profile';
 import { isErasureStepError, selectDonatableRecipes, useErasureSequence } from '@commise/features-account';
 import { AccountEraseDialog, accountDangerMessages } from '@commise/features-account/danger';
+import { isGoneError } from '@kitchensink/recipe-service-client';
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 
 import { authMessages } from '@/components/auth/messages';
@@ -83,6 +84,7 @@ function AccountEraseFlow({
         eraseRecipes: erasure.mutateAsync,
         eraseAccount: accountErasure.mutateAsync,
         leave: signOutAndLeave,
+        recipesAlreadyErased: isGoneError,
     });
 
     const [phrase, setPhrase] = useState('');

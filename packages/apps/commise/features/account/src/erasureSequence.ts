@@ -39,6 +39,11 @@ export interface ErasureSteps {
     readonly eraseAccount: () => Promise<unknown>;
     /** End the session, PROVE it ended (`signOutAndVerify`), and leave. Throws when it cannot prove it. */
     readonly leave: () => Promise<void>;
+    /**
+     * Whether a recipe-step failure is the service's `410 ALREADY_ERASED`: a prior recipe erasure COMPLETED, so the
+     * step's goal already holds. Supplied by the platform because the error type belongs to the recipe client.
+     */
+    readonly recipesAlreadyErased: (error: unknown) => boolean;
 }
 
 /** A step of the erasure sequence failed. Carries the step and the original failure as `cause`. */
@@ -70,7 +75,9 @@ async function runStep<T>(step: ErasureStep, run: () => Promise<T>): Promise<T> 
  * Run the erasure sequence as one mutation: recipes, then account, then sign-out and leave. A failing step stops
  * the sequence there, so the session is never ended over an account that still exists.
  *
- * Retrying after an `account` failure re-runs the recipe step; the recipe erasure is idempotent server-side.
+ * Retrying after an `account` failure re-runs the recipe step. The service answers a duplicate `202` while the
+ * recipe job is in flight but `410 ALREADY_ERASED` once it has completed, so that answer counts as the step done;
+ * otherwise a retry could never reach the account step again.
  *
  * @param steps - The platform's three steps (see {@link ErasureSteps}); read when the mutation starts.
  * @returns The mutation: `mutate(input)` starts it, `isPending` stays true through the sign-out, and `error` is an
@@ -80,7 +87,15 @@ async function runStep<T>(step: ErasureStep, run: () => Promise<T>): Promise<T> 
 export function useErasureSequence(steps: ErasureSteps): UseMutationResult<void, ErasureStepError, RecipeErasureInput> {
     return useMutation<void, ErasureStepError, RecipeErasureInput>({
         mutationFn: async (input) => {
-            await runStep('recipes', () => steps.eraseRecipes(input));
+            await runStep('recipes', async () => {
+                try {
+                    await steps.eraseRecipes(input);
+                } catch (error) {
+                    if (!steps.recipesAlreadyErased(error)) {
+                        throw error;
+                    }
+                }
+            });
             await runStep('account', () => steps.eraseAccount());
             await runStep('exit', () => steps.leave());
         },

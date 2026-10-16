@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { GoneError } from '@kitchensink/recipe-service-client';
 import type { ReactNode } from 'react';
 
 const { signOut, clerkState } = vi.hoisted(() => ({
@@ -258,6 +259,21 @@ describe('AccountEraseForm (web) — confirm', () => {
         );
         expect(signOut).not.toHaveBeenCalled();
         expect(navigateTo).not.toHaveBeenCalled();
+    });
+
+    it('reaches the account step on a retry whose recipe leg answers 410 ALREADY_ERASED', async () => {
+        // First attempt: the recipe job is accepted, the account leg fails. By the retry the recipe job has completed,
+        // so the service answers 410 instead of 202 — which must count as done, or the account can never be erased.
+        accountEraseFn.mockRejectedValueOnce(new Error('500'));
+        const user = await openFlow();
+        await confirmErasure(user);
+        await screen.findByRole('alert');
+
+        erasureFn.mockRejectedValue(new GoneError('Account has already been erased', 'ALREADY_ERASED'));
+        await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Erase my data' }));
+
+        await vi.waitFor(() => expect(navigateTo).toHaveBeenCalledWith('/'));
+        expect(accountEraseFn).toHaveBeenCalledTimes(2);
     });
 
     it('does NOT touch the account or the session when the recipe erasure fails', async () => {

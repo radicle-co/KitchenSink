@@ -37,6 +37,7 @@ import { ProfileGroup, ProfileRow, profileMessages } from '@commise/features-acc
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { isGoneError } from '@kitchensink/recipe-service-client';
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { useState } from 'react';
@@ -85,6 +86,7 @@ function AccountEraseFlow({
         eraseRecipes: erasure.mutateAsync,
         eraseAccount: accountErasure.mutateAsync,
         leave: signOutAndVerify,
+        recipesAlreadyErased: isGoneError,
     });
 
     const [phrase, setPhrase] = useState('');

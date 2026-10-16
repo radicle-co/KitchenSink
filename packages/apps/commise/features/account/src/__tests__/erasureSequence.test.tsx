@@ -23,6 +23,9 @@ afterEach(cleanup);
 
 const input: RecipeErasureInput = { confirmationPhrase: 'ERASE MY DATA', publishRecipeIds: ['r1'] };
 
+/** Stands in for the recipe service's `410 ALREADY_ERASED`; the platform's predicate recognises it. */
+const alreadyErased = new Error('410 Account has already been erased');
+
 function deferred<T = void>() {
     let resolve!: (value: T) => void;
     const promise = new Promise<T>((res) => {
@@ -47,6 +50,7 @@ function arrange() {
         leave: vi.fn(async () => {
             calls.push('leave');
         }),
+        recipesAlreadyErased: (error: unknown) => error === alreadyErased,
     };
 
     return { wrapper, steps, calls };
@@ -108,6 +112,20 @@ describe('useErasureSequence', () => {
         expect(steps.leave).not.toHaveBeenCalled();
         expect(isErasureStepError(result.current.error, 'recipes')).toBe(true);
         expect(isErasureStepError(result.current.error, 'account')).toBe(false);
+    });
+
+    // A retry after an account-step failure re-sends the recipe step. Once the recipe job has COMPLETED the service
+    // answers `410 ALREADY_ERASED` rather than `202`, which used to fail the retry at the recipe step and leave the
+    // cook no way to reach the account step again. "Already erased" is the recipe step's goal, so it counts as done.
+    it('treats an already-erased answer from the recipe step as done and runs the account step and sign-out', async () => {
+        const { wrapper, steps, calls } = arrange();
+        steps.eraseRecipes.mockRejectedValue(alreadyErased);
+        const { result } = renderHook(() => useErasureSequence(steps), { wrapper });
+
+        act(() => result.current.mutate(input));
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(calls).toEqual(['account', 'leave']);
     });
 
     it('stops before the sign-out when the account step fails, and names the step', async () => {

@@ -25,6 +25,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider, useMutation } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
 
+import { GoneError } from '@kitchensink/recipe-service-client';
 import { useAllOwnerRecipes } from '@kitchensink/recipe-service-client/hooks';
 import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
@@ -336,6 +337,20 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
         expect(await screen.findByText(erase.error)).toBeTruthy();
         expect(accountEraseFn).toHaveBeenCalledTimes(1);
         expect(signOutAndVerify).not.toHaveBeenCalled();
+    });
+
+    it('reaches the account step on a retry whose recipe leg answers 410 ALREADY_ERASED', async () => {
+        // The recipe job completed between attempts, so the retry's recipe leg is a 410, not a 202: that is done.
+        accountEraseFn.mockRejectedValueOnce(new Error('500'));
+        confirmErasure();
+        expect(await screen.findByText(erase.error)).toBeTruthy();
+
+        erasureFn.mockRejectedValue(new GoneError('Account has already been erased', 'ALREADY_ERASED'));
+        const eraseButtons = screen.getAllByRole('button', { name: 'Erase my data' });
+        fireEvent.click(eraseButtons[eraseButtons.length - 1] as HTMLElement);
+
+        await waitFor(() => expect(signOutAndVerify).toHaveBeenCalledTimes(1));
+        expect(accountEraseFn).toHaveBeenCalledTimes(2);
     });
 
     it('does NOT touch the account or the session when the recipe erasure fails', async () => {

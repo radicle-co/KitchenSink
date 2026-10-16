@@ -43,6 +43,7 @@ import { usePreviousPages } from '../hooks/usePreviousPages.js';
 import { useRecentSearches } from '../hooks/useRecentSearches.js';
 import { useSaveCopy, type SaveCopy } from '../hooks/useSaveCopy.js';
 import { useMainContainerClass } from '../layout/useMainContainerClass.js';
+import type { DiscoveryResultsViewProps } from './DiscoveryResultsView.js';
 import type { DiscoveryCriteriaStore, DiscoveryRecoverySignal } from './discoveryScreenModel.js';
 import type { DiscoverySearchRead } from './discoverySearchRead.js';
 import {
@@ -51,7 +52,6 @@ import {
     isDiscoveryBrowsing,
     isDiscoverySearching,
     type DiscoveryFilterSlots,
-    type RecipeBrowseCuisineShortcut,
     type RecipeDiscoveryCriteria,
     type RecipeDiscoveryFrameProps,
     type RecipeDiscoveryResultsSummary,
@@ -69,17 +69,18 @@ export interface DiscoveryScreenState {
     /** The card variant the results will draw — the loading body sits its placeholders in the same grid. */
     readonly cardVariant: 'grid' | 'compact';
     /** What the results view needs beyond its pages and the card actions. */
-    readonly results: {
-        readonly criteria: RecipeDiscoveryCriteria;
-        readonly stale: boolean;
-        readonly cuisines: readonly RecipeBrowseCuisineShortcut[];
-        readonly facets: RecipeFacets;
-        readonly cardVariant: 'grid' | 'compact';
-        readonly onSeeAll: (sortBy: RecipeSearchSortBy) => void;
-        readonly onClearSearch: () => void;
-        readonly onClearFilters: () => void;
-        readonly onPickTag: (tag: string) => void;
-    };
+    readonly results: Pick<
+        DiscoveryResultsViewProps,
+        | 'criteria'
+        | 'stale'
+        | 'cuisines'
+        | 'facets'
+        | 'cardVariant'
+        | 'onSeeAll'
+        | 'onClearSearch'
+        | 'onClearFilters'
+        | 'onPickTag'
+    >;
     /** The results a failed search keeps on screen and the criteria they belong to, once a first load has settled. */
     readonly previous:
         | {

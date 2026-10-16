@@ -8,7 +8,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
-import type { FC, JSX } from 'react';
+import { lazy, type FC, type JSX } from 'react';
 
 import {
     errorReporterToken,
@@ -26,7 +26,7 @@ import { Pressable, Text } from 'react-native';
 
 import { HomeWidgetSurface } from '../../../src/components/home/HomeWidgetSurface.js';
 import { homeContainer } from '../../../src/components/home/homeContainer.js';
-import { useHomeNudge } from '../../../src/components/home/homeNudgeContext.js';
+import { useHomeNudge } from '@commise/features-core/home';
 
 // The profile hook hits Clerk + the identity API; stub it to a controllable tier + display name.
 const { profileRef } = vi.hoisted(() => ({
@@ -144,6 +144,22 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
         });
 
         expect(await screen.findByText('fake-recipe-widget')).toBeTruthy();
+    });
+
+    it('keeps the rest of Home on screen while a LAZY bespoke widget is still loading (a Suspense boundary per widget)', async () => {
+        // A bespoke renderer may itself be `React.lazy` (the recipe slot is code-split). Home's widget-surface contract
+        // is a per-widget ErrorBoundary + Suspense, so one widget still resolving must leave the greeting and its
+        // siblings drawn: without the boundary the pending chunk suspends the whole surface.
+        const Pending = lazy<FC>(() => new Promise<{ default: FC }>(() => undefined));
+        const Sibling: FC = () => <Text>fake-sibling-widget</Text>;
+
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID), makeLiveDescriptor('sibling')),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: Pending, sibling: Sibling },
+        });
+
+        expect(await screen.findByText('fake-sibling-widget')).toBeTruthy();
+        expect(screen.getByRole('heading', { name: /^Good (morning|afternoon|evening)|^Still up/u })).toBeTruthy();
     });
 
     it('renders a placeholder through its loader seam (skeleton), not the bespoke renderer map', async () => {

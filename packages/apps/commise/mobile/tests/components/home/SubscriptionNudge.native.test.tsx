@@ -1,18 +1,17 @@
 /**
- * Component tests for the mobile subscription upgrade nudge (FR-046) and the once-per-session lifecycle hook
- * behind it. Rendered via react-native-web under jsdom (see `vitest.native.config.ts`).
+ * Component tests for the mobile subscription upgrade nudge (FR-046). Rendered via react-native-web under jsdom (see
+ * `vitest.native.config.ts`). The once-per-session lifecycle hook behind it is pinned once for both apps in
+ * `@commise/features-core`'s `home/__tests__/useOncePerSessionNudge.test.tsx`.
  *
  * The web nudge has carried a component suite since it shipped; the native mirror had only the end-to-end
  * pass inside `HomeWidgetSurface.native.test.tsx`, so the leaf's own states — closed, open, and each of its
- * two dismissal paths — were never asserted on this platform. Covered here, alongside every state of
- * `useOncePerSessionNudge`: armed, showing (including a repeat trigger that must not advance it), and spent.
+ * two dismissal paths — were never asserted on this platform. Covered here.
  */
-import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dialogTitled } from '@commise/test-utils';
 
 import { SubscriptionNudge } from '../../../src/components/home/SubscriptionNudge.js';
-import { useOncePerSessionNudge } from '../../../src/components/home/useOncePerSessionNudge.js';
 
 afterEach(cleanup);
 
@@ -87,83 +86,5 @@ describe('SubscriptionNudge (mobile) — open', () => {
         fireEvent.click(screen.getByText('See plans'));
 
         expect(onDismiss).toHaveBeenCalledTimes(1);
-    });
-});
-
-/**
- * `useOncePerSessionNudge` — every state of the FR-046 lifecycle, one at a time, mirroring the web suite
- * exactly. The two platforms' hooks are verbatim twins, so a divergence here IS the drift.
- */
-describe('useOncePerSessionNudge (mobile)', () => {
-    it('starts armed and invisible', () => {
-        const { result } = renderHook(() => useOncePerSessionNudge(true));
-
-        expect(result.current.visible).toBe(false);
-    });
-
-    it('the first trigger shows it', () => {
-        const { result } = renderHook(() => useOncePerSessionNudge(true));
-
-        act(() => result.current.trigger());
-
-        expect(result.current.visible).toBe(true);
-    });
-
-    it('a repeat trigger while it is already showing keeps it showing and does not spend it', () => {
-        const { result } = renderHook(() => useOncePerSessionNudge(true));
-
-        act(() => result.current.trigger());
-        act(() => result.current.trigger());
-
-        expect(result.current.visible).toBe(true);
-
-        // Still exactly ONE dismissal away from spent — the repeat did not advance the lifecycle.
-        act(() => result.current.dismiss());
-        expect(result.current.visible).toBe(false);
-    });
-
-    it('dismissing hides it WITHOUT re-arming: every later trigger is a no-op for the session', () => {
-        const { result } = renderHook(() => useOncePerSessionNudge(true));
-
-        act(() => result.current.trigger());
-        act(() => result.current.dismiss());
-        expect(result.current.visible).toBe(false);
-
-        act(() => result.current.trigger());
-        expect(result.current.visible).toBe(false);
-    });
-
-    // ── Plan 2026-10-14-009 D14: the nudge is an upsell, behind the paid-features gate.
-    it('⛔ is never shown while not offered (granted or hidden), and a trigger then does not spend it', () => {
-        const { result, rerender } = renderHook(({ offered }) => useOncePerSessionNudge(offered), {
-            initialProps: { offered: false },
-        });
-
-        act(() => result.current.trigger());
-        expect(result.current.visible).toBe(false);
-
-        rerender({ offered: true });
-        act(() => result.current.trigger());
-        expect(result.current.visible).toBe(true);
-    });
-
-    it('hides a showing nudge the moment it stops being offered', () => {
-        const { result, rerender } = renderHook(({ offered }) => useOncePerSessionNudge(offered), {
-            initialProps: { offered: true },
-        });
-
-        act(() => result.current.trigger());
-        rerender({ offered: false });
-
-        expect(result.current.visible).toBe(false);
-    });
-
-    it('a dismiss before anything triggered does not spend the nudge', () => {
-        const { result } = renderHook(() => useOncePerSessionNudge(true));
-
-        act(() => result.current.dismiss());
-        act(() => result.current.trigger());
-
-        expect(result.current.visible).toBe(true);
     });
 });

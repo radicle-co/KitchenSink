@@ -6,7 +6,7 @@
  * header's action (the avatar) and the floating create button right after the H1.
  *
  * "Good afternoon, Eliza" over "Sunday, May 31, 2026"; "Good afternoon" when the cook has no name yet. Both are derived from the viewer's
- * LOCAL clock: the greeting from the hour-of-day bucket ({@link greetingBucketForHour}) and the subtitle from
+ * LOCAL clock: the greeting from the hour-of-day bucket ({@link homeGreetingOf}) and the subtitle from
  * {@link formatHomeDate} — the shared, locale-aware formatters in `@commise/features-core`, so web and mobile
  * greet identically (FR-044).
  *
@@ -35,7 +35,8 @@
  * former is provider-coupled and wrong behind a VPN, the latter is wrong on the first visit — and neither is
  * reachable from a browser test, so both would keep the masks.
  */
-import { formatHomeDate, greetingBucketForHour } from '@commise/features-core';
+import { formatHomeDate } from '@commise/features-core';
+import { homeGreetingOf } from '@commise/features-core/home';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import {
     LARGE_SUBTITLE_CLASS,
@@ -98,8 +99,7 @@ export function HomeGreeting({ name, action, afterTitle }: HomeGreetingProps = {
     }
 
     const now = new Date();
-    const bucket = greetingBucketForHour(now.getHours());
-    const greeting = name === undefined ? home.greetings[bucket] : home.greetingsNamed[bucket].replace('{name}', name);
+    const greeting = homeGreetingOf(home, name, now.getHours());
 
     return (
         <LargeTitleHeader

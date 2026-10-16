@@ -1,9 +1,19 @@
 /**
- * @module @commise/features-core/home — the Home surface logic both apps share: widget curation and rendering, the
- * once-per-session nudge, the roadmap feature loaders, the Home copy and the widget skeletons.
+ * @module @commise/features-core/home — the Home surface logic both apps share: widget curation and the slot decision,
+ * the once-per-session nudge and its context, the greeting, and the profile avatar's props.
  *
- * A package-export entry (the one kind of barrel this repo keeps), registered ahead of the web/mobile UI
- * consolidation so the slice that fills it (S1 of `docs/plans/2026-10-13-007-chore-finish-pr91-plan.md`) edits
- * neither the package root index nor `package.json`.
+ * A package-export entry (the one kind of barrel this repo keeps). The apps keep what differs by platform: the
+ * per-widget `ErrorBoundary` + `Suspense` JSX (this package carries no `react-error-boundary`), the roadmap skeletons,
+ * the Sentry binding in `homeContainer`, and the layout around the widgets.
  */
-export {};
+export { homeGreetingOf } from './homeGreeting.js';
+export type { HomeGreetingCopy } from './homeGreeting.js';
+export { HomeNudgeContext, useHomeNudge } from './homeNudgeContext.js';
+export type { HomeNudge } from './homeNudgeContext.js';
+export { homeWidgetSlotOf } from './homeWidgetSlot.js';
+export type { HomeWidgetSlot } from './homeWidgetSlot.js';
+export { homeWidgetTierOf } from './homeWidgetTier.js';
+export { useHomeWidgets } from './useHomeWidgets.js';
+export type { HomeWidgetSlots, UseHomeWidgetsInput } from './useHomeWidgets.js';
+export { useOncePerSessionNudge } from './useOncePerSessionNudge.js';
+export type { OncePerSessionNudge } from './useOncePerSessionNudge.js';

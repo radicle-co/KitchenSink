@@ -4,10 +4,11 @@
  * over the local calendar date, drawn by the design system's `LargeTitleHeader` with the avatar as its action.
  *
  * Both lines derive from the viewer's local clock via the SHARED formatters in `@commise/features-core`
- * ({@link greetingBucketForHour} + {@link formatHomeDate}), so web and mobile greet identically (FR-044). The surface is
+ * ({@link homeGreetingOf} + {@link formatHomeDate}), so web and mobile greet identically (FR-044). The surface is
  * client-rendered on device, so (unlike web) there is no hydration concern — reading the clock in render is fine.
  */
-import { formatHomeDate, greetingBucketForHour } from '@commise/features-core';
+import { formatHomeDate } from '@commise/features-core';
+import { homeGreetingOf } from '@commise/features-core/home';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { LargeTitleHeader, type HeaderAction } from '@commise/ui/large-title-header';
 import type { JSX } from 'react';
@@ -26,9 +27,8 @@ export const HOME_TITLE_ID = 'home-title';
  */
 export function useHomeGreeting(name: string | undefined): string {
     const { home } = useMessages(mobileMessages);
-    const bucket = greetingBucketForHour(new Date().getHours());
 
-    return name === undefined ? home.greetings[bucket] : home.greetingsNamed[bucket].replace('{name}', name);
+    return homeGreetingOf(home, name, new Date().getHours());
 }
 
 /** Props for {@link HomeGreeting}. */

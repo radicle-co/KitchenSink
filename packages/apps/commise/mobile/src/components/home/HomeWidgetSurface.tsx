@@ -18,28 +18,24 @@
  * recipe slot. The tab bar, the condensed title bar and the floating create button are NOT here: the navigator owns the
  * bar and `HomeScreen` floats the other two over this scroller. `container` and `renderers` are injectable seams.
  */
+import { profileEntryOf, resolveErrorReporter, type HomeWidgetId } from '@commise/features-core';
 import {
-    curateHomeWidgets,
-    isPlaceholderHomeWidget,
-    profileEntryOf,
-    resolveErrorReporter,
-    resolveHomeWidgets,
-    splitComingSoon,
-    type HomeWidgetCurationContext,
-    type HomeWidgetDescriptor,
-    type HomeWidgetId,
-} from '@commise/features-core';
+    HomeNudgeContext,
+    useHomeWidgets,
+    useOncePerSessionNudge,
+    type HomeWidgetSlot,
+} from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { LIVE_CAPABILITIES } from '@commise/features-recipes/widget';
 import { useMessages } from '@commise/i18n/react';
-import { paidFeatureStateOf, type PaidFeatureState } from '@commise/features-account';
+import { paidFeatureStateOf } from '@commise/features-account';
 import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { Container } from 'ditox';
-import { useMemo, type ComponentType, type JSX, type ReactNode } from 'react';
+import { Suspense, useMemo, type ComponentType, type JSX, type ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -50,18 +46,7 @@ import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice.js';
 import { homeContainer } from './homeContainer.js';
 import { RecipeWidgetSlot } from './RecipeWidgetSlot.js';
 import { RoadmapWidgetSlot } from './RoadmapWidgetSlot.js';
-import { HomeNudgeContext } from './homeNudgeContext.js';
-import { useOncePerSessionNudge } from './useOncePerSessionNudge.js';
 import { SubscriptionNudge } from './SubscriptionNudge.js';
-
-/**
- * Map the viewer's paid-feature state (identity's `account.paidFeatures`, plan 2026-10-14-009 D13) onto the Home-widget
- * tier ladder (`free` | `pro`): only `granted` reaches a `pro` widget. A paid widget a viewer cannot use is curated out,
- * and its upsell is the nudge, which is offered only under `upsell`.
- */
-function toWidgetTier(paidFeatures: PaidFeatureState): string {
-    return paidFeatures === 'granted' ? 'pro' : 'free';
-}
 
 /** Props for {@link HomeWidgetSurface}. `container`/`renderers` are injectable seams for tests. */
 export interface HomeWidgetSurfaceProps {
@@ -141,38 +126,44 @@ export function HomeWidgetSurface({
 
     const activeRenderers = renderers ?? defaultRenderers;
 
-    const curated = useMemo(() => {
-        const ctx: HomeWidgetCurationContext = {
-            liveCapabilities: [...LIVE_CAPABILITIES],
-            tier: toWidgetTier(paidFeatures),
-            // order/hidden personalization lives in the identity profile preferences (002); absent in v1.
-        };
-
-        return splitComingSoon(curateHomeWidgets(resolveHomeWidgets(container), ctx));
-    }, [container, paidFeatures]);
+    const curated = useHomeWidgets({
+        container,
+        renderers: activeRenderers,
+        liveCapabilities: LIVE_CAPABILITIES,
+        paidFeatures,
+    });
 
     /**
-     * One widget: a live one through its bespoke slot, a placeholder through its loader seam.
+     * One widget: a live one through its bespoke slot, a placeholder through its loader seam. Which of the two (and
+     * whether a live id can be drawn at all) is `useHomeWidgets`' decision, shared with web; the boundary is ours.
      *
-     * @param descriptor - The curated descriptor.
-     * @returns Its boundary-wrapped render, or `null` for a live id this client cannot draw.
+     * @param slot - The curated slot.
+     * @returns Its boundary-wrapped render.
      */
-    const renderWidget = (descriptor: HomeWidgetDescriptor): ReactNode => {
-        const Bespoke = activeRenderers[descriptor.id];
+    const renderWidget = (slot: HomeWidgetSlot): ReactNode => {
+        const { descriptor } = slot;
 
         // A live widget with a bespoke slot. Its last-resort fallback is the localized
         // `HomeWidgetErrorNotice`, matching web: a `null` here meant a slot-level throw
         // (not just a widget-body one — the recipe slot's own inner boundary handles that)
         // erased the whole slot into unexplained blank space, with nothing announced to
         // assistive tech. Losing the content is acceptable; saying nothing about it is not.
-        if (Bespoke !== undefined) {
+        //
+        // It sits in a `Suspense` too, as on web: the widget-surface contract is a per-widget ErrorBoundary +
+        // Suspense, and a bespoke renderer may be `React.lazy`. Without the boundary one widget still resolving
+        // suspended the whole surface, greeting and siblings included.
+        if (slot.kind === 'bespoke') {
+            const { Widget } = slot;
+
             return (
                 <ErrorBoundary
                     key={descriptor.id}
                     fallback={<HomeWidgetErrorNotice />}
                     onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
                 >
-                    <Bespoke />
+                    <Suspense fallback={null}>
+                        <Widget />
+                    </Suspense>
                 </ErrorBoundary>
             );
         }
@@ -181,21 +172,15 @@ export function HomeWidgetSurface({
         // NOT the notice above. A skeleton is itself a stand-in for a feature that has not
         // shipped, so there is no content whose loss is worth announcing; a notice would report
         // the failure of something the viewer was never promised. The throw is still reported.
-        if (isPlaceholderHomeWidget(descriptor)) {
-            return (
-                <ErrorBoundary
-                    key={descriptor.id}
-                    fallback={null}
-                    onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
-                >
-                    <RoadmapWidgetSlot descriptor={descriptor} />
-                </ErrorBoundary>
-            );
-        }
-
-        // A live widget id with no bespoke renderer on this client — skip it rather than
-        // crash, so an older client tolerates a newer personalization list (version skew).
-        return null;
+        return (
+            <ErrorBoundary
+                key={descriptor.id}
+                fallback={null}
+                onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
+            >
+                <RoadmapWidgetSlot descriptor={descriptor} />
+            </ErrorBoundary>
+        );
     };
 
     return (

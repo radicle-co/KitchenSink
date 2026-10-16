@@ -9,7 +9,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { FC, JSX } from 'react';
+import { lazy, type FC, type JSX } from 'react';
 
 import {
     errorReporterToken,
@@ -20,6 +20,7 @@ import {
     type ErrorReporter,
     type HomeWidgetDescriptor,
 } from '@commise/features-core';
+import { useHomeNudge } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { renderWithProviders } from '@commise/test-utils';
 import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
@@ -53,7 +54,6 @@ vi.mock('@/hooks/useUserSettings', () => ({ useUserSettings: () => ({ data: { se
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
 
 const { HomeWidgetSurface } = await import('../HomeWidgetSurface');
-const { useHomeNudge } = await import('../homeNudgeContext');
 const { homeContainer } = await import('../homeContainer');
 const { RECENT_RECIPE_LIMIT } = await import('../RecipeWidgetSlot');
 
@@ -179,6 +179,22 @@ describe('HomeWidgetSurface (web) — host composition', () => {
         });
 
         expect(await screen.findByText('fake-recipe-widget')).toBeTruthy();
+    });
+
+    it('keeps the rest of Home on screen while a LAZY bespoke widget is still loading (a Suspense boundary per widget)', async () => {
+        // A bespoke renderer may itself be `React.lazy` (the recipe slot is code-split). Home's widget-surface contract
+        // is a per-widget ErrorBoundary + Suspense, so one widget still resolving must leave the greeting and its
+        // siblings drawn: without the boundary the pending chunk suspends the whole surface.
+        const Pending = lazy<FC>(() => new Promise<{ default: FC }>(() => undefined));
+        const Sibling: FC = () => <div>fake-sibling-widget</div>;
+
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID), makeLiveDescriptor('sibling')),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: Pending, sibling: Sibling },
+        });
+
+        expect(await screen.findByText('fake-sibling-widget')).toBeTruthy();
+        expect(screen.getByRole('heading', { name: /^Good (morning|afternoon|evening)|^Still up/u })).toBeTruthy();
     });
 
     it('renders a placeholder through its loader seam (skeleton), not through the bespoke renderer map', async () => {

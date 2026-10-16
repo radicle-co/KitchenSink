@@ -8,21 +8,19 @@
  * open (accessible dialog named by the title), dismiss/upgrade both fire `onDismiss`, Escape closes AND
  * fires `onDismiss` AND returns focus to the sibling opener, and focus is trapped while open.
  *
- * Plus `useOncePerSessionNudge`'s own lifecycle, which is where "at most once per session" actually lives.
- * `HomeWidgetSurface.test` drives the seam end-to-end through a gated widget; the block at the foot of this
- * file pins each of the hook's three states and the transition out of it, including the two the end-to-end
- * case cannot reach — a repeat trigger while the nudge is already showing, and a dismiss that arrives before
- * anything triggered. The mobile mirror is `mobile/tests/components/home/SubscriptionNudge.native.test.tsx`.
+ * `useOncePerSessionNudge`'s own lifecycle, which is where "at most once per session" actually lives, is pinned
+ * once for both apps in `@commise/features-core`'s `home/__tests__/useOncePerSessionNudge.test.tsx`;
+ * `HomeWidgetSurface.test` drives the seam end-to-end through a gated widget. The mobile mirror is
+ * `mobile/tests/components/home/SubscriptionNudge.native.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, renderHook, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
 import { buttonSurfaceClass } from '@commise/ui/button';
 
 import { SubscriptionNudge } from '../SubscriptionNudge';
-import { useOncePerSessionNudge } from '../useOncePerSessionNudge';
 
 afterEach(cleanup);
 
@@ -131,86 +129,6 @@ describe('SubscriptionNudge (web) — Radix a11y machinery (B6/CR-003)', () => {
             await user.tab();
             expect(document.activeElement).not.toBe(outside);
         }
-    });
-});
-
-/**
- * `useOncePerSessionNudge` — every state of the FR-046 lifecycle, one at a time. `HomeWidgetSurface.test`
- * already drives the whole seam end-to-end through a gated widget; this pins the three states the hook can
- * be in and the transition out of each, INCLUDING the two the end-to-end case cannot reach: a repeat trigger
- * while the nudge is already showing, and a dismiss that arrives before anything ever triggered.
- */
-describe('useOncePerSessionNudge (web)', () => {
-    it('starts armed and invisible', () => {
-        const { result } = renderHook(() => useOncePerSessionNudge(true));
-
-        expect(result.current.visible).toBe(false);
-    });
-
-    it('the first trigger shows it', () => {
-        const { result } = renderHook(() => useOncePerSessionNudge(true));
-
-        act(() => result.current.trigger());
-
-        expect(result.current.visible).toBe(true);
-    });
-
-    it('a repeat trigger while it is already showing keeps it showing and does not spend it', () => {
-        const { result } = renderHook(() => useOncePerSessionNudge(true));
-
-        act(() => result.current.trigger());
-        act(() => result.current.trigger());
-
-        expect(result.current.visible).toBe(true);
-
-        // Still exactly ONE dismissal away from spent — the repeat did not advance the lifecycle.
-        act(() => result.current.dismiss());
-        expect(result.current.visible).toBe(false);
-    });
-
-    it('dismissing hides it WITHOUT re-arming: every later trigger is a no-op for the session', () => {
-        const { result } = renderHook(() => useOncePerSessionNudge(true));
-
-        act(() => result.current.trigger());
-        act(() => result.current.dismiss());
-        expect(result.current.visible).toBe(false);
-
-        act(() => result.current.trigger());
-        expect(result.current.visible).toBe(false);
-    });
-
-    // ── Plan 2026-10-14-009 D14: the nudge is an upsell, behind the paid-features gate.
-    it('⛔ is never shown while not offered (granted or hidden), and a trigger then does not spend it', () => {
-        const { result, rerender } = renderHook(({ offered }) => useOncePerSessionNudge(offered), {
-            initialProps: { offered: false },
-        });
-
-        act(() => result.current.trigger());
-        expect(result.current.visible).toBe(false);
-
-        rerender({ offered: true });
-        act(() => result.current.trigger());
-        expect(result.current.visible).toBe(true);
-    });
-
-    it('hides a showing nudge the moment it stops being offered', () => {
-        const { result, rerender } = renderHook(({ offered }) => useOncePerSessionNudge(offered), {
-            initialProps: { offered: true },
-        });
-
-        act(() => result.current.trigger());
-        rerender({ offered: false });
-
-        expect(result.current.visible).toBe(false);
-    });
-
-    it('a dismiss before anything triggered does not spend the nudge', () => {
-        const { result } = renderHook(() => useOncePerSessionNudge(true));
-
-        act(() => result.current.dismiss());
-        act(() => result.current.trigger());
-
-        expect(result.current.visible).toBe(true);
     });
 });
 

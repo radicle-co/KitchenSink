@@ -21,27 +21,23 @@
  * recent recipes. `container` and `renderers` are injectable purely so the composition, skip, and nudge
  * logic can be unit-tested against fakes without loading the real widget chunks.
  */
+import { profileEntryOf, resolveErrorReporter, type HomeWidgetId, type RoadmapWidgetId } from '@commise/features-core';
 import {
-    curateHomeWidgets,
-    isPlaceholderHomeWidget,
-    resolveErrorReporter,
-    resolveHomeWidgets,
-    splitComingSoon,
-    type HomeWidgetCurationContext,
-    type HomeWidgetDescriptor,
-    type HomeWidgetId,
-    type RoadmapWidgetId,
-} from '@commise/features-core';
+    HomeNudgeContext,
+    useHomeWidgets,
+    useOncePerSessionNudge,
+    type HomeWidgetSlot,
+} from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_ID, RecipeCreateButton } from '@commise/features-recipes';
 import { useLibraryEmpty } from '@commise/features-recipes/hooks';
 import { LIVE_CAPABILITIES } from '@commise/features-recipes/widget';
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { paidFeatureStateOf, type PaidFeatureState } from '@commise/features-account';
+import { paidFeatureStateOf } from '@commise/features-account';
 import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import type { Container } from 'ditox';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { Suspense, useId, useMemo, type ComponentType, type JSX, type ReactNode } from 'react';
+import { Suspense, useId, type ComponentType, type JSX, type ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
 import { AppShell } from '@/components/app/AppShell';
@@ -49,24 +45,12 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { webMessages } from '@/i18n/messages';
 
 import { ProfileAvatarEntry } from './chrome/ProfileAvatarEntry';
-import { profileEntryOf } from '@commise/features-core';
 import { HomeGreeting } from './HomeGreeting';
 import { homeContainer } from './homeContainer';
 import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice';
 import { RECENT_RECIPE_LIMIT, RecipeWidgetSlot } from './RecipeWidgetSlot';
 import { RoadmapWidgetSlot } from './RoadmapWidgetSlot';
-import { HomeNudgeContext } from './homeNudgeContext';
-import { useOncePerSessionNudge } from './useOncePerSessionNudge';
 import { SubscriptionNudge } from './SubscriptionNudge';
-
-/**
- * Map the viewer's paid-feature state (identity's `account.paidFeatures`, plan 2026-10-14-009 D13) onto the Home-widget
- * tier ladder (`free` | `pro`): only `granted` reaches a `pro` widget. A paid widget a viewer cannot use is curated out,
- * and its upsell is the nudge, which is offered only under `upsell`.
- */
-function toWidgetTier(paidFeatures: PaidFeatureState): string {
-    return paidFeatures === 'granted' ? 'pro' : 'free';
-}
 
 /** Props for {@link HomeWidgetSurface}. Both are injectable seams for tests; production uses the defaults. */
 export interface HomeWidgetSurfaceProps {
@@ -130,26 +114,18 @@ export function HomeWidgetSurface({
     // The recent-recipes page the widget reads, from the cache: settled empty is Home's first run (§3.4).
     const firstRun = useLibraryEmpty(recipeServiceKeys.recipeList({ pageSize: RECENT_RECIPE_LIMIT }));
 
-    const curated = useMemo(() => {
-        const ctx: HomeWidgetCurationContext = {
-            liveCapabilities: [...LIVE_CAPABILITIES],
-            tier: toWidgetTier(paidFeatures),
-            // order/hidden personalization lives in the identity profile preferences (002); absent in v1 →
-            // widgets fall back to their `defaultWeight` order.
-        };
-
-        return splitComingSoon(curateHomeWidgets(resolveHomeWidgets(container), ctx));
-    }, [container, paidFeatures]);
+    const curated = useHomeWidgets({ container, renderers, liveCapabilities: LIVE_CAPABILITIES, paidFeatures });
     const comingSoonHeadingId = useId();
 
     /**
-     * One widget: a live one through its bespoke slot, a placeholder through its loader seam.
+     * One widget: a live one through its bespoke slot, a placeholder through its loader seam. Which of the two (and
+     * whether a live id can be drawn at all) is `useHomeWidgets`' decision, shared with mobile; the boundary is ours.
      *
-     * @param descriptor - The curated descriptor.
-     * @returns Its boundary-wrapped render, or `null` for a live id this client cannot draw.
+     * @param slot - The curated slot.
+     * @returns Its boundary-wrapped render.
      */
-    const renderWidget = (descriptor: HomeWidgetDescriptor): ReactNode => {
-        const Bespoke = renderers[descriptor.id];
+    const renderWidget = (slot: HomeWidgetSlot): ReactNode => {
+        const { descriptor } = slot;
 
         // A widget with a bespoke host slot (the live recipe widget, which needs its data
         // prop wired) renders through that slot. B23/DA9 — a render throw / chunk-load
@@ -160,7 +136,9 @@ export function HomeWidgetSurface({
         // like"), so it gets one representation — and it is ANNOUNCED (`role="status"`),
         // matching mobile, since a failure arriving mid-session is otherwise silent to
         // assistive tech.
-        if (Bespoke !== undefined) {
+        if (slot.kind === 'bespoke') {
+            const { Widget } = slot;
+
             return (
                 <ErrorBoundary
                     key={descriptor.id}
@@ -168,7 +146,7 @@ export function HomeWidgetSurface({
                     fallback={<HomeWidgetErrorNotice />}
                 >
                     <Suspense fallback={null}>
-                        <Bespoke />
+                        <Widget />
                     </Suspense>
                 </ErrorBoundary>
             );
@@ -180,23 +158,17 @@ export function HomeWidgetSurface({
         // feature that has not shipped, so a notice here would announce the failure of
         // something the viewer was never promised. The asymmetry is pinned by a test on
         // both platforms. A throw is still reported (B23/DA9), never silent.
-        if (isPlaceholderHomeWidget(descriptor)) {
-            return (
-                <ErrorBoundary
-                    key={descriptor.id}
-                    onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
-                    fallback={null}
-                >
-                    <Suspense fallback={null}>
-                        <RoadmapWidgetSlot descriptor={descriptor} />
-                    </Suspense>
-                </ErrorBoundary>
-            );
-        }
-
-        // A live widget id with no bespoke renderer on this client — skip it rather than
-        // crash, so an older client tolerates a newer personalization list (version skew).
-        return null;
+        return (
+            <ErrorBoundary
+                key={descriptor.id}
+                onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
+                fallback={null}
+            >
+                <Suspense fallback={null}>
+                    <RoadmapWidgetSlot descriptor={descriptor} />
+                </Suspense>
+            </ErrorBoundary>
+        );
     };
 
     return (
@@ -235,9 +207,9 @@ export function HomeWidgetSurface({
                                     </p>
                                 </div>
                                 <div className="grid gap-4 @wide/main:grid-cols-3 @wide/main:gap-6">
-                                    {curated.comingSoon.map((descriptor) => (
-                                        <div key={descriptor.id} className={comingSoonSpanOf(descriptor.id)}>
-                                            {renderWidget(descriptor)}
+                                    {curated.comingSoon.map((slot) => (
+                                        <div key={slot.descriptor.id} className={comingSoonSpanOf(slot.descriptor.id)}>
+                                            {renderWidget(slot)}
                                         </div>
                                     ))}
                                 </div>

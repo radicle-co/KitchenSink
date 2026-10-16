@@ -77,6 +77,7 @@ export function duplicateCopyOf(
     allowed: readonly AllowedDuplicate[] = [],
 ): readonly DuplicateCopy[] {
     const exempt = new Set(allowed.map((entry) => entry.value));
+
     const group = (tree: CopyTree): Map<string, string[]> => {
         const byValue = new Map<string, string[]>();
 
@@ -88,6 +89,7 @@ export function duplicateCopyOf(
 
         return byValue;
     };
+
     const mobileByValue = group(mobile);
 
     return [...group(web)].flatMap(([value, webPaths]) => {

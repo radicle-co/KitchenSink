@@ -34,10 +34,12 @@ service is not a working system.
 
 ⛔ **Every condition below sits behind one PRECONDITION: `intent`.** `deployGate.sh decide` takes it as a
 required FIRST parameter and returns `deploy=false` before reaching any of the four rows — including ABSENT
-— when it is false ([ADR-0028](0028-on-demand-sandbox.md) §4). Intent is carried by the `sandbox-up` PR
-label that `sandboxUp.yml` applies and the hourly reconciler removes. So the table is exact for a PR whose
-sandbox is deliberately UP; on every other PR the gate skips unconditionally, and the right reading of an
-absent stack is "deliberately reaped", not "broken".
+— when it is false ([ADR-0028](0028-on-demand-sandbox.md) §4). Intent is decided by the CALLER and is
+never read from a PR label: `_ci.yml` calls `sandboxPreview.yml` only when its `sandbox-status` probe says the
+shared sandbox is up, and Sandbox Up calls it with `forced: true`. Inside `sandboxPreview.yml` `INTENT` is therefore
+the constant `'true'` (pinned by `e2eBranchGraph.test.ts`), and a PR whose sandbox is down never reaches the gate at
+all. So the table is exact for a PR whose sandbox is deliberately UP; on every other PR nothing deploys, and the right
+reading of an absent stack is "deliberately reaped", not "broken".
 
 A service's deploy job runs when **any** of these holds:
 
@@ -58,12 +60,11 @@ Everything else — including a failed `describe-stacks`, which is translated to
 The bias is deliberate: erring towards "deploy" costs one deploy, while erring towards "skip" ships an
 incomplete preview behind a green check, which is the failure being removed.
 
-**Consequence — a fresh docs-only PR gets NOTHING, deliberately.** With no `sandbox-up` label `intent` is
-false, so both jobs skip with the reason _"no live sandbox for this PR (it was torn down, or never started)
-— press Run workflow to start one"_. A reaped preview does not self-heal on the next push either, and that
+**Consequence — a fresh docs-only PR gets NOTHING, deliberately.** While its sandbox is down the caller does
+not call the preview workflow, so nothing deploys and the run says why. A reaped preview does not self-heal on the next push either, and that
 is the point: ADR-0028's words are that leaving ensure-exists alone would _"rebuild every environment on the
 first push after the reaper ran. Silently. Behind a green check."_ Self-healing still applies WITHIN a live
-sandbox's lifetime (`intent = true`), which is the case the rest of this section describes.
+sandbox's lifetime (the sandbox is up), which is the case the rest of this section describes.
 
 ### 2. Rejected: "always redeploy everything on every PR"
 
@@ -116,7 +117,7 @@ its dependents, so the ordering is protected twice:
 
 1. `deploy-food`'s job-level `if:` stays true **whenever `intent` is true** (its gate skips the _work_,
    per step), so on a PR with a live sandbox it always reaches a conclusion. ⚠️ NARROWED from "every
-   non-closed `pull_request` event": under ADR-0028 a PR with no `sandbox-up` label has no environment, so
+   non-closed `pull_request` event": under ADR-0028 a PR whose sandbox is down has no environment, so
    an unconditional belt would run `setup-node` + `npm ci` + `configure-aws-credentials` on every push to
    every PR that deliberately has none — cost with no possible outcome. Belt 2 discharges it, since a
    `deploy-food` skipped for want of intent is `result == 'skipped'`, which is `!= 'failure'`.

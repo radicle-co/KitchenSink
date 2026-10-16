@@ -113,13 +113,16 @@ nothing to validate", so that tier skips rather than carrying on
 ([ADR-0032](0032-deployed-ecosystem-test-tier.md) §6).
 
 So `intent` is a REQUIRED first parameter rather than a defaulted one: a default is a position, silently
-asserted on behalf of every caller that never considered it. Intent is carried by the `sandbox-up` PR
-label — visible in the GitHub UI, readable by the gate without an AWS call, and removed by the same action
-that tears the environment down. A manual dispatch still deploys unconditionally, because pressing the
-button **is** the declaration of intent.
+asserted on behalf of every caller that never considered it. Intent is decided by the CALLER, from
+whether the sandbox is up, and is never carried by a PR label (§2 refuses that). `_ci.yml` calls the preview workflow
+only when its `sandbox-status` probe says the sandbox is up, and the button calls it with `forced: true`: pressing
+the button **is** the declaration of intent. Inside the preview workflow `INTENT` is the constant `'true'`
+(`e2eBranchGraph.test.ts`), so the parameter stays required for every other caller of `deployGate.sh` without
+anything per-PR deriving it.
 
-⚠️ The converse is equally true: **the label wiring must not land without the button.** With the gate
-requiring intent and nothing applying it, every preview silently stops deploying.
+⚠️ The converse is equally true: **a caller that cannot say whether the sandbox is up must not call the preview
+workflow.** With the gate requiring intent and a caller that always claimed it, every reaped preview would be
+rebuilt on the first push.
 
 ### By hand, not on a clock
 

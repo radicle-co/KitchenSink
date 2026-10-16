@@ -4,7 +4,7 @@
  * @module @commise/features-recipes/collections — the add-recipes picker's SETTLED body, shared by web and mobile: the
  * whole library (the same read My recipes narrows on the device), narrowed by the search, with each row's membership
  * read off the collection — which the toggles rewrite at once. A suspense read: the host puts it under its own read
- * boundary, with {@link CollectionRecipePickerLoading} and {@link CollectionRecipePickerLoadError} as the fallbacks.
+ * boundary, with `CollectionRecipePickerLoading` and `CollectionRecipePickerLoadError` as the fallbacks.
  *
  * Orchestration: it reads, and draws only through the candidates and row pairs, which resolve per platform — plain
  * `.tsx` with no native twin.

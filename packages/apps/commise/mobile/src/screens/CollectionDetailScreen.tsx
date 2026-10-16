@@ -1,9 +1,9 @@
 /**
  * Collection-detail screen (mobile, orchestration; slice 5 of the UI overhaul, `docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3 — the native
  * mirror of `CollectionDetailContainer`). Reads the collection with its members and composes the shared native blocks: the
- * {@link CollectionHeader} (back, name, meta, description, Add recipes and the ⋯ menu), the {@link CollectionMembers} list,
- * and the sheets the header opens — rename ({@link CollectionSheet}), delete ({@link CollectionDeleteDialog}), Premium
- * ({@link CollectionUpsellSheet}), the add-recipes picker and the pull-updates dialog. Rename and Add recipes are sheets on
+ * `CollectionHeader` (back, name, meta, description, Add recipes and the ⋯ menu), the `CollectionMembers` list,
+ * and the sheets the header opens — rename (`CollectionSheet`), delete (`CollectionDeleteDialog`), Premium
+ * (`CollectionUpsellSheet`), the add-recipes picker and the pull-updates dialog. Rename and Add recipes are sheets on
  * this screen, not routes.
  *
  * The read is a suspense read under a `QueryBoundary`, which owns the localized loading state and the failure: not-found (no

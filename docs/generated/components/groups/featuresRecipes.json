@@ -2698,7 +2698,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionPickerBody.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes/collections — the add-recipes picker's SETTLED body, shared by web and mobile: the\nwhole library (the same read My recipes narrows on the device), narrowed by the search, with each row's membership\nread off the collection — which the toggles rewrite at once. A suspense read: the host puts it under its own read\nboundary, with {@link CollectionRecipePickerLoading} and {@link CollectionRecipePickerLoadError} as the fallbacks.\n\nOrchestration: it reads, and draws only through the candidates and row pairs, which resolve per platform — plain\n`.tsx` with no native twin.",
+                    "moduleDoc": "@commise/features-recipes/collections — the add-recipes picker's SETTLED body, shared by web and mobile: the\nwhole library (the same read My recipes narrows on the device), narrowed by the search, with each row's membership\nread off the collection — which the toggles rewrite at once. A suspense read: the host puts it under its own read\nboundary, with `CollectionRecipePickerLoading` and `CollectionRecipePickerLoadError` as the fallbacks.\n\nOrchestration: it reads, and draws only through the candidates and row pairs, which resolve per platform — plain\n`.tsx` with no native twin.",
                     "moduleTags": [
                         {
                             "name": "module",

@@ -2841,3 +2841,66 @@ jobs:
                           - 'packages/services/food-service/Dockerfile'
                           - 'packages/shared/clerk-verify/src/**'
                           - 'packages/shared/identity-core/src/**'
+
+    # ── THE ONE REQUIRED CHECK ──────────────────────────────────────────────────────────────────────────
+    #
+    # Owner ruling 2026-10-16: `main` takes pull requests with green CI only. A branch ruleset needs STABLE
+    # check names, and this workflow reports dozens, several of them matrix shards that come and go with the
+    # matrix. This job aggregates them all into one: the check `ci / CI verdict` (caller job `ci`) is the only
+    # name the ruleset requires.
+    #
+    # ⛔ `needs` is EVERY other job of this file, and `ciVerdictWiring.test.ts` derives that set from the
+    # workflow, so a job added tomorrow cannot be left out. `always()` is what makes it run when a dependency
+    # failed or was cancelled; without it that failure would SKIP the verdict, and a skipped required check
+    # can read as not-run rather than red.
+    #
+    # ⛔ Owner rule 2026-10-03: a check may skip ONLY when it depends on the sandbox. A skip of any other job
+    # is red here. `SANDBOX_MAY_SKIP` is the jobs whose own `if:` reads `sandbox-status` / `resolve-sandbox`;
+    # the guard derives that list from this file and fails if the two differ.
+    ci-verdict:
+        name: CI verdict
+        timeout-minutes: 5
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        needs:
+            [
+                infra-shared,
+                infra,
+                install,
+                resolve-sandbox,
+                build-ui,
+                lint,
+                format,
+                python-checks,
+                typecheck,
+                contract-drift,
+                test,
+                integration-identity,
+                sandbox-status,
+                deploy-preview,
+                preview-address,
+                mobile-app-build,
+                deployed-tiers,
+                integration-food,
+                seed-diff,
+                integration-recipe,
+                integration-recipe-workers,
+                integration-selfcontained,
+                integration-infra,
+                build,
+                bundle-mobile,
+                integration-web-playwright,
+                e2e-web-report,
+                detect-mobile-flows,
+            ]
+        if: ${{ always() }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - name: Decide the verdict
+              env:
+                  NEEDS_JSON: ${{ toJSON(needs) }}
+                  SANDBOX_MAY_SKIP: deploy-preview preview-address mobile-app-build deployed-tiers
+              run: bash .github/scripts/ciVerdict.sh

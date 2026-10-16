@@ -263,6 +263,23 @@ describe('useFieldRevealHost — an arrival (docs/design/uiOverhaul/ingredientAr
         expect(rendered.result.current.spacer).toBeNull();
     });
 
+    it('a host render with a new scroller wrapper checks nothing: the cook scrolling away is not dragged back', async () => {
+        const rendered = host(600);
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+        await arrive(rendered);
+
+        // The cook scrolls on, so the row and the field no longer show; scrolling re-renders the host's owner, which
+        // hands it a fresh `{ current }` object each time.
+        seam.measures = [{ top: 900, height: 48, offset: 1150 }];
+        await act(async () => {
+            rendered.rerender();
+            await Promise.resolve();
+        });
+
+        expect(seam.measured).toBe(1);
+        expect(seam.scrolls).toEqual([]);
+    });
+
     it('checks again when the keyboard shrinks the visible area, and scrolls once', async () => {
         const rendered = host(600);
         seam.measures = [{ top: 250, height: 48, offset: 500 }];

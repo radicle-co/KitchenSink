@@ -110,8 +110,12 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
         scrollContentTo(view, y, reduceMotion === false);
     });
 
+    // Reads the scroller as it is when the check runs: the owner may hand the host a fresh `{ current }` wrapper on
+    // every render (scrolling re-renders it), and that must not re-run an arrival's check.
+    const currentScroller = useEffectEvent((): RevealScroller | null => scroller.current);
+
     useEffect(() => {
-        const view = scroller.current;
+        const view = currentScroller();
 
         if (arrival === null || view === null || viewport <= 0) {
             return undefined;
@@ -141,7 +145,7 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
         return () => {
             released = true;
         };
-    }, [arrival, viewport, scroller]);
+    }, [arrival, viewport]);
 
     const onSpacerLayout = (event: LayoutChangeEvent): void => {
         const { y, height } = event.nativeEvent.layout;

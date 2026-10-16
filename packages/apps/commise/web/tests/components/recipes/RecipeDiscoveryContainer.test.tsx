@@ -54,6 +54,15 @@ vi.mock('next/navigation', () => ({
 }));
 
 /**
+ * Set the address the container reads its criteria from. The store reads the live address when it applies an update, and
+ * the render-time `useSearchParams()` snapshot is the mock's, so the two must be set together.
+ */
+function setUrlQuery(query: string): void {
+    nav.params = new URLSearchParams(query);
+    window.history.replaceState(null, '', query.length > 0 ? `${nav.pathname}?${query}` : nav.pathname);
+}
+
+/**
  * A fake client whose calorie lookup never settles. Calories on these cards are the `.nutrition` suite's subject; here a
  * lookup the fake REJECTED (the fixture ids are not UUIDs, so the client's own contract check refuses the batch) made
  * the card's slot throw during a concurrent render, and React's "recovered by rendering synchronously" report reached
@@ -89,13 +98,13 @@ async function openFilters(user: ReturnType<typeof userEvent.setup>): Promise<vo
 
 /** Put the container into RESULT-LIST mode (a filter is active, so it is not browsing). */
 function withResults(): void {
-    nav.params = new URLSearchParams('tags=quick');
+    setUrlQuery('tags=quick');
 }
 
 afterEach(() => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
-    nav.params = new URLSearchParams();
+    setUrlQuery('');
 });
 
 /**
@@ -269,7 +278,7 @@ describe('RecipeDiscoveryContainer — result list', () => {
 
 describe('RecipeDiscoveryContainer — URL criteria', () => {
     it('projects the filters from the URL onto the search params and the pressed chips', async () => {
-        nav.params = new URLSearchParams('dietaryFlags=vegan');
+        setUrlQuery('dietaryFlags=vegan');
         const client = discoveryClient();
         const searchSpy = vi
             .spyOn(client, 'searchRecipes')

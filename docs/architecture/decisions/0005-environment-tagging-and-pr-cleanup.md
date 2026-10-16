@@ -192,6 +192,15 @@ recurs — both were cases where the sweep looked correct and matched nothing.
   holds either — the drop door moved out of the per-PR stack into ADR-0031's `PerPrDatabaseReaperFunction`
   in `DataStack`, which outlives every per-PR stack, so a failed drop is retryable by the daily reaper.
 
+## A teardown waits for the PR's own deploy
+
+A PR can close while its deploy is still running. A deploy that is running creates the PR's logical database after any
+drop made now, and discovery by resting state alone never saw that stack. So `teardownSandboxPr.sh` first waits,
+bounded (`TEARDOWN_SETTLE_TIMEOUT_SECONDS`, 30 minutes by default), for every `*_IN_PROGRESS` stack of the PR to
+settle, then discovers and drops. On a timeout, or a lookup that cannot be made, it does not drop. It records the drop
+as owed (`perPrDatabaseDrop.sh`, ADR-0060), still reclaims everything that needs no database, and exits non-zero. A
+stack mid-delete is not waited for: it creates nothing. The in-progress statuses live once in `cfnInProgressStates.sh`.
+
 ## Alternatives considered
 
 - **Denylist of global stacks** — rejected; fragile (forget to add a new global stack → it gets deleted) and the opposite of fail-safe.

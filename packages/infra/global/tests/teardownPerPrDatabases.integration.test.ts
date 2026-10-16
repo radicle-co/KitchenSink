@@ -103,7 +103,21 @@ case "$1 $2" in
             *) cat "$AWS_STUB_DIR/nat-instances" 2>/dev/null || true ;;
         esac
         ;;
-    'cloudformation list-stacks') cat "$AWS_STUB_DIR/stacks" 2>/dev/null || true ;;
+    'cloudformation list-stacks')
+        case "$*" in
+            # The settle wait asks for the IN-PROGRESS states. \`AWS_STUB_SETTLE_AFTER\` is how many polls still
+            # report them before the deploy finishes; unset means they never finish.
+            *IN_PROGRESS*)
+                [ -n "\${AWS_STUB_LIST_FAILS:-}" ] && exit 255
+                polls=$(cat "$AWS_STUB_DIR/inprogress-polls" 2>/dev/null || echo 0)
+                echo $((polls + 1)) > "$AWS_STUB_DIR/inprogress-polls"
+                if [ -z "\${AWS_STUB_SETTLE_AFTER:-}" ] || [ "$polls" -lt "$AWS_STUB_SETTLE_AFTER" ]; then
+                    cat "$AWS_STUB_DIR/inprogress" 2>/dev/null || true
+                fi
+                ;;
+            *) cat "$AWS_STUB_DIR/stacks" 2>/dev/null || true ;;
+        esac
+        ;;
     'cloudformation describe-stacks')
         stack=''
         for arg in "$@"; do
@@ -196,6 +210,9 @@ function run(token: string, fixtures: Fixtures, env: Readonly<Record<string, str
             // 00:05:01 ET — 26 minutes, reported as a 120s timeout because spawnSync blocks the timer.
             // Reproduced with a `date` stub reading 23:40 ET; the sibling `sandboxWake` suite pins all three.
             SANDBOX_WAKE_REQUIRED_HEADROOM_SECONDS: '0',
+            // The settle wait for the PR's in-flight deploys: short, so a stack that never settles times out fast.
+            TEARDOWN_SETTLE_TIMEOUT_SECONDS: '3',
+            TEARDOWN_SETTLE_POLL_SECONDS: '1',
             ...env,
         },
     });
@@ -450,5 +467,84 @@ describe('teardown checks the shared tier before it needs it, and never starts i
         expect(stdout).toContain('could not check the shared sandbox tier');
         expect(indexOfCall(calls, 'delete-stack', 'kitchensink-food-service-pr-73')).toBeGreaterThanOrEqual(0);
         expect(status, 'the run must still go red — a leaked database is not a silent outcome').not.toBe(0);
+    });
+});
+
+describe("teardown waits for the PR's in-flight deploys before it drops the database (triage [6])", () => {
+    // A PR that closes while its deploy is still running used to be discovered only by its RESTING stacks, so the
+    // drop ran first and the deploy then created the database anyway: a green teardown over a leaked database.
+    const IN_FLIGHT: Fixtures = {
+        ...BOTH_SERVICES,
+        inprogress: 'kitchensink-recipe-service-pr-73',
+    };
+
+    /** The poll counter file only exists once the wait asked at least once. */
+    const polls = (): number =>
+        Number(
+            existsSync(join(workdir, 'inprogress-polls')) ? readFileSync(join(workdir, 'inprogress-polls'), 'utf8') : 0,
+        );
+
+    it('⛔ drops only AFTER the in-progress stack has settled, and polls until then', () => {
+        const { calls, status } = run('pr-73', IN_FLIGHT, { AWS_STUB_SETTLE_AFTER: '2' });
+        const lastPoll = calls
+            .map((call, i) => (call.includes('IN_PROGRESS') ? i : -1))
+            .reduce((a, b) => Math.max(a, b));
+
+        expect(polls(), 'two polls still saw it, the third saw it settled').toBe(3);
+        expect(invokedFunctions(calls)).toEqual(['kitchensink-data-sandbox-reaper']);
+        expect(indexOfCall(calls, 'lambda invoke')).toBeGreaterThan(lastPoll);
+        expect(status).toBe(0);
+    });
+
+    it('⛔ rediscovers after the wait — the settled stack is deleted too', () => {
+        const { calls } = run('pr-73', IN_FLIGHT, { AWS_STUB_SETTLE_AFTER: '1' });
+
+        expect(indexOfCall(calls, 'delete-stack', 'kitchensink-recipe-service-pr-73')).toBeGreaterThanOrEqual(0);
+    });
+
+    it('asks once and does not wait when nothing of this PR is in flight', () => {
+        const { calls } = run('pr-73', BOTH_SERVICES);
+
+        expect(polls()).toBe(1);
+        expect(invokedFunctions(calls)).toEqual(['kitchensink-data-sandbox-reaper']);
+    });
+
+    it("does not wait on ANOTHER PR's deploy", () => {
+        // pr-7 must not hold pr-73's teardown (and pr-7 must not be read as pr-73 by a prefix).
+        const { status } = run('pr-73', {
+            ...BOTH_SERVICES,
+            inprogress: 'kitchensink-recipe-service-pr-7',
+            'tag-kitchensink-recipe-service-pr-7': 'pr-7',
+        });
+
+        expect(polls()).toBe(1);
+        expect(status).toBe(0);
+    });
+
+    it('⛔ a stack that NEVER settles: no drop now, the drop is recorded as OWED, and the run fails', () => {
+        const { calls, status, stdout } = run('pr-73', IN_FLIGHT);
+
+        expect(invokedFunctions(calls)).toEqual([]);
+        expect(calls.filter((call) => call.startsWith('ssm put-parameter'))).toEqual([
+            expect.stringContaining('/kitchensink/sandbox/owed-per-pr-database-drops/pr-73'),
+        ]);
+        expect(stdout).toContain('::error::');
+        expect(stdout).toContain('mid-deploy');
+        expect(stdout).toContain('kitchensink-recipe-service-pr-73');
+        expect(status).not.toBe(0);
+    });
+
+    it('a timeout still reclaims everything that needs no database', () => {
+        const { calls } = run('pr-73', IN_FLIGHT);
+
+        expect(indexOfCall(calls, 'delete-stack', 'kitchensink-food-service-pr-73')).toBeGreaterThanOrEqual(0);
+    });
+
+    it('⛔ a lookup that FAILS is not "nothing in flight": the drop is deferred and the run fails', () => {
+        const { calls, status } = run('pr-73', BOTH_SERVICES, { AWS_STUB_LIST_FAILS: '1' });
+
+        expect(invokedFunctions(calls)).toEqual([]);
+        expect(calls.some((call) => call.startsWith('ssm put-parameter'))).toBe(true);
+        expect(status).not.toBe(0);
     });
 });

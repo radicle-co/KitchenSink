@@ -42,6 +42,9 @@ REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 # discover a narrower set than the teardown reclaims.
 # shellcheck source=./cfnRestingStates.sh
 . "$SCRIPT_DIR/cfnRestingStates.sh"
+# The statuses that mean "a deploy is still running", which §0a waits out before anything is discovered.
+# shellcheck source=./cfnInProgressStates.sh
+. "$SCRIPT_DIR/cfnInProgressStates.sh"
 
 # Hard guard: only ever operate on an exact pr-{N} token. Anything else (a bare stage name, a typo, an
 # empty arg, a glob) is refused so this can never be pointed at shared infra.
@@ -79,12 +82,16 @@ ENVIRONMENT_TAG_VALUES="$(pr_scope_environment_tag_values "$PR")"
 # which is a PREFIX rule — deliberately, because broadening it to match a suffix would put every
 # `kitchensink-*` name one typo away from a per-PR teardown.
 #
+# Takes the status set to look in (resting, or in-progress) and returns non-zero when the LIST call itself failed, so
+# a failed lookup is never read as "this PR owns nothing".
+#
 # @sideEffect Calls the CloudFormation API.
 discover_pr_stacks() {
-    local stack envtag
-    for stack in $(aws cloudformation list-stacks --region "$REGION" \
-        --stack-status-filter "${CFN_RESTING_STATES[@]}" \
-        --query 'StackSummaries[].StackName' --output text 2>/dev/null); do
+    local stack envtag names
+    names=$(aws cloudformation list-stacks --region "$REGION" \
+        --stack-status-filter "$@" \
+        --query 'StackSummaries[].StackName' --output text 2>/dev/null) || return 1
+    for stack in $names; do
         envtag=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$stack" \
             --query "Stacks[0].Tags[?Key=='Environment'].Value | [0]" --output text 2>/dev/null)
         if belongs "$stack" || environment_tag_belongs "$envtag"; then
@@ -202,11 +209,48 @@ else
     fi
 fi
 
+## 0a. WAIT OUT the PR's in-flight deploys, then discover. A PR can close while its deploy is still running, and a
+##     deploy that is still running creates the PR's logical database (the schema stack's migration) AFTER a drop that
+##     ran too early. Discovery by RESTING state alone did not see that stack at all, so the teardown reported success
+##     over a database that outlived it (ADR-0005, ADR-0061). So this waits, bounded, for every `*_IN_PROGRESS` stack
+##     of this PR to settle, and only then discovers the stacks to delete and lets §1 drop.
+##
+##     On timeout (or a lookup that cannot be made) the drop is NOT attempted: it is recorded as OWED (§1) and the run
+##     fails. Not dropping is the only safe reading of "the deploy may still create it", and the next Sandbox Up pays
+##     the debt. Nothing aborts: everything that needs no database is still reclaimed.
+##
+##     `TEARDOWN_SETTLE_TIMEOUT_SECONDS` (default 1800) / `TEARDOWN_SETTLE_POLL_SECONDS` (default 15).
+settle_timed_out=0
+settle_deadline=$((SECONDS + ${TEARDOWN_SETTLE_TIMEOUT_SECONDS:-1800}))
+while :; do
+    if ! in_flight=$(discover_pr_stacks "${CFN_IN_PROGRESS_STATES[@]}"); then
+        echo "::error::could not list $PR's in-flight CloudFormation stacks — a deploy may still be creating its database, so the drop is deferred rather than attempted"
+        settle_timed_out=1
+        teardown_failed=1
+        break
+    fi
+    if [ -z "$in_flight" ]; then
+        break
+    fi
+    if [ "$SECONDS" -ge "$settle_deadline" ]; then
+        echo "::error::$PR still has stacks mid-deploy after ${TEARDOWN_SETTLE_TIMEOUT_SECONDS:-1800}s ($(cut -f1 <<<"$in_flight" | tr '\n' ' ')) — a deploy that finishes later creates its database after any drop made now. The drop is deferred as OWED and this run fails; re-run the teardown once the deploy has settled."
+        settle_timed_out=1
+        teardown_failed=1
+        break
+    fi
+    echo "[settle] $PR has stacks mid-deploy ($(cut -f1 <<<"$in_flight" | tr '\n' ' ')) — waiting"
+    sleep "${TEARDOWN_SETTLE_POLL_SECONDS:-15}"
+done
+
 # ⚠️ Discovered AFTER sections 0 and 0b, never before them. Those two reclaim the preview's public address
 # — the security-critical half, and a subdomain-takeover vector if it is left behind — and section 0's own
 # comment is explicit that nothing may be queued ahead of it. A bounded discovery call is not a stack delete,
 # but the ordering rule is about what may PRECEDE the DNS reclaim, not about how long each thing takes.
-PR_STACKS=$(discover_pr_stacks)
+if ! PR_STACKS=$(discover_pr_stacks "${CFN_RESTING_STATES[@]}"); then
+    echo "::error::could not list CloudFormation stacks — $PR's stacks cannot be found and will be left behind"
+    PR_STACKS=''
+    teardown_failed=1
+fi
 
 ## 0c. CHECK the shared sandbox database and NAT, so section 1 knows whether it can talk to them.
 ##
@@ -285,7 +329,12 @@ esac
 # ⛔ The reaper invocation lives ONCE, in `perPrDatabaseDrop.sh`, because the deferred drop (ADR-0060) pays the same
 # debt later through the same door. A down tier DEFERS: the PR is recorded as owing its drop, since the stacks below
 # are about to be deleted and nothing would ever name this PR again. An unrecorded skip is the leak; it fails.
-if [ "$sandbox_tier_down" -eq 1 ]; then
+if [ "$settle_timed_out" -eq 1 ]; then
+    # §0a said a deploy may still create this PR's database; dropping now would miss it. Record, never skip silently.
+    if ! bash "$SCRIPT_DIR/perPrDatabaseDrop.sh" defer "$PR" "$REGION"; then
+        teardown_failed=1
+    fi
+elif [ "$sandbox_tier_down" -eq 1 ]; then
     if ! bash "$SCRIPT_DIR/perPrDatabaseDrop.sh" defer "$PR" "$REGION"; then
         teardown_failed=1
     fi

@@ -1489,7 +1489,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/HomeGreeting.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home",
-                    "moduleDoc": "home/HomeGreeting — Home's large title on native (US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md`\n§4.2): the time-of-day greeting as the screen's header, \"Good afternoon, Eliza\" (\"Good afternoon\" without a name),\nover the local calendar date, drawn by the design system's `LargeTitleHeader` with the avatar as its action.\n\nBoth lines derive from the viewer's local clock via the SHARED formatters in `@commise/features-core`\n({@link greetingBucketForHour} + {@link formatHomeDate}), so web and mobile greet identically (FR-044). The surface is\nclient-rendered on device, so (unlike web) there is no hydration concern — reading the clock in render is fine.",
+                    "moduleDoc": "home/HomeGreeting — Home's large title on native (US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md`\n§4.2): the time-of-day greeting as the screen's header, \"Good afternoon, Eliza\" (\"Good afternoon\" without a name),\nover the local calendar date, drawn by the design system's `LargeTitleHeader` with the avatar as its action.\n\nBoth lines derive from the viewer's local clock via the SHARED formatters in `@commise/features-core`\n({@link homeGreetingOf} + {@link formatHomeDate}), so web and mobile greet identically (FR-044). The surface is\nclient-rendered on device, so (unlike web) there is no hydration concern — reading the clock in render is fine.",
                     "moduleTags": [
                         {
                             "name": "module",

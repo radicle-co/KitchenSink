@@ -21,6 +21,8 @@
 @source "../../../features/recipes/src/**/*.{ts,tsx}";
 /* The account surfaces (profile, danger zone, erase and close dialogs) render from @commise/features-account. */
 @source "../../../features/account/src/**/*.{ts,tsx}";
+/* The cross-feature surfaces (Home, route boundaries) render from @commise/features-core. */
+@source "../../../features/core/src/**/*.{ts,tsx}";
 /* The shared design-system components (e.g. @commise/ui/button) carry their own utility classes — scan
    their source too, or the Button's tier/surface classes are never generated. */
 @source "../../../ui/src/**/*.{ts,tsx}";

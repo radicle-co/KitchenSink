@@ -65,6 +65,8 @@ const EXPECTED_TABLES = [
     'requester_source_budget',
     // ADR-0055 (0022): the search-gap record, wording cooks searched for a held food.
     'search_gap',
+    // 0023: the roots a test principal's remote pick created (ADR-0040 food half).
+    'test_picked_root',
 ] as const;
 
 /**

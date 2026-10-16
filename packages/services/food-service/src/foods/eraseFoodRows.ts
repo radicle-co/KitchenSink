@@ -18,6 +18,8 @@
  *  - `fetch_requesters` — demand rows keyed by the app-user ULID (`requester_id`, since migration 0002's
  *    rename from the Clerk `sub`). Deleted outright; other users' demand rows and the catalog foods
  *    themselves (shared reference data) survive.
+ *  - `test_picked_root` — the attribution of a catalog root to the test principal whose pick created it (0023). Deleted
+ *    by `created_by`; the root itself is shared catalog data and stays.
  *  - `food` — the erased user's AUTHORED foods (0013/0014, plans U10/U18): Q3b's delete-or-orphan. The
  *    deletion worker orchestrates the three-step protocol — {@link beginFoodErasure} tombstones (the
  *    refusal window), the worker asks recipe-service which ids live recipes still reference, and THIS
@@ -35,7 +37,7 @@
  * @param db - The food Drizzle client (or a transaction over it).
  * @param requesterId - The deleted user's app-user ULID (identity's `users.id`) — NEVER the Clerk `sub`.
  * @returns How many rows each statement removed.
- * @sideEffect Deletes from `fetch_requesters`, `requester_source_budget` and `food`.
+ * @sideEffect Deletes from `fetch_requesters`, `requester_source_budget`, `test_picked_root` and `food`.
  */
 import { sql } from 'drizzle-orm';
 
@@ -52,6 +54,10 @@ export const eraseFoodRows = async (
     const requesters = await db.execute(sql`DELETE FROM fetch_requesters WHERE requester_id = ${requesterId}`);
     // The cook's hourly source budget (migration 0020): keyed on the same app-user ULID, so it goes with them.
     await db.execute(sql`DELETE FROM requester_source_budget WHERE requester_id = ${requesterId}`);
+    // The roots a test principal's remote pick created (migration 0023, ADR-0040): the attribution carries the pool
+    // user's id, so it goes with them. The ROOT stays, as shared catalog data does; it is simply no longer anyone's to
+    // purge.
+    await db.execute(sql`DELETE FROM test_picked_root WHERE created_by = ${requesterId}`);
     // Q3b's two arms (plan U18). DELETE-if-unreferenced: everything not on the worker-supplied kept list
     // goes, CASCADE taking macros, portions and versions. ORPHAN-if-referenced: the kept rows revert from
     // the begin-step's DELETING tombstone to RESOLVED **with `user_id` retained** — the recipes

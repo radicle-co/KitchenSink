@@ -562,12 +562,12 @@ describe('FoodServiceClient nutrition reads (plan U8, plan U18)', () => {
 
 describe('FoodServiceClient.purgeOwnAuthoredFoods (ADR-0040, food half)', () => {
     it('POSTs the test-purge door with NO body and returns the parsed counts (200)', async () => {
-        const fetchMock = stubFetch(200, { deletedAuthoredFoods: 3, retainedPromotedFoods: 1 });
+        const fetchMock = stubFetch(200, { deletedAuthoredFoods: 3, retainedPromotedFoods: 1, deletedPickedRoots: 2 });
         const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
 
         const result = await client.purgeOwnAuthoredFoods();
 
-        expect(result).toEqual({ deletedAuthoredFoods: 3, retainedPromotedFoods: 1 });
+        expect(result).toEqual({ deletedAuthoredFoods: 3, retainedPromotedFoods: 1, deletedPickedRoots: 2 });
 
         const [url, init] = apiCalls(fetchMock)[0]! as [string, { method: string; body?: unknown }];
 
@@ -581,7 +581,7 @@ describe('FoodServiceClient.purgeOwnAuthoredFoods (ADR-0040, food half)', () => 
         const client = new FoodServiceClient({
             baseUrl: BASE,
             token: 'tok',
-            fetch: stubFetch(200, { deletedAuthoredFoods: -1, retainedPromotedFoods: 0 }),
+            fetch: stubFetch(200, { deletedAuthoredFoods: -1, retainedPromotedFoods: 0, deletedPickedRoots: 0 }),
         });
 
         await expect(client.purgeOwnAuthoredFoods()).rejects.toThrow();

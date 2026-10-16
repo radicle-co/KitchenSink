@@ -39,7 +39,9 @@ import type { CatalogOwnerReader, KeyStanding } from '../catalogOwnerReader.serv
 import type { FetchQueueDao } from '../dao/fetchQueue.dao.js';
 import { isLeaseLostError } from '../dao/leaseFence.js';
 import type { AdoptionLease, AdoptionWrite, RemoteAdoptionDao } from '../dao/remoteAdoption.dao.js';
+import type { TestPickedRootDao } from '../dao/testPickedRoot.dao.js';
 import { answersItsName } from '../domain/namedRootPolicy.js';
+import { attributionOf, marksRealHold, type AttributionInput, type HoldInput } from '../domain/testPickedRootPolicy.js';
 import { FetchUnavailableError, RemoteFoodGoneError } from '../foods.errors.js';
 import type { AdoptRemoteFoodResponse } from '../foods.schema.js';
 import { isInvalidRemoteReferenceError } from './remoteReference.errors.js';
@@ -69,6 +71,8 @@ export interface AdoptRemoteFoodDeps {
     readonly adoption: Pick<RemoteAdoptionDao, 'liveCatalogRootNamed' | 'adopt'>;
     /** The fetch queue: a placeholder's row is leased before the fetch, and given back when the write did not settle it. */
     readonly queue: Pick<FetchQueueDao, 'leaseFood' | 'deferLease'>;
+    /** Where a real cook's answer is recorded as a hold on the root, so the test purge keeps it (ADR-0040). */
+    readonly holds: Pick<TestPickedRootDao, 'markHeldByRealUser'>;
     /** How a new root's record is written from the fetched item: the source pipeline's merge writer. */
     readonly persistRoot: (candidate: CanonicalCandidate) => (writer: FoodWriter, foodId: string) => Promise<void>;
     /** The current time, epoch milliseconds. Defaults to `Date.now`. */
@@ -76,6 +80,9 @@ export interface AdoptRemoteFoodDeps {
     /** Defaults to a Nest `Logger`. */
     readonly logger?: AdoptLogger;
 }
+
+/** Who is picking: the facts the test purge's attribution and hold read, from the verified principal. */
+export type PickCaller = AttributionInput & HoldInput;
 
 export class AdoptRemoteFood {
     private readonly now: () => number;
@@ -88,17 +95,43 @@ export class AdoptRemoteFood {
     }
 
     /**
-     * Pick a remote hit by its reference.
+     * Pick a remote hit by its reference, as a caller the test purge can tell apart (ADR-0040; owner ruling 2026-10-16).
+     *
+     * - A root a signed TEST PRINCIPAL's pick creates is attributed to it, in the write that creates it.
+     * - A root a real cook is answered with is marked held, so no test purge deletes what a normal flow may use. A test
+     *   principal's answer marks nothing: its own purge must still reach a root it shares with another pool slot.
      *
      * @param token - The reference the hit carried.
+     * @param picker - The verified principal's facts.
      * @returns The id of the root that stands for the item.
      * @throws {RemoteFoodGoneError} when the reference cannot be opened, the catalog retired the item with no forward,
      *   the source no longer has it, or its data cannot be stored.
      * @throws {FetchUnavailableError} when the source is busy or did not answer, our own accounting failed, or a drain
      *   is fetching for the placeholder the pick would complete.
-     * @sideEffect Reads the catalog; may lease a placeholder's queue row, call the source once, and write a root.
+     * @sideEffect Reads the catalog; may lease a placeholder's queue row, call the source once, and write a root; marks
+     *   the answered root held for a real cook. A hold that cannot be written fails the pick, which is idempotent, so a
+     *   retry is safe and the root is never left unprotected behind a success.
      */
-    public async execute(token: string): Promise<AdoptRemoteFoodResponse> {
+    public async execute(token: string, picker: PickCaller): Promise<AdoptRemoteFoodResponse> {
+        const answer = await this.pick(token, attributionOf(picker));
+
+        if (marksRealHold(picker)) {
+            await this.deps.holds.markHeldByRealUser(answer.id);
+        }
+
+        return answer;
+    }
+
+    /**
+     * The pick itself.
+     *
+     * @param token - The reference the hit carried.
+     * @param createdBy - The test principal a created root is attributed to, or `undefined`.
+     * @returns The id of the root that stands for the item.
+     * @throws As {@link execute} says.
+     * @sideEffect As {@link execute} says, except the hold.
+     */
+    private async pick(token: string, createdBy: string | undefined): Promise<AdoptRemoteFoodResponse> {
         const reference = await this.open(token);
         const held = this.answerOf(await this.standingOf(reference), reference);
 
@@ -130,6 +163,7 @@ export class AdoptRemoteFood {
                 name,
                 normalizedName,
                 lease,
+                createdBy,
                 persistRoot: this.deps.persistRoot(candidate),
             });
 

@@ -49,6 +49,10 @@ const FETCHED: CanonicalCandidate = makeMergeCandidate('usda', {
 });
 const NOT_HELD: KeyStanding = { owners: new Map(), retired: new Set() };
 const FENCE: LeaseFence = leaseFenceFrom('2026-10-02 05:00:00.123456+00');
+const POOL_ULID = '01J9ZK8N7QF3B2X4M6T0V5C3AA';
+/** A real cook, and a signed test principal (a pool slot), as the controller hands them over. */
+const REAL_COOK = { sub: 'user_real', userId: '01J9ZK8N7QF3B2X4M6T0V5C3AB', testPrincipal: false } as const;
+const POOL_SLOT = { sub: 'user_pool', userId: POOL_ULID, testPrincipal: true } as const;
 const PLACEHOLDER: NamedRoot = { id: 'R-placeholder', status: 'PENDING' };
 
 /** What a case's fakes do. */
@@ -71,6 +75,7 @@ interface Seen {
     readonly leased: string[];
     readonly released: { foodId: string; seconds: number; fence: string }[];
     readonly warnings: string[];
+    readonly held: string[];
 }
 
 /**
@@ -89,6 +94,7 @@ function makeCommand(world: World): { readonly command: AdoptRemoteFood; readonl
         leased: [],
         released: [],
         warnings: [],
+        held: [],
     };
     const standings = [...(world.standings ?? [NOT_HELD])];
 
@@ -156,6 +162,11 @@ function makeCommand(world: World): { readonly command: AdoptRemoteFood; readonl
                     seen.released.push({ foodId, seconds, fence: authority });
                 },
             },
+            holds: {
+                markHeldByRealUser: async (foodId) => {
+                    seen.held.push(foodId);
+                },
+            },
             persistRoot: (candidate) => {
                 seen.persisted.push(candidate);
 
@@ -173,7 +184,7 @@ describe('AdoptRemoteFood — what the catalog already says', () => {
             standings: [{ owners: new Map([['900001', OWNER]]), retired: new Set() }],
         });
 
-        await expect(command.execute(TOKEN)).resolves.toStrictEqual({ id: 'R-kale' });
+        await expect(command.execute(TOKEN, REAL_COOK)).resolves.toStrictEqual({ id: 'R-kale' });
         expect(seen.standingKeys).toStrictEqual([[{ externalKey: '900001', lineageKey: 'foundation:11233' }]]);
         expect(seen.fetches).toStrictEqual([]);
         expect(seen.writes).toStrictEqual([]);
@@ -182,14 +193,14 @@ describe('AdoptRemoteFood — what the catalog already says', () => {
     it('refuses an item the catalog retired with no forward, as gone, with no fetch', async () => {
         const { command, seen } = makeCommand({ standings: [{ owners: new Map(), retired: new Set(['900001']) }] });
 
-        await expect(command.execute(TOKEN)).rejects.toSatisfy(isRemoteFoodGoneError);
+        await expect(command.execute(TOKEN, REAL_COOK)).rejects.toSatisfy(isRemoteFoodGoneError);
         expect(seen.fetches).toStrictEqual([]);
     });
 
     it('answers the live catalog root that carries the name with a record, with no lease and no fetch', async () => {
         const { command, seen } = makeCommand({ named: { id: 'R-chips', status: 'RESOLVED' } });
 
-        await expect(command.execute(TOKEN)).resolves.toStrictEqual({ id: 'R-chips' });
+        await expect(command.execute(TOKEN, REAL_COOK)).resolves.toStrictEqual({ id: 'R-chips' });
         expect(seen.names).toStrictEqual(['kale chips, baked']);
         expect(seen.leased).toStrictEqual([]);
         expect(seen.fetches).toStrictEqual([]);
@@ -200,7 +211,7 @@ describe('AdoptRemoteFood — what the catalog already says', () => {
         async (reason) => {
             const { command, seen } = makeCommand({ opened: new InvalidRemoteReferenceError(reason) });
 
-            await expect(command.execute(TOKEN)).rejects.toSatisfy(isRemoteFoodGoneError);
+            await expect(command.execute(TOKEN, REAL_COOK)).rejects.toSatisfy(isRemoteFoodGoneError);
             expect(seen.standingKeys).toStrictEqual([]);
             expect(seen.warnings).toStrictEqual(['remote-adopt-reference-refused']);
         },
@@ -211,7 +222,7 @@ describe('AdoptRemoteFood — a new root', () => {
     it('fetches the item once and adopts it under the name the cook picked, never the source’s new name', async () => {
         const { command, seen } = makeCommand({});
 
-        await expect(command.execute(TOKEN)).resolves.toStrictEqual({ id: 'R-new' });
+        await expect(command.execute(TOKEN, REAL_COOK)).resolves.toStrictEqual({ id: 'R-new' });
         expect(seen.fetches).toStrictEqual(['900001']);
         expect(seen.writes).toHaveLength(1);
         expect(seen.writes[0]).toMatchObject({
@@ -229,14 +240,14 @@ describe('AdoptRemoteFood — a new root', () => {
             write: { kind: 'crosswalked' },
         });
 
-        await expect(command.execute(TOKEN)).resolves.toStrictEqual({ id: 'R-kale' });
+        await expect(command.execute(TOKEN, REAL_COOK)).resolves.toStrictEqual({ id: 'R-kale' });
         expect(seen.standingKeys).toHaveLength(2);
     });
 
     it('answers the root that took the name while the item was fetched', async () => {
         const { command } = makeCommand({ write: { kind: 'named', id: 'R-chips' } });
 
-        await expect(command.execute(TOKEN)).resolves.toStrictEqual({ id: 'R-chips' });
+        await expect(command.execute(TOKEN, REAL_COOK)).resolves.toStrictEqual({ id: 'R-chips' });
     });
 
     it('refuses as gone an item a concurrent writer crosswalked and the catalog then retired', async () => {
@@ -245,20 +256,20 @@ describe('AdoptRemoteFood — a new root', () => {
             write: { kind: 'crosswalked' },
         });
 
-        await expect(command.execute(TOKEN)).rejects.toSatisfy(isRemoteFoodGoneError);
+        await expect(command.execute(TOKEN, REAL_COOK)).rejects.toSatisfy(isRemoteFoodGoneError);
     });
 
     it('refuses a name with nothing visible, which no root can carry, with no fetch', async () => {
         const { command, seen } = makeCommand({ opened: { ...REFERENCE, name: '​' } });
 
-        await expect(command.execute(TOKEN)).rejects.toSatisfy(isRemoteFoodGoneError);
+        await expect(command.execute(TOKEN, REAL_COOK)).rejects.toSatisfy(isRemoteFoodGoneError);
         expect(seen.fetches).toStrictEqual([]);
     });
 
     it('refuses a fetched item that is not the one the reference names, writing nothing', async () => {
         const { command, seen } = makeCommand({ fetched: { ...FETCHED, externalKey: '900002' } });
 
-        await expect(command.execute(TOKEN)).rejects.toThrow(/not the item/u);
+        await expect(command.execute(TOKEN, REAL_COOK)).rejects.toThrow(/not the item/u);
         expect(seen.writes).toStrictEqual([]);
     });
 });
@@ -275,7 +286,7 @@ describe('AdoptRemoteFood — a placeholder root that carries the name', () => {
             write: { kind: 'completed', id: 'R-placeholder' },
         });
 
-        await expect(command.execute(TOKEN)).resolves.toStrictEqual({ id: 'R-placeholder' });
+        await expect(command.execute(TOKEN, REAL_COOK)).resolves.toStrictEqual({ id: 'R-placeholder' });
         expect(seen.leased).toStrictEqual(['R-placeholder']);
         expect(seen.fetches).toStrictEqual(['900001']);
         expect(seen.writes[0]?.lease).toStrictEqual({ rootId: 'R-placeholder', fence: FENCE });
@@ -290,7 +301,7 @@ describe('AdoptRemoteFood — a placeholder root that carries the name', () => {
                 write: { kind: 'completed', id: 'R-placeholder' },
             });
 
-            await expect(command.execute(TOKEN)).resolves.toStrictEqual({ id: 'R-placeholder' });
+            await expect(command.execute(TOKEN, REAL_COOK)).resolves.toStrictEqual({ id: 'R-placeholder' });
             expect(seen.fetches).toHaveLength(1);
         },
     );
@@ -298,7 +309,7 @@ describe('AdoptRemoteFood — a placeholder root that carries the name', () => {
     it('⛔ answers busy and fetches nothing while a drain is fetching for the root', async () => {
         const { command, seen } = makeCommand({ named: PLACEHOLDER, lease: { kind: 'draining' } });
 
-        await expect(command.execute(TOKEN)).rejects.toSatisfy(isFetchUnavailableError);
+        await expect(command.execute(TOKEN, REAL_COOK)).rejects.toSatisfy(isFetchUnavailableError);
         expect(seen.fetches).toStrictEqual([]);
         expect(seen.writes).toStrictEqual([]);
     });
@@ -310,7 +321,7 @@ describe('AdoptRemoteFood — a placeholder root that carries the name', () => {
             write: { kind: 'completed', id: 'R-placeholder' },
         });
 
-        await expect(command.execute(TOKEN)).resolves.toStrictEqual({ id: 'R-placeholder' });
+        await expect(command.execute(TOKEN, REAL_COOK)).resolves.toStrictEqual({ id: 'R-placeholder' });
         expect(seen.writes[0]?.lease).toBeUndefined();
     });
 
@@ -320,7 +331,7 @@ describe('AdoptRemoteFood — a placeholder root that carries the name', () => {
             fetched: new SourceApiError('usda', 503, 'unavailable'),
         });
 
-        await expect(command.execute(TOKEN)).rejects.toBeInstanceOf(FetchUnavailableError);
+        await expect(command.execute(TOKEN, REAL_COOK)).rejects.toBeInstanceOf(FetchUnavailableError);
         expect(seen.released).toStrictEqual([{ foodId: 'R-placeholder', seconds: 0, fence: FENCE }]);
     });
 
@@ -330,7 +341,7 @@ describe('AdoptRemoteFood — a placeholder root that carries the name', () => {
         ['another root took the name meanwhile', { kind: 'completed', id: 'R-other' }, { id: 'R-other' }],
     ])('gives the lease back when %s', async (_label, write, answer) => {
         const { command, seen } = makeCommand({ named: PLACEHOLDER, write });
-        const outcome = command.execute(TOKEN);
+        const outcome = command.execute(TOKEN, REAL_COOK);
 
         if (answer === 'busy') {
             await expect(outcome).rejects.toSatisfy(isFetchUnavailableError);
@@ -347,7 +358,7 @@ describe('AdoptRemoteFood — a placeholder root that carries the name', () => {
             write: new LeaseLostError('R-placeholder', 'resolve'),
         });
 
-        await expect(command.execute(TOKEN)).rejects.toSatisfy(isFetchUnavailableError);
+        await expect(command.execute(TOKEN, REAL_COOK)).rejects.toSatisfy(isFetchUnavailableError);
         expect(seen.released).toStrictEqual([]);
     });
 });
@@ -358,7 +369,7 @@ describe('AdoptRemoteFood — when the source cannot answer', () => {
             fetched: new SourceBusyError('usda', 'ceiling', new Date(NOW + 41_500).toISOString()),
         });
 
-        await expect(command.execute(TOKEN)).rejects.toSatisfy(
+        await expect(command.execute(TOKEN, REAL_COOK)).rejects.toSatisfy(
             (error: unknown) => isFetchUnavailableError(error) && error.retryAfterSeconds === 42,
         );
         expect(seen.fetches).toHaveLength(1);
@@ -371,7 +382,7 @@ describe('AdoptRemoteFood — when the source cannot answer', () => {
     ])('answers %s as busy for a short wait', async (_label, failure) => {
         const { command } = makeCommand({ fetched: failure });
 
-        await expect(command.execute(TOKEN)).rejects.toBeInstanceOf(FetchUnavailableError);
+        await expect(command.execute(TOKEN, REAL_COOK)).rejects.toBeInstanceOf(FetchUnavailableError);
     });
 
     it.each<[string, Error]>([
@@ -380,6 +391,66 @@ describe('AdoptRemoteFood — when the source cannot answer', () => {
     ])('refuses %s as gone', async (_label, failure) => {
         const { command } = makeCommand({ fetched: failure });
 
-        await expect(command.execute(TOKEN)).rejects.toSatisfy(isRemoteFoodGoneError);
+        await expect(command.execute(TOKEN, REAL_COOK)).rejects.toSatisfy(isRemoteFoodGoneError);
+    });
+});
+
+describe('AdoptRemoteFood — what a pick leaves for the test purge (ADR-0040; owner ruling 2026-10-16)', () => {
+    it('⛔ attributes a root a test principal CREATES to that principal, in the write that creates it', async () => {
+        const { command, seen } = makeCommand({});
+
+        await command.execute(TOKEN, POOL_SLOT);
+
+        expect(seen.writes[0]?.createdBy).toBe(POOL_ULID);
+    });
+
+    it('⛔ attributes nothing when a real cook creates the root, so no purge can ever name it', async () => {
+        const { command, seen } = makeCommand({});
+
+        await command.execute(TOKEN, REAL_COOK);
+
+        expect(seen.writes[0]?.createdBy).toBeUndefined();
+    });
+
+    it('attributes nothing for a test principal whose ULID has not synced', async () => {
+        const { command, seen } = makeCommand({});
+
+        await command.execute(TOKEN, { sub: 'user_pool', userId: undefined, testPrincipal: true });
+
+        expect(seen.writes[0]?.createdBy).toBeUndefined();
+    });
+
+    it.each([
+        [
+            'a held item',
+            { standings: [{ owners: new Map([['900001', OWNER]]), retired: new Set<string>() }] },
+            'R-kale',
+        ],
+        ['a root carrying the name', { named: { id: 'R-chips', status: 'RESOLVED' as const } }, 'R-chips'],
+        ['a root that took the name during the fetch', { write: { kind: 'named' as const, id: 'R-chips' } }, 'R-chips'],
+        ['a root it created', {}, 'R-new'],
+    ])('⛔ a real cook answered with %s holds that root against the purge', async (_name, world, rootId) => {
+        const { command, seen } = makeCommand(world);
+
+        await command.execute(TOKEN, REAL_COOK);
+
+        expect(seen.held).toStrictEqual([rootId]);
+    });
+
+    it('⛔ a test principal answered with a held root does not hold it, so its own purge still reaches a shared root', async () => {
+        const { command, seen } = makeCommand({
+            standings: [{ owners: new Map([['900001', OWNER]]), retired: new Set<string>() }],
+        });
+
+        await command.execute(TOKEN, POOL_SLOT);
+
+        expect(seen.held).toStrictEqual([]);
+    });
+
+    it('marks no hold when the pick is refused', async () => {
+        const { command, seen } = makeCommand({ standings: [{ owners: new Map(), retired: new Set(['900001']) }] });
+
+        await expect(command.execute(TOKEN, REAL_COOK)).rejects.toSatisfy(isRemoteFoodGoneError);
+        expect(seen.held).toStrictEqual([]);
     });
 });

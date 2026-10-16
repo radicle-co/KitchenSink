@@ -38,6 +38,7 @@ import { FoodDao, nameDedupLock, type FoodStatus } from './food.dao.js';
 import { FoodItemDao } from './foodItem.dao.js';
 import { FoodSourcesDao, type FoodSource } from './foodSources.dao.js';
 import type { LeaseFence, SettleAuthority } from './leaseFence.js';
+import { TestPickedRootDao } from './testPickedRoot.dao.js';
 
 /** How an adoption write ended. */
 export type AdoptionWrite =
@@ -75,6 +76,11 @@ export interface AdoptionWriteInput {
     readonly normalizedName: string;
     /** The lease the pick holds on the placeholder it expected to complete, or `undefined`. */
     readonly lease: AdoptionLease | undefined;
+    /**
+     * The signed test principal whose pick this is, or `undefined` for a real cook. A root this write CREATES is
+     * attributed to it in the same transaction, so the test purge can take it back (ADR-0040).
+     */
+    readonly createdBy?: string | undefined;
     /**
      * Write the root's record from the fetched item, on the transaction it is given.
      *
@@ -207,7 +213,7 @@ export class RemoteAdoptionDao {
      * @param input - The item, the root's name, and how its record is written.
      * @returns How the write ended.
      * @throws Whatever `persistRoot` or the database throws; nothing is written then.
-     * @sideEffect Takes two transaction locks and the named root's row lock; may insert `food_item`, `food` and
+     * @sideEffect Takes two transaction locks and the named root's row lock; may insert `food_item`, `food`, `test_picked_root` and
      *   `food_sources`, settle a placeholder's queue rows, and write the record.
      */
     public async adopt(input: AdoptionWriteInput): Promise<AdoptionWrite> {
@@ -258,6 +264,10 @@ export class RemoteAdoptionDao {
                     }
 
                     await input.persistRoot(tx, id);
+
+                    if (input.createdBy !== undefined) {
+                        await new TestPickedRootDao(tx).record(id, input.createdBy);
+                    }
 
                     return { kind: 'created', id };
                 },

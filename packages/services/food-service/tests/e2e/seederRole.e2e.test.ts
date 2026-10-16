@@ -399,6 +399,10 @@ describe("the seed's root delete cascades into the live path's tables", () => {
                 "INSERT INTO search_gap (query, source, external_key, food_id, remote_name) VALUES ($1, 'usda', '1', $2, 'x')",
                 [`query ${randomUUID()}`, foodId],
             );
+            await client.query('INSERT INTO test_picked_root (food_id, created_by) VALUES ($1, $2)', [
+                foodId,
+                `pool-${randomUUID()}`,
+            ]);
         });
     }
 

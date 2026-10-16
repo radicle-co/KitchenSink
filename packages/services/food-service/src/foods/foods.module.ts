@@ -62,6 +62,7 @@ import type { RemoteSearchPort } from '../sources/remote/remoteSearchPort.js';
 import { SearchServiceRemoteSearch } from '../sources/remote/SearchServiceRemoteSearch.js';
 import { UnconfiguredRemoteSearch } from '../sources/remote/UnconfiguredRemoteSearch.js';
 import { RemoteAdoptionDao } from './dao/remoteAdoption.dao.js';
+import { TestPickedRootDao } from './dao/testPickedRoot.dao.js';
 import { ProgressiveFoodSearch } from './progressive/ProgressiveFoodSearch.js';
 import { AdoptRemoteFood } from './remote/AdoptRemoteFood.js';
 import { SearchGapRecorder } from './SearchGapRecorder.js';
@@ -260,6 +261,7 @@ import { UnconfiguredReferenceSealer } from './remote/UnconfiguredReferenceSeale
                     owners,
                     registry,
                     adoption: new RemoteAdoptionDao(db),
+                    holds: new TestPickedRootDao(db),
                     queue,
                     persistRoot: (candidate) => async (writer, foodId) => {
                         await new MergeAndPersistService(writer, engine).resolveFromPicks({

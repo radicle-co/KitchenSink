@@ -16,9 +16,11 @@
  *    owner's ruling forbids.
  *  - **`DELETING` foods are RETAINED.** They are mid-erasure, and the erasure protocol (`beginFoodErasure` →
  *    reference check → `eraseFoodRows`) owns them until it completes.
- *  - **Catalog rows and `fetch_requesters` are not addressed.** Imported food is shared reference data (owner
+ *  - **Catalog rows and `fetch_requesters` are not addressed HERE.** Imported food is shared reference data (owner
  *    ruling 1: "if we import new food that's fine"), and the predicate's `user_id = caller` cannot reach a catalog
- *    row, whose `user_id` is NULL by 0013's CHECK.
+ *    row, whose `user_id` is NULL by 0013's CHECK. The one catalog row a test principal makes itself, the root its
+ *    own remote pick creates, is taken back by `purgeTestPickedRoots` (owner ruling 2026-10-16), from an attribution
+ *    table rather than from this predicate.
  *
  * ## ⛔ Why a hard delete, when `DELETE /api/v1/foods/{id}` deliberately withdraws
  *

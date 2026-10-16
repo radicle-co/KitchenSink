@@ -178,6 +178,11 @@
                     "minimum": 0,
                     "type": "integer"
                 },
+                "deletedPickedRoots": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                },
                 "retainedPromotedFoods": {
                     "maximum": 9007199254740991,
                     "minimum": 0,
@@ -186,7 +191,8 @@
             },
             "required": [
                 "deletedAuthoredFoods",
-                "retainedPromotedFoods"
+                "retainedPromotedFoods",
+                "deletedPickedRoots"
             ],
             "type": "object"
         },

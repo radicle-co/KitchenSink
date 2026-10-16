@@ -43,6 +43,7 @@ import {
 } from './operational.js';
 import type { CatalogRegistry } from './catalogPartition.js';
 import { searchGap } from './searchGap.js';
+import { testPickedRoot } from './testPickedRoot.js';
 import { catalogSeedLedger } from './seedLedger.js';
 
 /** The seeded tables. */
@@ -89,6 +90,10 @@ const NON_CATALOG_TABLES: readonly (readonly [PgTable, string])[] = [
     ],
     [sourceSyncMetadata, 'per-source sync bookkeeping of the live path'],
     [searchGap, "cooks' wording for a held food, counted by the service for a curator; it goes with its root"],
+    [
+        testPickedRoot,
+        "which roots a test principal's pick created, written by the service for the test purge; never written for a seed root, and it goes with its root",
+    ],
 ];
 
 /** Project tables to their names. Pure. */

@@ -11,7 +11,7 @@
  *   the one source 0018's `food_forward_guard` admits `food_app` for.
  * - Every other writer of `food_item`, the per-item tables and the nutrition tables is registered here, file by file,
  *   with the reason it writes.
- * - A `DELETE FROM food` is written only by the erasure pair and the seed: a root owns its item, and every deleter must
+ * - A `DELETE FROM food` is written only by the registered root deleters and the seed: a root owns its item, and every deleter must
  *   delete the item too, or leave it ownerless and unreachable.
  *
  * Writes are read from the source with comments blanked: raw SQL (`INSERT INTO`, `UPDATE`, `DELETE FROM`), the same
@@ -110,10 +110,15 @@ const SEED_ONLY_TABLES: readonly string[] = [
     'catalog_seed_ledger',
 ];
 
-/** The erasure pair: the only live code that deletes a root, and each deletes its item in the same statement. */
+/**
+ * The root deleters: the only live code that deletes a root, and each deletes its item in the same statement. The
+ * erasure pair deletes an erased author's foods; the test purge's picked-root deleter takes back the catalog roots a
+ * test principal's own remote pick created (ADR-0040; owner ruling 2026-10-16).
+ */
 const FOOD_DELETERS: readonly string[] = [
     `${FOOD_SRC}/foods/eraseFoodRows.ts`,
     `${FOOD_SRC}/foods/purgeTestPrincipalFoods.ts`,
+    `${FOOD_SRC}/foods/dao/testPickedRoot.dao.ts`,
 ];
 
 /** Why the perf fixture writes a catalog table: it seeds the SC-007 store, outside the deploy seed. */
@@ -135,6 +140,8 @@ const REGISTERED_WRITERS: Readonly<Record<string, Readonly<Record<string, string
         [`${FOOD_SRC}/foods/dao/foodItem.dao.ts`]: 'the item gateway creates every live root with its item',
         [`${FOOD_SRC}/foods/eraseFoodRows.ts`]: 'erasure deletes each erased root’s item',
         [`${FOOD_SRC}/foods/purgeTestPrincipalFoods.ts`]: 'the test-principal purge deletes each purged root’s item',
+        [`${FOOD_SRC}/foods/dao/testPickedRoot.dao.ts`]:
+            'the test purge deletes the item of each root a test principal’s pick created',
         [PERF_FIXTURE]: PERF_FIXTURE_REASON,
     },
     food_sources: {
@@ -232,7 +239,7 @@ export function writerViolations(writes: readonly CatalogWrite[]): readonly stri
 
         if (table === 'food') {
             return verb === 'DELETE' && !FOOD_DELETERS.includes(file)
-                ? [`${file}: DELETE food — only the erasure pair deletes a root, with its item`]
+                ? [`${file}: DELETE food — only a registered root deleter deletes a root, with its item`]
                 : [];
         }
 
@@ -289,19 +296,23 @@ describe('catalogWritesIn and writerViolations', () => {
             [],
         ],
         [
-            'a bare DELETE FROM food outside the erasure pair',
+            'a bare DELETE FROM food outside the registered root deleters',
             `${FOOD_SRC}/foods/foods.service.ts`,
             'sql`DELETE FROM food WHERE id = x`',
-            [`${FOOD_SRC}/foods/foods.service.ts: DELETE food — only the erasure pair deletes a root, with its item`],
+            [
+                `${FOOD_SRC}/foods/foods.service.ts: DELETE food — only a registered root deleter deletes a root, with its item`,
+            ],
         ],
         [
-            'a builder delete of food outside the erasure pair',
+            'a builder delete of food outside the registered root deleters',
             `${FOOD_SRC}/foods/foods.service.ts`,
             'await db.delete(food).where(x)',
-            [`${FOOD_SRC}/foods/foods.service.ts: DELETE food — only the erasure pair deletes a root, with its item`],
+            [
+                `${FOOD_SRC}/foods/foods.service.ts: DELETE food — only a registered root deleter deletes a root, with its item`,
+            ],
         ],
         [
-            'a DELETE FROM food inside the erasure pair',
+            'a DELETE FROM food inside a registered root deleter',
             `${FOOD_SRC}/foods/eraseFoodRows.ts`,
             'sql`DELETE FROM food WHERE x`',
             [],
@@ -366,7 +377,7 @@ describe('the food service’s catalog writers', () => {
         expect(writes).toContainEqual({ file: PERF_FIXTURE, table: 'food_variant', verb: 'INSERT' });
     });
 
-    it('⛔ writes no seed-only table outside the seed, deletes no root outside the erasure pair, and has no unregistered writer', () => {
+    it('⛔ writes no seed-only table outside the seed, deletes no root outside the registered root deleters, and has no unregistered writer', () => {
         const writes = foodSources().flatMap((file) => catalogWritesIn(file, readSource(file)));
 
         expect(writerViolations(writes)).toStrictEqual([]);

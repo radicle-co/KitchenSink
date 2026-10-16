@@ -12,6 +12,9 @@ export const AUTHOR_ID = '01JAUTHORAAAAAAAAAAAAAAAAA';
 /** A caller who authored nothing here. */
 export const STRANGER_ID = '01JSTRANGERBBBBBBBBBBBBBBB';
 
+/** A signed test principal: a fixed pool slot (ADR-0040). */
+export const POOL_ID = '01JPOOLSLOTCCCCCCCCCCCCCCC';
+
 /**
  * One food row's reader facts. Defaults to a RESOLVED CATALOG food (no author, public).
  *

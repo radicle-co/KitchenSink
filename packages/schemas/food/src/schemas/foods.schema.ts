@@ -887,7 +887,7 @@ export type UpdateAuthoredFoodRequest = z.infer<typeof updateAuthoredFoodRequest
 
 /**
  * `200` body of `POST /api/v1/foods/authored/test-purge` — a TEST PRINCIPAL's self-purge of its own authored foods
- * (ADR-0040, food half).
+ * (ADR-0040, food half) and of the catalog roots its remote picks created.
  *
  * ⛔ A FIXTURE DOOR, NOT A PRODUCT SURFACE. Only a caller whose verified token carries
  * `public_metadata.testPrincipal === true` may use it; every other caller receives the `404` this service answers
@@ -899,6 +899,11 @@ export const authoredFoodTestPurgeResponseSchema = z.object({
     deletedAuthoredFoods: z.number().int().nonnegative(),
     /** The caller's PROMOTED authored foods kept, because other cooks may already depend on them. */
     retainedPromotedFoods: z.number().int().nonnegative(),
+    /**
+     * The catalog roots the caller's own remote picks created, hard-deleted so the hits they hid are offered again (0
+     * on a repeat run). A root a real cook has since been answered with is kept.
+     */
+    deletedPickedRoots: z.number().int().nonnegative(),
 });
 
 export type AuthoredFoodTestPurgeResponse = z.infer<typeof authoredFoodTestPurgeResponseSchema>;

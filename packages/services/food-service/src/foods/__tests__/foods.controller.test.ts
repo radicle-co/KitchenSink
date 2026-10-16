@@ -723,7 +723,7 @@ describe('FoodsController.purgeTestPrincipalFoods (ADR-0040)', () => {
     }
 
     it('purges a signed test principal by its app-user ULID and returns the counts', async () => {
-        const counts = { deletedAuthoredFoods: 3, retainedPromotedFoods: 1 };
+        const counts = { deletedAuthoredFoods: 3, retainedPromotedFoods: 1, deletedPickedRoots: 2 };
         ctx.service['purge']?.mockResolvedValue(counts);
 
         const result = await ctx.controller.purgeTestPrincipalFoods(
@@ -756,12 +756,48 @@ describe('FoodsController.purgeTestPrincipalFoods (ADR-0040)', () => {
 });
 
 describe('FoodsController.adoptRemoteFood (ADR-0055 point 10)', () => {
-    it('hands the reference to the remote pick command and answers the root it names', async () => {
+    /** A request as the guard leaves it: the verified principal, nothing else the pick reads. */
+    function pickReq(user: { sub: string; userId?: string; testPrincipal: boolean }): AuthenticatedRequest {
+        return { user: { scopes: [], permissions: [], ...user } } as unknown as AuthenticatedRequest;
+    }
+
+    it('hands the reference and the verified caller to the remote pick command and answers the root it names', async () => {
         const { controller, service } = makeController();
 
-        await expect(controller.adoptRemoteFood({ reference: 'a.b.c.d.e' })).resolves.toStrictEqual({
-            id: 'R-adopted',
+        await expect(
+            controller.adoptRemoteFood(
+                { reference: 'a.b.c.d.e' },
+                pickReq({ sub: 'user_pool_1', userId: USER_ULID, testPrincipal: true }),
+            ),
+        ).resolves.toStrictEqual({ id: 'R-adopted' });
+        expect(service.adopt).toHaveBeenCalledExactlyOnceWith('a.b.c.d.e', {
+            sub: 'user_pool_1',
+            userId: USER_ULID,
+            testPrincipal: true,
         });
-        expect(service.adopt).toHaveBeenCalledExactlyOnceWith('a.b.c.d.e');
+    });
+
+    it('⛔ hands a real cook over as NOT a test principal, so nothing it is answered is ever attributed or purged', async () => {
+        const { controller, service } = makeController();
+
+        await controller.adoptRemoteFood(
+            { reference: 'a.b.c.d.e' },
+            pickReq({ sub: 'user_real', userId: USER_ULID, testPrincipal: false }),
+        );
+
+        expect(service.adopt).toHaveBeenCalledExactlyOnceWith('a.b.c.d.e', {
+            sub: 'user_real',
+            userId: USER_ULID,
+            testPrincipal: false,
+        });
+    });
+
+    it('fails closed with 401 when the guard attached no principal, picking nothing', async () => {
+        const { controller, service } = makeController();
+
+        await expect(
+            controller.adoptRemoteFood({ reference: 'a.b.c.d.e' }, {} as unknown as AuthenticatedRequest),
+        ).rejects.toHaveProperty('status', 401);
+        expect(service.adopt).not.toHaveBeenCalled();
     });
 });

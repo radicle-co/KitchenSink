@@ -233,7 +233,7 @@ describe('authored-food test purge (booted Nest + real Postgres, ADR-0040)', () 
         const res = await call('POST', PURGE_PATH, { token: 'pool' });
 
         expect(res.status).toBe(200);
-        expect(res.body).toStrictEqual({ deletedAuthoredFoods: 2, retainedPromotedFoods: 1 });
+        expect(res.body).toStrictEqual({ deletedAuthoredFoods: 2, retainedPromotedFoods: 1, deletedPickedRoots: 0 });
 
         for (const table of PURGED_TABLES) {
             expect(await rowsFor(table, purged), table).toBe(0);
@@ -258,6 +258,7 @@ describe('authored-food test purge (booted Nest + real Postgres, ADR-0040)', () 
         expect((await call('POST', PURGE_PATH, { token: 'pool' })).body).toStrictEqual({
             deletedAuthoredFoods: 1,
             retainedPromotedFoods: 1,
+            deletedPickedRoots: 0,
         });
 
         await createAuthored('pool', 'Pool Shake');
@@ -265,10 +266,12 @@ describe('authored-food test purge (booted Nest + real Postgres, ADR-0040)', () 
         expect((await call('POST', PURGE_PATH, { token: 'pool' })).body).toStrictEqual({
             deletedAuthoredFoods: 1,
             retainedPromotedFoods: 1,
+            deletedPickedRoots: 0,
         });
         expect((await call('POST', PURGE_PATH, { token: 'pool' })).body).toStrictEqual({
             deletedAuthoredFoods: 0,
             retainedPromotedFoods: 1,
+            deletedPickedRoots: 0,
         });
     });
 

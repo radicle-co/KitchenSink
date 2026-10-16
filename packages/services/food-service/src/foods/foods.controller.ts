@@ -402,7 +402,11 @@ export class FoodsController {
      * budget before it runs, giving it back when the catalog already stood for the item. A `POST` answering `200`: it is
      * idempotent on the item, so a repeat answers the same root and creates nothing.
      *
+     * The verified principal rides along so the test purge can tell a pool slot's pick from a cook's (ADR-0040): a root
+     * a signed test principal's pick creates is attributed to it, and a root a real cook is answered with is held.
+     *
      * @param body - The validated reference.
+     * @param req - The guard-authenticated request.
      * @returns The root's id.
      * @throws (→ 409 `REMOTE_FOOD_GONE`, 503 `FETCH_UNAVAILABLE`) as `AdoptRemoteFood.execute` says.
      */
@@ -410,8 +414,13 @@ export class FoodsController {
     @HttpCode(HttpStatus.OK)
     @Header('Cache-Control', 'private, no-store')
     @AdoptRateLimit()
-    public async adoptRemoteFood(@Body() body: AdoptRemoteFoodBodyDto): Promise<AdoptRemoteFoodResponse> {
-        return this.adoptRemote.execute(body.reference);
+    public async adoptRemoteFood(
+        @Body() body: AdoptRemoteFoodBodyDto,
+        @Req() req: AuthenticatedRequest,
+    ): Promise<AdoptRemoteFoodResponse> {
+        const { sub, userId, testPrincipal } = this.requirePrincipal(req);
+
+        return this.adoptRemote.execute(body.reference, { sub, userId, testPrincipal });
     }
 
     /**

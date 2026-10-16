@@ -146,6 +146,7 @@ beforeAll(async () => {
             adopt: async () => ({ kind: 'created', id: 'R-new' }),
         },
         queue: { leaseFood: async () => ({ kind: 'idle' }), deferLease: async () => undefined },
+        holds: { markHeldByRealUser: async () => undefined },
         persistRoot: () => async () => undefined,
         logger: { warn: () => undefined },
     });

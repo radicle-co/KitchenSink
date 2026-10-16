@@ -29,7 +29,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { ClerkVerificationError, type Role } from '@kitchensink/clerk-verify';
 import { ZodValidationPipe } from 'nestjs-zod';
 
-import { AUTHOR_ID, STRANGER_ID } from '../../src/foods/__fixtures__/foodRefFacts.js';
+import { AUTHOR_ID, POOL_ID, STRANGER_ID } from '../../src/foods/__fixtures__/foodRefFacts.js';
 import { FoodAuthGuard } from '../../src/auth/foodAuth.guard.js';
 import { ApiExceptionFilter } from '../../src/common/filters/apiException.filter.js';
 import { throttlerModuleOptions } from '../../src/common/throttle/throttle.config.js';
@@ -104,6 +104,15 @@ export function principalFor(token: string): MockPrincipal {
             return { sub: 'svc_recipe', scopes: [], permissions: [], roles: [], testPrincipal: false };
         case 'unsynced':
             return { sub: 'user_unsynced', scopes: [], permissions: [], roles: [], testPrincipal: false };
+        case 'pool':
+            return {
+                sub: 'user_pool',
+                userId: POOL_ID,
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: true,
+            };
         case 'operator':
             return {
                 sub: 'user_operator',
@@ -145,6 +154,8 @@ export interface MockedFoodsApiDoubles {
     readonly merge?: Partial<Record<keyof MergeAndPersistService, unknown>>;
     /** The remote pick command behind `POST /api/v1/foods/remote/adopt` (ADR-0055 point 10). */
     readonly remoteAdopt?: Pick<AdoptRemoteFood, 'execute'>;
+    /** The test purge behind `POST /api/v1/foods/authored/test-purge` (ADR-0040). */
+    readonly testPurge?: Pick<TestPrincipalPurgeService, 'purge'>;
     /** The progressive search behind `GET /api/v1/foods/search/progressive` (ADR-0055 point 5). */
     readonly progressive?: Pick<ProgressiveFoodSearch, 'run'>;
 }
@@ -230,7 +241,7 @@ export async function bootMockedFoodsApi(doubles: MockedFoodsApiDoubles): Promis
         providers: [
             { provide: FoodsService, useValue: service },
             // Plain objects, not traps: Nest probes every provider for lifecycle hooks at boot.
-            { provide: TestPrincipalPurgeService, useValue: {} },
+            { provide: TestPrincipalPurgeService, useValue: doubles.testPurge ?? {} },
             { provide: AdoptRemoteFood, useValue: doubles.remoteAdopt ?? {} },
             { provide: ProgressiveFoodSearch, useValue: doubles.progressive ?? {} },
             { provide: RequesterSourceBudgetDao, useValue: doubles.sourceBudget ?? admittingSourceBudget() },

@@ -156,7 +156,16 @@ dashboard. The same precondition covers food-service's authored-food purge, whic
   and food-service has no route that lists a caller's authored foods. The normal `DELETE /api/v1/foods/{id}` is a
   withdrawal that keeps the row, so a fixed pool slot would accumulate withdrawn foods for ever. The door takes no
   body and hard-deletes only the caller's own `private` authored foods that are not mid-erasure, letting the cascade
-  remove nutrients, portions and versions. Promoted foods, catalog rows and demand rows stay. A pure policy admits a
+  remove nutrients, portions and versions. Promoted foods, seed and source-pipeline catalog rows and demand rows stay.
+  The same door also takes back the catalog roots the caller's own remote picks created (owner ruling 2026-10-16,
+  "Clean up test-picked foods"): a pick makes a root that hides the hit it came from (ADR-0055 point 4), so a pool
+  slot that picks the same word on every run would meet a hidden hit on every run after the first. A catalog root has
+  no author, so the pick records one row in `test_picked_root` (migration 0023), in its own transaction, only when
+  its caller is a signed test principal; a real cook's pick records nothing. A root a real cook is later answered
+  with is marked held. The pure `testPickedRootPolicy` deletes a root only when the caller created it, no real cook
+  holds it, it is not seed-owned, an authored food, mid-erasure, or the parent of a variant. A cook who binds such a
+  root through an ordinary catalog search hit calls no pick, so nothing marks it: that residual exposure exists only
+  on a stage where test and real traffic share a catalog. A pure policy admits a
   caller only when the signed claim says test principal, the principal is a person, and its ULID has synced. Every
   other authenticated caller receives the exact `404` an unrouted path answers. No normal-user route, response or
   authorization changes. Food-service keeps no registry, so the claim is this door's only check; section 4's

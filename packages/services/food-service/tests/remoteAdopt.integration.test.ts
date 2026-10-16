@@ -32,7 +32,7 @@ import { verifyClerkToken } from '@kitchensink/clerk-verify';
 
 import { MeteredAdmission } from '../src/common/throttle/meteredAdmission.js';
 import { REQUESTER_SOURCE_BUDGET_PER_HOUR } from '../src/common/throttle/throttle.config.js';
-import { AUTHOR_ID } from '../src/foods/__fixtures__/foodRefFacts.js';
+import { AUTHOR_ID, POOL_ID } from '../src/foods/__fixtures__/foodRefFacts.js';
 import type { CatalogOwner, KeyStanding } from '../src/foods/catalogOwnerReader.service.js';
 import type { FoodLease } from '../src/foods/dao/fetchQueue.dao.js';
 import { leaseFenceFrom } from '../src/foods/dao/leaseFence.js';
@@ -73,6 +73,7 @@ interface World {
     lease: FoodLease;
     fetched: string[];
     written: AdoptionWriteInput[];
+    marked: string[];
     leased: string[];
 }
 
@@ -85,6 +86,7 @@ const world: World = {
     lease: { kind: 'leased', fence: FENCE },
     fetched: [],
     written: [],
+    marked: [],
     leased: [],
 };
 
@@ -140,6 +142,11 @@ const command = new AdoptRemoteFood({
         },
         deferLease: async () => undefined,
     },
+    holds: {
+        markHeldByRealUser: async (foodId) => {
+            world.marked.push(foodId);
+        },
+    },
     persistRoot: () => async () => undefined,
     logger: { warn: () => undefined },
 });
@@ -173,6 +180,7 @@ beforeEach(() => {
     world.lease = { kind: 'leased', fence: FENCE };
     world.fetched = [];
     world.written = [];
+    world.marked = [];
     world.leased = [];
     budget = fakeSourceBudget(1_777);
 });
@@ -183,8 +191,8 @@ beforeEach(() => {
  * @param reference - The hit's reference.
  * @returns The answer.
  */
-async function adopt(reference: string): Promise<Awaited<ReturnType<MockedFoodsApi['call']>>> {
-    return api.call('POST', ADOPT, { token: 'author', body: { reference } });
+async function adopt(reference: string, token = 'author'): Promise<Awaited<ReturnType<MockedFoodsApi['call']>>> {
+    return api.call('POST', ADOPT, { token, body: { reference } });
 }
 
 describe('POST /api/v1/foods/remote/adopt', () => {
@@ -320,5 +328,31 @@ describe('POST /api/v1/foods/remote/adopt', () => {
 
         expect(res.status).toBe(401);
         expect(budget.charges).toStrictEqual([]);
+    });
+});
+
+describe('POST /api/v1/foods/remote/adopt — what the verified caller leaves for the test purge (ADR-0040)', () => {
+    it('⛔ attributes the root a signed test principal creates to its app-user ULID, never its Clerk sub', async () => {
+        const res = await adopt(await SEALER.seal(hit('900020')), 'pool');
+
+        expect(res.status).toBe(200);
+        expect(world.written.map((input) => input.createdBy)).toStrictEqual([POOL_ID]);
+        expect(world.marked).toStrictEqual([]);
+    });
+
+    it('⛔ attributes nothing for a real cook, and holds the root it is answered with', async () => {
+        const res = await adopt(await SEALER.seal(hit('900021')), 'author');
+
+        expect(res.status).toBe(200);
+        expect(world.written.map((input) => input.createdBy)).toStrictEqual([undefined]);
+        expect(world.marked).toStrictEqual(['R-new']);
+    });
+
+    it('⛔ holds a root a real cook is answered with from the catalog, so the test purge cannot take it', async () => {
+        world.held.set('900022', OWNER);
+
+        await adopt(await SEALER.seal(hit('900022')), 'author');
+
+        expect(world.marked).toStrictEqual(['R-kale']);
     });
 });

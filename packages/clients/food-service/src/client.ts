@@ -391,14 +391,15 @@ export class FoodServiceClient {
     }
 
     /**
-     * `POST /api/v1/foods/authored/test-purge` — a TEST PRINCIPAL deletes its own private authored foods (ADR-0040,
-     * food half); synchronous and repeatable (`200` with the counts).
+     * `POST /api/v1/foods/authored/test-purge` — a TEST PRINCIPAL deletes its own private authored foods and the
+     * catalog roots its own remote picks created (ADR-0040, food half); synchronous and repeatable (`200` with the
+     * counts).
      *
      * ⛔ A FIXTURE DOOR, NOT A PRODUCT SURFACE. No body — the principal is the token, and it purges only itself. Every
      * caller whose verified token lacks the test-principal claim receives the `404` an unrouted path answers, so the
      * method is inert for a real user. Its only caller is the pool reset in `@kitchensink/e2e-seed`.
      *
-     * @returns How many private authored foods were deleted, and how many promoted ones were kept.
+     * @returns How many private authored foods and picked roots were deleted, and how many promoted foods were kept.
      * @throws {NotFoundError} (`404`) when the caller is not a test principal, or the stage does not route the door.
      * @sideEffect Performs an authenticated HTTP request that hard-deletes the caller's private authored foods.
      */

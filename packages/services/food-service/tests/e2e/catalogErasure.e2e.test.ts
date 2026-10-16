@@ -163,6 +163,25 @@ describe('erasing an author on the item-keyed catalog', () => {
         expect(left.rows.map((row) => row.requester_id)).toStrictEqual([OTHER_AUTHOR]);
     });
 
+    it("removes the erased principal's picked-root attributions, and keeps another's and the roots themselves (migration 0023)", async () => {
+        const mine = await authoredFood(AUTHOR);
+        const theirs = await authoredFood(OTHER_AUTHOR);
+
+        for (const [root, creator] of [
+            [mine.food, AUTHOR],
+            [theirs.food, OTHER_AUTHOR],
+        ] as const) {
+            await pool.query('INSERT INTO test_picked_root (food_id, created_by) VALUES ($1, $2)', [root, creator]);
+        }
+
+        await eraseFoodRows(db, AUTHOR, [mine.food, theirs.food]);
+
+        const left = await pool.query<{ created_by: string }>('SELECT created_by FROM test_picked_root');
+
+        expect(left.rows).toStrictEqual([{ created_by: OTHER_AUTHOR }]);
+        expect(await rowsUnder(mine.food, mine.item)).toStrictEqual(PRESENT);
+    });
+
     it('keeps a referenced food with its item, and removes the rest', async () => {
         const kept = await authoredFood(AUTHOR);
         const gone = await authoredFood(AUTHOR);

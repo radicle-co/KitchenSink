@@ -410,7 +410,7 @@ const SWEPT_DATABASES: readonly SweptDatabase[] = [
         sweepFunction: 'eraseFoodRows',
         // ⚠️ An exact count, not a floor: a `>=` comparison cannot report a count that has grown past it, which is how
         // this entry and the recipe one once drifted.
-        expectedOwnerBearingTables: 4,
+        expectedOwnerBearingTables: 5,
         // The food schema carries no display handles. A first one arriving must raise this floor in the
         // same change that adjudicates it.
         minimumHandleBearingColumns: 0,

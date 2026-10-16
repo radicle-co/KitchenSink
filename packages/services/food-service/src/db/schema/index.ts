@@ -54,6 +54,7 @@ export { foodCandidates } from './foodCandidates.js';
 
 // The search-gap record (0022, ADR-0055 point 4).
 export { searchGap } from './searchGap.js';
+export { testPickedRoot } from './testPickedRoot.js';
 
 // Read-only access path over the nutrition aggregate (0018). A VIEW, not a table: it carries `basis`, `trace` and
 // `dataset` through and makes no selection decision — see the module for why that matters.
@@ -101,3 +102,6 @@ export type { FoodCandidateRow, NewFoodCandidateRow } from './foodCandidates.js'
 
 // Row types — the search-gap record.
 export type { SearchGapRow } from './searchGap.js';
+
+// Row types — the test principal's picked roots.
+export type { TestPickedRootRow } from './testPickedRoot.js';

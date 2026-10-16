@@ -45,6 +45,8 @@ export interface MintTokenOptions {
      * of every ordinary session token; present, the shared verifier refuses the token (owner ruling 2026-10-15).
      */
     readonly act?: { readonly sub: string };
+    /** The signed test-principal marker (`public_metadata.testPrincipal`, ADR-0040); omitted leaves the key out. */
+    readonly testPrincipal?: boolean;
     /** Seconds until expiry (default 3600). Use a negative value to mint an already-expired token. */
     readonly expiresInSeconds?: number;
 }
@@ -95,6 +97,7 @@ export function mintToken(privateKeyPem: string, options: MintTokenOptions): str
             scopes: [...(options.scopes ?? [])],
             permissions: [...(options.permissions ?? [])],
             ...(options.roles !== undefined ? { roles: [...options.roles] } : {}),
+            ...(options.testPrincipal !== undefined ? { testPrincipal: options.testPrincipal } : {}),
         },
     };
 

@@ -129,8 +129,8 @@ it later cannot turn it into a writer. No role holds `iam:*` or `organizations:*
   `ec2:DescribeInstances` and `tag:GetResources` take no resource type, so `*` is their only scope. The one residual is
   `DescribeTaskDefinition`, whose response includes container environment variables for every task definition in the
   account, the other application's included; it stays because every deploy check reads the running image and
-  `remoteSearchKeyRetirement.sh` reads the key an environment names. The non-prod role holds no CloudWatch action; the
-  prod role holds `cloudwatch:GetMetricStatistics` alone. `GithubActionsAccessStack.test.ts` lists every command with its
+  `remoteSearchKeyRetirement.sh` reads the key an environment names. Every role's one CloudWatch action is
+  `cloudwatch:GetMetricStatistics`, for the load test's collector, which runs as `nonprod` against a preview. `GithubActionsAccessStack.test.ts` lists every command with its
   action and a real resource, requires each role's observe actions to equal that list, and requires the actions it holds
   on `*` to equal the list above. The action-to-resource-type facts come from the AWS Service Authorization Reference as
   last read; the first deploy after a change proves them, because a scope that is too narrow fails loudly in a deploy

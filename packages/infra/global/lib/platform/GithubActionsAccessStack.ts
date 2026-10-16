@@ -135,7 +135,7 @@ const SECRET_READ_ACTIONS = ['secretsmanager:GetSecretValue', 'secretsmanager:De
  *   metadata (endpoints, retention, a definition), never log content or execution data.
  * - EC2 `DescribeInstances` and `tag:GetResources` take no resource type.
  *
- * No CI job reads log events, an alarm, a queue or (outside the prod collector) a metric, so none is granted.
+ * No CI job reads log events, an alarm or a queue's messages, so none is granted.
  */
 const observeGrants = ({ account, region }: Scope): readonly Grant[] => {
     const arn = (service: string, resource: string): string => `arn:aws:${service}:${region}:${account}:${resource}`;
@@ -159,6 +159,8 @@ const observeGrants = ({ account, region }: Scope): readonly Grant[] => {
             resources: [arn('states', 'stateMachine:*')],
         },
         { actions: ['tag:GetResources'], resources: ['*'] },
+        // `food-loadtest.yml`'s collector samples the food queue gauges on every tier. The action takes no resource.
+        { actions: ['cloudwatch:GetMetricStatistics'], resources: ['*'] },
         // The queue-guarantee tier reads the backstop role's policies (ADR-0041) at whatever stage it targets, so
         // both roles hold it. CloudFormation truncates a generated role name, which can drop the stage, so the role
         // is named by its logical id.
@@ -427,8 +429,6 @@ const permissionsProd = (role: iam.Role, scope: Scope): void => {
         ['lambda:GetFunctionUrlConfig'],
         [`arn:aws:lambda:${region}:${account}:function:kitchensink-remote-search-prod`],
     );
-    // `food-loadtest.yml`'s collector samples the service's metrics. The action takes no resource.
-    allow(role, ['cloudwatch:GetMetricStatistics'], ['*']);
 
     for (const grant of observeGrants(scope)) {
         allow(role, grant.actions, grant.resources);

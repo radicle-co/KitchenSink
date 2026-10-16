@@ -738,8 +738,9 @@ describe('GithubActionsAccessStack: the observe grants are the enumerated CI com
         ['deployedE2eTiers.yml: aws iam get-role-policy', 'iam:GetRolePolicy', QUEUE_CHECK_ROLE, ALL],
         ['deployedE2eTiers.yml: aws iam get-policy', 'iam:GetPolicy', MANAGED_POLICY, ALL],
         ['deployedE2eTiers.yml: aws iam get-policy-version', 'iam:GetPolicyVersion', MANAGED_POLICY, ALL],
-        // `food-loadtest.yml`'s collector, prod only: no non-prod job reads a metric.
-        ['food-loadtest.yml collector', 'cloudwatch:GetMetricStatistics', '*', ['prod']],
+        // `food-loadtest.yml`'s collector (`collectMetrics.mjs`, run by `run.mjs`) samples the food queue gauges on
+        // every tier: the workflow signs in as `nonprod` for a preview target.
+        ['food-loadtest.yml collector', 'cloudwatch:GetMetricStatistics', '*', ALL],
     ];
 
     /** Services whose Allows are "observe" grants. The teardown verbs are `teardownGrants`', held by its own table. */
@@ -779,10 +780,8 @@ describe('GithubActionsAccessStack: the observe grants are the enumerated CI com
             .flatMap((s) => asList(s.Action))
             .filter((action) => OBSERVE_SERVICE.test(action));
 
-        // cloudwatch:GetMetricStatistics takes no resource either (prod only, pinned by the set test above).
-        expect(new Set(onStar)).toEqual(
-            new Set([...UNSCOPABLE, ...(tier === 'prod' ? ['cloudwatch:GetMetricStatistics'] : [])]),
-        );
+        // cloudwatch:GetMetricStatistics takes no resource either.
+        expect(new Set(onStar)).toEqual(new Set([...UNSCOPABLE, 'cloudwatch:GetMetricStatistics']));
     });
 
     const refusals: readonly (readonly [string, string])[] = [
@@ -817,10 +816,11 @@ describe('GithubActionsAccessStack: the observe grants are the enumerated CI com
         },
     );
 
-    it('non-prod holds no CloudWatch action: no non-prod job reads a metric or an alarm', () => {
+    // The preview load test's collector reads metrics as `nonprod`; nothing else it runs touches CloudWatch.
+    it('non-prod reads metrics and does nothing else in CloudWatch: no alarm, no metric written', () => {
         const held = actionsOf(statementsOf(t, ROLE.nonprod), 'Allow').filter((action) => /^cloudwatch:/u.test(action));
 
-        expect(held).toEqual([]);
+        expect(held).toEqual(['cloudwatch:GetMetricStatistics']);
     });
 });
 
@@ -966,6 +966,7 @@ describe('GithubActionsAccessStack: what the non-prod role reaches in the produc
             [
                 'cloudformation:ListExports',
                 'cloudformation:ListStacks',
+                'cloudwatch:GetMetricStatistics',
                 'ec2:DescribeInstances',
                 'ecr:GetAuthorizationToken',
                 'ecs:DescribeTaskDefinition',

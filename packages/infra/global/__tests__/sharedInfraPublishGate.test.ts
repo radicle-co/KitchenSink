@@ -16,11 +16,8 @@
  * resolves a version that does not exist, so the first `npm install` in any `infra/` directory fails. A green
  * publish job and a registry with nothing in it.
  *
- * ⚠️ This is NOT an argument against `dorny/paths-filter` generally, and the other uses are deliberately left
- * alone: `prod-deploy.yml` and `zizmor.yml` both record that the action only reaches its API path on
- * `pull_request` — a `push` uses git — and every service filter matches files inside the first 3000 today.
- * That is a property of this pull request's size rather than a guarantee, so what is asserted here is narrow:
- * the PUBLISH gate answers from git, where there is no cap.
+ * What is asserted here is narrow: the PUBLISH gate answers from git, where there is no cap. The deploy gates met
+ * the same cap later and run `dorny/paths-filter` in its git mode instead (`prChangeDetectionUncapped.test.ts`).
  *
  * DESIGN PATTERN: Specification module — a verdict over the workflow's own text.
  */

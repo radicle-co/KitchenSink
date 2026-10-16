@@ -131,11 +131,8 @@ jobs:
             # `shared/infra/`. The checkout above uses `fetch-depth: 0` for the version derivation, so the
             # base commit is present and a three-dot diff answers the same question with no cap at all.
             #
-            # ⚠️ The other `paths-filter` uses in this repo are unaffected TODAY and are deliberately left
-            # alone: `prod-deploy.yml` and `zizmor.yml` document that the action only reaches its API path on
-            # `pull_request` (a `push` uses git), and every service filter here matches files well inside the
-            # first 3000. That is a property of this pull request's size, not a guarantee — which is why
-            # `sharedInfraPublishGate.test.ts` asserts this gate never goes back to the capped path.
+            # `sharedInfraPublishGate.test.ts` asserts this gate never goes back to the capped path; the deploy
+            # gates' filters run in the action's git mode instead (`prChangeDetectionUncapped.test.ts`).
             - name: Detect shared-infra changes
               id: changes
               env:
@@ -2724,7 +2721,7 @@ jobs:
     # There, a missed match meant a consumer's committed range resolving a version that does not exist.
     # Here, a missed match attributes NO vertical, and `runMaestroFlows.sh` treats an unattributed change
     # as attribution failure and runs the WHOLE suite — so the cap can only ever cost runner-minutes, never
-    # coverage. Every pattern below is under `packages/`, which sorts well inside the first 3000 besides.
+    # coverage. `prChangeDetectionUncapped.test.ts` records this as its one decided exception.
     #
     # Deliberately NO `flows_all` key: "everything else" is the script's fallback, not a pattern list, which
     # is why an incomplete list here is safe and why a leading-`!` negation must never appear.

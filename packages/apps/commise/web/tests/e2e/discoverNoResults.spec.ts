@@ -10,12 +10,23 @@ import { signInWithTicket } from './utils/auth';
  * alone names it ("No recipes for “zzz”") and offers Clear search; filters alone say so and offer Clear filters; both say
  * both. Each ends in the Trending rail, so the cook is never at a dead end, and the count line (one element, also the polite
  * live region) says the same title. Role/label selectors only; both colour schemes are walked (D15).
+ *
+ * The search field is server-rendered, so `fill` can land BEFORE React has hydrated it: the typed value fires no change
+ * event, the term is never searched, and the no-result heading never appears (the flake that missed its 5 s wait). The
+ * Trending rail is fetched by the browser only once the page has hydrated, so its first card is the witness every spec
+ * that types waits for first (`recentSearches.spec.ts` names the same class).
  */
 for (const scheme of ['light', 'dark'] as const) {
     test.describe(`Discover with no results (${scheme})`, () => {
         test.beforeEach(async ({ page }) => {
             await page.emulateMedia({ colorScheme: scheme });
         });
+
+        /** Wait for discovery to hydrate, witnessed by the browser-fetched Trending rail (see the file doc). */
+        async function waitForHydratedDiscovery(page: import('@playwright/test').Page): Promise<void> {
+            await expect(page.getByRole('heading', { name: 'Trending' })).toBeVisible();
+            await expect(page.getByRole('article').first()).toBeVisible();
+        }
 
         async function discoverWithRecipes(page: import('@playwright/test').Page): Promise<void> {
             await signInWithTicket(page);
@@ -42,6 +53,7 @@ for (const scheme of ['light', 'dark'] as const) {
         test('a search that finds nothing names the term, clears it, and ends in Trending', async ({ page }) => {
             await discoverWithRecipes(page);
             await page.goto(route('/discover'));
+            await waitForHydratedDiscovery(page);
 
             await page.getByRole('searchbox', { name: 'Search recipes' }).fill('zzzzzz');
 
@@ -74,6 +86,7 @@ for (const scheme of ['light', 'dark'] as const) {
         test('a term with filters names both', async ({ page }) => {
             await discoverWithRecipes(page);
             await page.goto(route('/discover?tags=nothing-has-this-tag'));
+            await waitForHydratedDiscovery(page);
 
             await page.getByRole('searchbox', { name: 'Search recipes' }).fill('zzzzzz');
 
@@ -88,6 +101,7 @@ for (const scheme of ['light', 'dark'] as const) {
         test('the count line and the no-result state say the same title', async ({ page }) => {
             await discoverWithRecipes(page);
             await page.goto(route('/discover'));
+            await waitForHydratedDiscovery(page);
 
             await page.getByRole('searchbox', { name: 'Search recipes' }).fill('zzzzzz');
 

@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
-import { S3Client } from '@aws-sdk/client-s3';
 import { UsersController } from './users.controller.js';
 import { AvatarUploadController } from './avatarUpload.controller.js';
 import { UsersService } from './users.service.js';
 import { ResolveUserService } from './resolveUser.js';
-import { AVATAR_OBJECT_STORE, S3AvatarObjectStore, type AvatarObjectStore } from './avatarObjectStore.js';
+import { resolveMediaConfig } from '../config/mediaConfig.js';
+import { AVATAR_MEDIA, AvatarMedia, unconfiguredAvatarMedia, type AvatarMediaPort } from './avatarMedia.js';
+import { createS3AvatarStorage } from './avatarStorage.js';
+import { createCloudFrontInvalidation, noopCdnInvalidation } from './cdnInvalidation.js';
 import {
     HANDLE_SYNC_PUBLISHER,
     createSnsHandleSyncPublisher,
@@ -39,15 +41,35 @@ import { paidFeaturesGateProvider } from './paidFeaturesGate.provider.js';
             },
         },
         {
-            // Avatar S3 deletion for account closure/erasure (reads MEDIA_BUCKET_NAME directly, matching the
-            // avatar-upload controller's provider convention). The ECS task role holds s3:*Object/List on the
-            // media bucket via `grantReadWrite`, so this is the S3-capable side of the lifecycle scrub.
-            provide: AVATAR_OBJECT_STORE,
-            useFactory: (): AvatarObjectStore =>
-                new S3AvatarObjectStore(
-                    new S3Client({}),
-                    process.env['MEDIA_BUCKET_NAME'] ?? 'kitchensink-identity-media-dev',
-                ),
+            // The avatar media path (ADR-0064): S3 storage + the CDN that serves it + invalidation. Configuration is
+            // resolved ONCE from the environment: a deployed stage THROWS at boot when a setting is missing, and an
+            // undeployed process with no bucket gets a path that refuses every call. There is no default bucket.
+            // The ECS task role holds s3:*Object/List on the media bucket via `grantReadWrite` and
+            // `cloudfront:CreateInvalidation` on the media distribution only.
+            provide: AVATAR_MEDIA,
+            useFactory: (): AvatarMediaPort => {
+                const config = resolveMediaConfig(process.env);
+
+                if (config === undefined) {
+                    return unconfiguredAvatarMedia();
+                }
+
+                const local = config.endpoint !== undefined;
+
+                return new AvatarMedia(
+                    createS3AvatarStorage({
+                        bucket: config.bucket,
+                        ...(process.env['AWS_REGION'] === undefined ? {} : { region: process.env['AWS_REGION'] }),
+                        ...(config.endpoint === undefined ? {} : { endpoint: config.endpoint }),
+                        // LocalStack only: static test credentials, so presigning is self-contained.
+                        ...(local ? { credentials: { accessKeyId: 'test', secretAccessKey: 'test' } } : {}),
+                    }),
+                    config.distributionId === undefined
+                        ? noopCdnInvalidation()
+                        : createCloudFrontInvalidation(config.distributionId),
+                    config.cdnUrl,
+                );
+            },
         },
     ],
     exports: [UsersService, ResolveUserService],

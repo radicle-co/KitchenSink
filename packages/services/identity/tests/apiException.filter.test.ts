@@ -116,14 +116,18 @@ describe('ApiExceptionFilter (identity)', () => {
     it('lifts every zod issue of a real pipe rejection into details.fields, named by its field', () => {
         const { host, captured } = makeHost();
 
-        filter.catch(validationRejectionFor({ displayName: 'x'.repeat(101), avatarUrl: 'not-a-url' }), host);
+        filter.catch(validationRejectionFor({ displayName: 'x'.repeat(101), avatarKey: '' }), host);
 
         expect(captured.status).toBe(400);
         expect(captured.body).toEqual({
             code: 'BAD_REQUEST',
-            message: 'displayName: Too big: expected string to have <=100 characters, avatarUrl: Invalid URL',
+            message:
+                'displayName: Too big: expected string to have <=100 characters, avatarKey: Too small: expected string to have >=1 characters',
             details: {
-                fields: ['displayName: Too big: expected string to have <=100 characters', 'avatarUrl: Invalid URL'],
+                fields: [
+                    'displayName: Too big: expected string to have <=100 characters',
+                    'avatarKey: Too small: expected string to have >=1 characters',
+                ],
             },
         });
     });
@@ -134,13 +138,13 @@ describe('ApiExceptionFilter (identity)', () => {
     it('never surfaces the bare "Validation failed" placeholder when there are issues to report', () => {
         const { host, captured } = makeHost();
 
-        filter.catch(validationRejectionFor({ avatarUrl: 'not-a-url' }), host);
+        filter.catch(validationRejectionFor({ avatarKey: '' }), host);
 
         const body = captured.body as { message: string; details?: { fields?: unknown } };
 
         expect(body.message).not.toBe('Validation failed');
-        expect(body.message).toContain('avatarUrl');
-        expect(body.details?.fields).toEqual(['avatarUrl: Invalid URL']);
+        expect(body.message).toContain('avatarKey');
+        expect(body.details?.fields).toEqual(['avatarKey: Too small: expected string to have >=1 characters']);
     });
 
     // `z.strictObject`'s unrecognized-key issue carries an EMPTY path (the object itself failed, not a

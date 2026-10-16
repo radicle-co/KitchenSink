@@ -42,7 +42,9 @@ describe('computeProfileScrub', () => {
 
         it('keeps the companion rows and scrubs the profile avatar (recovery restores displayName)', () => {
             expect(directive.purgeCompanionRows).toBe(false);
-            expect(directive.profileScrub).toEqual({ avatarUrl: null });
+            // BOTH columns: the Clerk picture URL and the uploaded avatar's key (ADR-0064). Clearing only one would leave the
+            // other serving the closed account's photograph.
+            expect(directive.profileScrub).toEqual({ avatarUrl: null, avatarKey: null });
         });
 
         it('removes the avatar S3 object and reports the tombstoned state', () => {

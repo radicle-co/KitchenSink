@@ -20,13 +20,18 @@
  *
  * @module
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import { ZodValidationPipe } from 'nestjs-zod';
 import type { ArgumentMetadata } from '@nestjs/common';
 import { newUserId } from '@kitchensink/identity-db';
 
+import { isOwnAvatarKey } from '@kitchensink/identity-core';
+
 import { AvatarUploadController } from '../src/users/avatarUpload.controller.js';
+import { AvatarMedia, type AvatarMediaPort } from '../src/users/avatarMedia.js';
+import { createS3AvatarStorage } from '../src/users/avatarStorage.js';
+import { noopCdnInvalidation } from '../src/users/cdnInvalidation.js';
 import { AvatarPresignQueryDto } from '../src/users/dto/avatarPresign.query.dto.js';
 import type { AuthorizerContext } from '../src/auth/decorators/currentUser.decorator.js';
 
@@ -57,6 +62,7 @@ describe('avatar presign — query SHAPE (the pipe)', () => {
 
 describe('avatar presign — POLICY (the controller)', () => {
     let controller: AvatarUploadController;
+    let media: AvatarMediaPort;
     const ctx: AuthorizerContext = {
         userId: newUserId() as AuthorizerContext['userId'],
         email: 'test@example.com',
@@ -69,8 +75,14 @@ describe('avatar presign — POLICY (the controller)', () => {
     };
 
     beforeEach(() => {
-        controller = new AvatarUploadController();
-        process.env['MEDIA_BUCKET_NAME'] = 'test-bucket';
+        media = {
+            cdnUrl: 'https://media.commise.app',
+            presignUpload: vi.fn().mockResolvedValue('https://signed.example/put'),
+            exists: vi.fn(),
+            removeSuperseded: vi.fn(),
+            removeAll: vi.fn(),
+        };
+        controller = new AvatarUploadController(media);
     });
 
     it('rejects an unsupported MIME type, naming what is allowed', async () => {
@@ -87,18 +99,36 @@ describe('avatar presign — POLICY (the controller)', () => {
         ).rejects.toThrow(BadRequestException);
     });
 
-    // The boundary, which decides whether the cap is `>` or `>=`. Presigning itself needs AWS credentials that
-    // the unit tier does not have, so the assertion is on the POLICY outcome: exactly 5 MB must not produce a
-    // `400`. Whatever the SDK does afterwards is a different tier's business.
+    // The boundary, which decides whether the cap is `>` or `>=`.
     it('accepts a size of exactly 5 MB — the cap is inclusive', async () => {
         const exact = String(5 * 1024 * 1024);
 
-        const error = await controller.generatePresignedUrl(ctx, parseQuery({ type: 'image/png', size: exact })).then(
-            () => undefined,
-            (thrown: unknown) => thrown,
-        );
+        await expect(
+            controller.generatePresignedUrl(ctx, parseQuery({ type: 'image/png', size: exact })),
+        ).resolves.toMatchObject({ uploadUrl: 'https://signed.example/put' });
+    });
 
-        expect(error).not.toBeInstanceOf(BadRequestException);
+    // ADR-0064: the response names the OBJECT KEY, never a URL, so the CDN host is never baked into stored data.
+    it('answers { uploadUrl, key } and no publicUrl', async () => {
+        const result = await controller.generatePresignedUrl(ctx, parseQuery({ type: 'image/webp', size: '1024' }));
+
+        expect(Object.keys(result).sort()).toEqual(['key', 'uploadUrl']);
+        expect(isOwnAvatarKey(ctx.userId, result.key)).toBe(true);
+        expect(result.key.endsWith('.webp')).toBe(true);
+    });
+
+    it('presigns exactly the key, type and size it returns', async () => {
+        const result = await controller.generatePresignedUrl(ctx, parseQuery({ type: 'image/jpeg', size: '2048' }));
+
+        expect(media.presignUpload).toHaveBeenCalledWith({ key: result.key, contentType: 'image/jpeg', size: 2048 });
+    });
+
+    it('does not presign anything for a refused type or size', async () => {
+        await expect(
+            controller.generatePresignedUrl(ctx, parseQuery({ type: 'image/gif', size: '1' })),
+        ).rejects.toThrow();
+
+        expect(media.presignUpload).not.toHaveBeenCalled();
     });
 });
 
@@ -114,22 +144,22 @@ describe('avatar presign — the signed URL is uploadable by a plain HTTP client
         testPrincipal: false,
     };
 
-    beforeEach(() => {
-        vi.stubEnv('AWS_ACCESS_KEY_ID', 'test');
-        vi.stubEnv('AWS_SECRET_ACCESS_KEY', 'test');
-        vi.stubEnv('AWS_REGION', 'us-east-1');
-        vi.stubEnv('MEDIA_BUCKET_NAME', 'test-bucket');
-    });
-
-    afterEach(() => {
-        vi.unstubAllEnvs();
-    });
-
     // The installed SDK defaults to `requestChecksumCalculation: 'WHEN_SUPPORTED'`, which bakes
     // `x-amz-checksum-crc32` + `x-amz-sdk-checksum-algorithm` into the SIGNED query. A browser or `fetch` PUT
-    // cannot reproduce that checksum, so S3 answers 400 and no avatar object could ever be written.
+    // cannot reproduce that checksum, so S3 answers 400 and no avatar object could ever be written. This goes through
+    // the REAL adapter and the controller, so a client rebuilt elsewhere cannot bring it back.
     it('signs no flexible-checksum parameter into the query', async () => {
-        const { uploadUrl } = await new AvatarUploadController().generatePresignedUrl(
+        const real = new AvatarMedia(
+            createS3AvatarStorage({
+                bucket: 'test-bucket',
+                region: 'us-east-1',
+                credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+            }),
+            noopCdnInvalidation(),
+            'https://media.commise.app',
+        );
+
+        const { uploadUrl } = await new AvatarUploadController(real).generatePresignedUrl(
             ctx,
             parseQuery({ type: 'image/png', size: '1024' }),
         );

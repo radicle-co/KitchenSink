@@ -159,7 +159,10 @@ export class UserDAO {
                 .update(profiles)
                 .set({
                     ...(nameChanged ? { displayName: data.name } : {}),
-                    ...(pictureChanged ? { avatarUrl: data.picture } : {}),
+                    // ⛔ Clerk WINS on a real picture change (D5): the Clerk URL replaces an uploaded avatar, so the
+                    // key is cleared in the SAME statement. `profiles_avatar_key_xor_url` would refuse the write if it
+                    // were not, which is the point of that constraint.
+                    ...(pictureChanged ? { avatarUrl: data.picture, avatarKey: null } : {}),
                     ...(usernameChanged ? { username: data.username ?? null } : {}),
                     // ⛔ U9/R21: the OWED MARKER moves with the byline, inside this statement and on the same clock.
                     // The publish happens after the commit and is best-effort, so without the marker a failed

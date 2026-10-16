@@ -84,7 +84,7 @@ export const userProfileUserSchema = z.object({
     email: z.string(),
     /** Display name, or the empty string when the profile row has none yet. */
     displayName: z.string(),
-    /** Avatar URL, or `null` when unset or scrubbed by a closure/erasure. */
+    /** Avatar URL (the CDN URL of an uploaded avatar, else Clerk's picture), or `null` when unset or scrubbed. */
     avatarUrl: z.string().nullable(),
     /**
      * The Clerk username — the public byline (owner ruling 2026-10-13) — or `null` when the cook has none. Read-only:
@@ -140,12 +140,11 @@ export type UserProfile = z.infer<typeof userProfileSchema>;
  * `z.object()` STRIPS unknown keys silently instead of rejecting them, so using it here would have quietly
  * downgraded a rejecting boundary to a permissive one on a route that writes user data.
  *
- * `avatarUrl` accepts `null` (clearing the avatar) as well as an absolute URL. Validation is now `z.url()`, which
- * requires a scheme; class-validator's `@IsUrl()` accepted a bare `example.com/x.png`. That is a deliberate
- * TIGHTENING: the value is rendered as an image source and every real avatar URL comes back from this service's
- * own presign route as an `https://` S3 URL, so only the `https` scheme is admitted (`javascript:`, `data:` and
- * `http:` are refused). The host is NOT pinned here: this schema is copied verbatim to every client, while the
- * avatar bucket is a per-stage runtime setting, so a host check belongs to the service, not the wire contract.
+ * `avatarKey` is the OBJECT KEY the presign route handed back (`avatars/{userId}/{timestamp}.{ext}`), or `null` to clear
+ * the avatar (ADR-0064). It replaces `avatarUrl`, which a client could point at any host: the response's `avatarUrl` is
+ * now COMPOSED by the server from the stored key and the CDN base URL. The key's OWNERSHIP (a caller may name only an
+ * object under their own prefix) and EXISTENCE are checked by the service, not here: the user id comes from the token and
+ * the existence check needs S3, so neither can be a property of the wire shape.
  */
 export const patchUserMeRequestSchema = z.strictObject({
     /**
@@ -155,8 +154,8 @@ export const patchUserMeRequestSchema = z.strictObject({
      * server-side normalisation, so it is not part of the published shape.
      */
     displayName: z.string().max(100).regex(/\S/, { error: 'must not be blank' }).optional(),
-    /** New avatar URL (absolute, `https` only), or `null` to clear it. */
-    avatarUrl: z.union([z.url({ protocol: /^https$/ }), z.null()]).optional(),
+    /** The uploaded avatar's object key (from the presign response), or `null` to clear the avatar. */
+    avatarKey: z.string().min(1).max(200).nullable().optional(),
 });
 
 /** Request body for `PATCH /api/v1/users/me`. */

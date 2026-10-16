@@ -196,7 +196,7 @@ describe('0015_settings (real Postgres)', () => {
     });
     describe('account lifecycle (ADR-0059: closure keeps the row, erasure deletes it)', () => {
         const enqueueDeletion = vi.fn();
-        const deleteAllForUser = vi.fn();
+        const removeAll = vi.fn();
         let usersService: UsersService;
         let settingsService: SettingsService;
 
@@ -207,7 +207,7 @@ describe('0015_settings (real Postgres)', () => {
                 {} as never,
                 noopHandleSyncPublisher,
                 {
-                    deleteAllForUser,
+                    removeAll,
                 } as never,
                 false,
             );
@@ -216,7 +216,7 @@ describe('0015_settings (real Postgres)', () => {
 
         beforeEach(() => {
             enqueueDeletion.mockReset().mockResolvedValue(undefined);
-            deleteAllForUser.mockReset().mockResolvedValue(undefined);
+            removeAll.mockReset().mockResolvedValue(undefined);
         });
 
         const provisionViewer = (sub: string) =>

@@ -32,10 +32,10 @@ describe('profileMutations(client).update()', () => {
         const { client, patchMe, invalidate, wrapper } = arrange();
         const { result } = renderHook(() => useMutation(profileMutations(client).update()), { wrapper });
 
-        result.current.mutate({ displayName: 'Eliza', avatarUrl: null });
+        result.current.mutate({ displayName: 'Eliza', avatarKey: null });
 
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
-        expect(patchMe).toHaveBeenCalledWith({ displayName: 'Eliza', avatarUrl: null });
+        expect(patchMe).toHaveBeenCalledWith({ displayName: 'Eliza', avatarKey: null });
         expect(invalidate).toHaveBeenCalledWith({ queryKey: profileServiceKeys.me });
     });
 

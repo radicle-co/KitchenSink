@@ -88,19 +88,17 @@ describe('S-I1 — global DTO validation', () => {
             });
         });
 
-        it('rejects an avatarUrl that is not a URL', () => {
-            expect(() => pipe.transform({ avatarUrl: 'not-a-url' }, bodyMeta)).toThrow();
+        it('rejects an empty avatarKey', () => {
+            expect(() => pipe.transform({ avatarKey: '' }, bodyMeta)).toThrow();
         });
 
-        // A deliberate TIGHTENING over the `class-validator` `@IsUrl()` this replaced, which accepted a bare
-        // `example.com/x.png`. The value is rendered as an image source, and every real avatar URL comes back
-        // from this service's own presign route as an absolute `https://` S3 URL.
-        it('rejects a scheme-less avatarUrl, which the previous @IsUrl() accepted', () => {
-            expect(() => pipe.transform({ avatarUrl: 'img.example/x.png' }, bodyMeta)).toThrow();
+        // The contract moved to the OBJECT KEY (ADR-0064): the retired `avatarUrl` is an unknown key on a strict body.
+        it('rejects the retired avatarUrl field', () => {
+            expect(() => pipe.transform({ avatarUrl: 'https://img.example/x.png' }, bodyMeta)).toThrow();
         });
 
-        it('accepts a null avatarUrl, which is how the avatar is CLEARED', () => {
-            expect(pipe.transform({ avatarUrl: null }, bodyMeta)).toMatchObject({ avatarUrl: null });
+        it('accepts a null avatarKey, which is how the avatar is CLEARED', () => {
+            expect(pipe.transform({ avatarKey: null }, bodyMeta)).toMatchObject({ avatarKey: null });
         });
 
         // The `forbidNonWhitelisted` behaviour of the pipe this replaced. zod's plain `z.object()` STRIPS unknown
@@ -110,9 +108,9 @@ describe('S-I1 — global DTO validation', () => {
         });
 
         it('accepts a valid body and returns the parsed data', () => {
-            const result = pipe.transform({ displayName: 'Morgan', avatarUrl: 'https://img.example/x.png' }, bodyMeta);
+            const result = pipe.transform({ displayName: 'Morgan', avatarKey: 'avatars/u/1.png' }, bodyMeta);
 
-            expect(result).toStrictEqual({ displayName: 'Morgan', avatarUrl: 'https://img.example/x.png' });
+            expect(result).toStrictEqual({ displayName: 'Morgan', avatarKey: 'avatars/u/1.png' });
         });
 
         it('accepts an empty body (both fields optional)', () => {

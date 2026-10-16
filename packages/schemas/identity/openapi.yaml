@@ -581,14 +581,11 @@ components:
           type: string
           maxLength: 100
           pattern: \S
-        avatarUrl:
-          anyOf:
-            - type: string
-              format: uri
-            - type: string
-              nullable: true
-              enum:
-                - null
+        avatarKey:
+          nullable: true
+          type: string
+          minLength: 1
+          maxLength: 200
       additionalProperties: false
     DeleteUserMeResponse:
       type: object
@@ -621,11 +618,11 @@ components:
       properties:
         uploadUrl:
           type: string
-        publicUrl:
+        key:
           type: string
       required:
         - uploadUrl
-        - publicUrl
+        - key
     AdminUserListItem:
       type: object
       properties:

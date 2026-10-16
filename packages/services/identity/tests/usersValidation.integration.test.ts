@@ -108,29 +108,27 @@ describe('identity e2e — request validation + route surface', () => {
         expect(envelope.details?.['fields']).toEqual(['displayName: must not be blank']);
     });
 
-    it('rejects a PATCH /api/v1/users/me avatarUrl that is not a URL with 400 naming the field', async () => {
-        const { status, envelope } = await patchMe(JSON.stringify({ avatarUrl: 'not-a-url' }));
+    it('rejects a PATCH /api/v1/users/me empty avatarKey with 400 naming the field', async () => {
+        const { status, envelope } = await patchMe(JSON.stringify({ avatarKey: '' }));
 
         expect(status).toBe(400);
         expect(envelope.code).toBe('BAD_REQUEST');
-        expect(envelope.message).toContain('avatarUrl');
-        expect(envelope.details?.['fields']).toEqual(['avatarUrl: Invalid URL']);
+        expect(envelope.message).toContain('avatarKey');
+        expect(envelope.details?.['fields']).toEqual(['avatarKey: Too small: expected string to have >=1 characters']);
     });
 
     // Both fields wrong in one request: the client gets BOTH messages, which is the whole reason
     // `details.fields` is an array rather than a single string.
     it('reports EVERY invalid field of one PATCH, not just the first', async () => {
-        const { status, envelope } = await patchMe(
-            JSON.stringify({ displayName: 'x'.repeat(101), avatarUrl: 'not-a-url' }),
-        );
+        const { status, envelope } = await patchMe(JSON.stringify({ displayName: 'x'.repeat(101), avatarKey: '' }));
 
         expect(status).toBe(400);
         expect(envelope.details?.['fields']).toEqual([
             'displayName: Too big: expected string to have <=100 characters',
-            'avatarUrl: Invalid URL',
+            'avatarKey: Too small: expected string to have >=1 characters',
         ]);
         expect(envelope.message).toBe(
-            'displayName: Too big: expected string to have <=100 characters, avatarUrl: Invalid URL',
+            'displayName: Too big: expected string to have <=100 characters, avatarKey: Too small: expected string to have >=1 characters',
         );
     });
 
@@ -156,7 +154,7 @@ describe('identity e2e — request validation + route surface', () => {
     // A leak check on the same envelope: a rejection reports the CALLER's mistake and nothing about the
     // service — no stack, no `statusCode`/`error` remnants of Nest's internal body, no DB detail.
     it('leaks nothing internal in a validation rejection body', async () => {
-        const { envelope } = await patchMe(JSON.stringify({ avatarUrl: 'not-a-url' }));
+        const { envelope } = await patchMe(JSON.stringify({ avatarKey: '' }));
         const serialized = JSON.stringify(envelope);
 
         expect(Object.keys(envelope).sort()).toEqual(['code', 'details', 'message']);

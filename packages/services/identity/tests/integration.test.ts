@@ -91,7 +91,7 @@ describe('UsersService', () => {
         };
 
         mockSqs = { enqueueDeletion: vi.fn().mockResolvedValue(undefined) };
-        mockAvatarStore = { deleteAllForUser: vi.fn().mockResolvedValue(undefined) };
+        mockAvatarStore = { removeAll: vi.fn().mockResolvedValue(undefined) };
         mockResolver = {
             resolveUser: vi.fn().mockResolvedValue({
                 user: mockUser,
@@ -210,13 +210,17 @@ describe('UsersService', () => {
         expect(userSet.picture).toBeNull();
         expect(userSet.deletedAt).toBeInstanceOf(Date);
 
+        // BOTH avatar columns are cleared on the kept profile row: the Clerk URL and the uploaded key (ADR-0064).
+        const profileSet = setMock.mock.calls.map((c: any[]) => c[0]).find((v: any) => 'avatarKey' in v);
+        expect(profileSet).toMatchObject({ avatarUrl: null, avatarKey: null });
+
         // R8 audit row written for the closure transition (trigger = user self-service).
         expect(insertValues).toHaveBeenCalledWith(
             expect.objectContaining({ event: 'closure', triggerSource: 'user', userId: userCtx.userId }),
         );
 
         // The avatar S3 object is deleted, and the Clerk BAN is handed to the deletion-worker as a closure event.
-        expect(mockAvatarStore.deleteAllForUser).toHaveBeenCalledWith(userCtx.userId);
+        expect(mockAvatarStore.removeAll).toHaveBeenCalledWith(userCtx.userId);
         expect(mockSqs.enqueueDeletion).toHaveBeenCalledWith(
             expect.objectContaining({ identityId: 'user_abc123', userId: userCtx.userId, event: 'closure' }),
         );
@@ -226,7 +230,7 @@ describe('UsersService', () => {
         mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
         mockDb.update = vi.fn().mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) });
         mockDb.insert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
-        mockAvatarStore.deleteAllForUser.mockRejectedValue(new Error('s3 down'));
+        mockAvatarStore.removeAll.mockRejectedValue(new Error('s3 down'));
 
         await expect(usersService.deleteUserMe(userCtx)).resolves.toMatchObject({ sub: userCtx.userId });
         expect(mockSqs.enqueueDeletion).toHaveBeenCalled();
@@ -332,7 +336,7 @@ describe('UsersService', () => {
         expect(insertValues).toHaveBeenCalledWith(
             expect.objectContaining({ event: 'erasure', triggerSource: 'user', userId: userCtx.userId }),
         );
-        expect(mockAvatarStore.deleteAllForUser).toHaveBeenCalledWith(userCtx.userId);
+        expect(mockAvatarStore.removeAll).toHaveBeenCalledWith(userCtx.userId);
         expect(mockSqs.enqueueDeletion).toHaveBeenCalledWith(
             expect.objectContaining({ identityId: 'user_abc123', userId: userCtx.userId, event: 'erasure' }),
         );
@@ -372,17 +376,45 @@ describe('UsersService', () => {
         expect(setMock).not.toHaveBeenCalled();
     });
 
-    it('eraseUserMe still enqueues when the avatar delete fails, and does not report success quietly', async () => {
-        // S3 is not transactional and the row is already scrubbed, so a failed object delete cannot roll the
-        // erasure back — but it leaves a real orphaned image of a user who asked to be erased, so it is an
-        // ERROR, not the `warn` closure uses for its recoverable tombstone.
+    // ⛔ REWRITTEN (ADR-0064). This test used to assert that erasure ENQUEUED even when the avatar delete failed. That
+    // left an erased user's photograph in the bucket AND in the CDN edge cache, with the erasure reported as done and
+    // nothing left to retry it. A failed removal or invalidation is now fatal to the request, BEFORE the row is erased
+    // and before anything is enqueued, so the caller retries the whole erasure - the same non-terminal shape the recipe
+    // erasure worker has for a failed CDN invalidation.
+    it('eraseUserMe is NON-TERMINAL when the avatar removal or invalidation fails: nothing erased, nothing enqueued', async () => {
+        mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
+        const setMock = vi.fn().mockReturnValue({ where: () => Promise.resolve() });
+        mockDb.update = vi.fn().mockReturnValue({ set: setMock });
+        mockDb.insert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
+        mockAvatarStore.removeAll.mockRejectedValue(new Error('cloudfront down'));
+
+        await expect(usersService.eraseUserMe(userCtx)).rejects.toThrow('cloudfront down');
+
+        expect(setMock).not.toHaveBeenCalled();
+        expect(mockDb.transaction).not.toHaveBeenCalled();
+        expect(mockSqs.enqueueDeletion).not.toHaveBeenCalled();
+    });
+
+    it('eraseUserMe removes the avatar objects BEFORE it erases the row', async () => {
         mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
         mockDb.update = vi.fn().mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) });
         mockDb.insert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
-        mockAvatarStore.deleteAllForUser.mockRejectedValue(new Error('s3 down'));
+        const order: string[] = [];
+        mockAvatarStore.removeAll.mockImplementation(() => {
+            order.push('remove');
 
-        await expect(usersService.eraseUserMe(userCtx)).resolves.toMatchObject({ sub: userCtx.userId });
-        expect(mockSqs.enqueueDeletion).toHaveBeenCalledWith(expect.objectContaining({ event: 'erasure' }));
+            return Promise.resolve();
+        });
+        mockDb.transaction = vi.fn((cb: (tx: any) => unknown) => {
+            order.push('erase');
+
+            return cb(mockDb);
+        });
+
+        await usersService.eraseUserMe(userCtx);
+
+        expect(order[0]).toBe('remove');
+        expect(order).toContain('erase');
     });
 
     it('eraseUserMe throws when the user is missing', async () => {

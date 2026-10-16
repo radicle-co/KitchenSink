@@ -237,6 +237,20 @@ export class IdentityServiceStack extends Stack {
         deletionQueue.grantSendMessages(taskRole);
         handleSyncTopic.grantPublish(taskRole);
         mediaBucket.grantReadWrite(taskRole);
+        // ADR-0064: purge the media CDN's edge after an avatar is deleted or replaced. ONE action on ONE resource: the
+        // distribution the global app publishes under `/kitchensink/{baseStage}/media/`, read from SSM at deploy time.
+        // ⛔ Never `*`, and never a CloudFormation import - an export would lock the distribution against replacement.
+        taskRole.addToPolicy(
+            new iam.PolicyStatement({
+                actions: ['cloudfront:CreateInvalidation'],
+                resources: [
+                    ssm.StringParameter.valueForStringParameter(
+                        this,
+                        `/kitchensink/${baseStage}/media/distribution-arn`,
+                    ),
+                ],
+            }),
+        );
         archiveBucket.grantReadWrite(taskRole);
 
         const taskDefinition = new ecs.FargateTaskDefinition(this, 'IdentityTaskDefinition', {
@@ -322,6 +336,16 @@ export class IdentityServiceStack extends Stack {
                 DELETION_QUEUE_URL: deletionQueue.queueUrl,
                 HANDLE_SYNC_TOPIC_ARN: handleSyncTopic.topicArn,
                 MEDIA_BUCKET_NAME: mediaBucket.bucketName,
+                // ADR-0064: the CDN an uploaded avatar is served from, and the distribution to invalidate. From SSM at
+                // deploy time (the global app publishes them); the service THROWS at boot without them.
+                MEDIA_CDN_URL: ssm.StringParameter.valueForStringParameter(
+                    this,
+                    `/kitchensink/${baseStage}/media/cdn-url`,
+                ),
+                MEDIA_DISTRIBUTION_ID: ssm.StringParameter.valueForStringParameter(
+                    this,
+                    `/kitchensink/${baseStage}/media/distribution-id`,
+                ),
                 ARCHIVE_BUCKET_NAME: archiveBucket.bucketName,
                 AUTH_SECRET_ARN: authSecretKey.secretArn,
                 // Sentry config (U8). DSN value resolved from SSM at deploy (KTD6); STAGE drives the

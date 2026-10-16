@@ -1,12 +1,19 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, sql } from 'drizzle-orm';
 import { provisionCompleteUser, type CreatedByline, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
-import { computeProfileScrub, deriveDisplayName, parseUsername, type BylineSnapshot } from '@kitchensink/identity-core';
+import {
+    composeAvatarUrl,
+    computeProfileScrub,
+    deriveDisplayName,
+    isOwnAvatarKey,
+    parseUsername,
+    type BylineSnapshot,
+} from '@kitchensink/identity-core';
 import { eraseIdentityRow, newProfileClock, profileClock, UserDAO } from '@kitchensink/identity-db';
 
 import { HANDLE_SYNC_PUBLISHER, publishOwedByline, type HandleSyncPublisher } from './handleSync.publisher.js';
-import { AVATAR_OBJECT_STORE, type AvatarObjectStore } from './avatarObjectStore.js';
+import { AVATAR_MEDIA, type AvatarMediaPort } from './avatarMedia.js';
 
 import { accounts, lifecycleEvents, profiles, users } from '@kitchensink/identity-db';
 import { DrizzleProvider } from '../database/database.module.js';
@@ -61,7 +68,7 @@ export class UsersService {
         private readonly sqs: SqsService,
         private readonly resolver: ResolveUserService,
         @Inject(HANDLE_SYNC_PUBLISHER) private readonly handleSync: HandleSyncPublisher,
-        @Inject(AVATAR_OBJECT_STORE) private readonly avatarStore: AvatarObjectStore,
+        @Inject(AVATAR_MEDIA) private readonly avatarStore: AvatarMediaPort,
         @Inject(PAID_FEATURES_GATE) private readonly paidFeaturesGate: boolean,
     ) {}
 
@@ -246,6 +253,51 @@ export class UsersService {
         }
     }
 
+    /**
+     * The URL a profile's avatar is shown from, composed at READ time from the stored key and the CDN host (ADR-0064).
+     *
+     * @param profile - The profile row, or `undefined` when none exists yet.
+     * @returns The CDN URL of an uploaded avatar, else Clerk's picture URL, else `null`.
+     */
+    private avatarUrlOf(profile: { avatarKey?: string | null; avatarUrl?: string | null } | undefined): string | null {
+        return composeAvatarUrl(
+            { avatarKey: profile?.avatarKey ?? null, avatarUrl: profile?.avatarUrl ?? null },
+            this.avatarStore.cdnUrl,
+        );
+    }
+
+    /**
+     * Refuse an `avatarKey` that is not an avatar the caller uploaded: it must lie under the CALLER'S OWN prefix, so a
+     * PATCH can never display another user's photo, or a recipe photo, as one's own. Pure and cheap, so it runs before
+     * any read.
+     *
+     * @throws BadRequestException when the key is not the caller's.
+     */
+    private assertAvatarKeyOwned(userId: string, key: string): void {
+        if (!isOwnAvatarKey(userId, key)) {
+            throw new BadRequestException({
+                code: 'AVATAR_KEY_NOT_OWNED',
+                message: 'avatarKey must be an avatar you uploaded',
+            });
+        }
+    }
+
+    /**
+     * Refuse an owned `avatarKey` whose object is not there, so a profile never points at an upload that did not happen.
+     * A storage FAILURE is not "not there": it propagates, and the PATCH fails rather than lying.
+     *
+     * @throws BadRequestException when the object does not exist.
+     * @sideEffect Issues an S3 `HEAD`.
+     */
+    private async assertAvatarObjectExists(key: string): Promise<void> {
+        if (!(await this.avatarStore.exists(key))) {
+            throw new BadRequestException({
+                code: 'AVATAR_OBJECT_MISSING',
+                message: 'The avatar upload was not found; upload it before saving it',
+            });
+        }
+    }
+
     async getUserMe(ctx: AuthorizerContext) {
         const userId = ctx.userId;
         const { user, account } = await this.resolver.resolveUser(userId);
@@ -257,7 +309,7 @@ export class UsersService {
                 email: user.email,
                 status: user.status,
                 displayName: profile?.displayName ?? '',
-                avatarUrl: profile?.avatarUrl ?? null,
+                avatarUrl: this.avatarUrlOf(profile),
                 username: profile?.username ?? null,
                 createdAt: user.createdAt.toISOString(),
                 updatedAt: user.updatedAt.toISOString(),
@@ -274,8 +326,14 @@ export class UsersService {
         };
     }
 
-    async patchUserMe(ctx: AuthorizerContext, input: { displayName?: string; avatarUrl?: string | null }) {
+    async patchUserMe(ctx: AuthorizerContext, input: { displayName?: string; avatarKey?: string | null }) {
         const userId = ctx.userId;
+        const newAvatarKey = input.avatarKey ?? undefined;
+
+        // Ownership first: a pure check, so a forged key costs no read and no S3 call.
+        if (newAvatarKey !== undefined) {
+            this.assertAvatarKeyOwned(userId, newAvatarKey);
+        }
 
         const [existing] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
 
@@ -283,18 +341,26 @@ export class UsersService {
             throw new NotFoundException('User not found');
         }
 
+        // Verified BEFORE any write: a refused key must leave the profile untouched.
+        if (newAvatarKey !== undefined) {
+            await this.assertAvatarObjectExists(newAvatarKey);
+        }
+
         const renamed = input.displayName !== undefined;
         // The profile as THIS statement left it. ⛔ `RETURNING`, not a read-back: a second statement could see a
         // concurrent webhook's later write, and the snapshot published below must be exactly the state this write's
         // stamp keys (plan 2026-10-15-010 D6).
         const [updatedProfile] =
-            input.displayName !== undefined || input.avatarUrl !== undefined
+            input.displayName !== undefined || input.avatarKey !== undefined
                 ? await this.db
                       .update(profiles)
                       .set({
                           // Trimmed: one name has one stored form, and the consumer would trim it anyway.
                           ...(input.displayName !== undefined ? { displayName: input.displayName.trim() } : {}),
-                          ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}),
+                          // ⛔ BOTH columns, in the one statement: a profile holds a Clerk URL OR an uploaded key, never
+                          // both (`profiles_avatar_key_xor_url`), so choosing a key clears the URL and clearing the
+                          // avatar clears both.
+                          ...(input.avatarKey !== undefined ? { avatarKey: input.avatarKey, avatarUrl: null } : {}),
                           // ⛔ U9/R21: the OWED MARKER moves with the name, in this one statement and on the
                           // database's clock (`profileClock`). The publish below happens after the commit and is
                           // best-effort, so without the marker a failed fan-out left nothing behind.
@@ -307,6 +373,13 @@ export class UsersService {
                       .returning()
                 : await this.db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
         const [updatedAccount] = await this.db.select().from(accounts).where(eq(accounts.userId, userId)).limit(1);
+
+        // After the write committed: remove what the new avatar superseded (or everything, on a clear) and purge the
+        // edge. BEST EFFORT, and logged: the new avatar is already stored and served, and a leftover object is a
+        // storage cost, not a correctness fault. (Erasure is different - see `eraseUserMe`.)
+        if (input.avatarKey !== undefined) {
+            await this.removeReplacedAvatars(userId, input.avatarKey);
+        }
 
         // Handle-sync (W8-a.2): a rename publishes the byline snapshot — the new display name AND the Clerk username
         // the row already holds — keyed by the stamp the write returned. Best-effort: a failed publish must NOT fail
@@ -325,7 +398,7 @@ export class UsersService {
                 email: existing.email,
                 status: existing.status,
                 displayName: updatedProfile?.displayName ?? '',
-                avatarUrl: updatedProfile?.avatarUrl ?? null,
+                avatarUrl: this.avatarUrlOf(updatedProfile),
                 username: updatedProfile?.username ?? null,
                 createdAt: existing.createdAt.toISOString(),
                 updatedAt: (updatedProfile?.updatedAt ?? existing.updatedAt).toISOString(),
@@ -338,6 +411,21 @@ export class UsersService {
                 updatedAt: updatedAccount?.updatedAt.toISOString(),
             },
         };
+    }
+
+    private async removeReplacedAvatars(userId: UserId, keepKey: string | null): Promise<void> {
+        try {
+            if (keepKey === null) {
+                await this.avatarStore.removeAll(userId);
+            } else {
+                await this.avatarStore.removeSuperseded(userId, keepKey);
+            }
+        } catch (err) {
+            this.logger.warn('avatar: removing superseded objects failed (the new avatar is already saved)', {
+                userId,
+                error: String(err),
+            });
+        }
     }
 
     /**
@@ -411,7 +499,7 @@ export class UsersService {
         // block closure — the DB tombstone above is already the source of truth.
         if (directive.removeAvatarObject) {
             try {
-                await this.avatarStore.deleteAllForUser(userId);
+                await this.avatarStore.removeAll(userId);
             } catch (err) {
                 this.logger.warn('closure: avatar S3 delete failed (row already scrubbed)', {
                     userId,
@@ -496,24 +584,18 @@ export class UsersService {
             return { sub: userId, erasedAt: now.toISOString(), message: 'Account erasure already completed' };
         }
 
+        // ⛔ THE AVATAR OBJECTS GO FIRST, AND A FAILURE HERE IS FATAL (ADR-0064). Removal is not done until the CDN edge
+        // copy is purged too, and an erased user's photograph must not stay served from an edge cache. If the delete or the
+        // invalidation fails this throws BEFORE the row is erased and before anything is enqueued, so the caller retries the
+        // whole erasure - the same non-terminal shape the recipe erasure worker has for a failed CDN invalidation. Deleting
+        // objects of a still-active account is harmless (the avatar simply goes missing) and both calls are idempotent.
+        await this.avatarStore.removeAll(userId);
+
         // ONE definition of "erased" for all three callers (this, the tombstone-sweep, the user.deleted
         // webhook) — the field-scrub, the companion-row purge and the R8 audit row, in one transaction.
         // `providerDeletedAt: null` — this service holds no Clerk secret, so the provider deletion is OWED; the
         // deletion worker the message below wakes confirms it, and erasure reconciliation re-enqueues until it does.
         await eraseIdentityRow(this.db, { userId, triggerSource: 'user', actor: userId, providerDeletedAt: null }, now);
-
-        // The row is already scrubbed and S3 is not transactional, so a failed object delete cannot roll the
-        // erasure back — but it leaves a real photograph of a user who asked to be erased, with no DB row
-        // pointing at it and therefore nothing to find it by later. That is an ERROR, not the `warn` closure
-        // uses for its recoverable tombstone.
-        try {
-            await this.avatarStore.deleteAllForUser(userId);
-        } catch (err) {
-            this.logger.error('erasure: avatar S3 delete FAILED — orphaned object for an erased user', {
-                userId,
-                error: String(err),
-            });
-        }
 
         // ⛔ NOT BEST-EFFORT. Identity has scrubbed its own row, so the database says "erased" — but the
         // Clerk account still exists and both downstream services still hold the user's data. All of that is

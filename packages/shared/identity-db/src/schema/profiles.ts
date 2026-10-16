@@ -13,7 +13,14 @@ export const profiles = pgTable(
             .notNull()
             .references(() => users.id, { onDelete: 'cascade' }),
         displayName: text('display_name').notNull(),
+        /** The Clerk picture URL ONLY. An uploaded avatar lives in `avatarKey`; the two are never both set. */
         avatarUrl: text('avatar_url'),
+        /**
+         * The object key of an uploaded avatar (`avatars/{userId}/{timestamp}.{ext}`, migration 0018). The URL is
+         * composed at read time from this and the CDN base URL, so the CDN host is configuration, not data. Two CHECKs
+         * hold it: never alongside `avatarUrl`, and always under this user's own prefix.
+         */
+        avatarKey: text('avatar_key'),
         bio: text('bio'),
         /**
          * Mirror of the Clerk username — the public byline (migration 0016). Clerk is the authority, so there is no

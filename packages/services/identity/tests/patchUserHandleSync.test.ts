@@ -60,7 +60,12 @@ function makeService(db: NodePgDatabase, publisher: HandleSyncPublisher): UsersS
         {} as unknown as SqsService,
         {} as unknown as ResolveUserService,
         publisher,
-        {} as never,
+        {
+            cdnUrl: 'https://media.commise.app',
+            exists: vi.fn().mockResolvedValue(true),
+            removeSuperseded: vi.fn().mockResolvedValue(undefined),
+            removeAll: vi.fn().mockResolvedValue(undefined),
+        } as never,
         false,
     );
 }
@@ -111,9 +116,12 @@ describe('patchUserMe handle-sync publish', () => {
 
     it('does NOT publish, and owes nothing, on an avatar-only update', async () => {
         const publish = vi.fn().mockResolvedValue(undefined);
-        const { db, sets } = fakeDb([EXISTING, ACCOUNT], [[returnedProfile({ avatarUrl: 'https://x/y.png' })]]);
+        const { db, sets } = fakeDb(
+            [EXISTING, ACCOUNT],
+            [[returnedProfile({ avatarKey: `avatars/${USER_ID}/1.png` })]],
+        );
 
-        await makeService(db, { publish }).patchUserMe(CTX, { avatarUrl: 'https://x/y.png' });
+        await makeService(db, { publish }).patchUserMe(CTX, { avatarKey: `avatars/${USER_ID}/1.png` });
 
         expect(publish).not.toHaveBeenCalled();
         expect(sets[0]).not.toHaveProperty('handleSyncOwedAt');

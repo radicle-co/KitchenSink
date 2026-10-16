@@ -128,7 +128,7 @@ describe('useUpdateProfile (mobile)', () => {
         useAuthMock.mockReturnValue({ getToken } as unknown as ReturnType<typeof useAuth>);
 
         const { result } = renderHook(() => useUpdateProfile(), { wrapper });
-        result.current.mutate({ displayName: 'Ada Lovelace', avatarUrl: null });
+        result.current.mutate({ displayName: 'Ada Lovelace', avatarKey: null });
 
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -140,7 +140,7 @@ describe('useUpdateProfile (mobile)', () => {
         expect(url).toContain('/api/v1/users/me');
         expect(url).not.toContain('/api/v1/profiles/me');
         expect(init.method).toBe('PATCH');
-        expect(init.body).toBe(JSON.stringify({ displayName: 'Ada Lovelace', avatarUrl: null }));
+        expect(init.body).toBe(JSON.stringify({ displayName: 'Ada Lovelace', avatarKey: null }));
     });
 });
 

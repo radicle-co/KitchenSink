@@ -95,35 +95,31 @@ describe('patchUserMeRequestSchema', () => {
         expect(patchUserMeRequestSchema.parse({ displayName: '  Ada  ' })).toStrictEqual({ displayName: '  Ada  ' });
     });
 
-    it('accepts an absolute URL for avatarUrl', () => {
-        expect(patchUserMeRequestSchema.safeParse({ avatarUrl: 'https://img.example/x.png' }).success).toBe(true);
+    // ADR-0064: the client names the OBJECT KEY it uploaded (from the presign response), never a URL. The URL is composed
+    // at read time from the key and the CDN host, so a client cannot make the profile point at an arbitrary host.
+    it('accepts an avatar object key', () => {
+        expect(patchUserMeRequestSchema.safeParse({ avatarKey: 'avatars/01J8ZQ/1760000000000.png' }).success).toBe(
+            true,
+        );
     });
 
-    // `null` is how the avatar is CLEARED — the closure/erasure scrub path relies on it, so admitting it is not
-    // laxity but a required capability.
-    it('accepts null for avatarUrl, which is how the avatar is cleared', () => {
-        expect(patchUserMeRequestSchema.safeParse({ avatarUrl: null }).success).toBe(true);
+    // `null` is how the avatar is CLEARED.
+    it('accepts null for avatarKey, which is how the avatar is cleared', () => {
+        expect(patchUserMeRequestSchema.safeParse({ avatarKey: null }).success).toBe(true);
     });
 
-    // The value is rendered as an image source, so only `https` is admitted: `javascript:`/`data:` are script and
-    // inline-payload vectors and `http:` is mixed content. Every real avatar URL is the presign route's `https://`.
     it.each([
-        ['javascript:', false, 'javascript:alert(1)'],
-        ['data:', false, 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4='],
-        ['http:', false, 'http://img.example/x.png'],
-        ['https:', true, 'https://img.example/x.png'],
-    ])('avatarUrl with a %s scheme: accepted=%s', (_label, accepted, avatarUrl) => {
-        expect(patchUserMeRequestSchema.safeParse({ avatarUrl }).success).toBe(accepted);
+        ['empty', ''],
+        ['too long', 'a'.repeat(201)],
+        ['a number', 42],
+    ])('rejects an avatarKey that is %s', (_label, avatarKey) => {
+        expect(patchUserMeRequestSchema.safeParse({ avatarKey }).success).toBe(false);
     });
 
-    it('rejects a non-URL avatarUrl', () => {
-        expect(patchUserMeRequestSchema.safeParse({ avatarUrl: 'not-a-url' }).success).toBe(false);
-    });
-
-    // A deliberate TIGHTENING over the `class-validator` `@IsUrl()` this replaced, which accepted a scheme-less
-    // host. The value is rendered as an image source.
-    it('rejects a scheme-less URL, which the previous @IsUrl() accepted', () => {
-        expect(patchUserMeRequestSchema.safeParse({ avatarUrl: 'img.example/x.png' }).success).toBe(false);
+    // The contract MOVED: `avatarUrl` is no longer writable. The schema is strict, so a stale client that still sends it
+    // gets a `400` rather than a silent no-op that looks like a saved avatar.
+    it('REFUSES the retired avatarUrl field', () => {
+        expect(patchUserMeRequestSchema.safeParse({ avatarUrl: 'https://img.example/x.png' }).success).toBe(false);
     });
 
     // THE STRICTNESS ASSERTION. zod's plain `z.object()` STRIPS unknown keys silently; the pipe this schema

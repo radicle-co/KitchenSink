@@ -64,13 +64,13 @@ describe('ProfileServiceClient — request shape', () => {
         const fetchMock = stubFetch({ status: 200, body: updated });
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
 
-        const result = await client.patchMe({ displayName: 'Ada Lovelace', avatarUrl: null });
+        const result = await client.patchMe({ displayName: 'Ada Lovelace', avatarKey: null });
 
         const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit & { headers: Record<string, string> }];
         expect(url).toBe(`${BASE}${PROFILE_ME_PATH}`);
         expect(url).not.toContain('/api/v1/profiles/me');
         expect(init.method).toBe('PATCH');
-        expect(init.body).toBe(JSON.stringify({ displayName: 'Ada Lovelace', avatarUrl: null }));
+        expect(init.body).toBe(JSON.stringify({ displayName: 'Ada Lovelace', avatarKey: null }));
         expect(init.headers['content-type']).toBe('application/json');
         expect(result).toEqual(updated);
     });
@@ -382,11 +382,11 @@ describe('ProfileServiceClient — contract validation', () => {
         expect(error).not.toBeInstanceOf(BadRequestError);
     });
 
-    it('rejects a non-URL avatarUrl before issuing a request', async () => {
+    it('rejects an empty avatarKey before issuing a request', async () => {
         const client = new ProfileServiceClient({ baseUrl: BASE, fetch: neverFetch });
         // `z.url()` requires a scheme — a deliberate tightening over the `@IsUrl()` this replaced, which
         // accepted a bare `example.com/x.png` for a value that is rendered as an image source.
-        const error = await client.patchMe({ avatarUrl: 'example.com/a.png' }).catch((caught: unknown) => caught);
+        const error = await client.patchMe({ avatarKey: '' }).catch((caught: unknown) => caught);
 
         expect(isInvalidRequestError(error)).toBe(true);
     });
@@ -396,7 +396,7 @@ describe('ProfileServiceClient — contract validation', () => {
         const fetchMock = stubFetch({ status: 200, body: makeUserProfile() });
         const client = new ProfileServiceClient({ baseUrl: BASE, fetch: fetchMock });
 
-        await expect(client.patchMe({ displayName: 'Ada', avatarUrl: null })).resolves.toStrictEqual(makeUserProfile());
+        await expect(client.patchMe({ displayName: 'Ada', avatarKey: null })).resolves.toStrictEqual(makeUserProfile());
     });
 
     it('REJECTS a response that does not match the published contract, instead of casting it', async () => {
@@ -420,7 +420,7 @@ describe('ProfileServiceClient — contract validation', () => {
  */
 describe('ProfileServiceClient — avatar presign', () => {
     /** A valid presign response body. */
-    const presigned = { uploadUrl: 'https://s3.example.test/put', publicUrl: 'https://media.example.test/a.png' };
+    const presigned = { uploadUrl: 'https://s3.example.test/put', key: 'avatars/usr_1/1.png' };
 
     it('presigns UNDER the profile path — the avatar is a field of the viewer’s own profile', () => {
         expect(AVATAR_PRESIGN_PATH).toBe(`${PROFILE_ME_PATH}/avatar/presign`);
@@ -487,16 +487,16 @@ describe('ProfileServiceClient — avatar presign', () => {
     });
 
     /*
-     * A cast here is how an upload silently "succeeds" into nothing: `publicUrl` would be `undefined`, the caller
+     * A cast here is how an upload silently "succeeds" into nothing: `key` would be `undefined`, the caller
      * would persist it as the avatar, and the failure would surface as a broken image rather than as a drift.
      */
-    it('REJECTS a presign response missing publicUrl instead of casting it', async () => {
+    it('REJECTS a presign response missing key instead of casting it', async () => {
         const client = new ProfileServiceClient({
             baseUrl: BASE,
             fetch: stubFetch({ status: 200, body: { uploadUrl: 'https://s3.example.test/put' } }),
         });
 
-        await expect(client.presignAvatar({ type: 'image/png', size: 2048 })).rejects.toThrow(/publicUrl/iu);
+        await expect(client.presignAvatar({ type: 'image/png', size: 2048 })).rejects.toThrow(/key/iu);
     });
 });
 

@@ -219,7 +219,7 @@ describe('ProfileServiceClient — contract-skew reporting', () => {
                           status: 200,
                       })
                     : new Response(
-                          JSON.stringify({ uploadUrl: 'https://s3.example.test/put', publicUrl: 'https://cdn/a.png' }),
+                          JSON.stringify({ uploadUrl: 'https://s3.example.test/put', key: 'avatars/usr_1/1.png' }),
                           { status: 200 },
                       ),
             ) as unknown as typeof fetch,

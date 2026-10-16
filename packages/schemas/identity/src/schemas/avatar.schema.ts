@@ -58,8 +58,11 @@ export const avatarPresignResponseSchema = z.object({
      * it cannot be replayed for a different object.
      */
     uploadUrl: z.string(),
-    /** The URL the object will be readable at once the `PUT` succeeds — what to send back as `avatarUrl`. */
-    publicUrl: z.string(),
+    /**
+     * The object key the `PUT` will create — what to send back as `avatarKey` once the upload succeeds. A KEY, not a URL:
+     * the server composes the CDN URL at read time, so the CDN host is never baked into a stored value (ADR-0064).
+     */
+    key: z.string(),
 });
 
 /** Body for `POST /api/v1/users/me/avatar/presign`. */

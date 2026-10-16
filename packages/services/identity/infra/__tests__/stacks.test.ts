@@ -1362,3 +1362,56 @@ describe('the alarm relay (ADR-0062)', () => {
         ).toEqual({});
     });
 });
+
+/**
+ * ADR-0064 - avatars are served from the base stage's media CDN, and a removal purges its edge.
+ *
+ * The CDN URL and the distribution id are read from SSM at DEPLOY time (published by the global app under
+ * `/kitchensink/{baseStage}/media/`), never from a CloudFormation export, which would lock the distribution against
+ * replacement. The invalidation grant is scoped to that ONE distribution's ARN.
+ */
+describe('media CDN wiring (ADR-0064)', () => {
+    const taskEnvironment = (template: Template): Record<string, unknown> => {
+        const [task] = Object.values(template.findResources('AWS::ECS::TaskDefinition'));
+        const container = (task?.Properties?.ContainerDefinitions ?? [])[0];
+
+        return Object.fromEntries((container?.Environment ?? []).map((entry: any) => [entry.Name, entry.Value]));
+    };
+
+    /** The SSM path a `valueForStringParameter` token resolves from: a `Ref` to a template parameter whose Default is it. */
+    const ssmPathOf = (template: Template, token: unknown): string | undefined => {
+        const ref = (token as { Ref?: string } | undefined)?.Ref;
+        const parameters = (template.toJSON().Parameters ?? {}) as Record<string, { Default?: string }>;
+
+        return ref === undefined ? undefined : parameters[ref]?.Default;
+    };
+
+    it.each(['prod', 'sandbox'])(
+        '%s reads the CDN url and distribution id from its SSM tree, at deploy time',
+        (base) => {
+            const template = base === 'prod' ? prodTemplate : sandboxTemplate;
+            const environment = taskEnvironment(template);
+            const body = JSON.stringify(template.toJSON());
+
+            expect(ssmPathOf(template, environment['MEDIA_CDN_URL'])).toBe(`/kitchensink/${base}/media/cdn-url`);
+            expect(ssmPathOf(template, environment['MEDIA_DISTRIBUTION_ID'])).toBe(
+                `/kitchensink/${base}/media/distribution-id`,
+            );
+            // Resolved by CloudFormation from SSM; no export is imported for it.
+            expect(body).not.toMatch(/Fn::ImportValue[^}]*media\/?(cdn|distribution)/iu);
+        },
+    );
+
+    it('grants cloudfront:CreateInvalidation on the media distribution ARN only', () => {
+        const statements = Object.values(prodTemplate.findResources('AWS::IAM::Policy')).flatMap(
+            (policy) => (policy.Properties?.PolicyDocument?.Statement ?? []) as Array<Record<string, any>>,
+        );
+        const invalidation = statements.filter((statement) =>
+            ([] as string[]).concat(statement['Action']).some((action) => action.startsWith('cloudfront:')),
+        );
+
+        expect(invalidation).toHaveLength(1);
+        expect(invalidation[0]?.['Action']).toBe('cloudfront:CreateInvalidation');
+        expect(ssmPathOf(prodTemplate, invalidation[0]?.['Resource'])).toBe('/kitchensink/prod/media/distribution-arn');
+    });
+});

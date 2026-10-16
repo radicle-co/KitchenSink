@@ -27,7 +27,7 @@ vi.mock('@aws-sdk/client-sqs', () => ({
 import type { AuthorizerContext } from '../src/auth/decorators/currentUser.decorator.js';
 import { DrizzleProvider } from '../src/database/database.module.js';
 import { SqsService } from '../src/queue/sqs.service.js';
-import { AVATAR_OBJECT_STORE } from '../src/users/avatarObjectStore.js';
+import { AVATAR_MEDIA } from '../src/users/avatarMedia.js';
 import { HANDLE_SYNC_PUBLISHER, noopHandleSyncPublisher } from '../src/users/handleSync.publisher.js';
 import { PAID_FEATURES_GATE } from '../src/users/paidFeaturesGate.provider.js';
 import { ResolveUserService } from '../src/users/resolveUser.js';
@@ -86,7 +86,7 @@ describe('GET /api/v1/users/me — the username', () => {
                     useValue: { resolveUser: vi.fn().mockResolvedValue({ user, account }) },
                 },
                 { provide: HANDLE_SYNC_PUBLISHER, useValue: noopHandleSyncPublisher },
-                { provide: AVATAR_OBJECT_STORE, useValue: {} },
+                { provide: AVATAR_MEDIA, useValue: {} },
                 { provide: APP_PIPE, useValue: new ZodValidationPipe() },
             ],
         })

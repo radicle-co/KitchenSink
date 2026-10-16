@@ -189,7 +189,7 @@ describe('status convergence (integration)', () => {
                 { enqueueDeletion } as never,
                 {} as never,
                 noopHandleSyncPublisher,
-                { deleteAllForUser: vi.fn().mockResolvedValue(undefined) } as never,
+                { removeAll: vi.fn().mockResolvedValue(undefined) } as never,
                 false,
             );
             adminService = new AdminService(db, { enqueueDeletion } as never);

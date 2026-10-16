@@ -1,3 +1,5 @@
+export { avatarKeyPrefix, composeAvatarUrl, isOwnAvatarKey, newAvatarKey } from './avatarKey.js';
+export type { AvatarExtension } from './avatarKey.js';
 export { deriveDisplayName } from './displayName.js';
 export type { DisplayNameClaims } from './displayName.js';
 export {

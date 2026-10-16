@@ -42,7 +42,7 @@ describe('test-principal containment — lifecycle actions (integration)', () =>
     let db: NodePgDatabase<Record<string, never>>;
     let service: UsersService;
     const enqueueDeletion = vi.fn();
-    const deleteAllForUser = vi.fn();
+    const removeAll = vi.fn();
 
     /** Everything identity holds for one user — the state a contained action must not change. */
     async function snapshot(userId: UserId) {
@@ -67,7 +67,7 @@ describe('test-principal containment — lifecycle actions (integration)', () =>
             {} as never,
             noopHandleSyncPublisher,
             {
-                deleteAllForUser,
+                removeAll,
             } as never,
             false,
         );
@@ -80,7 +80,7 @@ describe('test-principal containment — lifecycle actions (integration)', () =>
     beforeEach(async () => {
         await roleDb.truncate();
         enqueueDeletion.mockReset().mockResolvedValue(undefined);
-        deleteAllForUser.mockReset().mockResolvedValue(undefined);
+        removeAll.mockReset().mockResolvedValue(undefined);
     });
 
     afterEach(() => {
@@ -119,7 +119,7 @@ describe('test-principal containment — lifecycle actions (integration)', () =>
                 expect(before.users[0]!.status).toBe('active');
                 expect(before.lifecycleEvents).toHaveLength(0);
                 expect(enqueueDeletion).not.toHaveBeenCalled();
-                expect(deleteAllForUser).not.toHaveBeenCalled();
+                expect(removeAll).not.toHaveBeenCalled();
             },
         );
 

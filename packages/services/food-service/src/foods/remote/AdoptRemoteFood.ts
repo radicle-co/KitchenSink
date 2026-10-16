@@ -39,9 +39,9 @@ import type { CatalogOwnerReader, KeyStanding } from '../catalogOwnerReader.serv
 import type { FetchQueueDao } from '../dao/fetchQueue.dao.js';
 import { isLeaseLostError } from '../dao/leaseFence.js';
 import type { AdoptionLease, AdoptionWrite, RemoteAdoptionDao } from '../dao/remoteAdoption.dao.js';
-import type { TestPickedRootDao } from '../dao/testPickedRoot.dao.js';
+import type { AnsweredRoots } from '../answeredRoots.js';
 import { answersItsName } from '../domain/namedRootPolicy.js';
-import { attributionOf, marksRealHold, type AttributionInput, type HoldInput } from '../domain/testPickedRootPolicy.js';
+import { attributionOf, type AttributionInput, type HoldInput } from '../domain/testPickedRootPolicy.js';
 import { FetchUnavailableError, RemoteFoodGoneError } from '../foods.errors.js';
 import type { AdoptRemoteFoodResponse } from '../foods.schema.js';
 import { isInvalidRemoteReferenceError } from './remoteReference.errors.js';
@@ -72,7 +72,7 @@ export interface AdoptRemoteFoodDeps {
     /** The fetch queue: a placeholder's row is leased before the fetch, and given back when the write did not settle it. */
     readonly queue: Pick<FetchQueueDao, 'leaseFood' | 'deferLease'>;
     /** Where a real cook's answer is recorded as a hold on the root, so the test purge keeps it (ADR-0040). */
-    readonly holds: Pick<TestPickedRootDao, 'markHeldByRealUser'>;
+    readonly holds: Pick<AnsweredRoots, 'hold'>;
     /** How a new root's record is written from the fetched item: the source pipeline's merge writer. */
     readonly persistRoot: (candidate: CanonicalCandidate) => (writer: FoodWriter, foodId: string) => Promise<void>;
     /** The current time, epoch milliseconds. Defaults to `Date.now`. */
@@ -115,9 +115,7 @@ export class AdoptRemoteFood {
     public async execute(token: string, picker: PickCaller): Promise<AdoptRemoteFoodResponse> {
         const answer = await this.pick(token, attributionOf(picker));
 
-        if (marksRealHold(picker)) {
-            await this.deps.holds.markHeldByRealUser(answer.id);
-        }
+        await this.deps.holds.hold(picker, [answer.id]);
 
         return answer;
     }

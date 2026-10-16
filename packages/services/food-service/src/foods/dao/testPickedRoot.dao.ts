@@ -8,7 +8,7 @@
  * @pattern Repository — the attribution table's reads and writes; the decision stays in the Specification
  * @module
  */
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import type { FoodWriter } from '../../database/unitOfWork.js';
 import { testPickedRoot } from '../../db/schema/index.js';
@@ -17,8 +17,6 @@ import type { PickedRootFacts } from '../domain/testPickedRootPolicy.js';
 /** An attributed root with the facts the purge's rule reads. */
 export interface AttributedRoot {
     readonly foodId: string;
-    /** The root's item, deleted with it. */
-    readonly itemId: string;
     readonly facts: PickedRootFacts;
 }
 
@@ -38,14 +36,22 @@ export class TestPickedRootDao {
     }
 
     /**
-     * Mark a root held because a real cook has been answered with it. A root nobody attributed has no row, so this
-     * changes nothing for it. Idempotent.
+     * Mark roots held because a real cook has been answered with them. An id nobody attributed has no row, and a root
+     * already held is skipped, so neither writes nor locks anything. Idempotent. The statement waits on a purge that
+     * holds a row's lock: it then finds the root gone, or finds it held before the purge could decide.
      *
-     * @param foodId - The answered root.
-     * @sideEffect May update one `test_picked_root` row, locking it.
+     * @param foodIds - The answered ids.
+     * @sideEffect May update `test_picked_root` rows, locking them.
      */
-    public async markHeldByRealUser(foodId: string): Promise<void> {
-        await this.db.update(testPickedRoot).set({ heldByRealUser: true }).where(eq(testPickedRoot.foodId, foodId));
+    public async markHeldByRealUser(foodIds: readonly string[]): Promise<void> {
+        if (foodIds.length === 0) {
+            return;
+        }
+
+        await this.db
+            .update(testPickedRoot)
+            .set({ heldByRealUser: true })
+            .where(and(inArray(testPickedRoot.foodId, [...foodIds]), eq(testPickedRoot.heldByRealUser, false)));
     }
 
     /**
@@ -60,7 +66,6 @@ export class TestPickedRootDao {
     public async lockCreatedBy(createdBy: string): Promise<AttributedRoot[]> {
         const result = await this.db.execute<{
             food_id: string;
-            item_id: string;
             created_by: string;
             held_by_real_user: boolean;
             user_id: string | null;
@@ -68,7 +73,7 @@ export class TestPickedRootDao {
             has_variants: boolean;
             status: string;
         }>(sql`
-            SELECT a.food_id, f.item_id, a.created_by, a.held_by_real_user, f.user_id, i.seed_owned,
+            SELECT a.food_id, a.created_by, a.held_by_real_user, f.user_id, i.seed_owned,
                    EXISTS (SELECT 1 FROM food_variant v WHERE v.food_id = f.id) AS has_variants,
                    f.status::text AS status
               FROM test_picked_root a
@@ -80,7 +85,6 @@ export class TestPickedRootDao {
 
         return result.rows.map((row) => ({
             foodId: row.food_id,
-            itemId: row.item_id,
             facts: {
                 createdBy: row.created_by,
                 heldByRealUser: row.held_by_real_user,
@@ -105,11 +109,23 @@ export class TestPickedRootDao {
         }
 
         const foodIds = roots.map((root) => root.foodId);
-        const itemIds = roots.map((root) => root.itemId);
-        const deleted = await this.db.execute(sql`DELETE FROM food WHERE id = ANY(${sql.param(foodIds)})`);
+        // The hold is re-read in the DELETE itself, not trusted from the rule's earlier read: `lockCreatedBy` already
+        // holds the attribution rows, so a hold written meanwhile waits, and this predicate is the second guard for a
+        // caller that did not lock. `RETURNING` names the roots actually deleted, so only their items are deleted below.
+        const deleted = await this.db.execute<{ item_id: string }>(sql`
+            DELETE FROM food f
+             WHERE f.id = ANY(${sql.param(foodIds)})
+               AND NOT EXISTS (
+                   SELECT 1 FROM test_picked_root a WHERE a.food_id = f.id AND a.held_by_real_user
+               )
+            RETURNING f.item_id
+        `);
+        const itemIds = deleted.rows.map((row) => row.item_id);
 
         // Each root owns its item (curated catalog plan KTD-6); an item left without its root is never cleaned up.
-        await this.db.execute(sql`DELETE FROM food_item WHERE id = ANY(${sql.param(itemIds)})`);
+        if (itemIds.length > 0) {
+            await this.db.execute(sql`DELETE FROM food_item WHERE id = ANY(${sql.param(itemIds)})`);
+        }
 
         return deleted.rowCount ?? 0;
     }

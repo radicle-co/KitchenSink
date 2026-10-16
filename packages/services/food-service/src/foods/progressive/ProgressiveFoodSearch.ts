@@ -31,9 +31,11 @@ import type { RemoteSearchItem, RemoteSearchSource } from '@kitchensink/schema-r
 
 import type { RemoteSearchPort, RemoteSourceOutcome } from '../../sources/remote/remoteSearchPort.js';
 import { REMOTE_SEARCH_SOURCES } from '../../sources/remote/remoteSearchSources.js';
+import type { AnsweredRoots } from '../answeredRoots.js';
 import type { CatalogOwnerReader, SourceKeyRef } from '../catalogOwnerReader.service.js';
 import type { RemoteAdoptionDao } from '../dao/remoteAdoption.dao.js';
 import { triageRemoteHits, type SearchGap } from '../domain/remoteHitTriage.js';
+import type { HoldInput } from '../domain/testPickedRootPolicy.js';
 import type { FoodsService } from '../foods.service.js';
 import type {
     CatalogGroup,
@@ -72,6 +74,8 @@ export interface ProgressiveSearchRequest {
     readonly requesterId: string;
     /** The caller's app-user ULID, whose authored foods are read; `undefined` for a service, which authored none. */
     readonly authorId: string | undefined;
+    /** The caller's test-principal claim: whether the roots the database frame shows are held for a real cook. */
+    readonly audience: HoldInput;
     /** Aborts when the caller goes. */
     readonly signal: AbortSignal;
 }
@@ -99,6 +103,8 @@ export interface ProgressiveFoodSearchDeps {
     readonly namedRoots: Pick<RemoteAdoptionDao, 'liveCatalogRootsNamed'>;
     readonly sealer: Pick<RemoteReferenceSealer, 'seal'>;
     readonly gaps: Pick<SearchGapRecorder, 'record'>;
+    /** ADR-0040: the roots the catalog group shows are held before the frame leaves, so the test purge spares them. */
+    readonly holds: Pick<AnsweredRoots, 'hold'>;
     /** Every source to ask. Defaults to every source the search service searches. */
     readonly sources?: readonly RemoteSearchSource[];
     /** Defaults to {@link REMOTE_FRAME_DEADLINE_MS}. */
@@ -305,7 +311,35 @@ export class ProgressiveFoodSearch {
                   ),
         ]);
 
-        return { type: 'database', catalog, authored };
+        return { type: 'database', catalog: await this.heldCatalog(request, catalog), authored };
+    }
+
+    /**
+     * The catalog group, with the roots it shows held against the test purge (ADR-0040) BEFORE the frame leaves. A hold
+     * that cannot be written makes the group unavailable: an id is never shown that the purge could still delete.
+     *
+     * @param request - The search.
+     * @param catalog - The group as read.
+     * @returns The group, or unavailable when it showed roots and their hold failed.
+     * @sideEffect May update `test_picked_root`; logs a failed hold.
+     */
+    private async heldCatalog(request: ProgressiveSearchRequest, catalog: CatalogGroup): Promise<CatalogGroup> {
+        if (catalog.outcome !== 'answered') {
+            return catalog;
+        }
+
+        try {
+            await this.deps.holds.hold(
+                request.audience,
+                catalog.results.map((result) => result.id),
+            );
+        } catch (error) {
+            this.logger.error('progressive-search-hold-failed', { cause: String(error) });
+
+            return UNAVAILABLE_GROUP;
+        }
+
+        return catalog;
     }
 
     /**

@@ -161,11 +161,24 @@ dashboard. The same precondition covers food-service's authored-food purge, whic
   "Clean up test-picked foods"): a pick makes a root that hides the hit it came from (ADR-0055 point 4), so a pool
   slot that picks the same word on every run would meet a hidden hit on every run after the first. A catalog root has
   no author, so the pick records one row in `test_picked_root` (migration 0023), in its own transaction, only when
-  its caller is a signed test principal; a real cook's pick records nothing. A root a real cook is later answered
-  with is marked held. The pure `testPickedRootPolicy` deletes a root only when the caller created it, no real cook
-  holds it, it is not seed-owned, an authored food, mid-erasure, or the parent of a variant. A cook who binds such a
-  root through an ordinary catalog search hit calls no pick, so nothing marks it: that residual exposure exists only
-  on a stage where test and real traffic share a catalog. A pure policy admits a
+  its caller is a signed test principal; a real cook's pick records nothing. The pure `testPickedRootPolicy` deletes
+  a root only when the caller created it, no real cook holds it, it is not seed-owned, an authored food, mid-erasure,
+  or the parent of a variant. Food-service cannot see which recipes bind a food id (the recipe service keeps opaque
+  ids), so a hold means "an answer that named this root reached someone other than a test principal", and EVERY
+  route that discloses a root id writes it through the one door `AnsweredRoots`: the pick, `GET /search`, the
+  progressive search's database frame, `GET /catalog/search`, add by name, batch add, `POST /refs/resolve`,
+  `GET /{id}`, `/status` and `/candidates`. The hold is written before the answer leaves and a failed hold fails the
+  answer (the progressive frame's catalog group turns unavailable), because a recipe can bind an id only after it was
+  sent. By-id routes hold before they read, so they never name a root the purge then deletes. `GET /catalog/search`
+  is the one answer no principal shapes: the edge serves one cached body to every caller, so it holds for any caller,
+  a test principal included. A test principal's own answers hold nothing, so its purge still reaches a root it shares
+  with another pool slot. The purge locks the attribution rows for its transaction and its `DELETE` re-reads the hold
+  in the same statement, so a hold racing the purge either lands first (the root is kept) or waits until the root is
+  gone. One narrow window is accepted: an answer that lists ids reads them before it holds them, so a purge landing
+  between the two leaves a cook one id that later reads answer as absent. Closing it takes an existence re-check
+  after every hold, a second round trip on the hot search path, for a window that needs a test principal's purge to
+  run inside a few milliseconds. The routes that take an id the caller already holds (`PATCH /{id}`, `corroborated`,
+  `refetch`) write nothing, because the id was named to that caller by one of the routes above. A pure policy admits a
   caller only when the signed claim says test principal, the principal is a person, and its ULID has synced. Every
   other authenticated caller receives the exact `404` an unrouted path answers. No normal-user route, response or
   authorization changes. Food-service keeps no registry, so the claim is this door's only check; section 4's

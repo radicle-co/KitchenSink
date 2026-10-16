@@ -63,6 +63,10 @@ describe('marksRealHold', () => {
     it('a test principal answering a root does not hold it against its own purge', () => {
         expect(marksRealHold({ testPrincipal: true })).toBe(false);
     });
+
+    it('⛔ an answer no principal shaped holds the root: a shared edge answer may reach any real cook', () => {
+        expect(marksRealHold(undefined)).toBe(true);
+    });
 });
 
 describe('isPurgeablePickedRoot', () => {

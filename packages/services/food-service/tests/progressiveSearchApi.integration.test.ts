@@ -123,6 +123,7 @@ beforeAll(async () => {
             liveCatalogRootsNamed: async (keys) => new Map([...namedRoots].filter(([key]) => keys.includes(key))),
         },
         sealer: SEALER,
+        holds: { hold: async () => undefined },
         gaps: {
             record: async (_source, gaps) => {
                 await gapGate;
@@ -146,7 +147,7 @@ beforeAll(async () => {
             adopt: async () => ({ kind: 'created', id: 'R-new' }),
         },
         queue: { leaseFood: async () => ({ kind: 'idle' }), deferLease: async () => undefined },
-        holds: { markHeldByRealUser: async () => undefined },
+        holds: { hold: async () => undefined },
         persistRoot: () => async () => undefined,
         logger: { warn: () => undefined },
     });

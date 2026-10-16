@@ -73,8 +73,10 @@ import {
 } from './foods.schema.js';
 import type { Environment } from '../config/env.schema.js';
 import { isFoodId } from '../db/ulid.js';
+import { AnsweredRoots } from './answeredRoots.js';
 import { CitedSourcesService } from './citedSources.service.js';
 import type { DataSourcesResponse } from './dataSources.schema.js';
+import { idsOfAdd, idsOfBatch, idsOfRefEntries } from './domain/answeredRootIds.js';
 import { evaluateTestPurgeAccess } from './domain/testPurgePolicy.js';
 import { isFoodPendingError } from './foods.errors.js';
 import { FoodsService } from './foods.service.js';
@@ -149,6 +151,11 @@ export class FoodsController {
         @Inject(AdoptRemoteFood) private readonly adoptRemote: Pick<AdoptRemoteFood, 'execute'>,
         /** The progressive search (ADR-0055 point 5). The one method the controller calls. */
         @Inject(ProgressiveFoodSearch) private readonly progressive: Pick<ProgressiveFoodSearch, 'run'>,
+        /**
+         * ADR-0040's hold: every route here that names a catalog root to a caller holds it first, so a test purge never
+         * deletes a root a real cook may have bound. The one method the controller calls.
+         */
+        @Inject(AnsweredRoots) private readonly answered: Pick<AnsweredRoots, 'hold'>,
     ) {}
 
     /**
@@ -164,7 +171,18 @@ export class FoodsController {
         // R20 (plan U11): the requester key scopes authored rows — the caller's own private foods rank
         // beside the catalog; nobody else's ever leave the DAO. A `svc_*` principal owns no foods and gets
         // pure catalog, which is exactly right for machine callers.
-        return this.foodsService.search(query.query, this.requireRequesterId(req), query.withNutrition === 'true');
+        const answer = await this.foodsService.search(
+            query.query,
+            this.requireRequesterId(req),
+            query.withNutrition === 'true',
+        );
+
+        await this.answered.hold(
+            this.requirePrincipal(req),
+            answer.results.map((hit) => hit.id),
+        );
+
+        return answer;
     }
 
     /**
@@ -180,7 +198,16 @@ export class FoodsController {
     @Get('catalog/search')
     @SearchRateLimit()
     public async searchCatalog(@Query() query: SearchTermQueryDto): Promise<CatalogSearchResponse> {
-        return this.foodsService.searchCatalog(query.query);
+        const answer = await this.foodsService.searchCatalog(query.query);
+
+        // No principal shaped this answer and the edge serves it to every caller, so its audience is unknowable: it
+        // holds as a real cook's answer does (`marksRealHold(undefined)`), written before the answer leaves.
+        await this.answered.hold(
+            undefined,
+            answer.results.map((hit) => hit.id),
+        );
+
+        return answer;
     }
 
     /**
@@ -245,7 +272,13 @@ export class FoodsController {
 
         try {
             await this.progressive.run(
-                { term: query.query, requesterId, authorId, signal: caller.signal },
+                {
+                    term: query.query,
+                    requesterId,
+                    authorId,
+                    audience: this.requirePrincipal(req),
+                    signal: caller.signal,
+                },
                 {
                     write: (frame) => {
                         res.write(frameLine(frame));
@@ -351,6 +384,8 @@ export class FoodsController {
         @Res({ passthrough: true }) res: Response,
     ): Promise<AddResponse> {
         const result = await this.foodsService.addByName(this.visibleName(body.name), this.requireRequesterId(req));
+
+        await this.answered.hold(this.requirePrincipal(req), idsOfAdd(result));
         res.status(HttpStatus.ACCEPTED);
 
         return result;
@@ -361,7 +396,11 @@ export class FoodsController {
     public async batch(@Body() body: BatchAddFoodBodyDto, @Req() req: AuthenticatedRequest): Promise<BatchResponse> {
         const names = this.boundedNames(body.names);
 
-        return this.foodsService.batchAdd(names, this.requireRequesterId(req));
+        const answer = await this.foodsService.batchAdd(names, this.requireRequesterId(req));
+
+        await this.answered.hold(this.requirePrincipal(req), idsOfBatch(answer));
+
+        return answer;
     }
 
     /**
@@ -389,7 +428,21 @@ export class FoodsController {
         @Body() body: ResolveFoodRefsBodyDto,
         @Req() req: AuthenticatedRequest,
     ): Promise<ResolveFoodRefsResponse> {
-        return this.foodsService.resolveRefs(body.refs, this.requireRequesterId(req));
+        const requesterId = this.requireRequesterId(req);
+        const principal = this.requirePrincipal(req);
+
+        // The refs are what a recipe line binds, so they are held BEFORE the read: a root the purge already took is then
+        // answered `absent`, and one it has not is held for good. What the read adds (a forward target) is held after.
+        await this.answered.hold(
+            principal,
+            body.refs.map((ref) => ref.id),
+        );
+
+        const answer = await this.foodsService.resolveRefs(body.refs, requesterId);
+
+        await this.answered.hold(principal, idsOfRefEntries(answer.entries));
+
+        return answer;
     }
 
     /**
@@ -473,8 +526,11 @@ export class FoodsController {
     @Header('Cache-Control', 'private, no-store')
     public async getStatus(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<StatusResponse> {
         this.requireId(id);
+        const requesterId = this.requireRequesterId(req);
 
-        return this.foodsService.getStatus(id, this.requireRequesterId(req));
+        await this.answered.hold(this.requirePrincipal(req), [id]);
+
+        return this.foodsService.getStatus(id, requesterId);
     }
 
     /**
@@ -485,8 +541,11 @@ export class FoodsController {
     @Header('Cache-Control', 'private, no-store')
     public async getCandidates(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<CandidatesResponse> {
         this.requireId(id);
+        const requesterId = this.requireRequesterId(req);
 
-        return this.foodsService.getCandidates(id, this.requireRequesterId(req));
+        await this.answered.hold(this.requirePrincipal(req), [id]);
+
+        return this.foodsService.getCandidates(id, requesterId);
     }
 
     /**
@@ -589,12 +648,17 @@ export class FoodsController {
         @Res({ passthrough: true }) res: Response,
     ): Promise<FoodResponse | PendingResponse> {
         this.requireId(id);
+        const requesterId = this.requireRequesterId(req);
+
+        // Held BEFORE the read (ADR-0040): a root the purge already took then reads as missing, and one it has not is
+        // held for good, so no answer, `202` included, leaves an id the purge can still delete.
+        await this.answered.hold(this.requirePrincipal(req), [id]);
 
         try {
             // The requester key feeds the authorship gate (plan U10): a stranger reading a PRIVATE
             // authored food must get the same 404 a missing id gets. A `svc_*` principal is a stranger
             // to every authored food by construction.
-            const food = await this.foodsService.getFood(id, this.requireRequesterId(req));
+            const food = await this.foodsService.getFood(id, requesterId);
             res.status(HttpStatus.OK);
 
             return food;

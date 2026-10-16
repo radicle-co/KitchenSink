@@ -37,6 +37,7 @@ import type { CatalogOwner, KeyStanding } from '../src/foods/catalogOwnerReader.
 import type { FoodLease } from '../src/foods/dao/fetchQueue.dao.js';
 import { leaseFenceFrom } from '../src/foods/dao/leaseFence.js';
 import type { AdoptionWriteInput, NamedRoot } from '../src/foods/dao/remoteAdoption.dao.js';
+import { AnsweredRoots } from '../src/foods/answeredRoots.js';
 import { foodErrorSchema } from '../src/foods/foods.schema.js';
 import { makeMergeCandidate } from '../src/foods/merge/__fixtures__/merge.fixtures.js';
 import { AdoptRemoteFood } from '../src/foods/remote/AdoptRemoteFood.js';
@@ -142,11 +143,12 @@ const command = new AdoptRemoteFood({
         },
         deferLease: async () => undefined,
     },
-    holds: {
-        markHeldByRealUser: async (foodId) => {
-            world.marked.push(foodId);
+    // The real door over a fake table: the wire-through test below needs the policy that spares a test principal.
+    holds: new AnsweredRoots({
+        markHeldByRealUser: async (ids) => {
+            world.marked.push(...ids);
         },
-    },
+    }),
     persistRoot: () => async () => undefined,
     logger: { warn: () => undefined },
 });

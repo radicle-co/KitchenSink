@@ -76,6 +76,7 @@ interface Seen {
     readonly released: { foodId: string; seconds: number; fence: string }[];
     readonly warnings: string[];
     readonly held: string[];
+    readonly heldFor: unknown[];
 }
 
 /**
@@ -95,6 +96,7 @@ function makeCommand(world: World): { readonly command: AdoptRemoteFood; readonl
         released: [],
         warnings: [],
         held: [],
+        heldFor: [],
     };
     const standings = [...(world.standings ?? [NOT_HELD])];
 
@@ -163,8 +165,9 @@ function makeCommand(world: World): { readonly command: AdoptRemoteFood; readonl
                 },
             },
             holds: {
-                markHeldByRealUser: async (foodId) => {
-                    seen.held.push(foodId);
+                hold: async (audience, ids) => {
+                    seen.heldFor.push(audience);
+                    seen.held.push(...ids);
                 },
             },
             persistRoot: (candidate) => {
@@ -437,14 +440,14 @@ describe('AdoptRemoteFood — what a pick leaves for the test purge (ADR-0040; o
         expect(seen.held).toStrictEqual([rootId]);
     });
 
-    it('⛔ a test principal answered with a held root does not hold it, so its own purge still reaches a shared root', async () => {
+    it('⛔ hands the picker itself to the hold door, which is where a test principal is spared (answeredRoots.test.ts)', async () => {
         const { command, seen } = makeCommand({
             standings: [{ owners: new Map([['900001', OWNER]]), retired: new Set<string>() }],
         });
 
         await command.execute(TOKEN, POOL_SLOT);
 
-        expect(seen.held).toStrictEqual([]);
+        expect(seen.heldFor).toStrictEqual([POOL_SLOT]);
     });
 
     it('marks no hold when the pick is refused', async () => {

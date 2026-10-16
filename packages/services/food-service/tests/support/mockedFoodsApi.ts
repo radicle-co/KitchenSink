@@ -51,6 +51,7 @@ import { FoodsController } from '../../src/foods/foods.controller.js';
 import { FoodsService } from '../../src/foods/foods.service.js';
 import { ProgressiveFoodSearch } from '../../src/foods/progressive/ProgressiveFoodSearch.js';
 import { AdoptRemoteFood } from '../../src/foods/remote/AdoptRemoteFood.js';
+import { AnsweredRoots } from '../../src/foods/answeredRoots.js';
 import { TestPrincipalPurgeService } from '../../src/foods/testPrincipalPurge.service.js';
 import { FoodMetrics } from '../../src/observability/emfMetrics.js';
 import { admittingSourceBudget } from './sourceBudgetFake.js';
@@ -154,6 +155,8 @@ export interface MockedFoodsApiDoubles {
     readonly merge?: Partial<Record<keyof MergeAndPersistService, unknown>>;
     /** The remote pick command behind `POST /api/v1/foods/remote/adopt` (ADR-0055 point 10). */
     readonly remoteAdopt?: Pick<AdoptRemoteFood, 'execute'>;
+    /** The hold door every answer that names a root passes (ADR-0040); when absent, a hold writes nothing. */
+    readonly answeredRoots?: Pick<AnsweredRoots, 'hold'>;
     /** The test purge behind `POST /api/v1/foods/authored/test-purge` (ADR-0040). */
     readonly testPurge?: Pick<TestPrincipalPurgeService, 'purge'>;
     /** The progressive search behind `GET /api/v1/foods/search/progressive` (ADR-0055 point 5). */
@@ -244,6 +247,10 @@ export async function bootMockedFoodsApi(doubles: MockedFoodsApiDoubles): Promis
             { provide: TestPrincipalPurgeService, useValue: doubles.testPurge ?? {} },
             { provide: AdoptRemoteFood, useValue: doubles.remoteAdopt ?? {} },
             { provide: ProgressiveFoodSearch, useValue: doubles.progressive ?? {} },
+            {
+                provide: AnsweredRoots,
+                useValue: doubles.answeredRoots ?? { hold: async (): Promise<void> => undefined },
+            },
             { provide: RequesterSourceBudgetDao, useValue: doubles.sourceBudget ?? admittingSourceBudget() },
             {
                 provide: CitedSourcesService,

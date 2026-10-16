@@ -10,6 +10,9 @@
  * | the root, its item and its crosswalk are all gone                          | no `food`, `food_item` or `food_sources` row     |
  * | a real cook's root, a seed root and another slot's root survive the purge  | their rows are untouched                         |
  * | a root a real cook has since been answered with is kept                    | the row stays, `held_by_real_user` is set        |
+ * | EVERY way a real cook learns the id (search, add, batch, by id, ref check) | each holds the root; the purge keeps it          |
+ * | a concurrent answer and purge                                              | "found" implies "kept"; no half-deleted ending   |
+ * | the DELETE re-reads the hold in its own statement                          | a root held after the rule chose it survives     |
  * | a repeat purge deletes nothing                                             | `deletedPickedRoots: 0`                          |
  *
  * The source is a stub USDA (one fetch per pick) behind a stand-in for the search CDN, as `progressiveSearch.e2e.test.ts`
@@ -18,9 +21,12 @@
 import { createPublicKey, generateKeyPairSync, randomBytes } from 'node:crypto';
 
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import * as schema from '../../src/db/schema/index.js';
+import { TestPickedRootDao } from '../../src/foods/dao/testPickedRoot.dao.js';
 import { adoptRemoteFoodResponseSchema, authoredFoodTestPurgeResponseSchema } from '../../src/foods/foods.schema.js';
 import { progressiveSearchFrameSchema, type ProgressiveSearchFrame } from '../../src/foods/progressiveSearch.schema.js';
 import { makeCatalogFood } from '../__fixtures__/catalogFood.js';
@@ -310,5 +316,236 @@ describe('the test purge and the roots a test pick created (booted app, real Pos
         ]);
 
         expect(survivors.rows).toStrictEqual([{ n: 1 }]);
+    });
+
+    /**
+     * Whether the attribution row says a real cook has been answered with the root.
+     *
+     * @param foodId - The root.
+     * @returns The hold, or `undefined` when the root is not attributed.
+     * @sideEffect Reads `test_picked_root`.
+     */
+    async function heldOf(foodId: string): Promise<boolean | undefined> {
+        const rows = await pool.query<{ held_by_real_user: boolean }>(
+            'SELECT held_by_real_user FROM test_picked_root WHERE food_id = $1',
+            [foodId],
+        );
+
+        return rows.rows[0]?.held_by_real_user;
+    }
+
+    /** A fresh pool slot's number, so each root below has an owner whose per-minute pick cap is its own. */
+    let slots = 0;
+
+    /**
+     * A FRESH pool slot picks the hit, so a test-created root exists and hides it.
+     *
+     * @returns The root and the pool slot that created it.
+     * @sideEffect Creates a root.
+     */
+    async function testCreatedRoot(): Promise<{ rootId: string; owner: { token: string; id: string } }> {
+        const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+        slots += 1;
+        const id = `01J9ZK8N7QF3B2X4M6T0V5${alphabet[Math.floor(slots / 32) % 32]}${alphabet[slots % 32]}ZZ`;
+        const token = mintToken(clerk.privateKeyPem, {
+            sub: `user_pool_slot_${slots}`,
+            externalId: id,
+            azp: APP_AZP,
+            testPrincipal: true,
+        });
+        const { reference } = await offered(token);
+
+        return { rootId: await pick(token, reference), owner: { token, id } };
+    }
+
+    /**
+     * Whether a progressive search's catalog group shows the root.
+     *
+     * @param token - The caller's token.
+     * @param rootId - The root.
+     * @returns `true` when the database frame lists it.
+     * @sideEffect One HTTP request.
+     */
+    async function progressiveShows(token: string, rootId: string): Promise<boolean> {
+        const database = (await search(token)).find((frame) => frame.type === 'database');
+
+        return (
+            database?.type === 'database' &&
+            database.catalog.outcome === 'answered' &&
+            database.catalog.results.some((result) => result.id === rootId)
+        );
+    }
+
+    describe('⛔ every answer that names a test-created root holds it against the purge (ADR-0040)', () => {
+        /** Each way a real cook learns a root id WITHOUT a pick; each must hold the root. */
+        const WAYS: readonly {
+            readonly name: string;
+            readonly answer: (rootId: string, token: string) => Promise<boolean>;
+        }[] = [
+            {
+                name: 'the progressive search the apps read',
+                answer: async (rootId, token) => progressiveShows(token, rootId),
+            },
+            {
+                name: 'GET /search',
+                answer: async (rootId, token) => {
+                    const res = await callFoodApi(app.baseUrl, 'GET', `/api/v1/foods/search?query=${PHRASE}`, {
+                        token,
+                    });
+
+                    return JSON.stringify(res.body).includes(rootId);
+                },
+            },
+            {
+                name: 'GET /catalog/search',
+                answer: async (rootId, token) => {
+                    const res = await callFoodApi(app.baseUrl, 'GET', `/api/v1/foods/catalog/search?query=${PHRASE}`, {
+                        token,
+                    });
+
+                    return JSON.stringify(res.body).includes(rootId);
+                },
+            },
+            {
+                name: 'add by name',
+                answer: async (rootId, token) => {
+                    const res = await callFoodApi(app.baseUrl, 'POST', '/api/v1/foods', {
+                        token,
+                        body: { name: HIT.name },
+                    });
+
+                    return JSON.stringify(res.body).includes(rootId);
+                },
+            },
+            {
+                name: 'batch add',
+                answer: async (rootId, token) => {
+                    const res = await callFoodApi(app.baseUrl, 'POST', '/api/v1/foods/batch', {
+                        token,
+                        body: { names: [HIT.name] },
+                    });
+
+                    return JSON.stringify(res.body).includes(rootId);
+                },
+            },
+            {
+                name: 'GET /{id}',
+                answer: async (rootId, token) => {
+                    const res = await callFoodApi(app.baseUrl, 'GET', `/api/v1/foods/${rootId}`, { token });
+
+                    return res.status === 200;
+                },
+            },
+            {
+                name: 'GET /{id}/status',
+                answer: async (rootId, token) => {
+                    const res = await callFoodApi(app.baseUrl, 'GET', `/api/v1/foods/${rootId}/status`, { token });
+
+                    return res.status === 200;
+                },
+            },
+            {
+                name: 'POST /refs/resolve (a recipe line’s ref check)',
+                answer: async (rootId, token) => {
+                    const res = await callFoodApi(app.baseUrl, 'POST', '/api/v1/foods/refs/resolve', {
+                        token,
+                        body: { refs: [{ kind: 'root', id: rootId }] },
+                    });
+
+                    return JSON.stringify(res.body).includes('"found"');
+                },
+            },
+        ];
+
+        it.each(WAYS)('$name: a real cook answered with the root holds it, and the purge keeps it', async (way) => {
+            const { rootId, owner } = await testCreatedRoot();
+
+            expect(await heldOf(rootId)).toBe(false);
+            // Non-vacuous: the way really did name the root to the real cook.
+            await expect(way.answer(rootId, real)).resolves.toBe(true);
+
+            expect(await heldOf(rootId)).toBe(true);
+            await expect(purge(owner.token)).resolves.toMatchObject({ deletedPickedRoots: 0 });
+            expect(await rowsOf(rootId)).toStrictEqual({ food: 1, item: 1, sources: 1, picked: 1 });
+        });
+
+        it.each(WAYS.filter((way) => way.name !== 'GET /catalog/search'))(
+            '$name: a TEST principal answered with the root does not hold it, so its own purge still reaches it',
+            async (way) => {
+                const { rootId, owner } = await testCreatedRoot();
+
+                await expect(way.answer(rootId, poolB)).resolves.toBe(true);
+
+                expect(await heldOf(rootId)).toBe(false);
+                await expect(purge(owner.token)).resolves.toMatchObject({ deletedPickedRoots: 1 });
+            },
+        );
+
+        it('⛔ GET /catalog/search holds even for a test principal: the edge shares its answer with every caller', async () => {
+            const { rootId } = await testCreatedRoot();
+
+            await callFoodApi(app.baseUrl, 'GET', `/api/v1/foods/catalog/search?query=${PHRASE}`, { token: poolB });
+
+            expect(await heldOf(rootId)).toBe(true);
+        });
+
+        it('⛔ a concurrent real answer and the purge never leave a cook holding an id the purge deleted', async () => {
+            // refs/resolve holds BEFORE it reads, so "the cook was told the root is found" must imply it survives. Many
+            // rounds, because the interleaving is what is under test, and each round is a fresh root.
+            const outcomes = new Set<string>();
+
+            for (let round = 0; round < 12; round += 1) {
+                await foodDb().truncate();
+                edge.clear();
+                const { rootId, owner } = await testCreatedRoot();
+                const [answer] = await Promise.all([
+                    callFoodApi(app.baseUrl, 'POST', '/api/v1/foods/refs/resolve', {
+                        token: real,
+                        body: { refs: [{ kind: 'root', id: rootId }] },
+                    }),
+                    purge(owner.token),
+                ]);
+                const found = JSON.stringify(answer.body).includes('"found"');
+                const survives = (await rowsOf(rootId)).food === 1;
+
+                outcomes.add(`${found ? 'found' : 'absent'}/${survives ? 'kept' : 'deleted'}`);
+
+                // The invariant: found ⇒ kept, and kept ⇒ held.
+                if (found) {
+                    expect(survives).toBe(true);
+                }
+
+                if (survives) {
+                    expect(await heldOf(rootId)).toBe(true);
+                }
+            }
+
+            // Only the two consistent endings can occur.
+            expect([...outcomes].every((outcome) => ['found/kept', 'absent/deleted'].includes(outcome))).toBe(true);
+        });
+
+        it('⛔ the delete re-checks the hold in its own statement: a root held after the rule chose it is not deleted', async () => {
+            const { rootId, owner } = await testCreatedRoot();
+            const dao = new TestPickedRootDao(drizzle(pool, { schema }));
+            const [chosen] = await dao.lockCreatedBy(owner.id);
+
+            expect(chosen?.foodId).toBe(rootId);
+
+            // The rule read held = false; a real cook is answered before the delete runs (the lock is not held here, so
+            // this is the window the statement itself must close).
+            await pool.query('UPDATE test_picked_root SET held_by_real_user = true WHERE food_id = $1', [rootId]);
+
+            await expect(dao.deleteRoots(chosen === undefined ? [] : [chosen])).resolves.toBe(0);
+            expect(await rowsOf(rootId)).toStrictEqual({ food: 1, item: 1, sources: 1, picked: 1 });
+        });
+
+        it('deletes a root, its item and the attribution when nothing holds it', async () => {
+            const { rootId, owner } = await testCreatedRoot();
+            const dao = new TestPickedRootDao(drizzle(pool, { schema }));
+            const chosen = await dao.lockCreatedBy(owner.id);
+
+            await expect(dao.deleteRoots(chosen)).resolves.toBe(1);
+            expect(await rowsOf(rootId)).toStrictEqual({ food: 0, item: 0, sources: 0, picked: 0 });
+        });
     });
 });

@@ -13,11 +13,14 @@
  *
  * A catalog root has no author (`food.user_id IS NULL` defines it), so attribution lives in its own table, written
  * only when a TEST PRINCIPAL's pick CREATES a root. A real cook's root is never recorded and so can never be named
- * by the purge. A root a real cook later answers (a pick of the same item, or of a hit the root now hides) is marked
- * held, and a held root is kept: a normal cook's flow may now depend on it.
+ * by the purge. A root is marked held when ANY answer that names it reaches anyone but a test principal: a pick, a
+ * search hit, an add or batch answer, a read by id, a resolve, a recipe line's ref check. Food-service cannot see
+ * which recipes bind a food id, so "a real cook was told this id" is the only fact it can hold, and it is written
+ * BEFORE the answer leaves (`answeredRoots.ts`). A held root is kept: a normal cook's flow may now depend on it.
  *
- * ⚠️ What this cannot see: a real cook who binds the root through an ordinary catalog search hit calls no pick, so
- * nothing marks it. The residual exposure is a non-production stage where test and real traffic share a catalog.
+ * An answer no principal shaped (the shared catalog search, which the edge serves to every caller from one cached
+ * body) holds as a real cook's does: its audience is not knowable, and a test principal that reads it loses only the
+ * cleanup of that one root.
  */
 import {
     isServicePrincipalSub,
@@ -30,6 +33,9 @@ export type AttributionInput = Pick<AuthenticatedPrincipal, 'sub' | 'userId' | '
 
 /** The one fact a hold reads. */
 export type HoldInput = Pick<AuthenticatedPrincipal, 'testPrincipal'>;
+
+/** Who an answer went to: a verified principal, or `undefined` for an answer no principal shaped. */
+export type AnswerAudience = HoldInput | undefined;
 
 /** What the purge reads about one attributed root. */
 export interface PickedRootFacts {
@@ -66,13 +72,13 @@ export function attributionOf(principal: AttributionInput): string | undefined {
 }
 
 /**
- * Whether the caller's answer places a hold on the root it was answered. Pure.
+ * Whether an answer places a hold on the roots it names. Pure.
  *
- * @param principal - The verified principal's `testPrincipal` claim.
- * @returns `true` for anyone who is not a test principal.
+ * @param audience - The verified principal's `testPrincipal` claim, or `undefined` for an answer no principal shaped.
+ * @returns `true` for anyone who is not a test principal, and for an answer whose audience is not knowable.
  */
-export function marksRealHold(principal: HoldInput): boolean {
-    return principal.testPrincipal !== true;
+export function marksRealHold(audience: AnswerAudience): boolean {
+    return audience?.testPrincipal !== true;
 }
 
 /**

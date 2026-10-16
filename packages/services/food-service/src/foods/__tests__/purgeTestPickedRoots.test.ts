@@ -14,7 +14,6 @@ const POOL_ULID = '01J9ZK8N7QF3B2X4M6T0V5C3AA';
 function rootOf(foodId: string, facts: Partial<AttributedRoot['facts']> = {}): AttributedRoot {
     return {
         foodId,
-        itemId: `item-${foodId}`,
         facts: {
             createdBy: POOL_ULID,
             heldByRealUser: false,

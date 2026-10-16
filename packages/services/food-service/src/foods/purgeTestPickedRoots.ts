@@ -18,14 +18,17 @@
  *    real cook made, a placeholder a pick merely completed, another pool slot's root and an authored food are never in
  *    the attribution table, so they cannot be chosen.
  *  - **Never a root a real cook has since been answered with** (`held_by_real_user`): a normal cook's flow may now
- *    depend on it, and the owner's ruling is that cleaning up must not change a normal user's flow.
+ *    depend on it, and the owner's ruling is that cleaning up must not change a normal user's flow. EVERY answer that
+ *    names a root holds it (`answeredRoots.ts`): a pick, a search hit, an add, a read by id, a ref check.
  *  - **Never a seed-owned item, a root with variants, or a root mid-erasure.**
  *
  * The attribution rows are locked for the whole transaction, so a real cook's hold either lands before the rule reads
- * it or waits until the root is gone. ⚠️ One window stays open and is accepted: a real cook answered with the root
- * just before the purge deletes it, whose hold has not yet been written, gets an id that no longer exists and picks
- * again. A cook who binds a test-created root through an ordinary catalog search hit calls no pick at all, so nothing
- * marks it; that exposure exists only on a stage where test and real traffic share a catalog.
+ * it or waits until the root is gone; and the delete re-reads the hold in its own statement, so a caller that did not
+ * lock cannot delete past one either. ⚠️ One window stays open and is accepted: an answer that LISTS ids (a search, an
+ * add) reads them before it holds them, so a purge that deletes a root between the two leaves a cook one id that no
+ * longer exists, which every later read answers `absent` or `404`. By-id reads hold first, so they never name a root
+ * the purge then deletes. The window is milliseconds wide, needs a test principal's purge to run in it, and is closed
+ * only by re-checking existence after the hold, a second round trip on every answer (rejected: ADR-0040 section 5).
  *
  * Idempotent: a second run finds no attribution and reports zero.
  *

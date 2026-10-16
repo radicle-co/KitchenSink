@@ -41,6 +41,7 @@ import {
     NotResolvableError,
 } from '../foods.errors.js';
 import { FoodsService } from '../foods.service.js';
+import type { AnsweredRoots } from '../answeredRoots.js';
 import type { TestPrincipalPurgeService } from '../testPrincipalPurge.service.js';
 
 const VALID_ID = '01J9ZZZZZZZZZZZZZZZZZZZZZZ';
@@ -137,6 +138,9 @@ function makeController(): { controller: FoodsController; service: Record<string
     // The progressive search (ADR-0055 point 5): its route streams, so the mocked integration tier covers it.
     const progressive = { run: vi.fn() };
 
+    // ADR-0040: every answer that names a root holds it before it leaves. The calls are the order log.
+    const holds = { hold: vi.fn(async () => undefined) };
+
     return {
         controller: new FoodsController(
             service as unknown as FoodsService,
@@ -145,6 +149,7 @@ function makeController(): { controller: FoodsController; service: Record<string
             citedSources,
             adoptRemote,
             progressive,
+            holds as unknown as AnsweredRoots,
         ),
         service: { ...service, purge: testPurge.purge, listSources: citedSources.list, adopt: adoptRemote.execute },
     };

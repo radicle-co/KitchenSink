@@ -77,6 +77,7 @@ interface World {
     readonly gaps?: () => Promise<void>;
     readonly deadlineMs?: number;
     readonly databaseDeadlineMs?: number;
+    readonly holdFails?: boolean;
 }
 
 /** What a case saw, in order. */
@@ -92,6 +93,10 @@ interface Seen {
     readonly authoredReads: number[];
     /** Each fault the search logged, by its message. */
     readonly logged: string[];
+    /** Each hold the search wrote, in order, with the audience it was written for. */
+    readonly holds: { audience: unknown; ids: readonly string[] }[];
+    /** How many frames had been written each time a hold was written. */
+    readonly framesAtHold: number[];
 }
 
 /**
@@ -111,6 +116,8 @@ function makeSearch(world: World = {}): { readonly search: ProgressiveFoodSearch
         framesAtTriage: [],
         authoredReads: [],
         logged: [],
+        holds: [],
+        framesAtHold: [],
     };
 
     return {
@@ -143,6 +150,16 @@ function makeSearch(world: World = {}): { readonly search: ProgressiveFoodSearch
             },
             namedRoots: { liveCatalogRootsNamed: async () => new Map() },
             sealer: SEALER,
+            holds: {
+                hold: async (audience, ids) => {
+                    seen.framesAtHold.push(seen.frames.length);
+                    seen.holds.push({ audience, ids });
+
+                    if (world.holdFails === true) {
+                        throw new Error('database down');
+                    }
+                },
+            },
             gaps: {
                 record: async (source, gaps) => {
                     seen.events.push(`gaps:${source}`);
@@ -176,7 +193,12 @@ function makeSearch(world: World = {}): { readonly search: ProgressiveFoodSearch
 async function run(
     search: ProgressiveFoodSearch,
     seen: Seen,
-    options: { term?: string; authorId?: string | undefined; signal?: AbortSignal } = {},
+    options: {
+        term?: string;
+        authorId?: string | undefined;
+        signal?: AbortSignal;
+        audience?: { testPrincipal: boolean };
+    } = {},
 ): Promise<void> {
     await search.run(
         {
@@ -184,6 +206,7 @@ async function run(
             requesterId: '01JCOOK0000000000000000000',
             authorId: 'authorId' in options ? options.authorId : '01JCOOK0000000000000000000',
             signal: options.signal ?? new AbortController().signal,
+            audience: options.audience ?? { testPrincipal: false },
         },
         {
             write: (frame) => {
@@ -530,5 +553,52 @@ describe('ProgressiveFoodSearch — the deadline and the caller', () => {
         await running;
 
         expect(seen.frames.map((frame) => frame.type)).toStrictEqual(['database']);
+    });
+});
+
+/**
+ * ADR-0040, food half: the database frame names catalog roots to the caller, so it holds them first. The rule for WHO
+ * holds is `AnsweredRoots`; this pins that the search calls the door, with the caller's claim, before the frame leaves.
+ */
+describe('ProgressiveFoodSearch — the catalog roots the database frame shows are held first (ADR-0040)', () => {
+    it('⛔ holds the catalog results under the caller BEFORE the database frame is written', async () => {
+        const { search, seen } = makeSearch({ remote: async () => ({ kind: 'answered', items: [] }) });
+
+        await run(search, seen, { audience: { testPrincipal: false } });
+
+        expect(seen.holds).toStrictEqual([{ audience: { testPrincipal: false }, ids: ['R-other'] }]);
+        expect(seen.framesAtHold).toStrictEqual([0]);
+    });
+
+    it('hands a test principal over as one, so the door can spare it', async () => {
+        const { search, seen } = makeSearch({ remote: async () => ({ kind: 'answered', items: [] }) });
+
+        await run(search, seen, { audience: { testPrincipal: true } });
+
+        expect(seen.holds[0]?.audience).toStrictEqual({ testPrincipal: true });
+    });
+
+    it('⛔ answers the catalog group unavailable when the hold cannot be written, so no id leaves unprotected', async () => {
+        const { search, seen } = makeSearch({ holdFails: true, remote: async () => ({ kind: 'answered', items: [] }) });
+
+        await run(search, seen);
+
+        const database = seen.frames.find((frame) => frame.type === 'database');
+
+        expect(database?.type === 'database' ? database.catalog : undefined).toStrictEqual({ outcome: 'unavailable' });
+        expect(JSON.stringify(seen.lines)).not.toContain('R-other');
+        expect(seen.logged).toContain('progressive-search-hold-failed');
+    });
+
+    it('holds nothing when the catalog group could not be read', async () => {
+        const { search, seen } = makeSearch({
+            catalog: async () => {
+                throw new Error('read failed');
+            },
+        });
+
+        await run(search, seen);
+
+        expect(seen.holds).toStrictEqual([]);
     });
 });

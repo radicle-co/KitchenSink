@@ -62,6 +62,7 @@ import type { RemoteSearchPort } from '../sources/remote/remoteSearchPort.js';
 import { SearchServiceRemoteSearch } from '../sources/remote/SearchServiceRemoteSearch.js';
 import { UnconfiguredRemoteSearch } from '../sources/remote/UnconfiguredRemoteSearch.js';
 import { RemoteAdoptionDao } from './dao/remoteAdoption.dao.js';
+import { AnsweredRoots } from './answeredRoots.js';
 import { TestPickedRootDao } from './dao/testPickedRoot.dao.js';
 import { ProgressiveFoodSearch } from './progressive/ProgressiveFoodSearch.js';
 import { AdoptRemoteFood } from './remote/AdoptRemoteFood.js';
@@ -238,6 +239,13 @@ import { UnconfiguredReferenceSealer } from './remote/UnconfiguredReferenceSeale
         // The remote pick (ADR-0055 point 10): its fetch goes through the API registry's interactive lane, a placeholder's
         // queue row is leased around it, and the root's record is written by the source pipeline's own merge writer,
         // inside the adoption's transaction.
+        // ADR-0040's hold: every answer that names a catalog root holds it before it leaves, so the test purge never
+        // deletes a root a real cook may have bound. One door; the controller, the pick and the progressive search use it.
+        {
+            provide: AnsweredRoots,
+            inject: [DrizzleProvider],
+            useFactory: (db: FoodDrizzle): AnsweredRoots => new AnsweredRoots(new TestPickedRootDao(db)),
+        },
         {
             provide: AdoptRemoteFood,
             inject: [
@@ -247,6 +255,7 @@ import { UnconfiguredReferenceSealer } from './remote/UnconfiguredReferenceSeale
                 DrizzleProvider,
                 GoldenRecordMergeEngine,
                 FetchQueueDao,
+                AnsweredRoots,
             ],
             useFactory: (
                 sealer: Pick<RemoteReferenceSealer, 'open'>,
@@ -255,13 +264,14 @@ import { UnconfiguredReferenceSealer } from './remote/UnconfiguredReferenceSeale
                 db: FoodDrizzle,
                 engine: GoldenRecordMergeEngine,
                 queue: FetchQueueDao,
+                holds: AnsweredRoots,
             ): AdoptRemoteFood =>
                 new AdoptRemoteFood({
                     sealer,
                     owners,
                     registry,
                     adoption: new RemoteAdoptionDao(db),
-                    holds: new TestPickedRootDao(db),
+                    holds,
                     queue,
                     persistRoot: (candidate) => async (writer, foodId) => {
                         await new MergeAndPersistService(writer, engine).resolveFromPicks({
@@ -294,6 +304,7 @@ import { UnconfiguredReferenceSealer } from './remote/UnconfiguredReferenceSeale
                 DrizzleProvider,
                 REMOTE_REFERENCE_SEALER,
                 SearchGapRecorder,
+                AnsweredRoots,
             ],
             useFactory: (
                 database: FoodsService,
@@ -302,6 +313,7 @@ import { UnconfiguredReferenceSealer } from './remote/UnconfiguredReferenceSeale
                 db: FoodDrizzle,
                 sealer: Pick<RemoteReferenceSealer, 'seal'>,
                 gaps: SearchGapRecorder,
+                holds: AnsweredRoots,
             ): ProgressiveFoodSearch =>
                 new ProgressiveFoodSearch({
                     database,
@@ -310,6 +322,7 @@ import { UnconfiguredReferenceSealer } from './remote/UnconfiguredReferenceSeale
                     namedRoots: new RemoteAdoptionDao(db),
                     sealer,
                     gaps,
+                    holds,
                 }),
         },
     ],

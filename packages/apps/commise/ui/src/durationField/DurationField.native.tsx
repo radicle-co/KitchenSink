@@ -10,7 +10,7 @@
  *
  * @pattern Adapter — presents a value stored in seconds as an hours/minutes pair, and converts each edit back.
  */
-import { useId, type FC } from 'react';
+import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { TextInput } from '../textInput/TextInput.native.js';
@@ -30,23 +30,15 @@ export const DurationField: FC<DurationFieldProps> = ({
     onChange,
     error,
 }) => {
-    const labelId = `${useId()}-label`;
     const shown = durationBoxes(value);
     const theme = useTheme();
     const { colors } = theme;
 
     return (
-        // `collapsable={false}`: Android flattens a View that only lays out, which would drop its role and name.
-        <View
-            collapsable={false}
-            role="group"
-            aria-labelledby={labelId}
-            accessibilityLabel={label}
-            style={styles.group}
-        >
-            <Text nativeID={labelId} style={[styles.label, { color: colors.inkMuted }]}>
-                {label}
-            </Text>
+        // No group name: the label Text below already says it, and each box's own name carries the field
+        // (docs/design/nativeContainerNames.md N1).
+        <View style={styles.group}>
+            <Text style={[styles.label, { color: colors.inkMuted }]}>{label}</Text>
             <View style={styles.row}>
                 <TextInput
                     accessibilityLabel={hoursLabel}

@@ -56,11 +56,14 @@ describe('DurationField (native) — a 136 px cell (A-009)', () => {
 });
 
 describe('DurationField (native)', () => {
-    it('is one group named by its visible label', () => {
+    // REWRITTEN (nativeContainerNames.md N1): the visible label names the field, so the wrapping View carries no
+    // second name and no `group` role that would make a screen reader say the label twice. Each box names itself.
+    it('shows its label once, as text, with no named group around it', () => {
         renderField();
 
-        expect(screen.getByRole('group', { name: 'Timer (optional)' })).toBeTruthy();
         expect(screen.getByText('Timer (optional)')).toBeTruthy();
+        expect(screen.queryByRole('group')).toBeNull();
+        expect(screen.queryAllByLabelText('Timer (optional)')).toHaveLength(0);
     });
 
     it('shows a stored duration as hours and minutes', () => {

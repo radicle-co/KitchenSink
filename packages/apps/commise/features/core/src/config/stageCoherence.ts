@@ -1,5 +1,5 @@
 /**
- * @module config/clerkStageCoherence — the Clerk instance and the API endpoints must belong to the SAME stage.
+ * @module @commise/features-core/config/stageCoherence — the Clerk instance and the API endpoints must belong to the SAME stage.
  *
  * This exists because of the 2026-08-07 production outage: Vercel's Production environment held a
  * SANDBOX Clerk publishable key while the API URLs pointed at PRODUCTION services. Identity verifies
@@ -23,6 +23,10 @@
  * ⚠️ They ALREADY drifted once — both carried an OPTIONAL terminator strip — so both now mirror the SAME
  * upstream predicate, `isValidDecodedPublishableKey` from `@clerk/shared/keys`, rather than each inventing
  * its own notion of validity. Change one and the other must change to the same VENDOR rule.
+ *
+ * SHARED by both hosts (web's build-time env module, mobile's startup env module) — the rule is one piece of
+ * knowledge and the two apps used to hold only half of it: web enforced it, mobile read the key as a bare
+ * presence check and would have shipped the same outage in a binary.
  *
  * Every function below is pure.
  */
@@ -67,7 +71,7 @@ export type EndpointStage = 'production' | 'non-production' | 'local' | 'unknown
 /**
  * Decode a Clerk publishable key into its instance kind and Frontend API host.
  *
- * @param key - The raw `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` value.
+ * @param key - The raw publishable-key value (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` on web, `EXPO_PUBLIC_IDP_PUBLISHABLE_KEY` on mobile).
  * @returns The instance reference, or `null` when the value is not a publishable key — including one that
  *   decodes but was never minted by Clerk (no `$` terminator, or a payload that is not a hostname).
  */
@@ -136,6 +140,8 @@ export function classifyEndpointStage(url: string): EndpointStage {
 /** The inputs the coherence rule reads. */
 export interface StageCoherenceInput {
     readonly clerkPublishableKey: string;
+    /** The variable the key was read from, so a refusal names the setting the operator must fix. */
+    readonly clerkKeyName: string;
     /** Endpoint variable name → its configured URL. */
     readonly endpoints: Readonly<Record<string, string | undefined>>;
 }
@@ -153,7 +159,7 @@ export function findStageIncoherence(input: StageCoherenceInput): readonly strin
 
     if (clerk === null) {
         return [
-            `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is not a Clerk publishable key (expected pk_test_… or pk_live_…). ` +
+            `${input.clerkKeyName} is not a Clerk publishable key (expected pk_test_… or pk_live_…). ` +
                 'Without it the Clerk instance cannot be identified, so stage coherence cannot be checked.',
         ];
     }

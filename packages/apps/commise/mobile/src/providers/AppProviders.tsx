@@ -37,16 +37,11 @@ import { useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { TamaguiProvider } from 'tamagui';
 
+import { env } from '../config/env.js';
 import { LocaleProvider } from '../i18n/LocaleProvider.js';
 import { tokenCache } from '../storage/tokenCache.js';
 import tamaguiConfig from '../../tamagui.config.js';
 import { RecipeServiceGate } from './RecipeServiceGate.js';
-
-const publishableKey = process.env['EXPO_PUBLIC_IDP_PUBLISHABLE_KEY'];
-
-if (!publishableKey) {
-    throw new Error('Missing EXPO_PUBLIC_IDP_PUBLISHABLE_KEY environment variable');
-}
 
 /**
  * Mount the full app-level provider tree around `children`.
@@ -67,7 +62,11 @@ export function AppProviders({ children }: { readonly children: ReactNode }): JS
     return (
         <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
             <LocaleProvider>
-                <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache} telemetry={false}>
+                <ClerkProvider
+                    publishableKey={env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY}
+                    tokenCache={tokenCache}
+                    telemetry={false}
+                >
                     <QueryClientProvider client={queryClient}>
                         {/* ⛔ MOUNTED IMMEDIATELY INSIDE THE QUERY CLIENT PROVIDER, structurally rather than
                 conveniently. `OfflineReadNoticeProvider`'s default is the identity function, so a

@@ -30,7 +30,7 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import { classifyClerkKey, classifyEndpointStage, findStageIncoherence } from '../clerkStageCoherence.js';
+import { classifyClerkKey, classifyEndpointStage, findStageIncoherence } from '../stageCoherence.js';
 
 /** The real sandbox key shape: base64 payload decodes to `nice-fowl-6.clerk.accounts.dev$`. */
 const SANDBOX_KEY = 'pk_test_bmljZS1mb3dsLTYuY2xlcmsuYWNjb3VudHMuZGV2JA';
@@ -107,6 +107,7 @@ describe('classifyEndpointStage', () => {
 describe('findStageIncoherence — the outage, as an assertion', () => {
     it('REJECTS the exact production configuration that shipped on 2026-08-07', () => {
         const problems = findStageIncoherence({
+            clerkKeyName: 'CLERK_KEY',
             clerkPublishableKey: SANDBOX_KEY,
             endpoints: {
                 NEXT_PUBLIC_IDENTITY_API_URL: 'https://identity.commise.app',
@@ -122,6 +123,7 @@ describe('findStageIncoherence — the outage, as an assertion', () => {
     it('accepts a coherent production configuration', () => {
         expect(
             findStageIncoherence({
+                clerkKeyName: 'CLERK_KEY',
                 clerkPublishableKey: PROD_KEY,
                 endpoints: {
                     NEXT_PUBLIC_IDENTITY_API_URL: 'https://identity.commise.app',
@@ -134,6 +136,7 @@ describe('findStageIncoherence — the outage, as an assertion', () => {
     it('accepts a coherent sandbox configuration', () => {
         expect(
             findStageIncoherence({
+                clerkKeyName: 'CLERK_KEY',
                 clerkPublishableKey: SANDBOX_KEY,
                 endpoints: {
                     NEXT_PUBLIC_IDENTITY_API_URL: 'https://identity.sandbox.commise.app',
@@ -146,6 +149,7 @@ describe('findStageIncoherence — the outage, as an assertion', () => {
     it('REJECTS the mirror image — a production key against sandbox endpoints', () => {
         // Equally broken and equally invisible, which is why the rule is coherence and not "prod needs live".
         const problems = findStageIncoherence({
+            clerkKeyName: 'CLERK_KEY',
             clerkPublishableKey: PROD_KEY,
             endpoints: {
                 NEXT_PUBLIC_IDENTITY_API_URL: 'https://identity.sandbox.commise.app',
@@ -159,6 +163,7 @@ describe('findStageIncoherence — the outage, as an assertion', () => {
     it('allows a development key against localhost — the everyday local case', () => {
         expect(
             findStageIncoherence({
+                clerkKeyName: 'CLERK_KEY',
                 clerkPublishableKey: SANDBOX_KEY,
                 endpoints: {
                     NEXT_PUBLIC_IDENTITY_API_URL: 'http://localhost:3000',
@@ -173,15 +178,27 @@ describe('findStageIncoherence — the outage, as an assertion', () => {
         // time beats discovering it as a blank page.
         expect(
             findStageIncoherence({
+                clerkKeyName: 'CLERK_KEY',
                 clerkPublishableKey: PROD_KEY,
                 endpoints: { NEXT_PUBLIC_IDENTITY_API_URL: 'http://localhost:3000' },
             }),
         ).not.toEqual([]);
     });
 
+    it('names the variable the key came from when it is unparseable', () => {
+        expect(
+            findStageIncoherence({
+                clerkKeyName: 'EXPO_PUBLIC_IDP_PUBLISHABLE_KEY',
+                clerkPublishableKey: 'garbage',
+                endpoints: {},
+            }).join('\n'),
+        ).toContain('EXPO_PUBLIC_IDP_PUBLISHABLE_KEY');
+    });
+
     it('reports an unparseable key rather than passing it through', () => {
         expect(
             findStageIncoherence({
+                clerkKeyName: 'CLERK_KEY',
                 clerkPublishableKey: 'garbage',
                 endpoints: { NEXT_PUBLIC_IDENTITY_API_URL: 'https://identity.commise.app' },
             }),
@@ -193,6 +210,7 @@ describe('findStageIncoherence — the outage, as an assertion', () => {
         // initialize, past the very guard that exists to stop a broken Clerk configuration reaching browsers.
         expect(
             findStageIncoherence({
+                clerkKeyName: 'CLERK_KEY',
                 clerkPublishableKey: `pk_live_${btoa('clerk.commise.app')}`,
                 endpoints: { NEXT_PUBLIC_IDENTITY_API_URL: 'https://identity.commise.app' },
             }),
@@ -203,6 +221,7 @@ describe('findStageIncoherence — the outage, as an assertion', () => {
         // A host nobody classified is exactly where the next variant of this bug hides.
         expect(
             findStageIncoherence({
+                clerkKeyName: 'CLERK_KEY',
                 clerkPublishableKey: PROD_KEY,
                 endpoints: { NEXT_PUBLIC_IDENTITY_API_URL: 'https://who-knows.example' },
             }),

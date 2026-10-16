@@ -45,6 +45,8 @@ export default defineConfig({
             EXPO_PUBLIC_RECIPE_API_URL: 'http://localhost:3000',
             EXPO_PUBLIC_IDENTITY_API_URL: 'http://localhost:4000',
             EXPO_PUBLIC_FOOD_API_URL: 'http://localhost:3002',
+            // A development instance, coherent with the localhost endpoints above (decodes to nice-fowl-6.clerk.accounts.dev).
+            EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: 'pk_test_bmljZS1mb3dsLTYuY2xlcmsuYWNjb3VudHMuZGV2JA',
         },
     },
     resolve: {

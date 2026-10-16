@@ -37,13 +37,10 @@
  * enforces the literal mapping at the type level, which is precisely the discipline whose absence caused
  * the original defect — so the repetition below is load-bearing, not boilerplate to "clean up".
  */
+import { endpointUrl, envValidationError } from '@commise/features-core/config/envScaffolding';
+import { findStageIncoherence } from '@commise/features-core/config/stageCoherence';
 import { createEnv } from '@t3-oss/env-nextjs';
 import { z } from 'zod';
-
-import { findStageIncoherence } from './clerkStageCoherence.js';
-
-/** An absolute http(s) base URL. Relative values would resolve against the page and fail only in a browser. */
-const endpointUrl = z.url({ protocol: /^https?$/ });
 
 export const env = createEnv({
     /**
@@ -88,22 +85,9 @@ export const env = createEnv({
      * to the console; this sends them to the fix.
      */
     onValidationError: (issues) => {
-        const names = [
-            ...new Set(
-                issues
-                    .map((issue) =>
-                        issue.path
-                            // A Standard Schema path segment is a key or a `{ key }` object; name the key either way.
-                            ?.map((segment) => String(typeof segment === 'object' ? segment.key : segment))
-                            .join('.'),
-                    )
-                    .filter(Boolean),
-            ),
-        ].join(', ');
-
-        throw new Error(
-            `Invalid environment variables: ${names}. ` +
-                'The API URLs must be absolute http(s) URLs; the Clerk key must be a publishable key ' +
+        throw envValidationError(
+            issues,
+            'The API URLs must be absolute http(s) URLs; the Clerk key must be a publishable key ' +
                 '(pk_test_… or pk_live_…). There is no default for any of them — set them for this stage ' +
                 '(local: .env.development; preview/prod: the build environment). See src/config/env.ts.',
         );
@@ -136,12 +120,13 @@ export const STAGE_CHECKED_ENDPOINT_KEYS: readonly string[] = Object.keys(env).f
  * Shape validation above cannot catch this — a sandbox key and a production URL are each individually
  * valid. Only their COMBINATION is wrong, and that combination is what took production down on
  * 2026-08-07. Asserted at module load, which means `next build` fails rather than shipping a bundle
- * whose auth can never succeed. See `./clerkStageCoherence.ts` for why the rule is coherence rather
+ * whose auth can never succeed. See `@commise/features-core/config/stageCoherence` for why the rule is coherence rather
  * than "production must use pk_live".
  *
  * @sideEffect Throws at module evaluation (i.e. fails the build) when the configuration is incoherent.
  */
 const stageProblems = findStageIncoherence({
+    clerkKeyName: 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
     clerkPublishableKey: env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
     endpoints: Object.fromEntries(
         STAGE_CHECKED_ENDPOINT_KEYS.map((key) => [key, (env as Record<string, string | undefined>)[key]]),
@@ -152,6 +137,6 @@ if (stageProblems.length > 0) {
     throw new Error(
         `Clerk instance and API endpoints disagree about which stage this build is for:\n` +
             stageProblems.map((problem) => `  - ${problem}`).join('\n') +
-            '\nSet a matched pair for this stage. See src/config/clerkStageCoherence.ts.',
+            '\nSet a matched pair for this stage. See @commise/features-core/config/stageCoherence.',
     );
 }

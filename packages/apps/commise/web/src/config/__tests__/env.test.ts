@@ -136,9 +136,10 @@ describe('stage-coherence coverage is DERIVED, not hand-maintained', () => {
     it('would REJECT a future endpoint that disagrees with the Clerk instance', async () => {
         // The mutation this file exists to catch: a new endpoint added to the schema but not to the guard.
         // Simulated at the guard's own boundary, since the schema cannot gain a key at runtime.
-        const { findStageIncoherence } = await import('../clerkStageCoherence.js');
+        const { findStageIncoherence } = await import('@commise/features-core/config/stageCoherence');
 
         const problems = findStageIncoherence({
+            clerkKeyName: 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
             clerkPublishableKey: 'pk_test_bmljZS1mb3dsLTYuY2xlcmsuYWNjb3VudHMuZGV2JA',
             endpoints: { NEXT_PUBLIC_AI_API_URL: 'https://ai.commise.app' },
         });

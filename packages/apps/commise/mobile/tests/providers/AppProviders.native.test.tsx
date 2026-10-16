@@ -43,7 +43,7 @@ vi.mock('react-native-safe-area-context', () => ({
 const useAuthMock = vi.mocked(useAuth);
 
 beforeEach(() => {
-    vi.stubEnv('EXPO_PUBLIC_IDP_PUBLISHABLE_KEY', 'pk_test_appproviders');
+    vi.stubEnv('EXPO_PUBLIC_IDP_PUBLISHABLE_KEY', 'pk_test_bmljZS1mb3dsLTYuY2xlcmsuYWNjb3VudHMuZGV2JA');
     useAuthMock.mockReturnValue({ getToken: vi.fn().mockResolvedValue('tok_abc') } as unknown as ReturnType<
         typeof useAuth
     >);

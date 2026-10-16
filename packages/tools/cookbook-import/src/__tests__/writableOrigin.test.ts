@@ -8,7 +8,7 @@
  *
  * The rule under test is an ALLOW-list, and that is the whole point: an origin this module does not
  * recognise is REFUSED, not classified. It therefore differs deliberately from the two stage classifiers in
- * the tree (`prodWebSurface.classifyHostStage`, `web/src/config/clerkStageCoherence.classifyEndpointStage`),
+ * the tree (`prodWebSurface.classifyHostStage`, `features/core/src/config/stageCoherence.classifyEndpointStage`),
  * which must place every host and answer `unknown` — that shape is right for a coherence report and wrong
  * for a write gate, where an unrecognised host must fail closed.
  */

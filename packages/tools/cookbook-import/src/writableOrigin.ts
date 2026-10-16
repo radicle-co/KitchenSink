@@ -9,7 +9,7 @@
  * DESIGN PATTERN: **Specification, as an ALLOW-list**. An origin this module does not recognise is REFUSED,
  * never classified. That is deliberately a different shape from the tree's two stage CLASSIFIERS
  * (`packages/infra/global/__tests__/prodWebSurface.ts` `classifyHostStage`, and
- * `packages/apps/commise/web/src/config/clerkStageCoherence.ts` `classifyEndpointStage`), which must place
+ * `packages/apps/commise/features/core/src/config/stageCoherence.ts` `classifyEndpointStage`), which must place
  * every host and answer `unknown` for the rest: `unknown` is the honest answer for a coherence REPORT and
  * the wrong one for a WRITE gate, where the unrecognised host is exactly the one to stop. So this is not a
  * third copy of that rule — it is the narrower question "may this tool write here", and it fails closed.

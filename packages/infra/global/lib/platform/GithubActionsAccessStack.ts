@@ -33,7 +33,11 @@
 import { CfnOutput, DefaultStackSynthesizer, Duration, Stack, type StackProps, aws_iam as iam } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
-import { PER_PR_NAME_PATTERN, teardownGrants } from '../sandbox-scheduler/teardownGrants.js';
+import {
+    PER_PR_NAME_PATTERN,
+    PRODUCTION_ENVIRONMENT_TAG,
+    teardownGrants,
+} from '../sandbox-scheduler/teardownGrants.js';
 import {
     GITHUB_OIDC_AUDIENCE,
     GITHUB_OIDC_ISSUER,
@@ -83,6 +87,31 @@ const IMAGE_REPOSITORY_ACTIONS = [
 /** Invoke a function (a migration runner, the scheduler, a reaper) and read its configuration. */
 const FUNCTION_INVOKE_ACTIONS = ['lambda:InvokeFunction', 'lambda:GetFunctionConfiguration'] as const;
 
+/**
+ * Every Lambda read whose response includes `Environment.Variables`. `ListFunctions` returns them for EVERY function
+ * in the account, the other application's included, and cannot be scoped to a resource, so no role is granted it.
+ */
+const FUNCTION_ENVIRONMENT_READ_ACTIONS = [
+    'lambda:GetFunction',
+    'lambda:GetFunctionConfiguration',
+    'lambda:ListFunctions',
+    'lambda:ListVersionsByFunction',
+] as const;
+
+/** What the non-prod role may do to a function, and only to one in a stack named by {@link NONPROD_STACK_NAME_PATTERNS}. */
+const NONPROD_FUNCTION_ACTIONS = [
+    'lambda:InvokeFunction',
+    'lambda:GetFunctionConfiguration',
+    'lambda:GetFunctionUrlConfig',
+] as const;
+
+/**
+ * The CloudFormation stacks whose functions the non-prod role may reach: the shared sandbox tier and per-PR stacks.
+ * Matched against the `aws:cloudformation:stack-name` tag CloudFormation stamps on every function it creates — the
+ * full stack name, which a generated function name's truncation can never shorten. Production stacks end `-prod`.
+ */
+export const NONPROD_STACK_NAME_PATTERNS = ['kitchensink-*-sandbox', PER_PR_NAME_PATTERN] as const;
+
 /** Read a parameter or a parameter tree. */
 const PARAMETER_READ_ACTIONS = ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath'] as const;
 
@@ -104,7 +133,6 @@ const OBSERVE_ACTIONS = [
     'sqs:List*',
     'ecs:Describe*',
     'ecs:List*',
-    'lambda:List*',
     'tag:GetResources',
 ] as const;
 
@@ -203,10 +231,27 @@ const permissionsNonprod = (role: iam.Role, scope: Scope): void => {
         StringEquals: { 'aws:ResourceTag/Environment': 'production' },
     });
 
-    allow(role, FUNCTION_INVOKE_ACTIONS, [lambdaArn('kitchensink-*')]);
-    // Defence in depth, not the boundary: function names are not uniformly stage-suffixed, so this denies what
-    // is named for production and cannot claim to cover everything that is.
-    deny(role, ['lambda:InvokeFunction', 'lambda:GetFunctionUrlConfig'], [lambdaArn('kitchensink-*-prod*')]);
+    // ⛔ A function's configuration holds its environment variables, and production's webhook functions carry secrets
+    // there. The Allow therefore FAILS CLOSED on the stack-name tag (ADR-0063): a function with no such tag, or one
+    // from a production stack or the other application, matches nothing. If Lambda ever stops supplying the tag, the
+    // sandbox's deploy checks break loudly — a Deny on the same tag would silently stop applying instead.
+    allow(role, NONPROD_FUNCTION_ACTIONS, [lambdaArn('kitchensink-*')], {
+        StringLike: { 'aws:ResourceTag/aws:cloudformation:stack-name': NONPROD_STACK_NAME_PATTERNS },
+    });
+    // Extra layers over the Allow, neither the boundary: function names are not uniformly stage-suffixed, and the
+    // production tier tag is absent from provider functions.
+    deny(role, [...NONPROD_FUNCTION_ACTIONS, ...FUNCTION_ENVIRONMENT_READ_ACTIONS], [lambdaArn('kitchensink-*-prod*')]);
+    deny(role, NONPROD_FUNCTION_ACTIONS, ['*'], {
+        StringEquals: { 'aws:ResourceTag/Environment': PRODUCTION_ENVIRONMENT_TAG },
+    });
+    // The readers the Allow above does not name are refused outright, so a policy attached later cannot reopen them.
+    deny(
+        role,
+        FUNCTION_ENVIRONMENT_READ_ACTIONS.filter(
+            (action) => !(NONPROD_FUNCTION_ACTIONS as readonly string[]).includes(action),
+        ),
+        ['*'],
+    );
     allow(
         role,
         PARAMETER_READ_ACTIONS,
@@ -236,8 +281,6 @@ const permissionsNonprod = (role: iam.Role, scope: Scope): void => {
     });
     // `verifyDeployment.sh` runs `head-bucket` on every bucket a deployed Lambda names.
     allow(role, ['s3:ListBucket'], ['arn:aws:s3:::kitchensink-*-sandbox-*', 'arn:aws:s3:::kitchensink-*-pr-*']);
-    // The remote-search tier reads the function URL that its distribution must be the only way into.
-    allow(role, ['lambda:GetFunctionUrlConfig'], [lambdaArn('kitchensink-remote-search-*')]);
     // A preview owns exactly its own CNAME. The record name and type are the boundary, not the zone: the apex, the
     // `*.sandbox` wildcard and the shared identity host share the preview zone and fail both conditions.
     allow(role, ['route53:ChangeResourceRecordSets'], [previewZones], {

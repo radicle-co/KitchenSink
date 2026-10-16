@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 
 import { GithubActionsAccessStack } from '../lib/platform/GithubActionsAccessStack.js';
 import { SHARED_TIER_DELETE_ORDER } from '../lib/sandbox-scheduler/reclaim.js';
-import { policyAdmits, type PolicyStatementJson } from './iamGlob.js';
+import { policyAdmits, policyAdmitsTagged, type PolicyStatementJson } from './iamGlob.js';
 import { repoRoot } from './serviceSources.js';
 import { testApp } from './testApp.js';
 
@@ -534,5 +534,118 @@ describe('GithubActionsAccessStack: the non-prod role reaches only what CI tears
 
         expect(prefix).toBeDefined();
         expect(writes.flatMap((s) => asList(s.Resource))).toEqual([parameter(`${prefix}/*`)]);
+    });
+});
+
+/**
+ * P1 #4: a Lambda's configuration carries its environment variables, so reading or invoking a function is reading
+ * what it holds. The non-prod role may touch only a function whose own CloudFormation stack name is a sandbox or
+ * per-PR stack, judged on the `aws:cloudformation:stack-name` tag CloudFormation stamps on it — the one name that
+ * is neither truncated nor dependent on our own app's tags. A function without that tag is refused, so a missing
+ * tag breaks a deploy check loudly instead of silently widening the grant.
+ *
+ * Each row is (action, function, tags the function carries, admitted), evaluated WITH the tags.
+ */
+describe('the non-prod role reaches only sandbox and per-PR functions (P1 #4)', () => {
+    const t = template();
+    const nonprod = statementsOf(t, 'kitchensink-gha-nonprod');
+    const prod = statementsOf(t, 'kitchensink-gha-prod');
+    const prodRead = statementsOf(t, 'kitchensink-gha-prod-read');
+    const { account, region } = env;
+    const fn = (name: string): string => `arn:aws:lambda:${region}:${account}:function:${name}`;
+    const stackTag = 'aws:cloudformation:stack-name';
+    // CloudFormation truncates a generated name, so the stage can be gone from it: this is the real shape.
+    const PROD_WEBHOOK = fn('kitchensink-identity-webhook-WebhookFunction8F2D-Ab12');
+    const SANDBOX_WEBHOOK = fn('kitchensink-identity-webhook-WebhookFunction8F2D-Cd34');
+    const prodTags = { [stackTag]: 'kitchensink-identity-webhooks-prod', Environment: 'global' };
+    const sandboxTags = { [stackTag]: 'kitchensink-identity-webhooks-sandbox', Environment: 'sandbox' };
+
+    const rows: readonly (readonly [string, string, Readonly<Record<string, string>>, boolean])[] = [
+        ['lambda:GetFunctionConfiguration', PROD_WEBHOOK, prodTags, false],
+        ['lambda:InvokeFunction', PROD_WEBHOOK, prodTags, false],
+        ['lambda:GetFunctionUrlConfig', PROD_WEBHOOK, prodTags, false],
+        ['lambda:GetFunctionConfiguration', PROD_WEBHOOK, { ...prodTags, Environment: 'production' }, false],
+        ['lambda:GetFunctionConfiguration', SANDBOX_WEBHOOK, sandboxTags, true],
+        [
+            'lambda:InvokeFunction',
+            fn('kitchensink-food-schema-pr-91-MigrationRunner0A1B-Zz9'),
+            { [stackTag]: 'kitchensink-food-schema-pr-91', Environment: 'pr-91-sandbox' },
+            true,
+        ],
+        // A CDK provider function carries the stack tag but none of the app's tags.
+        [
+            'lambda:GetFunctionConfiguration',
+            fn('kitchensink-data-sandbox-LogRetention8aB-Qq1'),
+            { [stackTag]: 'kitchensink-data-sandbox' },
+            true,
+        ],
+        // No tag at all: the Allow cannot be met, so it fails closed.
+        ['lambda:GetFunctionConfiguration', SANDBOX_WEBHOOK, {}, false],
+        ['lambda:InvokeFunction', SANDBOX_WEBHOOK, {}, false],
+        ['lambda:InvokeFunction', fn('armoury-production-api'), { Environment: 'production' }, false],
+        ['lambda:GetFunctionConfiguration', fn('armoury-production-api'), { Environment: 'production' }, false],
+        // The name deny holds even if a prod function somehow carried a sandbox stack tag.
+        [
+            'lambda:GetFunctionConfiguration',
+            fn('kitchensink-remote-search-prod'),
+            { [stackTag]: 'kitchensink-remote-search-sandbox' },
+            false,
+        ],
+        // The other readers that return Environment.Variables are not granted at all.
+        ['lambda:GetFunction', SANDBOX_WEBHOOK, sandboxTags, false],
+        ['lambda:ListVersionsByFunction', SANDBOX_WEBHOOK, sandboxTags, false],
+        ['lambda:ListFunctions', '*', {}, false],
+    ];
+
+    it.each(rows)('non-prod: %s on %s %j -> admitted=%s', (action, resource, tags, expected) => {
+        expect(policyAdmitsTagged(nonprod, action, resource, tags)).toBe(expected);
+    });
+
+    it.each([
+        ['prod', prod],
+        ['prod-read', prodRead],
+        ['non-prod', nonprod],
+    ] as const)('%s role cannot call ListFunctions, which returns every function environment', (_name, statements) => {
+        expect(policyAdmitsTagged(statements, 'lambda:ListFunctions', '*', {})).toBe(false);
+    });
+
+    it('the prod role still reads its own functions', () => {
+        expect(policyAdmitsTagged(prod, 'lambda:GetFunctionConfiguration', PROD_WEBHOOK, prodTags)).toBe(true);
+        expect(policyAdmitsTagged(prod, 'lambda:InvokeFunction', PROD_WEBHOOK, prodTags)).toBe(true);
+    });
+
+    it('no role is granted a lambda List* wildcard', () => {
+        for (const statements of [nonprod, prod, prodRead]) {
+            const listed = statements
+                .filter((s) => s.Effect === 'Allow')
+                .flatMap((s) => asList(s.Action))
+                .filter((action) => /^lambda:list/iu.test(action));
+
+            expect(listed).toEqual([]);
+        }
+    });
+
+    it('the non-prod Lambda Allows are exactly invoke, configuration and function-URL reads', () => {
+        const actions = nonprod
+            .filter((s) => s.Effect === 'Allow')
+            .flatMap((s) => asList(s.Action))
+            .filter((action) => /^lambda:/iu.test(action));
+
+        expect(new Set(actions)).toEqual(
+            new Set(['lambda:InvokeFunction', 'lambda:GetFunctionConfiguration', 'lambda:GetFunctionUrlConfig']),
+        );
+    });
+
+    it('the one non-prod Lambda Allow is conditioned on the stack-name tag, sandbox and per-PR stacks only', () => {
+        const allows = nonprod.filter(
+            (s) => s.Effect === 'Allow' && asList(s.Action).some((action) => /^lambda:/iu.test(action)),
+        );
+
+        expect(allows).toHaveLength(1);
+        expect(allows[0]?.Condition).toEqual({
+            StringLike: {
+                'aws:ResourceTag/aws:cloudformation:stack-name': ['kitchensink-*-sandbox', 'kitchensink-*-pr-*'],
+            },
+        });
     });
 });

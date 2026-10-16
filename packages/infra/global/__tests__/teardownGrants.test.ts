@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { GithubActionsAccessStack } from '../lib/platform/GithubActionsAccessStack.js';
 import { SandboxSchedulerStack } from '../lib/platform/SandboxSchedulerStack.js';
 import { SHARED_TIER_DELETE_ORDER } from '../lib/sandbox-scheduler/reclaim.js';
-import { teardownGrants } from '../lib/sandbox-scheduler/teardownGrants.js';
+import { PRODUCTION_ENVIRONMENT_TAG, teardownGrants } from '../lib/sandbox-scheduler/teardownGrants.js';
 import { policyAdmits, type PolicyStatementJson } from './iamGlob.js';
 import { testApp } from './testApp.js';
 
@@ -88,7 +88,11 @@ describe('teardownGrants: what it may delete', () => {
         expect(new Set(asList(production?.Action))).toEqual(
             new Set(['cloudformation:DeleteStack', 'ecs:DeleteService', 'ecs:StopTask']),
         );
-        expect(production?.Condition).toEqual({ StringEquals: { 'aws:ResourceTag/Environment': 'production' } });
+        expect(production?.Condition).toEqual({
+            StringEquals: { 'aws:ResourceTag/Environment': PRODUCTION_ENVIRONMENT_TAG },
+        });
+        // The value is the one the deploy apps stamp, held literally so a rename of the constant cannot pass.
+        expect(PRODUCTION_ENVIRONMENT_TAG).toBe('production');
         expect(production?.Resource).toBe('*');
         expect(namesARole?.Condition).toEqual({ Null: { 'cloudformation:RoleArn': 'false' } });
         expect(denies).toHaveLength(2);

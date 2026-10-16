@@ -30,6 +30,12 @@ import { SHARED_TIER_DELETE_ORDER } from './reclaim.js';
 /** A per-PR resource name: `kitchensink-<app>-pr-<N>…`, as an IAM pattern. */
 export const PER_PR_NAME_PATTERN = 'kitchensink-*-pr-*';
 
+/**
+ * The `Environment` tag value every production stack carries. The CI role's denies key on it (here, and for Lambda
+ * reads in `GithubActionsAccessStack`), so the string is written once.
+ */
+export const PRODUCTION_ENVIRONMENT_TAG = 'production';
+
 /** Where the statements are written: an account and region, literal or a stack's tokens. */
 export interface TeardownScope {
     readonly account: string;
@@ -76,7 +82,7 @@ export function teardownGrants(scope: TeardownScope, sidPrefix: string): readonl
             effect: iam.Effect.DENY,
             actions: ['cloudformation:DeleteStack', 'ecs:DeleteService', 'ecs:StopTask'],
             resources: ['*'],
-            conditions: { StringEquals: { 'aws:ResourceTag/Environment': 'production' } },
+            conditions: { StringEquals: { 'aws:ResourceTag/Environment': PRODUCTION_ENVIRONMENT_TAG } },
         }),
         new iam.PolicyStatement({
             sid: `${sidPrefix}NeverNamesARole`,

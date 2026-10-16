@@ -7,7 +7,13 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { iamActionMatches, iamResourceMatches, policyAdmits, type PolicyStatementJson } from './iamGlob.js';
+import {
+    iamActionMatches,
+    iamResourceMatches,
+    policyAdmits,
+    policyAdmitsTagged,
+    type PolicyStatementJson,
+} from './iamGlob.js';
 
 describe('iamResourceMatches', () => {
     it.each([
@@ -87,5 +93,83 @@ describe('policyAdmits', () => {
 
         expect(policyAdmits(denyAllButReads, 'ssm:GetParameter', 'p')).toBe(true);
         expect(policyAdmits(denyAllButReads, 'ssm:PutParameter', 'p')).toBe(false);
+    });
+});
+
+/**
+ * `policyAdmitsTagged` EVALUATES `aws:ResourceTag/*` conditions against the tags a resource carries, which
+ * `policyAdmits` deliberately ignores. A grant that depends on a tag is judged here, with the tag present, absent
+ * and wrong: a Deny that keys on a tag a resource lacks never applies, and that silence is what this table pins.
+ */
+describe('policyAdmitsTagged', () => {
+    const stackTag = 'aws:ResourceTag/aws:cloudformation:stack-name';
+    const envTag = 'aws:ResourceTag/Environment';
+    const statements: readonly PolicyStatementJson[] = [
+        {
+            Effect: 'Allow',
+            Action: 'lambda:InvokeFunction',
+            Resource: 'fn:kitchensink-*',
+            Condition: { StringLike: { [stackTag]: ['kitchensink-*-sandbox', 'kitchensink-*-pr-*'] } },
+        },
+        {
+            Effect: 'Deny',
+            Action: 'lambda:InvokeFunction',
+            Resource: '*',
+            Condition: { StringEquals: { [envTag]: 'production' } },
+        },
+        {
+            Effect: 'Allow',
+            Action: 's3:GetObject',
+            Resource: '*',
+            Condition: { Null: { [envTag]: 'false' } },
+        },
+    ];
+    const invoke = (tags: Readonly<Record<string, string>>): boolean =>
+        policyAdmitsTagged(statements, 'lambda:InvokeFunction', 'fn:kitchensink-x', tags);
+
+    it.each([
+        ['no tag at all fails an Allow that needs one', {}, false],
+        ['a matching tag admits', { 'aws:cloudformation:stack-name': 'kitchensink-food-sandbox' }, true],
+        ['the second pattern of the list admits', { 'aws:cloudformation:stack-name': 'kitchensink-food-pr-91' }, true],
+        ['a tag that matches no pattern is refused', { 'aws:cloudformation:stack-name': 'kitchensink-x-prod' }, false],
+        [
+            'a matching Deny condition refuses',
+            { 'aws:cloudformation:stack-name': 'kitchensink-food-sandbox', Environment: 'production' },
+            false,
+        ],
+        [
+            'a Deny whose tag value differs does not apply',
+            { 'aws:cloudformation:stack-name': 'kitchensink-food-sandbox', Environment: 'sandbox' },
+            true,
+        ],
+        [
+            'StringLike patterns are case-sensitive',
+            { 'aws:cloudformation:stack-name': 'Kitchensink-food-sandbox' },
+            false,
+        ],
+    ])('%s', (_label, tags, expected) => {
+        expect(invoke(tags)).toBe(expected);
+    });
+
+    it('evaluates Null: false as "the tag is present"', () => {
+        expect(policyAdmitsTagged(statements, 's3:GetObject', 'b', { Environment: 'x' })).toBe(true);
+        expect(policyAdmitsTagged(statements, 's3:GetObject', 'b', {})).toBe(false);
+    });
+
+    it('treats an unconditioned statement as always applying', () => {
+        expect(policyAdmitsTagged([{ Effect: 'Allow', Action: '*', Resource: '*' }], 'a:B', 'r', {})).toBe(true);
+    });
+
+    it('refuses to judge a condition it cannot evaluate', () => {
+        const other = (Condition: PolicyStatementJson['Condition']): readonly PolicyStatementJson[] => [
+            { Effect: 'Allow', Action: '*', Resource: '*', Condition },
+        ];
+
+        expect(() => policyAdmitsTagged(other({ StringNotEquals: { [envTag]: 'x' } }), 'a:B', 'r', {})).toThrow(
+            /cannot evaluate/u,
+        );
+        expect(() =>
+            policyAdmitsTagged(other({ StringEquals: { 'aws:SourceIp': '1.2.3.4' } }), 'a:B', 'r', {}),
+        ).toThrow(/cannot evaluate/u);
     });
 });

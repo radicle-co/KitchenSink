@@ -106,8 +106,21 @@ it later cannot turn it into a writer. No role holds `iam:*` or `organizations:*
   role and what a mistaken command can reach directly; they do not bound a malicious workflow that runs on a trusted ref.
   Until the bootstrap is split, the real protection for `prod` is the `Production` environment's required reviewer and the
   `main`-only rule, not IAM.
-- **Residual risk: Lambda invoke on the non-prod role is `kitchensink-*`.** Function names are not uniformly stage-suffixed, so
-  the explicit deny on names ending in `prod` is defence in depth and cannot be claimed to cover every production function.
+- **A function's configuration is its environment, so the non-prod role reaches a Lambda only through a tag-conditioned Allow.**
+  `lambda:InvokeFunction`, `GetFunctionConfiguration` and `GetFunctionUrlConfig` are allowed on `kitchensink-*` functions
+  only when the function's `aws:cloudformation:stack-name` tag matches `kitchensink-*-sandbox` or `kitchensink-*-pr-*`.
+  CloudFormation stamps that tag with the full stack name, which a truncated generated function name cannot shorten, and a
+  function without the tag matches nothing, so the grant fails closed: if Lambda ever stops supplying the tag, the sandbox
+  deploy checks fail loudly, where a Deny on the same tag would silently stop applying. A name Deny on `kitchensink-*-prod*`
+  and an `Environment=production` Deny sit over it as extra layers, not as the boundary. `lambda:ListFunctions` returns the
+  environment of every function in the account, the other application's included, and cannot be scoped, so no role holds it
+  (it was in the shared observe list); `GetFunction` and `ListVersionsByFunction` are denied outright. Production's webhook
+  functions carry plaintext secrets in their environment, so the prod role still reads them. The scope is held by
+  `nonprodLambdaScope.test.ts`, which judges the pattern against every stack name the sources assign.
+- **Follow-up: move the webhook secrets out of Lambda environment variables.** Defence in depth only: every principal that
+  can still read the production environment can read the secret itself.
+- **Follow-up: `logs:GetLogEvents` and `logs:FilterLogEvents` on `*` for the non-prod role** can read production log
+  groups. Scope them to the sandbox and per-PR log-group names.
 - **Residual risk: the router's key-value store is addressed by an id CloudFormation generates**, so the non-prod role names
   the store by a wildcard within the account.
 - **Residual risk: the non-prod role writes the image repositories production pulls from.** Every preview pushes into

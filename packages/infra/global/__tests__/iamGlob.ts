@@ -87,3 +87,69 @@ export function policyAdmits(statements: readonly PolicyStatementJson[], action:
 
     return !denied && statements.some((statement) => statement.Effect === 'Allow' && matches(statement));
 }
+
+const RESOURCE_TAG_PREFIX = 'aws:ResourceTag/';
+
+/** Whether one condition block holds for a resource carrying `tags`. Throws on anything it cannot judge. */
+function conditionHolds(
+    operator: string,
+    block: Readonly<Record<string, unknown>>,
+    tags: Readonly<Record<string, string>>,
+): boolean {
+    return Object.entries(block).every(([key, expected]) => {
+        if (!key.startsWith(RESOURCE_TAG_PREFIX) || !['StringEquals', 'StringLike', 'Null'].includes(operator)) {
+            throw new Error(`policyAdmitsTagged cannot evaluate ${operator} on ${key}`);
+        }
+
+        const actual = tags[key.slice(RESOURCE_TAG_PREFIX.length)];
+        const values = listOf(expected as string | readonly string[]);
+
+        if (operator === 'Null') {
+            return values.some((value) => (value === 'true') === (actual === undefined));
+        }
+
+        if (actual === undefined) {
+            return false;
+        }
+
+        return operator === 'StringEquals'
+            ? values.includes(actual)
+            : values.some((pattern) => iamResourceMatches(pattern, actual));
+    });
+}
+
+const conditionsHold = (statement: PolicyStatementJson, tags: Readonly<Record<string, string>>): boolean =>
+    Object.entries(statement.Condition ?? {}).every(([operator, block]) => conditionHolds(operator, block, tags));
+
+/**
+ * Like {@link policyAdmits}, but EVALUATES `aws:ResourceTag/*` conditions (`StringEquals`, `StringLike`, `Null`)
+ * against `tags`, the tags the resource carries. A condition on an absent tag is not met, so an Allow that needs a
+ * tag admits nothing untagged, and a Deny that keys on a tag never applies to a resource lacking it.
+ *
+ * @throws Error on any other operator or condition key — the guard must not judge a policy it cannot read — and,
+ * as {@link policyAdmits}, on an Allow with `NotAction`/`NotResource`.
+ */
+export function policyAdmitsTagged(
+    statements: readonly PolicyStatementJson[],
+    action: string,
+    resource: string,
+    tags: Readonly<Record<string, string>>,
+): boolean {
+    const applies = (statement: PolicyStatementJson, effect: string): boolean => {
+        if (statement.Effect !== effect) {
+            return false;
+        }
+
+        if (effect === 'Allow' && (statement.NotAction !== undefined || statement.NotResource !== undefined)) {
+            throw new Error(
+                `policyAdmitsTagged cannot evaluate an Allow with NotAction/NotResource: ${JSON.stringify(statement)}`,
+            );
+        }
+
+        return (
+            coversAction(statement, action) && coversResource(statement, resource) && conditionsHold(statement, tags)
+        );
+    };
+
+    return !statements.some((s) => applies(s, 'Deny')) && statements.some((s) => applies(s, 'Allow'));
+}

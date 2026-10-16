@@ -20,6 +20,7 @@ vi.mock('../../src/storage/deviceSession.js', () => ({ endDeviceSession }));
 import { makeUserProfile, makeUserProfileUser } from '@commise/features-account/testing';
 import type { DeleteUserMeResponse, EraseUserMeResponse } from '@kitchensink/schema-identity';
 
+import { isClosureStepError } from '@commise/features-account';
 import { useDeleteAccount } from '../../src/hooks/useDeleteAccount.js';
 import { useEraseAccount } from '../../src/hooks/useEraseAccount.js';
 import { useUpdateProfile } from '../../src/hooks/useUpdateProfile.js';
@@ -215,6 +216,8 @@ describe('useDeleteAccount (mobile)', () => {
         await waitFor(() => expect(result.current.isError).toBe(true));
 
         expect(endDeviceSession).not.toHaveBeenCalled();
+        // The closure WAS accepted and only leaving failed: the surface needs that fact to stop offering a second close.
+        expect(isClosureStepError(result.current.error, 'exit')).toBe(true);
     });
 
     it('does not sign out when the closure itself is refused', async () => {
@@ -232,6 +235,7 @@ describe('useDeleteAccount (mobile)', () => {
         await waitFor(() => expect(result.current.isError).toBe(true));
 
         expect(signOut).not.toHaveBeenCalled();
+        expect(isClosureStepError(result.current.error, 'close')).toBe(true);
     });
 });
 

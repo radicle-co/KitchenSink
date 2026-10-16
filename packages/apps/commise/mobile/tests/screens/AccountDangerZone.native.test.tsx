@@ -29,6 +29,7 @@ import { GoneError } from '@kitchensink/recipe-service-client';
 import { useAllOwnerRecipes } from '@kitchensink/recipe-service-client/hooks';
 import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
+import { ClosureStepError, type ClosureStep } from '@commise/features-account';
 import { accountDangerMessages } from '@commise/features-account/danger';
 import { profileMessages } from '@commise/features-account/profile';
 
@@ -103,11 +104,11 @@ function setRecipes(data: unknown[], state: { isLoading?: boolean; isError?: boo
 const { close, erase } = accountDangerMessages.en;
 const { account } = mobileMessages.en;
 
-function setDeleteAccount(state: { isPending?: boolean; isError?: boolean } = {}): void {
+function setDeleteAccount(state: { isPending?: boolean; failedAt?: ClosureStep } = {}): void {
     useDeleteAccountMock.mockReturnValue({
         mutate: deleteMutate,
         isPending: state.isPending ?? false,
-        isError: state.isError ?? false,
+        error: state.failedAt === undefined ? null : new ClosureStepError(state.failedAt, new Error('boom')),
     } as unknown as ReturnType<typeof useDeleteAccount>);
 }
 
@@ -180,7 +181,7 @@ describe.each([
     });
 
     it('paints the closure failure alert in dangerText', () => {
-        setDeleteAccount({ isError: true });
+        setDeleteAccount({ failedAt: 'close' });
         renderZone();
 
         expect(window.getComputedStyle(screen.getByRole('alert')).color).toBe(rgb(roles.dangerText));
@@ -207,6 +208,60 @@ describe('AccountDangerZone (native) — closing is busy-locked', () => {
     });
 });
 
+describe('AccountDangerZone (native) — the account IS closed but the sign-out failed (buildSpec §9.1)', () => {
+    it('turns the row into an inert "Account closed" fact, with no chevron and no way to close again', () => {
+        setDeleteAccount({ failedAt: 'exit' });
+        renderZone();
+
+        const row = screen.getByRole('button', { name: close.closedLabel });
+
+        expect(row.getAttribute('aria-disabled')).toBe('true');
+        expect(row.getAttribute('aria-busy')).not.toBe('true');
+        expect(screen.queryByRole('button', { name: close.trigger })).toBeNull();
+
+        fireEvent.click(row);
+
+        expect(screen.queryByText(/not permanent deletion/i)).toBeNull();
+        expect(deleteMutate).not.toHaveBeenCalled();
+    });
+
+    it('says the account is closed (never "we couldn’t close your account") and offers Sign out', () => {
+        setDeleteAccount({ failedAt: 'exit' });
+        renderZone();
+
+        expect(screen.getByRole('alert').textContent).toBe(close.signOutFailed);
+        expect(screen.queryByText(close.error)).toBeNull();
+        expect(screen.getByRole('button', { name: profileMessages.en.signOut })).toBeTruthy();
+    });
+
+    // `role="alert"` alone does not announce on iOS; only `LiveRegion` (an iOS announcement plus the Android live
+    // region) speaks it everywhere (SC 4.1.3).
+    it('speaks the alert assertively through a live region, so iOS announces it too', () => {
+        setDeleteAccount({ failedAt: 'exit' });
+        renderZone();
+
+        expect(screen.getByRole('alert').getAttribute('aria-live')).toBe('assertive');
+    });
+
+    it('speaks a FAILED close assertively too, and leaves the row idle so it can be retried', () => {
+        setDeleteAccount({ failedAt: 'close' });
+        renderZone();
+
+        expect(screen.getByRole('alert').getAttribute('aria-live')).toBe('assertive');
+        expect(screen.getByRole('button', { name: close.trigger })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: close.closedLabel })).toBeNull();
+        expect(screen.queryByRole('button', { name: profileMessages.en.signOut })).toBeNull();
+    });
+
+    it('paints the alert in dangerText', () => {
+        systemScheme.current = 'light';
+        setDeleteAccount({ failedAt: 'exit' });
+        renderZone();
+
+        expect(window.getComputedStyle(screen.getByRole('alert')).color).toBe(rgb(role.dangerText));
+    });
+});
+
 describe('AccountDangerZone (native) — close (recoverable)', () => {
     it('confirms closure with recoverable copy, not permanent deletion', () => {
         renderZone();
@@ -228,7 +283,7 @@ describe('AccountDangerZone (native) — close (recoverable)', () => {
     });
 
     it('reports a FAILED closure instead of stopping silently (B17)', () => {
-        setDeleteAccount({ isError: true });
+        setDeleteAccount({ failedAt: 'close' });
         renderZone();
 
         expect(screen.getByRole('alert').textContent).toBe(close.error);
@@ -381,6 +436,8 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
 
         const alert = await screen.findByRole('alert');
         expect(alert.textContent).toBe(account.eraseSignOutFailed);
+        // `role="alert"` alone is silent on iOS; the live region speaks it on both platforms (SC 4.1.3).
+        expect(alert.getAttribute('aria-live')).toBe('assertive');
         // The erasure DID succeed (202), so inviting a retry of it would be a lie.
         expect(screen.queryByText(erase.error)).toBeNull();
         // …and the raw error never reaches the viewer.

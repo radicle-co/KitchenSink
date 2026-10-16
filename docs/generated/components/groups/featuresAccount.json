@@ -6,11 +6,11 @@
     "coverage": {
         "components": 6,
         "implementations": 12,
-        "props": 76,
+        "props": 78,
         "documentedComponents": 6,
         "implementationsWithModuleDoc": 12,
         "implementationsWithComponentDoc": 10,
-        "documentedProps": 56,
+        "documentedProps": 58,
         "classifiedComponents": 4,
         "componentsWithPatternTag": 4,
         "crossPlatformComponents": 6
@@ -851,7 +851,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileRow.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileRow — a pressable Profile row (web): 56 px, the label, its value\ntruncated to one line, an optional hint, and a chevron when it opens something (`buildSpec.md` §9.1).\n\nOne control: the whole row is the button (or the link, when it has a destination), and its hint is inside it, so the\nconsequence of Close account is read with the name. The danger tone changes the TEXT colour only. Sign out is `ink`:\nit is not destructive. While busy the row stays focusable and cancels the press (`aria-busy`), the same rule as the\ndesign-system `Button` (SC 2.4.3).",
+                    "moduleDoc": "@commise/features-account/profile/ProfileRow — a pressable Profile row (web): 56 px, the label, its value\ntruncated to one line, an optional hint, and a chevron when it opens something (`buildSpec.md` §9.1).\n\nOne control: the whole row is the button (or the link, when it has a destination), and its hint is inside it, so the\nconsequence of Close account is read with the name. The danger tone changes the TEXT colour only. Sign out is `ink`:\nit is not destructive. While busy the row stays focusable and cancels the press (`aria-busy`), the same rule as the\ndesign-system `Button` (SC 2.4.3). An `inert` row (its action is done) does the same without `aria-busy`: nothing is\nin flight, so it announces disabled and ignores the press, and is not dimmed.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -913,6 +913,15 @@
                             "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
                         },
                         {
+                            "name": "inert",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The row's action is DONE and cannot run again (\"Account closed\"). Presses are ignored and it reads as disabled,\nbut it is not `busy` (nothing is in flight), not dimmed (it is a fact, not an unavailable control), and on web it\nstays focusable so focus is never dropped (SC 2.4.3). `busy` and `inert` never hold together.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
                             "name": "label",
                             "type": "string",
                             "typeDetail": null,
@@ -964,7 +973,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileRow.native.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileRow — a pressable Profile row (native): 56 pt, the label, its value\ntruncated to one line, an optional hint, and a chevron when it opens something (`buildSpec.md` §9.1).\n\nOne control: the whole row is the button, its hint inside it. The danger tone changes the TEXT colour only, and sign\nout is `ink`. Busy disables the row and exposes `busy` to a screen reader. Colour comes from the theme at render.\nThe web `href` is ignored: native has no URL for a row.\n\nPresentational: props → JSX, apart from one accessibility-focus adapter.",
+                    "moduleDoc": "@commise/features-account/profile/ProfileRow — a pressable Profile row (native): 56 pt, the label, its value\ntruncated to one line, an optional hint, and a chevron when it opens something (`buildSpec.md` §9.1).\n\nOne control: the whole row is the button, its hint inside it. The danger tone changes the TEXT colour only, and sign\nout is `ink`. Busy disables the row and exposes `busy` to a screen reader. Inert (its action is done) ignores the press and reads as\ndisabled, with no busy state and no dimming. Colour comes from the theme at render.\nThe web `href` is ignored: native has no URL for a row.\n\nPresentational: props → JSX, apart from one accessibility-focus adapter.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1023,6 +1032,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Web only: where a link row goes, so a modified click still works. Native ignores it.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "inert",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The row's action is DONE and cannot run again (\"Account closed\"). Presses are ignored and it reads as disabled,\nbut it is not `busy` (nothing is in flight), not dimmed (it is a fact, not an unavailable control), and on web it\nstays focusable so focus is never dropped (SC 2.4.3). `busy` and `inert` never hold together.",
                             "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
                         },
                         {

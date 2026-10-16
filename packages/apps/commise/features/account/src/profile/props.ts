@@ -36,6 +36,12 @@ export interface ProfileRowProps {
     readonly chevron: boolean;
     /** The row is mid-action: it cannot be pressed again and says so to assistive tech. */
     readonly busy?: boolean;
+    /**
+     * The row's action is DONE and cannot run again ("Account closed"). Presses are ignored and it reads as disabled,
+     * but it is not `busy` (nothing is in flight), not dimmed (it is a fact, not an unavailable control), and on web it
+     * stays focusable so focus is never dropped (SC 2.4.3). `busy` and `inert` never hold together.
+     */
+    readonly inert?: boolean;
     readonly onPress: () => void;
     /** Web only: where a link row goes, so a modified click still works. Native ignores it. */
     readonly href?: string;

@@ -230,6 +230,23 @@ describe('ProfileRow (native)', () => {
         expect(onPress).not.toHaveBeenCalled();
     });
 
+    // `inert` is a FACT ("this action is done"), not "in flight": presses are ignored and it reads as disabled, with no
+    // busy semantics (`buildSpec.md` §9.1).
+    it('cannot be pressed when inert, reads as disabled, and does not claim to be busy', async () => {
+        const onPress = vi.fn();
+
+        render(<ProfileRow {...row({ inert: true, onPress })} />);
+
+        const button = screen.getByRole('button');
+
+        expect(button.getAttribute('aria-disabled')).toBe('true');
+        expect(button.getAttribute('aria-busy')).not.toBe('true');
+
+        await userEvent.click(button, { pointerEventsCheck: 0 });
+
+        expect(onPress).not.toHaveBeenCalled();
+    });
+
     // §10 "Dialogs and sheets": focus returns to the trigger. A sheet this row opened cannot tell React Native where the
     // cursor was, so the host advances `focusSignal` when the sheet closes.
     it('takes the screen-reader cursor back when its focus signal advances, and not on mount', () => {

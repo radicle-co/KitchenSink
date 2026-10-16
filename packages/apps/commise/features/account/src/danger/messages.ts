@@ -26,6 +26,10 @@ export interface AccountCloseMessages {
     readonly busyLabel: string;
     /** Error shown when closing fails, so it never silently stops (B17). */
     readonly error: string;
+    /** The row's label once the account is closed but the sign-out failed (`buildSpec.md` §9.1). */
+    readonly closedLabel: string;
+    /** Alert under the group when the account IS closed and only the sign-out failed: never invites a second close. */
+    readonly signOutFailed: string;
 }
 
 /** Copy for account ERASURE — the IRREVERSIBLE action (GDPR erasure + Clerk delete; data destroyed). */
@@ -86,6 +90,9 @@ export const accountDangerMessages: LocalizedMessages<AccountDangerMessages> = {
             cancel: 'Cancel',
             busyLabel: 'Closing…',
             error: 'We couldn’t close your account. Please try again.',
+            closedLabel: 'Account closed',
+            signOutFailed:
+                'Your account is closed, but we couldn’t sign you out. Sign out to finish leaving this account.',
         },
         erase: {
             trigger: 'Erase my data',

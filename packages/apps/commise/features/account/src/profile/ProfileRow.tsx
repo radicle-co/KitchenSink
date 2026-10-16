@@ -7,7 +7,8 @@
  * One control: the whole row is the button (or the link, when it has a destination), and its hint is inside it, so the
  * consequence of Close account is read with the name. The danger tone changes the TEXT colour only. Sign out is `ink`:
  * it is not destructive. While busy the row stays focusable and cancels the press (`aria-busy`), the same rule as the
- * design-system `Button` (SC 2.4.3).
+ * design-system `Button` (SC 2.4.3). An `inert` row (its action is done) does the same without `aria-busy`: nothing is
+ * in flight, so it announces disabled and ignores the press, and is not dimmed.
  *
  * @pattern Visitor — an exhaustive pick of the element by whether the row has a destination
  */
@@ -26,7 +27,17 @@ const BOX =
 const TONE = { ink: 'text-ink', danger: 'text-danger-text' } as const;
 
 /** The pressable row. */
-export const ProfileRow: FC<ProfileRowProps> = ({ label, value, hint, tone, chevron, busy = false, onPress, href }) => {
+export const ProfileRow: FC<ProfileRowProps> = ({
+    label,
+    value,
+    hint,
+    tone,
+    chevron,
+    busy = false,
+    inert = false,
+    onPress,
+    href,
+}) => {
     const labelId = useId();
     const valueId = useId();
     const hintId = useId();
@@ -78,9 +89,9 @@ export const ProfileRow: FC<ProfileRowProps> = ({ label, value, hint, tone, chev
             type="button"
             {...naming}
             aria-busy={busy || undefined}
-            aria-disabled={busy || undefined}
+            aria-disabled={busy || inert || undefined}
             onClick={() => {
-                if (!busy) {
+                if (!busy && !inert) {
                     onPress();
                 }
             }}

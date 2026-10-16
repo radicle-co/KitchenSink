@@ -165,6 +165,28 @@ describe('ProfileRow (web)', () => {
         expect(onPress).not.toHaveBeenCalled();
     });
 
+    // `inert` is a FACT ("this action is done"), not "in flight": it ignores presses and says disabled, but it stays
+    // focusable (SC 2.4.3), carries no busy semantics, and is not dimmed (`buildSpec.md` §9.1).
+    it('cannot be pressed when inert, stays focusable, and does not claim to be busy or dimmed', async () => {
+        const onPress = vi.fn();
+
+        render(<ProfileRow {...row({ inert: true, onPress })} />);
+
+        const button = screen.getByRole('button');
+
+        expect(button.getAttribute('aria-disabled')).toBe('true');
+        expect(button.hasAttribute('disabled')).toBe(false);
+        expect(button.hasAttribute('aria-busy')).toBe(false);
+        expect(button.className).not.toContain('opacity');
+
+        button.focus();
+        expect(document.activeElement).toBe(button);
+
+        await userEvent.click(button);
+
+        expect(onPress).not.toHaveBeenCalled();
+    });
+
     it('is a link when it has a destination, and a plain click goes to onPress', async () => {
         const onPress = vi.fn();
 

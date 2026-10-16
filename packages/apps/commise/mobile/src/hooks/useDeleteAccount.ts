@@ -14,25 +14,20 @@
  * DA10-c: goes through the typed `ProfileServiceClient` from {@link useProfileServiceClient}; a mutation
  * accepts a cached token.
  *
- * @pattern Command — a TanStack mutation over the closure, then the verified sign-out
+ * @pattern Command — a TanStack mutation over the closure, then the verified sign-out, ordered by `useClosureSequence`
  */
-import { useMutation } from '@tanstack/react-query';
+import { useClosureSequence } from '@commise/features-account';
 
 import { useProfileServiceClient } from './useProfileServiceClient.js';
 import { useSignOutAndVerify } from './useSignOutAndVerify.js';
 
 /**
- * @returns The closure mutation.
+ * @returns The closure mutation; its `error` is a `ClosureStepError` naming the step that failed.
  * @sideEffect Closes the signed-in account, then ends the session and the device session.
  */
 export function useDeleteAccount() {
     const { signOutAndVerify } = useSignOutAndVerify();
     const client = useProfileServiceClient();
 
-    return useMutation({
-        mutationFn: async () => {
-            await client.deleteMe();
-            await signOutAndVerify();
-        },
-    });
+    return useClosureSequence({ close: () => client.deleteMe(), leave: signOutAndVerify });
 }

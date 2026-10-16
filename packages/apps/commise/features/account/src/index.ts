@@ -73,6 +73,8 @@ export {
 } from './erasure.js';
 export { ErasureStepError, isErasureStepError, useErasureSequence } from './erasureSequence.js';
 export type { ErasureStep, ErasureSteps, RecipeErasureInput } from './erasureSequence.js';
+export { ClosureStepError, isClosureStepError, useClosureSequence } from './closureSequence.js';
+export type { ClosureStep, ClosureSteps } from './closureSequence.js';
 export { SignOutNotVerifiedError, isSignOutNotVerifiedError, signOutAndVerify } from './session/signOutAndVerify.js';
 export type { SignOutClientStatus, SignOutVerificationClient } from './session/signOutAndVerify.js';
 export {

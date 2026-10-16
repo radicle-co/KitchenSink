@@ -16,8 +16,13 @@
  * `useSignOutAndLeave` — which awaits the revoke and only then
  * replaces the document (a router-level redirect re-renders the authenticated shell from a payload resolved
  * for the session that was just destroyed), and VERIFIES the session actually ended before doing so (B23: a
- * sign-out issued before clerk-js has loaded resolves without revoking anything). A failure to leave surfaces
- * in the same alert as a failure to close — by then the closure has been accepted, so it is never silent.
+ * sign-out issued before clerk-js has loaded resolves without revoking anything).
+ *
+ * **The two steps fail differently, and the surface says which (`buildSpec.md` §9.1).** A failed CLOSE leaves the
+ * account open: the row goes back to idle and `close.error` invites a retry. A failed EXIT means the account IS
+ * closed: the row becomes an inert "Account closed" fact (pressing it again would call `deleteMe` on a closed
+ * account), and `close.signOutFailed` plus the ordinary {@link LogoutButton} are the only way forward, exactly the
+ * erase recovery. The ban the closure enqueues revokes sessions, so this failure is expected, not rare.
  *
  * ⚠️ It is ORCHESTRATION, which a button plus a dialog does not look like: the account-closing call and the
  * verified sign-out both live inside one handler, and the render body is three elements. Its sibling
@@ -25,59 +30,67 @@
  * on one surface, and a reader who classified one of them as a leaf would put the next write in the wrong
  * place.
  *
- * @pattern Command over the closure sequence — `deleteMe` then the load-safe, VERIFIED sign-out, issued as
- *     one transition so a closed account can never be left holding a live session.
+ * @pattern Command over the closure sequence — `deleteMe` then the load-safe, VERIFIED sign-out, issued as one
+ *     mutation (`useClosureSequence`) that runs to completion after unmount, so a closed account can never be left
+ *     holding a live session.
  */
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { useMessages } from '@commise/i18n/react';
+import { isClosureStepError, useClosureSequence } from '@commise/features-account';
 import { accountDangerMessages } from '@commise/features-account/danger';
 import { ProfileRow } from '@commise/features-account/profile';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 
 import { createProfileServiceClient } from '@/lib/identityServiceClient';
+import { LogoutButton } from '@/components/auth/LogoutButton';
 import { useSignOutAndLeave } from '@/components/auth/useSignOutAndLeave';
 
 export function AccountCloseForm() {
     const { close } = useMessages(accountDangerMessages);
     const { getToken } = useAuth();
     const [open, setOpen] = useState(false);
-    const [isPending, startTransition] = useTransition();
-    const [error, setError] = useState<string | null>(null);
     const { signOutAndLeave } = useSignOutAndLeave();
+
+    const sequence = useClosureSequence({
+        // The token is minted when the request is sent: a session token lives about a minute, so one captured at
+        // render would be stale for a cook who read the page first.
+        close: async () => createProfileServiceClient(async () => (await getToken()) ?? '').deleteMe(),
+        leave: signOutAndLeave,
+    });
+    // The account is closed and only leaving failed: the row is a fact now, not an action.
+    const closed = isClosureStepError(sequence.error, 'exit');
+    // B17 — never fail silently. Generic on purpose: the raw error is never echoed to the UI.
+    const closeFailed = isClosureStepError(sequence.error, 'close');
 
     const handleConfirm = () => {
         setOpen(false);
-        setError(null);
-
-        startTransition(async () => {
-            try {
-                // The token is minted when the request is sent: a session token lives about a minute, so one
-                // captured at render would be stale for a cook who read the page first.
-                await createProfileServiceClient(async () => (await getToken()) ?? '').deleteMe();
-                await signOutAndLeave();
-            } catch {
-                // B17 — never fail silently: surface the failure instead of leaving the viewer signed in with
-                // no feedback. The message is intentionally generic (never echoes the raw error to the UI).
-                setError(close.error);
-            }
-        });
+        sequence.mutate();
     };
 
     return (
         <>
             <ProfileRow
-                label={isPending ? close.busyLabel : close.trigger}
+                label={closed ? close.closedLabel : sequence.isPending ? close.busyLabel : close.trigger}
                 hint={close.rowHint}
                 tone="danger"
-                chevron
-                busy={isPending}
+                chevron={!closed}
+                busy={sequence.isPending}
+                inert={closed}
                 onPress={() => setOpen(true)}
             />
-            {error && (
+            {closeFailed && (
                 <p role="alert" className="px-4 pb-3 text-meta text-danger-text">
-                    {error}
+                    {close.error}
                 </p>
+            )}
+            {closed && (
+                <>
+                    <p role="alert" className="px-4 pb-3 text-meta text-danger-text">
+                        {close.signOutFailed}
+                    </p>
+                    <LogoutButton />
+                </>
             )}
             <ConfirmDialog
                 open={open}

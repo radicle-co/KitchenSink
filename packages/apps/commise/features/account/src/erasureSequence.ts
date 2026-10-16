@@ -20,6 +20,8 @@
  */
 import { useMutation, type UseMutationResult } from '@tanstack/react-query';
 
+import { runSequenceStep, SequenceStepError } from './sequenceStep.js';
+
 /** The recipe-service erasure request the first step sends. */
 export interface RecipeErasureInput {
     /** The phrase the viewer typed (already gated by `confirmsErasurePhrase`; the server re-validates it). */
@@ -47,13 +49,10 @@ export interface ErasureSteps {
 }
 
 /** A step of the erasure sequence failed. Carries the step and the original failure as `cause`. */
-export class ErasureStepError extends Error {
-    public readonly step: ErasureStep;
-
+export class ErasureStepError extends SequenceStepError<ErasureStep> {
     public constructor(step: ErasureStep, cause: unknown) {
-        super(`account erasure failed at step "${step}"`, { cause });
+        super(`account erasure failed at step "${step}"`, step, cause);
         this.name = 'ErasureStepError';
-        this.step = step;
         Object.setPrototypeOf(this, ErasureStepError.prototype);
     }
 }
@@ -63,13 +62,8 @@ export function isErasureStepError(error: unknown, step: ErasureStep): error is 
     return error instanceof ErasureStepError && error.step === step;
 }
 
-async function runStep<T>(step: ErasureStep, run: () => Promise<T>): Promise<T> {
-    try {
-        return await run();
-    } catch (cause) {
-        throw new ErasureStepError(step, cause);
-    }
-}
+const runStep = <T>(step: ErasureStep, run: () => Promise<T>): Promise<T> =>
+    runSequenceStep(step, run, (failed, cause) => new ErasureStepError(failed, cause));
 
 /**
  * Run the erasure sequence as one mutation: recipes, then account, then sign-out and leave. A failing step stops

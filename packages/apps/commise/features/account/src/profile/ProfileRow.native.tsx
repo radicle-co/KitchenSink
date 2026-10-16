@@ -3,7 +3,8 @@
  * truncated to one line, an optional hint, and a chevron when it opens something (`buildSpec.md` §9.1).
  *
  * One control: the whole row is the button, its hint inside it. The danger tone changes the TEXT colour only, and sign
- * out is `ink`. Busy disables the row and exposes `busy` to a screen reader. Colour comes from the theme at render.
+ * out is `ink`. Busy disables the row and exposes `busy` to a screen reader. Inert (its action is done) ignores the press and reads as
+ * disabled, with no busy state and no dimming. Colour comes from the theme at render.
  * The web `href` is ignored: native has no URL for a row.
  *
  * Presentational: props → JSX, apart from one accessibility-focus adapter.
@@ -28,6 +29,7 @@ export const ProfileRow: FC<ProfileRowProps> = ({
     tone,
     chevron,
     busy = false,
+    inert = false,
     onPress,
     focusSignal = 0,
 }) => {
@@ -44,7 +46,7 @@ export const ProfileRow: FC<ProfileRowProps> = ({
             accessibilityHint={[value, hint].filter((part) => part !== undefined).join('. ') || undefined}
             accessibilityState={{ busy }}
             aria-busy={busy}
-            disabled={busy}
+            disabled={busy || inert}
             onPress={onPress}
             style={({ pressed }) => [styles.row, pressed ? { backgroundColor: wash } : null]}
         >

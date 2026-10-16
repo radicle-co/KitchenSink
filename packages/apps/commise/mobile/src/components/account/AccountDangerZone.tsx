@@ -24,24 +24,33 @@
  * (dead) dialog and surfaces a distinct alert plus {@link SignOutButton} as the recovery. That copy is
  * deliberately NOT the dialog's `submitError`: the erasure has ALREADY succeeded server-side (202) by then, so
  * inviting a retry of it would be a lie — the only outstanding action is leaving the session. A failed CLOSURE
- * likewise now reports `close.error` instead of stopping with no feedback.
+ * likewise reports itself, and says WHICH step failed: `close.error` when the account is still open, but when only the
+ * exit failed the row becomes an inert "Account closed" and `close.signOutFailed` plus {@link SignOutButton} take over,
+ * never inviting a second close of a closed account. Both alerts are assertive `LiveRegion`s, because React Native's
+ * `role="alert"` does not announce on iOS.
  *
  * @pattern Orchestration half of the orchestration/render split for both danger actions — it owns the recipe fetch
  *     and the close and erasure Commands, and hands each to the shared cross-platform render half.
  */
 import { useMessages } from '@commise/i18n/react';
-import { isErasureStepError, selectDonatableRecipes, useErasureSequence } from '@commise/features-account';
+import {
+    isClosureStepError,
+    isErasureStepError,
+    selectDonatableRecipes,
+    useErasureSequence,
+} from '@commise/features-account';
 import { AccountEraseDialog, accountDangerMessages } from '@commise/features-account/danger';
 import { useEraseAccount } from '../../hooks/useEraseAccount.js';
 import { ProfileGroup, ProfileRow, profileMessages } from '@commise/features-account/profile';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
+import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { isGoneError } from '@kitchensink/recipe-service-client';
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useSignOutAndVerify } from '../../hooks/useSignOutAndVerify.js';
 import { useDeleteAccount } from '../../hooks/useDeleteAccount.js';
@@ -147,6 +156,9 @@ export function AccountDangerZone(): JSX.Element {
     const profile = useMessages(profileMessages);
     const { colors } = useTheme();
     const deleteAccount = useDeleteAccount();
+    // The account is closed and only leaving failed: the row is a fact now, not an action (`buildSpec.md` §9.1).
+    const closed = isClosureStepError(deleteAccount.error, 'exit');
+    const closeFailed = isClosureStepError(deleteAccount.error, 'close');
     const [closeOpen, setCloseOpen] = useState(false);
     const [eraseOpen, setEraseOpen] = useState(false);
     const [eraseExitFailed, setEraseExitFailed] = useState(false);
@@ -166,11 +178,12 @@ export function AccountDangerZone(): JSX.Element {
                 {/* Recoverable closure. Its `busy` state disables the row while in flight, so an in-progress closure
                     cannot be double-fired, and the label says so. */}
                 <ProfileRow
-                    label={deleteAccount.isPending ? close.busyLabel : close.trigger}
+                    label={closed ? close.closedLabel : deleteAccount.isPending ? close.busyLabel : close.trigger}
                     hint={close.rowHint}
                     tone="danger"
-                    chevron
+                    chevron={!closed}
                     busy={deleteAccount.isPending}
+                    inert={closed}
                     onPress={() => setCloseOpen(true)}
                 />
                 {/* Irreversible erasure. It opens the phrase-gated dialog; the erasure's own in-flight state belongs to
@@ -183,10 +196,16 @@ export function AccountDangerZone(): JSX.Element {
                     onPress={() => setEraseOpen(true)}
                 />
             </ProfileGroup>
-            {deleteAccount.isError ? (
-                <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
-                    {close.error}
-                </Text>
+            {/* Mounted BEFORE there is anything to say, because Android speaks a CHANGE to a live region it already
+                holds. Assertive, because React Native's `role="alert"` does not announce on iOS. A failed close and a
+                failed exit say different things: the account is still open, or it IS closed. */}
+            <LiveRegion politeness="assertive" style={[styles.error, { color: colors.dangerText }]}>
+                {closed ? close.signOutFailed : closeFailed ? close.error : ''}
+            </LiveRegion>
+            {closed ? (
+                <ProfileGroup label={profile.signOut}>
+                    <SignOutButton />
+                </ProfileGroup>
             ) : null}
 
             <ConfirmDialog
@@ -206,15 +225,13 @@ export function AccountDangerZone(): JSX.Element {
 
             {/* The erasure SUCCEEDED; only leaving failed. The copy says exactly that, and the recovery is the
                 sign-out control — never a prompt to retry an erasure that already happened. */}
+            <LiveRegion politeness="assertive" style={[styles.error, { color: colors.dangerText }]}>
+                {eraseExitFailed ? account.eraseSignOutFailed : ''}
+            </LiveRegion>
             {eraseExitFailed ? (
-                <>
-                    <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
-                        {account.eraseSignOutFailed}
-                    </Text>
-                    <ProfileGroup label={profile.signOut}>
-                        <SignOutButton />
-                    </ProfileGroup>
-                </>
+                <ProfileGroup label={profile.signOut}>
+                    <SignOutButton />
+                </ProfileGroup>
             ) : null}
         </View>
     );

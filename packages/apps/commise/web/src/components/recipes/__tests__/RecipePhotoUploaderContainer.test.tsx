@@ -21,30 +21,49 @@
  * reorders, so the lowest-sort-order cover rule is untouched), and Replace at the photo cap refuses with
  * actionable copy instead of destroying the original for a swap that cannot land.
  *
- * `useRecipePhotos` / `useDeleteRecipePhoto` (network/query hooks) and `useRecipePhotoUpload` (the
- * presign→PUT→confirm orchestration) are replaced with lightweight doubles — this container's own
- * responsibility is the DOM wiring around them, not re-proving their internals (covered where they're
- * defined). The real `useRecipePhotoUploadQueue` is used un-mocked so the queued→uploading→ok lifecycle the
- * cleanup effect reacts to is authentic, not asserted-via-mock.
+ * The generated client's hooks (`useRecipePhotos`, `useDeleteRecipePhoto`, `useReorderRecipePhotos` and the presign /
+ * confirm mutations) are doubled at `@kitchensink/recipe-service-client/hooks` — the package boundary, never another
+ * workspace's internal path. The REAL `useRecipePhotoUpload` and `useRecipePhotoUploadQueue` run on top, so the
+ * queued→uploading→ok/failed lifecycle the cleanup effect reacts to is authentic, not asserted-via-mock.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RecipePhotoUploadOutcome } from '@commise/features-recipes/hooks';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useCallback, useState } from 'react';
 
-const { photosQueryMock, deletePhotoMock, reorderPhotoMock, uploadState } = vi.hoisted(() => ({
-    photosQueryMock: vi.fn(),
-    deletePhotoMock: vi.fn(),
-    reorderPhotoMock: vi.fn(),
-    // Per-test knobs for the fake `useRecipePhotoUpload` below: `stuck` flips `uploading: true` and never
-    // resolves (a file still mid-flight when the container unmounts / while a swap must stay uncommitted);
-    // `fail` settles the upload with an error message (the queue then marks that file `failed`).
-    uploadState: { stuck: false, fail: false },
-}));
+const {
+    photosQueryMock,
+    deletePhotoMock,
+    reorderPhotoMock,
+    uploadState,
+    createUploadUrlMutation,
+    confirmUploadMutation,
+} = vi.hoisted(() => {
+    // Per-test knobs for the doubled presign mutation: `stuck` never settles (a file still mid-flight when the
+    // container unmounts / while a swap must stay uncommitted); `fail` rejects it (the REAL upload hook turns
+    // that into a `failed` verdict, so the queue marks the file `failed`).
+    const state = { stuck: false, fail: false };
 
-/** The localized upload error the fake uploader settles with when `uploadState.fail` is set. */
-const UPLOAD_FAILED_MESSAGE = 'We couldn’t upload your photo. Please try again.';
+    return {
+        photosQueryMock: vi.fn(),
+        deletePhotoMock: vi.fn(),
+        reorderPhotoMock: vi.fn(),
+        uploadState: state,
+        createUploadUrlMutation: {
+            mutateAsync: async (): Promise<{ uploadUrl: string; key: string }> => {
+                if (state.stuck) {
+                    return new Promise<{ uploadUrl: string; key: string }>(() => undefined);
+                }
+
+                if (state.fail) {
+                    throw new Error('presign refused');
+                }
+
+                return { uploadUrl: 'https://s3.example/put', key: 'k1' };
+            },
+        },
+        confirmUploadMutation: { mutateAsync: async (): Promise<undefined> => undefined },
+    };
+});
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
@@ -52,48 +71,11 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useRecipePhotos: photosQueryMock,
     useDeleteRecipePhoto: deletePhotoMock,
     useReorderRecipePhotos: reorderPhotoMock,
+    // The REAL `useRecipePhotoUpload` runs on these two mutations (presign, confirm), so the queue is driven by an
+    // authentic upload lifecycle. Stable objects, as TanStack's `useMutation` result is stable across renders.
+    useCreatePhotoUploadUrl: () => createUploadUrlMutation,
+    useConfirmPhotoUpload: () => confirmUploadMutation,
 }));
-
-// Doubled at the MODULE that defines it: `useRecipePhotoManager` composes the real queue over `useRecipePhotoUpload`
-// from inside the features package, so a double on the package's barrel would never reach it.
-vi.mock('../../../../../features/recipes/src/hooks/useRecipePhotoUpload.js', () => {
-    return {
-        // A minimal but REAL (stateful) stand-in for the single-flight upload hook, so the real
-        // `useRecipePhotoUploadQueue` composed on top of it drives an authentic queued→uploading→ok/stuck
-        // lifecycle instead of a hand-asserted mock sequence.
-        useRecipePhotoUpload: () => {
-            const [state, setState] = useState<{ uploading: boolean; errorMessage: string | undefined }>({
-                uploading: false,
-                errorMessage: undefined,
-            });
-
-            // ⚠️ RESOLVES A VERDICT, because that is `upload`'s contract: the queue reads the returned
-            // `RecipePhotoUploadOutcome` rather than watching `uploading` fall and consulting `errorMessage`.
-            // The `setState` calls are KEPT even though the queue does not read them — three leaves render
-            // `uploader.uploading`, and this fake is what exercises that display path.
-            //
-            // ⚠️ `stuck` is a promise that never settles: with the verdict awaited, an unresolved promise is
-            // what keeps the item pending.
-            const upload = useCallback(async (): Promise<RecipePhotoUploadOutcome> => {
-                setState({ uploading: true, errorMessage: undefined });
-
-                if (uploadState.stuck) {
-                    return new Promise<RecipePhotoUploadOutcome>(() => undefined);
-                }
-
-                await Promise.resolve();
-                setState({
-                    uploading: false,
-                    errorMessage: uploadState.fail ? UPLOAD_FAILED_MESSAGE : undefined,
-                });
-
-                return uploadState.fail ? { status: 'failed', errorMessage: UPLOAD_FAILED_MESSAGE } : { status: 'ok' };
-            }, []);
-
-            return { ...state, upload };
-        },
-    };
-});
 
 const { RecipePhotoUploaderContainer } = await import('../RecipePhotoUploaderContainer.js');
 
@@ -111,6 +93,8 @@ beforeEach(() => {
     (URL as unknown as { createObjectURL: typeof createObjectURL }).createObjectURL = createObjectURL;
     (URL as unknown as { revokeObjectURL: typeof revokeObjectURL }).revokeObjectURL = revokeObjectURL;
 
+    // The real upload hook PUTs the file to the presigned URL between presign and confirm.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200 }));
     uploadState.stuck = false;
     uploadState.fail = false;
     photosQueryMock.mockReset().mockReturnValue({ data: [] });
@@ -126,6 +110,7 @@ const threeConfirmedPhotos = [
 
 afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
 });
 

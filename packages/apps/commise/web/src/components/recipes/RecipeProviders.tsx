@@ -2,7 +2,7 @@
 
 /**
  * Client provider tree for the recipe feature: a TanStack Query `QueryClientProvider` plus the
- * `RecipeServiceProvider` that hands a configured {@link RecipeServiceClient} to every recipe hook
+ * `RecipeServiceProvider` that hands a configured `RecipeServiceClient` to every recipe hook
  * (`useRecipes`, `useRecipe`, …). Mounted once inside `[locale]/layout.tsx` (within `ClerkProvider`, so
  * `useAuth` has its context), so all recipe routes share one query cache and one authenticated client.
  *

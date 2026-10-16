@@ -4,13 +4,13 @@
     "packageName": "@commise/mobile",
     "layer": "app",
     "coverage": {
-        "components": 58,
-        "implementations": 58,
-        "props": 162,
-        "documentedComponents": 57,
-        "implementationsWithModuleDoc": 56,
-        "implementationsWithComponentDoc": 43,
-        "documentedProps": 154,
+        "components": 57,
+        "implementations": 57,
+        "props": 160,
+        "documentedComponents": 56,
+        "implementationsWithModuleDoc": 55,
+        "implementationsWithComponentDoc": 42,
+        "documentedProps": 152,
         "classifiedComponents": 36,
         "componentsWithPatternTag": 24,
         "crossPlatformComponents": 0
@@ -2234,71 +2234,6 @@
             ]
         },
         {
-            "id": "mobile/components/IngredientStatusPoller",
-            "name": "IngredientStatusPoller",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/components",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "IngredientStatusPoller",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/components/IngredientStatusPoller.tsx",
-                    "dir": "packages/apps/commise/mobile/src/components",
-                    "moduleDoc": "Headless poll-after-add for one food-backed ingredient line (mobile, data-model R5 / FR-007). When the\neditor adds a line that came back `PENDING` (nutrition still resolving), it renders ONE of these per pending\nline: it drives `useIngredientStatus` (self-limiting — it refetches only while the food is `PENDING` and\nstops the instant a terminal/`RESOLVED`/`UNRESOLVED` state arrives) and reports every observed status back\nup via `onStatus`, so the editor can flip the line's badge from `PENDING` to `RESOLVED` (or surface\n`UNRESOLVED` / a terminal state).\n\nIt renders nothing — the visible status lives on the shared form's per-line badge. The editor makes\n`onStatus` idempotent (via `settleIngredientLine`, which no-ops an unchanged answer) so the repeated\ncallback cannot loop, and unmounts this poller once the line leaves `PENDING` (which also stops the query).",
-                    "moduleTags": [],
-                    "description": "Poll one pending food-backed line to resolution.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The line's ingredient id + the status-report callback."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "Nothing (headless) — the line's badge is rendered by the form."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "ingredientId",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The binding of the pending line to poll.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/IngredientStatusPoller.tsx"
-                        },
-                        {
-                            "name": "onStatus",
-                            "type": "(polledId: string, observed: ObservedIngredientStatus) => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Called with the polled id and what the poll observed — the binding the server answered with (a different id once\nthe line settled, plan 002) and its status. Must be idempotent.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/IngredientStatusPoller.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "mobile/components/LoadingState",
             "name": "LoadingState",
             "group": "mobile",
@@ -3267,7 +3202,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/providers/RecipeServiceGate.tsx",
                     "dir": "packages/apps/commise/mobile/src/providers",
-                    "moduleDoc": "Provides a configured {@link RecipeServiceClient} to the recipe-service query hooks. Constructs the\nclient from the mobile API origin (`EXPO_PUBLIC_RECIPE_API_URL`) and a Clerk-backed token source, then mounts\n`RecipeServiceProvider`. Mount inside both `ClerkProvider` (for `useAuth`) and `QueryClientProvider`\n(the hooks own no query client of their own).\n\nToken attach: the client re-reads the Clerk session token per request, and passes `forceRefresh` through\nto the session's `getToken({ skipCache })` on any 401 retry it drives internally — the first-token\nidentity-sync-pending backoff, AND (B22) a bounded single retry after an ordinary expired-token 401 — so a token that\nexpired while backgrounded gets one chance to self-heal before the request fails.\n\n⚠️ DELIBERATE — ADR-0054. Both clients are built per COOK (the memo is keyed on `userId`), mint from the LIVE session\nof the one `useClerk()` instance, and go through `subjectBoundToken`, which mints only for the cook the client was\nbuilt for. `@clerk/expo`'s `useAuth().getToken` is a new function on every render, so clients keyed on it were rebuilt\non every render; its offline JWT cache runs only for a call with no options, and every call here passes the template,\nso minting from the session directly loses nothing.\n\n⚠️ The name promises a conditional render and there is none — it renders `children` unconditionally, so\n\"does it choose a subtree?\" answers no and a reader can land on the render half. It is ORCHESTRATION: it\nreads the Clerk session and binds it to the recipe client every hook in the subtree calls through, which\nis the authorization seam for every recipe request the app makes.",
+                    "moduleDoc": "Provides a configured `RecipeServiceClient` to the recipe-service query hooks. Constructs the\nclient from the mobile API origin (`EXPO_PUBLIC_RECIPE_API_URL`) and a Clerk-backed token source, then mounts\n`RecipeServiceProvider`. Mount inside both `ClerkProvider` (for `useAuth`) and `QueryClientProvider`\n(the hooks own no query client of their own).\n\nToken attach: the client re-reads the Clerk session token per request, and passes `forceRefresh` through\nto the session's `getToken({ skipCache })` on any 401 retry it drives internally — the first-token\nidentity-sync-pending backoff, AND (B22) a bounded single retry after an ordinary expired-token 401 — so a token that\nexpired while backgrounded gets one chance to self-heal before the request fails.\n\n⚠️ DELIBERATE — ADR-0054. Both clients are built per COOK (the memo is keyed on `userId`), mint from the LIVE session\nof the one `useClerk()` instance, and go through `subjectBoundToken`, which mints only for the cook the client was\nbuilt for. `@clerk/expo`'s `useAuth().getToken` is a new function on every render, so clients keyed on it were rebuilt\non every render; its offline JWT cache runs only for a call with no options, and every call here passes the template,\nso minting from the session directly loses nothing.\n\n⚠️ The name promises a conditional render and there is none — it renders `children` unconditionally, so\n\"does it choose a subtree?\" answers no and a reader can land on the render half. It is ORCHESTRATION: it\nreads the Clerk session and binds it to the recipe client every hook in the subtree calls through, which\nis the authorization seam for every recipe request the app makes.",
                     "moduleTags": [
                         {
                             "name": "pattern",

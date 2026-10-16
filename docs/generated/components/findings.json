@@ -6,10 +6,10 @@
         "cross-platform-props-diverge": 16,
         "missing-component-doc": 149,
         "missing-module-doc": 21,
-        "platform-singleton": 47,
+        "platform-singleton": 49,
         "ref-api": 13,
         "unclassified-layer": 98,
-        "undocumented-prop": 167
+        "undocumented-prop": 168
     },
     "findings": [
         {
@@ -2364,6 +2364,24 @@
             ]
         },
         {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/editor/IngredientStatusPoller",
+            "sourcePath": "packages/apps/commise/features/recipes/src/editor/IngredientStatusPoller.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "featuresRecipes/editor/IngredientStatusPoller",
+            "sourcePath": "packages/apps/commise/features/recipes/src/editor/IngredientStatusPoller.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
             "rule": "undocumented-prop",
             "severity": "gap",
             "component": "featuresRecipes/editor/PublishLine",
@@ -2381,6 +2399,34 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "line"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/editor/RecipeEditorSurface",
+            "sourcePath": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "featuresRecipes/editor/RecipeEditorSurface",
+            "sourcePath": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/editor/RecipeEditorSurface",
+            "sourcePath": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "mode"
             ]
         },
         {
@@ -4487,14 +4533,6 @@
             "evidence": []
         },
         {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "web/components/recipes/IngredientStatusPoller",
-            "sourcePath": "packages/apps/commise/web/src/components/recipes/IngredientStatusPoller.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
             "rule": "missing-component-doc",
             "severity": "gap",
             "component": "web/components/recipes/RecipeDetailRouteLoading",
@@ -4727,14 +4765,6 @@
             "severity": "gap",
             "component": "mobile/components/ImpersonationWarning",
             "sourcePath": "packages/apps/commise/mobile/src/components/ImpersonationWarning.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "mobile/components/IngredientStatusPoller",
-            "sourcePath": "packages/apps/commise/mobile/src/components/IngredientStatusPoller.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
         },

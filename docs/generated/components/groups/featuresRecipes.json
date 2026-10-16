@@ -4,15 +4,15 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 135,
-        "implementations": 241,
-        "props": 1169,
-        "documentedComponents": 135,
-        "implementationsWithModuleDoc": 241,
-        "implementationsWithComponentDoc": 141,
-        "documentedProps": 913,
+        "components": 137,
+        "implementations": 243,
+        "props": 1181,
+        "documentedComponents": 137,
+        "implementationsWithModuleDoc": 243,
+        "implementationsWithComponentDoc": 143,
+        "documentedProps": 924,
         "classifiedComponents": 117,
-        "componentsWithPatternTag": 61,
+        "componentsWithPatternTag": 62,
         "crossPlatformComponents": 106
     },
     "components": [
@@ -11352,6 +11352,71 @@
             ]
         },
         {
+            "id": "featuresRecipes/editor/IngredientStatusPoller",
+            "name": "IngredientStatusPoller",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/editor",
+            "kind": "unclassified",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "IngredientStatusPoller",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/editor/IngredientStatusPoller.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/editor",
+                    "moduleDoc": "Headless poll-after-add for one food-backed ingredient line (data-model R5 / FR-007), for both apps. When the picker\nadds a line that came back `PENDING` (nutrition still resolving), the editor renders ONE of these per pending line:\nit drives `useIngredientStatus` (which self-limits — it refetches only while the food is `PENDING` and stops the\ninstant a terminal/`RESOLVED`/`UNRESOLVED` state arrives) and reports every observed status back up via `onStatus`,\nso the editor can flip the line's badge from `PENDING` to `RESOLVED` (or surface `UNRESOLVED` for disambiguation, or\na terminal state).\n\nIt renders nothing — the visible status lives on the form's own per-line badge. The editor makes `onStatus`\nidempotent (`settleIngredientLine` no-ops an unchanged answer) so the repeated callback cannot loop, and unmounts this\npoller once the line leaves `PENDING` (which also stops the query).",
+                    "moduleTags": [],
+                    "description": "Poll one pending food-backed line to resolution.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The line's ingredient id + the status-report callback."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "Nothing (headless) — the line's badge is rendered by the form."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "ingredientId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The binding of the pending line to poll.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/IngredientStatusPoller.tsx"
+                        },
+                        {
+                            "name": "onStatus",
+                            "type": "(polledId: string, observed: ObservedIngredientStatus) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Called with the polled id and what the poll observed — the binding the server answered with (a different id once\nthe line settled, plan 002) and its status. Must be idempotent.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/IngredientStatusPoller.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/editor/PublishLine",
             "name": "PublishLine",
             "group": "featuresRecipes",
@@ -11451,6 +11516,162 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/editor/RecipeEditorSurface",
+            "name": "RecipeEditorSurface",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/editor",
+            "kind": "unclassified",
+            "patterns": [
+                "Composition — the editor's leaves arranged over one session; the app supplies the one leaf that differs"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeEditorSurface",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/editor",
+                    "moduleDoc": "What both apps' editor screens draw over a {@link RecipeEditorSession}: the section map (each section's real leaves),\nthe Ingredients status pollers, the heading actions (Paste a list, Paste steps), the rail foot, and the preview, upsell\nand make-public sheets. The web `RecipeEditorContainer` and the native `RecipeEditorScreen` each carried this JSX\nline for line (UI audit 10); every leaf it uses is already a web/native pair, so this one file serves both.\n\nWhat stays in the app, and why:\n- how the editor is SEEDED and where its URL or route goes: the web reads `?draft=`, `?fresh=` and `#section`, and\n  redirects a recipe the server holds; a phone has no URL, so a new recipe's draft is found again only within the\n  session that made it (ADR-0057, blueprint A4). That is a platform difference, not drift;\n- the photo uploader ({@link RecipeEditorSurfaceProps.renderPhotos}), which each app wires to its own picker;\n- the navigation port, the profile read and the error reporter, which are the session's inputs.\n\n⚠️ The uploader is asked for only once the recipe exists on the server (its first checkpoint, which needs a title):\nthe upload takes a recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Composition — the editor's leaves arranged over one session; the app supplies the one leaf that differs"
+                        }
+                    ],
+                    "description": "The editor page over its session.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "initialSection",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"ingredients\"",
+                                "\"steps\"",
+                                "\"details\"",
+                                "\"photos\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The section a deep link names, jumped to once on mount (blueprint A16).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
+                            "name": "keep",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"disk\"",
+                                "\"tabSession\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Where the device draft is kept: `tabSession` on web (D7), `disk` on mobile.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
+                            "name": "knownPaidFeatures",
+                            "type": "enum",
+                            "typeDetail": [
+                                "undefined",
+                                "\"hidden\"",
+                                "\"granted\"",
+                                "\"upsell\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The profile's own answer, for what will be SENT (`knownPaidFeaturesOf`); never the display's fail-closed `hidden`.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
+                            "name": "mode",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"create\"",
+                                "\"edit\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
+                            "name": "onClose",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Leave the editor (×). The session has already checkpointed the exit.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
+                            "name": "onOpenMyRecipes",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "\"Check My recipes\": from an unknown create's alert, and after a Discard.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
+                            "name": "paidFeatures",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"hidden\"",
+                                "\"loading\"",
+                                "\"granted\"",
+                                "\"upsell\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The viewer's paid-feature state, for what is SHOWN (`paidFeatureStateOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
+                            "name": "renderPhotos",
+                            "type": "(target: PhotoUploaderTarget) => ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The app's photo uploader. Called only once the recipe exists on the server.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
+                            "name": "seed",
+                            "type": "EditorSeed",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the editor was seeded from: the saved visibility is the recipe's, a new recipe's is public.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
+                            "name": "session",
+                            "type": "RecipeEditorSession",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The session the container mounted (`useRecipeEditorSession`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
                         "orchestration": false
                     }
                 }

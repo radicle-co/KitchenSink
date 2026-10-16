@@ -4,13 +4,13 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 85,
-        "implementations": 85,
-        "props": 103,
-        "documentedComponents": 82,
-        "implementationsWithModuleDoc": 66,
-        "implementationsWithComponentDoc": 61,
-        "documentedProps": 69,
+        "components": 84,
+        "implementations": 84,
+        "props": 101,
+        "documentedComponents": 81,
+        "implementationsWithModuleDoc": 65,
+        "implementationsWithComponentDoc": 60,
+        "documentedProps": 67,
         "classifiedComponents": 36,
         "componentsWithPatternTag": 27,
         "crossPlatformComponents": 0
@@ -3970,71 +3970,6 @@
             ]
         },
         {
-            "id": "web/components/recipes/IngredientStatusPoller",
-            "name": "IngredientStatusPoller",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "IngredientStatusPoller",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/recipes/IngredientStatusPoller.tsx",
-                    "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Headless poll-after-add for one food-backed ingredient line (data-model R5 / FR-007). When the picker adds\na line that came back `PENDING` (nutrition still resolving), the composing create/edit container renders\nONE of these per pending line: it drives `useIngredientStatus` (which self-limits — it refetches only while\nthe food is `PENDING` and stops the instant a terminal/`RESOLVED`/`UNRESOLVED` state arrives) and reports\nevery observed status back up via `onStatus`, so the container can flip the line's badge from `PENDING` to\n`RESOLVED` (or surface `UNRESOLVED` for disambiguation, or a terminal state).\n\nIt renders nothing — the visible status lives on the form's own per-line badge. The container is\nresponsible for making `onStatus` idempotent (only patch the line when the status actually changed) so the\nrepeated callback fires cannot loop, and for unmounting this poller once the line is no longer `PENDING`\n(which also stops the query).",
-                    "moduleTags": [],
-                    "description": "Poll one pending food-backed line to resolution.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The line's ingredient id + the status-report callback."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "Nothing (headless) — the line's badge is rendered by the form."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "ingredientId",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The binding of the pending line to poll.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/IngredientStatusPoller.tsx"
-                        },
-                        {
-                            "name": "onStatus",
-                            "type": "(polledId: string, observed: ObservedIngredientStatus) => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Called with the polled id and what the poll observed — the binding the server answered with (a different id once\nthe line settled, plan 002) and its status. Must be idempotent.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/IngredientStatusPoller.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "web/components/recipes/RecipeDeletedNotice",
             "name": "RecipeDeletedNotice",
             "group": "web",
@@ -4619,7 +4554,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeProviders.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Client provider tree for the recipe feature: a TanStack Query `QueryClientProvider` plus the\n`RecipeServiceProvider` that hands a configured {@link RecipeServiceClient} to every recipe hook\n(`useRecipes`, `useRecipe`, …). Mounted once inside `[locale]/layout.tsx` (within `ClerkProvider`, so\n`useAuth` has its context), so all recipe routes share one query cache and one authenticated client.\n\nThe client's base origin is injected from `NEXT_PUBLIC_API_URL` (never hardcoded — CODING_STANDARDS\n§12), defaulting to the local identity/recipe API for `npm run dev`. Its bearer token is minted per\nrequest from Clerk's session (`useAuth().getToken`, which waits for clerk-js to load). A client retry of the\nfirst-token identity-sync race (`forceRefresh`) maps to Clerk's `skipCache`.\n\n⚠️ DELIBERATE — ADR-0054. Both clients are built per COOK: the memo is keyed on `userId`, and each client's token goes\nthrough `subjectBoundToken`, which mints only for the cook the client was built for. Clerk's `getToken` keeps one\nidentity for the provider's life (a `useCallback` on the `IsomorphicClerk` instance `ClerkProvider` holds in a ref),\nso keying on it alone kept one client across a change of cook, and that client read the new cook's token at send time.\n\n⚠️ It renders only `children`, which is the canonical render-leaf tell — and it is ORCHESTRATION\nanyway. What it renders is not the point; what it CONSTRUCTS is. Every recipe read and write in the\nsubtree runs against the query cache and the authenticated client built here, so this is where the\nfeature's data capability is decided, and a second `QueryClient` mounted alongside would silently split\nthe cache.",
+                    "moduleDoc": "Client provider tree for the recipe feature: a TanStack Query `QueryClientProvider` plus the\n`RecipeServiceProvider` that hands a configured `RecipeServiceClient` to every recipe hook\n(`useRecipes`, `useRecipe`, …). Mounted once inside `[locale]/layout.tsx` (within `ClerkProvider`, so\n`useAuth` has its context), so all recipe routes share one query cache and one authenticated client.\n\nThe client's base origin is injected from `NEXT_PUBLIC_API_URL` (never hardcoded — CODING_STANDARDS\n§12), defaulting to the local identity/recipe API for `npm run dev`. Its bearer token is minted per\nrequest from Clerk's session (`useAuth().getToken`, which waits for clerk-js to load). A client retry of the\nfirst-token identity-sync race (`forceRefresh`) maps to Clerk's `skipCache`.\n\n⚠️ DELIBERATE — ADR-0054. Both clients are built per COOK: the memo is keyed on `userId`, and each client's token goes\nthrough `subjectBoundToken`, which mints only for the cook the client was built for. Clerk's `getToken` keeps one\nidentity for the provider's life (a `useCallback` on the `IsomorphicClerk` instance `ClerkProvider` holds in a ref),\nso keying on it alone kept one client across a change of cook, and that client read the new cook's token at send time.\n\n⚠️ It renders only `children`, which is the canonical render-leaf tell — and it is ORCHESTRATION\nanyway. What it renders is not the point; what it CONSTRUCTS is. Every recipe read and write in the\nsubtree runs against the query cache and the authenticated client built here, so this is where the\nfeature's data capability is decided, and a second `QueryClient` mounted alongside would silently split\nthe cache.",
                     "moduleTags": [
                         {
                             "name": "pattern",

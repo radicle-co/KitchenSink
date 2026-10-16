@@ -85,24 +85,29 @@ export function RecipeServiceGate({ children }: { readonly children: ReactNode }
     // below which every feature sits. Mounted above it, the queue had no client and its sender could only
     // throw — which is precisely how it shipped doing nothing.
     //
+    // ⛔ THE QUEUE WRAPS THE SERVICE PROVIDERS, as on web (`RecipeProviders`): a queued write outlives the screen that
+    // made it, so its owner sits above every feature. The sender holds the client through a closure, so it needs no
+    // provider beneath it. `RecipeServiceGate.order.native.test.tsx` and web's `RecipeProviders.order.test.tsx` hold the
+    // two trees to one order.
+    //
     // ⚠️ `subject` comes from the signed-in user, never a placeholder: the outbox is namespaced by it, and a
     // queue keyed by a constant is a cross-account read the first time a second person signs in on a device.
     // ⛔ THE ABSENT CASE IS THE PROVIDER'S, NOT A TERNARY HERE. Gating the mount changes the element type at
     // this position, so `AuthGate` resolving a user would unmount and REMOUNT the whole subtree — the same
     // defect that wiped the web recipe editor and failed six Playwright shards.
     return (
-        <RecipeServiceProvider client={clients.recipe}>
-            <FoodServiceProvider client={clients.food} subject={userId ?? undefined}>
-                <SyncProvider subject={userId ?? undefined} send={send} store={nativeDeviceStore}>
-                    {/* Slice 7: the outbox's recipe writes reach the cache, and the editor's device draft, whether or
-                        not the editor that queued them is still open. */}
-                    <RecipeWriteCacheObserver />
-                    <EditorDraftAnswers subject={userId ?? undefined} />
+        <SyncProvider subject={userId ?? undefined} send={send} store={nativeDeviceStore}>
+            {/* Slice 7: the outbox's recipe writes reach the cache, and the editor's device draft, whether or
+                not the editor that queued them is still open. */}
+            <RecipeWriteCacheObserver />
+            <EditorDraftAnswers subject={userId ?? undefined} />
+            <RecipeServiceProvider client={clients.recipe}>
+                <FoodServiceProvider client={clients.food} subject={userId ?? undefined}>
                     {/* Blueprint A13: the cook's checks and current step, kept in memory for the cook who made them and
                         removed at the end of their session — the ADR-0054 rule, applied to marks. */}
                     <CookMarksProvider subject={userId ?? undefined}>{children}</CookMarksProvider>
-                </SyncProvider>
-            </FoodServiceProvider>
-        </RecipeServiceProvider>
+                </FoodServiceProvider>
+            </RecipeServiceProvider>
+        </SyncProvider>
     );
 }

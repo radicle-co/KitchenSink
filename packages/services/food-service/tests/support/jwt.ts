@@ -40,6 +40,11 @@ export interface MintTokenOptions {
     readonly permissions?: readonly string[];
     /** Roles embedded in `public_metadata.roles`; omitted leaves the key out entirely. */
     readonly roles?: readonly string[];
+    /**
+     * The Clerk impersonation marker (`act`: the impersonator). Omitted leaves the claim out entirely — the shape
+     * of every ordinary session token; present, the shared verifier refuses the token (owner ruling 2026-10-15).
+     */
+    readonly act?: { readonly sub: string };
     /** Seconds until expiry (default 3600). Use a negative value to mint an already-expired token. */
     readonly expiresInSeconds?: number;
 }
@@ -82,6 +87,7 @@ export function mintToken(privateKeyPem: string, options: MintTokenOptions): str
         sub: options.sub,
         ...(options.externalId !== undefined ? { external_id: options.externalId } : {}),
         azp: options.azp,
+        ...(options.act !== undefined ? { act: options.act } : {}),
         iat: nowSeconds,
         nbf: nowSeconds - 5,
         exp: nowSeconds + (options.expiresInSeconds ?? 3600),

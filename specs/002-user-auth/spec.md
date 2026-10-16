@@ -260,7 +260,7 @@ The authentication layer consists of:
 
 **Impersonation Guardrails** — **⚠️ WITHDRAWN (2026-10-15).**
 
-> Operator impersonation is no longer part of this feature. The two routes `POST /api/v1/admin/users/{userId}/impersonation/{start,stop}` granted nothing: they logged a line and returned a made-up session id. They are deleted from the identity service and from `contracts/identityApi.openapi.json`. **What remains:** an impersonated session (a Clerk token with an `act` claim) is refused on both web and mobile ("Impersonation blocked"). Known gap, tracked separately: no backend service refuses an `act` claim yet.
+> Operator impersonation is no longer part of this feature. The two routes `POST /api/v1/admin/users/{userId}/impersonation/{start,stop}` granted nothing: they logged a line and returned a made-up session id. They are deleted from the identity service and from `contracts/identityApi.openapi.json`. **What remains:** an impersonated session (a Clerk token with an `act` claim) is refused on both web and mobile ("Impersonation blocked"). The backend services refuse it too: the shared `@kitchensink/clerk-verify` verifier rejects any session token carrying an `act` claim, so identity, recipe and food (and the production edge) answer 401 to it.
 
 - **FR-036**: **⚠️ WITHDRAWN (2026-10-15).** There is no impersonation to audit.
 - **FR-037**: **⚠️ WITHDRAWN (2026-10-15).** There is no impersonation to restrict.
@@ -566,7 +566,7 @@ FR-021 and FR-039 already state the requirements; GR-016 states where they execu
 
 ### Session 2026-10-15
 
-- Q: Should operator impersonation stay in this feature? → A: No. Owner ruling 2026-10-15, verbatim: "Delete the impersonation then". The stub admin routes granted nothing (they logged a line and returned a made-up session id), so they were deleted. FR-036 and FR-037 (and REQ-035..REQ-037, US-012) are withdrawn. The requirement that remains: an impersonated (Clerk `act` claim) session is refused on both web and mobile. Known gap, tracked separately: no backend service refuses an `act` claim yet.
+- Q: Should operator impersonation stay in this feature? → A: No. Owner ruling 2026-10-15, verbatim: "Delete the impersonation then". The stub admin routes granted nothing (they logged a line and returned a made-up session id), so they were deleted. FR-036 and FR-037 (and REQ-035..REQ-037, US-012) are withdrawn. The requirement that remains: an impersonated (Clerk `act` claim) session is refused on both web and mobile. The backend services refuse it too: the shared `@kitchensink/clerk-verify` verifier rejects any session token carrying an `act` claim, so identity, recipe and food (and the production edge) answer 401 to it.
 
 ### Session 2026-05-29
 

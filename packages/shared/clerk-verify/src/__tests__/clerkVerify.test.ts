@@ -328,6 +328,67 @@ describe('verifyClerkToken', () => {
 const PATTERN = buildPreviewAzpPattern('sandbox.commise.app');
 const PATTERN_CONFIG = { jwtKey: 'PEM', authorizedParties: [], authorizedPartyPattern: PATTERN };
 
+describe('verifyClerkToken — impersonation (`act` claim)', () => {
+    // Owner ruling 2026-10-15: admin impersonation is removed. Clerk marks an impersonation session token with an
+    // `act` object (`{ sub: <impersonator> }`); no service may admit one, however valid its signature.
+    const BASE = { sub: 'user_123', azp: 'https://app.example.com' };
+
+    it.each([
+        ['an object', { sub: 'user_admin' }],
+        ['an empty object', {}],
+        ['a non-empty string', 'user_admin'],
+        ['true', true],
+    ])('⛔ refuses a verified token whose act is %s', async (_label, act) => {
+        mockVerify.mockResolvedValue({ ...BASE, act } as never);
+
+        await expect(verifyClerkToken('tok', CONFIG)).rejects.toSatisfy(isClerkVerificationError);
+    });
+
+    it('refuses it in pattern mode and when no azp check is configured, too', async () => {
+        mockVerify.mockResolvedValue({ ...BASE, act: { sub: 'user_admin' } } as never);
+
+        await expect(
+            verifyClerkToken('tok', {
+                jwtKey: 'PEM',
+                authorizedParties: [],
+                authorizedPartyPattern: buildPreviewAzpPattern('example.com'),
+            }),
+        ).rejects.toSatisfy(isClerkVerificationError);
+        await expect(verifyClerkToken('tok', { jwtKey: 'PEM', authorizedParties: [] })).rejects.toSatisfy(
+            isClerkVerificationError,
+        );
+    });
+
+    it('refuses it even from an azp-less native token the gate admits', async () => {
+        mockVerify.mockResolvedValue({ sub: 'user_123', client_type: 'native', act: { sub: 'user_admin' } } as never);
+
+        await expect(verifyClerkToken('tok', { ...CONFIG, admitAzplessToken: isNativeClientToken })).rejects.toSatisfy(
+            isClerkVerificationError,
+        );
+    });
+
+    it.each([
+        ['absent', {}],
+        ['null', { act: null }],
+        ['undefined', { act: undefined }],
+        ['false', { act: false }],
+        ['an empty string', { act: '' }],
+    ])('admits a token whose act is %s (not an impersonation)', async (_label, extra) => {
+        mockVerify.mockResolvedValue({ ...BASE, ...extra } as never);
+
+        expect((await verifyClerkToken('tok', CONFIG)).sub).toBe('user_123');
+    });
+
+    it('is unrelated to the service-erasure token, whose own string `act` (machine actor) never reaches this verifier', async () => {
+        // The erasure token is Ed25519, audience-pinned, and verified by each service's own erasure verifier
+        // (`serviceErasureAuth.service.ts`), never by `verifyClerkToken`. Fed here it is still refused, but
+        // for the right reason class: it is not a Clerk session. Its own suites prove it still verifies there.
+        mockVerify.mockRejectedValue(new Error('invalid signature'));
+
+        await expect(verifyClerkToken('erasure-token', CONFIG)).rejects.toSatisfy(isClerkVerificationError);
+    });
+});
+
 describe('verifyClerkToken — azp predicate mode (U1)', () => {
     it('accepts a token whose azp matches the anchored preview pattern, and validates azp itself (SDK check skipped)', async () => {
         mockVerify.mockResolvedValue({ sub: 'u1', azp: 'https://pr-42.sandbox.commise.app' } as never);

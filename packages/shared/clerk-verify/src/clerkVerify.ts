@@ -352,6 +352,15 @@ export async function verifyClerkToken(token: string, config: ClerkVerifyConfig)
         throw new ClerkVerificationError();
     }
 
+    // ⛔ Impersonation is refused at the one shared verifier (owner ruling 2026-10-15). Clerk marks an
+    // impersonation session token with an `act` claim (`{ sub: <impersonator> }`); the signature is valid, so
+    // nothing below would stop it. Truthiness, not shape: any present `act` is refused. Runs before the `azp`
+    // check so no admission gate (the native one included) can wave it through. This is the Clerk SESSION-token
+    // `act` only — the service-erasure token carries its own string `act` and never reaches this function.
+    if (payload['act']) {
+        throw new ClerkVerificationError();
+    }
+
     // Self-owned `azp` boundary — the SDK validated nothing (see above), so enforce the configured mode
     // here. In both modes an ABSENT azp is admitted only through the positive `admitAzplessToken` gate
     // (`client_type: 'native'`), never on absence alone; an empty list with no pattern keeps the

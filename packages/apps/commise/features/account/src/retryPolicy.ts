@@ -13,16 +13,15 @@
  * ⛔ IT CAN ONLY VETO — anything it does not own answers `true`. See the recipe client's module docstring for
  * why that default is load-bearing rather than lazy.
  *
- * ⛔ `401` IS CLASSIFIED TRANSIENT, and the reason is sharper on this client than on the recipe one:
- * `web/src/hooks/useUserProfile.ts` builds its bearer as `(await getToken()) ?? ''` and enables the query on
- * `isSignedIn`, which `@clerk/nextjs` reports `true` throughout the pre-clerk-js window (it feeds
- * `deriveState` an SSR `initialState`). So during hydration this client really does send an empty bearer and
- * really does get a `401` that is nothing to do with the caller's identity. The credential is re-minted
+ * ⛔ `401` IS CLASSIFIED TRANSIENT, and the reason is sharper on this client than on the recipe one: the query is
+ * enabled on `isSignedIn`, which `@clerk/nextjs` reports `true` throughout the pre-clerk-js window (it feeds
+ * `deriveState` an SSR `initialState`), so a request can reach the identity service while the session is not
+ * yet usable and get a `401` that is nothing to do with the caller's identity. The credential is re-minted
  * between attempts, so the request is not constant across them and the general "never retry a 4xx" rule does
  * not apply — this is `specs/governance-rules.md` GR-018-a's ratified `signature` case, where a rejection
- * caused by OUR OWN stale-or-unminted secret is transient rather than a verdict on the caller. The full flip
- * condition (and the seven further `?? ''` sources this policy deliberately does NOT count) is written out
- * once, in `@kitchensink/recipe-service-client`'s sibling module. Flip both together or neither.
+ * caused by OUR OWN stale-or-unminted secret is transient rather than a verdict on the caller. The flip
+ * condition is written out once, in `@kitchensink/recipe-service-client`'s sibling module, and is the
+ * authority for what the bearer sources actually do. Flip both together or neither.
  *
  * @pattern Specification — a pure predicate over a failure, composed by conjunction with the other clients'.
  */

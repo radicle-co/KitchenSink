@@ -119,19 +119,19 @@ export function mapRating(row: RecipeRatingRow): RatingExport {
 
 /**
  * Map a `recipe_photos` row to its export shape, resolving both the full-size and thumbnail CDN URLs
- * against `cloudfrontUrl`. The bytes are never included — only keys and their resolved URLs. Pure.
+ * against `mediaCdnUrl`. The bytes are never included — only keys and their resolved URLs. Pure.
  *
  * @param row - The photo row.
- * @param cloudfrontUrl - The CDN base URL used to resolve object keys to URLs.
+ * @param mediaCdnUrl - The CDN base URL used to resolve object keys to URLs.
  */
-export function mapPhoto(row: RecipePhotoRow, cloudfrontUrl: string): PhotoExport {
+export function mapPhoto(row: RecipePhotoRow, mediaCdnUrl: string): PhotoExport {
     return {
         id: row.id,
         recipeId: row.recipeId,
         key: row.s3Key,
-        url: resolveCdnUrl(cloudfrontUrl, row.s3Key),
+        url: resolveCdnUrl(mediaCdnUrl, row.s3Key),
         thumbnailKey: row.thumbnailKey,
-        thumbnailUrl: row.thumbnailKey === null ? null : resolveCdnUrl(cloudfrontUrl, row.thumbnailKey),
+        thumbnailUrl: row.thumbnailKey === null ? null : resolveCdnUrl(mediaCdnUrl, row.thumbnailKey),
         contentType: row.contentType,
         sizeBytes: row.sizeBytes,
         sortOrder: row.sortOrder,

@@ -83,7 +83,7 @@ import { createSqsErasureQueue, ERASURE_QUEUE, type ErasureQueuePort } from './e
             // the boot-time Zod schema already requires MEDIA_CDN_URL, so a misconfigured stage fails at
             // startup rather than at a user's export request.
             useFactory: (config: ConfigService): AccountExportConfig => ({
-                cloudfrontUrl: config.getOrThrow<string>('MEDIA_CDN_URL'),
+                mediaCdnUrl: config.getOrThrow<string>('MEDIA_CDN_URL'),
             }),
         },
         AccountExportService,

@@ -94,7 +94,7 @@ const MAGIC_BYTE_READ_LENGTH = 4100;
 /** Runtime configuration the photos vertical needs (the CloudFront base for the `RecipePhoto` cdn url). */
 export interface PhotosConfig {
     /** CloudFront distribution base URL that fronts the photo bucket. */
-    readonly cloudfrontUrl: string;
+    readonly mediaCdnUrl: string;
     /** Max longest-edge (px) for the generated cover thumbnail (FOLLOW-UP-CR-001-A). */
     readonly thumbnailMaxPx: number;
     /** JPEG quality (1–100) for the generated cover thumbnail. */
@@ -493,7 +493,7 @@ export class PhotosService {
 
     /** Map a persisted `recipe_photos` row to the shared `RecipePhoto` contract (shared pure mapping). */
     private toPhotoResponse(row: RecipePhotoRow): RecipePhoto {
-        return resolvePhotoView(row, this.config.cloudfrontUrl);
+        return resolvePhotoView(row, this.config.mediaCdnUrl);
     }
 }
 

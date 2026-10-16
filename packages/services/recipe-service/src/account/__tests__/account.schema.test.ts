@@ -52,7 +52,7 @@ import {
 } from '../__fixtures__/export.fixtures.js';
 import { makeActingPrincipal } from '../../auth/__fixtures__/actingPrincipal.fixtures.js';
 
-const CONFIG: AccountExportConfig = { cloudfrontUrl: 'https://cdn.example.com' };
+const CONFIG: AccountExportConfig = { mediaCdnUrl: 'https://cdn.example.com' };
 const JOB_ID = '00000000-0000-4000-8000-0000000000e1';
 
 /** Every row set the export DAL can return, fully populated. */

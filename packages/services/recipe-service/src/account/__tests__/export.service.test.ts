@@ -32,7 +32,7 @@ import {
 type DalMock = { [K in keyof AccountExportDal]: ReturnType<typeof vi.fn> };
 
 const OWNER = '01JEXPORTSERVICEOWNER0000A';
-const CONFIG: AccountExportConfig = { cloudfrontUrl: 'https://cdn.example.com' };
+const CONFIG: AccountExportConfig = { mediaCdnUrl: 'https://cdn.example.com' };
 
 let dal: DalMock;
 let service: AccountExportService;

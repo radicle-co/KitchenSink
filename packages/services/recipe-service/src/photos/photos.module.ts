@@ -53,7 +53,7 @@ import { createCloudFrontInvalidation } from './cdnInvalidation.js';
             provide: PHOTOS_CONFIG,
             inject: [ConfigService],
             useFactory: (config: ConfigService): PhotosConfig => ({
-                cloudfrontUrl: config.getOrThrow<string>('MEDIA_CDN_URL'),
+                mediaCdnUrl: config.getOrThrow<string>('MEDIA_CDN_URL'),
                 thumbnailMaxPx: config.get<number>('THUMBNAIL_MAX_PX') ?? 400,
                 thumbnailQuality: config.get<number>('THUMBNAIL_QUALITY') ?? 80,
             }),

@@ -234,15 +234,15 @@ function toRecipeRowInput(row: RawRecipeSearchRow): RecipeRowInput {
  * `averageRating`/`ratingCount` (average omitted when unrated — never `0`), and the derived
  * `usesPremiumCapability` (via the ONE authoritative `recipe-core` rule) — to the canonical
  * {@link recipeRowToDomain} Data Mapper, via {@link toRecipeRowInput}'s cheap snake_case→camelCase
- * adapter. Only `coverPhotoUrl` (resolved from the cover LATERAL's key against `cloudfrontUrl`) is
+ * adapter. Only `coverPhotoUrl` (resolved from the cover LATERAL's key against `mediaCdnUrl`) is
  * search-specific and layered on top here: emitted only when both a key and a CDN base are present, so a
  * caller without the CDN base simply omits it rather than emitting a malformed URL.
  *
  * @param row - The raw snake_case page row.
- * @param cloudfrontUrl - CDN base used to resolve the cover-photo key to an absolute URL. When absent,
+ * @param mediaCdnUrl - CDN base used to resolve the cover-photo key to an absolute URL. When absent,
  *   `coverPhotoUrl` is omitted.
  */
-export function rowToRecipe(row: RawRecipeSearchRow, cloudfrontUrl?: string): Recipe {
+export function rowToRecipe(row: RawRecipeSearchRow, mediaCdnUrl?: string): Recipe {
     // ⛔ SEARCH AND LIST REPORT NUTRITION AS UNKNOWN, NOT AS COMPLETE (plan U10).
     //
     // These figures used to come from denormalized columns written at recipe-save time, which is exactly
@@ -259,8 +259,8 @@ export function rowToRecipe(row: RawRecipeSearchRow, cloudfrontUrl?: string): Re
 
     return {
         ...recipe,
-        ...(row.cover_photo_key !== null && cloudfrontUrl !== undefined
-            ? { coverPhotoUrl: resolveCdnUrl(cloudfrontUrl, row.cover_photo_key) }
+        ...(row.cover_photo_key !== null && mediaCdnUrl !== undefined
+            ? { coverPhotoUrl: resolveCdnUrl(mediaCdnUrl, row.cover_photo_key) }
             : {}),
     };
 }
@@ -417,7 +417,7 @@ export class SearchDal {
         // Optional so existing test constructions (`new SearchDal(db)` / `new SearchDal(db, 2)`) keep
         // compiling; `SearchModule` always supplies it in production, so cover URLs are always resolved
         // there. When absent, `coverPhotoUrl` is simply omitted (never a malformed URL).
-        private readonly cloudfrontUrl?: string,
+        private readonly mediaCdnUrl?: string,
     ) {
         // FAIL CLOSED ON THE FACET SAMPLE SIZE. This value is the one number in this DAL that reaches a
         // statement without passing through the request schema, so it is bounded HERE rather than trusted.
@@ -516,7 +516,7 @@ export class SearchDal {
 
     /** Map a raw row + query into a ranked {@link RecipeSearchResult} (rank omitted in browse mode). */
     private toSearchResult(row: RawRecipeSearchRow, query: string | undefined): RecipeSearchResult {
-        const recipe = rowToRecipe(row, this.cloudfrontUrl);
+        const recipe = rowToRecipe(row, this.mediaCdnUrl);
 
         if (query === undefined) {
             return { recipe };

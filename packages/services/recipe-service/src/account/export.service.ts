@@ -24,7 +24,7 @@ export const ACCOUNT_EXPORT_CONFIG = 'ACCOUNT_EXPORT_CONFIG';
 /** Configuration the export service needs: the CDN base URL used to resolve photo object keys to URLs. */
 export interface AccountExportConfig {
     /** The CloudFront base URL (`MEDIA_CDN_URL`) photo/thumbnail keys are resolved against. */
-    readonly cloudfrontUrl: string;
+    readonly mediaCdnUrl: string;
 }
 
 @Injectable()
@@ -62,7 +62,7 @@ export class AccountExportService {
             recipes: recipeRows.map(mapRecipe),
             collections: collectionRows.map((collection) => mapCollection(collection, membershipRows)),
             ratings: ratingRows.map(mapRating),
-            photos: photoRows.map((photo) => mapPhoto(photo, this.config.cloudfrontUrl)),
+            photos: photoRows.map((photo) => mapPhoto(photo, this.config.mediaCdnUrl)),
             versions: versionRows.map(mapVersion),
             authorHandles: authorHandleRows.map(mapAuthorHandle),
         };

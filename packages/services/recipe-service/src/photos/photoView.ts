@@ -11,8 +11,8 @@ import type { RecipePhoto } from '@kitchensink/recipe-core';
 import type { RecipePhotoRow } from '../database/schema/index.js';
 
 /** Join a CDN base URL and an object key into a single URL, tolerating a trailing slash on the base. Pure. */
-export function resolveCdnUrl(cloudfrontUrl: string, key: string): string {
-    return `${cloudfrontUrl.replace(/\/+$/, '')}/${key}`;
+export function resolveCdnUrl(mediaCdnUrl: string, key: string): string {
+    return `${mediaCdnUrl.replace(/\/+$/, '')}/${key}`;
 }
 
 /**
@@ -25,17 +25,17 @@ export function resolveCdnUrl(cloudfrontUrl: string, key: string): string {
  * degraded) have `thumbnailKey === null`, and MUST still show a cover — the original — rather than a
  * broken link. The gallery (`resolvePhotoView.url`) always stays the full-size original.
  */
-export function resolveCoverUrl(row: RecipePhotoRow, cloudfrontUrl: string): string {
-    return resolveCdnUrl(cloudfrontUrl, row.thumbnailKey ?? row.s3Key);
+export function resolveCoverUrl(row: RecipePhotoRow, mediaCdnUrl: string): string {
+    return resolveCdnUrl(mediaCdnUrl, row.thumbnailKey ?? row.s3Key);
 }
 
 /** Map a `recipe_photos` row to the shared `RecipePhoto` contract against the given CDN base. Pure. */
-export function resolvePhotoView(row: RecipePhotoRow, cloudfrontUrl: string): RecipePhoto {
+export function resolvePhotoView(row: RecipePhotoRow, mediaCdnUrl: string): RecipePhoto {
     return {
         id: row.id,
         recipeId: row.recipeId,
         key: row.s3Key,
-        url: resolveCdnUrl(cloudfrontUrl, row.s3Key),
+        url: resolveCdnUrl(mediaCdnUrl, row.s3Key),
         contentType: row.contentType,
         order: row.sortOrder + 1,
         createdAt: row.createdAt.toISOString(),

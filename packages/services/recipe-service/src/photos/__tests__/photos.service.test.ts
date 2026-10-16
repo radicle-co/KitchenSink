@@ -49,7 +49,7 @@ import { makeRecipePhotoRow } from '../../__fixtures__/index.js';
 const OWNER = '01J000000000000000000FREE0';
 const OTHER = '01J00000000000000000OTHER0';
 const RECIPE_ID = '00000000-0000-4000-8000-00000000a001';
-const CONFIG: PhotosConfig = { cloudfrontUrl: 'https://cdn.example.com', thumbnailMaxPx: 400, thumbnailQuality: 80 };
+const CONFIG: PhotosConfig = { mediaCdnUrl: 'https://cdn.example.com', thumbnailMaxPx: 400, thumbnailQuality: 80 };
 
 /**
  * A recipes service answering the two row-only permission checks — by default, a recipe the caller owns.
@@ -246,7 +246,7 @@ describe('PhotosService.confirm', () => {
         expect(response.key).toBe(row.s3Key);
         expect(response.contentType).toBe(detected); // the sniffed type, surfaced on the wire
         expect(response.order).toBe(row.sortOrder + 1); // 1-based display position
-        expect(response.url).toBe(`${CONFIG.cloudfrontUrl}/${row.s3Key}`); // server-resolved CDN url
+        expect(response.url).toBe(`${CONFIG.mediaCdnUrl}/${row.s3Key}`); // server-resolved CDN url
     });
 
     it('rejects an object whose magic bytes are not a supported image (no insert)', async () => {
@@ -292,13 +292,13 @@ describe('PhotosService.confirm', () => {
         const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes(), fakeCdn());
 
         // `create` resolves the fixed boundary-sized row regardless of input, so the response is exactly
-        // `resolvePhotoView(row, CONFIG.cloudfrontUrl)` — confirm the boundary size (5 MB) was accepted
+        // `resolvePhotoView(row, CONFIG.mediaCdnUrl)` — confirm the boundary size (5 MB) was accepted
         // by pinning the whole shaped `RecipePhoto`, not just that a value came back.
         await expect(service.confirm(OWNER, RECIPE_ID, keyFor())).resolves.toEqual({
             id: row.id,
             recipeId: row.recipeId,
             key: row.s3Key,
-            url: `${CONFIG.cloudfrontUrl}/${row.s3Key}`,
+            url: `${CONFIG.mediaCdnUrl}/${row.s3Key}`,
             contentType: row.contentType,
             order: row.sortOrder + 1,
             createdAt: row.createdAt.toISOString(),
@@ -359,7 +359,7 @@ describe('PhotosService.list', () => {
         expect(dal.findByRecipe).toHaveBeenCalledWith(RECIPE_ID);
         expect(response).toHaveLength(2);
         expect(response.every((photo) => recipePhotoSchema.safeParse(photo).success)).toBe(true);
-        expect(response[0]?.url.startsWith(CONFIG.cloudfrontUrl)).toBe(true);
+        expect(response[0]?.url.startsWith(CONFIG.mediaCdnUrl)).toBe(true);
         expect(response.map((photo) => photo.order)).toEqual([1, 2]); // 1-based, in stored order
     });
 });
@@ -686,7 +686,7 @@ describe('PhotosService.confirm cover-thumbnail rendition (FOLLOW-UP-CR-001-A)',
             id: row.id,
             recipeId: row.recipeId,
             key: row.s3Key,
-            url: `${CONFIG.cloudfrontUrl}/${row.s3Key}`,
+            url: `${CONFIG.mediaCdnUrl}/${row.s3Key}`,
             contentType: row.contentType,
             order: row.sortOrder + 1,
             createdAt: row.createdAt.toISOString(),
@@ -712,7 +712,7 @@ describe('PhotosService.confirm cover-thumbnail rendition (FOLLOW-UP-CR-001-A)',
             id: row.id,
             recipeId: row.recipeId,
             key: row.s3Key,
-            url: `${CONFIG.cloudfrontUrl}/${row.s3Key}`,
+            url: `${CONFIG.mediaCdnUrl}/${row.s3Key}`,
             contentType: row.contentType,
             order: row.sortOrder + 1,
             createdAt: row.createdAt.toISOString(),

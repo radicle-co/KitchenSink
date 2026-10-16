@@ -25,16 +25,17 @@
  * @pattern Facade — one route over the shared collection-detail session and body
  * @pattern Port — the router, as the session's navigation
  */
-import { viewModeCookieFor, type ListViewMode } from '@commise/features-recipes';
+import { collectionMessages, viewModeCookieFor, type ListViewMode } from '@commise/features-recipes';
 import {
     CollectionDetailBody,
+    CollectionLoadError,
     useCollectionDetail,
     type CollectionDetailNav,
 } from '@commise/features-recipes/collections';
 import { useMessages } from '@commise/i18n/react';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { paidFeatureStateOf } from '@commise/features-account';
-import { collectionQueries, isNotFoundError } from '@kitchensink/recipe-service-client';
+import { collectionQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
@@ -42,10 +43,7 @@ import { useRouter } from 'next/navigation';
 import { useState, type FC } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
-import { CollectionLoadError } from '@/components/recipes/CollectionLoadError';
-import { CollectionNotFound } from '@/components/recipes/CollectionNotFound';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { webMessages } from '@/i18n/messages';
 
 /** Props for {@link CollectionDetailContainer}. */
 export interface CollectionDetailContainerProps {
@@ -64,22 +62,29 @@ export interface CollectionDetailContainerProps {
  * @returns The boundary: loading, not-found or a retrying error, and the composed detail view once the read settles.
  */
 export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ id, locale, storedViewMode }) => {
-    const { collections } = useMessages(webMessages);
+    const { detail, list } = useMessages(collectionMessages);
+    const router = useRouter();
+    const collectionsHref = `/${locale}/collections`;
 
     return (
         <ClientQueryBoundary
             loading={
-                <p role="status" aria-label={collections.detail.loadingLabel} className="py-8 text-body text-ink-muted">
-                    {collections.detail.loadingLabel}
+                <p role="status" aria-label={detail.loadingLabel} className="py-8 text-body text-ink-muted">
+                    {detail.loadingLabel}
                 </p>
             }
-            renderError={({ error, resetErrorBoundary }) =>
-                isNotFoundError(error) ? (
-                    <CollectionNotFound locale={locale} />
-                ) : (
-                    <CollectionLoadError onRetry={resetErrorBoundary} />
-                )
-            }
+            renderError={({ error, resetErrorBoundary }) => (
+                <CollectionLoadError
+                    error={error}
+                    onRetry={resetErrorBoundary}
+                    back={{
+                        label: detail.backTo.replace('{parent}', list.heading),
+                        icon: 'chevronLeft',
+                        href: collectionsHref,
+                        onPress: () => router.push(collectionsHref as Route),
+                    }}
+                />
+            )}
             resetKeys={[id]}
         >
             <CollectionDetailView

@@ -108,10 +108,10 @@ describe('CollectionDetailContainer — states', () => {
 
         renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
 
-        const status = screen.getByRole('status', { name: 'Loading collection' });
+        const status = screen.getByRole('status', { name: 'Loading collection…' });
         expect(status).toBeInTheDocument();
         // A status rendered EMPTY is zero-height and silent: the localized label must be the visible caption.
-        expect(status).toHaveTextContent('Loading collection');
+        expect(status).toHaveTextContent('Loading collection…');
     });
 
     it('renders the collection with its member recipes, as links, when it loads', async () => {
@@ -172,7 +172,7 @@ describe('CollectionDetailContainer — states', () => {
         expect(await screen.findByText(/couldn.t find that collection/i)).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
 
-        await user.click(screen.getByRole('button', { name: 'Back to Collections' }));
+        await user.click(screen.getByRole('link', { name: 'Back to Collections' }));
 
         expect(pushMock).toHaveBeenCalledWith('/en/collections');
     });
@@ -204,7 +204,7 @@ describe('CollectionDetailContainer — states', () => {
             </LocaleProvider>,
         );
 
-        expect(html).toContain('Loading collection');
+        expect(html).toContain('Loading collection…');
         expect(client.getCollectionById).not.toHaveBeenCalled();
     });
 

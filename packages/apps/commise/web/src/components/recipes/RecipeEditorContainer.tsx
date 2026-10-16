@@ -38,6 +38,7 @@ import {
     type EditorNavigation,
     type EditorSectionId,
 } from '@commise/features-recipes';
+import { recipeLoadMessages } from '@commise/features-recipes/detail';
 import { cookDraftsOf, RecipeEditorSurface, type CookDrafts } from '@commise/features-recipes/editor';
 import type { EditorSeed } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
@@ -57,12 +58,11 @@ import { EditorStateFrame } from '@/components/recipes/EditorStateFrame';
 import { webDeviceStore } from '@/components/recipes/deviceSession';
 import { freshTokenOf, withDraftRef } from '@/components/recipes/freshRecipeHref';
 import { opensPasteSheet } from '@/components/recipes/pasteIngredientsHref';
-import { RecipeLoadError } from '@/components/recipes/RecipeLoadError';
+import { RecipeReadError } from '@/components/recipes/RecipeReadError';
 import { RecipePhotoUploaderContainer } from '@/components/recipes/RecipePhotoUploaderContainer';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { isRecipeRouteId } from '@/lib/recipeRouteId';
 import { reportErrorToSentry } from '@/lib/sentryErrorReporter';
-import { webMessages } from '@/i18n/messages';
 
 /** Props for {@link RecipeEditorContainer}. */
 export interface RecipeEditorContainerProps {
@@ -79,14 +79,14 @@ function useCookDrafts(): CookDrafts | undefined {
 
 /** The web recipe editor: new or edit. */
 export const RecipeEditorContainer: FC<RecipeEditorContainerProps> = ({ locale, recipeId }) => {
-    const { recipes } = useMessages(webMessages);
+    const copy = useMessages(recipeLoadMessages);
     const client = useRecipeServiceClient();
     // This opening of the editor, minted OUTSIDE the read boundary: its device-draft read is its own (`useDeviceDraft`).
     const [opening] = useState(nextEditorOpening);
     const loading = (
         <EditorStateFrame>
-            <p role="status" aria-label={recipes.detail.loadingLabel} className="py-8 text-body-md text-ink-muted">
-                {recipes.detail.loadingLabel}
+            <p role="status" aria-label={copy.loadingLabel} className="py-8 text-body-md text-ink-muted">
+                {copy.loadingLabel}
             </p>
         </EditorStateFrame>
     );
@@ -97,7 +97,7 @@ export const RecipeEditorContainer: FC<RecipeEditorContainerProps> = ({ locale, 
                 loading={null}
                 renderError={({ error, resetErrorBoundary }) => (
                     <EditorStateFrame>
-                        <RecipeLoadError error={error} onRetry={resetErrorBoundary} />
+                        <RecipeReadError error={error} onRetry={resetErrorBoundary} />
                     </EditorStateFrame>
                 )}
             >
@@ -113,7 +113,7 @@ export const RecipeEditorContainer: FC<RecipeEditorContainerProps> = ({ locale, 
             loading={loading}
             renderError={({ error, resetErrorBoundary }) => (
                 <EditorStateFrame>
-                    <RecipeLoadError error={error} onRetry={resetErrorBoundary} />
+                    <RecipeReadError error={error} onRetry={resetErrorBoundary} />
                 </EditorStateFrame>
             )}
             resetKeys={[recipeId]}

@@ -40,6 +40,7 @@ import {
 import {
     RecipeDetailDialogs,
     RecipeDetailRating,
+    recipeLoadMessages,
     RecipeLoadError,
     useRecipeDetailController,
 } from '@commise/features-recipes/detail';
@@ -58,7 +59,6 @@ import type { JSX } from 'react';
 import { useContext } from 'react';
 import { View } from 'react-native';
 
-import { mobileMessages } from '../i18n/messages.js';
 import { useSessionClaims } from '../hooks/useSessionClaims.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
 
@@ -100,12 +100,12 @@ export interface RecipeDetailScreenProps {
  */
 export function RecipeDetailScreen(props: RecipeDetailScreenProps): JSX.Element {
     const { recipeId, onBack } = props;
-    const { recipes: t } = useMessages(mobileMessages);
+    const loadCopy = useMessages(recipeLoadMessages);
     const backLabel = useBackLabel();
 
     return (
         <QueryBoundary
-            loading={<RecipeDetailSkeleton label={t.detailLoading} />}
+            loading={<RecipeDetailSkeleton label={loadCopy.loadingLabel} />}
             renderError={({ error, resetErrorBoundary }) => (
                 // The way back is named for where it goes, and absent when the navigator wires none.
                 <RecipeLoadError
@@ -204,7 +204,7 @@ function SettledRecipeDetail({
     // Ingredients heading (not the title) and only when the button the cook pressed is gone.
     const unreachableRetry = useRefreshNotice(query, { recovered: isUnreachableRecovery });
     const { detailActions } = useMessages(recipeActionMessages);
-    const { recipes: t } = useMessages(mobileMessages);
+    const loadCopy = useMessages(recipeLoadMessages);
     const snackbar = useSnackbar();
     const backLabel = useBackLabel();
     const recipe = query.data;
@@ -236,7 +236,7 @@ function SettledRecipeDetail({
     // hand the body shows at once (owner ruling 2026-10-16). A signed-out viewer's profile query is disabled, so its
     // `isLoading` is false and this never hangs for a guest.
     if (!page.ready) {
-        return <RecipeDetailSkeleton label={t.detailLoading} />;
+        return <RecipeDetailSkeleton label={loadCopy.loadingLabel} />;
     }
 
     // The row's primary; Back and ⋯ are discs over the photo, always (§6.1, §3.5). An empty View keeps ⋯ at the end when

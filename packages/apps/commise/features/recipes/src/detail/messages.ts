@@ -1,7 +1,8 @@
 /**
  * @module @commise/features-recipes/detail — the copy of a recipe read that failed, shared by both apps. The two
- * dictionaries held the same three sentences word for word; this is their one home. (The loading caption is not here:
- * web says "Loading recipe", mobile "Loading recipe…", and which is right is the apps' copy ruling, not this file's.)
+ * dictionaries held the same three sentences word for word; this is their one home. The loading caption is here too:
+ * web said "Loading recipe" and mobile "Loading recipe…"; the single ellipsis character is the house form for a loading
+ * caption (`evaluateFinal.md`: three dots are not an ellipsis), so both say "Loading recipe…".
  */
 import type { LocalizedMessages } from '@commise/i18n';
 
@@ -13,6 +14,8 @@ export interface RecipeLoadMessages {
     readonly notFoundTitle: string;
     /** Read again. */
     readonly retry: string;
+    /** What the recipe read's loading state is called, on both apps. */
+    readonly loadingLabel: string;
 }
 
 /** The failed-read copy, per locale. */
@@ -21,5 +24,6 @@ export const recipeLoadMessages: LocalizedMessages<RecipeLoadMessages> = {
         errorTitle: 'We couldn’t load this recipe.',
         notFoundTitle: 'This recipe isn’t available.',
         retry: 'Try again',
+        loadingLabel: 'Loading recipe…',
     },
 };

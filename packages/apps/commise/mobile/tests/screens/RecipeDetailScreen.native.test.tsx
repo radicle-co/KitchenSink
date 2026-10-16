@@ -8,6 +8,7 @@
  * visibility option, the delete flow, and the clone action for a public recipe the viewer does not own.
  */
 import { CookMarksProvider, recipeActionMessages } from '@commise/features-recipes';
+import { recipeLoadMessages } from '@commise/features-recipes/detail';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { QueryClient } from '@tanstack/react-query';
@@ -32,7 +33,6 @@ import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-clien
 import { RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 
 import { RecipeDetailScreen } from '../../src/screens/RecipeDetailScreen.js';
-import { mobileMessages } from '../../src/i18n/messages.js';
 import { useSessionClaims } from '../../src/hooks/useSessionClaims.js';
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
@@ -153,7 +153,7 @@ describe('RecipeDetailScreen — loading state', () => {
     it('captions what is loading ONCE, over the page-shaped placeholder (D3)', () => {
         const { container } = render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        const label = mobileMessages.en.recipes.detailLoading;
+        const label = recipeLoadMessages.en.loadingLabel;
         expect(screen.getAllByText(label)).toHaveLength(1);
         expect(screen.queryByRole('progressbar')).toBeNull();
         expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();

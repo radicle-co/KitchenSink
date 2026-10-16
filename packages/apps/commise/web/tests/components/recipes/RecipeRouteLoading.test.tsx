@@ -29,7 +29,7 @@ describe('RecipeDetailRouteLoading', () => {
     it('is the recipe page’s skeleton, named for what is loading', () => {
         const { container } = inLocale(<RecipeDetailRouteLoading />);
 
-        expect(screen.getByRole('status', { name: 'Loading recipe' })).toHaveTextContent('Loading recipe');
+        expect(screen.getByRole('status', { name: 'Loading recipe…' })).toHaveTextContent('Loading recipe…');
         expect(container.querySelector('.aspect-\\[4\\/3\\]')).not.toBeNull();
     });
 });
@@ -39,7 +39,7 @@ describe('RecipeVersionsRouteLoading', () => {
         const user = userEvent.setup();
         const { container } = inLocale(<RecipeVersionsRouteLoading />);
 
-        expect(screen.getByRole('status', { name: 'Loading version history' })).toBeInTheDocument();
+        expect(screen.getByRole('status', { name: 'Loading version history…' })).toBeInTheDocument();
         expect(container.querySelectorAll('[data-skeleton-row]')).toHaveLength(3);
 
         await user.click(screen.getAllByRole('link', { name: 'Back to recipe' })[0] as HTMLElement);

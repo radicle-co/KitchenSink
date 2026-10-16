@@ -61,8 +61,12 @@ export interface RecipeVersionListMessages {
     readonly undo: string;
     /** The empty state's explanation under its heading. */
     readonly emptyBody: string;
-    /** The loading state's name. */
+    /** The loading state's name, on both apps. */
     readonly loading: string;
+    /** Why there is no history, when the read failed. */
+    readonly loadError: string;
+    /** The retry control beside {@link loadError}. */
+    readonly retry: string;
     /** The "back to the recipe" affordance. */
     readonly backToRecipe: string;
 }
@@ -348,7 +352,9 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             restored: 'Restored version {version}.',
             undo: 'Undo',
             emptyBody: 'Each time you save changes, the version before is kept here.',
-            loading: 'Loading the history',
+            loading: 'Loading version history…',
+            loadError: 'We couldn’t load the version history.',
+            retry: 'Try again',
             backToRecipe: 'Back to recipe',
         },
         conflict: {

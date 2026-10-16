@@ -27,25 +27,24 @@ import {
     type EditorSectionId,
     type EditorFinish,
 } from '@commise/features-recipes';
+import { recipeActionMessages, recipeMessages } from '@commise/features-recipes';
+import { recipeLoadMessages, RecipeLoadError } from '@commise/features-recipes/detail';
 import { cookDraftsOf, RecipeEditorSurface, type CookDrafts } from '@commise/features-recipes/editor';
 import type { EditorSeed } from '@commise/features-recipes/hooks';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useSyncQueue } from '@commise/query/sync';
-import { Button } from '@commise/ui/button';
 import { useAuth } from '@clerk/expo';
 import { knownPaidFeaturesOf, paidFeatureStateOf } from '@commise/features-account';
 import type { RecipeDetail } from '@kitchensink/recipe-core';
-import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
+import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { useState, type JSX } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
 
 import { LoadingState } from '../components/LoadingState.js';
 import { RecipePhotoUploader } from '../components/RecipePhotoUploader.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
-import { mobileMessages } from '../i18n/messages.js';
 import { reportErrorToSentry } from '../observability/sentryErrorReporter.js';
 import { nativeDeviceStore } from '../storage/deviceSession.js';
 
@@ -84,7 +83,9 @@ function useCookDrafts(): CookDrafts | undefined {
  */
 export function RecipeEditorScreen(props: RecipeEditorScreenProps): JSX.Element {
     const { recipeId } = props;
-    const { recipes: t } = useMessages(mobileMessages);
+    const loadCopy = useMessages(recipeLoadMessages);
+    const { detail } = useMessages(recipeMessages);
+    const { detailActions } = useMessages(recipeActionMessages);
     // This opening of the editor, minted OUTSIDE the read boundary: its device-draft read is its own (`useDeviceDraft`).
     const [opening] = useState(nextEditorOpening);
 
@@ -94,16 +95,17 @@ export function RecipeEditorScreen(props: RecipeEditorScreenProps): JSX.Element 
 
     return (
         <QueryBoundary
-            loading={<LoadingState label={t.detailLoading} />}
+            loading={<LoadingState label={loadCopy.loadingLabel} />}
             renderError={({ error, resetErrorBoundary }) => (
-                <View style={styles.center}>
-                    <Text role="alert">{isNotFoundError(error) ? t.detailNotFound : t.detailError}</Text>
-                    {isNotFoundError(error) ? null : (
-                        <Button variant="secondary" icon="refreshCw" onPress={resetErrorBoundary}>
-                            {t.detailRetry}
-                        </Button>
-                    )}
-                </View>
+                <RecipeLoadError
+                    error={error}
+                    onRetry={resetErrorBoundary}
+                    back={{
+                        label: detail.backTo.replace('{parent}', detailActions.backToRecipes),
+                        icon: 'chevronLeft',
+                        onPress: props.onClose,
+                    }}
+                />
             )}
             resetKeys={[recipeId]}
         >
@@ -216,7 +218,3 @@ function RecipeEditorSession({
         />
     );
 }
-
-const styles = StyleSheet.create({
-    center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-});

@@ -25,24 +25,22 @@
  * @pattern Facade — one screen over the shared collection-detail session and body
  * @pattern Port — the navigator callbacks, as the session's navigation
  */
-import { CollectionDetailBody, useCollectionDetail } from '@commise/features-recipes/collections';
+import { collectionMessages } from '@commise/features-recipes';
+import { CollectionDetailBody, CollectionLoadError, useCollectionDetail } from '@commise/features-recipes/collections';
 import { useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
-import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
 import { paidFeatureStateOf } from '@commise/features-account';
-import { collectionQueries, isNotFoundError } from '@kitchensink/recipe-service-client';
+import { collectionQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import type { FC, JSX } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { JSX } from 'react';
+import { ScrollView, StyleSheet } from 'react-native';
 
 import { LoadingState } from '../components/LoadingState.js';
 import { useStoredViewMode } from '../hooks/useStoredViewMode.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
-import { mobileMessages } from '../i18n/messages.js';
 
 /** Props for {@link CollectionDetailScreen}. */
 export interface CollectionDetailScreenProps {
@@ -63,37 +61,6 @@ export interface CollectionDetailScreenProps {
 }
 
 /**
- * A fallback body of the read boundary: Back, a message, and the one action that applies.
- *
- * @param props - Back, the message, and the optional retry.
- * @returns The centred fallback.
- */
-const DetailFallback: FC<{
-    readonly message: string;
-    readonly backLabel: string;
-    readonly onBack: () => void;
-    readonly retry?: { readonly label: string; readonly onRetry: () => void };
-}> = ({ message, backLabel, onBack, retry }) => {
-    const { colors } = useTheme();
-
-    return (
-        <View style={styles.center}>
-            <Button variant="ghost" icon="chevronLeft" onPress={onBack}>
-                {backLabel}
-            </Button>
-            <Text role="alert" style={{ color: colors.ink }}>
-                {message}
-            </Text>
-            {retry === undefined ? null : (
-                <Button variant="primary" icon="refreshCw" onPress={retry.onRetry}>
-                    {retry.label}
-                </Button>
-            )}
-        </View>
-    );
-};
-
-/**
  * The collection-detail screen: its read boundary around {@link CollectionDetailView}.
  *
  * @param props - The collection id and the navigation/lifecycle callbacks the navigator wires.
@@ -101,23 +68,22 @@ const DetailFallback: FC<{
  */
 export function CollectionDetailScreen(props: CollectionDetailScreenProps): JSX.Element {
     const { collectionId, onBack } = props;
-    const { collections: t } = useMessages(mobileMessages);
+    const { detail, list } = useMessages(collectionMessages);
 
     return (
         <QueryBoundary
-            loading={<LoadingState label={t.detailLoading} />}
-            renderError={({ error, resetErrorBoundary }) =>
-                isNotFoundError(error) ? (
-                    <DetailFallback message={t.detailNotFound} backLabel={t.back} onBack={onBack} />
-                ) : (
-                    <DetailFallback
-                        message={t.detailError}
-                        backLabel={t.back}
-                        onBack={onBack}
-                        retry={{ label: t.detailRetry, onRetry: resetErrorBoundary }}
-                    />
-                )
-            }
+            loading={<LoadingState label={detail.loadingLabel} />}
+            renderError={({ error, resetErrorBoundary }) => (
+                <CollectionLoadError
+                    error={error}
+                    onRetry={resetErrorBoundary}
+                    back={{
+                        label: detail.backTo.replace('{parent}', list.heading),
+                        icon: 'chevronLeft',
+                        onPress: onBack,
+                    }}
+                />
+            )}
             resetKeys={[collectionId]}
         >
             <CollectionDetailView key={collectionId} {...props} />

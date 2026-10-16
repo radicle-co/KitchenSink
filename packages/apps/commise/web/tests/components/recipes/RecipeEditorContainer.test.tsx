@@ -41,6 +41,7 @@ const { pushMock, replaceMock, profile, auth } = vi.hoisted(() => ({
 }));
 
 vi.mock('next/navigation', () => ({
+    useParams: () => ({ locale: 'en' }),
     useRouter: () => ({ push: pushMock, replace: replaceMock }),
     useSearchParams: () => new URLSearchParams(window.location.search),
 }));
@@ -154,6 +155,7 @@ describe('RecipeEditorContainer (web)', () => {
         const alert = await screen.findByRole('alert');
         expect(alert.textContent).not.toBe('');
         expect(screen.queryByRole('button', { name: /retry|try again/iu })).toBeNull();
+        expect(screen.getByRole('link', { name: 'Back to My recipes' }).getAttribute('href')).toBe('/en/recipes');
     });
 
     it('publishes a complete draft through the outbox, then opens the recipe', async () => {

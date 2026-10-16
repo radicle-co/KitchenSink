@@ -17,3 +17,5 @@ export { useCollectionDetail } from './useCollectionDetail.js';
 export type { CollectionDetail, CollectionDetailInput, CollectionDetailNav } from './useCollectionDetail.js';
 export { useCollectionsList } from './useCollectionsList.js';
 export type { CollectionsList, CollectionsListInput } from './useCollectionsList.js';
+export { CollectionLoadError } from './CollectionLoadError.js';
+export type { CollectionLoadErrorProps } from './CollectionLoadError.js';

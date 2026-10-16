@@ -44,12 +44,7 @@ import {
     recipeActionMessages,
     recipeMessages,
 } from '@commise/features-recipes';
-import {
-    RecipeDetailDialogs,
-    RecipeDetailRating,
-    RecipeLoadError,
-    useRecipeDetailController,
-} from '@commise/features-recipes/detail';
+import { RecipeDetailDialogs, RecipeDetailRating, useRecipeDetailController } from '@commise/features-recipes/detail';
 import { useMessages } from '@commise/i18n/react';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { ActionMenu } from '@commise/ui/action-menu';
@@ -68,6 +63,7 @@ import { useCallback, useState, type ComponentProps, type FC } from 'react';
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { dataSourcesHref } from '@/components/app/dataSourcesHref';
 import { RecipeDetailRouteLoading } from '@/components/recipes/RecipeDetailRouteLoading';
+import { RecipeReadError } from '@/components/recipes/RecipeReadError';
 import { recipesAfterDeleteHref } from '@/components/recipes/recipesAfterDeleteHref';
 import { useAddressNotice } from '@/hooks/useAddressNotice';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -95,40 +91,12 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
             prefetchedKeys={[detail.queryKey]}
             loading={<RecipeDetailRouteLoading />}
             renderError={({ error, resetErrorBoundary }) => (
-                <DetailLoadError error={error} onRetry={resetErrorBoundary} />
+                <RecipeReadError error={error} onRetry={resetErrorBoundary} />
             )}
             resetKeys={[id]}
         >
             <SettledRecipeDetail key={id} id={id} detail={detail} />
         </ClientQueryBoundary>
-    );
-};
-
-/**
- * The recipe read failed: the shared notice, with a way back to My recipes that is a real link (a new tab works) and a
- * router push on a plain click.
- *
- * @param props - What the read failed with, and the boundary's reset.
- * @returns The notice.
- */
-const DetailLoadError: FC<{ readonly error: unknown; readonly onRetry: () => void }> = ({ error, onRetry }) => {
-    const { locale } = useParams<{ locale: string }>();
-    const router = useRouter();
-    const { detailActions } = useMessages(recipeActionMessages);
-    const { detail } = useMessages(recipeMessages);
-    const href = `/${locale}/recipes`;
-
-    return (
-        <RecipeLoadError
-            error={error}
-            onRetry={onRetry}
-            back={{
-                label: detail.backTo.replace('{parent}', detailActions.backToRecipes),
-                icon: 'chevronLeft',
-                href,
-                onPress: () => router.push(href as Route),
-            }}
-        />
     );
 };
 

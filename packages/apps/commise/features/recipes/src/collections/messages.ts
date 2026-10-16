@@ -147,6 +147,12 @@ export interface CollectionDetailMessages {
     /** Not found: the 404 body. */
     readonly notFoundTitle: string;
     readonly notFoundBody: string;
+    /** The detail read's loading caption, on both apps. */
+    readonly loadingLabel: string;
+    /** Why there is no collection, when the read failed for a reason a retry may fix. */
+    readonly errorTitle: string;
+    /** The retry control beside {@link errorTitle}. */
+    readonly retry: string;
 }
 
 /** The collection's ⋯ menu (`docs/design/uiOverhaul/buildSpec.md` §5.2), in the order it is drawn. */
@@ -467,6 +473,9 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             viewLabel: 'View',
             notFoundTitle: 'We couldn’t find that collection',
             notFoundBody: 'It may have been deleted.',
+            loadingLabel: 'Loading collection…',
+            errorTitle: 'We couldn’t load this collection.',
+            retry: 'Try again',
         },
         picker: {
             heading: 'Add recipes to {name}',

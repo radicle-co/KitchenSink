@@ -9,26 +9,24 @@
  *
  * Pure `props → JSX` (no props); the navigation is the router's.
  */
-import { RecipeVersionListSkeleton } from '@commise/features-recipes';
+import { RecipeVersionListSkeleton, recipeVersionMessages } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import type { Route } from 'next';
 import { useParams, useRouter } from 'next/navigation';
 import type { FC } from 'react';
 
-import { webMessages } from '@/i18n/messages';
-
 /**
  * @returns The header, one polite status and three placeholder rows.
  */
 export const RecipeVersionsRouteLoading: FC = () => {
-    const { recipes } = useMessages(webMessages);
+    const { versionList } = useMessages(recipeVersionMessages);
     const { locale, id } = useParams<{ locale: string; id: string }>();
     const router = useRouter();
     const recipeHref = `/${locale}/recipes/${id}`;
 
     return (
         <RecipeVersionListSkeleton
-            label={recipes.versions.loadingLabel}
+            label={versionList.loading}
             onBack={() => router.push(recipeHref as Route)}
             backHref={recipeHref}
         />

@@ -6,6 +6,7 @@
  * the wizard; the editor's lifecycle is pinned by `useRecipeEditor.test.tsx`, and the frame by
  * `RecipeEditorView.native.test.tsx`.
  */
+import { recipeLoadMessages } from '@commise/features-recipes/detail';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 
@@ -129,6 +130,23 @@ describe('RecipeEditorScreen (native)', () => {
         } finally {
             win.width = undefined;
         }
+    });
+
+    // The shared `RecipeLoadError` replaced this screen's hand-built Text + Button: a failed read of the recipe being
+    // edited says so, retries, and names the way back (× is not on screen while the editor has not opened).
+    it('a failed read of the recipe being edited says so, offers Try again, and names the way back', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockRejectedValue(new Error('network down'));
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        const handlers = renderScreen(client, { recipeId: 'rec_1' });
+
+        expect((await screen.findByRole('alert')).textContent).toContain(recipeLoadMessages.en.errorTitle);
+        expect(screen.getByRole('button', { name: recipeLoadMessages.en.retry })).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: /^Back to / }));
+
+        expect(handlers.onClose).toHaveBeenCalledTimes(1);
     });
 
     it('× leaves without asking', () => {

@@ -11,16 +11,15 @@
  * Pure `props → JSX` (no props).
  */
 import { RecipeDetailSkeleton } from '@commise/features-recipes';
+import { recipeLoadMessages } from '@commise/features-recipes/detail';
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
-
-import { webMessages } from '@/i18n/messages';
 
 /**
  * @returns The page-shaped skeleton, named "Loading recipe".
  */
 export const RecipeDetailRouteLoading: FC = () => {
-    const { recipes } = useMessages(webMessages);
+    const copy = useMessages(recipeLoadMessages);
 
-    return <RecipeDetailSkeleton label={recipes.detail.loadingLabel} />;
+    return <RecipeDetailSkeleton label={copy.loadingLabel} />;
 };

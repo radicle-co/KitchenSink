@@ -109,7 +109,7 @@ describe('RecipeVersionsContainer', () => {
 
         renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
 
-        expect(screen.getByRole('status', { name: 'Loading version history' })).toBeInTheDocument();
+        expect(screen.getByRole('status', { name: 'Loading version history…' })).toBeInTheDocument();
     });
 
     // D3: the pending state is the history's shape — the header the settled list draws, and three placeholder rows — not a
@@ -135,8 +135,8 @@ describe('RecipeVersionsContainer', () => {
         // A `role="status"` node rendered EMPTY is doubly broken: zero-height (nothing for a sighted viewer,
         // and Playwright resolves it as `hidden`) AND silent, because a live region announces its CONTENT, not
         // its label. The localized label must be the visible caption.
-        expect(screen.getByRole('status', { name: 'Loading version history' })).toHaveTextContent(
-            'Loading version history',
+        expect(screen.getByRole('status', { name: 'Loading version history…' })).toHaveTextContent(
+            'Loading version history…',
         );
     });
 
@@ -185,7 +185,7 @@ describe('RecipeVersionsContainer', () => {
             </LocaleProvider>,
         );
 
-        expect(html).toContain('Loading version history');
+        expect(html).toContain('Loading version history…');
         expect(html).toContain('Back to recipe');
         expect(versionsSpy).not.toHaveBeenCalled();
         expect(recipeSpy).not.toHaveBeenCalled();
@@ -208,7 +208,7 @@ describe('RecipeVersionsContainer', () => {
             expect(recipeSpy).not.toHaveBeenCalled();
             expect(screen.getByRole('alert')).toBeInTheDocument();
             expect(screen.getByText(/couldn.t load the version history/i)).toBeInTheDocument();
-            expect(screen.queryByRole('status', { name: 'Loading version history' })).not.toBeInTheDocument();
+            expect(screen.queryByRole('status', { name: 'Loading version history…' })).not.toBeInTheDocument();
         });
 
         it('offers BOTH ways out — retry and Back to recipe', () => {

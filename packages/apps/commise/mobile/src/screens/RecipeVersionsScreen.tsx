@@ -6,17 +6,14 @@
  * with the web container, and its module docs carry the Preview, Compare and restore rationale.
  *
  * What stays here is what is mobile's: the boundary owns the localized loading state and the failure (whose retry
- * refetches), and Back sits above it, in the same place in every state. The restore invalidates the recipe and its
+ * refetches), and Back is drawn by the list's own header in every state. The restore invalidates the recipe and its
  * versions, so the list refreshes itself.
  */
-import { RecipeVersionListError, RecipeVersionListSkeleton } from '@commise/features-recipes';
+import { RecipeVersionListError, RecipeVersionListSkeleton, recipeVersionMessages } from '@commise/features-recipes';
 import { RecipeVersionsView } from '@commise/features-recipes/versions';
 import { useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
 import type { JSX } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-
-import { mobileMessages } from '../i18n/messages.js';
 
 /** Props for {@link RecipeVersionsScreen}. */
 export interface RecipeVersionsScreenProps {
@@ -34,30 +31,22 @@ export interface RecipeVersionsScreenProps {
  *   settle.
  */
 export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenProps): JSX.Element {
-    const { recipes: t } = useMessages(mobileMessages);
+    const { versionList } = useMessages(recipeVersionMessages);
 
     return (
-        <View style={styles.container}>
-            <Pressable accessibilityRole="button" accessibilityLabel={t.back} onPress={onBack}>
-                <Text>{t.back}</Text>
-            </Pressable>
-            <QueryBoundary
-                loading={<RecipeVersionListSkeleton label={t.versionsLoading} />}
-                renderError={({ resetErrorBoundary }) => (
-                    <RecipeVersionListError
-                        title={t.versionsError}
-                        retryLabel={t.versionsRetry}
-                        onRetry={resetErrorBoundary}
-                    />
-                )}
-                resetKeys={[recipeId]}
-            >
-                <RecipeVersionsView recipeId={recipeId} />
-            </QueryBoundary>
-        </View>
+        <QueryBoundary
+            loading={<RecipeVersionListSkeleton label={versionList.loading} onBack={onBack} />}
+            renderError={({ resetErrorBoundary }) => (
+                <RecipeVersionListError
+                    title={versionList.loadError}
+                    retryLabel={versionList.retry}
+                    onRetry={resetErrorBoundary}
+                    onBack={onBack}
+                />
+            )}
+            resetKeys={[recipeId]}
+        >
+            <RecipeVersionsView recipeId={recipeId} onBack={onBack} />
+        </QueryBoundary>
     );
 }
-
-const styles = StyleSheet.create({
-    container: { flex: 1 },
-});

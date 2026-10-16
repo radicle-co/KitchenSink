@@ -27,7 +27,6 @@ import {
 } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 
-import { mobileMessages } from '../../src/i18n/messages.js';
 import { RecipeVersionsScreen } from '../../src/screens/RecipeVersionsScreen.js';
 import { makeRecipeDetail, makeRecipeVersion } from '../__fixtures__/recipes.js';
 
@@ -57,7 +56,7 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-const t = mobileMessages.en.recipes;
+const { versionList } = recipeVersionMessages.en;
 
 /** A client whose history and recipe resolve to a two-version state (v1, v2 current). */
 function readyClient(snapshots?: readonly [RecipeSnapshot, RecipeSnapshot]): RecipeServiceClient {
@@ -102,7 +101,7 @@ describe('RecipeVersionsScreen — loading and error', () => {
     it('captions what is loading ONCE, under the history’s own title (D3)', () => {
         renderVersions(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />, pendingClient());
 
-        expect(screen.getAllByText(t.versionsLoading)).toHaveLength(1);
+        expect(screen.getAllByText(versionList.loading)).toHaveLength(1);
         expect(screen.getByRole('heading', { name: recipeVersionMessages.en.versionList.heading })).toBeTruthy();
         expect(screen.queryByRole('progressbar')).toBeNull();
     });
@@ -111,7 +110,7 @@ describe('RecipeVersionsScreen — loading and error', () => {
         const onBack = vi.fn();
         renderVersions(<RecipeVersionsScreen recipeId="rec_1" onBack={onBack} />, pendingClient());
 
-        fireEvent.click(screen.getByRole('button', { name: t.back }));
+        fireEvent.click(screen.getByRole('button', { name: versionList.backToRecipe }));
 
         expect(onBack).toHaveBeenCalledTimes(1);
     });
@@ -125,8 +124,8 @@ describe('RecipeVersionsScreen — loading and error', () => {
         renderVersions(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />, client);
 
         expect(await screen.findByRole('alert')).toBeTruthy();
-        expect(screen.getByRole('button', { name: t.back })).toBeTruthy();
-        expect(screen.getByRole('button', { name: t.versionsRetry })).toBeTruthy();
+        expect(screen.getByRole('button', { name: versionList.backToRecipe })).toBeTruthy();
+        expect(screen.getByRole('button', { name: versionList.retry })).toBeTruthy();
     });
 
     it('⛔ retries with a real second request and recovers (web parity — an error state needs a way forward)', async () => {
@@ -139,7 +138,7 @@ describe('RecipeVersionsScreen — loading and error', () => {
         vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
         renderVersions(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />, client);
-        fireEvent.click(await screen.findByRole('button', { name: t.versionsRetry }));
+        fireEvent.click(await screen.findByRole('button', { name: versionList.retry }));
 
         expect(await screen.findByText('Current version')).toBeTruthy();
         expect(versionsSpy).toHaveBeenCalledTimes(2);
@@ -154,7 +153,7 @@ describe('RecipeVersionsScreen — loading and error', () => {
         renderVersions(<RecipeVersionsScreen recipeId="" onBack={vi.fn()} />, client);
 
         expect(screen.getByRole('alert')).toBeTruthy();
-        expect(screen.queryByText(t.versionsLoading)).toBeNull();
+        expect(screen.queryByText(versionList.loading)).toBeNull();
         expect(versionsSpy).not.toHaveBeenCalled();
         expect(recipeSpy).not.toHaveBeenCalled();
     });
@@ -183,7 +182,7 @@ describe('RecipeVersionsScreen — populated', () => {
         const onBack = vi.fn();
         await renderReady(readyClient(), onBack);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+        fireEvent.click(screen.getByRole('button', { name: versionList.backToRecipe }));
 
         expect(onBack).toHaveBeenCalledTimes(1);
     });

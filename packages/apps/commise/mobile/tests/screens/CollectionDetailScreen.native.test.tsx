@@ -19,6 +19,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { createElement, type ComponentProps, type ReactElement } from 'react';
 import { AccessibilityInfo, type ScrollView as ScrollViewType } from 'react-native';
 
+import { collectionMessages } from '@commise/features-recipes';
 import { renderWithRecipeClient } from '@commise/test-utils';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import {
@@ -31,7 +32,6 @@ import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-clien
 
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { CollectionDetailScreen } from '../../src/screens/CollectionDetailScreen.js';
-import { mobileMessages } from '../../src/i18n/messages.js';
 import { makeCollectionWithRecipes, makeRecipe } from '../__fixtures__/recipes.js';
 
 // The real ScrollView, wrapped to mark its element with its tap persistence: jsdom has no keyboard to tap through.
@@ -93,6 +93,9 @@ function renderOver(ui: ReactElement, queryClient?: QueryClient) {
     );
 }
 
+/** The way back the shared load error names: where it goes, never a bare "Back". */
+const BACK_TO_COLLECTIONS = 'Back to Collections';
+
 const props = {
     collectionId: 'col_1',
     onSelectRecipe: vi.fn(),
@@ -151,7 +154,7 @@ describe('CollectionDetailScreen — loading and error', () => {
 
         renderOver(<CollectionDetailScreen {...props} />);
 
-        const label = mobileMessages.en.collections.detailLoading;
+        const label = collectionMessages.en.detail.loadingLabel;
         expect(screen.getByRole('progressbar', { name: label })).toBeTruthy();
         expect(screen.getByText(label)).toBeTruthy();
     });
@@ -163,9 +166,9 @@ describe('CollectionDetailScreen — loading and error', () => {
 
         renderOver(<CollectionDetailScreen {...props} onBack={onBack} />);
 
-        expect((await screen.findByRole('alert')).textContent).toBe(mobileMessages.en.collections.detailError);
-        expect(screen.getByRole('button', { name: mobileMessages.en.collections.detailRetry })).toBeTruthy();
-        fireEvent.click(screen.getByRole('button', { name: mobileMessages.en.collections.back }));
+        expect((await screen.findByRole('alert')).textContent).toContain(collectionMessages.en.detail.errorTitle);
+        expect(screen.getByRole('button', { name: collectionMessages.en.detail.retry })).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: BACK_TO_COLLECTIONS }));
         expect(onBack).toHaveBeenCalledTimes(1);
     });
 
@@ -178,7 +181,7 @@ describe('CollectionDetailScreen — loading and error', () => {
         vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
         renderOver(<CollectionDetailScreen {...props} />);
-        fireEvent.click(await screen.findByRole('button', { name: mobileMessages.en.collections.detailRetry }));
+        fireEvent.click(await screen.findByRole('button', { name: collectionMessages.en.detail.retry }));
 
         expect(await screen.findByRole('heading', { name: 'Weeknight favourites' })).toBeTruthy();
         expect(read).toHaveBeenCalledTimes(2);
@@ -190,9 +193,9 @@ describe('CollectionDetailScreen — loading and error', () => {
 
         renderOver(<CollectionDetailScreen {...props} />);
 
-        expect((await screen.findByRole('alert')).textContent).toBe(mobileMessages.en.collections.detailNotFound);
-        expect(screen.queryByRole('button', { name: mobileMessages.en.collections.detailRetry })).toBeNull();
-        expect(screen.getByRole('button', { name: mobileMessages.en.collections.back })).toBeTruthy();
+        expect((await screen.findByRole('alert')).textContent).toContain(collectionMessages.en.detail.notFoundTitle);
+        expect(screen.queryByRole('button', { name: collectionMessages.en.detail.retry })).toBeNull();
+        expect(screen.getByRole('button', { name: BACK_TO_COLLECTIONS })).toBeTruthy();
     });
 
     it('⛔ keeps a loaded collection when a background refetch fails, says so, and a Try again that works clears it', async () => {

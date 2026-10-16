@@ -268,7 +268,7 @@ describe('RecipeDetailContainer', () => {
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
 
-            expect(screen.getByRole('status', { name: 'Loading recipe' })).toBeInTheDocument();
+            expect(screen.getByRole('status', { name: 'Loading recipe…' })).toBeInTheDocument();
         });
 
         it('announces the loading label as the live region CONTENT, not only its aria-label', () => {
@@ -280,7 +280,7 @@ describe('RecipeDetailContainer', () => {
             // A `role="status"` node rendered EMPTY is doubly broken: zero-height (nothing for a sighted
             // viewer, and Playwright resolves it as `hidden`) AND silent, because a live region announces its
             // CONTENT, not its label. The localized label must be the visible caption.
-            expect(screen.getByRole('status', { name: 'Loading recipe' })).toHaveTextContent('Loading recipe');
+            expect(screen.getByRole('status', { name: 'Loading recipe…' })).toHaveTextContent('Loading recipe…');
         });
 
         it('renders the recipe detail view when the recipe loads', async () => {
@@ -468,7 +468,7 @@ describe('RecipeDetailContainer', () => {
                 const html = renderToString(page(client, prefetched(client)));
 
                 expect(html).toContain('Weeknight Pasta');
-                expect(html).not.toContain('Loading recipe');
+                expect(html).not.toContain('Loading recipe…');
                 expect(getRecipe).not.toHaveBeenCalled();
             });
 
@@ -479,7 +479,7 @@ describe('RecipeDetailContainer', () => {
 
                 const html = renderToString(page(client, queryClient));
 
-                expect(html).toContain('Loading recipe');
+                expect(html).toContain('Loading recipe…');
                 expect(getRecipe).not.toHaveBeenCalled();
             });
 
@@ -519,7 +519,7 @@ describe('RecipeDetailContainer', () => {
                 expect(getRecipeSpy).not.toHaveBeenCalled();
                 expect(screen.getByRole('alert')).toBeInTheDocument();
                 expect(screen.getByText(/couldn.t load this recipe/i)).toBeInTheDocument();
-                expect(screen.queryByRole('status', { name: 'Loading recipe' })).not.toBeInTheDocument();
+                expect(screen.queryByRole('status', { name: 'Loading recipe…' })).not.toBeInTheDocument();
             });
 
             it('offers a way OUT — a retry control, exactly as the generic error state does', () => {
@@ -600,7 +600,7 @@ describe('RecipeDetailContainer', () => {
                 await read.mock.results[0]?.value;
             });
 
-            expect(screen.getByRole('status', { name: 'Loading recipe' })).toBeInTheDocument();
+            expect(screen.getByRole('status', { name: 'Loading recipe…' })).toBeInTheDocument();
             expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
         });
     });

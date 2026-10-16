@@ -59,6 +59,22 @@ describe('RecipeVersionList (native)', () => {
         expect(screen.getByText('Slow-roasted lamb')).toBeTruthy();
     });
 
+    // The screen's own hand-built Back is gone: the list draws the header's Back when the host gives a way back, as the
+    // loading and failed states already do, so the way back looks the same in all three.
+    it('draws a Back to the recipe in its header when given a way back, and none when not', () => {
+        const onBack = vi.fn();
+        renderList({ onBack });
+
+        fireEvent.click(screen.getByRole('button', { name: versionList.backToRecipe }));
+
+        expect(onBack).toHaveBeenCalledTimes(1);
+
+        cleanup();
+        renderList();
+
+        expect(screen.queryByRole('button', { name: versionList.backToRecipe })).toBeNull();
+    });
+
     it('says there are no earlier versions yet, and why', () => {
         renderList();
 

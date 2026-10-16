@@ -14,7 +14,7 @@
  *
  * @pattern Facade — the route's boundary and navigation over the shared version-history view
  */
-import { RecipeVersionListError } from '@commise/features-recipes';
+import { RecipeVersionListError, recipeVersionMessages } from '@commise/features-recipes';
 import { RecipeVersionsView } from '@commise/features-recipes/versions';
 import { useMessages } from '@commise/i18n/react';
 import type { Route } from 'next';
@@ -23,7 +23,6 @@ import type { FC } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { RecipeVersionsRouteLoading } from '@/components/recipes/RecipeVersionsRouteLoading';
-import { webMessages } from '@/i18n/messages';
 
 /** Props for {@link RecipeVersionsContainer}. */
 export interface RecipeVersionsContainerProps {
@@ -37,12 +36,12 @@ const VersionsError: FC<{ readonly onBack: () => void; readonly backHref: string
     backHref,
     onRetry,
 }) => {
-    const { recipes } = useMessages(webMessages);
+    const { versionList } = useMessages(recipeVersionMessages);
 
     return (
         <RecipeVersionListError
-            title={recipes.versions.errorTitle}
-            retryLabel={recipes.versions.retry}
+            title={versionList.loadError}
+            retryLabel={versionList.retry}
             onRetry={onRetry}
             onBack={onBack}
             backHref={backHref}

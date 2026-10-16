@@ -1371,11 +1371,18 @@ describe('the alarm relay (ADR-0062)', () => {
  * replacement. The invalidation grant is scoped to that ONE distribution's ARN.
  */
 describe('media CDN wiring (ADR-0064)', () => {
+    interface PolicyStatement {
+        readonly Action?: string | readonly string[];
+        readonly Resource?: unknown;
+    }
+
     const taskEnvironment = (template: Template): Record<string, unknown> => {
         const [task] = Object.values(template.findResources('AWS::ECS::TaskDefinition'));
         const container = (task?.Properties?.ContainerDefinitions ?? [])[0];
 
-        return Object.fromEntries((container?.Environment ?? []).map((entry: any) => [entry.Name, entry.Value]));
+        return Object.fromEntries(
+            (container?.Environment ?? []).map((entry: { Name: string; Value: unknown }) => [entry.Name, entry.Value]),
+        );
     };
 
     /** The SSM path a `valueForStringParameter` token resolves from: a `Ref` to a template parameter whose Default is it. */
@@ -1404,14 +1411,14 @@ describe('media CDN wiring (ADR-0064)', () => {
 
     it('grants cloudfront:CreateInvalidation on the media distribution ARN only', () => {
         const statements = Object.values(prodTemplate.findResources('AWS::IAM::Policy')).flatMap(
-            (policy) => (policy.Properties?.PolicyDocument?.Statement ?? []) as Array<Record<string, any>>,
+            (policy) => (policy.Properties?.PolicyDocument?.Statement ?? []) as PolicyStatement[],
         );
         const invalidation = statements.filter((statement) =>
-            ([] as string[]).concat(statement['Action']).some((action) => action.startsWith('cloudfront:')),
+            ([] as string[]).concat(statement.Action ?? []).some((action) => action.startsWith('cloudfront:')),
         );
 
         expect(invalidation).toHaveLength(1);
-        expect(invalidation[0]?.['Action']).toBe('cloudfront:CreateInvalidation');
-        expect(ssmPathOf(prodTemplate, invalidation[0]?.['Resource'])).toBe('/kitchensink/prod/media/distribution-arn');
+        expect(invalidation[0]?.Action).toBe('cloudfront:CreateInvalidation');
+        expect(ssmPathOf(prodTemplate, invalidation[0]?.Resource)).toBe('/kitchensink/prod/media/distribution-arn');
     });
 });

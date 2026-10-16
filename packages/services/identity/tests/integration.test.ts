@@ -87,7 +87,7 @@ describe('UsersService', () => {
             execute: vi.fn().mockResolvedValue([]),
             // Delegate the transaction callback to mockDb so per-test insert/select/delete stubs apply,
             // and RETURN its result (upsertUserRecord returns the created row from inside the tx).
-            transaction: vi.fn((cb: (tx: any) => unknown) => cb(mockDb)),
+            transaction: vi.fn((cb: (tx: unknown) => unknown) => cb(mockDb)),
         };
 
         mockSqs = { enqueueDeletion: vi.fn().mockResolvedValue(undefined) };
@@ -211,7 +211,9 @@ describe('UsersService', () => {
         expect(userSet.deletedAt).toBeInstanceOf(Date);
 
         // BOTH avatar columns are cleared on the kept profile row: the Clerk URL and the uploaded key (ADR-0064).
-        const profileSet = setMock.mock.calls.map((c: any[]) => c[0]).find((v: any) => 'avatarKey' in v);
+        const profileSet = setMock.mock.calls
+            .map((call: unknown[]) => call[0] as Record<string, unknown>)
+            .find((value) => 'avatarKey' in value);
         expect(profileSet).toMatchObject({ avatarUrl: null, avatarKey: null });
 
         // R8 audit row written for the closure transition (trigger = user self-service).
@@ -405,7 +407,7 @@ describe('UsersService', () => {
 
             return Promise.resolve();
         });
-        mockDb.transaction = vi.fn((cb: (tx: any) => unknown) => {
+        mockDb.transaction = vi.fn((cb: (tx: unknown) => unknown) => {
             order.push('erase');
 
             return cb(mockDb);

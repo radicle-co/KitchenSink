@@ -38,9 +38,54 @@ const dataTemplate = (stage: string): Template => {
     return Template.fromStack(new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps(app) }));
 };
 
+interface TemplateStatement {
+    readonly Principal?: { readonly Service?: string };
+    readonly Condition?: unknown;
+}
+
+interface TemplateCorsRule {
+    readonly AllowedOrigins: readonly string[];
+    readonly ExposedHeaders?: unknown;
+}
+
+interface TemplateDistributionConfig {
+    readonly Aliases: readonly string[];
+    readonly DefaultCacheBehavior: {
+        readonly ResponseHeadersPolicyId: unknown;
+        readonly AllowedMethods: readonly string[];
+        readonly ViewerProtocolPolicy: string;
+    };
+    readonly HttpVersion: string;
+    readonly PriceClass: string;
+    readonly ViewerCertificate: { readonly MinimumProtocolVersion: string };
+    readonly CacheBehaviors?: unknown;
+    readonly CustomErrorResponses: ReadonlyArray<{ readonly ErrorCode: number; readonly ErrorCachingMinTTL: number }>;
+}
+
+/**
+ * The properties these tests read, across the resource types they look at. A field is declared whether or not every
+ * type carries it, because each read sits behind the `resourcesOf` type filter.
+ */
+interface ResourceProperties {
+    readonly Type: unknown;
+    readonly Name: unknown;
+    readonly DistributionConfig: TemplateDistributionConfig;
+    readonly PolicyDocument: { readonly Statement: readonly TemplateStatement[] };
+    readonly CachePolicyConfig: {
+        readonly ParametersInCacheKeyAndForwardedToOrigin: unknown;
+        readonly MaxTTL: number;
+    };
+    readonly CorsConfiguration?: { readonly CorsRules?: readonly TemplateCorsRule[] };
+    readonly LifecycleConfiguration: { readonly Rules: unknown };
+}
+
 interface Resource {
     readonly Type: string;
-    readonly Properties?: Record<string, any>;
+    readonly Properties: ResourceProperties;
+}
+
+interface TemplateOutput {
+    readonly Export?: { readonly Name?: string };
 }
 
 const resourcesOf = (template: Template, type: string): Resource[] =>
@@ -104,15 +149,13 @@ describe('media delivery (shape)', () => {
         const [policy] = resourcesOf(dataTemplate('prod'), 'AWS::S3::BucketPolicy').filter((candidate) =>
             JSON.stringify(candidate).includes('cloudfront.amazonaws.com'),
         );
-        const statements = policy?.Properties?.['PolicyDocument'].Statement as Array<Record<string, any>>;
-        const grants = statements.filter(
-            (statement) => statement['Principal']?.['Service'] === 'cloudfront.amazonaws.com',
-        );
+        const statements = policy?.Properties?.PolicyDocument.Statement ?? [];
+        const grants = statements.filter((statement) => statement.Principal?.Service === 'cloudfront.amazonaws.com');
 
         expect(grants).toHaveLength(1);
         expect(grants[0]).toMatchObject({ Effect: 'Allow', Action: 's3:GetObject' });
-        expect(JSON.stringify(grants[0]?.['Condition'])).toContain('AWS:SourceArn');
-        expect(JSON.stringify(grants[0]?.['Condition'])).toContain('Distribution');
+        expect(JSON.stringify(grants[0]?.Condition)).toContain('AWS:SourceArn');
+        expect(JSON.stringify(grants[0]?.Condition)).toContain('Distribution');
         // Never the versioned read: an erased photo's older versions must not be fetchable through the CDN.
         expect(JSON.stringify(statements)).not.toContain('s3:GetObjectVersion');
     });
@@ -183,11 +226,9 @@ describe('media delivery (shape)', () => {
 
     it('caches a 403 or 404 for ten seconds only, so a just-written object is not hidden', () => {
         const [distribution] = resourcesOf(dataTemplate('prod'), 'AWS::CloudFront::Distribution');
-        const responses = distribution?.Properties?.['DistributionConfig'].CustomErrorResponses as Array<
-            Record<string, number>
-        >;
+        const responses = distribution?.Properties.DistributionConfig.CustomErrorResponses ?? [];
 
-        expect(responses.map((response) => [response['ErrorCode'], response['ErrorCachingMinTTL']])).toEqual([
+        expect(responses.map((response) => [response.ErrorCode, response.ErrorCachingMinTTL])).toEqual([
             [403, 10],
             [404, 10],
         ]);
@@ -205,7 +246,7 @@ describe('media delivery (shape)', () => {
     });
 
     it('adds no CloudFormation export for the distribution (an export would lock it against replacement)', () => {
-        const exports = Object.values(dataTemplate('prod').findOutputs('*')).map((output: any) =>
+        const exports = Object.values(dataTemplate('prod').findOutputs('*')).map((output: TemplateOutput) =>
             String(output.Export?.Name ?? ''),
         );
 
@@ -214,7 +255,7 @@ describe('media delivery (shape)', () => {
 });
 
 describe('bucket CORS for the browser PUT', () => {
-    const corsOf = (template: Template): Array<Record<string, any>> =>
+    const corsOf = (template: Template): readonly TemplateCorsRule[] =>
         resourcesOf(template, 'AWS::S3::Bucket').flatMap(
             (bucket) => bucket.Properties?.['CorsConfiguration']?.CorsRules ?? [],
         );
@@ -229,12 +270,12 @@ describe('bucket CORS for the browser PUT', () => {
             AllowedOrigins: ['https://commise.app'],
             MaxAge: PREFLIGHT_MAX_AGE_SECONDS,
         });
-        expect(rules[0]?.['ExposedHeaders']).toBeUndefined();
+        expect(rules[0]?.ExposedHeaders).toBeUndefined();
     });
 
     it('never admits a bare * origin', () => {
         for (const rule of corsOf(dataTemplate('sandbox'))) {
-            expect(rule['AllowedOrigins']).not.toContain('*');
+            expect(rule.AllowedOrigins).not.toContain('*');
         }
     });
 

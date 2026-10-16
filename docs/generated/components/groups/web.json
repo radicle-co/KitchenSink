@@ -3554,7 +3554,8 @@
             "dir": "packages/apps/commise/web/src/components/recipes",
             "kind": "orchestration",
             "patterns": [
-                "Facade — one screen over the removal, visibility, pull and picker hooks and the sheets they drive"
+                "Facade — one route over the shared collection-detail session and body",
+                "Port — the router, as the session's navigation"
             ],
             "platforms": [
                 "web"
@@ -3568,11 +3569,15 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/CollectionDetailContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the collection-detail route (orchestration; W5 Task 12; slice 5 of the UI overhaul, `docs/design/uiOverhaul/buildSpec.md`\n§5.2, §5.3). It reads a single collection (with its member recipes) and composes the shared building blocks around it:\nthe {@link CollectionHeader} (back, name, meta, description, Add recipes and the ⋯ menu), the {@link CollectionMembers}\nlist, the rename sheet, the delete confirmation, the Premium sheet, the add-recipes picker and the pull-updates dialog.\nThe fetch-state affordances (loading, generic error with retry, distinct not-found) belong to the app, not the blocks.\n\nThe read is a suspense read under a `ClientQueryBoundary` — hydration-gated, because this route is not\nserver-prefetched. A background refetch that fails while the collection is on screen does not throw, so the cook keeps\nreading it, and the header's refresh notice says so and offers a retry. The settled {@link CollectionDetailView} is KEYED\non the id: the App Router keeps this container mounted across `/collections/A` → `/collections/B`, and the remount is what\nclears A's pending removal, sheets and pull state before B renders.\n\nRemote state stays in TanStack Query: the view is derived from the query, never copied into local state. The hooks own\nthe work — `useMemberRemoval` (a removal hides the row and commits when its Undo snackbar times out),\n`useCollectionVisibility` (changes at once, with a compensating Undo and the Premium sheet), `useCollectionPull` (the\npreview → commit → drift machine) — and the only local state is which sheet is open and the picker's search.\n\nPaid-feature gate (plan 2026-10-14-009 D14): the viewer's `paidFeatureStateOf` the profile — the SAME signal the recipe\ndetail container and the mobile screen read — decides whether the ⋯ menu offers the visibility item and what choosing\nprivate does. While the profile loads, or if it failed, nothing private is offered.",
+                    "moduleDoc": "Container for the collection-detail route (orchestration; W5 Task 12; slice 5 of the UI overhaul, `docs/design/uiOverhaul/buildSpec.md`\n§5.2, §5.3). It reads a single collection (with its member recipes) and composes the shared building blocks around it:\nthe collection header (back, name, meta, description, Add recipes and the ⋯ menu), the members list, the rename sheet,\nthe delete confirmation, the Premium sheet, the add-recipes picker and the pull-updates dialog.\nThe fetch-state affordances (loading, generic error with retry, distinct not-found) belong to the app, not the blocks.\n\nThe read is a suspense read under a `ClientQueryBoundary` — hydration-gated, because this route is not\nserver-prefetched. A background refetch that fails while the collection is on screen does not throw, so the cook keeps\nreading it, and the header's refresh notice says so and offers a retry. The settled {@link CollectionDetailView} is KEYED\non the id: the App Router keeps this container mounted across `/collections/A` → `/collections/B`, and the remount is what\nclears A's pending removal, sheets and pull state before B renders.\n\nRemote state stays in TanStack Query: the view is derived from the query, never copied into local state. The work —\nremoval, visibility, pull, rename, delete, Save a copy and the picker — is `useCollectionDetail`'s, shared with the mobile\nscreen, and the settled body is `CollectionDetailBody`'s. What stays here is what is web's: the page frame, the\nhydration-gated read boundary, the router, the stored view choice (a cookie) and the links that make a card an anchor.\n\nPaid-feature gate (plan 2026-10-14-009 D14): the viewer's `paidFeatureStateOf` the profile — the SAME signal the recipe\ndetail container and the mobile screen read — decides whether the ⋯ menu offers the visibility item and what choosing\nprivate does. While the profile loads, or if it failed, nothing private is offered.",
                     "moduleTags": [
                         {
                             "name": "pattern",
-                            "text": "Facade — one screen over the removal, visibility, pull and picker hooks and the sheets they drive"
+                            "text": "Facade — one route over the shared collection-detail session and body"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Port — the router, as the session's navigation"
                         }
                     ],
                     "description": "The live collection-detail container: the route's read boundary around {@link CollectionDetailView}.",

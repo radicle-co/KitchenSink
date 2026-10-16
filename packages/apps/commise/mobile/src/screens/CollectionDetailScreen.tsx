@@ -13,47 +13,19 @@
  * KEYED on the id: a `replace` or deep link can reuse this screen with another collection, and the remount clears the
  * previous collection's pending removal, sheets and pull state.
  *
- * Remote state stays in TanStack Query. The hooks own the work: `useMemberRemoval` (a removal hides the row and commits when
- * its Undo snackbar times out), `useCollectionVisibility` (changes at once, with a compensating Undo and the Premium sheet),
- * `useCollectionPull` (the preview, commit and drift machine) and `useMemberToggle` (the picker's per-row mutations). The
- * only local state is which sheet is open, the picker's search and the list/grid choice.
+ * Remote state stays in TanStack Query. The work — removal, visibility, pull, rename, delete, Save a copy and the picker —
+ * is `useCollectionDetail`'s, shared with the web container, and the settled body is `CollectionDetailBody`'s. What stays
+ * here is what is mobile's: the `ScrollView` frame, the read boundary and its fallbacks, the navigator callbacks and the
+ * stored list/grid choice.
  *
  * Paid-feature gate (plan 2026-10-14-009 D14): the viewer's `paidFeatureStateOf` the profile — the SAME signal the web
  * container reads — decides whether the ⋯ menu offers the visibility item and what choosing private does. While the
  * profile loads, or if it failed, nothing private is offered.
  *
- * @pattern Facade — one screen over the removal, visibility, pull and picker hooks and the sheets they drive
+ * @pattern Facade — one screen over the shared collection-detail session and body
+ * @pattern Port — the navigator callbacks, as the session's navigation
  */
-import {
-    CollectionDeleteDialog,
-    CollectionHeader,
-    CollectionMembers,
-    CollectionPickerRow,
-    CollectionRecipePicker,
-    CollectionRecipePickerCandidates,
-    CollectionRecipePickerLoadError,
-    CollectionRecipePickerLoading,
-    CollectionSheet,
-    CollectionUpsellSheet,
-    offersPrivate,
-    PullUpdatesDialog,
-    RecipeNutritionSlot,
-    cardVariantOf,
-    collectionMessages,
-    doneSummaryOf,
-    fillTemplate,
-    narrowByTitle,
-    useMainContainerClass,
-    viewModeOf,
-} from '@commise/features-recipes';
-import {
-    useCollectionPull,
-    useCollectionVisibility,
-    useMemberRemoval,
-    useMemberToggle,
-    usePickerAnnouncement,
-    useRecipeNutritionBatches,
-} from '@commise/features-recipes/hooks';
+import { CollectionDetailBody, useCollectionDetail } from '@commise/features-recipes/collections';
 import { useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
@@ -61,16 +33,10 @@ import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { paidFeatureStateOf } from '@commise/features-account';
-import type { Recipe } from '@kitchensink/recipe-core';
-import { collectionQueries, isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
-import {
-    useCloneCollection,
-    useDeleteCollection,
-    useRecipeServiceClient,
-    useUpdateCollection,
-} from '@kitchensink/recipe-service-client/hooks';
-import { useSuspenseInfiniteQuery, useSuspenseQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState, type FC, type JSX } from 'react';
+import { collectionQueries, isNotFoundError } from '@kitchensink/recipe-service-client';
+import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
+import { useSuspenseQuery } from '@tanstack/react-query';
+import type { FC, JSX } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { LoadingState } from '../components/LoadingState.js';
@@ -159,66 +125,6 @@ export function CollectionDetailScreen(props: CollectionDetailScreenProps): JSX.
     );
 }
 
-/** One picker row, with its own toggle (`useMemberToggle`: a per-row mutation, serialized per pair). */
-const PickerRow: FC<{
-    readonly collectionId: string;
-    readonly recipe: Recipe;
-    readonly checked: boolean;
-}> = ({ collectionId, recipe, checked }) => {
-    const toggle = useMemberToggle(collectionId, recipe);
-
-    return (
-        <CollectionPickerRow
-            recipe={recipe}
-            checked={checked}
-            {...(toggle.failed ? { failed: toggle.failedMember ? ('add' as const) : ('remove' as const) } : {})}
-            onToggle={toggle.press}
-        />
-    );
-};
-
-/**
- * The picker's settled body: the whole library, narrowed by the search, with each row's membership read off the collection,
- * which the toggles rewrite at once.
- *
- * @param props - The collection, the search, and the empty states' actions.
- * @returns The rows, or the reason there are none.
- */
-const PickerBody: FC<{
-    readonly collectionId: string;
-    readonly query: string;
-    readonly onClearSearch: () => void;
-    readonly onCreateRecipe: () => void;
-}> = ({ collectionId, query, onClearSearch, onCreateRecipe }) => {
-    const client = useRecipeServiceClient();
-    const library = useSuspenseInfiniteQuery(recipeQueries(client).library({ sortBy: 'updatedAt' }));
-    const collection = useSuspenseQuery(collectionQueries(client).detail(collectionId));
-    const members = useMemo(
-        () => new Set(collection.data.recipes.map((recipe) => recipe.id)),
-        [collection.data.recipes],
-    );
-    const recipes = useMemo(
-        () =>
-            narrowByTitle(
-                library.data.pages.flatMap((chunk) => chunk.data),
-                query,
-            ),
-        [library.data.pages, query],
-    );
-
-    return (
-        <CollectionRecipePickerCandidates
-            recipes={recipes}
-            query={query}
-            onClearSearch={onClearSearch}
-            onCreateRecipe={onCreateRecipe}
-            renderRow={(recipe) => (
-                <PickerRow collectionId={collectionId} recipe={recipe} checked={members.has(recipe.id)} />
-            )}
-        />
-    );
-};
-
 /**
  * The settled collection detail: the collection has resolved by the time this renders.
  *
@@ -240,245 +146,35 @@ function CollectionDetailView({
         throw new Error('A collection detail needs a collection id.');
     }
 
-    const { member: copy, picker } = useMessages(collectionMessages);
     const profile = useUserProfile();
     const client = useRecipeServiceClient();
     const query = useSuspenseQuery(collectionQueries(client).detail(collectionId));
-    const collection = query.data;
     // A failed refresh of the collection on screen does not throw into the boundary: it keeps the collection and is
     // reported by the header's refresh notice.
     const refreshNotice = useRefreshNotice(query);
-    const deleteCollection = useDeleteCollection();
-    const updateCollection = useUpdateCollection();
-    const cloneCollection = useCloneCollection();
-    const pull = useCollectionPull(collectionId);
-
-    // Plan 2026-10-14-009 D14: private from the viewer's paid features alone (owner ruling 2026-10-13).
-    const paidFeatures = paidFeatureStateOf(profile);
-    const visibility = useCollectionVisibility({ id: collectionId, paidFeatures });
-    const removal = useMemberRemoval({ id: collectionId, name: collection.name });
-    const announcement = usePickerAnnouncement(collectionId);
-
-    const container = useMainContainerClass();
     const [viewChoice, setViewChoice] = useStoredViewMode();
-    const viewMode = viewModeOf(viewChoice, container);
-    const variant = cardVariantOf(container, viewMode, 'library');
-
-    const [renameOpen, setRenameOpen] = useState(false);
-    const [deleteOpen, setDeleteOpen] = useState(false);
-    const [pickerOpen, setPickerOpen] = useState(false);
-    const [pickerQuery, setPickerQuery] = useState('');
-    // The members when the picker opened: Done's "2 added, 1 removed" is the difference from this, not a count of presses.
-    const [membersAtOpen, setMembersAtOpen] = useState<readonly string[]>([]);
-
-    const memberIds = useMemo(() => collection.recipes.map((recipe) => recipe.id), [collection.recipes]);
-    const members = useMemo(
-        () => collection.recipes.filter((recipe) => !removal.hiddenIds.includes(recipe.id)),
-        [collection.recipes, removal.hiddenIds],
-    );
-    // The deferred calorie lookup (ADR-0021 §6), fed from EVERY member, not the revealed window: the window grows on tap,
-    // and batching it would re-batch on every "load more" and blink the figures already on screen back to skeletons.
-    // The compact card draws no figure, so a batch for it would have nobody to read the promise (a rejection would go unhandled).
-    const nutritionFor = useRecipeNutritionBatches(variant === 'compact' ? [] : [memberIds]);
-    const renderNutrition = useCallback(
-        (recipeId: string) => {
-            const batch = nutritionFor(recipeId);
-
-            return batch === null ? null : <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />;
-        },
-        [nutritionFor],
-    );
-
-    // Leave AFTER the dialog has closed, never in the same tick as the success: the confirm dialog is a native window of
-    // its own, and popping the screen that hosts it while it is open makes Android re-parent a view that already has a
-    // parent (`addViewAt ... The specified child already has a parent`, a process crash). The success closes the dialog
-    // (below), and this effect runs after that commit, when the dialog frame has unmounted its `Modal`. A repeat call
-    // (the navigator's `onDeleted` is an inline closure, so its identity changes) is a `popToTop` on a stack already popped.
-    const leaving = deleteCollection.isSuccess && !deleteOpen;
-    useEffect(() => {
-        if (leaving) {
-            onDeleted();
-        }
-    }, [leaving, onDeleted]);
-
-    const openPicker = (): void => {
-        setMembersAtOpen(memberIds);
-        setPickerQuery('');
-        setPickerOpen(true);
-    };
+    const detail = useCollectionDetail({
+        collection: query.data,
+        refreshNotice,
+        // Plan 2026-10-14-009 D14: private from the viewer's paid features alone (owner ruling 2026-10-13).
+        paidFeatures: paidFeatureStateOf(profile),
+        viewChoice,
+        onViewChoice: setViewChoice,
+        nav: { onDeleted, onCloned, onCreateRecipe },
+    });
 
     return (
         <ScrollView keyboardShouldPersistTaps="handled" style={styles.container} contentContainerStyle={styles.content}>
-            <CollectionHeader
-                name={collection.name}
-                {...(collection.description === undefined ? {} : { description: collection.description })}
-                visibility={collection.visibility}
-                recipeCount={members.length}
-                {...(collection.sourceCollectionName === undefined
-                    ? {}
-                    : { sourceCollectionName: collection.sourceCollectionName })}
-                {...(collection.sourceOwnerDisplayName === undefined
-                    ? {}
-                    : { sourceOwnerDisplayName: collection.sourceOwnerDisplayName })}
-                {...(collection.sourceOwnerUsername === undefined
-                    ? {}
-                    : { sourceOwnerUsername: collection.sourceOwnerUsername })}
-                {...(collection.sourceCollectionId === undefined
-                    ? {}
-                    : { sourceCollectionId: collection.sourceCollectionId })}
-                {...(collection.lastPulledAt === undefined ? {} : { lastPulledAt: collection.lastPulledAt })}
-                actionsPlacement={container === 'narrow' ? 'below' : 'title'}
-                headingId="collection-title"
-                headingFocusSignal={0}
+            <CollectionDetailBody
+                detail={detail}
                 onBack={onBack}
-                onAddRecipes={openPicker}
-                onViewSource={onViewSource}
-                refreshNotice={refreshNotice}
-                onRename={() => {
-                    updateCollection.reset();
-                    setRenameOpen(true);
-                }}
-                {...(offersPrivate(paidFeatures, collection.visibility)
-                    ? {
-                          onToggleVisibility: () =>
-                              visibility.change(collection.visibility === 'public' ? 'private' : 'public'),
-                      }
-                    : {})}
-                onSaveCopy={() =>
-                    cloneCollection.mutate({ id: collectionId }, { onSuccess: (created) => onCloned(created.id) })
-                }
-                onPullUpdates={pull.start}
-                onDelete={() => {
-                    deleteCollection.reset();
-                    setDeleteOpen(true);
-                }}
-            />
-
-            <AlertLine shown={visibility.failed} text={copy.visibilityFailed} />
-            <AlertLine shown={cloneCollection.isError} text={copy.saveCopyFailed} />
-
-            <CollectionMembers
-                members={members}
-                viewMode={viewMode}
-                onViewModeChange={setViewChoice}
-                variant={variant}
                 onSelectRecipe={onSelectRecipe}
-                onRemoveRecipe={removal.remove}
-                onAddRecipes={openPicker}
-                {...(removal.failedTitle === undefined ? {} : { removeFailedTitle: removal.failedTitle })}
-                renderNutrition={renderNutrition}
+                onViewSource={onViewSource}
+                PickerBoundary={QueryBoundary}
             />
-
-            <CollectionSheet
-                open={renameOpen}
-                onOpenChange={setRenameOpen}
-                intent="rename"
-                initial={{
-                    name: collection.name,
-                    ...(collection.description === undefined ? {} : { description: collection.description }),
-                }}
-                submitting={updateCollection.isPending}
-                failed={updateCollection.isError}
-                onRename={(request) =>
-                    updateCollection.mutate({ id: collectionId, request }, { onSuccess: () => setRenameOpen(false) })
-                }
-            />
-
-            <CollectionDeleteDialog
-                open={deleteOpen}
-                name={collection.name}
-                recipeCount={members.length}
-                busy={deleteCollection.isPending}
-                failed={deleteCollection.isError}
-                onKeep={() => setDeleteOpen(false)}
-                onConfirm={() =>
-                    deleteCollection.mutate(collectionId, {
-                        onSuccess: () => setDeleteOpen(false),
-                    })
-                }
-            />
-
-            <CollectionUpsellSheet
-                open={visibility.upsellOpen}
-                onOpenChange={(open) => {
-                    if (!open) {
-                        visibility.closeUpsell();
-                    }
-                }}
-                onSeePremium={visibility.closeUpsell}
-            />
-
-            <CollectionRecipePicker
-                open={pickerOpen}
-                onClose={() => setPickerOpen(false)}
-                collectionName={collection.name}
-                query={pickerQuery}
-                onQueryChange={setPickerQuery}
-                summary={doneSummaryOf(membersAtOpen, memberIds)}
-                {...(announcement === undefined
-                    ? {}
-                    : {
-                          announcement: {
-                              text: fillTemplate(
-                                  announcement.member ? picker.addedAnnouncement : picker.removedAnnouncement,
-                                  { title: announcement.title },
-                              ),
-                              occurrence: announcement.at,
-                          },
-                      })}
-            >
-                <QueryBoundary
-                    loading={<CollectionRecipePickerLoading />}
-                    renderError={({ resetErrorBoundary }) => (
-                        <CollectionRecipePickerLoadError onRetry={resetErrorBoundary} />
-                    )}
-                    resetKeys={[collectionId]}
-                >
-                    <PickerBody
-                        collectionId={collectionId}
-                        query={pickerQuery}
-                        onClearSearch={() => setPickerQuery('')}
-                        onCreateRecipe={() => {
-                            setPickerOpen(false);
-                            onCreateRecipe();
-                        }}
-                    />
-                </QueryBoundary>
-            </CollectionRecipePicker>
-
-            {collection.sourceCollectionId !== undefined && (
-                <PullUpdatesDialog
-                    open={pull.open}
-                    diff={pull.diff}
-                    isLoadingPreview={pull.isLoadingPreview}
-                    isCommitting={pull.isCommitting}
-                    error={pull.error}
-                    sourceOwnerDisplayName={collection.sourceOwnerDisplayName}
-                    sourceOwnerUsername={collection.sourceOwnerUsername}
-                    sourceCollectionName={collection.sourceCollectionName}
-                    onCancel={pull.cancel}
-                    onConfirm={pull.confirm}
-                />
-            )}
         </ScrollView>
     );
 }
-
-/**
- * A line the screen says when an action failed.
- *
- * @param props - Whether to say it, and what.
- * @returns The alert, or nothing.
- */
-const AlertLine: FC<{ readonly shown: boolean; readonly text: string }> = ({ shown, text }) => {
-    const { colors } = useTheme();
-
-    return shown ? (
-        <Text role="alert" style={[styles.alert, { color: colors.dangerText }]}>
-            {text}
-        </Text>
-    ) : null;
-};
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
@@ -486,5 +182,4 @@ const styles = StyleSheet.create({
     // the screen's edge.
     content: { paddingHorizontal: nativeTokens.spacing[4], paddingBottom: 120 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-    alert: { paddingHorizontal: 16, paddingVertical: 8 },
 });

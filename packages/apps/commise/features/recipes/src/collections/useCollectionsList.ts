@@ -1,0 +1,88 @@
+'use client';
+
+/**
+ * @module @commise/features-recipes/collections — the collection list FRAME's session, shared by web's
+ * `CollectionListContainer` and mobile's `CollectionsScreen` (`docs/design/uiOverhaul/buildSpec.md` §5.1): the search
+ * text, whether the cook has a recipe to group, whether the list has settled empty (the first run), and the
+ * new-collection sheet with its create. The frame sits OUTSIDE the read boundary, so none of this reads the list itself.
+ *
+ * The collections read is built ONCE here and handed back as `read`, so the key a boundary checks for a server prefetch
+ * and the read it gates can never drift apart. The host passes the created collection's id to its own navigation.
+ *
+ * @pattern Headless hook — the list frame's state; each platform renders it
+ */
+import { collectionQueries, recipeQueries } from '@kitchensink/recipe-service-client';
+import type { CreateCollectionRequest } from '@kitchensink/recipe-service-client';
+import { useCreateCollection, useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+
+import { useLibraryEmpty } from '../hooks/useLibraryEmpty.js';
+
+/** What {@link useCollectionsList} reads. */
+export interface CollectionsListInput {
+    /** A collection was created and the sheet has closed: open it. */
+    readonly onCreated: (collectionId: string) => void;
+}
+
+/** The list frame's state. */
+export interface CollectionsList {
+    /** The collections read: the same options object the boundary's prefetch check and the suspense read use. */
+    readonly read: ReturnType<ReturnType<typeof collectionQueries>['listInfinite']>;
+    readonly search: { readonly value: string; readonly onChange: (value: string) => void };
+    /** Whether the cook has a recipe to group; while unknown it is `true`, so the first run offers New collection. */
+    readonly hasRecipes: boolean;
+    /** The first run (no collection at all): it draws its own start buttons in place of the floating one. */
+    readonly firstRun: boolean;
+    readonly sheet: {
+        readonly open: boolean;
+        readonly onOpenChange: (open: boolean) => void;
+        readonly submitting: boolean;
+        readonly failed: boolean;
+        readonly onOpen: () => void;
+        readonly onCreate: (request: CreateCollectionRequest) => void;
+    };
+}
+
+/**
+ * The collection list frame's session.
+ *
+ * @param input - The navigation to the created collection.
+ * @returns The read, the search, the first-run facts and the new-collection sheet.
+ * @sideEffect Sends the create request; reads the first recipe page to learn whether the cook has any recipe.
+ */
+export function useCollectionsList({ onCreated }: CollectionsListInput): CollectionsList {
+    const client = useRecipeServiceClient();
+    const read = collectionQueries(client).listInfinite();
+    const [searchValue, setSearchValue] = useState('');
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const createCollection = useCreateCollection();
+    // One recipe is enough to know; while it is unknown the first run offers New collection, the common case.
+    const anyRecipe = useQuery(recipeQueries(client).list({ pageSize: 1 }));
+    // A cache-only read of the list's own key: it fetches nothing, and is false until the read has settled empty.
+    const firstRun = useLibraryEmpty(read.queryKey);
+
+    return {
+        read,
+        search: { value: searchValue, onChange: setSearchValue },
+        hasRecipes: (anyRecipe.data?.total ?? 1) > 0,
+        firstRun,
+        sheet: {
+            open: sheetOpen,
+            onOpenChange: setSheetOpen,
+            submitting: createCollection.isPending,
+            failed: createCollection.isError,
+            onOpen: () => {
+                createCollection.reset();
+                setSheetOpen(true);
+            },
+            onCreate: (request) =>
+                createCollection.mutate(request, {
+                    onSuccess: (created) => {
+                        setSheetOpen(false);
+                        onCreated(created.id);
+                    },
+                }),
+        },
+    };
+}

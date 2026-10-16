@@ -89,6 +89,12 @@ function makeClonedCollection(overrides: Partial<ReturnType<typeof makeCollectio
     });
 }
 
+/**
+ * Whether a Radix dialog is OPEN at this instant. Radix keeps a closing dialog mounted for its exit (`Presence`) and flips
+ * `data-state` at once, so "still in the document" would read a dialog that has already been told to close as open.
+ */
+const isOpen = (dialog: HTMLElement | null): boolean => dialog?.getAttribute('data-state') === 'open';
+
 const openMenu = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
     await user.click(await screen.findByRole('button', { name: `More actions for ${name}` }));
 
@@ -444,6 +450,25 @@ describe('CollectionDetailContainer — rename, delete and Save a copy', () => {
         expect(deleteSpy).toHaveBeenCalledWith('col_9');
     });
 
+    // Drift settled with mobile (its Android crash fix): the confirm dialog closes BEFORE the route changes, in one
+    // shared flow. On web the push used to fire from the mutation's own onSuccess with the dialog still mounted.
+    it('closes the confirm dialog before it leaves, and leaves exactly once', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners' }));
+        vi.spyOn(client, 'deleteCollection').mockResolvedValue(undefined);
+        const dialogOpenWhenLeaving: boolean[] = [];
+        pushMock.mockImplementation(() => {
+            dialogOpenWhenLeaving.push(isOpen(screen.queryByRole('alertdialog')));
+        });
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Delete collection' }));
+        await user.click(await screen.findByRole('button', { name: 'Delete collection' }));
+
+        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/collections'));
+        expect(dialogOpenWhenLeaving).toEqual([false]);
+    });
+
     it('says a failed delete in the dialog, which stays open', async () => {
         const user = userEvent.setup();
         const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners' }));
@@ -642,6 +667,33 @@ describe('CollectionDetailContainer — the add-recipes picker', () => {
         await user.click(within(sheet).getByRole('button', { name: 'Done' }));
 
         await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add to Dinners' })).not.toBeInTheDocument());
+    });
+});
+
+describe('CollectionDetailContainer — creating a recipe from the empty picker', () => {
+    // Drift settled with mobile: the picker closes BEFORE the route changes (a native Modal left open is re-parented by
+    // the pop); web used to navigate with the picker still open.
+    it('closes the picker before it opens the editor', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', recipes: [] }));
+        vi.spyOn(client, 'listRecipes').mockResolvedValue({
+            data: [],
+            total: 0,
+            page: 1,
+            pageSize: 100,
+            hasMore: false,
+        });
+        const pickerOpenWhenLeaving: boolean[] = [];
+        pushMock.mockImplementation(() => {
+            pickerOpenWhenLeaving.push(isOpen(screen.queryByRole('dialog', { name: 'Add to Dinners' })));
+        });
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await screen.findAllByRole('button', { name: 'Add recipes' }))[1] as HTMLElement);
+        await user.click(await screen.findByRole('button', { name: 'Add a recipe' }));
+
+        expect(pushMock).toHaveBeenCalledWith('/en/recipes/new');
+        expect(pickerOpenWhenLeaving).toEqual([false]);
     });
 });
 

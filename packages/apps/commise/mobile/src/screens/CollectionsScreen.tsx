@@ -17,20 +17,16 @@ import {
     CollectionListLoading,
     CollectionListResults,
     CollectionSheet,
-    narrowCollections,
     type RecipesSegmentControl,
 } from '@commise/features-recipes';
-import { useLibraryEmpty } from '@commise/features-recipes/hooks';
+import { collectionListRowsOf, useCollectionsList, type CollectionsList } from '@commise/features-recipes/collections';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useRecoverySignal } from '@commise/query/recovery-signal';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
-import { collectionQueries, recipeQueries } from '@kitchensink/recipe-service-client';
-import { useCreateCollection, useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
-import { useQuery, useSuspenseInfiniteQuery } from '@tanstack/react-query';
+import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { JSX } from 'react';
-import { useState } from 'react';
 
 /** Props for {@link CollectionsScreen}. */
 export interface CollectionsScreenProps {
@@ -62,26 +58,12 @@ export function CollectionsScreen({
     scrollBind,
 }: CollectionsScreenProps): JSX.Element {
     const recovery = useRecoverySignal();
-    const client = useRecipeServiceClient();
-    const [searchValue, setSearchValue] = useState('');
-    const [sheetOpen, setSheetOpen] = useState(false);
-    const createCollection = useCreateCollection();
-    // Whether the cook has a recipe to group; while unknown the first run offers New collection, the common case.
-    const anyRecipe = useQuery(recipeQueries(client).list({ pageSize: 1 }));
-    const hasRecipes = (anyRecipe.data?.total ?? 1) > 0;
-    // The first run (no collection at all) draws its own start buttons in place of the floating one (§3.4). A cache-only
-    // read of the list's own key: it fetches nothing, and is false until the read has settled empty.
-    const firstRun = useLibraryEmpty(collectionQueries(client).listInfinite().queryKey);
-
-    const openSheet = (): void => {
-        createCollection.reset();
-        setSheetOpen(true);
-    };
+    const list = useCollectionsList({ onCreated: onSelect });
 
     return (
         <CollectionListFrame
-            onCreate={openSheet}
-            firstRun={firstRun}
+            onCreate={list.sheet.onOpen}
+            firstRun={list.firstRun}
             headingFocusSignal={recovery.signal}
             {...(segments === undefined ? {} : { segments })}
             {...(headerAction === undefined ? {} : { headerAction })}
@@ -91,27 +73,21 @@ export function CollectionsScreen({
                 renderError={({ resetErrorBoundary }) => <CollectionListLoadError onRetry={resetErrorBoundary} />}
             >
                 <SettledCollections
-                    searchValue={searchValue}
-                    onSearchChange={setSearchValue}
-                    firstRun={{ hasRecipes, onCreate: openSheet, onAddRecipe: onCreateRecipe }}
+                    read={list.read}
+                    searchValue={list.search.value}
+                    onSearchChange={list.search.onChange}
+                    firstRun={{ hasRecipes: list.hasRecipes, onCreate: list.sheet.onOpen, onAddRecipe: onCreateRecipe }}
                     onSelect={onSelect}
                     onRecovered={recovery.onRecovered}
                     scrollBind={scrollBind}
                 />
             </QueryBoundary>
             <CollectionSheet
-                open={sheetOpen}
-                onOpenChange={setSheetOpen}
-                submitting={createCollection.isPending}
-                failed={createCollection.isError}
-                onCreate={(request) =>
-                    createCollection.mutate(request, {
-                        onSuccess: (created) => {
-                            setSheetOpen(false);
-                            onSelect(created.id);
-                        },
-                    })
-                }
+                open={list.sheet.open}
+                onOpenChange={list.sheet.onOpenChange}
+                submitting={list.sheet.submitting}
+                failed={list.sheet.failed}
+                onCreate={list.sheet.onCreate}
             />
         </CollectionListFrame>
     );
@@ -124,6 +100,7 @@ export function CollectionsScreen({
  * @returns The results over the loaded pages.
  */
 function SettledCollections({
+    read,
     searchValue,
     onSearchChange,
     firstRun,
@@ -131,6 +108,8 @@ function SettledCollections({
     onRecovered,
     scrollBind,
 }: {
+    /** The collections read the frame's session built. */
+    readonly read: CollectionsList['read'];
     readonly searchValue: string;
     readonly onSearchChange: (value: string) => void;
     readonly firstRun: {
@@ -142,30 +121,24 @@ function SettledCollections({
     readonly onRecovered: () => void;
     readonly scrollBind: ScrollBind | undefined;
 }): JSX.Element {
-    const client = useRecipeServiceClient();
-    const query = useSuspenseInfiniteQuery(collectionQueries(client).listInfinite());
+    const query = useSuspenseInfiniteQuery(read);
     // A failed pull or background refresh is the notice's, and a failed NEXT page is the load-more control's; a suspense
     // read throws into the boundary only when it has no data at all.
     const refreshNotice = useRefreshNotice(query, { onRecovered });
-    const loaded = query.data.pages.flatMap((page) => page.data);
+    const rows = collectionListRowsOf(query, searchValue);
 
     return (
         <CollectionListResults
             {...(scrollBind === undefined ? {} : { scrollBind })}
-            collections={narrowCollections(loaded, searchValue)}
-            total={loaded.length}
+            collections={rows.collections}
+            total={rows.total}
             search={{ value: searchValue, onChange: onSearchChange }}
             firstRun={firstRun}
             onSelect={onSelect}
             // Pull-to-refresh (U4/L8): the spinner tracks the in-flight refetch; pulling re-runs the query.
             refresh={{ refreshing: query.isRefetching, onRefresh: () => void query.refetch() }}
             refreshNotice={refreshNotice}
-            loadMore={{
-                hasMore: query.hasNextPage,
-                loading: query.isFetchingNextPage,
-                failed: query.isFetchNextPageError,
-                onLoadMore: () => void query.fetchNextPage(),
-            }}
+            loadMore={rows.loadMore}
         />
     );
 }

@@ -1,8 +1,19 @@
 /**
  * @module @commise/features-recipes/collections — the collections list and detail screens' shared controllers.
  *
- * A package-export entry (the one kind of barrel this repo keeps), registered ahead of the web/mobile UI
- * consolidation so the slice that fills it (S8 of `docs/plans/2026-10-13-007-chore-finish-pr91-plan.md`) edits
- * neither the package root index nor `package.json`.
+ * A package-export entry (the one kind of barrel this repo keeps): web's `CollectionListContainer` /
+ * `CollectionDetailContainer` and mobile's `CollectionsScreen` / `CollectionDetailScreen` each keep their route frame, read
+ * boundary and navigation, and take everything else from here.
  */
-export {};
+export { collectionListRowsOf } from './collectionListRows.js';
+export type { CollectionListLoadMore, CollectionListQuery, CollectionListRows } from './collectionListRows.js';
+export { CollectionDetailBody } from './CollectionDetailBody.js';
+export type {
+    CollectionDetailBodyProps,
+    CollectionDetailLinks,
+    CollectionPickerBoundaryProps,
+} from './CollectionDetailBody.js';
+export { useCollectionDetail } from './useCollectionDetail.js';
+export type { CollectionDetail, CollectionDetailInput, CollectionDetailNav } from './useCollectionDetail.js';
+export { useCollectionsList } from './useCollectionsList.js';
+export type { CollectionsList, CollectionsListInput } from './useCollectionsList.js';

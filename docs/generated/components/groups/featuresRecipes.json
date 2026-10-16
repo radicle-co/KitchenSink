@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 146,
-        "implementations": 252,
-        "props": 1250,
-        "documentedComponents": 146,
-        "implementationsWithModuleDoc": 252,
+        "components": 150,
+        "implementations": 257,
+        "props": 1265,
+        "documentedComponents": 150,
+        "implementationsWithModuleDoc": 257,
         "implementationsWithComponentDoc": 152,
-        "documentedProps": 977,
-        "classifiedComponents": 126,
-        "componentsWithPatternTag": 70,
-        "crossPlatformComponents": 106
+        "documentedProps": 986,
+        "classifiedComponents": 128,
+        "componentsWithPatternTag": 73,
+        "crossPlatformComponents": 107
     },
     "components": [
         {
@@ -932,6 +932,201 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/collections/CollectionDetailAlert",
+            "name": "CollectionDetailAlert",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/collections",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CollectionDetailAlert",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDetailAlert.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/collections",
+                    "moduleDoc": "@commise/features-recipes/collections — a line the web collection detail says when an action failed (\"We\ncouldn’t make this private.\", \"We couldn’t save a copy.\"): an alert in the page's flow, in the danger text colour.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/collections — a line the web collection detail says when an action failed (\"We"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "text",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What went wrong, already localized.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionDetailAlert.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "CollectionDetailAlert",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDetailAlert.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/collections",
+                    "moduleDoc": "@commise/features-recipes/collections — the native twin of the web `CollectionDetailAlert`: the line the\ncollection detail says when an action failed, as an alert in the danger text colour at the screen's gutter. The colour\nis read from the theme at render.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/collections — the native twin of the web `CollectionDetailAlert`: the line the"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "text",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What went wrong, already localized.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionDetailAlert.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/collections/CollectionDetailBody",
+            "name": "CollectionDetailBody",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/collections",
+            "kind": "unclassified",
+            "patterns": [
+                "Composite — the detail's header, members and sheets over one view-model",
+                "Strategy — the picker's read boundary, injected per platform"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CollectionDetailBody",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDetailBody.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/collections",
+                    "moduleDoc": "@commise/features-recipes/collections — the SETTLED collection detail, composed once for web and mobile\n(`docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3): the {@link CollectionHeader} (back, name, meta, description, Add\nrecipes and the ⋯ menu), the two failure lines, the {@link CollectionMembers} list, and the sheets the header opens —\nrename, delete, Premium, the add-recipes picker and the pull-updates dialog.\n\nPlain `.tsx` with no native twin: every piece it draws is a leaf pair that resolves per platform, and what it reads is\nthe {@link CollectionDetail} view-model. The app keeps only what differs: the frame around it (a page `<section>` on\nweb, a `ScrollView` on mobile), the read boundary, the navigation, and the links web needs so a card is a real anchor.\n\nThe picker's read boundary is the app's (`ClientQueryBoundary` on web, `QueryBoundary` on mobile; this package may\nnot import `@commise/query`), handed in as {@link CollectionDetailBodyProps.PickerBoundary}.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/collections — the SETTLED collection detail, composed once for web and mobile"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Composite — the detail's header, members and sheets over one view-model"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Strategy — the picker's read boundary, injected per platform"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "detail",
+                            "type": "CollectionDetail",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionDetailBody.tsx"
+                        },
+                        {
+                            "name": "links",
+                            "type": "CollectionDetailLinks",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionDetailBody.tsx"
+                        },
+                        {
+                            "name": "onBack",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Back to the collections list.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionDetailBody.tsx"
+                        },
+                        {
+                            "name": "onSelectRecipe",
+                            "type": "(recipeId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open a member recipe.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionDetailBody.tsx"
+                        },
+                        {
+                            "name": "onViewSource",
+                            "type": "(sourceCollectionId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the collection this one was copied from.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionDetailBody.tsx"
+                        },
+                        {
+                            "name": "PickerBoundary",
+                            "type": "ComponentType<CollectionPickerBoundaryProps>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The app's read boundary for the picker's settled body.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionDetailBody.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
                         "orchestration": false
                     }
                 }
@@ -2481,6 +2676,91 @@
             ]
         },
         {
+            "id": "featuresRecipes/collections/CollectionPickerBody",
+            "name": "CollectionPickerBody",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/collections",
+            "kind": "unclassified",
+            "patterns": [
+                "Container — suspense reads composed into a presentational candidates list"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CollectionPickerBody",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionPickerBody.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/collections",
+                    "moduleDoc": "@commise/features-recipes/collections — the add-recipes picker's SETTLED body, shared by web and mobile: the\nwhole library (the same read My recipes narrows on the device), narrowed by the search, with each row's membership\nread off the collection — which the toggles rewrite at once. A suspense read: the host puts it under its own read\nboundary, with {@link CollectionRecipePickerLoading} and {@link CollectionRecipePickerLoadError} as the fallbacks.\n\nPlain `.tsx` with no native twin: it composes the candidates and row pairs, which resolve per platform.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/collections — the add-recipes picker's SETTLED body, shared by web and mobile: the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Container — suspense reads composed into a presentational candidates list"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "collectionId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionPickerBody.tsx"
+                        },
+                        {
+                            "name": "onClearSearch",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionPickerBody.tsx"
+                        },
+                        {
+                            "name": "onCreateRecipe",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The empty state's \"Add a recipe\".",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionPickerBody.tsx"
+                        },
+                        {
+                            "name": "query",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The picker's search text.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionPickerBody.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/collections/CollectionPickerRow",
             "name": "CollectionPickerRow",
             "group": "featuresRecipes",
@@ -2616,6 +2896,82 @@
                             "defaultValue": null,
                             "description": "",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/collections/CollectionPickerToggleRow",
+            "name": "CollectionPickerToggleRow",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/collections",
+            "kind": "presentational",
+            "patterns": [
+                "Container — binds a presentational row to its mutation"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CollectionPickerToggleRow",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionPickerToggleRow.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/collections",
+                    "moduleDoc": "@commise/features-recipes/collections — one add-recipes picker row WITH its toggle: the presentational\n{@link CollectionPickerRow} wired to `useMemberToggle` (a per-row mutation, serialized per collection/recipe pair, that\nrewrites the cached membership at once and flips back when the server refuses).\n\nPlain `.tsx` with no native twin: it renders only the row pair, which resolves per platform.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/collections — one add-recipes picker row WITH its toggle: the presentational"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Container — binds a presentational row to its mutation"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "checked",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the recipe is a member now, read off the collection (which the toggle rewrites).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionPickerToggleRow.tsx"
+                        },
+                        {
+                            "name": "collectionId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionPickerToggleRow.tsx"
+                        },
+                        {
+                            "name": "recipe",
+                            "type": "Recipe",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionPickerToggleRow.tsx"
                         }
                     ],
                     "usesRefApi": [],

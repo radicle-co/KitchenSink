@@ -671,4 +671,27 @@ describe('CollectionDetailScreen — an empty collection', () => {
         expect(await screen.findByText('Add to Dinners')).toBeTruthy();
         expect(await screen.findByText('You have no recipes yet.')).toBeTruthy();
     });
+
+    // The picker closes and the editor opens, once. (The ORDER — closed first — is pinned on the session itself,
+    // `useCollectionDetail.test.tsx`: the native Sheet keeps its panel mounted through its exit, so the DOM cannot say it.)
+    it('closes the picker and opens the editor from "Add a recipe", once', async () => {
+        seed(makeCollectionWithRecipes([], { id: 'col_1', name: 'Dinners' }));
+        vi.spyOn(client, 'listRecipes').mockResolvedValue({
+            data: [],
+            total: 0,
+            page: 1,
+            pageSize: 100,
+            hasMore: false,
+        });
+        const onCreateRecipe = vi.fn();
+
+        renderOver(<CollectionDetailScreen {...props} onCreateRecipe={onCreateRecipe} />);
+        await screen.findByRole('heading', { name: 'No recipes here yet' });
+        fireEvent.click(screen.getAllByRole('button', { name: 'Add recipes' })[1] as HTMLElement);
+        fireEvent.click(await screen.findByRole('button', { name: 'Add a recipe' }));
+
+        await waitFor(() => expect(onCreateRecipe).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(screen.queryByText('Add to Dinners')).toBeNull());
+        expect(onCreateRecipe).toHaveBeenCalledTimes(1);
+    });
 });

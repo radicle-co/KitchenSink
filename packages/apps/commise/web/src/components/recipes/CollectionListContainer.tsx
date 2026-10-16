@@ -23,17 +23,14 @@ import {
     CollectionListLoading,
     CollectionListResults,
     CollectionSheet,
-    narrowCollections,
 } from '@commise/features-recipes';
-import { useLibraryEmpty } from '@commise/features-recipes/hooks';
+import { collectionListRowsOf, useCollectionsList, type CollectionsList } from '@commise/features-recipes/collections';
 import { useRecoverySignal } from '@commise/query/recovery-signal';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
-import { collectionQueries, recipeQueries } from '@kitchensink/recipe-service-client';
-import { useCreateCollection, useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
-import { useQuery, useSuspenseInfiniteQuery } from '@tanstack/react-query';
+import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useState, type FC, type ReactNode } from 'react';
+import type { FC, ReactNode } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 
@@ -49,7 +46,7 @@ export interface CollectionListContainerProps {
 }
 
 /** The collections read the page prefetches and the results render. */
-type CollectionListRead = ReturnType<ReturnType<typeof collectionQueries>['listInfinite']>;
+type CollectionListRead = CollectionsList['read'];
 
 /**
  * The live collection-list container.
@@ -59,32 +56,18 @@ type CollectionListRead = ReturnType<ReturnType<typeof collectionQueries>['listI
  */
 export const CollectionListContainer: FC<CollectionListContainerProps> = ({ locale, avatar }) => {
     const router = useRouter();
-    const client = useRecipeServiceClient();
-    // Built ONCE and handed to both sides, so the key the boundary checks for a prefetch and the read it gates can never
-    // drift apart.
-    const read = collectionQueries(client).listInfinite();
     const recovery = useRecoverySignal();
-    const [searchValue, setSearchValue] = useState('');
-    const [sheetOpen, setSheetOpen] = useState(false);
-    const createCollection = useCreateCollection();
-    // Whether the cook has any recipe to group (§5.1 first run). One recipe is enough to know; while it is unknown the
-    // first run offers New collection, the common case.
-    const anyRecipe = useQuery(recipeQueries(client).list({ pageSize: 1 }));
-    const hasRecipes = (anyRecipe.data?.total ?? 1) > 0;
-    // The first run (no collection at all) draws its own start buttons in place of the floating one (§3.4). A cache-only
-    // read of the list's own key: it fetches nothing, and is false until the read has settled empty.
-    const firstRun = useLibraryEmpty(read.queryKey);
-
-    const openSheet = () => {
-        createCollection.reset();
-        setSheetOpen(true);
-    };
+    // The frame's session is shared with the mobile screen. Its `read` is built ONCE and handed to both sides, so the key
+    // the boundary checks for a prefetch and the read it gates can never drift apart.
+    const list = useCollectionsList({
+        onCreated: (id) => router.push(`/${locale}/collections/${id}` as Route),
+    });
 
     return (
         <CollectionListFrame
             {...(avatar === undefined ? {} : { headerAction: { kind: 'avatar', avatar } })}
-            onCreate={openSheet}
-            firstRun={firstRun}
+            onCreate={list.sheet.onOpen}
+            firstRun={list.firstRun}
             segments={{
                 current: 'collections',
                 href: { mine: `/${locale}/recipes`, collections: `/${locale}/collections` },
@@ -99,31 +82,24 @@ export const CollectionListContainer: FC<CollectionListContainerProps> = ({ loca
             {/* The new-collection sheet replaces the deleted `/collections/new` page (§5.1). A created collection
                 closes the sheet and opens its detail, whose empty state offers Add recipes. */}
             <CollectionSheet
-                open={sheetOpen}
-                onOpenChange={setSheetOpen}
-                submitting={createCollection.isPending}
-                failed={createCollection.isError}
-                onCreate={(request) =>
-                    createCollection.mutate(request, {
-                        onSuccess: (created) => {
-                            setSheetOpen(false);
-                            router.push(`/${locale}/collections/${created.id}` as Route);
-                        },
-                    })
-                }
+                open={list.sheet.open}
+                onOpenChange={list.sheet.onOpenChange}
+                submitting={list.sheet.submitting}
+                failed={list.sheet.failed}
+                onCreate={list.sheet.onCreate}
             />
             <ClientQueryBoundary
-                prefetchedKeys={[read.queryKey]}
+                prefetchedKeys={[list.read.queryKey]}
                 loading={<CollectionListLoading />}
                 renderError={({ resetErrorBoundary }) => <CollectionListLoadError onRetry={resetErrorBoundary} />}
             >
                 <SettledCollectionList
-                    read={read}
+                    read={list.read}
                     locale={locale}
-                    searchValue={searchValue}
-                    onSearchChange={setSearchValue}
-                    hasRecipes={hasRecipes}
-                    onCreate={openSheet}
+                    searchValue={list.search.value}
+                    onSearchChange={list.search.onChange}
+                    hasRecipes={list.hasRecipes}
+                    onCreate={list.sheet.onOpen}
                     onAddRecipe={() => router.push(`/${locale}/recipes/new` as Route)}
                     onSelect={(id) => router.push(`/${locale}/collections/${id}` as Route)}
                     onRecovered={recovery.onRecovered}
@@ -170,24 +146,18 @@ const SettledCollectionList: FC<SettledCollectionListProps> = ({
     // A failed refresh of the rows on screen is the notice's, and a failed NEXT page is the load-more control's; a
     // suspense read throws into the boundary only when it has no data at all.
     const refreshNotice = useRefreshNotice(query, { onRecovered });
-    const loaded = query.data.pages.flatMap((page) => page.data);
+    const rows = collectionListRowsOf(query, searchValue);
 
     return (
         <CollectionListResults
-            // Each fetched page appends to `data.pages`, so flatten them; the search narrows what is loaded.
-            collections={narrowCollections(loaded, searchValue)}
-            total={loaded.length}
+            collections={rows.collections}
+            total={rows.total}
             search={{ value: searchValue, onChange: onSearchChange }}
             firstRun={{ hasRecipes, onCreate, onAddRecipe }}
             hrefOf={(id) => `/${locale}/collections/${id}`}
             onSelect={onSelect}
             refreshNotice={refreshNotice}
-            loadMore={{
-                hasMore: query.hasNextPage,
-                loading: query.isFetchingNextPage,
-                failed: query.isFetchNextPageError,
-                onLoadMore: () => void query.fetchNextPage(),
-            }}
+            loadMore={rows.loadMore}
         />
     );
 };

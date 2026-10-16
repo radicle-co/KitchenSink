@@ -1,8 +1,10 @@
 /**
  * @module @commise/ui/input — the native design-system {@link Stepper}: `[−] value [+]` for a small whole number.
  *
- * A named `group` holding two round buttons (44 pt on iOS, 48 dp on Android) and the value in tabular digits. A press
+ * A named `group` (its `label` repeated as the `accessibilityLabel` iOS reads, since `aria-labelledby` is Android-only)
+ * holding two round buttons (44 pt on iOS, 48 dp on Android) and the value in tabular digits. A press
  * reports the stepped value and speaks the caller's `announce` sentence politely through `@commise/ui/live-region`. A
+ * caller's `error` is the accessibility hint of both buttons (React Native has no `aria-describedby`). A
  * button at its bound is disabled and dims; a disabled `Pressable` keeps the screen-reader cursor on device.
  *
  * @pattern Controlled input — the value is the caller's; the step rule (`stepFrom`) is pure
@@ -34,6 +36,7 @@ export const Stepper: FC<StepperProps> = ({
     announce,
     decreaseLabel,
     increaseLabel,
+    error,
 }) => {
     const [spoken, setSpoken] = useState({ text: '', occurrence: 0 });
     const labelId = `${id}-label`;
@@ -47,6 +50,7 @@ export const Stepper: FC<StepperProps> = ({
             <Pressable
                 role="button"
                 aria-label={name}
+                accessibilityHint={error}
                 disabled={next === null}
                 onPress={() => {
                     if (next === null) {
@@ -77,7 +81,13 @@ export const Stepper: FC<StepperProps> = ({
             >
                 {label}
             </Text>
-            <View collapsable={false} role="group" aria-labelledby={labelId} style={styles.row}>
+            <View
+                collapsable={false}
+                role="group"
+                aria-labelledby={labelId}
+                accessibilityLabel={label}
+                style={styles.row}
+            >
                 {stepButton(-1, decreaseLabel, 'minus')}
                 <Text style={[styles.value, { color: colors.ink }]}>{value}</Text>
                 {stepButton(1, increaseLabel, 'plus')}

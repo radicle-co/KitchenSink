@@ -2,8 +2,10 @@
  * @module @commise/ui/input — the native design-system {@link Input}: a one-line text field on the shared field
  * geometry (`fieldStyle.ts`), named by the `FieldLabel` above it.
  *
- * The field's `aria-labelledby` names its label's `nativeID` (`fieldLabelId(id)`), so the visible label IS its
- * accessible name. `invalid` sets `aria-invalid` and the `danger` edge; `describedBy` names the caller's message. The
+ * The field's `aria-labelledby` names its label's `nativeID` (`fieldLabelId(id)`), which only Android honours, so
+ * `label` repeats it as the `accessibilityLabel` iOS reads. React Native 0.86 has no `aria-invalid` and no
+ * `aria-describedby` (they compile and do nothing on a device), so neither is passed: `invalid` is the `danger` edge
+ * alone, and a message reaches a screen reader as `error`, the field's `accessibilityHint` (which also implies the edge). The
  * keyboard, autofill and return-key hints pass straight to React Native's `TextInput`, which maps them per OS (on iOS,
  * `autoComplete` also sets the `textContentType` autofill reads). It renders through `@commise/ui/text-input`, which
  * keeps Android's full-screen editor away from every field.
@@ -27,7 +29,6 @@ export const Input: FC<InputProps> = ({
     value,
     onChangeText,
     invalid = false,
-    describedBy,
     error,
     label,
     placeholder,
@@ -56,8 +57,6 @@ export const Input: FC<InputProps> = ({
             aria-labelledby={fieldLabelId(id)}
             accessibilityLabel={label}
             accessibilityHint={error}
-            aria-invalid={invalid || error !== undefined}
-            aria-describedby={describedBy}
             placeholder={placeholder}
             placeholderTextColor={theme.colors.inkMuted}
             autoCapitalize={autoCapitalize}

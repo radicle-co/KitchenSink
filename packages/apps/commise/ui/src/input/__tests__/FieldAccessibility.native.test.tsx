@@ -66,6 +66,13 @@ describe.each(leaves)('%s (native) — what the screen reader receives', (_name,
         expect(seen.props?.['aria-labelledby']).toBe('title-label');
     });
 
+    it('hands the field no aria-invalid or aria-describedby, which React Native 0.86 compiles and ignores on device', () => {
+        render(field({ error: MESSAGE, invalid: true, describedBy: 'title-error' }));
+
+        expect(seen.props).not.toHaveProperty('aria-invalid');
+        expect(seen.props).not.toHaveProperty('aria-describedby');
+    });
+
     it('takes the danger edge from the error alone, without `invalid`', () => {
         const edge = () => StyleSheet.flatten(seen.props?.style)?.borderColor;
         render(field({}));

@@ -64,23 +64,17 @@ describe('Input + FieldLabel (native)', () => {
 
         const field = screen.getByRole('textbox', { name: 'Email' });
 
-        expect(field.getAttribute('aria-invalid')).not.toBe('true');
-        expect(field.getAttribute('aria-describedby')).toBeNull();
         expect(getComputedStyle(field).borderTopColor).toBe(rgb(role.lineControl));
     });
 
-    it('marks itself invalid with a danger edge, described by the message the caller names', () => {
-        render(
-            <>
-                <LabelledInput invalid describedBy="email-error" />
-                <span id="email-error">Enter a valid email</span>
-            </>,
-        );
+    // REWRITTEN: this used to assert `aria-invalid` and `aria-describedby` in the DOM, which react-native-web maps and a
+    // device ignores. The spoken error and the iOS name are asserted in `FieldAccessibility.native.test.tsx`; what is
+    // left to see here is the edge.
+    it('marks itself invalid with a danger edge', () => {
+        render(<LabelledInput invalid />);
 
         const field = screen.getByRole('textbox', { name: 'Email' });
 
-        expect(field.getAttribute('aria-invalid')).toBe('true');
-        expect(field.getAttribute('aria-describedby')).toBe('email-error');
         expect(getComputedStyle(field).borderTopColor).toBe(rgb(role.danger));
     });
 
@@ -317,7 +311,6 @@ describe('TextArea (native)', () => {
 
         const field = screen.getByRole('textbox', { name: 'Steps' });
 
-        expect(field.getAttribute('aria-invalid')).toBe('true');
         expect(getComputedStyle(field).borderTopColor).toBe(rgb(role.danger));
     });
 

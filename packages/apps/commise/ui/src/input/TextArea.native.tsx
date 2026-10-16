@@ -48,7 +48,6 @@ export const TextArea: FC<TextAreaProps> = ({
     value,
     onChangeText,
     invalid = false,
-    describedBy,
     error,
     label,
     placeholder,
@@ -75,8 +74,6 @@ export const TextArea: FC<TextAreaProps> = ({
             aria-labelledby={fieldLabelId(id)}
             accessibilityLabel={label}
             accessibilityHint={error}
-            aria-invalid={invalid || error !== undefined}
-            aria-describedby={describedBy}
             placeholder={placeholder}
             placeholderTextColor={theme.colors.inkMuted}
             autoCapitalize={autoCapitalize}

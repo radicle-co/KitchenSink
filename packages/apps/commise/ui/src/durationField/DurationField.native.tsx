@@ -3,6 +3,9 @@
  * the same contract (a duration stored in seconds, entered as hours and minutes in one labelled group, never showing
  * a "0"). The arithmetic is `./duration.ts`, shared with the web leaf.
  *
+ * A caller's `error` is each box's `accessibilityHint` (React Native has no `aria-describedby` or `aria-invalid`) and
+ * paints the `danger` edge.
+ *
  * Presentational and controlled: it owns no state; the caller holds the seconds.
  *
  * @pattern Adapter — presents a value stored in seconds as an hours/minutes pair, and converts each edit back.
@@ -25,6 +28,7 @@ export const DurationField: FC<DurationFieldProps> = ({
     minutesUnit,
     value,
     onChange,
+    error,
 }) => {
     const labelId = `${useId()}-label`;
     const shown = durationBoxes(value);
@@ -33,29 +37,37 @@ export const DurationField: FC<DurationFieldProps> = ({
 
     return (
         // `collapsable={false}`: Android flattens a View that only lays out, which would drop its role and name.
-        <View collapsable={false} role="group" aria-labelledby={labelId} style={styles.group}>
+        <View
+            collapsable={false}
+            role="group"
+            aria-labelledby={labelId}
+            accessibilityLabel={label}
+            style={styles.group}
+        >
             <Text nativeID={labelId} style={[styles.label, { color: colors.inkMuted }]}>
                 {label}
             </Text>
             <View style={styles.row}>
                 <TextInput
                     accessibilityLabel={hoursLabel}
+                    accessibilityHint={error}
                     keyboardType="number-pad"
                     inputMode="numeric"
                     value={shown.hours}
                     onChangeText={(text) => onChange(durationFromBoxes(text, shown.minutes))}
-                    style={[styles.box, fieldPaint(theme, false)]}
+                    style={[styles.box, fieldPaint(theme, error !== undefined)]}
                 />
                 <Text aria-hidden style={[styles.unit, { color: colors.inkMuted }]}>
                     {hoursUnit}
                 </Text>
                 <TextInput
                     accessibilityLabel={minutesLabel}
+                    accessibilityHint={error}
                     keyboardType="number-pad"
                     inputMode="numeric"
                     value={shown.minutes}
                     onChangeText={(text) => onChange(durationFromBoxes(shown.hours, text))}
-                    style={[styles.box, fieldPaint(theme, false)]}
+                    style={[styles.box, fieldPaint(theme, error !== undefined)]}
                 />
                 <Text aria-hidden style={[styles.unit, { color: colors.inkMuted }]}>
                     {minutesUnit}

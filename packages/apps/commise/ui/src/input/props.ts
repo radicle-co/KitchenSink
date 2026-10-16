@@ -44,10 +44,11 @@ interface FieldCommon {
     readonly describedBy?: string;
     /**
      * The message the caller draws for this field (WCAG 3.3.1), repeated here for the platform that cannot link them.
-     * Native only: React Native has no `aria-describedby`, so the field's `accessibilityHint` is this text and a screen
-     * reader speaks it on reaching the field; present means invalid, the `danger` edge too. The caller still draws the
-     * message wherever its layout needs it. The web leaf ignores it, because `invalid` and `describedBy` already tie the
-     * message to the field there.
+     * Native only: React Native has no `aria-describedby` and no `aria-invalid`, so the field's `accessibilityHint` is
+     * this text and a screen reader speaks it on reaching the field; present means invalid, the `danger` edge too. On
+     * native `invalid` alone paints the edge and `describedBy` is not used. The caller still draws the message wherever
+     * its layout needs it. The web leaf ignores `error`, because `invalid` and `describedBy` already tie the message to
+     * the field there.
      */
     readonly error?: string;
     /**
@@ -138,6 +139,12 @@ export interface StepperProps {
     readonly decreaseLabel: string;
     /** The localised name of the + button. */
     readonly increaseLabel: string;
+    /**
+     * The message the caller draws for this control (WCAG 3.3.1), repeated here for the platform that cannot link them.
+     * Native only: React Native has no `aria-describedby`, so it is the accessibility hint of both buttons, where the
+     * screen-reader cursor lands. The web leaf ignores it.
+     */
+    readonly error?: string;
 }
 
 /**

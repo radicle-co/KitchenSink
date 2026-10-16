@@ -18,4 +18,10 @@ export interface DurationFieldProps {
     readonly value: number | undefined;
     /** Reports every edit as the whole duration in seconds, or `undefined` when both boxes are empty. */
     readonly onChange: (seconds: number | undefined) => void;
+    /**
+     * The message the caller draws for this field (WCAG 3.3.1), repeated here for the platform that cannot link them.
+     * Native only: React Native has no `aria-describedby` and no `aria-invalid`, so it is the accessibility hint of both
+     * boxes, where the screen-reader cursor lands; present means invalid, the `danger` edge too. The web leaf ignores it.
+     */
+    readonly error?: string;
 }

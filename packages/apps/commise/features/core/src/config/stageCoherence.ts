@@ -102,6 +102,20 @@ export function classifyClerkKey(key: string): ClerkKeyRef | null {
     return { kind, fapiHost: decoded.slice(0, -1) };
 }
 
+/** An IPv4 octet, 0-255. */
+const OCTET = String.raw`(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)`;
+
+/**
+ * RFC 1918 — 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 — where a phone reaches a developer's services: the Android
+ * emulator's host alias `10.0.2.2` (the `e2e` EAS profile) or a LAN address (`.env.template`'s advice for a device).
+ * Neither can be a production host, so they classify as local, exactly as `localhost` does. Three fixed ranges are
+ * bounded by hand; no IP library is worth a runtime import in a build-time guard.
+ */
+const PRIVATE_IPV4 = new RegExp(
+    String.raw`^(?:10\.${OCTET}\.${OCTET}\.${OCTET}|172\.(?:1[6-9]|2\d|3[01])\.${OCTET}\.${OCTET}|192\.168\.${OCTET}\.${OCTET})$`,
+    'u',
+);
+
 /**
  * Classify an API origin by stage.
  *
@@ -121,7 +135,7 @@ export function classifyEndpointStage(url: string): EndpointStage {
         return 'unknown';
     }
 
-    if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.localhost')) {
+    if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.localhost') || PRIVATE_IPV4.test(host)) {
         return 'local';
     }
 

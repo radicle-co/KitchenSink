@@ -99,6 +99,22 @@ describe('classifyEndpointStage', () => {
         expect(classifyEndpointStage('http://localhost:3000')).toBe('local');
     });
 
+    // The Android emulator's host alias (eas.json `e2e`, .env.template) and a developer's LAN address (the template's
+    // advice for a real device) are where local services are reached from a phone: both are private-network hosts.
+    it.each(['http://10.0.2.2:3000', 'http://192.168.1.20:3000', 'http://172.16.0.5:4000', 'http://10.1.2.3:3002'])(
+        'recognises the private-network host %s as local',
+        (url) => {
+            expect(classifyEndpointStage(url)).toBe('local');
+        },
+    );
+
+    it.each(['http://172.32.0.1:3000', 'http://192.169.1.1:3000', 'http://11.0.0.1:3000', 'http://8.8.8.8:3000'])(
+        'does not place the public address %s as local',
+        (url) => {
+            expect(classifyEndpointStage(url)).toBe('unknown');
+        },
+    );
+
     it('returns unknown for a host it cannot place — never a silent pass', () => {
         expect(classifyEndpointStage('https://example.org')).toBe('unknown');
     });

@@ -53,9 +53,9 @@ try {
         '# Clerk / IDP authentication (sandbox dev instance pk_test). App.tsx reads this at startup.',
         `EXPO_PUBLIC_IDP_PUBLISHABLE_KEY=${publishableKey}`,
         '',
-        '# The recipe/identity API origin the typed clients talk to (origin ONLY; they append /api/v1). Point at the',
-        '# sandbox recipe host to run the built app against real data; localhost for a local backend.',
-        'EXPO_PUBLIC_API_URL=http://localhost:3000',
+        '# The API origins (EXPO_PUBLIC_RECIPE_API_URL / _IDENTITY_API_URL / _FOOD_API_URL) are NOT written here: the',
+        '# committed .env.development supplies the localhost trio, and override them in THIS file only with origins of',
+        '# the SAME stage as the key above (src/config/env.ts refuses a mismatched pair at startup).',
     ];
 
     writeFileSync(ENV_FILE, lines.join('\n') + '\n', 'utf-8');

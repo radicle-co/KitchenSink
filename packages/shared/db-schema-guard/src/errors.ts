@@ -5,6 +5,7 @@
  * publish a matching `is*` guard), and each carries its evidence as FIELDS rather than only in the
  * message — a caller that has to regex an error string to report it will eventually report it wrong.
  */
+import type { MigrationNamingProblem } from './migrationNaming.js';
 
 /** Options for {@link SchemaManifestMismatchError}. */
 export interface SchemaManifestMismatchInput {
@@ -123,6 +124,42 @@ export class EmptyMigrationSetError extends Error {
  */
 export function isEmptyMigrationSetError(value: unknown): value is EmptyMigrationSetError {
     return value instanceof EmptyMigrationSetError;
+}
+
+/**
+ * A migrations directory breaks the `NNNN_snake_case.sql` / one-file-per-number contract.
+ *
+ * Refused before any connection: applying such a set would order same-numbered files by an accident of spelling.
+ */
+export class MigrationNamingError extends Error {
+    /** What is wrong, one entry per violation. */
+    public readonly problems: readonly MigrationNamingProblem[];
+
+    public constructor(directory: string, problems: readonly MigrationNamingProblem[]) {
+        super(
+            `Migration names in ${directory} break the NNNN_snake_case.sql, one-file-per-number contract: ` +
+                problems
+                    .map((problem) =>
+                        problem.kind === 'malformedName'
+                            ? `${problem.file} is malformed`
+                            : `${problem.number} is claimed by ${problem.files.join(', ')}`,
+                    )
+                    .join('; '),
+        );
+        this.name = 'MigrationNamingError';
+        this.problems = problems;
+        Object.setPrototypeOf(this, MigrationNamingError.prototype);
+    }
+}
+
+/**
+ * Type guard for {@link MigrationNamingError}.
+ *
+ * @param value - The candidate.
+ * @returns `true` when `value` is a migration-naming refusal.
+ */
+export function isMigrationNamingError(value: unknown): value is MigrationNamingError {
+    return value instanceof MigrationNamingError;
 }
 
 /** Options for {@link SeedManifestMismatchError}. */

@@ -143,10 +143,10 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             // Added 2026-09-06 with `@kitchensink/db-schema-guard`. Same ruling: the unit is "the refusals a
             // schema guard can raise", and all are one boundary — a runner holding the wrong migration set, a
             // consumer whose database is behind its own release, a migration set that is empty and so proves
-            // nothing, and their seed twins (curated plan U2): a function holding the wrong seed bundle, and a
+            // nothing, one whose filenames break the one-file-per-number contract, and their seed twins (curated plan U2): a function holding the wrong seed bundle, and a
             // bundle the seed manifest cannot name. Callers discriminate across the set in one `catch`, and the
             // file holds the taxonomy and nothing else.
-            { file: 'packages/shared/db-schema-guard/src/errors.ts', classes: 5, components: 0 },
+            { file: 'packages/shared/db-schema-guard/src/errors.ts', classes: 6, components: 0 },
             // Added 2026-09-30 with the curated seed's pinned USDA archives (plan U1). Same ruling: the unit is
             // "the refusals the pinned-archive boundary can raise": a pins file that is not the pins shape, and
             // pinned bytes that are not a basename-addressable zip. The caller refuses the seed on either, and the

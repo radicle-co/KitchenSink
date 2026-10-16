@@ -8,6 +8,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { EmptyMigrationSetError } from './errors.js';
+import { assertMigrationNaming } from './migrationNaming.js';
 import type { ManifestEntry } from './manifest.js';
 import { digestManifest, formatManifest, sha256Hex } from './manifest.js';
 
@@ -47,6 +48,8 @@ export function readMigrationManifest(migrationsDir: string): MigrationManifest 
     const migrations = readdirSync(migrationsDir)
         .filter((file) => file.endsWith('.sql'))
         .sort();
+
+    assertMigrationNaming(migrationsDir, migrations);
 
     if (migrations.length === 0) {
         throw new EmptyMigrationSetError(migrationsDir);

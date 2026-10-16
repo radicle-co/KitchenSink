@@ -24,6 +24,7 @@ import { readdirSync } from 'node:fs';
 import pg from 'pg';
 
 import { assertManifestMatches } from './assertions.js';
+import { assertMigrationNaming } from './migrationNaming.js';
 import type { MigrationManifest } from './manifestFile.js';
 import { readMigrationManifest } from './manifestFile.js';
 import type { CatalogReader, MigrationClient, MigrationPool, StatementRunner } from './port.js';
@@ -136,13 +137,17 @@ const MIGRATION_LOCK: SessionLockOptions = { reserved: 'schemaMigration', waitTi
  *
  * @param migrationsDir - The directory to scan.
  * @returns The discovered migrations in apply order.
+ * @throws {MigrationNamingError} when a name is malformed or a number is claimed twice.
  * @sideEffect Reads the migrations directory.
  */
 export function discoverMigrations(migrationsDir: string): DiscoveredMigration[] {
-    return readdirSync(migrationsDir)
+    const files = readdirSync(migrationsDir)
         .filter((file) => file.endsWith('.sql'))
-        .sort()
-        .map((file) => ({ name: file.replace(/\.sql$/u, ''), file }));
+        .sort();
+
+    assertMigrationNaming(migrationsDir, files);
+
+    return files.map((file) => ({ name: file.replace(/\.sql$/u, ''), file }));
 }
 
 /**

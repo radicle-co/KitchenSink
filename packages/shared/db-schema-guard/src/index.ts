@@ -22,11 +22,13 @@
  */
 export {
     EmptyMigrationSetError,
+    MigrationNamingError,
     SchemaBehindError,
     SchemaManifestMismatchError,
     SeedBundleRefusedError,
     SeedManifestMismatchError,
     isEmptyMigrationSetError,
+    isMigrationNamingError,
     isSchemaBehindError,
     isSchemaManifestMismatchError,
     isSeedBundleRefusedError,
@@ -41,6 +43,9 @@ export type {
 
 export { digestManifest, formatManifest, isManifestSha, sha256Hex } from './manifest.js';
 export type { ManifestEntry } from './manifest.js';
+
+export { assertMigrationNaming, migrationNamingProblems } from './migrationNaming.js';
+export type { MigrationNamingProblem } from './migrationNaming.js';
 
 export { readMigrationManifest } from './manifestFile.js';
 

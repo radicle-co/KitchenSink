@@ -64,6 +64,7 @@ import {
     useRestoreRecipeVersion,
     useSetRecipeRating,
     useRebindIngredientLine,
+    useRecipe,
     useSetRecipeVisibility,
     useUpdateCollection,
     useUpdateRecipe,
@@ -1617,5 +1618,67 @@ describe('mutation hooks — search cache (cross-cutting characterization)', () 
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
         expect(probes()).not.toContain('ingredientSearch');
+    });
+});
+
+/**
+ * ⛔ The recipe write-through cancels an in-flight detail read first — the twin of the parse-job case in
+ * `hooks.parseJobs.test.ts`. A `recipe(id)` GET that started before the write can settle AFTER it, and without the
+ * cancel its pre-update answer overwrites the fresh response. Asserted as the cache outcome: a deliberately slow read is
+ * left in flight, the mutation lands, the read then answers stale, and the cache must still hold the mutation's answer.
+ * Settling on `fetchStatus === 'idle'` is what makes the stale write land before the assertion, not after it.
+ */
+describe('a recipe write-through cancels an in-flight detail read first', () => {
+    const fresh = makeRecipeDetail({ id: PROBE_RECIPE_ID, title: 'New', currentVersion: 6 });
+    const stale = makeRecipeDetail({ id: PROBE_RECIPE_ID, title: 'Old', currentVersion: 5 });
+
+    /** A guarded client whose detail read stays in flight until `release` is called, then answers `stale`. */
+    function slowDetailRead() {
+        const read: { release?: () => void } = {};
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'getRecipeById').mockImplementation(
+            async () =>
+                new Promise((resolve) => {
+                    read.release = () => resolve(stale);
+                }),
+        );
+
+        return { client, read, queryClient: makeTestQueryClient() };
+    }
+
+    it('useUpdateRecipe (applyRecipeUpdated) keeps its response when a slower read settles afterwards', async () => {
+        const { client, read, queryClient } = slowDetailRead();
+        vi.spyOn(client, 'updateRecipe').mockResolvedValue(fresh);
+        const harness = renderRecipeHook(() => ({ detail: useRecipe(PROBE_RECIPE_ID), write: useUpdateRecipe() }), {
+            client,
+            queryClient,
+        });
+        await waitFor(() => expect(read.release).toBeDefined());
+
+        act(() =>
+            harness.result.current.write.mutate({ id: PROBE_RECIPE_ID, input: { expectedVersion: 5, title: 'New' } }),
+        );
+        await waitFor(() => expect(harness.result.current.write.isSuccess).toBe(true));
+        act(() => read.release?.());
+        await waitFor(() => expect(harness.result.current.detail.fetchStatus).toBe('idle'));
+
+        expect(queryClient.getQueryData(recipeServiceKeys.recipe(PROBE_RECIPE_ID))).toEqual(fresh);
+    });
+
+    it('useSetRecipeVisibility keeps its response when a slower read settles afterwards', async () => {
+        const { client, read, queryClient } = slowDetailRead();
+        vi.spyOn(client, 'setRecipeVisibility').mockResolvedValue(fresh);
+        const harness = renderRecipeHook(
+            () => ({ detail: useRecipe(PROBE_RECIPE_ID), write: useSetRecipeVisibility() }),
+            { client, queryClient },
+        );
+        await waitFor(() => expect(read.release).toBeDefined());
+
+        act(() => harness.result.current.write.mutate({ id: PROBE_RECIPE_ID, visibility: 'public' }));
+        await waitFor(() => expect(harness.result.current.write.isSuccess).toBe(true));
+        act(() => read.release?.());
+        await waitFor(() => expect(harness.result.current.detail.fetchStatus).toBe('idle'));
+
+        expect(queryClient.getQueryData(recipeServiceKeys.recipe(PROBE_RECIPE_ID))).toEqual(fresh);
     });
 });

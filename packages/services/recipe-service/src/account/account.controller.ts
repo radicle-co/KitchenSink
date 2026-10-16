@@ -5,7 +5,7 @@
  * (set by the fail-closed `AuthMiddleware`) and every decision is delegated to {@link ErasureService}.
  * The service's `GoneException`/`BadRequestException`/`ServiceUnavailableException` are translated to
  * HTTP by the global `ApiExceptionFilter`, which passes framework exceptions through untouched — so the
- * `410` body is exactly the contract's `{ code: 'ALREADY_ERASED', message: … }`.
+ * `410` body is exactly the contract's `{ code: 'ACCOUNT_ALREADY_ERASED', message: … }`.
  *
  * VALIDATION IS `nestjs-zod`'s CONTROLLER-SCOPED PIPE over a DTO that IS the published contract, replacing a
  * `class-validator` `ValidationPipe`. Two behaviours the swap preserves exactly, because on this route they

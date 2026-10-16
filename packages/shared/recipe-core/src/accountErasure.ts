@@ -24,7 +24,7 @@
  * meaningless. Per `api.openapi.yaml` (`requestAccountErasure` → `410`). Distinct from the `202` that a
  * duplicate request gets while a job is still `queued`/`running`: that is idempotency, this is terminal.
  */
-export const ACCOUNT_ALREADY_ERASED_CODE = 'ALREADY_ERASED';
+export const ACCOUNT_ALREADY_ERASED_CODE = 'ACCOUNT_ALREADY_ERASED';
 
 /**
  * The body of one `account-erasure` SQS message: the unit of work handed to the erasure worker.

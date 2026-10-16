@@ -1560,7 +1560,7 @@ describe('useRequestAccountErasure', () => {
     });
 
     it('surfaces a 410 when the account is already erased', async () => {
-        const error = new GoneError('Account already erased', 'ALREADY_ERASED');
+        const error = new GoneError('Account already erased', 'ACCOUNT_ALREADY_ERASED');
         const { result, client } = renderMutation(() => useRequestAccountErasure());
         vi.spyOn(client, 'requestAccountErasure').mockRejectedValue(error);
 

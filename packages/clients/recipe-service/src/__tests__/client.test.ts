@@ -483,7 +483,7 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
     it('410 → GoneError (account already erased)', async () => {
         const client = new RecipeServiceClient({
             baseUrl: BASE,
-            fetch: stubFetch(410, { code: 'ALREADY_ERASED', message: 'Account has already been erased' }),
+            fetch: stubFetch(410, { code: 'ACCOUNT_ALREADY_ERASED', message: 'Account has already been erased' }),
         });
 
         const error = await client

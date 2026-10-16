@@ -1259,7 +1259,7 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                             example:
-                                code: ALREADY_ERASED
+                                code: ACCOUNT_ALREADY_ERASED
                                 message: Account has already been erased
 
 components:

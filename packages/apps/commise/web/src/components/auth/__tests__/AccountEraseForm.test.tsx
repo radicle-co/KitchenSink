@@ -269,7 +269,7 @@ describe('AccountEraseForm (web) — confirm', () => {
         await confirmErasure(user);
         await screen.findByRole('alert');
 
-        erasureFn.mockRejectedValue(new GoneError('Account has already been erased', 'ALREADY_ERASED'));
+        erasureFn.mockRejectedValue(new GoneError('Account has already been erased', 'ACCOUNT_ALREADY_ERASED'));
         await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Erase my data' }));
 
         await vi.waitFor(() => expect(navigateTo).toHaveBeenCalledWith('/'));

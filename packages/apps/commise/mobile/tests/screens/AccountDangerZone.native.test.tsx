@@ -345,7 +345,7 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
         confirmErasure();
         expect(await screen.findByText(erase.error)).toBeTruthy();
 
-        erasureFn.mockRejectedValue(new GoneError('Account has already been erased', 'ALREADY_ERASED'));
+        erasureFn.mockRejectedValue(new GoneError('Account has already been erased', 'ACCOUNT_ALREADY_ERASED'));
         const eraseButtons = screen.getAllByRole('button', { name: 'Erase my data' });
         fireEvent.click(eraseButtons[eraseButtons.length - 1] as HTMLElement);
 

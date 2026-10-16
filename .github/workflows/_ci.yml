@@ -415,13 +415,10 @@ jobs:
                       exit 0
                   fi
 
-                  case "${stage}" in
-                      pr-[0-9]*) ;;
-                      *)
-                          echo "::error::refusing an unrecognised stage '${stage}' — expected 'pr-{N}'"
-                          exit 1
-                          ;;
-                  esac
+                  if ! bash .github/scripts/prScope.sh is-token "${stage}"; then
+                      echo "::error::refusing an unrecognised stage '${stage}' — expected 'pr-{N}'"
+                      exit 1
+                  fi
 
                   recipe=$(node packages/tools/loadtest/printPublicOrigin.mjs recipe "${stage}" "${DOMAIN_NAME}")
                   food=$(node packages/tools/loadtest/printPublicOrigin.mjs food "${stage}" "${DOMAIN_NAME}")

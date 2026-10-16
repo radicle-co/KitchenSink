@@ -36,7 +36,11 @@
  * the admission check itself lives in `useRecipePhotoUploadQueue`.
  */
 import { RecipePhotoManager, photoMessages, type RecipeFormPhoto } from '@commise/features-recipes';
-import { useRecipePhotoManager, type DraftPhotoPick } from '@commise/features-recipes/hooks';
+import {
+    useRecipePhotoManager,
+    type DraftPhotoPick,
+    type RecipePhotoPickIntent,
+} from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Icon, type IconName } from '@commise/ui/icon';
@@ -164,6 +168,7 @@ export function RecipePhotoUploader({
     // blob-read window (never the upload itself), so a second tap while a PREVIOUS pick is still resolving
     // can't launch `expo-image-picker` a second time concurrently — but a tap while a PREVIOUS upload is
     // still in flight is welcomed: it enqueues, exactly the queue's reason to exist.
+    // `intent` says what the pick is FOR ('add' or 'replace'), stated by the caller; it is not inferred from `onUploaded`.
     // `onUploaded` is the optional post-commit continuation carried on the enqueued file (see
     // `useRecipePhotoUploadQueue`): the queue runs it once, only after this file's confirm has landed. Add
     // passes none; Replace passes the "now delete the photo you replaced" step.
@@ -171,7 +176,11 @@ export function RecipePhotoUploader({
     // ⛔ The CALLER sets `picking` before calling: the sheet's choice sets it at the press, so the button already
     // reads busy while the sheet slides away (the picker opens only after that, see `onSheetDismissed`), and a tap
     // in that gap does nothing. This function resets it, whatever happens.
-    const runPick = async (source: PhotoSource, onUploaded?: () => void): Promise<void> => {
+    const runPick = async (
+        source: PhotoSource,
+        intent: RecipePhotoPickIntent,
+        onUploaded?: () => void,
+    ): Promise<void> => {
         session.reportError(undefined);
 
         try {
@@ -253,7 +262,7 @@ export function RecipePhotoUploader({
 
             // Near-unreachable here — the add control is hidden at the cap and `picking` serialises picks — but a
             // refusal queued nothing, and the session says so rather than letting the pick vanish.
-            session.enqueuePicked([picked], onUploaded === undefined ? 'add' : 'replace');
+            session.enqueuePicked([picked], intent);
         } finally {
             setPicking(false);
         }
@@ -287,7 +296,7 @@ export function RecipePhotoUploader({
         setPicking(true);
         // Replace stays on the library: it swaps one photo for another that already exists, and the sheet's
         // choice is for adding.
-        void runPick('library', () => session.removePhoto(photoId));
+        void runPick('library', 'replace', () => session.removePhoto(photoId));
     };
 
     // The sheet's choice. It is HELD until the sheet has gone and runs at `onSheetDismissed`: iOS shows one modal at
@@ -313,7 +322,7 @@ export function RecipePhotoUploader({
 
         const source = chosenSource;
         setChosenSource(undefined);
-        void runPick(source);
+        void runPick(source, 'add');
     };
 
     // Offered only where a pick can land: in the recipe's own queue, or in the caller's draft. See `onPick`.

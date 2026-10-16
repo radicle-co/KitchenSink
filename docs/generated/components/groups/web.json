@@ -6,11 +6,11 @@
     "coverage": {
         "components": 80,
         "implementations": 80,
-        "props": 98,
+        "props": 99,
         "documentedComponents": 77,
         "implementationsWithModuleDoc": 61,
         "implementationsWithComponentDoc": 56,
-        "documentedProps": 65,
+        "documentedProps": 66,
         "classifiedComponents": 32,
         "componentsWithPatternTag": 28,
         "crossPlatformComponents": 0
@@ -2827,7 +2827,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/HomeGreeting.tsx",
                     "dir": "packages/apps/commise/web/src/components/home",
-                    "moduleDoc": "home/HomeGreeting — Home's large title: the time-of-day greeting as the page's H1 and the date under it (web;\nUS-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2), drawn by the design system's `LargeTitleHeader` with the\nheader's action (the avatar) and the floating create button right after the H1.\n\n\"Good afternoon, Eliza\" over \"Sunday, May 31, 2026\"; \"Good afternoon\" when the cook has no name yet. Both are derived from the viewer's\nLOCAL clock: the greeting from the hour-of-day bucket ({@link homeGreetingOf}) and the subtitle from\n{@link formatHomeDate} — the shared, locale-aware formatters in `@commise/features-core`, so web and mobile\ngreet identically (FR-044).\n\n## Why the clock is read AFTER hydration, not during the server render (#144)\n\nThis surface is server-rendered and then hydrated, and only ONE of those two runtimes knows the viewer's\ntimezone: the client. Whatever the Next server's `new Date()` says is the server's zone, so a server-computed\nbucket greets an Auckland viewer at 9am with \"Good evening\" and can be a whole calendar day out.\n\n`suppressHydrationWarning` was the previous answer and it does NOT work: React never patches a suppressed\ntext mismatch — it KEEPS the server-rendered text — so the greeting and the long date were permanently the\nserver's clock (measured: with the browser clock pinned to 03:00, the `night` bucket, the DOM still read\n\"Good afternoon, Chef!\"). Suppression silences the warning about the divergence; it does not resolve it.\n\nSo the reading is gated on hydration ({@link useIsHydrated}) and the server pass renders a reserved,\n`aria-hidden` placeholder instead of a guess. Three consequences, all deliberate:\n - **No flash of a WRONG greeting.** The pre-hydration frame commits to no bucket at all, so the text never\n   changes from one greeting to a different one — the correction that would itself be the defect.\n - **No layout shift.** The placeholder lines carry the SAME typography classes as the real ones, so each\n   reserves its exact line box (`mb-1` included) rather than a hand-guessed pixel height.\n - **The greeting becomes testable end-to-end.** A browser-side clock pin (Playwright's `page.clock`) cannot\n   reach the Next server, which is why the visual suites had to MASK these two lines. Now that the client\n   clock is the authority, the pin reaches the render and the masks can be replaced by real assertions.\n\nA viewer's-timezone header (Vercel's geo-IP `x-vercel-ip-timezone`) or a zone cookie were both rejected: the\nformer is provider-coupled and wrong behind a VPN, the latter is wrong on the first visit — and neither is\nreachable from a browser test, so both would keep the masks.",
+                    "moduleDoc": "home/HomeGreeting — Home's large title: the time-of-day greeting as the page's H1 and the date under it (web;\nUS-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2), drawn by the design system's `LargeTitleHeader` with the\nheader's action (the avatar) and the floating create button right after the H1.\n\n\"Good afternoon, Eliza\" over \"Sunday, May 31, 2026\"; \"Good afternoon\" when the cook has no name yet. Both are derived from the viewer's\nLOCAL clock, by the shared `useHomeGreeting` in `@commise/features-core/home`, so web and mobile greet\nidentically (FR-044).\n\n## Why the clock is read AFTER hydration, not during the server render (#144)\n\nThis surface is server-rendered and then hydrated, and only ONE of those two runtimes knows the viewer's\ntimezone: the client. Whatever the Next server's `new Date()` says is the server's zone, so a server-computed\nbucket greets an Auckland viewer at 9am with \"Good evening\" and can be a whole calendar day out.\n\n`suppressHydrationWarning` was the previous answer and it does NOT work: React never patches a suppressed\ntext mismatch — it KEEPS the server-rendered text — so the greeting and the long date were permanently the\nserver's clock (measured: with the browser clock pinned to 03:00, the `night` bucket, the DOM still read\n\"Good afternoon, Chef!\"). Suppression silences the warning about the divergence; it does not resolve it.\n\nSo the reading is gated on hydration ({@link useIsHydrated}) and the server pass renders a reserved,\n`aria-hidden` placeholder instead of a guess. Three consequences, all deliberate:\n - **No flash of a WRONG greeting.** The pre-hydration frame commits to no bucket at all, so the text never\n   changes from one greeting to a different one — the correction that would itself be the defect.\n - **No layout shift.** The placeholder lines carry the SAME typography classes as the real ones, so each\n   reserves its exact line box (`mb-1` included) rather than a hand-guessed pixel height.\n - **The greeting becomes testable end-to-end.** A browser-side clock pin (Playwright's `page.clock`) cannot\n   reach the Next server, which is why the visual suites had to MASK these two lines. Now that the client\n   clock is the authority, the pin reaches the render and the masks can be replaced by real assertions.\n\nA viewer's-timezone header (Vercel's geo-IP `x-vercel-ip-timezone`) or a zone cookie were both rejected: the\nformer is provider-coupled and wrong behind a VPN, the latter is wrong on the first visit — and neither is\nreachable from a browser test, so both would keep the masks.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2953,7 +2953,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/HomeWidgetSurface.tsx",
                     "dir": "packages/apps/commise/web/src/components/home",
-                    "moduleDoc": "home/HomeWidgetSurface — the post-login Home widget-surface host (web; US-000 / FR-046).\n\nThe composition root of the three-layer Home surface:\n - **discovery** — features register their widget descriptors into the ditox {@link homeContainer}\n   (`createHomeContainer`); resolved here via `resolveHomeWidgets`.\n - **composition** — `curateHomeWidgets` gates the resolved descriptors by live **capability** and the\n   viewer's subscription **tier**, applying personalization order/hidden (owned by identity 002, absent in\n   v1). In Home v1 the recipe widget is the only **live** widget; the unshipped 005–009 cohort is present\n   as **skeleton placeholders** (CR-001) — the real widget's shape with no invented data — which gate\n   themselves out the moment the backing service ships and the feature's live widget (same id) takes over.\n - **render** — each curated descriptor is drawn through a slot wrapped in a per-widget `ErrorBoundary` +\n   `Suspense`: a live widget with a **bespoke** host slot (the recipe widget, which needs its data prop)\n   through `renderers`; a **placeholder** through the generic {@link RoadmapWidgetSlot} loader seam. A live\n   id with no bespoke renderer is **skipped** (graceful version skew — an older client tolerates a newer\n   personalization list).\n\nThe surface is a client component: it needs the viewer's Clerk token to read the profile tier and the\nrecent recipes. `container` and `renderers` are injectable purely so the composition, skip, and nudge\nlogic can be unit-tested against fakes without loading the real widget chunks.",
+                    "moduleDoc": "home/HomeWidgetSurface — the post-login Home widget-surface host (web; US-000 / FR-046).\n\nThe composition root of the three-layer Home surface:\n - **discovery** — features register their widget descriptors into the ditox {@link homeContainer}\n   (`createHomeContainer`, `@commise/features-core/home`); resolved here via `resolveHomeWidgets`.\n - **composition** — `curateHomeWidgets` gates the resolved descriptors by live **capability** and the\n   viewer's subscription **tier**, applying personalization order/hidden (owned by identity 002, absent in\n   v1). In Home v1 the recipe widget is the only **live** widget; the unshipped 005–009 cohort is present\n   as **skeleton placeholders** (CR-001) — the real widget's shape with no invented data — which gate\n   themselves out the moment the backing service ships and the feature's live widget (same id) takes over.\n - **render** — each curated descriptor is drawn through a slot wrapped in a per-widget `ErrorBoundary` +\n   `Suspense`: a live widget with a **bespoke** host slot (the recipe widget, which needs its data prop)\n   through `renderers`; a **placeholder** through the generic {@link RoadmapWidgetSlot} loader seam. A live\n   id with no bespoke renderer is **skipped** (graceful version skew — an older client tolerates a newer\n   personalization list).\n\nThe surface is a client component: it needs the viewer's Clerk token to read the profile tier and the\nrecent recipes. `container` and `renderers` are injectable purely so the composition, skip, and nudge\nlogic can be unit-tested against fakes without loading the real widget chunks.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2979,7 +2979,7 @@
                             "type": "Container",
                             "typeDetail": null,
                             "required": false,
-                            "defaultValue": "createHomeContainer()",
+                            "defaultValue": "createHomeContainer({\n    features: [addRecipeFeature, addRoadmapPlaceholders],\n    errorReporter: reportErrorToSentry,\n})",
                             "description": "The appShell container to resolve widget descriptors from. Defaults to the app singleton.",
                             "declaredIn": "packages/apps/commise/web/src/components/home/HomeWidgetSurface.tsx"
                         },
@@ -2988,7 +2988,7 @@
                             "type": "Readonly<Record<string, ComponentType>>",
                             "typeDetail": null,
                             "required": false,
-                            "defaultValue": "{\n    [RECIPE_HOME_WIDGET_ID]: RecipeWidgetSlot,\n}",
+                            "defaultValue": null,
                             "description": "Map of widget id → the slot component that renders it. Defaults to the v1 renderer set.",
                             "declaredIn": "packages/apps/commise/web/src/components/home/HomeWidgetSurface.tsx"
                         }
@@ -3033,13 +3033,27 @@
                     "description": "The recipe Home widget's slot.",
                     "tags": [
                         {
+                            "name": "param",
+                            "text": "props - The failure reporter."
+                        },
+                        {
                             "name": "returns",
                             "text": "The block, with its loading and failure states."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
-                    "props": [],
+                    "props": [
+                        {
+                            "name": "onWidgetError",
+                            "type": "((error: unknown) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Invoked when the READ or the WIDGET BODY fails. Both inner boundaries catch the throw before the host's per-widget\nboundary sees it, so the report has to be threaded in or the failure goes unobserved (B23/DA9). Optional only so\nthe happy-path tests need not supply it; the host always does. Takes `unknown`: a throw need not be an `Error`.",
+                            "declaredIn": "packages/apps/commise/web/src/components/home/RecipeWidgetSlot.tsx"
+                        }
+                    ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {

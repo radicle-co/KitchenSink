@@ -1992,6 +1992,21 @@ components:
             - AWAITING_RETRY
         estimatedWaitSeconds:
           type: number
+        forwardedTo:
+          type: object
+          properties:
+            kind:
+              type: string
+              enum:
+                - root
+                - variant
+            id:
+              type: string
+              minLength: 1
+              maxLength: 64
+          required:
+            - kind
+            - id
       required:
         - id
         - status
@@ -2014,6 +2029,21 @@ components:
           type: string
         estimatedWaitSeconds:
           type: number
+        forwardedTo:
+          type: object
+          properties:
+            kind:
+              type: string
+              enum:
+                - root
+                - variant
+            id:
+              type: string
+              minLength: 1
+              maxLength: 64
+          required:
+            - kind
+            - id
       required:
         - id
         - status

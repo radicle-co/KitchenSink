@@ -2,8 +2,9 @@
  * `FoodsService`'s two doors onto a held source item (FOOD-SERVICE-6; ADR-0055 point 4: our catalog's foods come first).
  *
  * - **Add-by-name, catalog first.** A name that IS a live catalog root's name or synonym answers that root, `RESOLVED`,
- *   with no row made and nothing queued. A name that is a root and one of its variants is NOT answered here, because
- *   the add's answer names a root id: it is created and queued, and the worker forwards it to the variant.
+ *   with no row made and nothing queued. A name that is a root and one of its variants is created and queued the first
+ *   time, because the add's answer names a root id and the worker forwards it to the variant; every later add reuses
+ *   that retired root (the store finds it) and answers it RESOLVED, naming the variant.
  * - **PATCH resolve.** A pick naming an item the catalog holds resolves the food to that holder with no source
  *   re-fetch; picks naming two holders, or an item the catalog retired with no forward, are refused `409` with nothing
  *   written; and a pick whose item became held during the re-fetch (the merge's `SourceHeldError`) resolves to the
@@ -22,7 +23,7 @@ import { SourceAdapterRegistry } from '../../sources/SourceAdapterRegistry.js';
 import type { CanonicalCandidate, FoodSourceId } from '../../sources/foodSourceAdapter.js';
 import { CatalogOwnerReader, type CatalogOwner, type KeyStanding } from '../catalogOwnerReader.service.js';
 import { AuthoredFoodsDao } from '../dao/authoredFoods.dao.js';
-import { FoodDao, type CreateByNameResult } from '../dao/food.dao.js';
+import { FoodDao, type CreateByNameInput, type CreateByNameResult } from '../dao/food.dao.js';
 import { CandidateStore } from '../dao/foodCandidates.dao.js';
 import { FoodForwardDao } from '../dao/foodForward.dao.js';
 import { FoodSearchDao, type CatalogSearchHit } from '../dao/foodSearch.dao.js';
@@ -90,6 +91,8 @@ interface WorldSpec {
     /** The food itself was retired (and forwarded) by the catalog seed. */
     readonly foodRetired?: boolean;
     readonly resolveFromPicks?: () => Promise<PersistResult>;
+    /** What the by-name store answers; a fresh PENDING root when absent. */
+    readonly created?: CreateByNameResult;
 }
 
 /** The service over one world of doubles, and the spies a case asserts on. */
@@ -121,11 +124,10 @@ function serviceOver(spec: WorldSpec) {
         rankTokens: null,
         rankHead: null,
     };
-    const createByName = vi.fn(async (): Promise<CreateByNameResult> => ({
-        id: FOOD_ID,
-        created: true,
-        reactivated: false,
-    }));
+    const createByName = vi.fn(
+        async (_input: CreateByNameInput): Promise<CreateByNameResult> =>
+            spec.created ?? { id: FOOD_ID, created: true, reactivated: false },
+    );
     const foodDao = Object.assign(new FoodDao(db, { notFoundTtlDays: 30 }), {
         createByName,
         getById: async (id: string): Promise<FoodRow | undefined> => {
@@ -236,7 +238,7 @@ describe('FoodsService.addByName — catalog first', () => {
         expect(world.publishFoodRequested).not.toHaveBeenCalled();
     });
 
-    it('⛔ creates and queues a name that is a root and one of its variants: the add answers a root id, not a variant', async () => {
+    it('⛔ creates and queues a name that is a root and one of its variants the FIRST time: a root id, not a variant', async () => {
         const world = serviceOver({ hits: [BROCCOLI], variants: [STEAMED] });
 
         await expect(world.service.addByName('steamed broccoli', REQUESTER)).resolves.toMatchObject({
@@ -245,6 +247,38 @@ describe('FoodsService.addByName — catalog first', () => {
         });
         expect(world.createByName).toHaveBeenCalledTimes(1);
         expect(world.publishFoodRequested).toHaveBeenCalledTimes(1);
+    });
+
+    it('tells the store which variant the name is, so it can reuse the root already forwarded there', async () => {
+        const world = serviceOver({ hits: [BROCCOLI], variants: [STEAMED] });
+
+        await world.service.addByName('steamed broccoli', REQUESTER);
+
+        expect(world.createByName).toHaveBeenCalledWith({
+            normalizedName: 'steamed broccoli',
+            displayName: 'steamed broccoli',
+            forwardsTo: { kind: 'variant', id: 'V-steamed' },
+        });
+    });
+
+    it('⛔ answers RESOLVED with the retired root the store reused, naming the live variant, and queues nothing', async () => {
+        const world = serviceOver({
+            hits: [BROCCOLI],
+            variants: [STEAMED],
+            created: {
+                id: 'R-retired',
+                created: false,
+                reactivated: false,
+                forwardedTo: { kind: 'variant', id: 'V-steamed' },
+            },
+        });
+
+        await expect(world.service.addByName('steamed broccoli', REQUESTER)).resolves.toEqual({
+            id: 'R-retired',
+            status: 'RESOLVED',
+            forwardedTo: { kind: 'variant', id: 'V-steamed' },
+        });
+        expect(world.publishFoodRequested).not.toHaveBeenCalled();
     });
 
     it('adds a name the catalog does not hold as before', async () => {
@@ -275,6 +309,31 @@ describe('FoodsService.batchAdd — catalog first', () => {
             foods: [{ id: FOOD_ID, reactivate: true }],
             requestedBy: REQUESTER,
         });
+    });
+
+    it('⛔ answers a reused retired root RESOLVED inline, naming the live variant, and queues nothing for it', async () => {
+        const world = serviceOver({
+            hits: [BROCCOLI],
+            variants: [STEAMED],
+            created: {
+                id: FOOD_ID,
+                created: false,
+                reactivated: false,
+                forwardedTo: { kind: 'variant', id: 'V-steamed' },
+            },
+        });
+
+        await expect(world.service.batchAdd(['steamed broccoli'], REQUESTER)).resolves.toEqual({
+            items: [
+                {
+                    id: FOOD_ID,
+                    status: 'RESOLVED',
+                    name: 'broccoli florets',
+                    forwardedTo: { kind: 'variant', id: 'V-steamed' },
+                },
+            ],
+        });
+        expect(world.publishFoodBatchRequested).not.toHaveBeenCalled();
     });
 });
 

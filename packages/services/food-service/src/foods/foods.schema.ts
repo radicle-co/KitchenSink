@@ -597,6 +597,12 @@ export const addResponseSchema = z.object({
     status: catalogFoodStatusSchema,
     /** Best-effort seconds until availability, when enqueued. */
     estimatedWaitSeconds: z.number().optional(),
+    /**
+     * Present ONLY when the name is a live catalog VARIANT: `id` is then the retired by-name root that forwards to it
+     * (reused on every repeat add, so a name costs one row however often it is added), and this names the live entry
+     * its numbers come from. `status` is `RESOLVED`: nothing is queued.
+     */
+    forwardedTo: foodRefViewSchema.optional(),
 });
 
 export type AddResponse = z.infer<typeof addResponseSchema>;
@@ -610,6 +616,8 @@ export const batchItemViewSchema = z.object({
     name: z.string().nullable().optional(),
     /** Estimated seconds until availability (present for a `PENDING` miss). */
     estimatedWaitSeconds: z.number().optional(),
+    /** As {@link addResponseSchema}'s: the live variant a reused retired root forwards to. */
+    forwardedTo: foodRefViewSchema.optional(),
 });
 
 export type BatchItemView = z.infer<typeof batchItemViewSchema>;

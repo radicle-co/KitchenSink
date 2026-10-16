@@ -7,8 +7,10 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import type pg from 'pg';
 
 import { FoodDao } from '../../src/foods/dao/food.dao.js';
+import { FoodForwardDao } from '../../src/foods/dao/foodForward.dao.js';
 import { isIllegalStatusTransitionError } from '../../src/foods/dao/dao.errors.js';
 import { withTransaction } from '../../src/database/unitOfWork.js';
+import { makeSeededRoot } from '../__fixtures__/catalogFood.js';
 import { makeDb, makePool, type TestDb } from '../support/db.js';
 import { foodDb } from '../support/roleDb.js';
 
@@ -86,6 +88,111 @@ describe('FoodDao (integration)', () => {
             } finally {
                 await Promise.all(pools.map((each) => each.end()));
             }
+        });
+
+        describe('a name that is a catalog VARIANT (forwardsTo) — the retired root is reused, never re-minted', () => {
+            /** A seeded root with one live variant, and the by-name root for the variant's name, forwarded to it. */
+            async function forwardedByNameRoot(): Promise<{ rootId: string; variantId: string; byName: string }> {
+                const seeded = await makeSeededRoot(foodDb(), {
+                    name: 'Broccoli',
+                    variants: [{ parts: [{ attribute: 'cookingMethod', text: 'steamed' }] }],
+                });
+                const variantId = seeded.variants[0]!.id;
+                const created = await dao.createByName({
+                    normalizedName: 'steamed broccoli',
+                    displayName: 'steamed broccoli',
+                });
+
+                // The retirement and its forward are one transaction: a deferred trigger refuses a retired root with none.
+                await db.transaction((tx) =>
+                    new FoodForwardDao(tx).forwardLiveRoot(created.id, { kind: 'variant', id: variantId }),
+                );
+
+                return { rootId: seeded.id, variantId, byName: created.id };
+            }
+
+            const rowsNamed = async (): Promise<number> =>
+                (
+                    await pool.query<{ n: number }>(
+                        `SELECT count(*)::int AS n FROM food WHERE normalized_name = 'steamed broccoli'`,
+                    )
+                ).rows[0]?.n ?? 0;
+
+            it('⛔ answers the retired root that forwards to the variant, inserting nothing, however often it is asked', async () => {
+                const { variantId, byName } = await forwardedByNameRoot();
+                const itemsBefore = (await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM food_item'))
+                    .rows[0];
+
+                for (let i = 0; i < 4; i += 1) {
+                    const again = await dao.createByName({
+                        normalizedName: 'steamed broccoli',
+                        displayName: 'steamed broccoli',
+                        forwardsTo: { kind: 'variant', id: variantId },
+                    });
+
+                    expect(again).toStrictEqual({
+                        id: byName,
+                        created: false,
+                        reactivated: false,
+                        forwardedTo: { kind: 'variant', id: variantId },
+                    });
+                }
+
+                expect(await rowsNamed()).toBe(1);
+                expect((await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM food_item')).rows[0]).toEqual(
+                    itemsBefore,
+                );
+            });
+
+            it('collapses CONCURRENT repeat adds to the one retired root (the per-name lock)', async () => {
+                const { variantId, byName } = await forwardedByNameRoot();
+                const pools = [makePool(), makePool(), makePool(), makePool()];
+
+                try {
+                    const results = await Promise.all(
+                        pools.map((each) =>
+                            new FoodDao(makeDb(each)).createByName({
+                                normalizedName: 'steamed broccoli',
+                                displayName: 'steamed broccoli',
+                                forwardsTo: { kind: 'variant', id: variantId },
+                            }),
+                        ),
+                    );
+
+                    expect(results.map((result) => result.id)).toEqual(Array.from({ length: 4 }, () => byName));
+                    expect(await rowsNamed()).toBe(1);
+                } finally {
+                    await Promise.all(pools.map((each) => each.end()));
+                }
+            });
+
+            it('does NOT reuse a retired root that forwards somewhere else than the entry the name is now', async () => {
+                const { rootId, byName } = await forwardedByNameRoot();
+
+                // The retired root forwards to the variant; the name is asked as the plain root.
+                const other = await dao.createByName({
+                    normalizedName: 'steamed broccoli',
+                    displayName: 'steamed broccoli',
+                    forwardsTo: { kind: 'root', id: rootId },
+                });
+
+                expect(other.created).toBe(true);
+                expect(other.forwardedTo).toBeUndefined();
+                expect(other.id).not.toBe(byName);
+            });
+
+            it('without forwardsTo the call is unchanged: a retired root frees its name and a new root is made', async () => {
+                const { byName } = await forwardedByNameRoot();
+
+                const fresh = await dao.createByName({
+                    normalizedName: 'steamed broccoli',
+                    displayName: 'steamed broccoli',
+                });
+
+                expect(fresh.created).toBe(true);
+                expect(fresh.id).not.toBe(byName);
+                expect(fresh.forwardedTo).toBeUndefined();
+            });
         });
 
         it('is idempotent on normalized name — a second add returns the SAME id, created=false', async () => {

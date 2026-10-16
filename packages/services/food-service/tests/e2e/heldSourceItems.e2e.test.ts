@@ -256,6 +256,96 @@ describe('FOOD-SERVICE-6: a held source item is never offered, picked over, or w
         });
     });
 
+    describe('a name that is a variant costs one row, however often it is added', () => {
+        /** Rows of the food table holding this name, retired or not. */
+        async function rowsNamed(normalizedName: string): Promise<number> {
+            const { rows } = await pool.query<{ n: number }>(
+                'SELECT count(*)::int AS n FROM food WHERE normalized_name = $1 AND user_id IS NULL',
+                [normalizedName],
+            );
+
+            return rows[0]?.n ?? 0;
+        }
+
+        it('⛔ every repeat add reuses the retired root the worker forwarded: one row, RESOLVED, nothing queued', async () => {
+            const { variantId } = await seedBroccoli();
+            const { id } = await addAndDrain('steamed broccoli');
+            const published = bus.messages.length;
+
+            const repeats = [];
+
+            for (let i = 0; i < 3; i += 1) {
+                repeats.push(await call('POST', '/api/v1/foods', { name: 'steamed broccoli' }));
+            }
+
+            expect(repeats.map((repeat) => repeat.status)).toEqual([202, 202, 202]);
+            expect(repeats.map((repeat) => repeat.body)).toEqual(
+                Array.from({ length: 3 }, () => ({
+                    id,
+                    status: 'RESOLVED',
+                    forwardedTo: { kind: 'variant', id: variantId },
+                })),
+            );
+            expect(await rowsNamed('steamed broccoli')).toBe(1);
+            expect((await pool.query('SELECT count(*)::int AS n FROM fetch_queue')).rows[0]).toEqual({ n: 0 });
+            expect(bus.messages).toHaveLength(published);
+        });
+
+        it('the batch door reuses it too, answering it inline with its name', async () => {
+            const { variantId } = await seedBroccoli();
+            const { id } = await addAndDrain('steamed broccoli');
+
+            const batch = await call('POST', '/api/v1/foods/batch', {
+                names: ['steamed broccoli', 'steamed broccoli'],
+            });
+
+            expect(batch.body).toEqual({
+                items: [
+                    {
+                        id,
+                        status: 'RESOLVED',
+                        name: 'steamed broccoli',
+                        forwardedTo: { kind: 'variant', id: variantId },
+                    },
+                ],
+            });
+            expect(await rowsNamed('steamed broccoli')).toBe(1);
+        });
+
+        it('polling the reused id serves the variant’s record under that id (GET /{id})', async () => {
+            const { variantId } = await seedBroccoli();
+            const { id } = await addAndDrain('steamed broccoli');
+
+            const reused = await call('POST', '/api/v1/foods', { name: 'steamed broccoli' });
+            const read = await call('GET', `/api/v1/foods/${(reused.body as { id: string }).id}`);
+
+            expect(read.status).toBe(200);
+            expect(read.body).toMatchObject({ id, forwardedTo: { kind: 'variant', id: variantId } });
+        });
+
+        it('a root forwarded somewhere ELSE is not reused: the name still gets its own forwarded root', async () => {
+            const { rootId, variantId } = await seedBroccoli();
+            const { id: first } = await addAndDrain('steamed broccoli');
+
+            // The first root now points at the plain root instead of the variant the name is.
+            await foodDb().asOwner((client) =>
+                client.query(
+                    'UPDATE food_forward SET target_food_id = $2, target_variant_id = NULL WHERE source_id = $1',
+                    [first, rootId],
+                ),
+            );
+
+            const { id: second } = await addAndDrain('steamed broccoli');
+
+            expect(second).not.toBe(first);
+            expect(await storedFood(second)).toMatchObject({
+                retired: true,
+                forward: { target_food_id: null, target_variant_id: variantId },
+            });
+            expect(await rowsNamed('steamed broccoli')).toBe(2);
+        });
+    });
+
     describe('held candidates', () => {
         it('never offers, and never fetches, an item the catalog holds', async () => {
             await seedBroccoli();

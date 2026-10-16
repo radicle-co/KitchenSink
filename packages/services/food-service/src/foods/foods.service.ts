@@ -741,8 +741,10 @@ export class FoodsService {
      * current status WITHOUT enqueuing (no scarce source budget burned).
      *
      * Catalog first (FOOD-SERVICE-6; ADR-0055 point 4): a name that IS a live catalog root's name or synonym answers
-     * that root, `RESOLVED`, with no row made and nothing queued. A name that is a root and one of its variants is
-     * created and queued as before, because this answer names a root id; the worker forwards it to the variant.
+     * that root, `RESOLVED`, with no row made and nothing queued. A name that is a live VARIANT is created and queued
+     * the first time, because this answer names a root id and the worker forwards that root to the variant. Retiring it
+     * frees the name, so the store finds the retired root again on every later add (`forwardsTo`) and the add answers
+     * it `RESOLVED`, naming the variant in `forwardedTo`: one row per name, however often it is added.
      *
      * @param name - The display name (already validated non-empty by the controller).
      * @param requesterId - The requester key (CR-002/U1: app-user ULID or `svc_*`).
@@ -753,13 +755,21 @@ export class FoodsService {
         // never disagree about which characters count. Idempotent — the controller has already canonicalized a
         // request-borne name, but a future in-process caller has not, and the write point is what must hold.
         const displayName = sanitizeFoodName(name);
-        const root = await this.catalogRootNamed(displayName);
+        const entry = await this.catalogNames.identicalEntryFor(displayName);
 
-        if (root !== undefined) {
-            return { id: root.id, status: 'RESOLVED' };
+        if (entry?.kind === 'root') {
+            return { id: entry.id, status: 'RESOLVED' };
         }
 
-        const result = await this.foodDao.createByName({ normalizedName: normalizeName(displayName), displayName });
+        const result = await this.foodDao.createByName({
+            normalizedName: normalizeName(displayName),
+            displayName,
+            ...(entry === undefined ? {} : { forwardsTo: entry }),
+        });
+
+        if (result.forwardedTo !== undefined) {
+            return { id: result.id, status: 'RESOLVED', forwardedTo: result.forwardedTo };
+        }
 
         if (result.created || result.reactivated) {
             await this.enqueue.publishFoodRequested({
@@ -828,20 +838,36 @@ export class FoodsService {
         const items: BatchItemView[] = [];
 
         for (const [key, displayName] of unique) {
-            const root = await this.catalogRootNamed(displayName);
+            const entry = await this.catalogNames.identicalEntryFor(displayName);
 
-            if (root !== undefined) {
+            if (entry?.kind === 'root') {
                 // The catalog's own root, answered inline exactly as a RESOLVED dedup hit is below.
                 items.push({
-                    id: root.id,
+                    id: entry.id,
                     status: 'RESOLVED',
-                    name: (await this.foodDao.getById(root.id))?.name ?? null,
+                    name: (await this.foodDao.getById(entry.id))?.name ?? null,
                 });
 
                 continue;
             }
 
-            const result = await this.foodDao.createByName({ normalizedName: key, displayName });
+            const result = await this.foodDao.createByName({
+                normalizedName: key,
+                displayName,
+                ...(entry === undefined ? {} : { forwardsTo: entry }),
+            });
+
+            if (result.forwardedTo !== undefined) {
+                // A retired root of this name already forwards to the variant: answered inline, nothing queued.
+                items.push({
+                    id: result.id,
+                    status: 'RESOLVED',
+                    name: (await this.foodDao.getById(result.id))?.name ?? null,
+                    forwardedTo: result.forwardedTo,
+                });
+
+                continue;
+            }
 
             if (result.created || result.reactivated) {
                 willEnqueue.push(result.id);
@@ -1033,20 +1059,6 @@ export class FoodsService {
         await this.merge.resolveToHolder({ foodId: id, to, from: ['UNRESOLVED'] });
 
         return { id, status: 'RESOLVED' };
-    }
-
-    /**
-     * The live catalog root a name IS (its name or a synonym), when the catalog-first rule answers a root. A variant
-     * answer is left to the worker, because an add answers a root id.
-     *
-     * @param displayName - The sanitized name.
-     * @returns The root, or `undefined`.
-     * @sideEffect Reads the catalog search and, when a hit leaves words, the live variants.
-     */
-    private async catalogRootNamed(displayName: string): Promise<FoodRef | undefined> {
-        const entry = await this.catalogNames.identicalEntryFor(displayName);
-
-        return entry?.kind === 'root' ? entry : undefined;
     }
 
     /**

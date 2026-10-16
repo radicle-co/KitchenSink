@@ -28,7 +28,9 @@ import {
 } from '../../db/schema/index.js';
 import { DATASET_SOURCE } from '../seed/citationDatasets.js';
 import { IllegalStatusTransitionError } from './dao.errors.js';
+import { FoodForwardDao } from './foodForward.dao.js';
 import { FoodItemDao } from './foodItem.dao.js';
+import type { FoodRef } from '../foods.schema.js';
 import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 
 /** The `food.status` lifecycle set (FR-028). */
@@ -196,6 +198,12 @@ export interface CreateByNameInput {
     normalizedName: string;
     /** Original display name to store on first create. */
     displayName?: string | null;
+    /**
+     * The live catalog entry this name IS, when the caller found one that is not a root (a VARIANT). A retired by-name
+     * root of this name that already forwards there is then reused instead of inserting another, because retiring a
+     * root frees its name and so every repeat add would otherwise mint a new root, a new item and a new queue row.
+     */
+    forwardsTo?: FoodRef;
 }
 
 /** Result of {@link FoodDao.createByName} (always returns a row). */
@@ -206,6 +214,11 @@ export interface CreateByNameResult {
     created: boolean;
     /** `true` when a terminal-state row past its configured TTL was reset to `PENDING` (FR-028a). */
     reactivated: boolean;
+    /**
+     * Present only when a retired root of this name was reused (see {@link CreateByNameInput.forwardsTo}): the entry it
+     * forwards to. Then `id` is that retired root and `created` and `reactivated` are both `false`.
+     */
+    forwardedTo?: FoodRef;
 }
 
 /** Input for {@link FoodDao.setStatus}. */
@@ -445,6 +458,16 @@ export class FoodDao {
                 return { id: found.id, created: false, reactivated: found.reactivatable };
             }
 
+            // The name is a catalog variant, and a root of this name already forwards to it: that root is the answer.
+            // Under the per-name lock, so two repeat adds cannot both find nothing and both insert.
+            if (input.forwardsTo !== undefined) {
+                const reused = await this.retiredRootForwardingTo(tx, normalizedName, input.forwardsTo);
+
+                if (reused !== undefined) {
+                    return { id: reused, created: false, reactivated: false, forwardedTo: input.forwardsTo };
+                }
+            }
+
             // A new live root owns a new live item (KTD-6), both in this transaction. Under the per-name lock no
             // other add can race this one; the catalog name index is the backstop.
             const id = await new FoodItemDao(tx).insertLiveRoot({
@@ -455,6 +478,43 @@ export class FoodDao {
 
             return { id, created: true, reactivated: false };
         });
+    }
+
+    /**
+     * The oldest retired catalog root of a name whose forward chain ends at `to`.
+     *
+     * Retiring a by-name root frees its name (0018), so a name that is a catalog variant leaves one retired root behind
+     * per add unless that root is found again. The chain is followed (a root may have been forwarded on after the
+     * worker first forwarded it), through the one forward reader.
+     *
+     * @param tx - The add's transaction, which holds the per-name lock.
+     * @param normalizedName - The dedup key.
+     * @param to - The live root or variant the name is.
+     * @returns The root's id, or `undefined` when none forwards to `to` (including a root retired with no successor).
+     * @sideEffect Reads `food` and `food_forward`.
+     */
+    private async retiredRootForwardingTo(
+        tx: FoodWriter,
+        normalizedName: string,
+        to: FoodRef,
+    ): Promise<string | undefined> {
+        const retired = await tx.execute<{ id: string }>(sql`
+            SELECT id FROM food
+             WHERE normalized_name = ${normalizedName} AND user_id IS NULL AND retired_at IS NOT NULL
+             ORDER BY created_at, id
+        `);
+
+        if (retired.rows.length === 0) {
+            return undefined;
+        }
+
+        const ends = await new FoodForwardDao(tx).follow(retired.rows.map((row) => row.id));
+
+        return retired.rows.find((row) => {
+            const end = ends.get(row.id);
+
+            return end?.resolved === true && end.kind === to.kind && end.id === to.id;
+        })?.id;
     }
 
     /**

@@ -245,6 +245,17 @@ export function compareText(left: string, right: string): number {
 }
 
 /**
+ * Order source rows by source, then key: the one order both adapters of the snapshot port use. Pure.
+ *
+ * @param left - A source row.
+ * @param right - A source row.
+ * @returns Negative, zero or positive.
+ */
+export function compareSources(left: ContentSource, right: ContentSource): number {
+    return compareText(left.source, right.source) || compareText(left.externalKey, right.externalKey);
+}
+
+/**
  * Order categories by name, then source, a source-less one first: the one order both adapters and the planner use.
  * Pure.
  *

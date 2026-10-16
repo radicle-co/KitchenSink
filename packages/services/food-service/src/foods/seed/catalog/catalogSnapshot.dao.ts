@@ -43,6 +43,7 @@ import {
     canonicalDecimal,
     compareCategories,
     comparePortions,
+    compareSources,
     compareText,
     sourceRefKey,
     type CatalogSnapshot,
@@ -165,17 +166,6 @@ interface ContentBuilder {
     readonly roots: Map<SeedKey, ContentRoot>;
     readonly variants: Map<ItemKey, ContentVariant>;
     readonly items: Map<ItemKey, ContentItem>;
-}
-
-/**
- * Order source rows by source, then key, as the projection does. Pure.
- *
- * @param left - A source row.
- * @param right - A source row.
- * @returns Negative, zero or positive.
- */
-function compareSources(left: ContentSource, right: ContentSource): number {
-    return compareText(left.source, right.source) || compareText(left.externalKey, right.externalKey);
 }
 
 /**

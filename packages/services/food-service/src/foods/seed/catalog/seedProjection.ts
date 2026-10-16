@@ -19,6 +19,7 @@ import {
     canonicalDecimal,
     compareCategories,
     comparePortions,
+    compareSources,
     compareText,
     usdaExternalKey,
     type CatalogContent,
@@ -59,17 +60,6 @@ const ENTRY_BY_TAG: ReadonlyMap<string, { readonly name: string; readonly unit: 
  */
 function compareValues(left: ContentValue, right: ContentValue): number {
     return compareText(left.name, right.name) || compareText(left.unit, right.unit);
-}
-
-/**
- * Order source rows by source, then key. Pure.
- *
- * @param left - A source row.
- * @param right - A source row.
- * @returns Negative, zero or positive.
- */
-function compareSources(left: ContentSource, right: ContentSource): number {
-    return compareText(left.source, right.source) || compareText(left.externalKey, right.externalKey);
 }
 
 /**

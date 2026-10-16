@@ -6,11 +6,11 @@
     "coverage": {
         "components": 151,
         "implementations": 259,
-        "props": 1273,
+        "props": 1277,
         "documentedComponents": 151,
         "implementationsWithModuleDoc": 259,
         "implementationsWithComponentDoc": 152,
-        "documentedProps": 994,
+        "documentedProps": 998,
         "classifiedComponents": 131,
         "componentsWithPatternTag": 74,
         "crossPlatformComponents": 108
@@ -3051,6 +3051,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         },
                         {
+                            "name": "onDismissed",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The sheet is off screen after a close, by any route (`Sheet`'s `onDismissed`): the moment the host can present\nwhat comes next. Closing is not leaving, because native keeps the sheet's window up for its slide-out.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
                             "name": "onQueryChange",
                             "type": "(query: string) => void",
                             "typeDetail": null,
@@ -3140,6 +3149,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Done, ×, Escape and the scrim all call this.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
+                            "name": "onDismissed",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The sheet is off screen after a close, by any route (`Sheet`'s `onDismissed`): the moment the host can present\nwhat comes next. Closing is not leaving, because native keeps the sheet's window up for its slide-out.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         },
                         {
@@ -3581,6 +3599,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/sheetModel.ts"
                         },
                         {
+                            "name": "onDismissed",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The sheet is off screen after a close, by any route (`Sheet`'s `onDismissed`): the moment the host can present\nwhat comes next. Closing is not leaving, because native keeps the sheet's window up for its slide-out.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/sheetModel.ts"
+                        },
+                        {
                             "name": "onOpenChange",
                             "type": "(open: boolean) => void",
                             "typeDetail": null,
@@ -3682,6 +3709,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Create the collection; the host runs the request and, on success, closes and opens it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/sheetModel.ts"
+                        },
+                        {
+                            "name": "onDismissed",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The sheet is off screen after a close, by any route (`Sheet`'s `onDismissed`): the moment the host can present\nwhat comes next. Closing is not leaving, because native keeps the sheet's window up for its slide-out.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/sheetModel.ts"
                         },
                         {
@@ -9757,7 +9793,7 @@
                         },
                         {
                             "name": "refreshNotice",
-                            "type": "RefreshNoticeState",
+                            "type": "RefreshNoticeControl",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
@@ -21199,7 +21235,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/versions",
-                    "moduleDoc": "@commise/features-recipes — the native version history's FAILED state (D3, D13; `buildSpec.md` §6.6: \"We\ncouldn't load the history.\" + Try again), the twin of the web leaf.\n\nThe settled list's title, so nothing moves between loading, failed and loaded; then an alert and a secondary Try again.\nThe way back is the SCREEN's — it sits above the read boundary in every state — so the header draws a Back only when it\nis given one, as the native skeleton does. The copy arrives as props from the app's boundary dictionary.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes — the native version history's FAILED state (D3, D13; `buildSpec.md` §6.6: \"We\ncouldn't load the history.\" + Try again), the twin of the web leaf.\n\nThe settled list's title, so nothing moves between loading, failed and loaded; then an alert and a secondary Try again.\nThe way back is the SCREEN's — it sits above the read boundary in every state — so the header draws a Back only when it\nis given one, as the native skeleton does. The copy arrives as props from the app's boundary dictionary. The props are the\nweb leaf's (`backHref` is the one that has no meaning here and is ignored).\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21226,8 +21262,8 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Web only: the recipe's address. Native has none.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.native.tsx"
+                            "description": "The recipe's address, so a modified click on Back still works.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
                         },
                         {
                             "name": "onBack",
@@ -21235,8 +21271,8 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Back to the recipe; absent draws no Back (the screen keeps its own above the read boundary).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.native.tsx"
+                            "description": "Back to the recipe; absent draws no Back (the native screen keeps its own above the read boundary).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
                         },
                         {
                             "name": "onRetry",
@@ -21245,7 +21281,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Read the history again.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.native.tsx"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
                         },
                         {
                             "name": "retryLabel",
@@ -21254,7 +21290,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The retry control's label: \"Try again\".",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.native.tsx"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
                         },
                         {
                             "name": "title",
@@ -21263,7 +21299,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Why there is no history: \"We couldn’t load the history.\"",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.native.tsx"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
                         }
                     ],
                     "usesRefApi": [],

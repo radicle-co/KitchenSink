@@ -59,12 +59,6 @@ import {
 import { cuisineShortcutsOf, noResultKindOf } from './noResults.js';
 import type { RecentSearchStore } from './recentSearches.js';
 
-/** The results a failed search keeps on screen, and the criteria they belong to. */
-export interface DiscoveryPreviousResults {
-    readonly pages: NonNullable<ReturnType<typeof usePreviousPages>>;
-    readonly criteria: RecipeDiscoveryCriteria;
-}
-
 /** Everything the screen renders from, in the three groups it renders them in. */
 export interface DiscoveryScreenState {
     /** The persistent frame's props (every one but its title action and its body). */
@@ -86,8 +80,13 @@ export interface DiscoveryScreenState {
         readonly onClearFilters: () => void;
         readonly onPickTag: (tag: string) => void;
     };
-    /** The previous results, when a first load has settled before. */
-    readonly previous: DiscoveryPreviousResults | undefined;
+    /** The results a failed search keeps on screen and the criteria they belong to, once a first load has settled. */
+    readonly previous:
+        | {
+              readonly pages: NonNullable<ReturnType<typeof usePreviousPages>>;
+              readonly criteria: RecipeDiscoveryCriteria;
+          }
+        | undefined;
     readonly saveCopy: SaveCopy;
     /** A retry from the results' refresh notice succeeded. */
     readonly onRecovered: () => void;
@@ -196,7 +195,7 @@ export function useDiscoveryScreen({
                   ),
               };
 
-    const previous: DiscoveryPreviousResults | undefined =
+    const previous: DiscoveryScreenState['previous'] =
         previousPages === undefined || lastSettled === undefined
             ? undefined
             : { pages: previousPages, criteria: lastSettled };

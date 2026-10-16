@@ -1143,6 +1143,51 @@ These ship now with detail (owner). The full cook view (008 FR-032 to FR-035) fo
   collection checked. **Done** closes it. No collections: only the New collection row and the line "You have no
   collections yet." Keys NEW in `collections/messages.ts`: `chooser.title`, `chooser.newRow`, `chooser.empty`. After Save a copy from detail: the copy opens in the editor, because it needs an
   edit before it can be published (FR-005b). The copy is a DRAFT (not published, not public) until the cook edits it and publishes (owner, 2026-10-13); the server creates it with status `draft`.
+- **A refused Private is said on the recipe page, inline, never in a snackbar (2026-10-16, plan
+  `2026-10-14-009` T3).** It covers all three ways a Private can be refused. (1) The editor knew the server refuses it,
+  so it saved the recipe public (`EditorFinish.privateRefused`). (2) The editor's follow-up was refused after it left
+  (`useServerRefusedPrivate`). (3) The page's own Make private was refused. One notice serves all three.
+    - **Why not the snackbar.** WCAG 2.2 SC 4.1.3 asks only that a status message can be read by assistive
+      technology without focus. A snackbar with `role="status"` passes that, and so does an inline alert, so 4.1.3
+      does not decide it. Persistence does. The cook chose Private, and the recipe is now public. That contradicts
+      their own choice about who sees their work. A 6 s message that shares its slot with "Recipe published." is gone
+      before a cook who looked away reads it. A message this important must not live only in a toast. The plan's
+      reason for the snackbar was that the inline slot cannot receive state across the editor's hand-off. That is
+      not so: web already carries the refusal in `?done=`, and native can carry it as a route param.
+    - **Where.** In `RecipeDetailBody` (web and native), inside the header, directly under the rating and visibility
+      line. It sits beside the "Public" mark it explains, and above the description. A new prop on both leaves,
+      `visibilityNotice?: string`. Today both pages draw this text at the page FOOT (web
+      `RecipeDetailContainer.tsx:418`, after `ScrollHost`, and native `RecipeDetailScreen.tsx:424`, in `scrollFooter`).
+      The cook lands at the top and never sees it there. The generic visibility error (`visibility.error`) moves into
+      the same slot.
+    - **How it speaks.** The design-system `LiveRegion`, `politeness="assertive"`, visible, in the `meta` type role
+      and `dangerText`. For an owner it is always mounted, EMPTY (`''`) at rest. The W3C names `role="alert"` for a
+      message that warns of an error (ARIA19). Focus does not move: the route's own focus target stands, and 4.1.3
+      needs no focus. If it pre-empts the polite "Recipe published.", nothing is lost, because its words say the
+      recipe is public.
+    - ⛔ **The text must arrive AFTER the region mounts.** A region that mounts with its text is not reliably spoken
+      on Android (`LiveRegion.native.tsx:13-15`), and `occurrence` does not help at mount. Cases (2) and (3) arrive
+      late by nature. Case (1) is known before the page draws, so each platform defers it by one commit:
+        - Web: set the page's `finishRefusal` state inside the effect that already consumes `?done=`
+          (`useAddressNotice`), never from the first render's search params. That effect runs after mount, and it
+          removes the parameter, so the value must be captured there anyway.
+        - Native: read the `privateRefused` route param in `useFocusEffect`, which runs after mount, into screen
+          state. Then clear it with `navigation.setParams({ privateRefused: undefined })`. That also means a return
+          to the same stack entry does not speak it again.
+    - **How long.** For as long as the page shows the recipe AND the recipe is public. A later write that makes it
+      private clears it, and so does leaving the page. There is no dismiss control, as for the page's other inline
+      errors.
+    - **The hand-off.** Native: `RecipeDetail` params gain `privateRefused?: PrivateRefusal`, set by `tasks.tsx`'s
+      `onFinished` on both the create and the edit route. `useFinishedNotice` stops passing the refusal to the
+      snackbar. On both platforms the notice shows `serverRefusal ?? finishRefusal`, so the latest server answer wins.
+      Device check owed on Android and iOS: case (1) is spoken once on arrival, and not again on a return.
+    - **The snackbar keeps the outcome.** `finishedNoticeOf` answers only `published` / `changesSaved` and ignores
+      the refusal, so "Recipe published." and its **Add to a collection** action still show.
+    - **Copy: no new keys.** All three cases use `actions/messages.ts` `visibility.privateRefused.final` / `.premium`
+      ("This recipe is still public: it couldn’t be made private." / "This recipe is still public. Private recipes
+      are part of Premium."). Delete `editor/messages.ts` `privateRefused.final` / `.premium`, since only the snackbar
+      read them. The snackbar now says "Recipe published.", so "Your other changes are saved" has nothing left to
+      add. The `final` / `premium` choice stays with `serverRefusalOf` / `privateRefusalOf`.
 
 ### 6.5 Delete confirmation
 

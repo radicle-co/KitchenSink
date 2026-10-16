@@ -482,3 +482,44 @@ than editing the other author's section._
   focused task supply its own header that replaces the top bar below `expanded`. (2) The top-bar title is already
   `chromeTitle`, `truncate:1` at every width (`specShellAndLists.md` §S.2). §13.1 `heroTitle` and §13.2–§13.5
   are compatible with §1–§12. No conflict open.
+
+## 15. Route links: one owner of the plain-click rule (2026-10-16)
+
+**The rule.** A web link that the app's router serves stays a real `<a href>`, so a new tab works. A plain click
+(primary button, no modifier key) goes to the router, with the link's own navigation cancelled. Any other click is
+left to the browser. Today three copies state it: `ui/src/routeLink/isModifiedClick.ts`, the negation in
+`features/recipes/src/components/isPlainClick.ts`, and an inline copy in
+`features/account/src/profile/ProfileRow.tsx:62`. The design system owns it from now on.
+
+**Export.** A new subpath `"./route-link": "./src/routeLink/index.ts"` in `ui/package.json`. It is a package-export
+barrel, which `docs/CODING_STANDARDS.md` §4 allows. Web only, because native has no modifier click. It exports:
+
+- `isModifiedClick(event: Pick<MouseEvent, 'button' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'>): boolean`.
+  This keeps one polarity, the question "does the browser own this click?". It takes the narrow `Pick` parameter
+  from `isPlainClick`, so a test needs no synthetic event. Pure.
+- `RouteAction` and `RouteActionProps`. One API change: `label` becomes optional. With no `label` the accessible
+  name comes from the children, so a link with visible text carries no `aria-label` that repeats it.
+- The docstrings of both files lose "Internal to `@commise/ui`" and "not a package export".
+
+**Which consumer takes which.** Use `RouteAction` where the control IS a link-or-button that goes somewhere. Use the
+predicate where a composite owns the element.
+
+| Consumer                                                     | Takes             | Why                                                                                                                                                                   |
+| ------------------------------------------------------------ | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RecipeWidgetCard.tsx` "See all"                             | `RouteAction`     | `label={home.seeAllLabel}`, `href={seeAll.href}`, `onPress={seeAll.onPress}`, children `home.seeAll`. Its shape is exactly `RouteAction`'s.                           |
+| `RecipeWidgetEmptyState.tsx` "Find on Discover"              | `RouteAction`     | No `label`: the icon and `home.findOnDiscover` name it.                                                                                                               |
+| `card/RecipeCard.tsx` title                                  | `isModifiedClick` | A third case `RouteAction` lacks: a link with no handler (`href` without `onSelect`). It is also a stretched link inside a heading, named by its text.                |
+| `collections/CollectionListResults.tsx` title                | `isModifiedClick` | The same stretched-title shape as the recipe card. The two titles stay alike.                                                                                         |
+| `account/profile/ProfileRow.tsx`                             | `isModifiedClick` | It is named by `aria-labelledby` and described by `aria-describedby`, and its button branch is busy-aware. Giving `RouteAction` those props would make it a prop bag. |
+| `ui` `SegmentedControl`, `Avatar`, `HeroButton`, the headers | unchanged         | They already use the owner, by relative import inside the package.                                                                                                    |
+
+Each predicate site reads `if (!isModifiedClick(event)) { event.preventDefault(); … }`. Delete
+`features/recipes/src/components/isPlainClick.ts`. Its test `components/__tests__/isPlainClick.test.ts` moves to
+`ui/src/routeLink/__tests__/isModifiedClick.test.ts` with its table inverted, so no case is lost. `routeLink` has no
+test today, so `RouteAction` gains one: plain click calls `onPress` and cancels; each modifier and the middle button
+does neither; no `href` renders a `button`; no `label` sets no `aria-label`.
+
+**A latent defect this closes.** Both Home links render `<a>` with `href={undefined}` when the host gives no `href`.
+An `<a>` with no `href` is not a link and takes no keyboard focus (WCAG 2.1.1). The one web host,
+`web/src/components/home/RecipeWidgetSlot.tsx:115-121`, always passes one, so nothing ships broken today.
+`RouteAction` renders a `button` in that case, so the props can no longer express the defect.

@@ -10,6 +10,7 @@ import { slotFor } from '@kitchensink/e2e-fixtures/testPool';
 
 import { clientFor } from './client.js';
 import { readSeedEnvironment } from './env.js';
+import { attemptRefusal } from './walkRefusal.js';
 
 const env = readSeedEnvironment(process.env);
 const port = clerkLeasePort(env.clerkSecretKey);
@@ -127,26 +128,14 @@ if (publicOne !== undefined) {
     );
 
     // US2.8 — the owner cannot rate their own recipe.
-    let ownRatingRefused = false;
-
-    try {
-        await client.setRecipeRating(publicOne.id, { stars: 5 });
-    } catch {
-        ownRatingRefused = true;
-    }
-
-    check('US2.8  the owner is refused rating their own recipe', ownRatingRefused);
+    const ownRating = await attemptRefusal(() => client.setRecipeRating(publicOne.id, { stars: 5 }));
+    check('US2.8  the owner is refused rating their own recipe', ownRating.refused, ownRating.detail);
 
     // US1.4 — a non-owner cannot edit or delete.
-    let editRefused = false;
-
-    try {
-        await other.updateRecipe(publicOne.id, { title: 'hijacked', expectedVersion: original.currentVersion });
-    } catch {
-        editRefused = true;
-    }
-
-    check('US1.4  a non-owner is refused editing', editRefused);
+    const edit = await attemptRefusal(() =>
+        other.updateRecipe(publicOne.id, { title: 'hijacked', expectedVersion: original.currentVersion }),
+    );
+    check('US1.4  a non-owner is refused editing', edit.refused, edit.detail);
 
     await other.deleteRecipe(clone.id);
 }

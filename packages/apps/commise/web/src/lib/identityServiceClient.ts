@@ -18,8 +18,9 @@
  * is inlined at BUILD time, so that fallback shipped in the deployed preview bundle and every signed-in
  * visitor's profile fetch hit their own machine. An unconfigured build now fails loudly instead.
  *
- * The redirect-on-401 is an INJECTED `onUnauthorized` callback on `ProfileServiceClient`, not logic baked into the
- * shared, platform-agnostic client itself (mobile has no such redirect policy). The client sends no cookies: identity
+ * Web's sign-in redirect lives in two places, neither inside the shared, platform-agnostic client (mobile has
+ * no such policy): an INJECTED `onUnauthorized` callback for a 401 RESPONSE, and {@link withSignInRecovery} for a
+ * session that yields no token, which fails before any request exists. The client sends no cookies: identity
  * authenticates by bearer only (ADR-0047).
  */
 import { isUnauthorizedError, ProfileServiceClient, type TokenSource } from '@commise/features-account';
@@ -36,6 +37,14 @@ export const IDENTITY_SERVICE_BASE_URL = env.NEXT_PUBLIC_IDENTITY_API_URL;
  * `onUnauthorized` (which only sees a 401 RESPONSE) never runs for it. `ProfileServiceClient.send()` leaves that
  * case to "the caller's own fail-fast policy"; this is web's: the same circuit-broken bounce, then rethrow so
  * the error still reaches the consumer's boundary. A literal (server-resolved) token cannot fail this way.
+ *
+ * Only an `UnauthorizedError` bounces; any other failure (a network error minting the token) is rethrown
+ * untouched, because an offline viewer has not lost their session.
+ *
+ * @param token - A literal token or a per-request callback.
+ * @returns The literal unchanged, or a callback that redirects once on `UnauthorizedError` then rethrows.
+ * @throws Whatever the wrapped callback throws, after the redirect when it is an `UnauthorizedError`.
+ * @sideEffect Navigates the browser to sign-in (circuit-broken by `redirectToSignInOnce`).
  */
 function withSignInRecovery(token: TokenSource): TokenSource {
     if (typeof token !== 'function') {

@@ -518,6 +518,48 @@ describe('FoodServiceClient.corroborateFood (plan U19)', () => {
     });
 });
 
+/**
+ * The two nutrition doors answer one shape and differ only in the route, and the route is the whole difference:
+ * `nutrition` is edge-cached by URL (ADR-0020), `authored-nutrition` is per-caller and never cached. Swapping them
+ * would serve one cook's private foods from a shared cache, and building the query any way but the service's
+ * canonical one splits the cache key.
+ */
+describe('FoodServiceClient nutrition reads (plan U8, plan U18)', () => {
+    const BODY = {
+        foods: [{ id: 'a', status: 'RESOLVED', caloriesPer100g: 52, portions: [{ unit: 'cup', gramsPerUnit: 125 }] }],
+        unknownIds: ['b'],
+    };
+
+    it.each([
+        ['getNutrition', 'nutrition', (c: FoodServiceClient) => c.getNutrition(['b', 'a', 'b'])],
+        [
+            'getAuthoredNutrition',
+            'authored-nutrition',
+            (c: FoodServiceClient) => c.getAuthoredNutrition(['b', 'a', 'b']),
+        ],
+    ] as const)('%s GETs /api/v1/foods/%s with the canonical (sorted, de-duplicated) ids', async (_m, route, call) => {
+        const fetchMock = stubFetch(200, BODY);
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        await expect(call(client)).resolves.toEqual(BODY);
+
+        const [url, init] = apiCalls(fetchMock)[0]! as [string, { method: string }];
+
+        expect(url).toBe(`${BASE}/api/v1/foods/${route}?ids=a,b`);
+        expect(init.method).toBe('GET');
+    });
+
+    it('maps a 400 through the shared ladder', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            token: 'tok',
+            fetch: stubFetch(400, { code: 'VALIDATION_FAILED', message: 'too many ids' }),
+        });
+
+        await expect(client.getNutrition(['a'])).rejects.toBeInstanceOf(BadRequestError);
+    });
+});
+
 describe('FoodServiceClient.purgeOwnAuthoredFoods (ADR-0040, food half)', () => {
     it('POSTs the test-purge door with NO body and returns the parsed counts (200)', async () => {
         const fetchMock = stubFetch(200, { deletedAuthoredFoods: 3, retainedPromotedFoods: 1 });
@@ -1306,6 +1348,13 @@ describe('FoodServiceClient — a drifted response FAILS at the boundary, not de
             // A field is present but the WRONG TYPE — the case a presence-only check would miss.
             ['search: `results` is an object, not an array', 200, { results: {} }, (c) => c.search('kale')],
             ['getStatus: `status` is a number', 200, { id: 'f', status: 7 }, (c) => c.getStatus('f')],
+            ['getNutrition: no `unknownIds`', 200, { foods: [] }, (c) => c.getNutrition(['f'])],
+            [
+                'getAuthoredNutrition: a food with no `portions`',
+                200,
+                { foods: [{ id: 'f', status: 'RESOLVED' }], unknownIds: [] },
+                (c) => c.getAuthoredNutrition(['f']),
+            ],
             // A 202 answered with a status only a 200/404 may carry. `pendingResponseSchema.status` is now the
             // TWO-value enum in the service's own published contract, so the single envelope parse rejects it —
             // this used to need a second, client-side re-narrowing to catch, because the published response type

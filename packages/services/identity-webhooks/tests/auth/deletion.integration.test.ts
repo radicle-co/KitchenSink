@@ -24,6 +24,8 @@ const mockUpsert = vi.fn().mockResolvedValue({ id: '01UPSERTED0000000000000000' 
 const mockListUsers = vi.fn();
 const mockEraseIdentityRow = vi.fn().mockResolvedValue(undefined);
 const mockRunErasureFanout = vi.fn();
+const mockConfirmProviderDeleted = vi.fn().mockResolvedValue(undefined);
+const mockDeleteUser = vi.fn().mockResolvedValue(undefined);
 const mockProvisionCompleteUser = vi.mocked(provisionCompleteUser);
 
 vi.mock('../../src/common/db.js', () => ({
@@ -32,7 +34,7 @@ vi.mock('../../src/common/db.js', () => ({
 vi.mock('../../src/common/identityClient.js', () => ({
     listUsers: mockListUsers,
     getUser: vi.fn(),
-    deleteUser: vi.fn(),
+    deleteUser: mockDeleteUser,
     setExternalId: vi.fn(),
     banUser: vi.fn(),
     unbanUser: vi.fn(),
@@ -56,6 +58,7 @@ vi.mock('@kitchensink/identity-db', async (importOriginal) => ({
             findByIdentityId: mockFindByIdentityId,
             purgePrivateDataByIdentityId: mockPurgePrivateData,
             upsertByIdentityId: mockUpsert,
+            confirmProviderDeleted: mockConfirmProviderDeleted,
         };
     }),
     AccountDAO: vi.fn(function () {
@@ -168,6 +171,46 @@ describe('e2e: deletion-worker Lambda (user.deleted webhook = KTD-2 full erasure
         });
         expect(mockRunErasureFanout).toHaveBeenCalledTimes(1);
         expect(mockRunErasureFanout.mock.calls[0]![0]).toMatchObject({ userId: '01USER000000000000000DELETE' });
+    });
+
+    it('⛔ an `erasure` message deletes at Clerk, RECORDS the confirmation, and only then fans out (P1 #5)', async () => {
+        const order: string[] = [];
+        mockFindByIdentityId.mockResolvedValueOnce({
+            id: '01USER000000000000000ERASE',
+            identityId: 'user_erase_e2e',
+            status: 'erased',
+        });
+        mockDeleteUser.mockImplementationOnce(async () => {
+            order.push('clerk-delete');
+        });
+        mockConfirmProviderDeleted.mockImplementationOnce(async () => {
+            order.push('confirm');
+        });
+        mockRunErasureFanout.mockImplementationOnce(async () => {
+            order.push('fan-out');
+
+            return {
+                recipe: { service: 'recipe', ok: true, jobStatus: 'completed' },
+                food: { service: 'food', ok: true, deletedRequesterRows: 0 },
+            };
+        });
+        const handler = await loadDeletionWorker();
+
+        const event: SQSEvent = {
+            Records: [
+                makeSqsRecord({
+                    identityId: 'user_erase_e2e',
+                    userId: '01USER000000000000000ERASE',
+                    event: 'erasure',
+                    enqueuedAt: '2026-10-01T00:00:00.000Z',
+                }),
+            ],
+        };
+        await handler(event, ctx);
+
+        expect(order).toEqual(['clerk-delete', 'confirm', 'fan-out']);
+        expect(mockConfirmProviderDeleted).toHaveBeenCalledWith('01USER000000000000000ERASE', expect.any(Date));
+        expect(mockEraseIdentityRow).not.toHaveBeenCalled();
     });
 
     it('is idempotent when the identity is unknown (no erase, no fan-out, no error)', async () => {

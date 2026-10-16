@@ -107,10 +107,13 @@ const eraseFromWebhook = async (identityId: string, { db, userDao }: DbContext):
     if (user.status !== 'erased') {
         // KTD-2 full erasure: scrub to {id} + R8 audit. Setting status='erased' is what brings this
         // webhook-erased user under the R10 anti-resurrection guard (else it stays `active`+soft-deleted).
+        // Clerk deleted the account (that is what fired this webhook), so the confirmation is written in the same
+        // update as the scrub.
+        const now = new Date();
         await eraseIdentityRow(
             db,
-            { userId: user.id, triggerSource: 'admin', actor: 'clerk-user-deleted-webhook' },
-            new Date(),
+            { userId: user.id, triggerSource: 'admin', actor: 'clerk-user-deleted-webhook', providerDeletedAt: now },
+            now,
         );
         // Dimensionless — the id is on the log line below (see the cardinality gate).
         emitMetric('UserDeletedWebhookErased', 1);
@@ -120,6 +123,11 @@ const eraseFromWebhook = async (identityId: string, { db, userDao }: DbContext):
             identityId,
             userId: user.id,
         });
+        // ⛔ The echo of OUR OWN self-service erasure lands here: that row was erased with the provider deletion
+        // still owed, and this webhook is Clerk telling us the account is gone. Not recording it would leave
+        // reconciliation re-enqueueing a delete for an account that no longer exists. Idempotent: the DAO stamps
+        // only an unconfirmed erased row.
+        await userDao.confirmProviderDeleted(user.id, new Date());
     }
 
     await fanOutOrThrow({
@@ -286,6 +294,21 @@ const processRecord = async (record: SQSRecord, dbCtx: DbContext): Promise<void>
                     userId: message.userId,
                 });
             }
+
+            // ⛔ RECORD IT BEFORE FANNING OUT. Clerk answered (deleted, or 404 = already gone), and that fact is
+            // what erasure reconciliation reads to know the account cannot still sign in. A failed write THROWS,
+            // so the redelivery re-runs the (idempotent) delete and tries again, rather than fanning out and
+            // leaving the one durable fact unwritten. The row is looked up by its provider id so the typed
+            // `UserId` comes from the row itself, not from a cast of the message's string.
+            const user = await dbCtx.userDao.findByIdentityId(message.identityId);
+
+            if (!user) {
+                throw new Error(
+                    `deletion-worker: erasure for ${message.userId} names an identity with no row (rows are never hard-deleted)`,
+                );
+            }
+
+            await dbCtx.userDao.confirmProviderDeleted(user.id, new Date());
 
             await fanOutOrThrow({
                 userId: message.userId,

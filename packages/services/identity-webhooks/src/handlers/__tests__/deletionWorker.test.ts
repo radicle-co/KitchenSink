@@ -9,15 +9,21 @@
 import type { Context, SQSEvent } from 'aws-lambda';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockFindByIdentityId, mockEraseIdentityRow, mockRunErasureFanout, mockSettleStatusVersion } = vi.hoisted(
-    () => ({
-        mockFindByIdentityId: vi.fn(),
-        mockEraseIdentityRow: vi.fn(),
-        mockRunErasureFanout: vi.fn(),
-        // U10: the convergence settles how far the provider got, conditionally on the intent not moving.
-        mockSettleStatusVersion: vi.fn().mockResolvedValue(true),
-    }),
-);
+const {
+    mockFindByIdentityId,
+    mockEraseIdentityRow,
+    mockRunErasureFanout,
+    mockSettleStatusVersion,
+    mockConfirmProviderDeleted,
+} = vi.hoisted(() => ({
+    mockFindByIdentityId: vi.fn(),
+    mockEraseIdentityRow: vi.fn(),
+    mockRunErasureFanout: vi.fn(),
+    // U10: the convergence settles how far the provider got, conditionally on the intent not moving.
+    mockSettleStatusVersion: vi.fn().mockResolvedValue(true),
+    // P1 #5: the durable "Clerk confirmed this account is gone" stamp.
+    mockConfirmProviderDeleted: vi.fn(),
+}));
 
 vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
 
@@ -27,7 +33,11 @@ vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
 // the last, dropping whichever double the earlier one declared.
 vi.mock('@kitchensink/identity-db', () => {
     const UserDAO = vi.fn().mockImplementation(function () {
-        return { findByIdentityId: mockFindByIdentityId, settleStatusVersion: mockSettleStatusVersion };
+        return {
+            findByIdentityId: mockFindByIdentityId,
+            settleStatusVersion: mockSettleStatusVersion,
+            confirmProviderDeleted: mockConfirmProviderDeleted,
+        };
     });
 
     return { UserDAO, eraseIdentityRow: mockEraseIdentityRow };
@@ -97,6 +107,7 @@ beforeEach(() => {
     mockGetDb.mockResolvedValue({} as never);
     mockEraseIdentityRow.mockResolvedValue(undefined);
     mockRunErasureFanout.mockResolvedValue(bothLegsOk);
+    mockConfirmProviderDeleted.mockResolvedValue(undefined);
     process.env['DB_HOST'] = 'db.internal';
     process.env['DB_PORT'] = '5432';
     process.env['DB_NAME'] = 'kitchensink_identity';
@@ -266,6 +277,21 @@ describe('deletion-worker handler', () => {
     });
 
     describe('erasure event — delete the Clerk account, then fan out (row already scrubbed by the enqueuer)', () => {
+        beforeEach(() => {
+            // The scrubbed row the enqueuer left behind — rows are never hard-deleted (R1).
+            mockFindByIdentityId.mockResolvedValue({ id: 'usr_01', identityId: 'user_abc', status: 'erased' });
+        });
+
+        it('⛔ THROWS when the erased row cannot be found, instead of fanning out blind', async () => {
+            mockFindByIdentityId.mockResolvedValue(undefined);
+
+            await expect(
+                handler(makeSqsEvent({ identityId: 'user_abc', userId: 'usr_01', event: 'erasure' }), makeContext()),
+            ).rejects.toThrow(/no row/);
+
+            expect(mockRunErasureFanout).not.toHaveBeenCalled();
+        });
+
         it('fans out to recipe + food keyed by the app ULID, under the erasure actor', async () => {
             await handler(
                 makeSqsEvent({
@@ -315,6 +341,44 @@ describe('deletion-worker handler', () => {
             expect(mockRunErasureFanout).toHaveBeenCalledTimes(1);
         });
 
+        it('⛔ ORDER: Clerk delete -> record the confirmation -> fan out', async () => {
+            const order: string[] = [];
+            mockDeleteUserFn.mockImplementationOnce(async () => {
+                order.push('delete');
+            });
+            mockConfirmProviderDeleted.mockImplementationOnce(async () => {
+                order.push('confirm');
+            });
+            mockRunErasureFanout.mockImplementationOnce(async () => {
+                order.push('fanout');
+
+                return bothLegsOk;
+            });
+
+            await handler(makeSqsEvent({ identityId: 'user_abc', userId: 'usr_01', event: 'erasure' }), makeContext());
+
+            expect(order).toEqual(['delete', 'confirm', 'fanout']);
+            expect(mockConfirmProviderDeleted).toHaveBeenCalledWith('usr_01', expect.any(Date));
+        });
+
+        it('a Clerk 404 still records the confirmation — the account is gone either way', async () => {
+            mockDeleteUserFn.mockRejectedValueOnce(Object.assign(new Error('not found'), { status: 404 }));
+
+            await handler(makeSqsEvent({ identityId: 'user_abc', userId: 'usr_01', event: 'erasure' }), makeContext());
+
+            expect(mockConfirmProviderDeleted).toHaveBeenCalledWith('usr_01', expect.any(Date));
+        });
+
+        it('⛔ a failed confirmation THROWS and does NOT fan out — an unrecorded delete is retried, not forgotten', async () => {
+            mockConfirmProviderDeleted.mockRejectedValueOnce(new Error('db down'));
+
+            await expect(
+                handler(makeSqsEvent({ identityId: 'user_abc', userId: 'usr_01', event: 'erasure' }), makeContext()),
+            ).rejects.toThrow('db down');
+
+            expect(mockRunErasureFanout).not.toHaveBeenCalled();
+        });
+
         it('tolerates an already-deleted Clerk identity (404) and still fans out', async () => {
             // The tombstone-sweep path: Clerk was deleted before this message was enqueued. A 404 is
             // convergence, not failure — treating it as an error would strand every swept erasure.
@@ -336,6 +400,8 @@ describe('deletion-worker handler', () => {
             ).rejects.toThrow(/clerk/i);
 
             expect(mockRunErasureFanout).not.toHaveBeenCalled();
+            // Clerk may still hold the account, so nothing may claim otherwise.
+            expect(mockConfirmProviderDeleted).not.toHaveBeenCalled();
         });
 
         it('a failed leg THROWS so SQS redelivers (R7 — no silent half-erasure)', async () => {
@@ -398,6 +464,10 @@ describe('deletion-worker handler', () => {
                 triggerSource: 'admin',
                 actor: 'clerk-user-deleted-webhook',
             });
+            // The webhook fires BECAUSE Clerk already deleted the account, so the confirmation is written in the
+            // same update as the scrub (a Date, never null) and needs no second write.
+            expect(eraseInput.providerDeletedAt).toBeInstanceOf(Date);
+            expect(mockConfirmProviderDeleted).not.toHaveBeenCalled();
             expect(mockRunErasureFanout).toHaveBeenCalledTimes(1);
             expect(mockRunErasureFanout.mock.calls[0]![0]).toMatchObject({ userId: 'usr_01' });
         });
@@ -409,6 +479,29 @@ describe('deletion-worker handler', () => {
 
             expect(mockEraseIdentityRow).not.toHaveBeenCalled();
             expect(mockRunErasureFanout).toHaveBeenCalledTimes(1);
+        });
+
+        it('⛔ the echo of OUR OWN self-service erasure records that Clerk is gone (the row was erased with null)', async () => {
+            mockFindByIdentityId.mockResolvedValue({
+                id: 'usr_01',
+                identityId: 'user_abc',
+                status: 'erased',
+                providerDeletedAt: null,
+            });
+
+            await handler(makeSqsEvent({ identityId: 'user_abc' }), makeContext());
+
+            expect(mockConfirmProviderDeleted).toHaveBeenCalledWith('usr_01', expect.any(Date));
+            expect(mockEraseIdentityRow).not.toHaveBeenCalled();
+        });
+
+        it('a failed confirmation on the echo THROWS before the fan-out (retry, never a forgotten stamp)', async () => {
+            mockFindByIdentityId.mockResolvedValue({ id: 'usr_01', identityId: 'user_abc', status: 'erased' });
+            mockConfirmProviderDeleted.mockRejectedValueOnce(new Error('db down'));
+
+            await expect(handler(makeSqsEvent({ identityId: 'user_abc' }), makeContext())).rejects.toThrow('db down');
+
+            expect(mockRunErasureFanout).not.toHaveBeenCalled();
         });
 
         it('unknown identity → no erase, no fan-out, no throw (idempotent)', async () => {

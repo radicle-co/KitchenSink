@@ -353,6 +353,80 @@ describe('recipe parse jobs (integration)', () => {
         expect(((await lateRetry.json()) as { code: string }).code).toBe('PARSE_JOB_EXPIRED');
     });
 
+    /**
+     * The commit-then-enqueue gap: the process died after the job's rows committed and before the messages were
+     * sent, so the lines are `pending` with nothing in the queue to claim them. "Try again" only reset
+     * `failed_retryable`, so it did nothing and the cook waited on a paste that would never move.
+     */
+    describe('retry re-drives orphaned lines (the commit-then-enqueue gap)', () => {
+        const retryJob = async (jobId: string): Promise<Response> =>
+            fetch(`${baseUrl}/api/v1/recipe-parse-jobs/${jobId}/retry`, { method: 'POST' });
+        const quiet = async (jobId: string): Promise<void> => {
+            await pool.query(
+                `UPDATE recipe_parse_job_lines SET updated_at = now() - interval '1 hour' WHERE job_id = $1`,
+                [jobId],
+            );
+        };
+        const queued = async (jobId: string, max: number): Promise<Record<string, unknown>[]> =>
+            (await drainQueue(max)).filter((message) => message['jobId'] === jobId);
+
+        it('⛔ a never-claimed pending line in a paste quiet past the stall threshold is sent again — once', async () => {
+            const job = await createJob('1 cup orphan milk\n1 cup orphan cream');
+            // The messages the dead process never sent: take them out of the queue.
+            expect(await queued(job.id, 2)).toHaveLength(2);
+            await quiet(job.id);
+
+            expect((await retryJob(job.id)).status).toBe(202);
+
+            const redriven = await queued(job.id, 2);
+
+            expect(redriven.map((message) => message['lineIndex']).sort()).toEqual([0, 1]);
+
+            // The re-drive stamped the lines, so a second press inside the window sends nothing: the paste moved.
+            expect((await retryJob(job.id)).status).toBe(202);
+            expect(await queued(job.id, 1)).toHaveLength(0);
+        }, 60_000);
+
+        it('⛔ does NOT re-send a paste that is still moving, or a line that was ever claimed', async () => {
+            const fresh = await createJob('1 cup moving milk');
+            expect(await queued(fresh.id, 1)).toHaveLength(1);
+
+            expect((await retryJob(fresh.id)).status).toBe(202);
+            expect(await queued(fresh.id, 1)).toHaveLength(0);
+
+            // A claimed line that went quiet is SQS's to redeliver — re-sending it here would only add a duplicate.
+            const claimed = await createJob('1 cup claimed milk');
+            expect(await queued(claimed.id, 1)).toHaveLength(1);
+            await pool.query(
+                `UPDATE recipe_parse_job_lines SET attempts = 1, last_received_at = now() - interval '1 hour'
+                  WHERE job_id = $1`,
+                [claimed.id],
+            );
+            await quiet(claimed.id);
+
+            expect((await retryJob(claimed.id)).status).toBe(202);
+            expect(await queued(claimed.id, 1)).toHaveLength(0);
+        }, 60_000);
+
+        it('does not touch a parsed line in a quiet paste', async () => {
+            const job = await createJob('1 cup parsed milk\n1 cup orphan butter');
+            expect(await queued(job.id, 2)).toHaveLength(2);
+            const digests = await pool.query(
+                'SELECT line_index, line_digest FROM recipe_parse_job_lines WHERE job_id = $1 ORDER BY line_index',
+                [job.id],
+            );
+            const rows = digests.rows as { line_index: number; line_digest: string }[];
+            await landAs(job.id, 0, rows[0]?.line_digest ?? '', PROPOSAL);
+            await quiet(job.id);
+
+            expect((await retryJob(job.id)).status).toBe(202);
+
+            const redriven = await queued(job.id, 1);
+
+            expect(redriven.map((message) => message['lineIndex'])).toEqual([1]);
+        }, 60_000);
+    });
+
     it('rejects an inadmissible paste with 400, naming the offending line', async () => {
         const response = await fetch(`${baseUrl}/api/v1/recipe-parse-jobs`, {
             method: 'POST',

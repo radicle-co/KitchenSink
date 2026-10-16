@@ -22,13 +22,14 @@
  * window is benign and self-healing (a stale `running` job with retryable lines still retries, and the
  * next landing recomputes the aggregate), which is also precisely the worker's own crash posture.
  */
-import { and, asc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, inArray, isNull, sql } from 'drizzle-orm';
 import type pg from 'pg';
 import { PARSE_JOB_AGGREGATE_SQL } from '@kitchensink/recipe-core/parsing/parse-job-aggregate';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import { recipeParseJobLines, recipeParseJobs } from '../../database/schema/parseJobs.js';
 import { COPYABLE_LINE_STATUSES, type CopyForwardCandidate } from '../domain/copyForwardPolicy.js';
+import { lineIsOrphaned } from '../domain/lineProgress.js';
 import type {
     NewParseJobLine,
     ParseJobMutation,
@@ -242,22 +243,7 @@ export class ParseJobsDal implements ParseJobsDalPort {
             return undefined;
         }
 
-        // ⛔ THE AGES ARE THE DATABASE'S, in the same statement as the rows. `claimLine` stamps `last_received_at` with
-        // the database's `now()`, so measuring it against this process's clock would mix two clocks and read a claim
-        // as lapsed (or held) by however far they drift. `::float8` is load-bearing too: `EXTRACT` answers `numeric`,
-        // which node-pg hands back as a STRING; `float8` arrives as a number. The window gives every row the job's
-        // quiet time — how long since ANY of its lines moved (every claim, landing, retry and edit stamps `updated_at`).
-        const lines = await this.db
-            .select({
-                ...getTableColumns(recipeParseJobLines),
-                claimAgeSeconds: sql<
-                    number | null
-                >`EXTRACT(EPOCH FROM (now() - ${recipeParseJobLines.lastReceivedAt}))::float8`,
-                jobQuietSeconds: sql<number>`EXTRACT(EPOCH FROM (now() - max(${recipeParseJobLines.updatedAt}) OVER ()))::float8`,
-            })
-            .from(recipeParseJobLines)
-            .where(eq(recipeParseJobLines.jobId, jobId))
-            .orderBy(asc(recipeParseJobLines.lineIndex));
+        const lines = await this.selectLinesWithAges(this.db, jobId);
         const [first] = lines;
 
         return {
@@ -314,6 +300,46 @@ export class ParseJobsDal implements ParseJobsDalPort {
                 return { kind: gate };
             }
 
+            // ⛔ ORPHANS FIRST, then the retryable reset: the reset leaves lines `pending` and never claimed too, and
+            // reading them as orphans would send them twice. An orphan is a line the commit-then-enqueue gap left
+            // with no message (process death between the job's rows and its sends) — `lineIsOrphaned` is the
+            // progress read's own `stalled` rule, so "Try again" re-drives exactly the lines the cook is shown as
+            // stalled. The UPDATE re-checks `pending AND last_received_at IS NULL` because the facts were read a
+            // statement earlier and a worker's claim stamps that column: a line claimed in between is not ours to
+            // re-send. Its `updated_at` moves, so a second press inside the window finds the paste moving.
+            const facts = await this.selectLinesWithAges(tx, jobId);
+            const orphanIndexes = facts
+                .filter((line) =>
+                    lineIsOrphaned(
+                        {
+                            status: this.lineStatusOf(line.status),
+                            attempts: line.attempts ?? 0,
+                            claimAgeSeconds: line.claimAgeSeconds,
+                        },
+                        line.jobQuietSeconds,
+                    ),
+                )
+                .map((line) => line.lineIndex);
+            const orphans =
+                orphanIndexes.length === 0
+                    ? []
+                    : await tx
+                          .update(recipeParseJobLines)
+                          .set({ updatedAt: sql`now()` })
+                          .where(
+                              and(
+                                  eq(recipeParseJobLines.jobId, jobId),
+                                  inArray(recipeParseJobLines.lineIndex, orphanIndexes),
+                                  eq(recipeParseJobLines.status, 'pending'),
+                                  isNull(recipeParseJobLines.lastReceivedAt),
+                              ),
+                          )
+                          .returning({
+                              lineIndex: recipeParseJobLines.lineIndex,
+                              sourceLine: recipeParseJobLines.sourceLine,
+                              lineDigest: recipeParseJobLines.lineDigest,
+                          });
+
             // ⛔ The CLAIM COUNTERS reset with the status (U6), or the retry is a button that does nothing.
             // A line made `failed_retryable` because it exhausted its delivery allowance re-enters the queue
             // with `attempts` already at the allowance, so the very first delivery of the retry would claim,
@@ -337,7 +363,9 @@ export class ParseJobsDal implements ParseJobsDalPort {
                     lineDigest: recipeParseJobLines.lineDigest,
                 });
 
-            if (reset.length > 0) {
+            const redriven = [...orphans, ...reset];
+
+            if (redriven.length > 0) {
                 // Explicitly `running`, NOT the aggregate: its first arm KEEPS the current status while
                 // lines are pending, which would leave a `partial` job `partial` — see the shared SQL's docs.
                 await tx
@@ -346,7 +374,7 @@ export class ParseJobsDal implements ParseJobsDalPort {
                     .where(eq(recipeParseJobs.id, jobId));
             }
 
-            return { kind: 'ok', lines: reset.sort((a, b) => a.lineIndex - b.lineIndex) };
+            return { kind: 'ok', lines: redriven.sort((a, b) => a.lineIndex - b.lineIndex) };
         });
     }
 
@@ -455,6 +483,31 @@ export class ParseJobsDal implements ParseJobsDalPort {
         await this.pool.query(PARSE_JOB_AGGREGATE_SQL, [jobId]);
 
         return { kind: 'ok' };
+    }
+
+    /**
+     * Every line of a job with the two AGES the progress rule reads.
+     *
+     * ⛔ THE AGES ARE THE DATABASE'S, in the same statement as the rows. `claimLine` stamps `last_received_at` with
+     * the database's `now()`, so measuring it against this process's clock would mix two clocks and read a claim
+     * as lapsed (or held) by however far they drift. `::float8` is load-bearing too: `EXTRACT` answers `numeric`,
+     * which node-pg hands back as a STRING; `float8` arrives as a number. The window gives every row the job's
+     * quiet time — how long since ANY of its lines moved (every claim, landing, retry and edit stamps `updated_at`).
+     *
+     * @sideEffect Reads.
+     */
+    private async selectLinesWithAges(executor: Pick<RecipeDrizzle, 'select'>, jobId: string) {
+        return executor
+            .select({
+                ...getTableColumns(recipeParseJobLines),
+                claimAgeSeconds: sql<
+                    number | null
+                >`EXTRACT(EPOCH FROM (now() - ${recipeParseJobLines.lastReceivedAt}))::float8`,
+                jobQuietSeconds: sql<number>`EXTRACT(EPOCH FROM (now() - max(${recipeParseJobLines.updatedAt}) OVER ()))::float8`,
+            })
+            .from(recipeParseJobLines)
+            .where(eq(recipeParseJobLines.jobId, jobId))
+            .orderBy(asc(recipeParseJobLines.lineIndex));
     }
 
     /**

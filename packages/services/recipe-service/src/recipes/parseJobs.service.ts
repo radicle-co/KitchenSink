@@ -146,7 +146,10 @@ export interface ParseJobsDalPort {
     getJob(ownerId: string, jobId: string): Promise<ParseJobRecord | undefined>;
     /** Flip these lines to `failed_retryable` and recompute the job aggregate. @sideEffect Writes. */
     markLinesFailedRetryable(jobId: string, lineIndexes: readonly number[]): Promise<void>;
-    /** Flip every `failed_retryable` line back to `pending` (job → `running`), returning what to re-enqueue. @sideEffect Writes. */
+    /**
+     * Flip every `failed_retryable` line back to `pending` (job → `running`), and also pick out the ORPHANED lines
+     * (`lineIsOrphaned`), returning both to re-enqueue. @sideEffect Writes.
+     */
     resetForRetry(
         ownerId: string,
         jobId: string,
@@ -417,7 +420,9 @@ export class ParseJobsService {
     }
 
     /**
-     * Re-drive exactly the `failed_retryable` lines (the plan's partial-outage scenario).
+     * Re-drive the `failed_retryable` lines (the plan's partial-outage scenario) and the ORPHANED ones: pending, never
+     * claimed, in a paste quiet past the stall threshold — what a process death between the job's commit and its
+     * enqueue leaves. A duplicate of an orphan is absorbed by the worker's claim (status + digest).
      *
      * @throws `PARSE_JOB_NOT_FOUND` / `PARSE_JOB_EXPIRED`. @sideEffect Writes line statuses, enqueues.
      */

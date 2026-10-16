@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ParseLineDelivery } from '@kitchensink/recipe-core/parsing/parse-line-delivery';
 
-import { lineProgressOf, type LineProgressFacts } from '../lineProgress.js';
+import { lineIsOrphaned, lineProgressOf, type LineProgressFacts } from '../lineProgress.js';
 
 /** Small, distinct numbers, so a test that passed by reading the wrong field would show it. */
 const DELIVERY: ParseLineDelivery = { leaseSeconds: 10, visibilityTimeoutSeconds: 12, stallSeconds: 24 };
@@ -111,4 +111,39 @@ describe('lineProgressOf', () => {
         expect(lineProgressOf(pending({ attempts: 1, claimAgeSeconds: 151 }), 151)).toBe('delayed');
         expect(lineProgressOf(pending(), 361)).toBe('stalled');
     });
+});
+
+/**
+ * `lineIsOrphaned` — the lines "Try again" re-drives although they are not `failed_retryable`: pending, NEVER claimed,
+ * in a paste quiet past the stall threshold. The commit-then-enqueue gap (process death after the rows commit, before
+ * the messages are sent) leaves exactly those. A claimed line is in the queue's hands (SQS redelivers it), so it is
+ * NOT orphaned however long it has been quiet.
+ */
+describe('lineIsOrphaned', () => {
+    it.each([
+        { why: 'never claimed, quiet past the threshold', facts: pending(), quiet: 24.001, orphaned: true },
+        { why: 'never claimed, exactly at the threshold', facts: pending(), quiet: 24, orphaned: false },
+        { why: 'never claimed, the paste moving', facts: pending(), quiet: 0, orphaned: false },
+        {
+            why: 'claimed once and lapsed — SQS redelivers it',
+            facts: pending({ attempts: 1, claimAgeSeconds: 600 }),
+            quiet: 600,
+            orphaned: false,
+        },
+        {
+            why: 'claimed with attempts unrecorded (a row from before migration 0046)',
+            facts: pending({ attempts: 0, claimAgeSeconds: 600 }),
+            quiet: 600,
+            orphaned: false,
+        },
+    ] as const)('$why → $orphaned', ({ facts, quiet, orphaned }) => {
+        expect(lineIsOrphaned(facts, quiet, DELIVERY)).toBe(orphaned);
+    });
+
+    it.each(['parsed', 'unparseable', 'failed_retryable', 'withdrawn'] as const)(
+        'a %s line is never orphaned',
+        (status) => {
+            expect(lineIsOrphaned({ status, attempts: 0, claimAgeSeconds: null }, 1_000, DELIVERY)).toBe(false);
+        },
+    );
 });

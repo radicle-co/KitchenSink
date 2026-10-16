@@ -72,3 +72,26 @@ export function lineProgressOf(
 
     return claimAgeSeconds === null ? 'queued' : 'delayed';
 }
+
+/**
+ * Whether "Try again" must re-drive this line although it is not `failed_retryable`: it is pending, NEVER claimed, and
+ * its paste has been quiet past the stall threshold — the `stalled` phase of a line nobody ever took. That is what a
+ * process death between the job's commit and its enqueue leaves: rows, and no message to claim them.
+ *
+ * ⛔ NEVER-CLAIMED ONLY. A claimed line that went quiet is in SQS's hands (it redelivers), and re-sending it here would
+ * only add duplicates; the worker's claim (status + digest) absorbs a duplicate of an orphan, which is why this rule
+ * may be generous about WHEN and strict about WHICH. The rule is `lineProgressOf`'s own `stalled` arm, not a second
+ * copy of the threshold.
+ *
+ * @param line - The line's recorded facts.
+ * @param jobQuietSeconds - Seconds since anything in the line's paste last moved, by the database's clock.
+ * @param delivery - The queue's timing; the shipped numbers unless a test supplies its own.
+ * @returns `true` for an orphaned line. Pure.
+ */
+export function lineIsOrphaned(
+    line: LineProgressFacts,
+    jobQuietSeconds: number,
+    delivery: ParseLineDelivery = PARSE_LINE_DELIVERY,
+): boolean {
+    return line.claimAgeSeconds === null && lineProgressOf(line, jobQuietSeconds, delivery) === 'stalled';
+}

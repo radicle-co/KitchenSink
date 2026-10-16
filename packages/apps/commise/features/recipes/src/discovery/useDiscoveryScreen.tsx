@@ -161,11 +161,11 @@ export function useDiscoveryScreen({
     // told, and the debounce feeds the search.
     const onSearchChange = (value: string): void => {
         setSearchInput(value);
-        criteria.commit({ filters, query: value });
+        criteria.commit((current) => ({ filters: current.filters, query: value }));
     };
 
     const onFilterAction = (action: FilterAction): void =>
-        criteria.commit({ filters: applyFilterAction(filters, action), query: searchInput });
+        criteria.commit((current) => ({ filters: applyFilterAction(current.filters, action), query: current.query }));
 
     const view = filterBarViewOf({ facets, filters, viewState: ingredientSearch.viewState }, filterCopy);
     const ingredients = {

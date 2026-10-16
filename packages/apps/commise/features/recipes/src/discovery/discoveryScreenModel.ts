@@ -36,11 +36,15 @@ export interface DiscoveryCriteriaState {
  * from outside — a URL navigation — is followed) and WRITES through `commit`.
  *
  * `commit` must not throw and must make the next render's `filters` / `query` equal what was committed (web by writing the
- * URL, mobile by setting state). The screen keeps its own immediate copy of the typed term for the field, so a store
+ * URL, mobile by setting state). It takes the next criteria or an UPDATE of the criteria current when it runs, applied in
+ * order: the screen commits updates, so two actions in one event, or a keystroke between a render and a press, compose
+ * instead of the later one overwriting the earlier with a stale snapshot. The screen keeps its own immediate copy of the typed term for the field, so a store
  * that applies a write late never makes a keystroke wait.
  */
 export interface DiscoveryCriteriaStore extends DiscoveryCriteriaState {
-    readonly commit: (next: DiscoveryCriteriaState) => void;
+    readonly commit: (
+        next: DiscoveryCriteriaState | ((current: DiscoveryCriteriaState) => DiscoveryCriteriaState),
+    ) => void;
 }
 
 /**

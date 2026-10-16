@@ -36,4 +36,16 @@ describe('useStateCriteriaStore', () => {
         expect(result.current.filters).toEqual(EMPTY_RECIPE_FILTERS);
         expect(result.current.query).toBe('');
     });
+
+    it('applies updates in order over the CURRENT criteria, so two commits in one event both land', () => {
+        const { result } = renderHook(() => useStateCriteriaStore());
+
+        act(() => {
+            result.current.commit((current) => ({ ...current, filters: { tags: ['vegan'] } }));
+            result.current.commit((current) => ({ ...current, query: 'soup' }));
+        });
+
+        expect(result.current.filters).toEqual({ tags: ['vegan'] });
+        expect(result.current.query).toBe('soup');
+    });
 });

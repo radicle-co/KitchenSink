@@ -20,6 +20,7 @@ import type { RecipeFilterState } from '../../filters/model.js';
 import { DiscoveryScreen } from '../DiscoveryScreen.js';
 import type {
     DiscoveryBoundaryProps,
+    DiscoveryCriteriaState,
     DiscoveryCriteriaStore,
     DiscoveryPlatform,
     DiscoveryRefreshableQuery,
@@ -96,6 +97,12 @@ function renderScreen(store: DiscoveryCriteriaStore): RenderResult {
     return renderWithRecipeClient(screenOver(store), client, { queryClient });
 }
 
+/** What a `commit` argument resolves to over `current`: the port takes the next criteria or an update of the current. */
+const resolved = (
+    arg: Parameters<DiscoveryCriteriaStore['commit']>[0],
+    current: DiscoveryCriteriaState,
+): DiscoveryCriteriaState => (typeof arg === 'function' ? arg(current) : arg);
+
 const storeOf = (
     filters: RecipeFilterState,
     query: string,
@@ -121,7 +128,10 @@ describe('DiscoveryScreen — the criteria port', () => {
         fireEvent.change(screen.getByLabelText('Search recipes'), { target: { value: 'pie' } });
 
         expect((screen.getByLabelText('Search recipes') as HTMLInputElement).value).toBe('pie');
-        expect(commit).toHaveBeenLastCalledWith({ filters: { tags: ['grill'] }, query: 'pie' });
+        expect(resolved(commit.mock.lastCall?.[0], { filters: { tags: ['grill'] }, query: '' })).toEqual({
+            filters: { tags: ['grill'] },
+            query: 'pie',
+        });
     });
 
     it('commits a filter action over the store’s filters, keeping the typed term', async () => {
@@ -131,7 +141,26 @@ describe('DiscoveryScreen — the criteria port', () => {
         renderScreen(storeOf({ tags: ['grill'] }, 'pie', commit));
         fireEvent.click(await screen.findByRole('button', { name: /clear filters/i }));
 
-        expect(commit).toHaveBeenLastCalledWith({ filters: EMPTY_RECIPE_FILTERS, query: 'pie' });
+        expect(resolved(commit.mock.lastCall?.[0], { filters: { tags: ['grill'] }, query: 'pie' })).toEqual({
+            filters: EMPTY_RECIPE_FILTERS,
+            query: 'pie',
+        });
+    });
+
+    it('commits a filter action as an UPDATE of the criteria current at commit time, not of this render’s snapshot', async () => {
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(EMPTY_PAGE);
+        const commit = vi.fn();
+
+        renderScreen(storeOf({ tags: ['grill'] }, 'pie', commit));
+        fireEvent.click(await screen.findByRole('button', { name: /clear filters/i }));
+
+        // Two actions in one event, or a keystroke between render and commit, must compose: the update is handed the
+        // store's CURRENT criteria, so what an earlier commit wrote is kept.
+        expect(typeof commit.mock.lastCall?.[0]).toBe('function');
+        expect(resolved(commit.mock.lastCall?.[0], { filters: { tags: ['vegan'] }, query: 'stew' })).toEqual({
+            filters: EMPTY_RECIPE_FILTERS,
+            query: 'stew',
+        });
     });
 
     it('follows a filter change that arrives through the store (a URL navigation), not only its own commits', async () => {

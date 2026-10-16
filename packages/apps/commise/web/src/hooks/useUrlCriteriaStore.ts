@@ -26,8 +26,11 @@ export function useUrlCriteriaStore(): DiscoveryCriteriaStore {
     const { filters, query } = filtersFromQueryString(searchParams.toString());
 
     const commit = useCallback(
-        (next: DiscoveryCriteriaState): void => {
-            const qs = filtersToQueryString(next.filters, next.query);
+        (next: DiscoveryCriteriaState | ((current: DiscoveryCriteriaState) => DiscoveryCriteriaState)): void => {
+            // An update reads the address AS IT IS NOW: `replaceState` is synchronous, so a second commit in the same event
+            // sees what the first wrote, which this render's `useSearchParams()` snapshot cannot.
+            const resolved = typeof next === 'function' ? next(filtersFromQueryString(window.location.search)) : next;
+            const qs = filtersToQueryString(resolved.filters, resolved.query);
             window.history.replaceState(null, '', qs.length > 0 ? `${pathname}?${qs}` : pathname);
         },
         [pathname],

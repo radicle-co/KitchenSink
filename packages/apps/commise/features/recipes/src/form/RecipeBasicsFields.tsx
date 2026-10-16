@@ -29,7 +29,7 @@ import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import { ChipInput } from './ChipInput.js';
 import { readLimit, singleLine } from './fieldText.js';
-import { cuisineErrorId, descriptionErrorId, servingsErrorId, timesErrorId, titleErrorId } from './fieldErrorIds.js';
+import { descriptionErrorId, servingsErrorId, timesErrorId, titleErrorId } from './fieldErrorIds.js';
 import {
     cuisineFieldId,
     describedByOf,
@@ -271,15 +271,10 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
                         hint={m.cuisineHint}
                         {...cuisine}
                         onAbandon={() => onChange({ ...values, cuisine: '' })}
-                        invalid={cuisineMessage !== undefined}
-                        {...(cuisineMessage === undefined ? {} : { describedBy: cuisineErrorId })}
-                        belowField={
-                            cuisineMessage === undefined ? undefined : (
-                                <p id={cuisineErrorId} className={fieldMessage} role="alert">
-                                    {cuisineMessage}
-                                </p>
-                            )
-                        }
+                        {...(cuisineMessage === undefined ? {} : { error: cuisineMessage })}
+                        // S9 is spoken once, here; S8 is already spoken by the publish-refusal path (cuisineField.md
+                        // §3.3). The error slot itself is never live.
+                        alertAnnouncement={errors?.cuisine === 'cuisineTooLong' ? (cuisineMessage ?? '') : ''}
                         typedText="isValue"
                         openOnFocus
                     />

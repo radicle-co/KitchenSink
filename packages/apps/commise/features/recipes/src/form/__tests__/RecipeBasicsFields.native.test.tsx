@@ -439,17 +439,22 @@ describe('RecipeBasicsFields (native) — cuisine', () => {
         expect(lastValues(onChange).cuisine).toBe('');
     });
 
-    it('S8 — a refused Publish says the fix under the field, as an alert, and marks the field invalid', () => {
+    it('S8 — a refused Publish says the fix in the field’s own error slot, as plain text that is not live', () => {
         renderLive({ initial: filled({ cuisine: '' }), errors: { cuisine: 'cuisineRequired' } });
 
-        expect(screen.getByRole('alert').textContent).toBe(m.errors.cuisineRequired);
-        expect(cuisineField().getAttribute('aria-invalid')).toBe('true');
+        const message = screen.getByText(m.errors.cuisineRequired);
+        expect(message.getAttribute('role')).toBeNull();
+        // The publish-refusal path already speaks S8; the slot must not speak it a second time.
+        expect(screen.queryAllByRole('alert').filter((alert) => (alert.textContent ?? '') !== '')).toEqual([]);
     });
 
-    it('S9 — past 100 characters it says the limit, filled with the wire’s number', () => {
+    it('S9 — past 100 characters the slot says the limit, and the field’s alert speaks it once', () => {
         renderLive({ initial: filled({ cuisine: 'a'.repeat(101) }), errors: { cuisine: 'cuisineTooLong' } });
+        const limit = 'Shorten the cuisine to 100 characters or fewer.';
+        const speaking = screen.getAllByRole('alert').filter((alert) => (alert.textContent ?? '') !== '');
 
-        expect(screen.getByRole('alert').textContent).toBe('Shorten the cuisine to 100 characters or fewer.');
+        expect(screen.getAllByText(limit).filter((el) => el.getAttribute('role') === null)).toHaveLength(1);
+        expect(speaking.map((alert) => alert.textContent)).toEqual([limit]);
     });
 });
 

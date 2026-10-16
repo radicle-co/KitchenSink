@@ -164,3 +164,28 @@ export function fieldLabelId(fieldId: string): string {
 export function fieldHintId(fieldId: string): string {
     return `${fieldId}-hint`;
 }
+
+/**
+ * The id a field's error message carries, for the field's `aria-describedby` (web). Pure.
+ *
+ * @param fieldId - The field's id.
+ * @returns The error's id.
+ */
+export function fieldErrorId(fieldId: string): string {
+    return `${fieldId}-error`;
+}
+
+/**
+ * What a native field's `accessibilityHint` says: its error, a space, then its hint, or whichever of the two exists
+ * (cuisineField.md §3.3, P4). React Native has no `aria-describedby`, so this is the only way a native field's message
+ * reaches VoiceOver and TalkBack. The error leads because it is the news. Pure.
+ *
+ * @param error - The field's error message, if it has one.
+ * @param hint - The field's hint, if it has one.
+ * @returns The hint to speak, or `undefined` when there is nothing to say.
+ */
+export function fieldAccessibilityHint(error: string | undefined, hint: string | undefined): string | undefined {
+    const parts = [error, hint].filter((part): part is string => part !== undefined);
+
+    return parts.length === 0 ? undefined : parts.join(' ');
+}

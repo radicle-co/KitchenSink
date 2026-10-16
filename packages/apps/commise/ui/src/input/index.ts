@@ -10,7 +10,7 @@ export { FIELD_EDGE, FIELD_PADDING, fieldGeometry, fieldPaint } from './fieldSty
 export { Input } from './Input.js';
 export { Stepper } from './Stepper.js';
 export { TextArea } from './TextArea.js';
-export { fieldHintId, fieldLabelId, stepFrom } from './props.js';
+export { fieldAccessibilityHint, fieldErrorId, fieldHintId, fieldLabelId, stepFrom } from './props.js';
 export type {
     EnterKeyHint,
     FieldLabelProps,

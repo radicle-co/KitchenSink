@@ -12,7 +12,6 @@
  */
 export const titleErrorId = 'recipe-title-error';
 export const descriptionErrorId = 'recipe-description-error';
-export const cuisineErrorId = 'recipe-cuisine-error';
 export const servingsErrorId = 'recipe-servings-error';
 export const timesErrorId = 'recipe-times-error';
 export const ingredientsErrorId = 'recipe-ingredients-error';

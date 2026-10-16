@@ -78,7 +78,7 @@ import { Fragment, useContext, useEffect, useState, type FC, type KeyboardEvent,
 import { BUSY_CONTROL_CLASS } from '../button/busyControlProps.js';
 import { FIELD_CLASS } from '../input/fieldClass.js';
 import { FieldLabel } from '../input/FieldLabel.js';
-import { fieldHintId } from '../input/props.js';
+import { fieldErrorId, fieldHintId } from '../input/props.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.js';
 import { PopupInsetsContext, type PopupInsetsReader } from '../popupInsets/popupInsetsContext.js';
 import { VariantPartsLine } from '../variantPartsLine/VariantPartsLine.js';
@@ -319,6 +319,7 @@ export const Combobox: FC<ComboboxProps> = ({
     hint,
     belowField,
     invalid = false,
+    error,
     describedBy,
     focusRequested = false,
     onFocusRequestHandled,
@@ -329,6 +330,7 @@ export const Combobox: FC<ComboboxProps> = ({
     onBlur,
 }) => {
     const hintId = fieldHintId(id);
+    const errorId = fieldErrorId(id);
     const [inputNode, setInputNode] = useState<HTMLInputElement | null>(null);
     const readInsets = useContext(PopupInsetsContext);
     const [activeKey, setActiveKey] = useState<string | undefined>(undefined);
@@ -496,6 +498,7 @@ export const Combobox: FC<ComboboxProps> = ({
 
     const labelShown = labelVisibility === 'visible';
     const describedByIds = [
+        ...(error === undefined ? [] : [errorId]),
         ...(hint === undefined ? [] : [hintId]),
         ...(describedBy === undefined ? [] : [describedBy]),
     ];
@@ -504,7 +507,7 @@ export const Combobox: FC<ComboboxProps> = ({
         ref: setInputNode,
         'aria-label': label,
         'aria-describedby': describedByIds.length === 0 ? undefined : describedByIds.join(' '),
-        'aria-invalid': invalid || undefined,
+        'aria-invalid': invalid || error !== undefined || undefined,
         type: 'text',
         placeholder,
         onFocus: () => {
@@ -585,6 +588,12 @@ export const Combobox: FC<ComboboxProps> = ({
                         </button>
                     )}
                 </div>
+                {/* Never live (no role): a host that must speak an error uses `alertAnnouncement`. */}
+                {error !== undefined && (
+                    <p id={errorId} className="text-label text-danger-text">
+                        {error}
+                    </p>
+                )}
                 {belowField}
             </div>
             {!labelShown && hint !== undefined && (

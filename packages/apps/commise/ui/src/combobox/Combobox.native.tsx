@@ -66,6 +66,7 @@ import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { FIELD_PADDING, fieldGeometry, fieldPaint } from '../input/fieldStyle.js';
 import { FieldLabel } from '../input/FieldLabel.native.js';
+import { fieldAccessibilityHint } from '../input/props.js';
 import { TextInput } from '../textInput/TextInput.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
@@ -133,6 +134,7 @@ export const Combobox: FC<ComboboxProps> = ({
     hint,
     belowField,
     invalid = false,
+    error,
     focusRequested = false,
     onFocusRequestHandled,
     listRequested = false,
@@ -340,9 +342,10 @@ export const Combobox: FC<ComboboxProps> = ({
                         // React Native has no `aria-describedby`, so the hint a screen reader speaks on focus is the
                         // field's own, drawn caption or not. The caption is for sighted users; a screen reader meets
                         // it as a text node beside the label, and hears the hint again here.
-                        accessibilityHint={hint}
+                        // The error leads it, because it is the news: React Native 0.86 has no `aria-invalid` or invalid
+                        // state either, so the danger edge and this hint are all a screen reader gets (P4).
+                        accessibilityHint={fieldAccessibilityHint(error, hint)}
                         aria-expanded={listShown}
-                        aria-invalid={invalid || undefined}
                         autoCorrect={false}
                         placeholder={placeholder}
                         placeholderTextColor={colors.inkMuted}
@@ -381,7 +384,7 @@ export const Combobox: FC<ComboboxProps> = ({
                         }}
                         style={[
                             styles.field,
-                            fieldPaint(theme, invalid),
+                            fieldPaint(theme, invalid || error !== undefined),
                             leadingIcon === undefined ? null : styles.fieldWithIcon,
                         ]}
                     />
@@ -410,6 +413,9 @@ export const Combobox: FC<ComboboxProps> = ({
                     </Pressable>
                 )}
             </View>
+            {/* Plain text, no role and no live region: the hint above carries it to the screen reader, and a host that
+                must speak it uses `alertAnnouncement`. */}
+            {error !== undefined && <Text style={[styles.error, { color: colors.dangerText }]}>{error}</Text>}
             {belowField}
             <LiveRegion politeness="polite" visuallyHidden>
                 {popupShown ? countAnnouncement : ''}
@@ -483,6 +489,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[3],
         borderRadius: nativeTokens.radius.full,
     },
+    error: nativeTokens.type.label,
     textButtonLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500' },
     option: {
         minHeight: TARGET_DP,

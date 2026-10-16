@@ -181,7 +181,20 @@ export interface ComboboxProps {
      * spec §7.5.3). On native the list is in the page's flow, so a line after the combobox would sit below the list.
      */
     readonly belowField?: ReactNode;
+    /**
+     * The field holds a value its form rejects: the `danger` edge, with no text. A host with a message passes
+     * {@link error} instead, which implies this.
+     */
     readonly invalid?: boolean;
+    /**
+     * The message that says what is wrong with the field and how to fix it, localised by the host (WCAG 3.3.1, 3.3.3).
+     * Present means invalid: the `danger` edge too. Drawn directly under the field row, before {@link belowField} and
+     * before the list, in the `label` role and `dangerText`. The slot is NEVER live (no role): a host that must speak
+     * an error uses {@link alertAnnouncement}. Web: a `<p>` whose id (`fieldErrorId`) the input names in
+     * `aria-describedby`, ahead of the hint and the host's `describedBy`, with `aria-invalid`. Native has neither
+     * attribute, so the input's `accessibilityHint` becomes the error, a space, then the hint.
+     */
+    readonly error?: string;
     /** Web: the id of another element that describes the field, after the hint. */
     readonly describedBy?: string;
     /**

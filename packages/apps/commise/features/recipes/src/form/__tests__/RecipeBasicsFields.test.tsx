@@ -15,9 +15,12 @@ import { useState, type FC } from 'react';
 
 import { CUISINES, RecipeDifficulty } from '@kitchensink/recipe-core';
 
+import { fieldErrorId } from '@commise/ui/input';
+
 import { editorMessages } from '../../editor/messages.js';
 import { RecipeBasicsFields } from '../RecipeBasicsFields.js';
 import { DESCRIPTION_COUNTER_FROM, DESCRIPTION_MAX_LENGTH, TITLE_COUNTER_FROM, TITLE_MAX_LENGTH } from '../limits.js';
+import { cuisineFieldId } from '../fieldIds.js';
 import { recipeFormMessages } from '../messages.js';
 import type { RecipeFormErrors } from '../validate.js';
 import { defaultRecipeFormValues, type RecipeFormValues } from '../values.js';
@@ -525,19 +528,24 @@ describe('RecipeBasicsFields (web) — cuisine', () => {
         expect(lastValues(onChange).cuisine).toBe('');
     });
 
-    it('S8 — a refused Publish names the field and the fix, linked to it, and marks it invalid', () => {
+    it('S8 — a refused Publish names the field and the fix in the field’s own error slot, which is not live', () => {
         renderLive({ initial: filled({ cuisine: '' }), errors: { cuisine: 'cuisineRequired' } });
 
-        const alert = spokenAlert();
-        expect(alert.textContent).toBe(m.errors.cuisineRequired);
+        const message = screen.getByText(m.errors.cuisineRequired);
+        expect(message.id).toBe(fieldErrorId(cuisineFieldId));
+        expect(message.getAttribute('role')).toBeNull();
         expect(cuisineField().getAttribute('aria-invalid')).toBe('true');
-        expect(cuisineField().getAttribute('aria-describedby')?.split(' ')).toContain(alert.id);
+        expect(cuisineField().getAttribute('aria-describedby')?.split(' ')[0]).toBe(message.id);
+        // The publish-refusal path already speaks S8; the slot must not speak it a second time.
+        expect(screen.queryAllByRole('alert').filter((alert) => (alert.textContent ?? '') !== '')).toEqual([]);
     });
 
-    it('S9 — past 100 characters it says the limit, filled with the wire’s number', () => {
+    it('S9 — past 100 characters the slot says the limit, and the field’s alert speaks it once', () => {
         renderLive({ initial: filled({ cuisine: 'a'.repeat(101) }), errors: { cuisine: 'cuisineTooLong' } });
+        const limit = 'Shorten the cuisine to 100 characters or fewer.';
 
-        expect(spokenAlert().textContent).toBe('Shorten the cuisine to 100 characters or fewer.');
+        expect(screen.getByText(limit, { selector: 'p' }).getAttribute('role')).toBeNull();
+        expect(spokenAlert().textContent).toBe(limit);
     });
 });
 

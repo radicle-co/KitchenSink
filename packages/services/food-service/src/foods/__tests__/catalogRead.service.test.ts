@@ -37,6 +37,7 @@ function makeRoot(overrides: Partial<GoldenFoodRecord> = {}): GoldenFoodRecord {
         fieldProvenance: [],
         userId: null,
         visibility: 'public',
+        retired: false,
         ...overrides,
     };
 }

@@ -42,7 +42,7 @@ import {
 import { normalizeName } from './foodName.js';
 import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
 import { evaluateAuthorship, type AuthorshipFoodFacts } from './domain/authorshipPolicy.js';
-import { resolveFoodRefs } from './domain/foodRefResolution.js';
+import { answeringEntryOf, refTargetOf, resolveFoodRefs } from './domain/foodRefResolution.js';
 import { nutritionTargetOf } from './domain/nutritionTargets.js';
 import { refetchRefusalOf, refetchRefusalReason } from './domain/refetchPolicy.js';
 import { DuplicateAuthoredNameError, NotEditableError, NotFoodAuthorError } from './foods.errors.js';
@@ -258,25 +258,37 @@ export class FoodsService {
      * @sideEffect Emits one local-store serve-rate observation (SC-004/SC-005).
      */
     public async getFood(id: string, callerId: string): Promise<FoodResponse> {
-        const record = await this.foodDao.readGoldenRecord(id);
+        const requested = await this.foodDao.readGoldenRecord(id);
+
+        if (requested === null) {
+            // SC-004/SC-005: every outcome contributes exactly one observation (see below).
+            this.metrics.recordLocalStoreServe(false);
+
+            throw new FoodNotFoundError(id);
+        }
+
+        // ⛔ AUTHORIZATION FIRST (plan U10): a stranger reading a PRIVATE authored food gets the SAME
+        // FoodNotFoundError a missing id gets — existence concealed; nothing below this line runs for them.
+        requireReadable(id, requested, callerId);
+
+        // A retired root is answered by the live end of its forward chain, under the id the caller asked for.
+        const answered = await this.liveEndOf(id, requested, callerId);
 
         // SC-004/SC-005: this is the ONE path that knows whether the local store could answer a read
         // without a source fetch, so it is where the serve rate is observed — before the branch, so every
         // outcome (200 / 202 / 404) contributes exactly one observation and the ratio cannot be skewed by a
         // thrown error. `getStatus`/`search` are deliberately NOT counted: neither can ever reach a source,
         // so including them would push the rate toward 100% by construction and hide a cold store.
-        this.metrics.recordLocalStoreServe(record?.status === 'RESOLVED');
+        this.metrics.recordLocalStoreServe(answered?.record.status === 'RESOLVED');
 
-        if (record === null) {
+        if (answered === undefined) {
             throw new FoodNotFoundError(id);
         }
 
-        // ⛔ AUTHORIZATION FIRST (plan U10): a stranger reading a PRIVATE authored food gets the SAME
-        // FoodNotFoundError a missing id gets — existence concealed; nothing below this line runs for them.
-        requireReadable(id, record, callerId);
+        const { record } = answered;
 
         if (record.status === 'RESOLVED') {
-            return this.toFoodResponse(record, await this.liveVariantViewsOf(record));
+            return this.toForwardedFoodResponse(id, answered);
         }
 
         if (record.status === 'PENDING' || record.status === 'UNRESOLVED' || record.status === 'AWAITING_RETRY') {
@@ -413,20 +425,24 @@ export class FoodsService {
      * @throws {FoodNotFoundError} (→ 404) when no row exists, or the caller may not read it.
      */
     public async getStatus(id: string, callerId: string): Promise<StatusResponse> {
-        const record = await this.foodDao.readGoldenRecord(id);
+        const requested = await this.foodDao.readGoldenRecord(id);
 
-        if (record === null) {
+        if (requested === null) {
             throw new FoodNotFoundError(id);
         }
 
-        requireReadable(id, record, callerId);
+        requireReadable(id, requested, callerId);
+
+        const answered = await this.liveEndOf(id, requested, callerId);
+
+        if (answered === undefined) {
+            throw new FoodNotFoundError(id);
+        }
+
+        const { record } = answered;
 
         if (record.status === 'RESOLVED') {
-            return {
-                id,
-                status: record.status,
-                food: this.toFoodResponse(record, await this.liveVariantViewsOf(record)),
-            };
+            return { id, status: record.status, food: await this.toForwardedFoodResponse(id, answered) };
         }
 
         if (record.status === 'PENDING') {
@@ -439,6 +455,86 @@ export class FoodsService {
         }
 
         return { id, status: record.status };
+    }
+
+    /**
+     * The record that answers a read of a root, and the live entry it was forwarded to (curated U8 S6; ADR-0050 §4).
+     *
+     * A live root answers as itself, with no forward read. A retired root is followed through the resolver's own
+     * rule (`refTargetOf`, then `answeringEntryOf`): a chain that ends at a live root or variant is served from that
+     * end, and one the seed retired with NO successor answers as itself (R29). A chain that reaches nothing that
+     * answers — broken, cyclic, or ending at a root the caller may not read — answers nothing.
+     *
+     * @param id - The id the caller asked for.
+     * @param requested - That root's own record, already admitted by `requireReadable`.
+     * @param callerId - The verified caller's requester key.
+     * @returns The record to serve and the entry it was forwarded to (absent when none was), or `undefined` when
+     *   nothing answers.
+     * @sideEffect For a retired root: reads its forward chain and the end's golden record.
+     */
+    private async liveEndOf(
+        id: string,
+        requested: GoldenFoodRecord,
+        callerId: string,
+    ): Promise<{ readonly record: GoldenFoodRecord; readonly forwardedTo?: FoodRef } | undefined> {
+        if (!requested.retired) {
+            return { record: requested };
+        }
+
+        const ref: FoodRef = { kind: 'root', id };
+        const facts = await this.owners.refFacts([ref]);
+        const target = refTargetOf(ref, facts);
+
+        if (target === undefined) {
+            return undefined;
+        }
+
+        if (!target.forwarded) {
+            return { record: requested };
+        }
+
+        const entry = answeringEntryOf(target, facts);
+
+        if (
+            entry === undefined ||
+            evaluateAuthorship({
+                callerId,
+                food: { userId: entry.root.userId, visibility: entry.root.visibility },
+                action: 'read',
+            }).kind !== 'allowed'
+        ) {
+            return undefined;
+        }
+
+        const record =
+            target.kind === 'variant'
+                ? await this.foodDao.readGoldenRecord(entry.root.id, { variantId: target.id })
+                : await this.foodDao.readGoldenRecord(target.id);
+
+        return record === null ? undefined : { record, forwardedTo: { kind: target.kind, id: target.id } };
+    }
+
+    /**
+     * A `RESOLVED` answer as the wire publishes it: the answering record, under the REQUESTED id, naming the live
+     * entry when the read followed a forward. A variant has no variants of its own.
+     *
+     * @param id - The id the caller asked for.
+     * @param answered - What answers it ({@link liveEndOf}).
+     * @returns The response.
+     * @sideEffect Reads the answering root's live variants, unless it is a variant's record.
+     */
+    private async toForwardedFoodResponse(
+        id: string,
+        answered: { readonly record: GoldenFoodRecord; readonly forwardedTo?: FoodRef },
+    ): Promise<FoodResponse> {
+        const { record, forwardedTo } = answered;
+        const variants = forwardedTo?.kind === 'variant' ? [] : await this.liveVariantViewsOf(record);
+
+        return {
+            ...this.toFoodResponse(record, variants),
+            id,
+            ...(forwardedTo === undefined ? {} : { forwardedTo }),
+        };
     }
 
     /**

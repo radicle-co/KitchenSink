@@ -363,6 +363,42 @@ export const variantViewSchema = z.object({
 
 export type VariantView = z.infer<typeof variantViewSchema>;
 
+/**
+ * Longest id a ref may carry. A root id is a 26-character ULID today; the bound is wider so a curated variant
+ * or forwarded id (curated U8) widens the resolver ADDITIVELY rather than by loosening a published limit.
+ */
+export const MAX_FOOD_REF_ID_LENGTH = 64;
+
+/**
+ * What a ref names: a ROOT food (a `food` row) or one of its VARIANTS (curated U8).
+ *
+ * A `variant` ref is answered from the variant's own row, under its root (curated U8 S5).
+ */
+export const foodRefKindSchema = z.enum(['root', 'variant']);
+
+export type FoodRefKind = z.infer<typeof foodRefKindSchema>;
+
+/**
+ * One reference to a food, as a recipe line binds it.
+ *
+ * `z.strictObject`: this is a REQUEST shape, and an unknown key is refused rather than stripped (the owner's
+ * ruling for every request body here) — a caller sending `ownerId` must not be told it was accepted.
+ */
+export const foodRefSchema = z.strictObject({
+    kind: foodRefKindSchema,
+    id: z.string().min(1).max(MAX_FOOD_REF_ID_LENGTH),
+});
+
+export type FoodRef = z.infer<typeof foodRefSchema>;
+
+/**
+ * The ref as the RESPONSE echoes it — {@link foodRefSchema}'s own shape, minus the strictness.
+ *
+ * ⛔ Derived from the request shape, never restated. It is OPEN on purpose: an older client parses this, and
+ * a server that later echoes a widened ref (KTD-15 widens the resolver additively) must not crash it.
+ */
+const foodRefViewSchema = z.object(foodRefSchema.shape);
+
 /** The full golden record returned for a `RESOLVED` food (FR-002). */
 export const foodResponseSchema = z.object({
     /** Internal food id (ULID). */
@@ -393,6 +429,12 @@ export const foodResponseSchema = z.object({
      * none and for an authored food, which never has any.
      */
     variants: z.array(variantViewSchema),
+    /**
+     * Present ONLY when the requested id was a retired root that forwards elsewhere: the live root or variant this
+     * record is, whose data it carries (ADR-0050 §4). `id` stays the id the caller asked for. Absent for a live food
+     * and for a root retired with no successor, which answers as itself.
+     */
+    forwardedTo: foodRefViewSchema.optional(),
 });
 
 export type FoodResponse = z.infer<typeof foodResponseSchema>;
@@ -714,42 +756,6 @@ export type CorroboratedResponse = z.infer<typeof corroboratedResponseSchema>;
  * chunks against it, and `@kitchensink/food-service-client` refuses an over-cap list before sending it.
  */
 export const MAX_FOOD_REFS = 100;
-
-/**
- * Longest id a ref may carry. A root id is a 26-character ULID today; the bound is wider so a curated variant
- * or forwarded id (curated U8) widens the resolver ADDITIVELY rather than by loosening a published limit.
- */
-export const MAX_FOOD_REF_ID_LENGTH = 64;
-
-/**
- * What a ref names: a ROOT food (a `food` row) or one of its VARIANTS (curated U8).
- *
- * A `variant` ref is answered from the variant's own row, under its root (curated U8 S5).
- */
-export const foodRefKindSchema = z.enum(['root', 'variant']);
-
-export type FoodRefKind = z.infer<typeof foodRefKindSchema>;
-
-/**
- * One reference to a food, as a recipe line binds it.
- *
- * `z.strictObject`: this is a REQUEST shape, and an unknown key is refused rather than stripped (the owner's
- * ruling for every request body here) — a caller sending `ownerId` must not be told it was accepted.
- */
-export const foodRefSchema = z.strictObject({
-    kind: foodRefKindSchema,
-    id: z.string().min(1).max(MAX_FOOD_REF_ID_LENGTH),
-});
-
-export type FoodRef = z.infer<typeof foodRefSchema>;
-
-/**
- * The ref as the RESPONSE echoes it — {@link foodRefSchema}'s own shape, minus the strictness.
- *
- * ⛔ Derived from the request shape, never restated. It is OPEN on purpose: an older client parses this, and
- * a server that later echoes a widened ref (KTD-15 widens the resolver additively) must not crash it.
- */
-const foodRefViewSchema = z.object(foodRefSchema.shape);
 
 /**
  * Request body for `POST /api/v1/foods/refs/resolve`.

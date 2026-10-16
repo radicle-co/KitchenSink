@@ -1738,6 +1738,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/VariantView"
+        forwardedTo:
+          type: object
+          properties:
+            kind:
+              type: string
+              enum:
+                - root
+                - variant
+            id:
+              type: string
+              minLength: 1
+              maxLength: 64
+          required:
+            - kind
+            - id
       required:
         - id
         - name

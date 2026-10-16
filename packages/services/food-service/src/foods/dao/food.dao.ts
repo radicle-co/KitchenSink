@@ -16,6 +16,7 @@ import {
     foodFieldProvenance,
     foodItem,
     foodNutrientView,
+    foodVariant,
     foodNutrition,
     foodNutritionCitation,
     foodNutritionValue,
@@ -120,6 +121,8 @@ export interface GoldenFoodRecord {
     userId: string | null;
     /** The 0013 visibility state (`public` is catalog-only; the CHECK guarantees coherence). */
     visibility: 'public' | 'private' | 'promoted';
+    /** Whether the root is retired: it has been forwarded, or the seed removed it (ADR-0050 §4). */
+    retired: boolean;
 }
 
 /**
@@ -577,16 +580,41 @@ export class FoodDao {
      * nutrient values (with dictionary name/unit), portions, and scalar-field provenance. Dates are
      * ISO-8601 strings; the shape carries no source-native identifier (SC-013).
      *
+     * With `variantId`, the per-item rows — crosswalk, nutrition, portions, field provenance — are the VARIANT's own
+     * (it owns an item and a nutrition header of its own), under the root's scalars: the shape a read of a root
+     * forwarded to that variant serves. A variant that is not this root's reads as `null`.
+     *
      * @param id - The internal food id.
-     * @returns The assembled record, or `null` when the food does not exist.
-     * @sideEffect Reads `food`, `food_sources`, the nutrition aggregate, `nutrient`, `food_portions` and
-     *   `food_field_provenance`, the per-item ones through the food's item.
+     * @param options - `variantId`: read the per-item rows of this variant of the root instead of the root's.
+     * @returns The assembled record, or `null` when the food (or the named variant of it) does not exist.
+     * @sideEffect Reads `food`, `food_variant`, `food_sources`, the nutrition aggregate, `nutrient`, `food_portions`
+     *   and `food_field_provenance`, the per-item ones through the food's (or variant's) item.
      */
-    public async readGoldenRecord(id: string): Promise<GoldenFoodRecord | null> {
+    public async readGoldenRecord(
+        id: string,
+        options: { readonly variantId?: string } = {},
+    ): Promise<GoldenFoodRecord | null> {
         const foodRow = await this.getById(id);
 
         if (!foodRow) {
             return null;
+        }
+
+        const { variantId } = options;
+        let itemId = foodRow.itemId;
+
+        if (variantId !== undefined) {
+            const [variant] = await this.db
+                .select({ itemId: foodVariant.itemId })
+                .from(foodVariant)
+                .where(and(eq(foodVariant.id, variantId), eq(foodVariant.foodId, id)))
+                .limit(1);
+
+            if (variant === undefined) {
+                return null;
+            }
+
+            itemId = variant.itemId;
         }
 
         const [sources, nutrients, portions, fieldProvenance] = await Promise.all([
@@ -600,8 +628,7 @@ export class FoodDao {
                     fetchedAt: foodSources.fetchedAt,
                 })
                 .from(foodSources)
-                .innerJoin(food, eq(food.itemId, foodSources.itemId))
-                .where(eq(food.id, id)),
+                .where(eq(foodSources.itemId, itemId)),
             this.db
                 .select({
                     nutrientId: foodNutritionValue.nutrientId,
@@ -622,7 +649,9 @@ export class FoodDao {
                         eq(foodNutritionCitation.id, foodNutritionValue.citationId),
                     ),
                 )
-                .where(eq(foodNutrition.foodId, id)),
+                .where(
+                    variantId === undefined ? eq(foodNutrition.foodId, id) : eq(foodNutrition.foodVariantId, variantId),
+                ),
             this.db
                 .select({
                     id: foodPortions.id,
@@ -633,15 +662,13 @@ export class FoodDao {
                     dataset: foodNutritionCitation.dataset,
                 })
                 .from(foodPortions)
-                .innerJoin(food, eq(food.itemId, foodPortions.itemId))
                 .leftJoin(foodSources, eq(foodSources.id, foodPortions.sourceId))
                 .leftJoin(foodNutritionCitation, eq(foodNutritionCitation.id, foodPortions.citationId))
-                .where(eq(food.id, id)),
+                .where(eq(foodPortions.itemId, itemId)),
             this.db
                 .select({ field: foodFieldProvenance.field, sourceId: foodFieldProvenance.sourceId })
                 .from(foodFieldProvenance)
-                .innerJoin(food, eq(food.itemId, foodFieldProvenance.itemId))
-                .where(eq(food.id, id)),
+                .where(eq(foodFieldProvenance.itemId, itemId)),
         ]);
 
         return {
@@ -688,6 +715,7 @@ export class FoodDao {
             fieldProvenance,
             userId: foodRow.userId,
             visibility: narrowVisibility(foodRow.visibility),
+            retired: foodRow.retiredAt !== null,
         };
     }
 

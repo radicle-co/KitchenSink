@@ -2118,6 +2118,28 @@
                         }
                     ]
                 },
+                "forwardedTo": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "id": {
+                            "maxLength": 64,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "enum": [
+                                "root",
+                                "variant"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "id"
+                    ],
+                    "type": "object"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -2356,6 +2378,28 @@
                                             "type": "null"
                                         }
                                     ]
+                                },
+                                "forwardedTo": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "id": {
+                                            "maxLength": 64,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "enum": [
+                                                "root",
+                                                "variant"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "id"
+                                    ],
+                                    "type": "object"
                                 },
                                 "id": {
                                     "type": "string"
@@ -3790,6 +3834,28 @@
                                     "type": "null"
                                 }
                             ]
+                        },
+                        "forwardedTo": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "id": {
+                                    "maxLength": 64,
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "enum": [
+                                        "root",
+                                        "variant"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "id"
+                            ],
+                            "type": "object"
                         },
                         "id": {
                             "type": "string"

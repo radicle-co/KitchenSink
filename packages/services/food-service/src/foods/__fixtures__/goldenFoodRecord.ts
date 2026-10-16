@@ -28,6 +28,7 @@ export function makeGoldenFoodRecord(overrides: Partial<GoldenFoodRecord> = {}):
         fieldProvenance: [],
         userId: null,
         visibility: 'public',
+        retired: false,
         ...overrides,
     };
 }

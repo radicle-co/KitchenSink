@@ -7,7 +7,8 @@
  *
  * Idempotent + out-of-order safe: an older-or-equal `source_timestamp` is a no-op, so SQS redelivery and
  * cross-route races (the Clerk `user.updated` webhook AND identity's `PATCH /api/v1/users/me` both publish)
- * converge to the actual latest name. A record that fails is reported via `batchItemFailures` so SQS retries
+ * converge to the actual latest name. A snapshot for an ERASED author is refused the same way: erasure leaves a
+ * tombstone row (`erased_at`, migration 0056) that the upsert will not overwrite. A record that fails is reported via `batchItemFailures` so SQS retries
  * ONLY it, never the whole batch.
  *
  * @sideEffect Upserts `author_handles` and updates `recipes` + `recipe_versions` in RDS.
@@ -62,51 +63,73 @@ export function parseHandleSyncMessage(record: SQSRecord): HandleSyncMessage | u
 }
 
 /**
+ * The transaction handle a drizzle `db.transaction` callback receives.
+ *
+ * DERIVED from the handle {@link applyHandleRename} takes, so it cannot drift from the real transaction type.
+ */
+type RenameTransaction = Parameters<Parameters<NodePgDatabase<Record<string, never>>['transaction']>[0]>[0];
+
+/**
+ * Apply one rename INSIDE a transaction the caller owns: the monotonic, erasure-fenced upsert, then the fan-out.
+ * Returns whether it was applied (`false` when the upsert REFUSED it).
+ *
+ * Exported so a test can hold the transaction open and interleave an erasure with it. Production reaches it only
+ * through {@link applyHandleRename}.
+ *
+ * @sideEffect Upserts `author_handles`, updates `recipes` + `recipe_versions` on `tx`.
+ */
+export const applyHandleRenameWithin = async (tx: RenameTransaction, message: HandleSyncMessage): Promise<boolean> => {
+    // The upsert applies a rename ONLY when the row is not an erasure TOMBSTONE (`erased_at`, migration 0056) AND
+    // the snapshot is strictly newer than the stored `source_timestamp`, so neither a late snapshot for an erased
+    // author nor an older or redelivered event can overwrite what is stored.
+    // ⛔ BOTH conditions live in THIS statement's predicate, deliberately: a TypeScript check ("is there a
+    // tombstone?") before the write would be check-then-write and race the erasure. The predicate is evaluated
+    // against the row's latest committed version under the row lock the conflict takes.
+    // ⛔ BOTH halves of the snapshot, every time (plan 2026-10-15-010 D6): the message is the whole byline, so a
+    // username-only change and a name-only change are the same write.
+    const upserted = await tx.execute(sql`
+        INSERT INTO author_handles (user_id, display_name, username, source_timestamp)
+        VALUES (${message.userId}, ${message.displayName}, ${message.username}, ${message.sourceTimestamp})
+        ON CONFLICT (user_id) DO UPDATE
+            SET display_name = EXCLUDED.display_name,
+                username = EXCLUDED.username,
+                source_timestamp = EXCLUDED.source_timestamp
+            WHERE author_handles.erased_at IS NULL
+              AND author_handles.source_timestamp < EXCLUDED.source_timestamp
+        RETURNING user_id
+    `);
+
+    if (upserted.rows.length === 0) {
+        return false;
+    }
+
+    await tx.execute(sql`
+        UPDATE recipes SET author_handle = ${message.displayName}, author_username = ${message.username}
+        WHERE owner_id = ${message.userId}
+          AND (author_handle IS DISTINCT FROM ${message.displayName}
+               OR author_username IS DISTINCT FROM ${message.username})
+    `);
+    await tx.execute(sql`
+        UPDATE recipe_versions SET editor_handle = ${message.displayName}, editor_username = ${message.username}
+        WHERE created_by = ${message.userId}
+          AND (editor_handle IS DISTINCT FROM ${message.displayName}
+               OR editor_username IS DISTINCT FROM ${message.username})
+    `);
+
+    return true;
+};
+
+/**
  * Apply one rename to `author_handles` monotonically and fan it out — all in ONE transaction. Returns
- * whether it was applied (`false` when a stale/older event was ignored by the monotonic guard).
+ * whether it was applied (`false` when a stale/older event was ignored by the monotonic guard, or the author has
+ * been erased and the row is a tombstone).
  *
  * @sideEffect Upserts `author_handles`, updates `recipes` + `recipe_versions`.
  */
 export const applyHandleRename = async (
     db: NodePgDatabase<Record<string, never>>,
     message: HandleSyncMessage,
-): Promise<boolean> => {
-    return db.transaction(async (tx) => {
-        // Monotonic upsert: the ON CONFLICT guard applies a rename ONLY when strictly newer than the stored
-        // source_timestamp, so an older or redelivered event can never clobber a newer name.
-        // ⛔ BOTH halves of the snapshot, every time (plan 2026-10-15-010 D6): the message is the whole byline, so a
-        // username-only change and a name-only change are the same write.
-        const upserted = await tx.execute(sql`
-            INSERT INTO author_handles (user_id, display_name, username, source_timestamp)
-            VALUES (${message.userId}, ${message.displayName}, ${message.username}, ${message.sourceTimestamp})
-            ON CONFLICT (user_id) DO UPDATE
-                SET display_name = EXCLUDED.display_name,
-                    username = EXCLUDED.username,
-                    source_timestamp = EXCLUDED.source_timestamp
-                WHERE author_handles.source_timestamp < EXCLUDED.source_timestamp
-            RETURNING user_id
-        `);
-
-        if (upserted.rows.length === 0) {
-            return false;
-        }
-
-        await tx.execute(sql`
-            UPDATE recipes SET author_handle = ${message.displayName}, author_username = ${message.username}
-            WHERE owner_id = ${message.userId}
-              AND (author_handle IS DISTINCT FROM ${message.displayName}
-                   OR author_username IS DISTINCT FROM ${message.username})
-        `);
-        await tx.execute(sql`
-            UPDATE recipe_versions SET editor_handle = ${message.displayName}, editor_username = ${message.username}
-            WHERE created_by = ${message.userId}
-              AND (editor_handle IS DISTINCT FROM ${message.displayName}
-                   OR editor_username IS DISTINCT FROM ${message.username})
-        `);
-
-        return true;
-    });
-};
+): Promise<boolean> => db.transaction((tx) => applyHandleRenameWithin(tx, message));
 
 /**
  * SQS handler: apply each rename, reporting per-record failures so SQS retries only the failed message.

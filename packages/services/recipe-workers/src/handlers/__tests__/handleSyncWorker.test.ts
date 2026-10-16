@@ -15,7 +15,8 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
-import { applyHandleRename, handler, parseHandleSyncMessage } from '../handleSyncWorker.js';
+import { logger } from '../../common/logger.js';
+import { applyHandleRename, applyHandleRenameWithin, handler, parseHandleSyncMessage } from '../handleSyncWorker.js';
 
 const { getRecipeDb } = vi.hoisted(() => ({ getRecipeDb: vi.fn() }));
 vi.mock('../../common/db.js', () => ({ getRecipeDb }));
@@ -119,6 +120,9 @@ describe('applyHandleRename SQL', () => {
         expect(sql).toContain('insert into author_handles');
         expect(sql).toContain('on conflict (user_id) do update');
         expect(sql).toContain('author_handles.source_timestamp < excluded.source_timestamp'); // monotonic guard
+        // ⛔ The erasure fence (0056): a tombstoned row is never overwritten, in the SAME predicate as the
+        // monotonic guard — one atomic statement, not a read followed by a write.
+        expect(sql).toMatch(/where author_handles\.erased_at is null\s+and author_handles\.source_timestamp </);
         expect(sql).toContain('update recipes set author_handle');
         expect(sql).toContain('update recipe_versions set editor_handle');
         // Both halves of the byline in every statement: the read model, then each fan-out.
@@ -138,6 +142,30 @@ describe('applyHandleRename SQL', () => {
         expect(applied).toBe(false);
         // Only the upsert ran; no fan-out UPDATEs.
         expect(texts().some((t) => t.includes('update recipes'))).toBe(false);
+    });
+});
+
+describe('applyHandleRenameWithin', () => {
+    it('runs on a caller-supplied transaction, so the apply can be interleaved with another writer', async () => {
+        const { texts, tx } = (() => {
+            const captured: string[] = [];
+
+            return {
+                texts: captured,
+                tx: {
+                    execute: (statement: SQL) => {
+                        captured.push(dialect.sqlToQuery(statement).sql.toLowerCase());
+
+                        return Promise.resolve({ rows: [{ user_id: USER }] });
+                    },
+                },
+            };
+        })();
+
+        const applied = await applyHandleRenameWithin(tx as never, VALID);
+
+        expect(applied).toBe(true);
+        expect(texts).toHaveLength(3); // upsert, recipes fan-out, versions fan-out — no transaction opened here
     });
 });
 
@@ -172,5 +200,22 @@ describe('handler batch isolation', () => {
         const result = await runHandler(event);
 
         expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: 'boom' }] });
+    });
+
+    it('⛔ ACKs a REFUSED snapshot (erased author or stale) — it is neither retried nor a batch failure', async () => {
+        // The upsert returns zero rows: the monotonic guard or the erasure fence refused it. Retrying cannot change
+        // that answer, so a retry would loop to the DLQ — the record must complete.
+        const fakeDb = {
+            transaction: (cb: (tx: unknown) => Promise<unknown>) =>
+                cb({ execute: () => Promise.resolve({ rows: [] }) }),
+        } as unknown as NodePgDatabase<Record<string, never>>;
+        vi.mocked(getRecipeDb).mockReturnValue(fakeDb as never);
+        const info = vi.spyOn(logger, 'info');
+
+        const result = await runHandler({ Records: [record(VALID, 'late')] } as SQSEvent);
+
+        expect(result).toEqual({ batchItemFailures: [] });
+        expect(info).toHaveBeenCalledWith('handle-sync-worker: rename processed', { userId: USER, applied: false });
+        info.mockRestore();
     });
 });

@@ -17,7 +17,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
-import { applyHandleRename } from '../../../src/handlers/handleSyncWorker.js';
+import { pseudonymizedAuthorHandle } from '@kitchensink/recipe-core';
+
+import { eraseRecipeRows } from '../../../src/handlers/accountErasureWorker.js';
+import { applyHandleRename, applyHandleRenameWithin } from '../../../src/handlers/handleSyncWorker.js';
 import { recipeWorkersDb } from '../roleDb.js';
 
 const roleDb = recipeWorkersDb();
@@ -252,5 +255,138 @@ describe('applyHandleRename (real Postgres)', () => {
 
         expect(await readModelUsernameOf(USER)).toBeNull();
         expect(await usernamesOf(recipeId)).toEqual({ author: null, editor: null });
+    });
+
+    describe('⛔ erasure FENCES the read model — a late snapshot must not re-identify an erased author (0056)', () => {
+        const LATE = {
+            userId: USER,
+            displayName: 'Real Name',
+            username: 'realname',
+            sourceTimestamp: '2030-01-01T00:00:00.000Z',
+        };
+
+        /** What the world can read about USER's byline after erasure: the kept recipe, its version, the read model. */
+        async function bylineAfterErasure(): Promise<{
+            recipe: { author_handle: string | null; author_username: string | null };
+            editor: { editor_handle: string | null; editor_username: string | null };
+            readModel: { display_name: string; username: string | null; erased: boolean } | undefined;
+        }> {
+            const recipe = await pool.query<{ author_handle: string | null; author_username: string | null }>(
+                'SELECT author_handle, author_username FROM recipes WHERE id = $1',
+                [recipeId],
+            );
+            const editor = await pool.query<{ editor_handle: string | null; editor_username: string | null }>(
+                'SELECT editor_handle, editor_username FROM recipe_versions WHERE recipe_id = $1',
+                [recipeId],
+            );
+            const readModel = await pool.query<{ display_name: string; username: string | null; erased: boolean }>(
+                'SELECT display_name, username, erased_at IS NOT NULL AS erased FROM author_handles WHERE user_id = $1',
+                [USER],
+            );
+
+            return { recipe: recipe.rows[0]!, editor: editor.rows[0]!, readModel: readModel.rows[0] };
+        }
+
+        const PSEUDONYM = pseudonymizedAuthorHandle(USER);
+
+        it('(a) refuses a NEWER snapshot after erasure — kept rows keep the pseudonym and no username', async () => {
+            await applyHandleRename(db, { ...LATE, sourceTimestamp: '2026-07-20T00:00:00.000Z' });
+            await eraseRecipeRows(db, USER, []);
+
+            // RED before the fence: the row was deleted, so this took the INSERT branch and returned true.
+            expect(await applyHandleRename(db, LATE)).toBe(false);
+
+            expect(await bylineAfterErasure()).toEqual({
+                recipe: { author_handle: PSEUDONYM, author_username: null },
+                editor: { editor_handle: PSEUDONYM, editor_username: null },
+                readModel: { display_name: PSEUDONYM, username: null, erased: true },
+            });
+        });
+
+        it('(b) refuses a snapshot for a user who had NEVER synced — erasure fences before any row existed', async () => {
+            expect(await readModelOf(USER)).toBeUndefined();
+
+            await eraseRecipeRows(db, USER, []);
+
+            expect(await applyHandleRename(db, LATE)).toBe(false);
+            expect((await bylineAfterErasure()).recipe).toEqual({ author_handle: PSEUDONYM, author_username: null });
+        });
+
+        it('(d) refuses an OLDER redelivered snapshot after erasure too', async () => {
+            await applyHandleRename(db, { ...LATE, sourceTimestamp: '2026-07-20T00:00:00.000Z' });
+            await eraseRecipeRows(db, USER, []);
+
+            expect(await applyHandleRename(db, { ...LATE, sourceTimestamp: '2020-01-01T00:00:00.000Z' })).toBe(false);
+            expect((await bylineAfterErasure()).readModel).toEqual({
+                display_name: PSEUDONYM,
+                username: null,
+                erased: true,
+            });
+        });
+
+        it('an erasure replay keeps the FIRST erased_at', async () => {
+            await eraseRecipeRows(db, USER, []);
+            const first = await pool.query<{ erased_at: Date }>(
+                'SELECT erased_at FROM author_handles WHERE user_id = $1',
+                [USER],
+            );
+            await eraseRecipeRows(db, USER, []);
+            const second = await pool.query<{ erased_at: Date }>(
+                'SELECT erased_at FROM author_handles WHERE user_id = $1',
+                [USER],
+            );
+
+            expect(second.rows[0]!.erased_at).toEqual(first.rows[0]!.erased_at);
+        });
+
+        it('(c) an apply and an erasure running CONCURRENTLY end pseudonymized, in either interleaving', async () => {
+            // A applies a snapshot inside a transaction it holds open; B erases meanwhile. Both take author_handles
+            // first (same lock order), so B WAITS for A, then tombstones over A's row and scrubs A's fan-out.
+            let release!: () => void;
+            const gate = new Promise<void>((resolve) => {
+                release = resolve;
+            });
+            let aApplied: boolean | undefined;
+            let aHasApplied!: () => void;
+            const applyRan = new Promise<void>((resolve) => {
+                aHasApplied = resolve;
+            });
+            const a = db.transaction(async (tx) => {
+                aApplied = await applyHandleRenameWithin(tx, LATE);
+                aHasApplied();
+                await gate;
+            });
+
+            // B starts only once A's statements have run (and hold their row locks), so B must queue behind A.
+            await applyRan;
+            const b = eraseRecipeRows(db, USER, []);
+            const deadline = Date.now() + 10_000;
+            let blocked = false;
+
+            while (!blocked && Date.now() < deadline) {
+                const { rows } = await pool.query<{ waiting: number }>(
+                    `SELECT count(*)::int AS waiting FROM pg_stat_activity
+                      WHERE datname = current_database() AND wait_event_type = 'Lock'`,
+                );
+
+                blocked = rows[0]!.waiting > 0;
+
+                if (!blocked) {
+                    await new Promise((resolve) => setTimeout(resolve, 25));
+                }
+            }
+
+            expect(blocked, 'erasure never blocked behind the open apply — the lock orders do not meet').toBe(true);
+
+            release();
+            await Promise.all([a, b]);
+
+            expect(aApplied).toBe(true);
+            expect(await bylineAfterErasure()).toEqual({
+                recipe: { author_handle: PSEUDONYM, author_username: null },
+                editor: { editor_handle: PSEUDONYM, editor_username: null },
+                readModel: { display_name: PSEUDONYM, username: null, erased: true },
+            });
+        });
     });
 });

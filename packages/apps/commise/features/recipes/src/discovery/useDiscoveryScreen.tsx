@@ -21,7 +21,6 @@
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
-import { useRecoverySignal } from '@commise/query/recovery-signal';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
@@ -44,7 +43,7 @@ import { usePreviousPages } from '../hooks/usePreviousPages.js';
 import { useRecentSearches } from '../hooks/useRecentSearches.js';
 import { useSaveCopy, type SaveCopy } from '../hooks/useSaveCopy.js';
 import { useMainContainerClass } from '../layout/useMainContainerClass.js';
-import type { DiscoveryCriteriaStore } from './discoveryScreenModel.js';
+import type { DiscoveryCriteriaStore, DiscoveryRecoverySignal } from './discoveryScreenModel.js';
 import type { DiscoverySearchRead } from './discoverySearchRead.js';
 import {
     DISCOVERY_SEARCH_DEBOUNCE_MS,
@@ -97,17 +96,20 @@ export interface DiscoveryScreenState {
 /**
  * The discovery screen's controller.
  *
- * @param input - The criteria port, the recent-search persistence port, and what Edit does once a copy exists.
+ * @param input - The criteria port, the recent-search persistence port, the recovery counter hook, and what Edit does once a copy exists.
  * @returns The frame's props, the read, and the results' props.
  * @sideEffect Reads the recipe-service query cache and the recent-search store; the store's `commit` writes the criteria.
  */
 export function useDiscoveryScreen({
     criteria,
     recentSearchStore,
+    useRecoverySignal,
     onEditCopy,
 }: {
     readonly criteria: DiscoveryCriteriaStore;
     readonly recentSearchStore: RecentSearchStore;
+    /** The platform's recovery counter hook (a module constant, so its hook order is stable). */
+    readonly useRecoverySignal: () => DiscoveryRecoverySignal;
     readonly onEditCopy: (copyId: string) => void;
 }): DiscoveryScreenState {
     const { filters } = criteria;

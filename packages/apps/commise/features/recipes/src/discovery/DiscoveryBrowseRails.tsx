@@ -11,7 +11,6 @@
  *
  * @pattern Composite — three rails, each behind its own read boundary, assembled into one block
  */
-import { useRefreshNotice } from '@commise/query/refresh-notice';
 import type { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
@@ -60,7 +59,7 @@ export const DiscoveryBrowseRails: FC<DiscoveryBrowseRailsProps> = ({
     scrollBind,
     ...actions
 }) => {
-    const { Boundary } = useDiscoveryPlatform();
+    const { Boundary, useRefreshNotice } = useDiscoveryPlatform();
     const queries = recipeQueries(useRecipeServiceClient());
     const railsRefresh = useBrowseRailsRefresh();
     const refreshNotice = useRefreshNotice(railsRefresh);

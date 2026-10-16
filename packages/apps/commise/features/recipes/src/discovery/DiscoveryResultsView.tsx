@@ -14,12 +14,12 @@
  * @pattern Mediator — between the pages, the criteria and the results leaf: it picks the rails or the cards and wires the
  *     no-result Trending slot
  */
-import type { useRefreshNotice } from '@commise/query/refresh-notice';
 import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { RecipeSearchResult, RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
 import type { RecipeFacets } from '../filters/model.js';
+import type { RefreshNoticeControl } from '../refresh/model.js';
 import { DiscoveryBrowseRails } from './DiscoveryBrowseRails.js';
 import { useDiscoveryPlatform } from './DiscoveryPlatformProvider.js';
 import type { DiscoveryCardActions } from './discoveryScreenModel.js';
@@ -56,7 +56,7 @@ export interface DiscoveryResultsViewProps extends DiscoveryCardActions {
     /** Apply one suggested tag as a filter. */
     readonly onPickTag: (tag: string) => void;
     /** The notice for a failed refresh of the results on screen. */
-    readonly refreshNotice?: ReturnType<typeof useRefreshNotice>;
+    readonly refreshNotice?: RefreshNoticeControl;
     /** Pull-to-refresh (native leaves only). */
     readonly refresh?: RecipeDiscoveryResultsProps['refresh'];
     /** The pager. */

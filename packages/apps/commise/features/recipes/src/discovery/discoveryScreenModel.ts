@@ -16,13 +16,13 @@
  *
  * @pattern Ports and Adapters — the criteria store and the platform are the screen's two driven ports
  */
-import type { QueryBoundaryProps } from '@commise/query/boundary';
 import type { QueryKey } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 
 import type { RecipeFilterState } from '../filters/model.js';
 import type { SaveCopy } from '../hooks/useSaveCopy.js';
 import type { RenderRecipeNutrition } from '../nutrition/model.js';
+import type { RefreshNoticeControl } from '../refresh/model.js';
 import type { RecentSearchStore } from './recentSearches.js';
 
 /** What a search is asked: the filters and the typed term. Sort and browse state are view state, not criteria. */
@@ -43,8 +43,19 @@ export interface DiscoveryCriteriaStore extends DiscoveryCriteriaState {
     readonly commit: (next: DiscoveryCriteriaState) => void;
 }
 
-/** What a read boundary takes: the shared query boundary's props, and the keys a server-prefetched route holds. */
-export interface DiscoveryBoundaryProps extends QueryBoundaryProps {
+/**
+ * What a read boundary takes: the structural subset of the app's query boundary this screen uses, and the keys a
+ * server-prefetched route holds. Stated here, not imported, because this package does not depend on `@commise/query`.
+ */
+export interface DiscoveryBoundaryProps {
+    /** What renders while the read is pending. */
+    readonly loading: ReactNode;
+    /** What renders when the read fails; `resetErrorBoundary` retries it. */
+    readonly renderError: (fallback: { readonly resetErrorBoundary: () => void }) => ReactNode;
+    /** Values whose change clears a shown failure. */
+    readonly resetKeys?: readonly unknown[];
+    /** The subtree that reads. */
+    readonly children: ReactNode;
     /** The keys the server already holds data for; web's boundary opens before hydration only if all of them do. */
     readonly prefetchedKeys?: readonly QueryKey[];
 }
@@ -52,10 +63,28 @@ export interface DiscoveryBoundaryProps extends QueryBoundaryProps {
 /** One read boundary: a suspense read with a loading body and an error body. */
 export type DiscoveryBoundary = (props: DiscoveryBoundaryProps) => ReactNode;
 
+/** The part of a query result a failed-refresh notice reads; any TanStack query result satisfies it. */
+export interface DiscoveryRefreshableQuery {
+    /** Whether the last refetch failed while data was loaded. */
+    readonly isRefetchError: boolean;
+    /** Whether a refetch of loaded data is in flight. */
+    readonly isRefetching: boolean;
+    /** Refetch, resolving with the settled result. */
+    readonly refetch: () => Promise<{ readonly isSuccess: boolean }>;
+}
+
+/** A recovery count held where a surface's focus target is, fed by a notice's `onRecovered`. */
+export interface DiscoveryRecoverySignal {
+    /** How many recoveries have been reported; a change is the signal to move focus. */
+    readonly signal: number;
+    /** Report one recovery. Its identity never changes. */
+    readonly onRecovered: () => void;
+}
+
 /**
  * The parts of the screen that differ by platform.
  *
- * Keep the object STABLE (a module constant): `useRenderNutrition` is called as a hook from inside the screen's parts, so
+ * Keep the object STABLE (a module constant): `useRenderNutrition`, `useRefreshNotice` and `useRecoverySignal` are called as hooks from inside the screen's parts, so
  * swapping it between renders would change their hook order.
  */
 export interface DiscoveryPlatform {
@@ -66,6 +95,16 @@ export interface DiscoveryPlatform {
      * web's starts none until hydrated.
      */
     readonly useRenderNutrition: (recipeIdPages: readonly (readonly string[])[]) => RenderRecipeNutrition;
+    /**
+     * The failed-refresh notice's state for a read on screen. A hook, because it holds the count of retries that
+     * recovered. `onRecovered` reports each recovery to a surface whose focus target sits across a suspense boundary.
+     */
+    readonly useRefreshNotice: (
+        query: DiscoveryRefreshableQuery,
+        options?: { readonly onRecovered?: () => void },
+    ) => RefreshNoticeControl;
+    /** The recovery count the frame holds on the near side of the read boundary. A hook, for the same reason. */
+    readonly useRecoverySignal: () => DiscoveryRecoverySignal;
     /** Where the recent searches persist. A module-level singleton: its identity is an effect dependency. */
     readonly recentSearchStore: RecentSearchStore;
 }

@@ -62,7 +62,12 @@ export const DiscoveryScreen: FC<DiscoveryScreenProps> = ({
     headerAction,
     scrollBind,
 }) => {
-    const screen = useDiscoveryScreen({ criteria, recentSearchStore: platform.recentSearchStore, onEditCopy });
+    const screen = useDiscoveryScreen({
+        criteria,
+        recentSearchStore: platform.recentSearchStore,
+        useRecoverySignal: platform.useRecoverySignal,
+        onEditCopy,
+    });
     const { Boundary } = platform;
     const resultsProps = {
         ...screen.results,

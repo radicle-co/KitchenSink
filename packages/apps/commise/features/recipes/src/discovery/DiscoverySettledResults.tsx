@@ -6,10 +6,10 @@
  *
  * @pattern Humble Object — the settled read is bound here so the results view stays free of the query
  */
-import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { FC } from 'react';
 
+import { useDiscoveryPlatform } from './DiscoveryPlatformProvider.js';
 import { DiscoveryResultsView, type DiscoveryResultsViewProps } from './DiscoveryResultsView.js';
 import type { DiscoverySearchRead } from './discoverySearchRead.js';
 
@@ -31,6 +31,7 @@ export interface DiscoverySettledResultsProps extends Omit<
  * @returns The results view over the read's pages.
  */
 export const DiscoverySettledResults: FC<DiscoverySettledResultsProps> = ({ read, onRecovered, ...results }) => {
+    const { useRefreshNotice } = useDiscoveryPlatform();
     const search = useSuspenseInfiniteQuery(read);
     // A failed pull or background refresh is the notice's; a failed NEXT page is the load-more control's.
     const refreshNotice = useRefreshNotice(search, { onRecovered });

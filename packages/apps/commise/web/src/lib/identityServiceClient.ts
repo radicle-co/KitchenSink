@@ -22,13 +22,38 @@
  * shared, platform-agnostic client itself (mobile has no such redirect policy). The client sends no cookies: identity
  * authenticates by bearer only (ADR-0047).
  */
-import { ProfileServiceClient, type TokenSource } from '@commise/features-account';
+import { isUnauthorizedError, ProfileServiceClient, type TokenSource } from '@commise/features-account';
 
 import { env } from '@/config/env';
 import { redirectToSignInOnce } from '@/lib/unauthorizedRedirect';
 
 /** The identity API base origin, from the validated environment. */
 export const IDENTITY_SERVICE_BASE_URL = env.NEXT_PUBLIC_IDENTITY_API_URL;
+
+/**
+ * Give a callback token source web's 401 recovery. The shared `tokenSourceFrom` fails CLOSED when the session
+ * yields no token — it throws `UnauthorizedError` before any request exists — so the client's own
+ * `onUnauthorized` (which only sees a 401 RESPONSE) never runs for it. `ProfileServiceClient.send()` leaves that
+ * case to "the caller's own fail-fast policy"; this is web's: the same circuit-broken bounce, then rethrow so
+ * the error still reaches the consumer's boundary. A literal (server-resolved) token cannot fail this way.
+ */
+function withSignInRecovery(token: TokenSource): TokenSource {
+    if (typeof token !== 'function') {
+        return token;
+    }
+
+    return async (options) => {
+        try {
+            return await token(options);
+        } catch (error) {
+            if (isUnauthorizedError(error)) {
+                redirectToSignInOnce();
+            }
+
+            throw error;
+        }
+    };
+}
 
 /**
  * Build a {@link ProfileServiceClient} for the web app.
@@ -39,7 +64,7 @@ export const IDENTITY_SERVICE_BASE_URL = env.NEXT_PUBLIC_IDENTITY_API_URL;
 export function createProfileServiceClient(token: TokenSource): ProfileServiceClient {
     return new ProfileServiceClient({
         baseUrl: IDENTITY_SERVICE_BASE_URL,
-        token,
+        token: withSignInRecovery(token),
         // ONE authoritative recovery policy — it used to be duplicated in `apiClient`, which is gone — and
         // CIRCUIT-BROKEN: a 401 that
         // survives the sign-in round trip (wrong Clerk instance, rotated verification key, `azp` mismatch)

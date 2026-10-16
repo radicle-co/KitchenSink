@@ -14,9 +14,13 @@ import { renderHook, waitFor, cleanup } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { createElement } from 'react';
 
-const { useAuthMock } = vi.hoisted(() => ({ useAuthMock: vi.fn() }));
+const { useAuthMock, redirectToSignInOnceMock } = vi.hoisted(() => ({
+    useAuthMock: vi.fn(),
+    redirectToSignInOnceMock: vi.fn(),
+}));
 
 vi.mock('@clerk/nextjs', () => ({ useAuth: useAuthMock }));
+vi.mock('@/lib/unauthorizedRedirect', () => ({ redirectToSignInOnce: redirectToSignInOnceMock }));
 
 import { makeUserProfile, makeUserProfileAccount, makeUserProfileUser } from '@commise/features-account/testing';
 
@@ -102,6 +106,19 @@ describe('useUserProfile (web)', () => {
 
         expect(result.current.error).toMatchObject({ name: 'UnauthorizedError' });
         expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('bounces to sign-in exactly once when the session yields no token (the pre-request 401 path)', async () => {
+        useAuthMock.mockReturnValue({ isSignedIn: true, getToken: vi.fn().mockResolvedValue(null) });
+
+        const { result } = renderHook(() => useUserProfile(), { wrapper });
+
+        await waitFor(() => expect(result.current.isError).toBe(true));
+
+        // The token refusal happens before any request, so the client's own `onUnauthorized` never runs;
+        // web's recovery policy must still fire, once.
+        expect(global.fetch).not.toHaveBeenCalled();
+        expect(redirectToSignInOnceMock).toHaveBeenCalledTimes(1);
     });
 
     it('recovers from a refused first bearer by replaying once with a freshly minted token', async () => {

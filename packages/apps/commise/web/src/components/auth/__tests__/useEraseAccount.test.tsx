@@ -25,9 +25,13 @@ import { cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { createElement } from 'react';
 
-const { useAuthMock } = vi.hoisted(() => ({ useAuthMock: vi.fn() }));
+const { useAuthMock, redirectToSignInOnceMock } = vi.hoisted(() => ({
+    useAuthMock: vi.fn(),
+    redirectToSignInOnceMock: vi.fn(),
+}));
 
 vi.mock('@clerk/nextjs', () => ({ useAuth: useAuthMock }));
+vi.mock('@/lib/unauthorizedRedirect', () => ({ redirectToSignInOnce: redirectToSignInOnceMock }));
 
 import { useEraseAccount } from '@/components/auth/useEraseAccount';
 
@@ -110,6 +114,8 @@ describe('useEraseAccount (web)', () => {
         // Fail closed: an empty `Bearer ` header on the one request that cannot be undone is worse than no request.
         expect(result.current.error).toMatchObject({ name: 'UnauthorizedError' });
         expect(global.fetch).not.toHaveBeenCalled();
+        // Web's 401 recovery still runs for a refusal that happens before any request: one bounce, no loop.
+        expect(redirectToSignInOnceMock).toHaveBeenCalledTimes(1);
     });
 
     it('reports a REJECTED erasure as an error rather than resolving — the flow must not sign the viewer out', async () => {

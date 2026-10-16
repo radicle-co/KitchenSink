@@ -60,6 +60,11 @@ TEST_APP_ANDROID_ABIS='x86_64'
 # `maestroIosTier.test.ts` derives this list from `load-secrets` itself.
 TEST_APP_SECRET_VARIABLES='CLERK_SECRET_KEY IDP_SECRET_KEY CLERK_WEBHOOK_SECRET IDP_WEBHOOK_SECRET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN'
 
+# The runner's OIDC request pair, which the build jobs hold because they grant `id-token: write`. With both values any
+# build code can mint a GitHub OIDC token and assume the non-prod role, so they are unset with the secrets. A separate
+# list because `load-secrets` never sets them, and the list above is checked against what it does set.
+TEST_APP_RUNNER_TOKEN_VARIABLES='ACTIONS_ID_TOKEN_REQUEST_TOKEN ACTIONS_ID_TOKEN_REQUEST_URL'
+
 # The manifest keys, in the order they are written.
 TEST_APP_COMMON_KEYS='platform contentKey recipeOrigin foodOrigin identityOrigin publishableKeySha256'
 TEST_APP_PROVENANCE_KEYS='builtFromSha builtInRun'
@@ -338,7 +343,7 @@ test_app_prepare_build() {
     # The release build runs the @sentry/react-native hook that uploads source maps; there is no Sentry token in E2E.
     export SENTRY_DISABLE_AUTO_UPLOAD=true
 
-    for name in $TEST_APP_SECRET_VARIABLES; do
+    for name in $TEST_APP_SECRET_VARIABLES $TEST_APP_RUNNER_TOKEN_VARIABLES; do
         unset "$name"
     done
 

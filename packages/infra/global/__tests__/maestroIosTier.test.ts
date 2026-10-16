@@ -516,6 +516,43 @@ describe('⛔ no secret reaches the build, and no unmasked log leaves the runner
         );
     });
 
+    /**
+     * ⛔ The OIDC request pair is a credential too: the build jobs grant `id-token: write`, so with both values anything
+     * in Gradle or `xcodebuild` can mint a GitHub OIDC token and assume the non-prod role. `load-secrets` never sets
+     * them, so `secretEnvNames` cannot see them — this case RUNS the preparation and reads the environment it leaves.
+     */
+    it('the build preparation unsets the runner OIDC request token and URL', () => {
+        const mobileDir = mkdtempSync(join(tmpdir(), 'test-app-prepare-'));
+        const script = readFileSync(BUILD_SCRIPT, 'utf8').replace(/^test_app_main "\$@"$/mu, '');
+        const result = spawnSync(
+            'bash',
+            [
+                '-c',
+                `${script}\nTEST_APP_MOBILE_DIR="$1"\ntest_app_prepare_build android\n` +
+                    'echo "token=${ACTIONS_ID_TOKEN_REQUEST_TOKEN-unset} url=${ACTIONS_ID_TOKEN_REQUEST_URL-unset}"',
+                'prepare',
+                mobileDir,
+            ],
+            {
+                encoding: 'utf8',
+                env: {
+                    PATH: process.env['PATH'] ?? '',
+                    TEST_APP_CONTENT_KEY: '4f684c1e9bbb30ad',
+                    EXPO_PUBLIC_RECIPE_API_URL: 'https://recipe.example',
+                    EXPO_PUBLIC_FOOD_API_URL: 'https://food.example',
+                    EXPO_PUBLIC_IDENTITY_API_URL: 'https://identity.example',
+                    EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: 'pk_test_example',
+                    ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'oidc-request-token',
+                    ACTIONS_ID_TOKEN_REQUEST_URL: 'https://token.actions.example/request',
+                },
+            },
+        );
+        rmSync(mobileDir, { recursive: true, force: true });
+
+        expect(result.status, result.stderr).toBe(0);
+        expect(result.stdout.trim()).toBe('token=unset url=unset');
+    });
+
     it('uploads no build log and no XCTest-runner log — their unmasked copies stay on the runner', () => {
         const upload = steps.find((step) => /upload-artifact@/u.test(step.uses ?? ''));
         const paths = scalarText(upload?.with?.['path'])

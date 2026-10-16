@@ -20,7 +20,7 @@ import { StyleSheet, type TextInput as NativeTextInput } from 'react-native';
 import { useTheme } from '../theme/useTheme.native.js';
 import { TextInput } from '../textInput/TextInput.native.js';
 import { fieldDisabled, fieldGeometry, fieldPaint } from './fieldStyle.js';
-import { fieldLabelId, type InputProps } from './props.js';
+import { fieldAccessibilityHint, fieldLabelId, type InputProps } from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 
 /** The native design-system one-line text field. */
@@ -30,6 +30,7 @@ export const Input: FC<InputProps> = ({
     onChangeText,
     invalid = false,
     error,
+    hint,
     label,
     placeholder,
     autoCapitalize,
@@ -56,7 +57,7 @@ export const Input: FC<InputProps> = ({
             onChangeText={onChangeText}
             aria-labelledby={fieldLabelId(id)}
             accessibilityLabel={label}
-            accessibilityHint={error}
+            accessibilityHint={fieldAccessibilityHint(error, hint)}
             placeholder={placeholder}
             placeholderTextColor={theme.colors.inkMuted}
             autoCapitalize={autoCapitalize}

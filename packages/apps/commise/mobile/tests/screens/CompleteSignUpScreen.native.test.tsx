@@ -15,6 +15,8 @@ import { useClerk } from '@clerk/expo';
 import { ClerkAPIResponseError } from '@clerk/shared/error';
 import * as Sentry from '@sentry/react-native';
 
+import { recordedTextInput, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
+
 import { SIGN_UP_FIELDS, type SignUpFieldName } from '../../src/auth/signUpFields.js';
 import { CompleteSignUpScreen } from '../../src/screens/CompleteSignUpScreen.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
@@ -25,6 +27,13 @@ vi.mock('@clerk/expo', async () => {
     const { isClerkAPIResponseError } = await import('@clerk/shared/error');
 
     return { useClerk: vi.fn(), isClerkAPIResponseError };
+});
+// React Native has no `aria-describedby`, and react-native-web drops `accessibilityHint`, so the fields are wrapped to
+// record what a screen reader is actually given (`recordedTextInput`).
+vi.mock('@commise/ui/text-input', async (importOriginal) => {
+    const { recordingTextInputModule } = await import('@commise/ui/testing/record-text-inputs');
+
+    return recordingTextInputModule(await importOriginal<typeof import('@commise/ui/text-input')>());
 });
 vi.mock('@sentry/react-native', () => ({ captureMessage: vi.fn() }));
 vi.mock('react-native-safe-area-context', () => ({
@@ -38,6 +47,7 @@ vi.mocked(useClerk).mockReturnValue({ setActive } as never);
 
 afterEach(() => {
     cleanup();
+    recordedTextInputs.clear();
     vi.clearAllMocks();
     vi.mocked(useClerk).mockReturnValue({ setActive } as never);
 });
@@ -124,10 +134,12 @@ describe('CompleteSignUpScreen', () => {
 
         submit();
 
-        const described = await screen.findByText(auth.usernameRequired);
-        expect(screen.getByLabelText(auth.usernameLabel).getAttribute('aria-describedby')?.split(' ')).toContain(
-            described.id,
+        await screen.findByText(auth.usernameRequired);
+        // REWRITTEN: this asserted `aria-describedby` in the DOM, which a device ignores. The error LEADS the hint.
+        expect(recordedTextInput('complete-signup-username').accessibilityHint).toBe(
+            `${auth.usernameRequired} ${auth.usernameHint}`,
         );
+        expect(recordedTextInput('complete-signup-username').accessibilityLabel).toBe(auth.usernameLabel);
         expect(signUp.update).not.toHaveBeenCalled();
     });
 
@@ -176,10 +188,10 @@ describe('CompleteSignUpScreen', () => {
         fireEvent.change(screen.getByLabelText(auth.usernameLabel), { target: { value: 'a-b' } });
         submit();
 
-        const described = await screen.findByText('Usernames may only contain letters and numbers.');
+        await screen.findByText('Usernames may only contain letters and numbers.');
 
-        expect(screen.getByLabelText(auth.usernameLabel).getAttribute('aria-describedby')?.split(' ')).toContain(
-            described.id,
+        expect(recordedTextInput('complete-signup-username').accessibilityHint).toBe(
+            `Usernames may only contain letters and numbers. ${auth.usernameHint}`,
         );
         expect((await screen.findByRole('alert')).textContent).toBe('That address is in use.');
     });

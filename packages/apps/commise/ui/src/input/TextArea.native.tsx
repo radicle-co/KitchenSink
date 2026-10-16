@@ -22,7 +22,7 @@ import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { TextInput } from '../textInput/TextInput.native.js';
 import { FIELD_EDGE, FIELD_PADDING, fieldDisabled, fieldGeometry, fieldPaint } from './fieldStyle.js';
-import { fieldLabelId, type TextAreaProps } from './props.js';
+import { fieldAccessibilityHint, fieldLabelId, type TextAreaProps } from './props.js';
 
 /** One body line, in points. */
 const LINE = nativeTokens.type.body.lineHeight ?? 24;
@@ -49,6 +49,7 @@ export const TextArea: FC<TextAreaProps> = ({
     onChangeText,
     invalid = false,
     error,
+    hint,
     label,
     placeholder,
     autoCapitalize,
@@ -73,7 +74,7 @@ export const TextArea: FC<TextAreaProps> = ({
             onContentSizeChange={(event) => setContent(event.nativeEvent.contentSize.height)}
             aria-labelledby={fieldLabelId(id)}
             accessibilityLabel={label}
-            accessibilityHint={error}
+            accessibilityHint={fieldAccessibilityHint(error, hint)}
             placeholder={placeholder}
             placeholderTextColor={theme.colors.inkMuted}
             autoCapitalize={autoCapitalize}

@@ -44,6 +44,7 @@ export function AuthCodeFields({ id, value, onChangeText, busy, onSubmit }: Auth
                 <FieldLabel forId={id} label={t.codeLabel} />
                 <Input
                     id={id}
+                    label={t.codeLabel}
                     placeholder={t.codePlaceholder}
                     value={value}
                     onChangeText={onChangeText}

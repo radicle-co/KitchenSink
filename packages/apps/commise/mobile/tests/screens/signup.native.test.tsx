@@ -14,6 +14,7 @@ import { useSignInWithGoogle } from '@clerk/expo/google';
 import * as Sentry from '@sentry/react-native';
 
 import { role, roleDark } from '@commise/ui/colors';
+import { recordedTextInput, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { SignUpScreen } from '../../src/screens/signup.js';
@@ -27,6 +28,14 @@ vi.mock('@clerk/expo', async () => {
     const { isClerkAPIResponseError } = await import('@clerk/shared/error');
 
     return { useSignUp: vi.fn(), useClerk: vi.fn(), isClerkAPIResponseError };
+});
+
+// React Native has no `aria-invalid` or `aria-describedby` and react-native-web drops `accessibilityHint`, so the fields
+// are wrapped to record what a screen reader is actually given (`recordedTextInput`).
+vi.mock('@commise/ui/text-input', async (importOriginal) => {
+    const { recordingTextInputModule } = await import('@commise/ui/testing/record-text-inputs');
+
+    return recordingTextInputModule(await importOriginal<typeof import('@commise/ui/text-input')>());
 });
 
 // An unsupported requirement is reported to Sentry; the real SDK needs a native module.
@@ -166,6 +175,7 @@ afterEach(() => {
     vi.clearAllMocks();
     platform.os = undefined;
     systemScheme.current = null;
+    recordedTextInputs.clear();
 });
 
 describe('SignUpScreen — chrome + design system', () => {
@@ -338,21 +348,23 @@ describe('SignUpScreen — sign-up flow', () => {
         expect(screen.queryByLabelText(auth.codeLabel)).toBeNull();
     });
 
+    // REWRITTEN: this asserted `aria-invalid` and `aria-describedby` in the DOM, which react-native-web maps and a device
+    // ignores. The message is now asserted where a screen reader gets it: the field's `accessibilityHint`.
     it.each([
-        [auth.firstNameLabel, auth.firstNameRequired],
-        [auth.lastNameLabel, auth.lastNameRequired],
-        [auth.usernameLabel, auth.usernameRequired],
-        [auth.emailLabel, auth.emailRequired],
-    ])('refuses an empty %s without calling Clerk, and says why UNDER that field', async (label, message) => {
+        [auth.firstNameLabel, 'signup-first_name', auth.firstNameRequired],
+        [auth.lastNameLabel, 'signup-last_name', auth.lastNameRequired],
+        [auth.usernameLabel, 'signup-username', auth.usernameRequired],
+        [auth.emailLabel, 'signup-email_address', auth.emailRequired],
+    ])('refuses an empty %s without calling Clerk, and says why UNDER that field', async (label, id, message) => {
         const signUp = setup('nothing');
 
         submitCredentials('pw', [label]);
 
-        const field = screen.getByLabelText(label);
-        const described = await screen.findByText(message);
+        await screen.findByText(message);
 
-        expect(field.getAttribute('aria-invalid')).toBe('true');
-        expect(field.getAttribute('aria-describedby')?.split(' ')).toContain(described.id);
+        // The error LEADS; the username also keeps its hint after it.
+        expect(recordedTextInput(id).accessibilityHint?.startsWith(message)).toBe(true);
+        expect(recordedTextInput(id).accessibilityLabel).toBe(label);
         expect(signUp.create).not.toHaveBeenCalled();
     });
 
@@ -383,13 +395,42 @@ describe('SignUpScreen — sign-up flow', () => {
 
         submitCredentials('pw');
 
-        const described = await screen.findByText('That username is taken. Please try another.');
+        await screen.findByText('That username is taken. Please try another.');
 
-        expect(screen.getByLabelText(auth.usernameLabel).getAttribute('aria-describedby')?.split(' ')).toContain(
-            described.id,
+        expect(recordedTextInput('signup-username').accessibilityHint).toContain(
+            'That username is taken. Please try another.',
         );
         expect(screen.queryByRole('alert')).toBeNull();
         expect(setActive).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['signup-first_name', auth.firstNameLabel],
+        ['signup-last_name', auth.lastNameLabel],
+        ['signup-username', auth.usernameLabel],
+        ['signup-email_address', auth.emailLabel],
+        ['signup-password', auth.passwordLabel],
+    ])('names %s by its visible label as an accessibility label, which iOS reads', (id, label) => {
+        setup('nothing');
+
+        expect(recordedTextInput(id).accessibilityLabel).toBe(label);
+    });
+
+    it('speaks the username hint, and no hint for a field that has none', () => {
+        setup('nothing');
+
+        expect(recordedTextInput('signup-username').accessibilityHint).toBe(auth.usernameHint);
+        expect(recordedTextInput('signup-email_address').accessibilityHint).toBeUndefined();
+    });
+
+    it('leads the username hint with its error', async () => {
+        setup('nothing');
+        submitCredentials('pw', [auth.usernameLabel]);
+        await screen.findByText(auth.usernameRequired);
+
+        expect(recordedTextInput('signup-username').accessibilityHint).toBe(
+            `${auth.usernameRequired} ${auth.usernameHint}`,
+        );
     });
 
     it('clears a field’s error once the person edits it', async () => {
@@ -400,7 +441,7 @@ describe('SignUpScreen — sign-up flow', () => {
         fireEvent.change(screen.getByLabelText(auth.usernameLabel), { target: { value: 'ada' } });
 
         expect(screen.queryByText(auth.usernameRequired)).toBeNull();
-        expect(screen.getByLabelText(auth.usernameLabel).getAttribute('aria-invalid')).not.toBe('true');
+        expect(recordedTextInput('signup-username').accessibilityHint).toBe(auth.usernameHint);
     });
 
     it('refuses an empty password without calling Clerk, and says why UNDER the password', async () => {
@@ -408,11 +449,10 @@ describe('SignUpScreen — sign-up flow', () => {
 
         submitCredentials('');
 
-        const field = screen.getByLabelText(auth.passwordLabel);
-        const described = await screen.findByText(auth.passwordRequired);
+        await screen.findByText(auth.passwordRequired);
 
-        expect(field.getAttribute('aria-invalid')).toBe('true');
-        expect(field.getAttribute('aria-describedby')?.split(' ')).toContain(described.id);
+        expect(recordedTextInput('signup-password').accessibilityHint).toBe(auth.passwordRequired);
+        expect(recordedTextInput('signup-password').accessibilityLabel).toBe(auth.passwordLabel);
         expect(signUp.create).not.toHaveBeenCalled();
     });
 
@@ -459,15 +499,11 @@ describe('SignUpScreen — sign-up flow', () => {
 
         submitCredentials('pw');
 
-        const taken = await screen.findByText('That username is taken.');
-        const invalid = screen.getByText(auth.emailInvalid);
+        await screen.findByText('That username is taken.');
+        await screen.findByText(auth.emailInvalid);
 
-        expect(screen.getByLabelText(auth.usernameLabel).getAttribute('aria-describedby')?.split(' ')).toContain(
-            taken.id,
-        );
-        expect(screen.getByLabelText(auth.emailLabel).getAttribute('aria-describedby')?.split(' ')).toContain(
-            invalid.id,
-        );
+        expect(recordedTextInput('signup-username').accessibilityHint).toContain('That username is taken.');
+        expect(recordedTextInput('signup-email_address').accessibilityHint).toBe(auth.emailInvalid);
         expect(screen.queryByRole('alert')).toBeNull();
     });
 
@@ -488,11 +524,9 @@ describe('SignUpScreen — sign-up flow', () => {
 
         submitCredentials('pw');
 
-        const described = await screen.findByText('Passwords must be 8 characters or more.');
+        await screen.findByText('Passwords must be 8 characters or more.');
 
-        expect(screen.getByLabelText(auth.passwordLabel).getAttribute('aria-describedby')?.split(' ')).toContain(
-            described.id,
-        );
+        expect(recordedTextInput('signup-password').accessibilityHint).toBe('Passwords must be 8 characters or more.');
         expect(screen.queryByRole('alert')).toBeNull();
     });
 

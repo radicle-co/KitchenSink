@@ -2,12 +2,13 @@
  * @module components/auth/SignUpFields — the labelled profile fields a sign-up asks for (plan 012 D8): the typed
  * sign-up form shows all of `SIGN_UP_FIELDS`; the finish step after a Google / Apple sign-up shows only those
  * Clerk still lists as missing. Each field carries its registry autofill and keyboard hints, and its error (ours for an
- * empty field, Clerk's for a rejected one) sits UNDER it, named by the field's `describedBy` (WCAG 2.2 SC 3.3.1).
+ * empty field, Clerk's for a rejected one) sits UNDER it and is repeated as the field's `error`, which leads its accessibility hint (WCAG 2.2 SC 3.3.1; React
+ * Native has no `aria-describedby`).
  * The host names the one field that takes focus: the first in error.
  *
  * Presentational: props → JSX.
  */
-import { fieldHintId, FieldLabel, Input } from '@commise/ui/input';
+import { FieldLabel, Input } from '@commise/ui/input';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { useMessages } from '@commise/i18n/react';
@@ -43,11 +44,6 @@ export interface SignUpFieldsProps {
     readonly onFocusHandled: () => void;
 }
 
-/** The id of the error line under a field. Pure. */
-export function signUpFieldErrorId(fieldId: string): string {
-    return `${fieldId}-error`;
-}
-
 /**
  * The labelled profile fields, in registry order.
  *
@@ -80,13 +76,6 @@ export function SignUpFields({
                 const id = `${idPrefix}-${field.name}`;
                 const hint = hints[field.name];
                 const error = errors[field.name];
-                const describedBy = [
-                    hint === undefined ? undefined : fieldHintId(id),
-                    error === undefined ? undefined : signUpFieldErrorId(id),
-                ]
-                    .filter((part): part is string => part !== undefined)
-                    .join(' ');
-
                 return (
                     <View key={field.name} style={styles.field}>
                         <FieldLabel forId={id} label={labels[field.name]} {...(hint === undefined ? {} : { hint })} />
@@ -99,20 +88,16 @@ export function SignUpFields({
                             autoCapitalize={field.autoCapitalize}
                             autoCorrect={field.autoCorrect}
                             enterKeyHint="next"
-                            invalid={error !== undefined}
-                            {...(describedBy === '' ? {} : { describedBy })}
+                            label={labels[field.name]}
+                            {...(hint === undefined ? {} : { hint })}
+                            {...(error === undefined ? {} : { error })}
                             {...(field.name === 'email_address' ? { placeholder: t.emailPlaceholder } : {})}
                             disabled={busy}
                             focusRequested={focusField === field.name}
                             onFocusRequestHandled={onFocusHandled}
                         />
                         {error === undefined ? null : (
-                            <Text
-                                nativeID={signUpFieldErrorId(id)}
-                                style={[styles.error, { color: colors.dangerText }]}
-                            >
-                                {error}
-                            </Text>
+                            <Text style={[styles.error, { color: colors.dangerText }]}>{error}</Text>
                         )}
                     </View>
                 );

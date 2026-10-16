@@ -52,6 +52,12 @@ interface FieldCommon {
      */
     readonly error?: string;
     /**
+     * The text of the visible hint under the label (`FieldLabel`'s `hint`), repeated for the platform that cannot link
+     * them. Native only: it follows the `error` in the field's `accessibilityHint` ({@link fieldAccessibilityHint}), and
+     * unlike `error` it does not mean invalid. The web leaf ignores it, because `describedBy` names the hint there.
+     */
+    readonly hint?: string;
+    /**
      * The visible label's text, repeated as the field's accessible name. Native only: the field's `aria-labelledby` is
      * honoured on Android alone, and `accessibilityLabel` is what iOS reads. The web leaf ignores it, because the
      * label's `htmlFor` names the field there.

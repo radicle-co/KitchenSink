@@ -42,6 +42,28 @@ describe.each(leaves)('%s (native) — what the screen reader receives', (_name,
         expect(seen.props?.accessibilityHint).toBe(MESSAGE);
     });
 
+    it('speaks the visible hint as the accessibility hint when there is no error', () => {
+        render(field({ hint: 'Letters and numbers only.' }));
+
+        expect(seen.props?.accessibilityHint).toBe('Letters and numbers only.');
+    });
+
+    it('leads the accessibility hint with the error, a space, then the visible hint', () => {
+        render(field({ error: MESSAGE, hint: 'Letters and numbers only.' }));
+
+        expect(seen.props?.accessibilityHint).toBe(`${MESSAGE} Letters and numbers only.`);
+    });
+
+    it('does not take the danger edge from a hint alone', () => {
+        const edge = () => StyleSheet.flatten(seen.props?.style)?.borderColor;
+        render(field({}));
+        const resting = edge();
+        cleanup();
+        render(field({ hint: 'Letters and numbers only.' }));
+
+        expect(edge()).toBe(resting);
+    });
+
     it('has no hint at all without an error, so nothing is spoken for it', () => {
         render(field({}));
 

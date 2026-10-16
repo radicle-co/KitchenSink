@@ -44,7 +44,7 @@ import { AuthScreenFrame } from '../components/auth/AuthScreenFrame.js';
 import { AuthSwitchLink } from '../components/auth/AuthSwitchLink.js';
 import { SocialSignInButtons } from '../components/auth/SocialSignInButtons.js';
 import { useSocialSignIn, type PendingSignUp } from '../hooks/useSocialSignIn.js';
-import { SignUpFields, signUpFieldErrorId, type SignUpValues } from '../components/auth/SignUpFields.js';
+import { SignUpFields, type SignUpValues } from '../components/auth/SignUpFields.js';
 import { mobileMessages } from '../i18n/messages.js';
 
 /** Every field the form shows, in the order it asks — so the first in error is the one that takes focus. */
@@ -300,22 +300,15 @@ export function SignUpScreen({ onBack, onNeedsFields }: SignUpScreenProps): JSX.
                             secret
                             autoComplete="new-password"
                             enterKeyHint="go"
-                            invalid={fieldErrors.password !== undefined}
-                            {...(fieldErrors.password === undefined
-                                ? {}
-                                : { describedBy: signUpFieldErrorId(PASSWORD_ID) })}
+                            label={t.passwordLabel}
+                            {...(fieldErrors.password === undefined ? {} : { error: fieldErrors.password })}
                             disabled={locked}
                             focusRequested={focusField === 'password'}
                             onFocusRequestHandled={() => setFocusField(null)}
                             onSubmit={() => void handleSignUp()}
                         />
                         {fieldErrors.password === undefined ? null : (
-                            <Text
-                                nativeID={signUpFieldErrorId(PASSWORD_ID)}
-                                style={[styles.error, { color: colors.dangerText }]}
-                            >
-                                {fieldErrors.password}
-                            </Text>
+                            <Text style={[styles.error, { color: colors.dangerText }]}>{fieldErrors.password}</Text>
                         )}
                     </View>
                 </View>

@@ -22,6 +22,7 @@ import { useSignInWithGoogle } from '@clerk/expo/google';
 import * as Sentry from '@sentry/react-native';
 
 import { role, roleDark } from '@commise/ui/colors';
+import { recordedTextInput, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { LoginScreen } from '../../src/screens/login.js';
@@ -38,6 +39,14 @@ vi.mock('@clerk/expo', async () => {
 });
 
 // The unsupported-status branch reports to Sentry; the real SDK needs a native module.
+// react-native-web drops `accessibilityHint` and a device has no `aria-labelledby` on iOS, so the fields are wrapped to
+// record the accessibility props a screen reader is actually given (`recordedTextInput`).
+vi.mock('@commise/ui/text-input', async (importOriginal) => {
+    const { recordingTextInputModule } = await import('@commise/ui/testing/record-text-inputs');
+
+    return recordingTextInputModule(await importOriginal<typeof import('@commise/ui/text-input')>());
+});
+
 vi.mock('@sentry/react-native', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }));
 
 // The native provider flows (plan 012). Their behaviour is `useSocialSignIn`'s suite; here they only have to start.
@@ -202,6 +211,7 @@ afterEach(() => {
     vi.clearAllMocks();
     platform.os = undefined;
     systemScheme.current = null;
+    recordedTextInputs.clear();
 });
 
 describe('LoginScreen — chrome + design system', () => {
@@ -485,6 +495,28 @@ describe('LoginScreen — sign-in flow (A-001: the password is ALWAYS checked)',
         submitCredentials('pw');
 
         expect((await screen.findByRole('alert')).textContent).toContain(auth.signInFailed);
+    });
+});
+
+describe('LoginScreen — what a screen reader is given (iOS ignores aria-labelledby)', () => {
+    it.each([
+        ['signin-email', auth.emailLabel],
+        ['signin-password', auth.passwordLabel],
+    ])('names %s by its visible label as an accessibility label', (id, label) => {
+        useSignInMock.mockReturnValue(partialHook({ signIn: makeSignIn() }));
+        renderLogin();
+
+        expect(recordedTextInput(id).accessibilityLabel).toBe(label);
+    });
+
+    it('names the verification code field by its label too', async () => {
+        const signIn = makeSignIn({ afterPassword: 'needs_client_trust' });
+        useSignInMock.mockReturnValue(partialHook({ signIn }));
+        renderLogin();
+        submitCredentials();
+        await screen.findByLabelText(auth.codeLabel);
+
+        expect(recordedTextInput('signin-code').accessibilityLabel).toBe(auth.codeLabel);
     });
 });
 

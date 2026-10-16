@@ -37,6 +37,7 @@
         "./testing/expo-keep-awake": "./src/testing/expoKeepAwakeStub.ts",
         "./testing/system-color-scheme": "./src/testing/systemColorScheme.ts",
         "./testing/resize-observer": "./src/testing/resizeObserver.ts",
+        "./testing/record-text-inputs": "./src/testing/recordTextInputs.native.tsx",
         "./button": "./src/button/index.ts",
         "./check-box-glyph": "./src/checkBoxGlyph/index.ts",
         "./combobox": "./src/combobox/index.ts",

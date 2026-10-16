@@ -231,6 +231,7 @@ export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.
                         <FieldLabel forId="signin-email" label={t.emailLabel} />
                         <Input
                             id="signin-email"
+                            label={t.emailLabel}
                             placeholder={t.emailPlaceholder}
                             value={email}
                             onChangeText={setEmail}
@@ -245,6 +246,7 @@ export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.
                         <FieldLabel forId="signin-password" label={t.passwordLabel} />
                         <Input
                             id="signin-password"
+                            label={t.passwordLabel}
                             placeholder={t.passwordPlaceholder}
                             value={password}
                             onChangeText={setPassword}

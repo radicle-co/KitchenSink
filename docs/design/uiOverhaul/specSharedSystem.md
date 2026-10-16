@@ -523,3 +523,161 @@ does neither; no `href` renders a `button`; no `label` sets no `aria-label`.
 An `<a>` with no `href` is not a link and takes no keyboard focus (WCAG 2.1.1). The one web host,
 `web/src/components/home/RecipeWidgetSlot.tsx:115-121`, always passes one, so nothing ships broken today.
 `RouteAction` renders a `button` in that case, so the props can no longer express the defect.
+
+## 16. Native fields: the return key, the focused field, and a field target (2026-10-16)
+
+Three rules every native form needs. Each is fixed once here, in the primitive, because the defects are classes:
+the auth screens (`buildSpec.md` §8.1) and the editor (`buildSpec.md` §7.8, §7.10) each found one. React Native 0.86
+limits that shape all three: no `aria-describedby` and no `aria-invalid` on device, and `aria-labelledby` is
+honoured on Android only. So a field's error reaches a screen reader as its `accessibilityHint` (the `error` prop,
+`ui/src/input/props.ts:47`), and its name as `accessibilityLabel` (the `label` prop).
+
+### 16.1 The return key (`ui/src/input/Input.native.tsx`)
+
+- **The defect.** `Input.native` passes `enterKeyHint` but no `submitBehavior`. A single-line field then blurs on
+  return, so `next` closes the keyboard and no field takes focus. Every `next` in the app is dead today
+  (`login.tsx`, `SignUpFields.tsx:91`).
+- **The rule.** `submitBehavior` is derived from `enterKeyHint`, never passed by a caller: `next` → `'submit'` (the
+  keyboard stays up, `onSubmit` fires, and the host moves focus with the field's existing `focusRequested` level).
+  Every other hint, or none → `'blurAndSubmit'`. `submitBehavior` is React Native's own prop and replaces
+  `blurOnSubmit` (`TextInput.d.ts:784`, read 2026-10-16).
+- **`TextArea.native`** is unchanged: return is a new line there.
+- **Test first:** a `next` field calls `onSubmit` and keeps focus. A `go` field calls `onSubmit` and blurs.
+
+### 16.2 The focused field is shown: a `focus` reveal (`ui/src/fieldReveal/`)
+
+- **The defect.** On iOS React Native scrolls a focused field into view only under
+  `automaticallyAdjustKeyboardInsets`, and that path compares against the keyboard top, not a pinned bar
+  (`RCTScrollViewComponentView.mm`, `_keyboardWillChangeFrame`). With `KeyboardAvoider`'s padding nothing scrolls,
+  so a field can sit under the keyboard or the pinned bar (SC 2.4.11).
+- **The rule.** `RevealRequest.kind` gains `'focus'`. `Input.native`, `TextArea.native` and `Combobox.native` ask for
+  it on focus and release it on blur, with `below: 0` and `above: 0`. The host treats it exactly as an `arrival`:
+  the smallest scroll that shows the field, checked on arrival and again each time the visible area changes height
+  (the keyboard rising after focus), and at most once. No blank space is ever laid out. A `Combobox` whose list opens
+  still sends its `list` request, which wins while it is armed. ⛔ A `focus` request never replaces a pending
+  `arrival`: the host keeps one arrival slot, and the arrival (a row that just landed above the field,
+  `ingredientArrival.md`) already shows the field. A focus that comes while an arrival is pending is dropped.
+- A screen with no host keeps the default `revealNothing` (Null Object), so nothing changes there. Hosts:
+  `RecipeEditorView.native.tsx` (already) and `AuthScreenFrame` (new, `buildSpec.md` §8.1). Because the visible area
+  is the scroller's own height, which ends at a pinned bar or the keyboard top, the bar is never counted twice.
+- ⚠️ A new `kind` is a contract change to `@commise/ui/field-reveal`. Raise it with `staff-architect` at review.
+
+### 16.3 A field target: where a refused Publish lands on native (`ui/src/scrollHost/`)
+
+- **The defect.** `ScrollHost.native.tsx:154` answers `scrollToField` with `false`, because the host holds no field
+  registry. The editor then scrolls to the section and moves no screen-reader focus.
+- **The rule.** `scrollToField(id)` on native publishes a target `{ id, n }` (`n` counts the requests) through the
+  `ScrollHost` context and answers `true`. It also clears the host's `pendingJump` and `held`, so a section jump
+  the caller issued just before it (`useEditorPage.finish` keeps that order for web's hash) cannot land after the
+  field. A new hook, `useFieldTarget(id): number`, gives a field the count of
+  requests that named it. When it advances, `Input.native`, `TextArea.native` and `Combobox.native`:
+    1. ask their host for a `'target'` reveal: the field's centre at the centre of the visible area, or its top 16 dp
+       below the area's top when it is taller than the area. Animated, instant under reduced motion
+       (`useReduceMotion`). Same rule as web's `scrollToField` (`props.ts:84`).
+    2. then move the **screen-reader** cursor onto their own node with `moveScreenReaderFocus`, after the scroll. The
+       keyboard is not raised (`buildSpec.md` §7.8 gives the reason and the flip condition).
+- The host holds no node refs. Each field already holds its own node (`Input.native.tsx:50`, for `focus()`), so the
+  ref exception is the one these primitives already take. `ScrollHostApi.scrollToField`'s docstring changes from
+  "Native … always answers `false`" to "Native answers `true` and the field reveals itself". Its contract stays one
+  sentence for both platforms: scroll the field into view and focus it. On native, focus means the reading cursor.
+- **Residual.** The native answer is `true` before any field has answered. That is safe only because
+  `firstInvalidFieldOf` names fields the one-page editor always mounts. A future caller that targets a field that
+  may be unmounted must not rely on the answer.
+- **Test first:** in `ScrollHost.native.test.tsx`, a `scrollToField(titleFieldId)` scrolls a mounted title to
+  the centre and sends one accessibility `'focus'` event to it, and a second call sends a second event. A
+  `scrollToSection` followed at once by `scrollToField` ends at the field, not the section. In the native editor
+  view's test, a refusal with no field advances that section heading's signal.
+
+## 17. The unreadable-work notice (2026-10-16)
+
+⚠️ **Raising this first: mobile mounts no `SyncNoticeHost` at all.** `mobile/src/providers/AppProviders.tsx`
+mounts only the offline read slot. No file under `mobile/src` imports `@commise/query/sync-notice-host`, and `git log`
+shows none ever did. So the offline and syncing notice `docs/design/offlineNotice.md` §7 specifies for mobile is
+missing, and CODING_STANDARDS §14 cannot see it. This change mounts it, as `offlineNotice.md` §7 says: a sibling above
+`RootNavigator` inside the signed-in branch of `AuthGate`, in flow, taking `insets.top` while anything shows. Without
+that mount, the notice below ships on web only.
+
+**The gap.** The draft store (`features/recipes/src/editor/draftStore.ts:241`) and the outbox
+(`shared/sync/src/outboxMutator.ts:77`) move bytes they cannot parse to a quarantine key and start empty (ADR-0057).
+The cook is never told, so a draft just disappears, or a change that never reached the server is silently not sent.
+
+**What the cook is told, and when.** Once per load that set something aside, on whichever surface is showing: the app
+start for the outbox, and the editor opening for the drafts. Both apps already render the host there: web at the
+top of `<main>`, in a focused task too (`HomeChrome.tsx:108`), and mobile above the navigator once mounted.
+
+- ⛔ **Never derived from the quarantine key existing.** The key lives until sign-out (on mobile across launches),
+  so a notice keyed on it would come back on every start.
+- ⛔ **No count in the copy.** A draft quarantine is the whole key (up to 20 drafts) as raw bytes, so the number
+  of drafts is unknowable. The outbox's record count is a guess when the bytes do not parse
+  (`outboxStore.ts:151`).
+- **Nothing is recoverable from the UI, and the copy says so.** What reached the server is safe, and that is the one
+  thing the cook can check.
+
+**The fact the UI needs** (plumbing is `staff-architect`'s): `unreadableCount: number` on `SyncQueue`, the number of
+set-aside events this session for the signed-in cook, reset by the session-end clear. Neither store reports it today:
+`outboxMutator.load` drops `quarantined`, and `draftStore.read` returns `{}`. Both call one function,
+`appendToQuarantine` (`@kitchensink/sync`), which is the natural single report point. `@commise/query` cannot import
+`features-recipes`, so the report must flow through `@kitchensink/sync` or the provider, never the other way round.
+
+**Why a second leaf, not a new `SyncNoticeState` member.** `SyncNotice`'s contract is "it reports, it does not ask:
+no Retry, no dismiss, nothing focusable" (`ui/src/syncNotice/props.ts`, `offlineNotice.md` §5c). That is right for an
+ongoing condition, and it stays. A set-aside is a past event: it must be dismissible, or it stays forever. So:
+
+- New leaf `UnreadableWorkNotice` in `@commise/ui/sync-notice` (`UnreadableWorkNotice.tsx` and `.native.tsx`, props
+  in `props.ts`): `{ shown: boolean; title: string; body: string; dismissLabel: string; onDismiss: () => void }`.
+  Presentational.
+- `SyncNoticeHost` renders it **above** `<SyncNotice/>`, so both can show at once (an offline cook who also lost a
+  draft sees both). It keeps `dismissedAt` (the count when the cook dismissed) as derived state, like `wasOffline`,
+  with no effect and no ref. `shown = unreadableCount > dismissedAt`, so a later set-aside in the same session shows
+  it again.
+
+**Look.** `attentionTint` fill (20% `warning`), `radius.lg`, padding 12 × 16, the same card as `SyncNotice`. A
+leading `triangleAlert` 20 in `attention`, decorative. Title `bodySm` 600 in `ink`, body `bodySm` in `ink`.
+`ink` on `attentionTint` passes in both themes (`ui/src/tokens/colors.ts:185`, `themeRoles.test.ts`). Dismiss is a
+ghost `Button` `sm` with the label `unreadableDismiss`, trailing. When the text column is narrower than 200 (320 wide,
+or large text), Dismiss wraps under the text, start-aligned, by `flexWrap`, never `nowrap`. Text wraps freely
+(`wrap`, no truncation). No horizontal scroll at 320 CSS px.
+
+**Copy** (NEW, in `offlineNoticeMessages`, `features/core/src/offline/messages.ts`, the one dictionary both apps use,
+`offlineNotice.md` §6. `SyncNoticeCopy` gains the three fields):
+
+| Key                 | String                                                                                                                                    |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `unreadableTitle`   | Some work on this device couldn’t be opened                                                                                               |
+| `unreadableBody`    | We can’t show it or send it, and it can’t be recovered. Recipes saved to your account are safe. Check My recipes for your latest changes. |
+| `unreadableDismiss` | Dismiss                                                                                                                                   |
+
+At +35% the body is three to four lines at 320. It still fits above the fold, and the card is dismissible.
+
+**States**
+
+| State                             | Shows                                                      |
+| --------------------------------- | ---------------------------------------------------------- |
+| nothing set aside this session    | nothing (both regions mounted empty)                       |
+| set aside, not dismissed          | the unreadable notice                                      |
+| set aside, and offline or syncing | the unreadable notice, then the sync notice under it       |
+| dismissed                         | nothing from this leaf, until a new set-aside              |
+| sign-out                          | count and dismissal reset with the session                 |
+| signed out (sign-in, sign-up)     | nothing: there is no cook, and no host on those pages (P5) |
+
+**Accessibility (WCAG 2.2 AA)**
+
+- **Announced politely, both platforms** (SC 4.1.3). The cook did not just act and nothing needs a decision, so this
+  is not the assertive case. Web: the leaf's own `role="status"` region, mounted empty, so the change is spoken.
+  Native: `LiveRegion politeness="polite"` (Android region, iOS announcement). `SyncNotice.native`'s "no live region"
+  rule is about reassurance and does not cover a loss.
+- **Focus is never moved to the notice.** It appears while the cook does something else.
+- **After Dismiss** the card unmounts. Web moves focus to the leaf's own `role="status"` region, which stays mounted
+  and carries `tabIndex={-1}` with no ring because it is not a control, so focus never falls to `body` (SC 2.4.3).
+  The leaf does it with the house `useFocusOnSignal` (`@commise/ui/dialog-focus`). ⛔ Not `<main tabIndex={-1}>`:
+  that would take focus on every click on plain content in every page. The next Tab reaches the page. Native
+  moves nothing: React Native cannot read where the reading cursor is, and VoiceOver and TalkBack re-anchor when a
+  focused node goes. Device check owed.
+- **Targets:** Dismiss is 44 × 44 pt on iOS, 48 × 48 dp on Android, 44 CSS px on a coarse pointer, and at least
+  24 CSS px on a fine pointer (SC 2.5.8). Its accessible name is its visible text (SC 2.5.3).
+- **Text spacing and reflow** (SC 1.4.12, 1.4.10): wrapping text, no fixed heights.
+
+**Tests first:** `syncNoticeState`-style pure tests for `shown` (count above dismissal, a second event after a
+dismissal). A component test per leaf, web and native, for hidden, shown, and Dismiss calling `onDismiss`. A host test
+that offline plus a set-aside renders both. A Playwright and a Maestro flow that plant unparseable bytes under
+`editor.draft.v1.{subject}`, open the editor, see the notice and dismiss it. The native one needs the mount above.

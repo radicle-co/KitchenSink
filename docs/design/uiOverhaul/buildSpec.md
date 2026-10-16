@@ -648,12 +648,13 @@ phone, top of page               phone, scrolled (pushed screen only)      840+ 
 
 ### 3.8 Shell states
 
-| State           | Behaviour                                                                                                                                                                                                                                                            | Copy                                                                             |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Profile loading | the avatar is a `pearl` disc. Nothing else waits for it                                                                                                                                                                                                              | none                                                                             |
-| Profile failed  | the avatar shows the `user` glyph. The chrome shows no error. Profile reports it (§9.1)                                                                                                                                                                              | none                                                                             |
-| Offline         | the existing `@commise/ui/offline-notice` strip, unchanged: under the 44 px row below 840, sticky at the top of `<main>` at 840+. Announced once, politely. Screens never change their behaviour for being offline (owner). Writes go through the offline write port | existing key                                                                     |
-| Route crash     | a root error boundary: "Something broke on this page." with **Try again** (primary, `rotate-ccw`) and **Go to Home** (secondary, `house`), and a reference code in `caption`                                                                                         | NEW `boundary.crash.title`, `.retry`, `.home`, `.reference` ("Reference {code}") |
+| State           | Behaviour                                                                                                                                                                                                                                                            | Copy                                                                                 |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Profile loading | the avatar is a `pearl` disc. Nothing else waits for it                                                                                                                                                                                                              | none                                                                                 |
+| Profile failed  | the avatar shows the `user` glyph. The chrome shows no error. Profile reports it (§9.1)                                                                                                                                                                              | none                                                                                 |
+| Offline         | the existing `@commise/ui/offline-notice` strip, unchanged: under the 44 px row below 840, sticky at the top of `<main>` at 840+. Announced once, politely. Screens never change their behaviour for being offline (owner). Writes go through the offline write port | existing key                                                                         |
+| Unreadable work | a load set unparseable drafts or outbox records aside (ADR-0057): the dismissible `UnreadableWorkNotice`, above the sync notice, both apps. Mobile must first mount `SyncNoticeHost`, which it does not today. Full rule: `specSharedSystem.md` §17                  | NEW `offlineNoticeMessages.unreadableTitle`, `.unreadableBody`, `.unreadableDismiss` |
+| Route crash     | a root error boundary: "Something broke on this page." with **Try again** (primary, `rotate-ccw`) and **Go to Home** (secondary, `house`), and a reference code in `caption`                                                                                         | NEW `boundary.crash.title`, `.retry`, `.home`, `.reference` ("Reference {code}")     |
 
 ---
 
@@ -1567,7 +1568,37 @@ Add an ingredient
 - **Publish** runs the validator. Refused: each error shows at its field (`danger` border, the message under it in
   `label`, linked by `aria-describedby`). The section index switches those sections to "Fix before publishing". Focus
   moves to the first invalid field, scrolled under the chrome. A polite line in the `ActionBar` says "Fix {n} things
-  to publish" (SC 3.3.1, 3.3.3).
+  to publish" (SC 3.3.1, 3.3.3). Native lands differently, below.
+- **Refused, native (2026-10-16).** Today `ScrollHost.native.tsx:154` answers `scrollToField` with `false`, so the
+  page scrolls to the section and no screen-reader focus moves at all: the native heading focus advances only from
+  `SectionIndex.onJump` (`RecipeEditorView.native.tsx:161`). The decision:
+    - **Where it lands.** The field `firstInvalidFieldOf` names (`editor/gate.ts:52`: title, description, cuisine,
+      the ingredient add field, the first bad step) is scrolled so its centre sits at the centre of the visible area
+      (the scroller ends at the `ActionBar` or the keyboard top, so neither covers it). A field taller than that area
+      lands with its top 16 dp below the area's top. Animated, instant under reduced motion. This is the same rule as
+      web's `scrollToField`.
+    - **What takes focus.** The **screen-reader cursor** moves to that field (`moveScreenReaderFocus`). The keyboard
+      is **not** raised. Raising it would hide the message under the field behind the keyboard and the pinned bar, and
+      focusing the cuisine or ingredient combobox would open its list unasked. The first tap on the field raises the
+      keyboard as usual. Judgement, not measurement. Flip it to raising the keyboard if testing shows nearly every cook
+      taps the field next anyway, since that saves a tap.
+    - **What is announced.** Landing on the field reads its label, its value and its error, because the field's
+      `error` prop is its `accessibilityHint` (React Native 0.86 has no `aria-describedby` or `aria-invalid` on device).
+      So every native field the gate can name passes `error` as well as drawing the message. Then the `ActionBar`'s
+      "Fix {n} things to publish" (`editorMessages.fixCount`) is spoken by its polite `LiveRegion`. ⚠️ On iOS the order
+      of that announcement and the focus move is a device check owed. The announcement must queue, never cut off the
+      field.
+    - **No single field** (servings, times, an empty step list, where `firstInvalidFieldOf` returns `undefined`): the
+      section's H2 takes the cursor. The refusal advances that section's heading signal (`jumps[section]`) exactly as a
+      `SectionIndex` jump does.
+    - **Mechanism** (specSharedSystem §16.3): `scrollToField(id)` on native publishes a field target through the
+      `ScrollHost` context and answers `true`. The field with that id reveals itself through `FieldRevealContext` and
+      moves the cursor to its own node. No id-to-ref registry in the host. `useEditorPage.finish` keeps its order
+      (`scrollToSection`, then `scrollToField`), because on web the section jump is what records the hash
+      (`ScrollHost.tsx:233`). On native, `scrollToField` supersedes the section jump already in flight: it clears the
+      host's `pendingJump` and `held`, so the field's scroll lands last and `current` follows the scroll. Web's
+      behaviour does not change, by construction.
+    - No new copy keys.
 - **Publishing:** the primary shows its spinner and the bar locks.
 - **Published:** the detail page opens. After a recipe's first publish, the snackbar says "Recipe published." with
   **Add to a collection** (§6.4). After a later publish, "Recipe published." alone.
@@ -1597,8 +1628,9 @@ Add an ingredient
 - **Tab order** (DOM = visual): header (× · ⋯) → section index (one stop per section from 600, one stop for the bar
   below 600) → the form, section by section → `ActionBar` (Preview, primary).
 - **Focus not obscured (SC 2.4.11):** `scroll-padding-top` = the header + section bar height. `scroll-padding-bottom`
-  = the `ActionBar` height + 16 (W3C technique C43). Native: `KeyboardAvoider` plus `scrollIntoView` with `block:
-'nearest'` on focus.
+  = the `ActionBar` height + 16 (W3C technique C43). Native: `KeyboardAvoider` plus the smallest scroll that shows the
+  focused field, which is the `focus` reveal of specSharedSystem §16.2 (React Native has no `scrollIntoView`). A
+  refused Publish on native is §7.8.
 - **Targets:** rail rows ≥ 48, sheet rows 56, strip items 44 tall, the bar 44, every row ⋯ 44.
 - **Live regions:** save failures, section status changes caused by the cook, "Fix {n} things to publish", the paste
   count after a pause, "Added {n} ingredients".
@@ -1643,19 +1675,20 @@ serving · {counted} of {total} counted". `stepTimerLabel` (`form/messages.ts:68
 
 ### 7.12 Editor: web and native translation
 
-| Element                  | Web                                                           | Native                                                      | Disposition        | Why                                                                        |
-| ------------------------ | ------------------------------------------------------------- | ----------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------- |
-| Section index            | rail ≥ 960 container, strip 600–959, bar + sheet < 600        | the same by window width (rail on a wide tablet)            | collapsed by width | a rail starves a narrow form, and a strip cannot show four sections at 320 |
-| Current-section tracking | `IntersectionObserver`                                        | `onLayout` + throttled `onScroll`                           | translated         | platform APIs                                                              |
-| Section jump             | `scroll-margin-top`, focus to the H2                          | `scrollTo`, accessibility focus to the H2                   | translated         | same job                                                                   |
-| Row editor               | inline from 600, sheet below                                  | sheet on phone, inline on tablet                            | translated         | the keyboard and the thumb                                                 |
-| Row reorder              | ⋯ Move up / down. No drag                                     | the same                                                    | kept               | SC 2.5.7                                                                   |
-| Paste                    | sheet                                                         | sheet, the system paste menu in the field                   | kept               | same job                                                                   |
-| Add photos               | file input, drag and drop on a fine pointer                   | "Take photo" / "Choose from library"                        | translated         | the camera                                                                 |
-| Add step shortcut        | Ctrl/Cmd + Enter                                              | none                                                        | dropped on native  | no hardware keyboard by default                                            |
-| Hover                    | `pearl` tint on rows                                          | pressed state                                               | translated         | no hover on touch                                                          |
-| Back                     | browser Back leaves the editor (the hash uses `replaceState`) | Android Back and iOS edge swipe leave it. Nothing is lost   | kept               | §7.3                                                                       |
-| Primary action           | `ActionBar`, bottom end                                       | `ActionBar`, bottom end, above the keyboard until it unpins | kept               | thumb zone, reading order                                                  |
+| Element                  | Web                                                           | Native                                                                  | Disposition        | Why                                                                        |
+| ------------------------ | ------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------- |
+| Section index            | rail ≥ 960 container, strip 600–959, bar + sheet < 600        | the same by window width (rail on a wide tablet)                        | collapsed by width | a rail starves a narrow form, and a strip cannot show four sections at 320 |
+| Current-section tracking | `IntersectionObserver`                                        | `onLayout` + throttled `onScroll`                                       | translated         | platform APIs                                                              |
+| Section jump             | `scroll-margin-top`, focus to the H2                          | `scrollTo`, accessibility focus to the H2                               | translated         | same job                                                                   |
+| Refused Publish          | the first invalid field takes focus (keyboard focus)          | the field is centred, the screen-reader cursor moves to it, no keyboard | translated         | §7.8: the keyboard would hide the message and open a combobox's list       |
+| Row editor               | inline from 600, sheet below                                  | sheet on phone, inline on tablet                                        | translated         | the keyboard and the thumb                                                 |
+| Row reorder              | ⋯ Move up / down. No drag                                     | the same                                                                | kept               | SC 2.5.7                                                                   |
+| Paste                    | sheet                                                         | sheet, the system paste menu in the field                               | kept               | same job                                                                   |
+| Add photos               | file input, drag and drop on a fine pointer                   | "Take photo" / "Choose from library"                                    | translated         | the camera                                                                 |
+| Add step shortcut        | Ctrl/Cmd + Enter                                              | none                                                                    | dropped on native  | no hardware keyboard by default                                            |
+| Hover                    | `pearl` tint on rows                                          | pressed state                                                           | translated         | no hover on touch                                                          |
+| Back                     | browser Back leaves the editor (the hash uses `replaceState`) | Android Back and iOS edge swipe leave it. Nothing is lost               | kept               | §7.3                                                                       |
+| Primary action           | `ActionBar`, bottom end                                       | `ActionBar`, bottom end, above the keyboard until it unpins             | kept               | thumb zone, reading order                                                  |
 
 ---
 
@@ -1700,14 +1733,124 @@ phone (< 480 viewport)              480–1023: card                   ≥ 1024 
   a provider sign-up a finish step asks only for the fields Clerk still names missing (plan 012 D6, D8).
 - **Verification code:** one 6-digit field with `autocomplete="one-time-code"` and `inputmode="numeric"`, not six boxes
   (SC 3.3.8 favours letting the OS fill it).
-- **Native:** the same order and copy on `@commise/ui/input`. The primary is pinned above the keyboard
-  (`KeyboardAvoider`). Email: `autoComplete="email"`, `textContentType="username"`. Password: `"password"` on sign-in,
-  `"newPassword"` on sign-up. Code: `textContentType="oneTimeCode"`. Password managers and paste work (SC 3.3.8).
+- **Native:** the same order and copy on `@commise/ui/input`. While the keyboard is up the primary is pinned above
+  it. The exact rule is §8.1. Email: `autoComplete="email"`, `textContentType="username"`. Password: `"password"` on
+  sign-in, `"newPassword"` on sign-up. Code: `textContentType="oneTimeCode"`. Password managers and paste work
+  (SC 3.3.8).
 - **States:** wrong password (Clerk's inline error under the field, focus moves to it) · network error: an alert
   above the button, "We couldn't reach the sign-in service. Check your connection and try again." (NEW
   `auth.networkError`) · busy (the button's spinner, the form locked) · too many attempts (Clerk's) · a signed-out
   deep link returns to its destination after sign-in.
 - When Plan ships, the brand line becomes the mockup's "Cook with confidence. Plan with ease."
+
+### 8.1 Native: the keyboard and the primary (2026-10-16)
+
+**The defect.** `AuthScreenFrame` (`mobile/src/components/auth/AuthScreenFrame.tsx`) puts the primary inside the
+`ScrollView`. `KeyboardAvoider` only shrinks the frame, so with the keyboard up the button sits below the visible
+area. On iOS React Native 0.86 scrolls a focused field into view only with `automaticallyAdjustKeyboardInsets`
+(`RCTScrollViewComponentView.mm` `_keyboardWillChangeFrame`), which the frame does not set. ⛔ Do not set it: it
+measures against the keyboard while `KeyboardAvoider` already pads for it, so the keyboard is counted twice, and it
+cannot see a pinned footer. Separately, every `enterKeyHint="next"` field is dead: `Input.native.tsx` passes no
+`submitBehavior`, so Next closes the keyboard and nothing takes focus.
+
+**The decision: the house pinned-footer rule, keyed to the keyboard.** `AuthScreenFrame` gains one prop,
+`footer: ReactElement` (the error line and the primary), and renders it in one of two **fixed** slots
+(`compactHeightLayout.md` §3.3). ⛔ Never one ternary that moves the `ScrollView`'s index:
+
+```
+<SafeAreaView>
+  <KeyboardAvoider>
+    <View frame onLayout>                       // the frame the rule reads
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+        header · providers · "or" · fields
+        {!pinned ? <Footer/> : null}            // slot A: in flow, straight after the fields
+        trailing: switch link | AuthCodeActions | Start over
+        <RevealSpacer/>                         // the field-reveal host's space (specSharedSystem §16.2)
+      </ScrollView>
+      {pinned ? <Footer/> : null}               // slot B: pinned under the scroll, above the keyboard
+```
+
+- `pinned = useKeyboardShown() && !isFooterUnpinned({ pinnedTop: 0, footer, frame })`. `pinnedTop` is 0: an auth
+  screen has no pinned top row. The measurements come from `usePinnedFooter()` (`ui/src/layout/usePinnedFooter.native.ts`),
+  unchanged.
+- **Keyboard down:** slot A. The order is exactly web's: fields → error → primary → link. The form reads as one group.
+- **One footer style in both slots:** 12 dp padding top and bottom, 20 dp at the sides (`spacing[5]`, the frame's
+  own), no hairline, no fill. ⛔ The style must not differ by slot. The rule measures the footer, and a footer taller
+  in one slot than the other can flip back and forth near the limit (`compactHeightLayout.md` §3.1).
+- **Keyboard up:** slot B. Content does not scroll beneath it: the `ScrollView` ends at its top edge, so it needs no
+  hairline or fill. `keyboardDismissMode="on-drag"` on both platforms. Not iOS `interactive`, because
+  `KeyboardAvoidingView` does not follow an interactive drag and the footer would part from the keyboard.
+  Reading order is fields → link → error → primary, which is also the visual order, so DOM order equals visual order
+  in both slots (SC 1.3.2, 2.4.3).
+- **Why the link stays out of the footer.** Computed below: with the link inside, a two-line wrong-password message
+  at text size 1.0 unpins the footer on the reference device, which is the commonest error at the default size.
+- A flip remounts the primary. It happens only when the keyboard opens or closes, and then focus is in a text field
+  (accepted in `compactHeightLayout.md` §3.3).
+
+**Which footer each screen passes** (no new copy keys, all exist in `mobileMessages.auth`):
+
+| Screen / step                      | `footer`                                            | Trailing, in the scroll                               |
+| ---------------------------------- | --------------------------------------------------- | ----------------------------------------------------- |
+| `login.tsx`, credentials           | error line + `signInAction` "Sign in"               | `AuthSwitchLink` (`noAccountPrompt` / `signUpLink`)   |
+| `login.tsx` and `signup.tsx`, code | error line + `verifyAction` "Verify"                | `AuthCodeActions` (resend, start over)                |
+| `signup.tsx`, details              | error line + `createAccountAction` "Create account" | `AuthSwitchLink` (`haveAccountPrompt` / `signInLink`) |
+| `CompleteSignUpScreen.tsx`         | error line + `createAccountAction`                  | the ghost `startOverAction` "Start over"              |
+
+The provider group stays first, above the "or" (§8 order, plan 012 D9). It is not part of the footer. Apple's
+guidance as mirrored by third parties asks that the Apple button be at least as large as the others, stacked
+above them, and visible without scrolling (unverified: the live HIG page did not render for me, checked 2026-10-16).
+Keeping the group first satisfies that with the keyboard down, which is when it is usable.
+
+**The return key, every field** (needs the `Input` change in specSharedSystem §16.1):
+
+| Screen           | Field order and key                                               | Last key                                                                                             |
+| ---------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Sign in          | Email `next` → Password                                           | Password `go` → `handleSignIn`                                                                       |
+| Sign up          | First name → Last name → Username → Email → Password, each `next` | Password `go` → `handleSignUp`                                                                       |
+| Complete sign-up | the fields Clerk names missing, in registry order, each `next`    | the last one `go` → `handleSubmit`                                                                   |
+| Code step (both) | one field                                                         | `done` → verify. ⚠️ iOS's number pad has no return key, which is why the pinned Verify matters there |
+
+`next` moves focus with the existing level request: the host sets its `focusField` to the next field
+(`SignUpFields`' `focusField` / `onFocusHandled`, already used for errors). `SignUpFields` gains two props,
+`onNext(field)` and `lastKey: 'next' | 'go'` with `onSubmitLast`. ⛔ No auto-submit when the code reaches 6 digits:
+that is a change of context on input (SC 3.2.2). The OS fills the code. The cook presses Verify or `done`.
+
+**The focused field is always shown.** `AuthScreenFrame` hosts `useFieldRevealHost` over its `ScrollView` and provides
+`FieldRevealContext`. Each field's focus asks for a `focus` reveal (specSharedSystem §16.2): the smallest scroll that
+puts the field inside the visible area, re-checked when the keyboard changes that area's height. The visible area
+ends at slot B's top, so a focused field is never under the pinned primary (SC 2.4.11).
+
+**Budgets, reference device: iPhone SE (2nd/3rd gen) with Display Zoom, 320 × 568 pt, top inset 20, no bottom
+inset.** The keyboard is about 216 pt plus a 44 pt suggestion or Passwords bar (estimated, device check owed), so the
+frame with the keyboard up is about 288 pt and the limit is 144 pt.
+
+| Case                                             | Footer height (pt)       | Result                                                         |
+| ------------------------------------------------ | ------------------------ | -------------------------------------------------------------- |
+| Text 1.0, no error                               | 12 + 52 + 12 = 76        | pinned                                                         |
+| Text 1.0, two-line error                         | 76 + 36 + 8 = 120        | pinned                                                         |
+| Text 2.0, no error                               | about 12 + 68 + 12 = 92  | pinned                                                         |
+| Text 2.0, three-line error                       | about 92 + 108 + 8 = 208 | unpinned: slot A, after the fields. `go` still submits         |
+| Text 1.0, two-line error, link inside (rejected) | 120 + 8 + 44 = 172       | would unpin at the default size, the reason the link stays out |
+
+- **Keyboard down at 2.0** on the reference device: the header and provider group take about 430 of the 548 pt, so
+  Email starts near the fold and the primary needs one scroll. Accepted: the first tap on Email raises the keyboard
+  and pins the primary. At 1.0 everything to the switch link fits without scrolling.
+- **320 width:** the column is 280 pt (20 + 20 padding). "Continue with Google" wraps to two lines at 2.0. The
+  `Button` wrap fallback (specSharedSystem §10) takes it, never `nowrap`. The system Apple button keeps Apple's own
+  type size.
+
+**States** are unchanged from §8 (wrong password, network error, busy, too many attempts). Busy locks the fields, the
+provider group and the link (plan 012 D10), and the primary shows its spinner in whichever slot it is in.
+
+**Accessibility, native:** the error line stays `role="alert"` and moves into the footer so it sits beside the
+primary in both slots. ⚠️ React Native's `role="alert"` does not announce on iOS. Render it through
+`@commise/ui/live-region` `LiveRegion` with `politeness="assertive"`, the rule for "an action the viewer just took
+failing". Primary 52 pt tall, full width (HIG 44 pt, Material 48 dp). React Native 0.86 has no `aria-describedby` or
+`aria-invalid` on device and honours `aria-labelledby` on Android only, so a field error reaches a screen reader
+through the `Input` `error` prop (`accessibilityHint`), as `signup.tsx` already does.
+
+**Owed on a device:** the keyboard heights above. That `keyboardDidShow` and the avoider's padding land before the
+reveal host's re-check on Android 15's edge-to-edge window (E2 I6). VoiceOver reading order in slot B.
 
 ---
 
@@ -1762,6 +1905,50 @@ phone 390, and 840+ in content-reading (640), left-aligned
 - **States:** loading: the header skeleton, and the groups still render. Read failed: "We couldn't load your profile."
     - **Try again** in the header area. Sign out and the danger zone still work (E15). Saved: a snackbar "Saved." Suspended
       or closed account: the existing `AccountStateNotice` at the top.
+- **Close account when the sign-out fails (2026-10-16).** Today the close and the sign-out run as one step with one
+  error (`mobile/src/hooks/useDeleteAccount.ts:32`, `web/src/components/auth/AccountCloseForm.tsx:55`). So a cook
+  whose account **was** closed reads "We couldn't close your account. Please try again.", and pressing the row again
+  calls `deleteMe` on a closed account. The fix tags the steps, the way erasure does:
+    - **One sequence for both apps.** New `features/account/src/closureSequence.ts` beside `erasureSequence.ts`:
+      `useClosureSequence({ close, leave })`, one TanStack mutation, steps `ClosureStep = 'close' | 'exit'`, failures
+      wrapped in `ClosureStepError` with `isClosureStepError(error, step)`. `close` is `deleteMe`. `leave` is the
+      platform's verified sign-out (`useSignOutAndLeave` on web, `useSignOutAndVerify` on mobile, ADR-0009). Web
+      moves off `useTransition` onto this mutation, so the closure finishes if the page unmounts (the erasure P1 #3
+      reason). Whether `runStep` and the error class become one generic shared by both sequences is staff-architect's
+      call.
+    - **States of the Close account row and the space under the Danger zone group:**
+
+        | State                      | Row                                                                                        | Under the group                                                                                                                                                                      |
+        | -------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+        | idle                       | `close.trigger` "Close account", hint, chevron                                             | nothing                                                                                                                                                                              |
+        | confirming                 | unchanged, `ConfirmDialog` open                                                            | nothing                                                                                                                                                                              |
+        | closing (both steps)       | `close.busyLabel` "Closing…", busy                                                         | nothing                                                                                                                                                                              |
+        | failed at `close`          | back to idle. Pressing it retries                                                          | `close.error` (existing), as today                                                                                                                                                   |
+        | **failed at `exit`** (NEW) | NEW `close.closedLabel` "Account closed", `chevron={false}`, NEW `ProfileRow` prop `inert` | NEW `close.signOutFailed` alert, then the sign-out control: `LogoutButton` (web), `SignOutButton` inside `ProfileGroup label={profile.signOut}` (native), exactly the erase recovery |
+        | signing out again          | inert                                                                                      | the sign-out control's own busy state (`profile.signingOut`)                                                                                                                         |
+        | sign-out fails again       | inert                                                                                      | the alert stays, and the control adds `profile.signOutFailed`                                                                                                                        |
+        | signed out                 | gone                                                                                       | web navigates to `/`, and native's `AuthGate` shows sign-in                                                                                                                          |
+
+    - **NEW `ProfileRow` prop `inert?: boolean`** (`features/account/src/profile/props.ts`, both leaves): the row's
+      action is done and cannot run again. Web: stays focusable, `aria-disabled="true"`, presses ignored, no
+      `aria-busy` and no spinner (that is `busy`, which means "in flight"). Native: `accessibilityState={{ disabled:
+true }}`, presses ignored. Label and hint keep their tone. It is not dimmed, because it is a fact, not an
+      unavailable control. `busy` and `inert` never hold together.
+    - **Copy** (NEW, in the shared `accountDangerMessages.close`, `features/account/src/danger/messages.ts`, so both
+      apps read one string): `closedLabel` "Account closed", `signOutFailed` "Your account is closed, but we
+      couldn’t sign you out. Sign out to finish leaving this account." It mirrors the erase exit copy word for word
+      after the first clause. That erase copy sits twice today (`web/src/components/auth/messages.ts:69`,
+      `mobile/src/i18n/messages.ts:444`). Moving it to `accountDangerMessages.erase.signOutFailed` is a candidate,
+      not part of this change.
+    - **Accessibility.** Web: the alert is `role="alert"` (assertive: an action the cook just took failed). Focus
+      stays on the `inert` row, which stays focusable, so focus is never dropped to `body` (SC 2.4.3).
+      The next Tab reaches Sign out. Native: render the alert with `LiveRegion politeness="assertive"`. React
+      Native's `role="alert"` does not announce on iOS, and the erase alert at `AccountDangerZone.tsx:211` has the same
+      defect, so fix both. Targets: the rows stay 56, Sign out is a 56 row.
+    - **Expected, not rare.** The closure enqueues a Clerk ban (`users.service.ts`, `deleteUserMe`), and a ban
+      revokes the sessions. If the worker bans first, the sign-out can fail or find no session. ADR-0009's
+      post-condition (`clerk.loaded && !clerk.session`) holds once Clerk learns of the revoke, so a retry succeeds.
+      Device and sandbox check owed: how often the first sign-out fails after a close.
 - Keys (NEW in `webMessages` and `mobileMessages` unless noted): `profile.title`, `.displayName`, `.namePrompt` "What
   should we call you?", `.save`, `.saved`, `.email`, `.preferences`, `.dataSources`, `.shortcuts` "Keyboard
   shortcuts", `.signOut` "Sign out", `.dangerZone` "Danger zone", `danger.close.rowHint`, `danger.erase.rowHint`,

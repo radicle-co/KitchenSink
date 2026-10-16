@@ -16,7 +16,9 @@ export {
     isClerkVerificationError,
 } from './clerkVerify.js';
 export type { VerifiedClerkClaims, ClerkVerifyConfig } from './clerkVerify.js';
-export { resolveCorsPolicy } from './corsPolicy.js';
+export { PREFLIGHT_MAX_AGE_SECONDS, resolveCorsPolicy } from './corsPolicy.js';
+export { UploadOriginPolicyError, isUploadOriginPolicyError, resolveUploadOrigins } from './uploadOriginPolicy.js';
+export type { UploadOriginInput, UploadOriginMode, UploadOrigins } from './uploadOriginPolicy.js';
 export type { AppCorsOptions, CorsOriginMode, CorsPolicy, CorsPolicyInput } from './corsPolicy.js';
 export {
     DEFAULT_ROLE_METADATA,

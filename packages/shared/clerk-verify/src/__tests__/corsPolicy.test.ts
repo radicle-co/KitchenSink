@@ -14,7 +14,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { resolveCorsPolicy, type CorsPolicyInput } from '../corsPolicy.js';
+import { PREFLIGHT_MAX_AGE_SECONDS, resolveCorsPolicy, type CorsPolicyInput } from '../corsPolicy.js';
 
 /** The prod shape: an exact-match party list, no pattern. */
 const prodInput: CorsPolicyInput = {
@@ -273,5 +273,12 @@ describe('origins no policy may admit', () => {
                 expect(typeof entry === 'string' ? '' : entry.flags).not.toMatch(/[gy]/u);
             }
         }
+    });
+});
+
+describe('PREFLIGHT_MAX_AGE_SECONDS', () => {
+    it('is the one constant the CORS policy and the media bucket share', () => {
+        expect(PREFLIGHT_MAX_AGE_SECONDS).toBe(600);
+        expect(resolveCorsPolicy(prodInput).options.maxAge).toBe(PREFLIGHT_MAX_AGE_SECONDS);
     });
 });

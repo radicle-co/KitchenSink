@@ -61,8 +61,11 @@ const ALLOWED_HEADERS = ['Content-Type', 'Authorization', 'sentry-trace', 'bagga
  */
 const EXPOSED_HEADERS = ['Retry-After'] as const;
 
-/** How long, in seconds, a browser may cache a preflight answer. Without it a browser asks again about every five seconds. */
-const PREFLIGHT_MAX_AGE_SECONDS = 600;
+/**
+ * How long, in seconds, a browser may cache a preflight answer. Without it a browser asks again about every five
+ * seconds. Exported so the media buckets' CORS rule (`DataStack`) uses this one value rather than restating it.
+ */
+export const PREFLIGHT_MAX_AGE_SECONDS = 600;
 
 /** Structural subset of Nest's `CorsOptions` that the policy sets (avoids a Nest dependency here). */
 export interface AppCorsOptions {

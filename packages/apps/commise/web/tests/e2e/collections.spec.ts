@@ -209,8 +209,9 @@ test.describe('collections (T109)', () => {
         // This still fails for every regression worth catching — a plain <div> (no alert role) or the
         // GENERIC error copy (a 404 that lost its type on the way up) both leave it unmatched.
         await page.goto(route('/collections/col_missing'));
-        const notFound = page.getByRole('alert').filter({ hasText: 'We couldn’t find that collection.' });
+        const notFound = page.getByRole('alert').filter({ hasText: 'We couldn’t find that collection' });
         await expect(notFound).toBeVisible();
+        await expect(notFound).toContainText('It may have been deleted.');
         // A not-found is terminal — retrying it would just 404 again, so no retry action is offered.
         await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
     });

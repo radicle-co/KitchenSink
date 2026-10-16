@@ -53,7 +53,14 @@ appId: io.commise.mobile
 - inputText: 'Ital'
 - tapOn: 'Italian'
 # A pick ends the entry (`typedText="isValue"`) and dismisses the keyboard. The tap on the group's plain heading stays as
-# a belt: on iOS a keyboard left up took the taps below on its keys (run 38433716728: `ItalianqT`).
+# a belt: on iOS a keyboard left up took the taps below on its keys (run 38433716728: `ItalianqT`). The heading can be
+# above the screen after the pick (`common/chooseCuisine.yaml`), so it is scrolled into view first.
+- scrollUntilVisible:
+      element: 'Kind of dish'
+      direction: UP
+      timeout: 20000
+      # Centred, so the tap cannot land on the sticky Sections bar over the top of the page.
+      centerElement: true
 - tapOn: 'Kind of dish'
 - scrollUntilVisible:
       element: 'Add a tag'

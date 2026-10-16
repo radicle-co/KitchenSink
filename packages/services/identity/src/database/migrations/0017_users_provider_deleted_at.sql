@@ -26,6 +26,15 @@
 ALTER TABLE users
     ADD COLUMN provider_deleted_at timestamptz;
 
+-- ⛔ EXISTING ROWS. 0012 stamped `reconciled_at` on erased rows before this column existed, so a database that
+-- already holds one cannot take the second CHECK (the sandbox's migration failed on exactly that). No existing row
+-- carries a provider-deletion confirmation, so none may stay marked reconciled: clear the stamp. The nightly
+-- reconciliation then re-verifies each such row once (0012's own semantics) and now also confirms Clerk.
+UPDATE users
+   SET reconciled_at = NULL
+ WHERE reconciled_at IS NOT NULL
+   AND provider_deleted_at IS NULL;
+
 ALTER TABLE users
     ADD CONSTRAINT users_provider_deleted_only_erased
         CHECK (provider_deleted_at IS NULL OR status = 'erased'),

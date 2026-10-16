@@ -12,7 +12,9 @@
 appId: io.commise.mobile
 ---
 - runFlow: ../../auth/signinHome.yaml
-- tapOn: 'New recipe'
+# A role user with no recipes sees Home's first run, which hides the floating button and offers "Add your first recipe"
+# in its place (build spec §3.4); both open the same empty editor.
+- tapOn: 'New recipe|Add your first recipe'
 - assertVisible: 'Close editor'
 - scrollUntilVisible:
       element: 'Who can see it.*'

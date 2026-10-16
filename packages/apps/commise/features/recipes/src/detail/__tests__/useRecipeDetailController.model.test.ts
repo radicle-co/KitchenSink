@@ -1,7 +1,7 @@
 /**
  * Unit tests for the recipe page's pure decisions: who the viewer is (the session claim first, the profile second —
  * owner ruling 2026-10-16), when the body may show, which primary the action row offers and how a rating write's
- * failure is named. These moved out of two containers that each held a copy of them.
+ * failure is named.
  */
 import { NotFoundError } from '@kitchensink/recipe-service-client';
 import { describe, expect, it } from 'vitest';

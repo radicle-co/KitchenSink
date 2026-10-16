@@ -37,23 +37,26 @@ import {
     recipeMessages,
     recipeActionMessages,
 } from '@commise/features-recipes';
-import { RecipeDetailDialogs, RecipeDetailRating, useRecipeDetailController } from '@commise/features-recipes/detail';
+import {
+    RecipeDetailDialogs,
+    RecipeDetailRating,
+    RecipeLoadError,
+    useRecipeDetailController,
+} from '@commise/features-recipes/detail';
 import { useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { ActionMenu } from '@commise/ui/action-menu';
 import { Button } from '@commise/ui/button';
 import { HeroButton } from '@commise/ui/hero-button';
-import { Icon } from '@commise/ui/icon';
-import { useTheme } from '@commise/ui/theme';
 import { useSnackbar } from '@commise/ui/snackbar';
-import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
+import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { NavigationContext, NavigationRouteContext } from '@react-navigation/native';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { JSX } from 'react';
 import { useContext } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import { mobileMessages } from '../i18n/messages.js';
 import { useSessionClaims } from '../hooks/useSessionClaims.js';
@@ -99,54 +102,24 @@ export function RecipeDetailScreen(props: RecipeDetailScreenProps): JSX.Element 
     const { recipeId, onBack } = props;
     const { recipes: t } = useMessages(mobileMessages);
     const backLabel = useBackLabel();
-    const back = <BackAffordance label={backLabel} onBack={onBack} />;
 
     return (
         <QueryBoundary
             loading={<RecipeDetailSkeleton label={t.detailLoading} />}
-            renderError={({ error, resetErrorBoundary }) =>
-                isNotFoundError(error) ? (
-                    <View style={styles.center}>
-                        {back}
-                        <Text accessibilityRole="alert">{t.detailNotFound}</Text>
-                    </View>
-                ) : (
-                    <View style={styles.center}>
-                        {back}
-                        <Text accessibilityRole="alert">{t.detailError}</Text>
-                        <Button variant="secondary" icon="refreshCw" onPress={resetErrorBoundary}>
-                            {t.detailRetry}
-                        </Button>
-                    </View>
-                )
-            }
+            renderError={({ error, resetErrorBoundary }) => (
+                // The way back is named for where it goes, and absent when the navigator wires none.
+                <RecipeLoadError
+                    error={error}
+                    onRetry={resetErrorBoundary}
+                    {...(onBack === undefined
+                        ? {}
+                        : { back: { label: backLabel, icon: 'chevronLeft', onPress: onBack } })}
+                />
+            )}
             resetKeys={[recipeId]}
         >
             <SettledRecipeDetail key={recipeId} {...props} />
         </QueryBoundary>
-    );
-}
-
-/** The back control, rendered only when the navigator wires a back action. */
-function BackAffordance({
-    label,
-    onBack,
-}: {
-    readonly label: string;
-    readonly onBack?: () => void;
-}): JSX.Element | null {
-    const { colors } = useTheme();
-
-    if (onBack === undefined) {
-        return null;
-    }
-
-    return (
-        <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onBack} style={styles.backButton}>
-            {/* `chevron-left` beside the word (`buildSpec.md` §3.5, F22). */}
-            <Icon name="chevronLeft" size={20} tone="actionText" />
-            <Text style={[styles.backLabel, { color: colors.actionText }]}>{label}</Text>
-        </Pressable>
     );
 }
 
@@ -301,17 +274,3 @@ function SettledRecipeDetail({
         />
     );
 }
-
-const styles = StyleSheet.create({
-    center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    backButton: {
-        alignSelf: 'flex-start',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        minHeight: 44,
-        paddingVertical: 10,
-        paddingHorizontal: 16,
-    },
-    backLabel: { fontWeight: '500', fontSize: 15 },
-});

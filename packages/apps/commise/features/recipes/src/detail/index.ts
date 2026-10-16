@@ -5,6 +5,8 @@
  * the controller feeds are platform pairs, so each specifier below resolves to its web or native file at bundle time.
  */
 export { RecipeDetailDialogs, type RecipeDetailDialogsProps } from './RecipeDetailDialogs.js';
+export { RecipeLoadError, type RecipeLoadErrorProps } from './RecipeLoadError.js';
+export { recipeLoadMessages, type RecipeLoadMessages } from './messages.js';
 export { RecipeDetailRating, type RecipeDetailRatingProps } from './RecipeDetailRating.js';
 export {
     useRecipeDetailController,

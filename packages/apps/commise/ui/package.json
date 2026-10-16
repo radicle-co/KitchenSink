@@ -61,6 +61,7 @@
         "./load-more": "./src/loadMore/index.ts",
         "./pending-bar": "./src/pendingBar/index.ts",
         "./refresh-notice": "./src/refreshNotice/index.ts",
+        "./state-notice": "./src/stateNotice/index.ts",
         "./screen-reader-focus": "./src/screenReaderFocus/index.ts",
         "./offline-notice": "./src/offlineNotice/index.ts",
         "./sync-notice": "./src/syncNotice/index.ts",

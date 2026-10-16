@@ -4,15 +4,15 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 84,
-        "implementations": 84,
-        "props": 101,
-        "documentedComponents": 81,
-        "implementationsWithModuleDoc": 65,
-        "implementationsWithComponentDoc": 60,
-        "documentedProps": 67,
-        "classifiedComponents": 36,
-        "componentsWithPatternTag": 27,
+        "components": 83,
+        "implementations": 83,
+        "props": 100,
+        "documentedComponents": 80,
+        "implementationsWithModuleDoc": 64,
+        "implementationsWithComponentDoc": 59,
+        "documentedProps": 66,
+        "classifiedComponents": 35,
+        "componentsWithPatternTag": 26,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -1702,7 +1702,7 @@
             "dir": "packages/apps/commise/web/src/components/app",
             "kind": "orchestration",
             "patterns": [
-                "Composition root for the App Router error boundary — it binds the DA9 `ErrorReporter` Port, resolved from\n    the appShell container rather than imported, to the pure `RouteErrorState` render half."
+                "Composition root for the App Router error boundary — it binds the DA9 `ErrorReporter` Port, resolved from\n    the appShell container rather than imported, to the shared `BoundaryErrorNotice` render half."
             ],
             "platforms": [
                 "web"
@@ -1716,7 +1716,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/app/RouteErrorBoundary.tsx",
                     "dir": "packages/apps/commise/web/src/components/app",
-                    "moduleDoc": "components/app/RouteErrorBoundary — the shared orchestration every web App Router `error.tsx`\nboundary delegates to (B18). Composes the DA9 `ErrorReporter` seam (never a hard-coded Sentry\nimport at the call site) with the pure {@link RouteErrorState} presentational fallback: reporting is a\nside effect a segment's `error.tsx` MUST perform (a route crash must never be silent), kept out of the\npure presentational component per the app's pure-render-component rule (`@sideEffect`).\n\nResolves the reporter from the SAME appShell container the Home-widget boundaries already bind\n(`homeContainer`, DA9) rather than introducing a second Sentry binding path — until the DA10 AppProviders\nfacade gives the whole app one composition root, `homeContainer` is the ONE bound `errorReporterToken` on\nweb, so every observability call site (widget or route) composes with it.",
+                    "moduleDoc": "components/app/RouteErrorBoundary — the shared orchestration every web App Router `error.tsx`\nboundary delegates to (B18). Composes the DA9 `ErrorReporter` seam (never a hard-coded Sentry\nimport at the call site) with the shared `BoundaryErrorNotice` (`@commise/features-core/boundary`, the same\nfallback the mobile screen boundary shows) given this app's body copy: reporting is a side effect a segment's\n`error.tsx` MUST perform (a route crash must never be silent), kept out of the pure presentational component per\nthe app's pure-render-component rule (`@sideEffect`).\n\nResolves the reporter from the SAME appShell container the Home-widget boundaries already bind\n(`homeContainer`, DA9) rather than introducing a second Sentry binding path — until the DA10 AppProviders\nfacade gives the whole app one composition root, `homeContainer` is the ONE bound `errorReporterToken` on\nweb, so every observability call site (widget or route) composes with it.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1724,7 +1724,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Composition root for the App Router error boundary — it binds the DA9 `ErrorReporter` Port, resolved from\n    the appShell container rather than imported, to the pure `RouteErrorState` render half."
+                            "text": "Composition root for the App Router error boundary — it binds the DA9 `ErrorReporter` Port, resolved from\n    the appShell container rather than imported, to the shared `BoundaryErrorNotice` render half."
                         }
                     ],
                     "description": "Reports the caught error via DA9 and renders the shared localized fallback with a retry that refetches.\n\n⛔ Try again resets TanStack's query errors BEFORE asking Next to re-fetch: a query that threw into this boundary\nkeeps `retryOnMount` off until its reset boundary is reset, so without it the re-render shows the same failure.",
@@ -1763,64 +1763,6 @@
                             "defaultValue": null,
                             "description": "The route segment name attached to the DA9 report (e.g. `'recipes'`), for triage.",
                             "declaredIn": "packages/apps/commise/web/src/components/app/RouteErrorBoundary.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": true
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/components/app/RouteErrorState",
-            "name": "RouteErrorState",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/app",
-            "kind": "orchestration",
-            "patterns": [
-                "Humble Object — the pure, localized render half every `error.tsx` boundary shows. Retry is the caller's\n    `reset()`, so this leaf knows nothing of React error boundaries, reporting, or which segment threw."
-            ],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RouteErrorState",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/app/RouteErrorState.tsx",
-                    "dir": "packages/apps/commise/web/src/components/app",
-                    "moduleDoc": "components/app/RouteErrorState — the shared, localized presentational fallback rendered by every\nweb App Router `error.tsx` boundary (B18). Pure `props → JSX`: the retry affordance is the caller's\n`onRetry` (Next's own `reset()` for the segment) — this component does not know about React error\nboundaries, DA9 reporting, or which segment threw; that orchestration lives in\n`RouteErrorBoundary`, the shared composition point every\nper-segment `error.tsx` renders.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "components/app/RouteErrorState — the shared, localized presentational fallback rendered by every"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Humble Object — the pure, localized render half every `error.tsx` boundary shows. Retry is the caller's\n    `reset()`, so this leaf knows nothing of React error boundaries, reporting, or which segment threw."
-                        }
-                    ],
-                    "description": "Localized \"this page failed to load\" state with a retry affordance, shared by every route's `error.tsx`.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "onRetry",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked when the viewer asks to retry — Next's `reset()` for the segment.",
-                            "declaredIn": "packages/apps/commise/web/src/components/app/RouteErrorState.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -4034,7 +3976,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeDetailContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the recipe-detail route: reads a single recipe under a suspense boundary and renders the\nshared, presentational `RecipeDetailView` once it settles, plus the recipe-action building blocks below it —\nowner-only delete (T068) and visibility (T074), and a public-recipe clone (T075). The fetch-state\naffordances belong to the boundary, not the building blocks: `Suspense` renders the loading status, the error\nboundary renders a distinct not-found message (no retry) or the generic error with a retry that refetches, and\nboth are localized through the web dictionary (`useMessages`).\n\n`/recipes/[id]` is server-prefetched, so the boundary is `ClientQueryBoundary` with the prefetched detail key: a\nsuccessful prefetch ships the recipe in the server HTML, a failed one ships the loading status and the browser\nreads after hydration (B19). The settled view is keyed on the id, so a `/recipes/A` → `/recipes/B` navigation\n(which the App Router serves from the SAME mounted container) remounts it — every mutation, the delete dialog and\nthe cooking progress start fresh for B, and nothing of A's can leak onto it.\n\nRemote state stays in TanStack Query — this component derives its view from the query, never copying the\nrecipe into local state; the only local state is the ephemeral delete-dialog open flag. The mutations are\nowned by the recipe-service hooks (`useDeleteRecipe` / `useSetRecipeVisibility` / `useCloneRecipe`), which\ninvalidate the relevant caches; the container only wires the blocks' callbacks to them and handles\npost-success navigation.\n\nA single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from the recipe's `ownerId`\nkey — the app-user ULID read off Clerk's `external_id` session claim, the SAME claim the recipe service\nuses as the owner key (see `IDENTITY_SYNC_PENDING_CODE`). The ownership and clone gates read from that ONE\n`Viewer` through the shared `isOwner`/`canClone` policy predicates, the SAME predicates the mobile detail screen\nevaluates, so the two platforms can never diverge on a gate (this closes D7, where the clone gate previously\ndisagreed: web ignored ownership while mobile checked it). Whether Private is offered comes from the profile's\n`account.paidFeatures` alone (`paidFeatureStateOf` / `knownPaidFeaturesOf`), decided in `useGatedPrivate`.\n\nThe recipe page (build spec §6): the action row's primary — Edit recipe for the owner, Save a copy for another cook\nwho may clone; Back and the ⋯ menu, whose entries come from the shared `detailMenuOf` (Version history, Make\nprivate/public, Clear checks, then Delete); and the rating block in the view's `rating` slot, under the nutrition.\nBelow 840 (where the tab bar replaces the sidebar) Back and ⋯ are discs over the hero photo; from 840 Back is the\neyebrow link above the meta line and ⋯ sits in the action row. Both placements are drawn and one is hidden by a\nVIEWPORT query (`nav:`), the same pairing the view uses for Screen on. The cook's marks, the serving scale and\nScreen on are bound by the view itself; this container reads the marks only to offer Clear checks.",
+                    "moduleDoc": "Container for the recipe-detail route: reads a single recipe under a suspense boundary and renders the\nshared, presentational `RecipeDetailView` once it settles, plus the recipe-action building blocks below it —\nowner-only delete (T068) and visibility (T074), and a public-recipe clone (T075). The fetch-state\naffordances belong to the boundary, not the building blocks: `Suspense` renders the loading status, the error\nboundary renders a distinct not-found message (no retry) or the generic error with a retry that refetches, and\nboth are localized through the web dictionary (`useMessages`).\n\n`/recipes/[id]` is server-prefetched, so the boundary is `ClientQueryBoundary` with the prefetched detail key: a\nsuccessful prefetch ships the recipe in the server HTML, a failed one ships the loading status and the browser\nreads after hydration (B19). The settled view is keyed on the id, so a `/recipes/A` → `/recipes/B` navigation\n(which the App Router serves from the SAME mounted container) remounts it — every mutation, the delete dialog and\nthe cooking progress start fresh for B, and nothing of A's can leak onto it.\n\nRemote state stays in TanStack Query — this component derives its view from the query, never copying the\nrecipe into local state. The mutations are owned by the recipe-service hooks, which invalidate the relevant caches;\nthe controller wires them and this container hands it the navigation after a clone or a delete.\n\nEvery DECISION the page makes — who the viewer is, the ownership and clone gates, the Private gate, the visibility\nnotice, the ⋯ menu, the rating block and the owner dialogs — is `useRecipeDetailController`\n(`@commise/features-recipes/detail`), the SAME hook the mobile screen runs, so the two platforms cannot diverge on a\ngate (this closes D7). The viewer is the session's `external_id` claim (the recipe service's owner key) and, when the\nclaim is absent, the profile's `user.id` (owner ruling 2026-10-16). This file keeps what is the web's own: the read,\nthe layout, the router and the address that carries a finished editor's refusal.\n\nThe recipe page (build spec §6): the action row's primary — Edit recipe for the owner, Save a copy for another cook\nwho may clone; Back and the ⋯ menu, whose entries come from the shared `detailMenuOf` (Version history, Make\nprivate/public, Clear checks, then Delete); and the rating block in the view's `rating` slot, under the nutrition.\nBelow 840 (where the tab bar replaces the sidebar) Back and ⋯ are discs over the hero photo; from 840 Back is the\neyebrow link above the meta line and ⋯ sits in the action row. Both placements are drawn and one is hidden by a\nVIEWPORT query (`nav:`), the same pairing the view uses for Screen on. The cook's marks, the serving scale and\nScreen on are bound by the view itself; this container reads the marks only to offer Clear checks.",
                     "moduleTags": [],
                     "description": "The live recipe-detail container: the read boundary around the settled view.",
                     "tags": [

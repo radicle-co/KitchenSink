@@ -4,16 +4,16 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 66,
-        "implementations": 114,
-        "props": 672,
-        "documentedComponents": 66,
-        "implementationsWithModuleDoc": 114,
-        "implementationsWithComponentDoc": 106,
-        "documentedProps": 637,
-        "classifiedComponents": 59,
-        "componentsWithPatternTag": 66,
-        "crossPlatformComponents": 48
+        "components": 67,
+        "implementations": 116,
+        "props": 680,
+        "documentedComponents": 67,
+        "implementationsWithModuleDoc": 116,
+        "implementationsWithComponentDoc": 108,
+        "documentedProps": 645,
+        "classifiedComponents": 60,
+        "componentsWithPatternTag": 67,
+        "crossPlatformComponents": 49
     },
     "components": [
         {
@@ -10814,6 +10814,153 @@
                             "defaultValue": null,
                             "description": "How the chip reads.",
                             "declaredIn": "packages/apps/commise/ui/src/standIn/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/stateNotice/StateNotice",
+            "name": "StateNotice",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/stateNotice",
+            "kind": "presentational",
+            "patterns": [
+                "Strategy — a link or a button, chosen per action by whether it has somewhere to go (the `RouteAction` rule)"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "StateNotice",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/stateNotice/StateNotice.tsx",
+                    "dir": "packages/apps/commise/ui/src/stateNotice",
+                    "moduleDoc": "@commise/ui/state-notice — the web `StateNotice`: an alert that says what went wrong, in the page's flow, with\nup to two ways out. The title is the page's heading (the failed view had one), the actions are the design system's\nbuttons — a retry is a `Button`, a way back is a real link when it has an `href` — and nothing in it is an unstyled\ncontrol.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/state-notice — the web `StateNotice`: an alert that says what went wrong, in the page's flow, with"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Strategy — a link or a button, chosen per action by whether it has somewhere to go (the `RouteAction` rule)"
+                        }
+                    ],
+                    "description": "The web state notice: presentational, props → JSX.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "body",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Why, or what to try. Omitted when the title says it all.",
+                            "declaredIn": "packages/apps/commise/ui/src/stateNotice/props.ts"
+                        },
+                        {
+                            "name": "primary",
+                            "type": "StateNoticeAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The action the cook most likely wants (Try again).",
+                            "declaredIn": "packages/apps/commise/ui/src/stateNotice/props.ts"
+                        },
+                        {
+                            "name": "secondary",
+                            "type": "StateNoticeAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The way out when that fails (Back, Back to Home).",
+                            "declaredIn": "packages/apps/commise/ui/src/stateNotice/props.ts"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What happened, in one sentence. Announced assertively: the notice interrupts what the cook was doing.",
+                            "declaredIn": "packages/apps/commise/ui/src/stateNotice/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "StateNotice",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/stateNotice/StateNotice.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/stateNotice",
+                    "moduleDoc": "@commise/ui/state-notice — the native `StateNotice`: the thumb-reach stack the root crash fallback drew. The\nmessage sits in the upper two thirds, centred; the actions sit stacked at full width in the bottom third, within reach\nof the thumb, the primary on top.\n\nThe title is ANNOUNCED through `LiveRegion` (iOS has no live region, so an `alert` role on a View is silent there) and\nis also the screen's header.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/state-notice — the native `StateNotice`: the thumb-reach stack the root crash fallback drew. The"
+                        }
+                    ],
+                    "description": "The native state notice: presentational, props → JSX.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "body",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Why, or what to try. Omitted when the title says it all.",
+                            "declaredIn": "packages/apps/commise/ui/src/stateNotice/props.ts"
+                        },
+                        {
+                            "name": "primary",
+                            "type": "StateNoticeAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The action the cook most likely wants (Try again).",
+                            "declaredIn": "packages/apps/commise/ui/src/stateNotice/props.ts"
+                        },
+                        {
+                            "name": "secondary",
+                            "type": "StateNoticeAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The way out when that fails (Back, Back to Home).",
+                            "declaredIn": "packages/apps/commise/ui/src/stateNotice/props.ts"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What happened, in one sentence. Announced assertively: the notice interrupts what the cook was doing.",
+                            "declaredIn": "packages/apps/commise/ui/src/stateNotice/props.ts"
                         }
                     ],
                     "usesRefApi": [],

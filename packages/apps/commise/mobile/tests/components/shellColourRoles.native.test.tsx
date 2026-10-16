@@ -25,6 +25,8 @@ vi.mock('../../src/screens/login', () => ({ LoginScreen: () => null }));
 vi.mock('../../src/screens/signup', () => ({ SignUpScreen: () => null }));
 vi.mock('../../src/screens/CompleteSignUpScreen', () => ({ CompleteSignUpScreen: () => null }));
 
+import { BoundaryErrorNotice, boundaryMessages } from '@commise/features-core/boundary';
+
 import { AuthGate } from '../../src/components/AuthGate.js';
 import { HomeWidgetErrorNotice } from '../../src/components/home/HomeWidgetErrorNotice.js';
 import { MealPlanWidgetSkeleton } from '../../src/components/home/skeletons/MealPlanWidgetSkeleton.js';
@@ -32,7 +34,6 @@ import { NutritionWidgetSkeleton } from '../../src/components/home/skeletons/Nut
 import { ResumeCookingWidgetSkeleton } from '../../src/components/home/skeletons/ResumeCookingWidgetSkeleton.js';
 import { SubscriptionNudge } from '../../src/components/home/SubscriptionNudge.js';
 import { LoadingState } from '../../src/components/LoadingState.js';
-import { RootErrorFallback } from '../../src/components/RootErrorFallback.js';
 import { useAuth } from '../../src/hooks/useAuth.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
 
@@ -74,11 +75,11 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
         expect(colourOf(screen.getByText('Contact support.'))).toBe(rgb(colours.inkMuted));
     });
 
-    it('RootErrorFallback titles the crash in ink, with its body in inkMuted', () => {
+    it('BoundaryErrorNotice titles the crash in ink, with its body in inkMuted', () => {
         systemScheme.current = scheme;
-        render(<RootErrorFallback error={new Error('x')} resetErrorBoundary={() => undefined} />);
+        render(<BoundaryErrorNotice body={copy.common.rootErrorBodyHome} onRetry={() => undefined} />);
 
-        expect(colourOf(screen.getByText(copy.common.somethingWentWrong))).toBe(rgb(colours.ink));
+        expect(colourOf(screen.getByText(boundaryMessages.en.errorTitle))).toBe(rgb(colours.ink));
         expect(colourOf(screen.getByText(copy.common.rootErrorBodyHome))).toBe(rgb(colours.inkMuted));
     });
 

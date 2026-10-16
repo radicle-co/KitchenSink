@@ -1,7 +1,6 @@
 /**
  * {@link useRecipeDetailController} — the recipe page's decisions, run over the REAL recipe-service hooks and a
- * network-guarded fake client. The web container and the mobile screen each held a copy of this logic and each tested
- * it through their own render; these cases are the logic-level ones, written once. (The render cases stay in
+ * network-guarded fake client. These are the logic-level cases, written once for both apps. (The render cases are in
  * `web/tests/components/recipes/RecipeDetailContainer.test.tsx` and
  * `mobile/tests/screens/RecipeDetailScreen.native.test.tsx`, which still drive the whole page through this hook.)
  *

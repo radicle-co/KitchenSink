@@ -3,9 +3,10 @@
 /**
  * @module components/app/RouteErrorBoundary — the shared orchestration every web App Router `error.tsx`
  * boundary delegates to (B18). Composes the DA9 `ErrorReporter` seam (never a hard-coded Sentry
- * import at the call site) with the pure {@link RouteErrorState} presentational fallback: reporting is a
- * side effect a segment's `error.tsx` MUST perform (a route crash must never be silent), kept out of the
- * pure presentational component per the app's pure-render-component rule (`@sideEffect`).
+ * import at the call site) with the shared `BoundaryErrorNotice` (`@commise/features-core/boundary`, the same
+ * fallback the mobile screen boundary shows) given this app's body copy: reporting is a side effect a segment's
+ * `error.tsx` MUST perform (a route crash must never be silent), kept out of the pure presentational component per
+ * the app's pure-render-component rule (`@sideEffect`).
  *
  * Resolves the reporter from the SAME appShell container the Home-widget boundaries already bind
  * (`homeContainer`, DA9) rather than introducing a second Sentry binding path — until the DA10 AppProviders
@@ -13,15 +14,16 @@
  * web, so every observability call site (widget or route) composes with it.
  *
  * @pattern Composition root for the App Router error boundary — it binds the DA9 `ErrorReporter` Port, resolved from
- *     the appShell container rather than imported, to the pure `RouteErrorState` render half.
+ *     the appShell container rather than imported, to the shared `BoundaryErrorNotice` render half.
  */
 import { resolveErrorReporter } from '@commise/features-core';
+import { BoundaryErrorNotice } from '@commise/features-core/boundary';
+import { useMessages } from '@commise/i18n/react';
 import { useQueryErrorResetBoundary } from '@tanstack/react-query';
 import { useEffect, type FC } from 'react';
 
 import { homeContainer } from '@/components/home/homeContainer';
-
-import { RouteErrorState } from './RouteErrorState';
+import { webMessages } from '@/i18n/messages';
 
 /** The DA9 reporter resolved once from the shared appShell container (bound to Sentry in production). */
 const reportRouteError = resolveErrorReporter(homeContainer);
@@ -47,13 +49,15 @@ export interface RouteErrorBoundaryProps {
  */
 export const RouteErrorBoundary: FC<RouteErrorBoundaryProps> = ({ error, retry, routeName }) => {
     const { reset: resetQueryErrors } = useQueryErrorResetBoundary();
+    const { boundary } = useMessages(webMessages);
 
     useEffect(() => {
         reportRouteError(error, { route: routeName });
     }, [error, routeName]);
 
     return (
-        <RouteErrorState
+        <BoundaryErrorNotice
+            body={boundary.error.description}
             onRetry={() => {
                 resetQueryErrors();
                 retry();

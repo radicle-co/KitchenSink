@@ -369,8 +369,13 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  * §11.2 puts out of scope) and `DataSourcesStates`. No component lost a layer statement: the one that did in this
  * round (`AvatarField`, rewritten as the profile avatar) had its "Presentational otherwise" restored rather than
  * counted, and `CuisineSelect` left the catalogue stating its layer.
+ *
+ * ⚠️ It went 98 → 97 with the shared `StateNotice` (UI consolidation S3). `RootErrorFallback`, which stated no layer,
+ * was deleted; `RouteErrorState` (which did) was deleted too, and every component the slice added states its layer in
+ * its own docblock. `RouteErrorState` also leaves `DECLARED_ORCHESTRATION` below: it was deleted, not reclassified —
+ * `BoundaryErrorNotice` replaced it, and `RouteErrorBoundary` is the orchestration that remains.
  */
-const LAYER_UNSTATED_CENSUS = 98;
+const LAYER_UNSTATED_CENSUS = 97;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.
@@ -400,7 +405,6 @@ const DECLARED_ORCHESTRATION: readonly string[] = [
     'web/components/app/AppShell',
     'web/components/app/RedactedAnalytics',
     'web/components/app/RouteErrorBoundary',
-    'web/components/app/RouteErrorState',
     'web/components/auth/AccountCloseForm',
     'web/components/auth/AccountEraseForm',
     'web/components/auth/LogoutButton',

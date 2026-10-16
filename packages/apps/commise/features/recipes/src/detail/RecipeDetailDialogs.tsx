@@ -23,7 +23,7 @@ export interface RecipeDetailDialogsProps {
     readonly delete: Omit<RecipeDeleteDialogProps, 'recipeTitle'>;
 }
 
-/** The owner-only dialogs of the recipe page. */
+/** The owner-only dialogs of the recipe page: presentational, props → JSX. */
 export const RecipeDetailDialogs: FC<RecipeDetailDialogsProps> = ({
     viewerIsOwner,
     recipeTitle,

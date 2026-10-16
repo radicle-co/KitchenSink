@@ -4,13 +4,13 @@
     "packageName": "@commise/mobile",
     "layer": "app",
     "coverage": {
-        "components": 57,
-        "implementations": 57,
-        "props": 160,
-        "documentedComponents": 56,
-        "implementationsWithModuleDoc": 55,
-        "implementationsWithComponentDoc": 42,
-        "documentedProps": 152,
+        "components": 56,
+        "implementations": 56,
+        "props": 157,
+        "documentedComponents": 55,
+        "implementationsWithModuleDoc": 54,
+        "implementationsWithComponentDoc": 41,
+        "documentedProps": 151,
         "classifiedComponents": 36,
         "componentsWithPatternTag": 24,
         "crossPlatformComponents": 0
@@ -2405,76 +2405,6 @@
             ]
         },
         {
-            "id": "mobile/components/RootErrorFallback",
-            "name": "RootErrorFallback",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/components",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RootErrorFallback",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/components/RootErrorFallback.tsx",
-                    "dir": "packages/apps/commise/mobile/src/components",
-                    "moduleDoc": "components/RootErrorFallback — the localized, recoverable fallback rendered by the mobile root\n`ErrorBoundary` around `AppRoot` (B18). Pure `props → JSX`: react-error-boundary's `FallbackProps`, plus the one\nnavigation the root can offer. Reporting stays in `AppRoot`'s `onError`, mirroring the web split between\n`RouteErrorState` and `RouteErrorBoundary`.\n\nTwo ways out, in priority order. **Try again** (`resetErrorBoundary`) re-renders the crashed screen — `AppRoot`\nresets TanStack's query errors in the same reset, so a failed read refetches rather than re-throwing its cached\nfailure. **Back to Home** leaves a screen whose crash is not transient; it is absent when Home is what crashed,\nwhere it would do exactly what Try again does.\n\nBoth actions sit stacked at full width in the bottom third, within thumb reach, the primary on top.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "components/RootErrorFallback — the localized, recoverable fallback rendered by the mobile root"
-                        }
-                    ],
-                    "description": "Localized \"the app hit a snag\" state: announced, with Try again and — off Home — Back to Home.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "error",
-                            "type": "unknown",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        },
-                        {
-                            "name": "onBackToHome",
-                            "type": "(() => void)",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Leave the crashed screen for Home. Absent when Home itself crashed.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/RootErrorFallback.tsx"
-                        },
-                        {
-                            "name": "resetErrorBoundary",
-                            "type": "(...args: unknown[]) => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "mobile/components/SuspensionBanner",
             "name": "SuspensionBanner",
             "group": "mobile",
@@ -2816,7 +2746,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/navigation/ScreenBoundary.tsx",
                     "dir": "packages/apps/commise/mobile/src/navigation",
-                    "moduleDoc": "navigation/ScreenBoundary — the crash boundary around every routed screen (B18; `buildSpec.md` §3.8): a render\ncrash shows the localized, recoverable fallback IN PLACE of that screen, with the tab bar still under it, instead of\na white screen. \"Try again\" re-renders the screen and resets TanStack's query errors, so a failed read refetches;\n\"Back to Home\" is offered everywhere but Home itself, where it would only repeat \"Try again\". Leaving the screen\nunmounts the failure with it. Reports through the SAME `errorReporterToken` seam the Home widgets use (DA9).\n\nORCHESTRATION: it owns the recovery (reset, query-error reset, go Home); the fallback it shows is presentational.",
+                    "moduleDoc": "navigation/ScreenBoundary — the crash boundary around every routed screen (B18; `buildSpec.md` §3.8): a render\ncrash shows the localized, recoverable fallback IN PLACE of that screen, with the tab bar still under it, instead of\na white screen. \"Try again\" re-renders the screen and resets TanStack's query errors, so a failed read refetches;\n\"Back to Home\" is offered everywhere but Home itself, where it would only repeat \"Try again\". Leaving the screen\nunmounts the failure with it. Reports through the SAME `errorReporterToken` seam the Home widgets use (DA9).\n\nORCHESTRATION: it owns the recovery (reset, query-error reset, go Home); the fallback it shows is the shared\n`BoundaryErrorNotice` (the same one the web `error.tsx` boundaries show), given this app's body copy: the body names\nHome as a way out only when a way to Home is offered.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2854,7 +2784,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": true,
+                        "presentational": false,
                         "orchestration": true
                     }
                 }
@@ -3850,7 +3780,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Recipe-detail screen (mobile). Drives the shared, presentational native `RecipeDetailView` building block from a\nsuspense read under `QueryBoundary`, which owns the localized loading state and the failure: a distinct not-found\nmessage with no retry, or the generic error with a retry that refetches — the same three outcomes as the web\ncontainer. The settled view is keyed on `recipeId`, so a `replace`/deep-link that reuses this screen with a new id\nremounts it: every mutation and the delete dialog start fresh, and nothing of the previous recipe can leak.\nOn top of the read view it composes the owner and viewer action blocks (T068 delete, T074 visibility,\nT075 clone) plus edit (T067) and version-history (T069) entry points, gated by ownership and the paid features:\n\n- Owner actions (edit, version history, delete, visibility) render only for the recipe's owner. Make private is a\n  paid feature (C-004): offered when granted or upsell (where it opens the Premium sheet), and not at all when the\n  paid features are hidden or the profile is loading (plan 2026-10-14-009 D14).\n- The clone action renders for a PUBLIC recipe the viewer does not own (US2), copying it into their recipes.\n\nA single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from `useUserProfile` (the\nviewer's app-user id); every ownership/clone gate above reads from that ONE `Viewer` through the shared\n`isOwner`/`canClone` policy predicates, and the visibility gate from `paidFeatureStateOf` — the SAME predicates\nthe web detail container evaluates, so the two platforms can never diverge on a gate (this closes D7,\nwhere the clone gate previously disagreed: web ignored ownership while mobile checked it). Every mutation\nis owned here and reported upward so the navigator can route (back to the list after delete, to the new\nrecipe after clone). Remote state stays in the query cache — this screen derives its view state from it.\n\nThe recipe page (build spec §6): the action row's primary — Edit recipe for the owner, Save a copy for another\ncook who may clone; Back and the ⋯ menu are discs over the hero photo, the menu's entries coming from the shared\n`detailMenuOf` (Version history, Make private/public, Clear checks, then Delete); the rating block goes in the\nview's `rating` slot, under the nutrition. The cook's marks, the serving scale, Screen on and the page's scroller\nare bound by the view itself; this screen reads the marks only to offer Clear checks, and hands the view what must\nscroll with the page (the failed-visibility alert and the delete dialog) as its `scrollFooter`.\n\nBack is named for where it goes (\"Back to Discover\"), read from the navigator's stack read-only: the tab stacks\nand their routes are the navigator's, and this screen only looks at the route below it.",
+                    "moduleDoc": "Recipe-detail screen (mobile). Drives the shared, presentational native `RecipeDetailView` building block from a\nsuspense read under `QueryBoundary`, which owns the localized loading state and the failure: a distinct not-found\nmessage with no retry, or the generic error with a retry that refetches — the same three outcomes as the web\ncontainer. The settled view is keyed on `recipeId`, so a `replace`/deep-link that reuses this screen with a new id\nremounts it: every mutation and the delete dialog start fresh, and nothing of the previous recipe can leak.\nOn top of the read view it composes the owner and viewer action blocks (T068 delete, T074 visibility,\nT075 clone) plus edit (T067) and version-history (T069) entry points, gated by ownership and the paid features:\n\n- Owner actions (edit, version history, delete, visibility) render only for the recipe's owner. Make private is a\n  paid feature (C-004): offered when granted or upsell (where it opens the Premium sheet), and not at all when the\n  paid features are hidden or the profile is loading (plan 2026-10-14-009 D14).\n- The clone action renders for a PUBLIC recipe the viewer does not own (US2), copying it into their recipes.\n\nEvery DECISION the page makes — who the viewer is, the ownership and clone gates, the Private gate, the visibility\nnotice, the ⋯ menu, the rating block and the owner dialogs — is `useRecipeDetailController`\n(`@commise/features-recipes/detail`), the SAME hook the web container runs, so the two platforms cannot diverge on a\ngate (this closes D7). The viewer is the session's `external_id` claim and, when the claim is absent, the profile's\n`user.id` (owner ruling 2026-10-16); with the claim in hand the body shows without waiting for the profile. Every\nmutation is reported upward so the navigator can route (back to the list after delete, to the new recipe after clone).\nRemote state stays in the query cache — this screen derives its view state from it.\n\nThe recipe page (build spec §6): the action row's primary — Edit recipe for the owner, Save a copy for another\ncook who may clone; Back and the ⋯ menu are discs over the hero photo, the menu's entries coming from the shared\n`detailMenuOf` (Version history, Make private/public, Clear checks, then Delete); the rating block goes in the\nview's `rating` slot, under the nutrition. The cook's marks, the serving scale, Screen on and the page's scroller\nare bound by the view itself; this screen reads the marks only to offer Clear checks, and hands the view what must\nscroll with the page (the failed-visibility alert and the delete dialog) as its `scrollFooter`.\n\nBack is named for where it goes (\"Back to Discover\"), read from the navigator's stack read-only: the tab stacks\nand their routes are the navigator's, and this screen only looks at the route below it.",
                     "moduleTags": [],
                     "description": "The recipe-detail screen: the read boundary around the settled detail.",
                     "tags": [

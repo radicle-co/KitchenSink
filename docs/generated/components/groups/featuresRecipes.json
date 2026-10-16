@@ -4,15 +4,15 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 137,
-        "implementations": 243,
-        "props": 1181,
-        "documentedComponents": 137,
-        "implementationsWithModuleDoc": 243,
-        "implementationsWithComponentDoc": 143,
-        "documentedProps": 924,
-        "classifiedComponents": 117,
-        "componentsWithPatternTag": 62,
+        "components": 140,
+        "implementations": 246,
+        "props": 1197,
+        "documentedComponents": 140,
+        "implementationsWithModuleDoc": 246,
+        "implementationsWithComponentDoc": 146,
+        "documentedProps": 933,
+        "classifiedComponents": 120,
+        "componentsWithPatternTag": 64,
         "crossPlatformComponents": 106
     },
     "components": [
@@ -6923,6 +6923,222 @@
             ]
         },
         {
+            "id": "featuresRecipes/detail/RecipeDetailDialogs",
+            "name": "RecipeDetailDialogs",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/detail",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeDetailDialogs",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailDialogs.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/detail",
+                    "moduleDoc": "@commise/features-recipes/detail — the three dialogs only a recipe's owner meets: the Premium sheet for a Private\nthey may not have, the make-public confirm, and the delete confirm. Written once; the leaves are platform pairs, so\nthe bundler resolves each to its web or native form. Each app places the result where its page wants it (web: beside\nthe page; mobile: in the view's scroll footer).\n\n⛔ None of them lives in the ⋯ menu: they are siblings of it, so they survive the menu closing while they are open.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/detail — the three dialogs only a recipe's owner meets: the Premium sheet for a Private"
+                        }
+                    ],
+                    "description": "The owner-only dialogs of the recipe page: presentational, props → JSX.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "delete",
+                            "type": "Omit<RecipeDeleteDialogProps, \"recipeTitle\">",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailDialogs.tsx"
+                        },
+                        {
+                            "name": "makePublic",
+                            "type": "RecipeMakePublicDialogProps",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailDialogs.tsx"
+                        },
+                        {
+                            "name": "recipeTitle",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailDialogs.tsx"
+                        },
+                        {
+                            "name": "upsell",
+                            "type": "RecipeUpsellSheetProps",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailDialogs.tsx"
+                        },
+                        {
+                            "name": "viewerIsOwner",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Only the owner meets these dialogs; for anyone else this renders nothing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailDialogs.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/detail/RecipeDetailRating",
+            "name": "RecipeDetailRating",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/detail",
+            "kind": "presentational",
+            "patterns": [
+                "Strategy — the rating mode picks the render component (B15); the own-recipe gate lives HERE, not in a mode\n    prop of either leaf, so inverting it fails a test rather than offering self-rating."
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeDetailRating",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailRating.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/detail",
+                    "moduleDoc": "@commise/features-recipes/detail — the recipe page's rating block, one component for both apps. The owner sees\nthe read-only aggregate (Sc8: a cook cannot rate their own recipe); everyone else gets the interactive input. Both\nleaves are platform pairs, so this file needs none of its own: the bundler resolves `RecipeRatingDisplay` and\n`RecipeRatingInput` to the web or native leaf.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/detail — the recipe page's rating block, one component for both apps. The owner sees"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Strategy — the rating mode picks the render component (B15); the own-recipe gate lives HERE, not in a mode\n    prop of either leaf, so inverting it fails a test rather than offering self-rating."
+                        }
+                    ],
+                    "description": "The recipe page's rating block: presentational, props → JSX.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "average",
+                            "type": "number | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The community average, if anyone has rated.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailRating.tsx"
+                        },
+                        {
+                            "name": "error",
+                            "type": "enum",
+                            "typeDetail": [
+                                "undefined",
+                                "\"generic\"",
+                                "\"notAvailable\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the last failed write is called.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailRating.tsx"
+                        },
+                        {
+                            "name": "mode",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"rate\"",
+                                "\"own\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "`own` for the recipe's owner; `rate` for everyone else (`ratingModeFor`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailRating.tsx"
+                        },
+                        {
+                            "name": "onRate",
+                            "type": "(stars: number) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailRating.tsx"
+                        },
+                        {
+                            "name": "onRemove",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailRating.tsx"
+                        },
+                        {
+                            "name": "pending",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A rating write (set or remove) is in flight.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailRating.tsx"
+                        },
+                        {
+                            "name": "ratingCount",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailRating.tsx"
+                        },
+                        {
+                            "name": "selectedStars",
+                            "type": "number | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The viewer's own prior rating, pre-selected in the input.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailRating.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/detail/RecipeDetailSkeleton",
             "name": "RecipeDetailSkeleton",
             "group": "featuresRecipes",
@@ -7561,6 +7777,82 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/detail/RecipeLoadError",
+            "name": "RecipeLoadError",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/detail",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over the design system's `StateNotice` — picks the title and whether a retry is on offer from the error"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeLoadError",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeLoadError.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/detail",
+                    "moduleDoc": "@commise/features-recipes/detail — `RecipeLoadError`: what a recipe read's boundary renders when the read fails.\nA 404 is final, so it offers no retry; any other failure — including an id that cannot name a recipe, where there is no\nevidence the recipe is gone — is the generic one, whose retry is the boundary's reset, which refetches. Both keep a way\nback, which the host names (\"Back to My recipes\", \"Back to Discover\") because only it knows where back goes.\n\nONE file for both apps: the design system's `StateNotice` is a platform pair, so the web page gets an alert in its flow\nand the mobile screen gets the thumb-reach stack.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/detail — `RecipeLoadError`: what a recipe read's boundary renders when the read fails."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design system's `StateNotice` — picks the title and whether a retry is on offer from the error"
+                        }
+                    ],
+                    "description": "A recipe read failed: presentational, props → JSX.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "back",
+                            "type": "StateNoticeAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The way back, if the host has one.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeLoadError.tsx"
+                        },
+                        {
+                            "name": "error",
+                            "type": "unknown",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the read failed with.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeLoadError.tsx"
+                        },
+                        {
+                            "name": "onRetry",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Read again: the boundary's reset.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeLoadError.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
                     }
                 }
             ]

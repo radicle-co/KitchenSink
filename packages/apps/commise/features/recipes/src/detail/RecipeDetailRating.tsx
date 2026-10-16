@@ -30,7 +30,7 @@ export interface RecipeDetailRatingProps {
     readonly onRemove: () => void;
 }
 
-/** The recipe page's rating block. */
+/** The recipe page's rating block: presentational, props → JSX. */
 export const RecipeDetailRating: FC<RecipeDetailRatingProps> = ({
     mode,
     average,

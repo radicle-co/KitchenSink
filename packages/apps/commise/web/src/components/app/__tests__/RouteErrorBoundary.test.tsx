@@ -3,7 +3,7 @@
  * Component tests for the shared {@link RouteErrorBoundary} (B18/DA9) — the orchestration every web App
  * Router `error.tsx` boundary delegates to: reports the caught error through the SAME injected
  * `errorReporterToken` seam the Home-widget boundaries use (resolved from `homeContainer`, bound to Sentry in
- * production), then renders the pure `RouteErrorState` with a retry that REFETCHES: TanStack's query-error reset,
+ * production), then renders the shared `BoundaryErrorNotice` with a retry that REFETCHES: TanStack's query-error reset,
  * then Next's `retry()` (never `reset()`, which re-renders without re-fetching).
  *
  * `@sentry/nextjs` is mocked (never loaded for real) so importing `homeContainer` here doesn't require a

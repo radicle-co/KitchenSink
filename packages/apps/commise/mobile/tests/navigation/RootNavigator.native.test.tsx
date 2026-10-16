@@ -598,7 +598,7 @@ describe('the root crash boundary', () => {
         renderRoot();
 
         fireEvent.click(tab('Discover'));
-        expect(screen.getByText('Something went wrong')).toBeTruthy();
+        expect(screen.getByText('Something went wrong.')).toBeTruthy();
 
         crash.discover = false;
         fireEvent.click(screen.getByRole('button', { name: /home/i }));

@@ -5,17 +5,21 @@
  * "Back to Home" is offered everywhere but Home itself, where it would only repeat "Try again". Leaving the screen
  * unmounts the failure with it. Reports through the SAME `errorReporterToken` seam the Home widgets use (DA9).
  *
- * ORCHESTRATION: it owns the recovery (reset, query-error reset, go Home); the fallback it shows is presentational.
+ * ORCHESTRATION: it owns the recovery (reset, query-error reset, go Home); the fallback it shows is the shared
+ * `BoundaryErrorNotice` (the same one the web `error.tsx` boundaries show), given this app's body copy: the body names
+ * Home as a way out only when a way to Home is offered.
  *
  * @pattern Bulkhead — one crash boundary per routed screen, so a failure stays inside the screen that threw
  */
 import { resolveErrorReporter } from '@commise/features-core';
+import { BoundaryErrorNotice } from '@commise/features-core/boundary';
+import { useMessages } from '@commise/i18n/react';
 import { useQueryErrorResetBoundary } from '@tanstack/react-query';
 import type { JSX, ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
-import { RootErrorFallback } from '../components/RootErrorFallback.js';
 import { homeContainer } from '../components/home/homeContainer.js';
+import { mobileMessages } from '../i18n/messages.js';
 import { resetToHome } from './navigationRef.js';
 
 /** The DA9 reporter resolved once from the shared appShell container (bound to Sentry in production). */
@@ -34,18 +38,20 @@ export interface ScreenBoundaryProps {
  */
 export function ScreenBoundary({ atHome, children }: ScreenBoundaryProps): JSX.Element {
     const { reset: resetQueryErrors } = useQueryErrorResetBoundary();
+    const { common } = useMessages(mobileMessages);
 
     return (
         <ErrorBoundary
-            fallbackRender={(fallback) => (
-                <RootErrorFallback
-                    {...fallback}
+            fallbackRender={({ resetErrorBoundary }) => (
+                <BoundaryErrorNotice
+                    body={atHome ? common.rootErrorBodyHome : common.rootErrorBody}
+                    onRetry={resetErrorBoundary}
                     {...(atHome
                         ? {}
                         : {
                               onBackToHome: () => {
                                   resetToHome();
-                                  fallback.resetErrorBoundary();
+                                  resetErrorBoundary();
                               },
                           })}
                 />

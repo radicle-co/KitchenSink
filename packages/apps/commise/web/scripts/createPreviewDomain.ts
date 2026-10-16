@@ -47,6 +47,7 @@
 // found instead of merely "true".
 import { ChangeResourceRecordSetsCommand, ListResourceRecordSetsCommand } from '@aws-sdk/client-route-53';
 import type { ResourceRecordSet } from '@aws-sdk/client-route-53';
+import { z } from 'zod';
 
 import {
     normalizeDnsName,
@@ -403,6 +404,114 @@ const wait = (ms: number): Promise<void> =>
         setTimeout(resolve, ms);
     });
 
+/** A full commit sha. A short one could match more than one commit, so it is never accepted. */
+const COMMIT_SHA = /^[0-9a-f]{40}$/u;
+
+/** How many times the pushed commit's build is looked for. 40 x 15s = 10 minutes: a normal Next build, with headroom. */
+const DEFAULT_RESOLVE_ATTEMPTS = 40;
+
+const DEFAULT_RESOLVE_DELAY_MS = 15_000;
+
+/**
+ * `GET /v6/deployments` — the fields this lookup reads.
+ *
+ * @unparsedBoundary Vercel is a third-party API we do not serve (ADR-0014, CODING_STANDARDS §15.3), so the shape is
+ *   validated here, at the boundary, rather than declared as a contract of ours. `meta` is absent on a deployment
+ *   not made from the repository; `projectId` is re-checked because the server-side filter is not the guarantee.
+ */
+const deploymentListSchema = z.object({
+    deployments: z.array(
+        z.object({
+            uid: z.string().min(1),
+            readyState: z.string().optional(),
+            state: z.string().optional(),
+            created: z.number().optional(),
+            projectId: z.string().optional(),
+            meta: z.object({ githubCommitSha: z.string().optional() }).optional(),
+        }),
+    ),
+});
+
+export interface DeploymentResolutionOptions {
+    readonly attempts?: number;
+    readonly delayMs?: number;
+}
+
+/**
+ * Find the Vercel deployment built from exactly `commitSha`, waiting for it to be READY.
+ *
+ * A push moves the preview address (owner ruling 2026-10-16), and the alias must land on the deployment of THAT
+ * push. Taking "the newest deployment of the branch" names the previous build for as long as the new one is still
+ * being created, and the address then serves the commit before the one under test. So the deployment is chosen by
+ * its commit, not its recency, and a build that has not appeared or finished yet is WAITED for within a bound.
+ * Vercel is asked to filter AND the result is re-checked here, because a filter that quietly stops applying must
+ * not alias someone else's build.
+ *
+ * Read-only, and it runs before the claim / DNS / alias sequence, so it cannot disturb that sequence's order.
+ *
+ * @param deps - `fetch` (or a double) and an injectable sleep.
+ * @param config - Vercel token, project and (optional) team.
+ * @param commitSha - The full 40-hex head sha of the PR.
+ * @param options - Attempt budget and delay between attempts.
+ * @returns The `dpl_…` id of the newest READY deployment of this project at that commit.
+ * @throws Error When the sha is not a full commit sha, Vercel fails, or no such deployment is READY in budget.
+ * @sideEffect Calls the Vercel API.
+ */
+export async function resolveDeploymentForCommit(
+    deps: { readonly http: HttpSender; readonly sleep?: (ms: number) => Promise<void> },
+    config: VercelProjectConfig,
+    commitSha: string,
+    options: DeploymentResolutionOptions = {},
+): Promise<string> {
+    if (!COMMIT_SHA.test(commitSha)) {
+        throw new Error(`create-preview-domain: '${commitSha}' is not a full commit sha (40 lowercase hex characters)`);
+    }
+
+    const attempts = options.attempts ?? DEFAULT_RESOLVE_ATTEMPTS;
+    const delayMs = options.delayMs ?? DEFAULT_RESOLVE_DELAY_MS;
+    const sleep = deps.sleep ?? wait;
+    const url = new URL(vercelApiUrl('/v6/deployments', config));
+    url.searchParams.set('projectId', config.projectId);
+    url.searchParams.set('meta-githubCommitSha', commitSha);
+    url.searchParams.set('state', 'READY');
+    url.searchParams.set('limit', '20');
+
+    for (let attempt = 1; ; attempt++) {
+        const response = await deps.http(url.toString(), {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${config.token}` },
+        });
+
+        if (!response.ok) {
+            throw new Error(
+                `create-preview-domain: Vercel refused to list deployments for ${commitSha} — ${response.status} ${await response.text()}`,
+            );
+        }
+
+        const { deployments } = deploymentListSchema.parse(JSON.parse(await response.text()));
+        const match = deployments
+            .filter(
+                (candidate) =>
+                    candidate.meta?.githubCommitSha === commitSha &&
+                    (candidate.readyState ?? candidate.state) === 'READY' &&
+                    (candidate.projectId === undefined || candidate.projectId === config.projectId),
+            )
+            .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))[0];
+
+        if (match) {
+            return match.uid;
+        }
+
+        if (attempt >= attempts) {
+            throw new Error(
+                `create-preview-domain: no READY deployment of commit ${commitSha} after ${attempts} attempts — the build is still running, failed, or Vercel never built this commit`,
+            );
+        }
+
+        await sleep(delayMs);
+    }
+}
+
 export interface PreviewDomainCreationDeps {
     readonly route53: Route53Sender;
     readonly http: HttpSender;
@@ -504,18 +613,26 @@ export async function createPreviewDomain(
 async function main(): Promise<void> {
     const { Route53Client } = await import('@aws-sdk/client-route-53');
 
+    const vercel = {
+        token: requireEnv('VERCEL_TOKEN'),
+        projectId: requireEnv('VERCEL_PROJECT_ID'),
+        teamId: process.env['VERCEL_TEAM_ID'],
+    };
+    // A pull request run names the commit it must serve and the deployment is CHOSEN by that commit; the
+    // by-hand door has no head commit and passes the deployment it resolved itself.
+    const commitSha = process.env['PREVIEW_COMMIT_SHA'];
+    const deployment = commitSha
+        ? await resolveDeploymentForCommit({ http: globalThis.fetch }, vercel, commitSha)
+        : requireEnv('VERCEL_DEPLOYMENT');
+
     const result = await createPreviewDomain(
         { route53: new Route53Client({}), http: globalThis.fetch },
         {
             prToken: requireEnv('PR_TOKEN'),
             previewZone: requireEnv('PREVIEW_ZONE'),
             hostedZoneId: requireEnv('PREVIEW_HOSTED_ZONE_ID'),
-            deployment: requireEnv('VERCEL_DEPLOYMENT'),
-            vercel: {
-                token: requireEnv('VERCEL_TOKEN'),
-                projectId: requireEnv('VERCEL_PROJECT_ID'),
-                teamId: process.env['VERCEL_TEAM_ID'],
-            },
+            deployment,
+            vercel,
         },
     );
 

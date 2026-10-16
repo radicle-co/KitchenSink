@@ -25,6 +25,7 @@ import {
     claimVercelPreviewDomain,
     createPreviewDomain,
     isPreviewAliasPendingError,
+    resolveDeploymentForCommit,
     upsertPreviewDnsRecord,
 } from '../createPreviewDomain';
 
@@ -646,4 +647,120 @@ describe('createPreviewDomain — the order is the safety property', () => {
         ).rejects.toThrow(/403/u);
         expect(sleep).not.toHaveBeenCalled();
     });
+});
+
+/**
+ * A push moves the preview address (owner ruling 2026-10-16), so the deployment the alias is pointed at must be the
+ * one built from THIS commit. "The latest deployment of the branch" is wrong in the window between a push and its
+ * build: it names the PREVIOUS build, and the alias then serves the commit before the one under test.
+ */
+describe('resolveDeploymentForCommit — the alias targets the deployment built from THIS commit', () => {
+    const SHA = 'a'.repeat(40);
+    const OTHER_SHA = 'b'.repeat(40);
+
+    const deployment = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
+        uid: 'dpl_current',
+        readyState: 'READY',
+        created: 2_000,
+        projectId: VERCEL.projectId,
+        meta: { githubCommitSha: SHA },
+        ...overrides,
+    });
+
+    const page = (...deployments: Record<string, unknown>[]): ReturnType<typeof response> =>
+        okResponse(JSON.stringify({ deployments }));
+
+    it('asks Vercel for READY deployments of this project at exactly this commit', async () => {
+        const http = vi.fn().mockResolvedValue(page(deployment()));
+
+        const id = await resolveDeploymentForCommit({ http, sleep: vi.fn() }, VERCEL, SHA);
+
+        expect(id).toBe('dpl_current');
+        const url = new URL(http.mock.calls[0]?.[0] as string);
+        expect(url.pathname).toBe('/v6/deployments');
+        expect(url.searchParams.get('projectId')).toBe(VERCEL.projectId);
+        expect(url.searchParams.get('meta-githubCommitSha')).toBe(SHA);
+        expect(url.searchParams.get('state')).toBe('READY');
+        expect(url.searchParams.get('teamId')).toBe(VERCEL.teamId);
+        expect(http.mock.calls[0]?.[1]).toMatchObject({
+            method: 'GET',
+            headers: { Authorization: `Bearer ${VERCEL.token}` },
+        });
+    });
+
+    it('does not trust the server-side filter: another commit, state or project never qualifies', async () => {
+        const http = vi
+            .fn()
+            .mockResolvedValue(
+                page(
+                    deployment({ uid: 'dpl_old', meta: { githubCommitSha: OTHER_SHA } }),
+                    deployment({ uid: 'dpl_building', readyState: 'BUILDING' }),
+                    deployment({ uid: 'dpl_foreign', projectId: 'prj_other' }),
+                    deployment({ uid: 'dpl_nometa', meta: undefined }),
+                ),
+            );
+
+        await expect(
+            resolveDeploymentForCommit({ http, sleep: vi.fn() }, VERCEL, SHA, { attempts: 1 }),
+        ).rejects.toThrow(/no READY deployment/u);
+        expect(http).toHaveBeenCalledTimes(1);
+    });
+
+    it('picks the newest when a commit was built twice (a redeploy)', async () => {
+        const http = vi
+            .fn()
+            .mockResolvedValue(
+                page(deployment({ uid: 'dpl_a', created: 1_000 }), deployment({ uid: 'dpl_b', created: 3_000 })),
+            );
+
+        expect(await resolveDeploymentForCommit({ http, sleep: vi.fn() }, VERCEL, SHA)).toBe('dpl_b');
+    });
+
+    it('waits, within a bounded budget, for the build of the pushed commit to become READY', async () => {
+        const http = vi
+            .fn()
+            .mockResolvedValueOnce(page())
+            .mockResolvedValueOnce(page(deployment({ readyState: 'BUILDING' })))
+            .mockResolvedValueOnce(page(deployment()));
+        const sleep = vi.fn().mockResolvedValue(undefined);
+
+        const id = await resolveDeploymentForCommit({ http, sleep }, VERCEL, SHA, { attempts: 5, delayMs: 7 });
+
+        expect(id).toBe('dpl_current');
+        expect(http).toHaveBeenCalledTimes(3);
+        expect(sleep).toHaveBeenCalledTimes(2);
+        expect(sleep).toHaveBeenCalledWith(7);
+    });
+
+    it('gives up after the budget and names the commit it was waiting for', async () => {
+        const http = vi.fn().mockResolvedValue(page());
+        const sleep = vi.fn().mockResolvedValue(undefined);
+
+        await expect(
+            resolveDeploymentForCommit({ http, sleep }, VERCEL, SHA, { attempts: 3, delayMs: 1 }),
+        ).rejects.toThrow(new RegExp(`no READY deployment.*${SHA}.*3 attempts`, 'u'));
+        expect(http).toHaveBeenCalledTimes(3);
+        expect(sleep).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not retry a permanent Vercel failure', async () => {
+        const http = vi.fn().mockResolvedValue(response(403, 'forbidden'));
+        const sleep = vi.fn();
+
+        await expect(resolveDeploymentForCommit({ http, sleep }, VERCEL, SHA)).rejects.toThrow(/403/u);
+        expect(http).toHaveBeenCalledTimes(1);
+        expect(sleep).not.toHaveBeenCalled();
+    });
+
+    it.each(['', 'abc123', 'A'.repeat(40), `${'a'.repeat(39)}z`, `${'a'.repeat(40)}0`, 'main'])(
+        'refuses %j as a commit before calling Vercel — a short sha could match more than one commit',
+        async (bad) => {
+            const http = vi.fn();
+
+            await expect(resolveDeploymentForCommit({ http, sleep: vi.fn() }, VERCEL, bad)).rejects.toThrow(
+                /commit sha/u,
+            );
+            expect(http).not.toHaveBeenCalled();
+        },
+    );
 });

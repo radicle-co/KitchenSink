@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { MAX_PARSE_PROMPT_CHARS, PARSE_SYSTEM_PROMPT } from '../parsePrompt.js';
+import { MAX_PARSE_PROMPT_CHARS, PARSE_SYSTEM_PROMPT, buildParsePrompt } from '../parsePrompt.js';
 import {
     MAX_RETRY_CONTEXT_CHARS,
     PARSE_RETRY_SUFFIX_SHA256,
@@ -76,10 +76,12 @@ describe('buildParseRetryPrompt', () => {
         expect(prompt.systemPrompt).not.toContain('n'.repeat(MAX_RETRY_CONTEXT_CHARS + 1));
     });
 
+    /** Compared against the first attempt's builder, not a spelled-out tag, so the two cannot drift apart. */
     it('carries the same delimited user message as the first attempt — the line itself is untouched', () => {
         const prompt = buildParseRetryPrompt('1 cup flour', [FAILURE]);
 
-        expect(prompt.userMessage).toBe('<input>1 cup flour</input>');
+        expect(prompt.userMessage).toBe(buildParsePrompt('1 cup flour').userMessage);
+        expect(prompt.userMessage).toContain('1 cup flour');
     });
 
     /** A caller tells the cap refusal from any other throw through the guard, as it does for the first attempt. */

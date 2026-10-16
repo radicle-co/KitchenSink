@@ -309,6 +309,17 @@ const OPEN_TAG = '<input>';
 const CLOSE_TAG = '</input>';
 
 /**
+ * Frame a line as the user turn: the one authority for the delimiter, shared by the first attempt and the retry
+ * (`parseRetryPrompt.ts`) so the model sees the line in the same frame both times.
+ *
+ * @param line - The line, verbatim.
+ * @returns The delimited user turn. Pure.
+ */
+export function delimitParseLine(line: string): string {
+    return `${OPEN_TAG}${line}${CLOSE_TAG}`;
+}
+
+/**
  * An ingredient line too long to send.
  *
  * ⛔ Thrown rather than truncated. ADR-0024 is explicit that an over-cap line is REJECTED: a truncated line
@@ -351,7 +362,7 @@ export interface ParsePrompt {
  * @throws {ParsePromptTooLargeError} When the assembled prompt would exceed {@link MAX_PARSE_PROMPT_CHARS}.
  */
 export function buildParsePrompt(line: string): ParsePrompt {
-    const userMessage = `${OPEN_TAG}${line}${CLOSE_TAG}`;
+    const userMessage = delimitParseLine(line);
     // ⚠️ Code points, not UTF-16 units: an astral character is one thing a tokenizer sees and two
     // `String.length` units, so `.length` would refuse a legitimate prompt at half the stated bound.
     const observedChars = [...PARSE_SYSTEM_PROMPT].length + [...userMessage].length;

@@ -31,7 +31,7 @@
  * different call with a different contract, so it gets its own builder with its own `Exact` pin
  * (`[string, failures]`), and the first-attempt path physically cannot acquire a context argument.
  */
-import { MAX_PARSE_PROMPT_CHARS, PARSE_SYSTEM_PROMPT } from './parsePrompt.js';
+import { MAX_PARSE_PROMPT_CHARS, PARSE_SYSTEM_PROMPT, delimitParseLine } from './parsePrompt.js';
 
 /** One validator rejection, as the retry context carries it — a union, one member per validator. */
 export type RetryFailure =
@@ -128,10 +128,6 @@ function renderFailure(failure: RetryFailure): string {
     }
 }
 
-/** The delimiters, matching `buildParsePrompt`'s exactly. */
-const OPEN_TAG = '<input>';
-const CLOSE_TAG = '</input>';
-
 /** The complete retry call. */
 export interface ParseRetryPrompt {
     readonly systemPrompt: string;
@@ -166,7 +162,7 @@ export function isParseRetryPromptTooLargeError(error: unknown): error is ParseR
 export function buildParseRetryPrompt(line: string, failures: readonly RetryFailure[]): ParseRetryPrompt {
     const rendered = failures.map(renderFailure).join('\n');
     const systemPrompt = PARSE_SYSTEM_PROMPT + PARSE_RETRY_SUFFIX_TEMPLATE.replace('{failures}', rendered);
-    const userMessage = `${OPEN_TAG}${line}${CLOSE_TAG}`;
+    const userMessage = delimitParseLine(line);
     const observedChars = [...systemPrompt].length + [...userMessage].length;
 
     if (observedChars > MAX_PARSE_PROMPT_CHARS) {

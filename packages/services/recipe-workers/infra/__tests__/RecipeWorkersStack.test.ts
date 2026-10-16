@@ -195,7 +195,12 @@ const DB_RESOURCE_ID = 'db-EXAMPLERESOURCEID12345';
  * @returns The synthesized template.
  * @sideEffect Reads the bundle directories `Code.fromAsset` stages.
  */
-function synth(stage = 'sandbox', baseStage = 'sandbox', alarmsEnabled = true): Template {
+function synth(
+    stage = 'sandbox',
+    baseStage = 'sandbox',
+    alarmsEnabled = true,
+    cloudfrontDistributionId?: string,
+): Template {
     const app = testApp({ context: VPC_LOOKUP_CONTEXT });
     const stack = new RecipeWorkersStack(app, `RecipeWorkers-${stage}`, {
         env: { account: '123456789012', region: 'us-east-1' },
@@ -211,6 +216,7 @@ function synth(stage = 'sandbox', baseStage = 'sandbox', alarmsEnabled = true): 
         mediaBucketName: 'commise-photos-sandbox',
         handleSyncTopicArn: 'arn:aws:sns:us-east-1:123456789012:kitchensink-handle-sync-sandbox',
         alarmsEnabled,
+        ...(cloudfrontDistributionId === undefined ? {} : { cloudfrontDistributionId }),
     });
 
     return Template.fromStack(stack);
@@ -1105,6 +1111,56 @@ describe('RecipeWorkersStack — archive-orphan sweep', () => {
         expect(resources).toContain('commise-photos-sandbox');
         expect(resources).toContain('commise-versions-sandbox/recipes/*');
         expect(resources).toContain('commise-photos-sandbox/recipes/*');
+    });
+
+    describe('CDN invalidation of a reconciled media owner (the sweeper calls CreateInvalidation)', () => {
+        const DISTRIBUTION = 'EEXAMPLEDISTRIB';
+        const sweeperEnvironment = (t: Template): Record<string, unknown> =>
+            Object.values(t.findResources('AWS::Lambda::Function')).find(
+                (fn) => fn.Properties?.Handler === 'handlers/erasureOrphanSweeper.handler',
+            )?.Properties?.Environment?.Variables ?? {};
+        const sweeperActions = (t: Template): readonly string[] =>
+            Object.values(t.findResources('AWS::IAM::Policy'))
+                .filter((policy) =>
+                    /^ErasureOrphanSweeperRoleDefaultPolicy/.test(String(policy.Properties?.PolicyName)),
+                )
+                .flatMap((policy) => policy.Properties?.PolicyDocument?.Statement as { Action?: string | string[] }[])
+                .flatMap((statement) =>
+                    typeof statement.Action === 'string' ? [statement.Action] : (statement.Action ?? []),
+                );
+
+        it('hands the sweeper the distribution id AND a grant scoped to that one distribution', () => {
+            // `erasureOrphanSweeper.ts` builds `createCloudFrontInvalidation({ distributionId:
+            // process.env['CLOUDFRONT_DISTRIBUTION_ID'] })`. The erasure worker got the variable and the grant; the
+            // sweeper got neither, so its documented invalidation of a reconciled owner's media prefix could never
+            // fire (found by `lambdaRolesCoverTheirSdkCalls`): unset, the adapter logs and skips.
+            const configured = synth('sandbox', 'sandbox', true, DISTRIBUTION);
+
+            expect(sweeperEnvironment(configured)['CLOUDFRONT_DISTRIBUTION_ID']).toBe(DISTRIBUTION);
+            expect(sweeperActions(configured)).toContain('cloudfront:CreateInvalidation');
+
+            const grant = Object.values(configured.findResources('AWS::IAM::Policy'))
+                .filter((policy) =>
+                    /^ErasureOrphanSweeperRoleDefaultPolicy/.test(String(policy.Properties?.PolicyName)),
+                )
+                .flatMap(
+                    (policy) =>
+                        policy.Properties?.PolicyDocument?.Statement as {
+                            Action?: string | string[];
+                            Resource?: unknown;
+                        }[],
+                )
+                .find((statement) => JSON.stringify(statement.Action).includes('cloudfront:CreateInvalidation'));
+
+            expect(resolveArn(grant?.Resource)).toMatch(new RegExp(`:distribution/${DISTRIBUTION}$`));
+        });
+
+        it('adds neither when no distribution is configured — the adapter then skips the call, and prod is unchanged', () => {
+            const unset = synth();
+
+            expect(sweeperEnvironment(unset)).not.toHaveProperty('CLOUDFRONT_DISTRIBUTION_ID');
+            expect(sweeperActions(unset).filter((action) => action.startsWith('cloudfront:'))).toEqual([]);
+        });
     });
 
     it('is VPC-attached like every other DB-bound worker (ADR-0004)', () => {

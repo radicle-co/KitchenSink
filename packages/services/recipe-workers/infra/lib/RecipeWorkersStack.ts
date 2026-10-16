@@ -754,14 +754,25 @@ export class RecipeWorkersStack extends Stack {
         // configured distribution — never a wildcard resource. No-op (no grant added) when
         // `cloudfrontDistributionId` is unset, matching the worker's own CDN adapter degrading to a no-op
         // in that case; there is nothing to scope a grant to.
-        if (props.cloudfrontDistributionId !== undefined) {
-            erasureRole.addToPolicy(
-                new iam.PolicyStatement({
-                    actions: ['cloudfront:CreateInvalidation'],
-                    resources: [`arn:aws:cloudfront::${this.account}:distribution/${props.cloudfrontDistributionId}`],
-                }),
-            );
-        }
+        //
+        // ONE spelling for the two roles that call it: the erasure worker AND the erasure-orphan sweeper both build
+        // `createCloudFrontInvalidation({ distributionId: process.env['CLOUDFRONT_DISTRIBUTION_ID'] })`. The sweeper
+        // got neither the variable nor this grant, so its invalidation of a reconciled owner's media prefix was
+        // dead code the day a distribution was configured (found by `lambdaRolesCoverTheirSdkCalls`).
+        const grantCdnInvalidation = (role: iam.IRole): void => {
+            if (props.cloudfrontDistributionId !== undefined) {
+                role.addToPrincipalPolicy(
+                    new iam.PolicyStatement({
+                        actions: ['cloudfront:CreateInvalidation'],
+                        resources: [
+                            `arn:aws:cloudfront::${this.account}:distribution/${props.cloudfrontDistributionId}`,
+                        ],
+                    }),
+                );
+            }
+        };
+
+        grantCdnInvalidation(erasureRole);
 
         // erasure sweeper: reads `account_erasure_jobs`, re-sends stale jobs, and writes the `failed`
         // give-up transition. Sends to SQS but must NOT consume (ARCH-IT-7) and touches no bucket — the
@@ -797,6 +808,7 @@ export class RecipeWorkersStack extends Stack {
         // (This role already granted `s3:ListBucket` explicitly for the right reason; what it still had was
         // `grantDelete`, whose `s3:DeleteObject*` wildcard and bucket-wide object ARN it does not need.)
         grantRecipeObjectErasure(orphanSweeperRole, [archiveBucket, mediaBucket]);
+        grantCdnInvalidation(orphanSweeperRole);
 
         // analytics retention sweeper (analytics plan U6, origin R10): deletes analytics_events rows past
         // the 6-month window, daily. Database only — no S3, no SQS, no CDN: least-privilege is RDS-IAM
@@ -1036,6 +1048,10 @@ export class RecipeWorkersStack extends Stack {
                 RECIPE_ARCHIVE_BUCKET: props.archiveBucketName,
                 RECIPE_MEDIA_BUCKET: props.mediaBucketName,
                 STAGE: props.stage,
+                // Omitted entirely when absent, as for the erasure worker: the adapter then sees an UNSET value.
+                ...(props.cloudfrontDistributionId === undefined
+                    ? {}
+                    : { CLOUDFRONT_DISTRIBUTION_ID: props.cloudfrontDistributionId }),
             },
             logGroup,
         });

@@ -5,9 +5,26 @@ import {
     aws_certificatemanager as acm,
     aws_route53 as route53,
     aws_secretsmanager as secretsmanager,
+    aws_ssm as ssm,
 } from 'aws-cdk-lib';
 import { EDGE_ORIGIN_HEADER_VALUE_LENGTH, edgeOriginHeaderFor } from '@radicle-co/infra-shared/alb';
 import type { Construct } from 'constructs';
+
+/**
+ * The SSM parameter name under which `DomainStack` publishes a fact `DataStack` reads (ADR-0064).
+ *
+ * ⛔ SSM, not an object reference and not a named `Fn.importValue`. Either one makes `kitchensink-data-{stage}` an
+ * IMPORTER of `kitchensink-domain-{stage}`, and CloudFormation then refuses to replace or remove that export while the
+ * import stands (ADR-0002's export-in-use deadlock) — an auto-generated one is the worse case, since nobody chose it.
+ * A parameter locks nothing. The deploy order is kept by `GlobalStack`'s explicit `addDependency`.
+ *
+ * @param stage - The deploy stage the domain stack was built for.
+ * @param fact - Which fact.
+ * @returns The parameter name. Pure.
+ */
+export function domainParameterName(stage: string, fact: 'certificate-arn' | 'hosted-zone-id'): string {
+    return `/kitchensink/${stage}/domain/${fact}`;
+}
 
 export interface DomainStackProps extends StackProps {
     readonly domainName: string;
@@ -105,6 +122,18 @@ export class DomainStack extends Stack {
                 },
             });
         }
+
+        new ssm.StringParameter(this, 'CertificateArnParameter', {
+            parameterName: domainParameterName(props.stage, 'certificate-arn'),
+            stringValue: this.certificate.certificateArn,
+            description: 'The apex certificate ARN; the media distribution reads it (ADR-0064)',
+        });
+
+        new ssm.StringParameter(this, 'HostedZoneIdParameter', {
+            parameterName: domainParameterName(props.stage, 'hosted-zone-id'),
+            stringValue: this.hostedZone.hostedZoneId,
+            description: 'The apex hosted zone id; the media alias records are written to it (ADR-0064)',
+        });
 
         new CfnOutput(this, 'HostedZoneId', {
             value: this.hostedZone.hostedZoneId,

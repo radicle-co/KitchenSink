@@ -96,8 +96,8 @@ export class GlobalStack extends Stack {
             stage,
         });
 
-        // The domain is built BEFORE the data stack: the media distribution (ADR-0064) takes the apex certificate and
-        // zone from it. Construct order changes no logical id; the dependency edge is the object reference.
+        // The domain is built BEFORE the data stack: the media distribution (ADR-0064) reads the apex certificate and
+        // zone from SSM parameters this stack writes. Construct order changes no logical id.
         this.domain = new DomainStack(this, `Domain-${stage}`, {
             env: props.env,
             stackName: `kitchensink-domain-${stage}`,
@@ -112,10 +112,12 @@ export class GlobalStack extends Stack {
             network: this.network,
             stage,
             domainName,
-            certificate: this.domain.certificate,
-            hostedZone: this.domain.hostedZone,
             uploadOrigins: props.uploadOrigins,
         });
+        // The media distribution reads the certificate and zone from SSM parameters the domain stack writes
+        // (`domainParameterName`), so nothing references the domain stack and no export locks the certificate
+        // (ADR-0002). The dependency keeps the parameters written before the data stack reads them.
+        this.data.addDependency(this.domain);
 
         this.alb = new SharedAlbStack(this, `SharedAlb-${stage}`, {
             env: props.env,

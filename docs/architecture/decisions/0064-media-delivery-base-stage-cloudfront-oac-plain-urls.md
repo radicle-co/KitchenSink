@@ -55,7 +55,7 @@ and previews use the sandbox distribution.
 
 **4. Names.** Production is `media.commise.app`. Sandbox is `media-sandbox.commise.app`, a single label on purpose: it must not
 overlap the sandbox router's `*.sandbox.commise.app` alias, and the exact-label `pr-{N}` scope in `previewDomainScope.ts` cannot
-match it. The certificate is the existing apex wildcard in us-east-1, taken from the domain stack by reference. A and AAAA alias
+match it. The certificate is the existing apex wildcard in us-east-1, read from SSM parameters the domain stack writes (`/kitchensink/{stage}/domain/`), never by reference: a reference mints an auto-generated export that locks the certificate (ADR-0002). A and AAAA alias
 records are written in the same stack.
 
 **5. Publication is SSM, never a CloudFormation export.** The data stack writes `cdn-url`, `distribution-id` and

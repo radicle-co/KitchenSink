@@ -40,6 +40,7 @@ import {
 
 import { LEGACY_RECREATE_TOKEN_PREFIX } from '../../src/db-bootstrap/disposition.js';
 
+import { domainParameterName } from './DomainStack.js';
 import { addMediaDelivery } from './mediaDelivery.js';
 import type { NetworkStack } from './NetworkStack.js';
 
@@ -135,13 +136,6 @@ export interface DataStackProps extends StackProps {
 
     /** The apex domain the media host sits under, e.g. `commise.app`. */
     readonly domainName: string;
-    /**
-     * A certificate in us-east-1 that covers the media host — the apex wildcard `DomainStack` already owns. REQUIRED:
-     * a default would let a stack synthesize with no CDN, which is the defect ADR-0064 closes.
-     */
-    readonly certificate: acm.ICertificate;
-    /** The apex hosted zone the media alias records are written to. */
-    readonly hostedZone: route53.IHostedZone;
     /**
      * The origins a browser may PUT a presigned object from, as S3 CORS `AllowedOrigin` strings, derived from the Clerk
      * `azp` settings by `resolveUploadOrigins` (`@kitchensink/clerk-verify`). REQUIRED and never empty or `*`: with none,
@@ -673,12 +667,25 @@ export class DataStack extends Stack {
             autoDeleteObjects: true,
         });
 
+        // The apex certificate (us-east-1, covers the media host) and zone come from SSM parameters `DomainStack` writes,
+        // never from a reference to it: a reference mints an auto-generated export that locks the certificate
+        // (ADR-0002). `GlobalStack` orders the deploy with an explicit dependency instead.
         addMediaDelivery(this, 'MediaDelivery', {
             bucket: this.mediaBucket,
             stage: stageTag,
             domainName: props.domainName,
-            certificate: props.certificate,
-            hostedZone: props.hostedZone,
+            certificate: acm.Certificate.fromCertificateArn(
+                this,
+                'MediaCertificate',
+                ssm.StringParameter.valueForStringParameter(this, domainParameterName(stageTag, 'certificate-arn')),
+            ),
+            hostedZone: route53.HostedZone.fromHostedZoneAttributes(this, 'MediaHostedZone', {
+                hostedZoneId: ssm.StringParameter.valueForStringParameter(
+                    this,
+                    domainParameterName(stageTag, 'hosted-zone-id'),
+                ),
+                zoneName: props.domainName,
+            }),
         });
 
         this.archiveBucket = new s3.Bucket(this, 'ArchiveBucket', {

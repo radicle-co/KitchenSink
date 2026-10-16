@@ -36,7 +36,7 @@ import { paidFeatureStateOf } from '@commise/features-account';
 import type { Container } from 'ditox';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { Suspense, useId, useMemo, type ComponentType, type JSX, type ReactNode } from 'react';
+import { Suspense, useCallback, useId, type ComponentType, type JSX, type ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
 import { AppShell } from '@/components/app/AppShell';
@@ -46,7 +46,7 @@ import { ProfileAvatarEntry } from './chrome/ProfileAvatarEntry';
 import { HomeGreeting } from './HomeGreeting';
 import { homeContainer } from './homeContainer';
 import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice';
-import { RecipeWidgetSlot } from './RecipeWidgetSlot';
+import { RecipeWidgetErrorContext, RecipeWidgetHost, type RecipeWidgetErrorReporter } from './RecipeWidgetHost';
 import { RoadmapWidgetSlot } from './RoadmapWidgetSlot';
 import { SubscriptionNudge } from './SubscriptionNudge';
 
@@ -57,6 +57,9 @@ export interface HomeWidgetSurfaceProps {
     /** Map of widget id → the slot component that renders it. Defaults to the v1 renderer set. */
     readonly renderers?: Readonly<Record<HomeWidgetId, ComponentType>>;
 }
+
+/** The v1 render map: the recipe widget is the only one with a slot. Module-level, so its component has one identity. */
+const RECIPE_RENDERERS: Readonly<Record<HomeWidgetId, ComponentType>> = { [RECIPE_HOME_WIDGET_ID]: RecipeWidgetHost };
 
 /**
  * Where each placeholder sits in the Coming soon group at `@wide`: nutrition and resume side by side 1 : 2, the week
@@ -104,23 +107,17 @@ export function HomeWidgetSurface({ container = homeContainer, renderers }: Home
     // The recent-recipes page the widget reads, from the cache: settled empty is Home's first run (§3.4).
     const firstRun = useHomeFirstRun();
 
-    // The v1 render map: the recipe widget is the only one with a slot. `onWidgetError` routes the slot's OWN inner
-    // boundaries through this same reporting seam: they catch a throw before the per-widget boundary below ever sees
-    // it, so without it a recipe-widget failure goes unobserved (B23/DA9) — mobile threads it the same way.
-    const defaultRenderers = useMemo<Readonly<Record<HomeWidgetId, ComponentType>>>(
-        () => ({
-            [RECIPE_HOME_WIDGET_ID]: () => (
-                <RecipeWidgetSlot
-                    onWidgetError={(error) => reportWidgetError(error, { widget: RECIPE_HOME_WIDGET_ID })}
-                />
-            ),
-        }),
+    // The slot's OWN inner boundaries catch a throw before the per-widget boundary below ever sees it, so without
+    // this seam a recipe-widget failure goes unobserved (B23/DA9). It travels by context to a module-level host
+    // (`RECIPE_RENDERERS`): a component type built here per reporter would remount the slot whenever it changed.
+    const reportRecipeWidgetError = useCallback<RecipeWidgetErrorReporter>(
+        (error) => reportWidgetError(error, { widget: RECIPE_HOME_WIDGET_ID }),
         [reportWidgetError],
     );
 
     const curated = useHomeWidgets({
         container,
-        renderers: renderers ?? defaultRenderers,
+        renderers: renderers ?? RECIPE_RENDERERS,
         liveCapabilities: LIVE_CAPABILITIES,
         paidFeatures,
     });
@@ -200,31 +197,36 @@ export function HomeWidgetSurface({ container = homeContainer, renderers }: Home
                 />
 
                 <HomeNudgeContext.Provider value={{ trigger: nudge.trigger }}>
-                    <section role="region" aria-label={home.regionLabel} className="flex flex-col gap-6">
-                        {curated.live.map(renderWidget)}
+                    <RecipeWidgetErrorContext.Provider value={reportRecipeWidgetError}>
+                        <section role="region" aria-label={home.regionLabel} className="flex flex-col gap-6">
+                            {curated.live.map(renderWidget)}
 
-                        {/* The placeholders sit together, AFTER the recent recipes, under one "Coming soon" heading
+                            {/* The placeholders sit together, AFTER the recent recipes, under one "Coming soon" heading
                             (owner ruling; `buildSpec.md` §4.2). Gone with the last placeholder. */}
-                        {curated.comingSoon.length > 0 && (
-                            <section aria-labelledby={comingSoonHeadingId} className="flex flex-col gap-4">
-                                <div className="flex flex-col gap-1">
-                                    <h2 id={comingSoonHeadingId} className="text-section-title text-ink">
-                                        {home.roadmap.comingSoonHeading}
-                                    </h2>
-                                    <p className="max-w-[62ch] text-body text-ink-muted">
-                                        {home.roadmap.comingSoonBody}
-                                    </p>
-                                </div>
-                                <div className="grid gap-4 @wide/main:grid-cols-3 @wide/main:gap-6">
-                                    {curated.comingSoon.map((slot) => (
-                                        <div key={slot.descriptor.id} className={comingSoonSpanOf(slot.descriptor.id)}>
-                                            {renderWidget(slot)}
-                                        </div>
-                                    ))}
-                                </div>
-                            </section>
-                        )}
-                    </section>
+                            {curated.comingSoon.length > 0 && (
+                                <section aria-labelledby={comingSoonHeadingId} className="flex flex-col gap-4">
+                                    <div className="flex flex-col gap-1">
+                                        <h2 id={comingSoonHeadingId} className="text-section-title text-ink">
+                                            {home.roadmap.comingSoonHeading}
+                                        </h2>
+                                        <p className="max-w-[62ch] text-body text-ink-muted">
+                                            {home.roadmap.comingSoonBody}
+                                        </p>
+                                    </div>
+                                    <div className="grid gap-4 @wide/main:grid-cols-3 @wide/main:gap-6">
+                                        {curated.comingSoon.map((slot) => (
+                                            <div
+                                                key={slot.descriptor.id}
+                                                className={comingSoonSpanOf(slot.descriptor.id)}
+                                            >
+                                                {renderWidget(slot)}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
+                        </section>
+                    </RecipeWidgetErrorContext.Provider>
                 </HomeNudgeContext.Provider>
 
                 <SubscriptionNudge open={nudge.visible} onDismiss={nudge.dismiss} />

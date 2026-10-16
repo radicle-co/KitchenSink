@@ -44,9 +44,13 @@ import { useUserProfile } from '../../hooks/useUserProfile.js';
 import { HomeGreeting } from './HomeGreeting.js';
 import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice.js';
 import { homeContainer } from './homeContainer.js';
-import { RecipeWidgetSlot } from './RecipeWidgetSlot.js';
+import { RecipeWidgetHost, RecipeWidgetPropsContext } from './RecipeWidgetHost.js';
+import type { RecipeWidgetSlotProps } from './RecipeWidgetSlot.js';
 import { RoadmapWidgetSlot } from './RoadmapWidgetSlot.js';
 import { SubscriptionNudge } from './SubscriptionNudge.js';
+
+/** The v1 render map: the recipe widget is the only one with a slot. Module-level, so its component has one identity. */
+const RECIPE_RENDERERS: Readonly<Record<HomeWidgetId, ComponentType>> = { [RECIPE_HOME_WIDGET_ID]: RecipeWidgetHost };
 
 /** Props for {@link HomeWidgetSurface}. `container`/`renderers` are injectable seams for tests. */
 export interface HomeWidgetSurfaceProps {
@@ -101,30 +105,23 @@ export function HomeWidgetSurface({
     // (never a hard-coded Sentry import), mirroring the web host so both platforms share ONE reporting seam.
     const reportWidgetError = resolveErrorReporter(container);
 
-    // The v1 bespoke render map: only the recipe widget has a slot (it needs the navigation intents threaded
-    // in). Built here (not a module const) because the slot closes over those intents.
-    //
-    // `onWidgetError` routes the recipe slot's OWN inner boundary through this same reporting seam: that
-    // boundary exists so a failed widget body cannot take the "see all recipes" navigation entry with it, and
-    // because it catches the throw before the per-widget boundary below ever sees it, the report has to be
-    // threaded in explicitly or the failure would go unobserved.
-    const defaultRenderers = useMemo<Readonly<Record<HomeWidgetId, ComponentType>>>(
+    // The recipe slot needs the navigation intents and, because its OWN inner boundary catches a throw before the
+    // per-widget boundary below ever sees it, the reporting seam too (B23/DA9). They travel by context to a
+    // module-level host (`RECIPE_RENDERERS`): a component type built here from those values would remount the slot
+    // whenever one of them changed identity.
+    const recipeSlotProps = useMemo<RecipeWidgetSlotProps>(
         () => ({
-            [RECIPE_HOME_WIDGET_ID]: () => (
-                <RecipeWidgetSlot
-                    onSeeAllRecipes={onSeeAllRecipes}
-                    onSelectRecipe={onSelectRecipe}
-                    {...(onCreateRecipe === undefined ? {} : { onCreateRecipe })}
-                    {...(onPasteIngredients === undefined ? {} : { onPasteIngredients })}
-                    {...(onFindOnDiscover === undefined ? {} : { onFindOnDiscover })}
-                    onWidgetError={(error) => reportWidgetError(error, { widget: RECIPE_HOME_WIDGET_ID })}
-                />
-            ),
+            onSeeAllRecipes,
+            onSelectRecipe,
+            ...(onCreateRecipe === undefined ? {} : { onCreateRecipe }),
+            ...(onPasteIngredients === undefined ? {} : { onPasteIngredients }),
+            ...(onFindOnDiscover === undefined ? {} : { onFindOnDiscover }),
+            onWidgetError: (error) => reportWidgetError(error, { widget: RECIPE_HOME_WIDGET_ID }),
         }),
         [onSeeAllRecipes, onSelectRecipe, onCreateRecipe, onPasteIngredients, onFindOnDiscover, reportWidgetError],
     );
 
-    const activeRenderers = renderers ?? defaultRenderers;
+    const activeRenderers = renderers ?? RECIPE_RENDERERS;
 
     const curated = useHomeWidgets({
         container,
@@ -186,36 +183,41 @@ export function HomeWidgetSurface({
     return (
         <View style={styles.screen}>
             <HomeNudgeContext.Provider value={{ trigger: nudge.trigger }}>
-                <ScrollView
-                    keyboardShouldPersistTaps="handled"
-                    {...scrollBind}
-                    accessibilityLabel={home.regionLabel}
-                    style={styles.region}
-                    contentContainerStyle={styles.regionContent}
-                >
-                    {/* The large title is the scroller's FIRST child, so its host knows when it has scrolled under the
+                <RecipeWidgetPropsContext.Provider value={recipeSlotProps}>
+                    <ScrollView
+                        keyboardShouldPersistTaps="handled"
+                        {...scrollBind}
+                        accessibilityLabel={home.regionLabel}
+                        style={styles.region}
+                        contentContainerStyle={styles.regionContent}
+                    >
+                        {/* The large title is the scroller's FIRST child, so its host knows when it has scrolled under the
                         top (`LargeTitleHeader`); it sits on the app canvas, never in a card (§1.6). */}
-                    <HomeGreeting
-                        {...(cookName === undefined ? {} : { name: cookName })}
-                        {...(headerAction === undefined ? {} : { action: headerAction })}
-                    />
+                        <HomeGreeting
+                            {...(cookName === undefined ? {} : { name: cookName })}
+                            {...(headerAction === undefined ? {} : { action: headerAction })}
+                        />
 
-                    {curated.live.map(renderWidget)}
+                        {curated.live.map(renderWidget)}
 
-                    {/* The placeholders sit together, AFTER the recent recipes, under one "Coming soon" heading (owner
+                        {/* The placeholders sit together, AFTER the recent recipes, under one "Coming soon" heading (owner
                         ruling; `buildSpec.md` §4.2). Gone with the last placeholder. */}
-                    {curated.comingSoon.length > 0 && (
-                        <View style={styles.comingSoon}>
-                            <Text accessibilityRole="header" style={[styles.comingSoonHeading, { color: colors.ink }]}>
-                                {home.roadmap.comingSoonHeading}
-                            </Text>
-                            <Text style={[styles.comingSoonBody, { color: colors.inkMuted }]}>
-                                {home.roadmap.comingSoonBody}
-                            </Text>
-                            {curated.comingSoon.map(renderWidget)}
-                        </View>
-                    )}
-                </ScrollView>
+                        {curated.comingSoon.length > 0 && (
+                            <View style={styles.comingSoon}>
+                                <Text
+                                    accessibilityRole="header"
+                                    style={[styles.comingSoonHeading, { color: colors.ink }]}
+                                >
+                                    {home.roadmap.comingSoonHeading}
+                                </Text>
+                                <Text style={[styles.comingSoonBody, { color: colors.inkMuted }]}>
+                                    {home.roadmap.comingSoonBody}
+                                </Text>
+                                {curated.comingSoon.map(renderWidget)}
+                            </View>
+                        )}
+                    </ScrollView>
+                </RecipeWidgetPropsContext.Provider>
             </HomeNudgeContext.Provider>
 
             <SubscriptionNudge open={nudge.visible} onDismiss={nudge.dismiss} />

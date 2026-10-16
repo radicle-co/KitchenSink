@@ -4,15 +4,15 @@
     "packageName": "@commise/mobile",
     "layer": "app",
     "coverage": {
-        "components": 53,
-        "implementations": 53,
+        "components": 55,
+        "implementations": 55,
         "props": 154,
-        "documentedComponents": 52,
-        "implementationsWithModuleDoc": 51,
-        "implementationsWithComponentDoc": 38,
+        "documentedComponents": 54,
+        "implementationsWithModuleDoc": 53,
+        "implementationsWithComponentDoc": 40,
         "documentedProps": 148,
         "classifiedComponents": 36,
-        "componentsWithPatternTag": 23,
+        "componentsWithPatternTag": 25,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -1655,6 +1655,107 @@
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx"
                         }
                     ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/components/home/RecipeWidgetHost",
+            "name": "RecipeWidgetHost",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/components/home",
+            "kind": "unclassified",
+            "patterns": [
+                "Context-injected dependency — a stable component reads what the composition root provides"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeWidgetHost",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/components/home/RecipeWidgetHost.tsx",
+                    "dir": "packages/apps/commise/mobile/src/components/home",
+                    "moduleDoc": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (mobile).\n\nThe render map needs a `ComponentType`, and the slot needs the surface's navigation intents and error reporter.\nClosing over them inside the surface made the component TYPE a function of those values, so any unstable one handed\nReact a new type every render and REMOUNTED the slot (its in-flight read and retry state reset). This module-level\ncomponent has one identity for the life of the app and takes the slot's props from {@link RecipeWidgetPropsContext},\nwhich the surface provides — a changed prop re-renders the slot, it never remounts it.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (mobile)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Context-injected dependency — a stable component reads what the composition root provides"
+                        }
+                    ],
+                    "description": "The recipe widget's render-map entry.",
+                    "tags": [
+                        {
+                            "name": "returns",
+                            "text": "The recipe slot, wired to the surface's intents and reporter."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/components/home/RecipeWidgetPropsContext",
+            "name": "RecipeWidgetPropsContext",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/components/home",
+            "kind": "unclassified",
+            "patterns": [
+                "Context-injected dependency — a stable component reads what the composition root provides"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeWidgetPropsContext",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/components/home/RecipeWidgetHost.tsx",
+                    "dir": "packages/apps/commise/mobile/src/components/home",
+                    "moduleDoc": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (mobile).\n\nThe render map needs a `ComponentType`, and the slot needs the surface's navigation intents and error reporter.\nClosing over them inside the surface made the component TYPE a function of those values, so any unstable one handed\nReact a new type every render and REMOUNTED the slot (its in-flight read and retry state reset). This module-level\ncomponent has one identity for the life of the app and takes the slot's props from {@link RecipeWidgetPropsContext},\nwhich the surface provides — a changed prop re-renders the slot, it never remounts it.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (mobile)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Context-injected dependency — a stable component reads what the composition root provides"
+                        }
+                    ],
+                    "description": "The props the surface hands the recipe slot. `null` outside a surface: the intents are REQUIRED (an optional seam is\nhow the cards once shipped dead), so there is no inert default to fall back on.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {

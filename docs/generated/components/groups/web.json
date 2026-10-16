@@ -4,15 +4,15 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 79,
-        "implementations": 79,
+        "components": 81,
+        "implementations": 81,
         "props": 98,
-        "documentedComponents": 76,
-        "implementationsWithModuleDoc": 60,
-        "implementationsWithComponentDoc": 55,
+        "documentedComponents": 78,
+        "implementationsWithModuleDoc": 62,
+        "implementationsWithComponentDoc": 57,
         "documentedProps": 65,
         "classifiedComponents": 32,
-        "componentsWithPatternTag": 27,
+        "componentsWithPatternTag": 29,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -2993,6 +2993,107 @@
                             "declaredIn": "packages/apps/commise/web/src/components/home/HomeWidgetSurface.tsx"
                         }
                     ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/components/home/RecipeWidgetErrorContext",
+            "name": "RecipeWidgetErrorContext",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/home",
+            "kind": "unclassified",
+            "patterns": [
+                "Context-injected dependency — a stable component reads what the composition root provides"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeWidgetErrorContext",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/home/RecipeWidgetHost.tsx",
+                    "dir": "packages/apps/commise/web/src/components/home",
+                    "moduleDoc": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (web).\n\nThe render map needs a `ComponentType`, and the slot needs the surface's error reporter. Closing over the reporter\ninside the surface made the component TYPE a function of the reporter, so an unstable reporter handed React a new\ntype every render and REMOUNTED the slot (its retry counter and in-flight read reset). This module-level component\nhas one identity for the life of the app and takes the reporter from {@link RecipeWidgetErrorContext}, which the\nsurface provides — a changed reporter re-renders the slot, it never remounts it.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (web)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Context-injected dependency — a stable component reads what the composition root provides"
+                        }
+                    ],
+                    "description": "The reporter the surface provides; a no-op outside a surface, so a bare slot never throws for want of one.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/components/home/RecipeWidgetHost",
+            "name": "RecipeWidgetHost",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/home",
+            "kind": "unclassified",
+            "patterns": [
+                "Context-injected dependency — a stable component reads what the composition root provides"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeWidgetHost",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/home/RecipeWidgetHost.tsx",
+                    "dir": "packages/apps/commise/web/src/components/home",
+                    "moduleDoc": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (web).\n\nThe render map needs a `ComponentType`, and the slot needs the surface's error reporter. Closing over the reporter\ninside the surface made the component TYPE a function of the reporter, so an unstable reporter handed React a new\ntype every render and REMOUNTED the slot (its retry counter and in-flight read reset). This module-level component\nhas one identity for the life of the app and takes the reporter from {@link RecipeWidgetErrorContext}, which the\nsurface provides — a changed reporter re-renders the slot, it never remounts it.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "home/RecipeWidgetHost — the Home surface's render-map entry for the recipe widget (web)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Context-injected dependency — a stable component reads what the composition root provides"
+                        }
+                    ],
+                    "description": "The recipe widget's render-map entry.",
+                    "tags": [
+                        {
+                            "name": "returns",
+                            "text": "The recipe slot, wired to the surface's reporter."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {

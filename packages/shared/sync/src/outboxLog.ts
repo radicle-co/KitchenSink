@@ -471,7 +471,7 @@ function entityMayStand(log: OutboxLog, incoming: Intent): DiscardOutcome {
     const stands = log.records.some(
         (record) =>
             record.state === 'parked' &&
-            (record.intentKind === 'create' || record.intentKind === 'createFreeform') &&
+            record.intentKind === 'create' &&
             record.entity === incoming.entity &&
             record.localId === incoming.localId &&
             (record.produces === undefined || log.resolutions[record.produces] === undefined) &&

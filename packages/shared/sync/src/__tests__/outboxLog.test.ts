@@ -1164,6 +1164,22 @@ describe('applyDiscard — the entity path reports a withdrawn create that may s
         expect(outcome).toStrictEqual({ kind: 'settled' });
     });
 
+    it('⛔ a parked create whose ref a drain resolved is deleted by its id: nothing can stand', () => {
+        const resolved: OutboxLog = { ...parkedCreate(), resolutions: { [REF]: 'srv_1' } };
+
+        const { log, outcome } = applyDiscard(resolved, { kind: 'entity', intent: remove });
+
+        expect(log.records.map((record) => record.intentKind)).toStrictEqual(['delete']);
+        expect(outcome).toStrictEqual({ kind: 'settled' });
+    });
+
+    it('a parked create of another entity under the same local id is not this Discard`s create', () => {
+        const part = intent({ entity: 'ingredient', intentKind: 'create', localId: REF, produces: REF });
+        const log = settle(appendIntent(EMPTY, part), { seq: 1, outcome: 'parked' });
+
+        expect(applyDiscard(log, { kind: 'entity', intent: remove }).outcome).toStrictEqual({ kind: 'settled' });
+    });
+
     it('a create on the wire is left, the delete queues behind it, and nothing is withdrawn', () => {
         const sending = markSending(appendIntent(EMPTY, create), 1);
 

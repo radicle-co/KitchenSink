@@ -15,7 +15,7 @@
  * @pattern State — `revealReducer`, an exhaustive switch over a discriminated union of states and events
  */
 import { spacing } from '../tokens/scale.js';
-import type { RevealRequest, RevealTarget } from './fieldRevealContext.js';
+import type { ListRequest, RevealTarget } from './fieldRevealContext.js';
 
 /** The dp left between the visible area's top and a field the host scrolled up to it (E1). */
 export const REVEAL_GAP_DP = spacing[2];
@@ -38,10 +38,10 @@ export interface FieldPlace {
 /** One opening, held by the host. */
 export type RevealState =
     | { readonly kind: 'closed' }
-    | { readonly kind: 'armed'; readonly request: RevealRequest }
+    | { readonly kind: 'armed'; readonly request: ListRequest }
     | {
           readonly kind: 'revealing' | 'revealed';
-          readonly request: RevealRequest;
+          readonly request: ListRequest;
           /** The scroll offset that puts the field at the top. */
           readonly target: number;
           /** Where the space was last laid out in the content; `null` until it has been. */
@@ -50,7 +50,7 @@ export type RevealState =
 
 /** What happens to an opening. */
 export type RevealEvent =
-    | { readonly kind: 'requested'; readonly request: RevealRequest }
+    | { readonly kind: 'requested'; readonly request: ListRequest }
     | { readonly kind: 'released'; readonly field: RevealTarget }
     | { readonly kind: 'misfit'; readonly field: RevealTarget; readonly target: number }
     | { readonly kind: 'spacerLaidOut'; readonly top: number }

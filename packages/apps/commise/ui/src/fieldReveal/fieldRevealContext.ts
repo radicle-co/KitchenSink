@@ -17,24 +17,30 @@ import type { HostInstance } from 'react-native';
 export type RevealTarget = Pick<HostInstance, 'measureLayout'>;
 
 /**
- * One opening's request.
+ * One request to the scroller around a field. The kinds share a field and nothing else, so each carries only what it
+ * needs (`docs/design/uiOverhaul/specSharedSystem.md` §16.3).
+ *
+ * - A `list` is the field and the list that opened below it, shown by laying out blank space and scrolling the field
+ *   to the top. `below` is the dp the field needs below it, from its own layout constants (the list's margin, padding
+ *   and rows).
+ * - An `arrival` is a row that just arrived straight above the field, shown with the field by the smallest scroll, and
+ *   never with blank space (`docs/design/uiOverhaul/ingredientArrival.md`). `above` is the dp from the top of the row
+ *   that arrived to the top of the field.
+ * - A `focus` is a field the cook is typing in: the host keeps it inside the visible area for as long as it is held,
+ *   and checks again each time the visible area gets shorter (the keyboard rising, then the pinned footer).
+ * - A `target` is a field a refused Publish named: the host scrolls it to the middle of the visible area, once, and
+ *   then calls `onShown`, where the field moves the screen-reader cursor to itself.
  *
  * @notWireShape a field's in-process request to the scroller around it; never serialised or sent anywhere
  */
-export interface RevealRequest {
-    readonly field: RevealTarget;
-    /** The dp the field needs below it, from its own layout constants (the list's margin, padding and rows). */
-    readonly below: number;
-    /**
-     * What the field asks to be shown. A `list` is the field and the list that opened below it, shown by laying out
-     * blank space and scrolling the field to the top. An `arrival` is a row that just arrived straight above the field,
-     * shown with the field by the smallest scroll, and never with blank space
-     * (`docs/design/uiOverhaul/ingredientArrival.md`).
-     */
-    readonly kind: 'list' | 'arrival';
-    /** The dp from the top of the row that arrived to the top of the field; `0` for a `list`. */
-    readonly above: number;
-}
+export type RevealRequest =
+    | { readonly kind: 'list'; readonly field: RevealTarget; readonly below: number }
+    | { readonly kind: 'arrival'; readonly field: RevealTarget; readonly above: number }
+    | { readonly kind: 'focus'; readonly field: RevealTarget }
+    | { readonly kind: 'target'; readonly field: RevealTarget; readonly onShown: () => void };
+
+/** The request of a field's list: the one kind the opening's reducer holds. */
+export type ListRequest = Extract<RevealRequest, { readonly kind: 'list' }>;
 
 /** Ask the host to show the field and the room below it. Called from an effect, never in render; returns the release. */
 export type FieldRevealer = (request: RevealRequest) => () => void;
@@ -42,8 +48,17 @@ export type FieldRevealer = (request: RevealRequest) => () => void;
 /** Releases nothing. */
 const RELEASE_NOTHING = (): void => undefined;
 
-/** The revealer of a field no scroller can show: it asks nothing and releases nothing. */
-export const revealNothing: FieldRevealer = () => RELEASE_NOTHING;
+/**
+ * The revealer of a field no scroller can show: it asks nothing and releases nothing. A `target` still hears that it was
+ * shown, at once: a field under a `Modal` has no host to scroll it, and would otherwise never get the screen-reader cursor.
+ */
+export const revealNothing: FieldRevealer = (request) => {
+    if (request.kind === 'target') {
+        request.onShown();
+    }
+
+    return RELEASE_NOTHING;
+};
 
 /** The host's revealer. The default does nothing. */
 export const FieldRevealContext = createContext<FieldRevealer>(revealNothing);

@@ -733,7 +733,7 @@ describe('Combobox (native) — the field reveal (E1)', () => {
 
         type('Fl');
 
-        expect(revealer).toHaveBeenCalledExactlyOnceWith({ field: field(), below: BELOW, kind: 'list', above: 0 });
+        expect(revealer).toHaveBeenCalledExactlyOnceWith({ field: field(), below: BELOW, kind: 'list' });
     });
 
     it('asks nothing more on a new frame of the list or a re-render', () => {
@@ -776,7 +776,7 @@ describe('Combobox (native) — the field reveal (E1)', () => {
 
         rerender({ focusRequested: true, listRequested: true, status: { kind: 'loading', label: 'Searching…' } });
 
-        expect(revealer).toHaveBeenCalledExactlyOnceWith({ field: field(), below: BELOW, kind: 'list', above: 0 });
+        expect(revealer).toHaveBeenCalledExactlyOnceWith({ field: field(), below: BELOW, kind: 'list' });
     });
 
     it('asks nothing, and still opens its list, where no host provides a revealer', () => {
@@ -815,7 +815,7 @@ describe('Combobox (native) — an arrival', () => {
     it('asks the host once for the field, with nothing below it and the row above it', () => {
         const { revealer } = hosted({ key: 'line-1', aboveDp: 60 });
 
-        expect(revealer).toHaveBeenCalledExactlyOnceWith({ field: field(), below: 0, kind: 'arrival', above: 60 });
+        expect(revealer).toHaveBeenCalledExactlyOnceWith({ field: field(), kind: 'arrival', above: 60 });
     });
 
     it('asks nothing without an arrival', () => {
@@ -848,7 +848,7 @@ describe('Combobox (native) — an arrival', () => {
         rerender({ key: 'line-2', aboveDp: 70 });
 
         expect(release).toHaveBeenCalledTimes(1);
-        expect(revealer).toHaveBeenLastCalledWith({ field: field(), below: 0, kind: 'arrival', above: 70 });
+        expect(revealer).toHaveBeenLastCalledWith({ field: field(), kind: 'arrival', above: 70 });
     });
 
     it('releases when the field unmounts', () => {
@@ -864,7 +864,7 @@ describe('Combobox (native) — an arrival', () => {
 
         type('Fl');
 
-        expect(revealer).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'list', above: 0 }));
+        expect(revealer).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'list' }));
     });
 });
 

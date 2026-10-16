@@ -36,7 +36,7 @@ import {
     spacerHasRoom,
     spacerHeight,
 } from './fieldReveal.js';
-import type { FieldRevealer, RevealRequest } from './fieldRevealContext.js';
+import type { FieldRevealer, ListRequest, RevealRequest } from './fieldRevealContext.js';
 import { measureField, scrollContentTo, type RevealScroller } from './measureField.native.js';
 import type { RevealSpacerProps } from './RevealSpacer.native.js';
 import { spanTarget } from './spanReveal.js';
@@ -63,7 +63,7 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
     const [viewport, setViewport] = useState(0);
     const reduceMotion = useReduceMotion();
     // The arrival now waiting for a check that scrolls; apart from the list's opening, which it never shares a state with.
-    const [arrival, setArrival] = useState<RevealRequest | null>(null);
+    const [arrival, setArrival] = useState<Extract<RevealRequest, { readonly kind: 'arrival' }> | null>(null);
     const [revealer] = useState(() => {
         const reveal: FieldRevealer = (request) => {
             if (request.kind === 'arrival') {
@@ -72,6 +72,10 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
                 return () => {
                     setArrival((current) => (current === request ? null : current));
                 };
+            }
+
+            if (request.kind !== 'list') {
+                return () => undefined;
             }
 
             dispatch({ kind: 'requested', request });
@@ -84,7 +88,7 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
         return reveal;
     });
     // Reads the visible area as it is when the check runs; only the request and a change of size run one.
-    const check = useEffectEvent((request: RevealRequest): void => {
+    const check = useEffectEvent((request: ListRequest): void => {
         const view = scroller.current;
 
         if (view === null) {

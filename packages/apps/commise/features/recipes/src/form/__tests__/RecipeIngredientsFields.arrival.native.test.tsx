@@ -172,9 +172,7 @@ describe('RecipeIngredientsFields (native) — an arrival', () => {
         await layOutRow(60);
 
         // The row's 60 dp and the 4 dp between the list and the field.
-        expect(revealer).toHaveBeenCalledExactlyOnceWith(
-            expect.objectContaining({ kind: 'arrival', below: 0, above: 64 }),
-        );
+        expect(revealer).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: 'arrival', above: 64 }));
     });
 
     /**

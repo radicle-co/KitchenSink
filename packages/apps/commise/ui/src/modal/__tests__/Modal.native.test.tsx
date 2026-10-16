@@ -158,10 +158,7 @@ describe('Modal (native)', () => {
         const AskingField: FC = () => {
             const reveal = useContext(FieldRevealContext);
 
-            useEffect(
-                () => reveal({ field: { measureLayout: () => undefined }, below: 120, kind: 'list', above: 0 }),
-                [reveal],
-            );
+            useEffect(() => reveal({ field: { measureLayout: () => undefined }, below: 120, kind: 'list' }), [reveal]);
 
             return <Text>Field</Text>;
         };

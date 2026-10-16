@@ -85,6 +85,6 @@ describe('Combobox (native) — an arrival, as laid out', () => {
 
         rendered.rerender(tree({ key: 'line-1', aboveDp: 60 }));
 
-        expect(revealer).toHaveBeenCalledExactlyOnceWith({ field: field(), below: 0, kind: 'arrival', above: 90 });
+        expect(revealer).toHaveBeenCalledExactlyOnceWith({ field: field(), kind: 'arrival', above: 90 });
     });
 });

@@ -193,7 +193,7 @@ export const Combobox: FC<ComboboxProps> = ({
     const requestReveal = useEffectEvent((): (() => void) =>
         field.current === null
             ? RELEASE_NOTHING
-            : reveal({ field: field.current, below: REVEAL_BELOW_DP, kind: 'list', above: 0 }),
+            : reveal({ kind: 'list', field: field.current, below: REVEAL_BELOW_DP }),
     );
 
     useEffect(() => (popupShown ? requestReveal() : undefined), [popupShown]);
@@ -206,12 +206,7 @@ export const Combobox: FC<ComboboxProps> = ({
     const requestArrival = useEffectEvent((): (() => void) =>
         field.current === null || arrival === undefined
             ? RELEASE_NOTHING
-            : reveal({
-                  field: field.current,
-                  below: 0,
-                  kind: 'arrival',
-                  above: arrival.aboveDp + fieldRowTop,
-              }),
+            : reveal({ kind: 'arrival', field: field.current, above: arrival.aboveDp + fieldRowTop }),
     );
     const arrivalKey = arrival?.key;
 

@@ -17,7 +17,7 @@ import {
     type RevealEvent,
     type RevealState,
 } from '../fieldReveal.js';
-import type { RevealRequest, RevealTarget } from '../fieldRevealContext.js';
+import type { ListRequest, RevealTarget } from '../fieldRevealContext.js';
 
 /** Three 48 dp option rows under a 4 dp margin and 4 dp of padding: the Combobox leaf's own budget. */
 const THREE_ROWS = 4 + 4 + 3 * 48;
@@ -77,11 +77,10 @@ describe('spacerHeight and spacerHasRoom', () => {
 describe('revealReducer', () => {
     const a = field();
     const b = field();
-    const request = (target: RevealTarget): RevealRequest => ({
+    const request = (target: RevealTarget): ListRequest => ({
         field: target,
         below: THREE_ROWS,
         kind: 'list',
-        above: 0,
     });
     const armed: RevealState = { kind: 'armed', request: request(a) };
     const revealing: RevealState = { kind: 'revealing', request: request(a), target: 400, spacerTop: null };

@@ -57,7 +57,7 @@ function host(viewport = VIEWPORT) {
 /** Send a request and let its measurement answer. */
 async function request(rendered: ReturnType<typeof host>): Promise<() => void> {
     let release: () => void = () => undefined;
-    const ask: RevealRequest = { field, below: BELOW, kind: 'list', above: 0 };
+    const ask: RevealRequest = { field, below: BELOW, kind: 'list' };
 
     await act(async () => {
         release = rendered.result.current.revealer(ask);
@@ -180,7 +180,7 @@ describe('useFieldRevealHost', () => {
         const rendered = renderHook(() => useFieldRevealHost({ current: scroller }));
 
         await act(async () => {
-            rendered.result.current.revealer({ field, below: BELOW, kind: 'list', above: 0 });
+            rendered.result.current.revealer({ field, below: BELOW, kind: 'list' });
             await Promise.resolve();
         });
 
@@ -233,7 +233,7 @@ describe('useFieldRevealHost — an arrival (docs/design/uiOverhaul/ingredientAr
         let release: () => void = () => undefined;
 
         await act(async () => {
-            release = rendered.result.current.revealer({ field, below: 0, kind: 'arrival', above: ARRIVAL_ABOVE });
+            release = rendered.result.current.revealer({ field, kind: 'arrival', above: ARRIVAL_ABOVE });
             await Promise.resolve();
         });
 
@@ -314,7 +314,7 @@ describe('useFieldRevealHost — an arrival (docs/design/uiOverhaul/ingredientAr
         const rendered = renderHook(() => useFieldRevealHost({ current: scroller }));
 
         await act(async () => {
-            rendered.result.current.revealer({ field, below: 0, kind: 'arrival', above: ARRIVAL_ABOVE });
+            rendered.result.current.revealer({ field, kind: 'arrival', above: ARRIVAL_ABOVE });
             await Promise.resolve();
         });
 
@@ -328,7 +328,6 @@ describe('useFieldRevealHost — an arrival (docs/design/uiOverhaul/ingredientAr
         await act(async () => {
             const release = rendered.result.current.revealer({
                 field,
-                below: 0,
                 kind: 'arrival',
                 above: ARRIVAL_ABOVE,
             });

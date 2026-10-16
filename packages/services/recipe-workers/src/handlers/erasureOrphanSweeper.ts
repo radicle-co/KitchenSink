@@ -4,7 +4,7 @@ import { cdnOwnerPrefixInvalidationPath } from '@kitchensink/recipe-core';
 import { sql } from 'drizzle-orm';
 
 import { requireEnv } from '../common/config.js';
-import { createCloudFrontInvalidation } from '../common/cdnInvalidation.js';
+import { createCloudFrontInvalidation, distributionIdFromEnv } from '../common/cdnInvalidation.js';
 import { getRecipeDb } from '../common/db.js';
 import { initObservability, withObservability } from '../common/observability.js';
 import { logger } from '../common/logger.js';
@@ -195,7 +195,7 @@ const rawHandler = async (): Promise<void> => {
     // Built per invocation, mirroring `accountErasureWorker.ts`'s handler (the same reasoning applies
     // here — the distribution id is optional and stage-specific): see `common/cdnInvalidation.ts` for the
     // unset-id no-op contract.
-    const cdn = createCloudFrontInvalidation({ distributionId: process.env['CLOUDFRONT_DISTRIBUTION_ID'] });
+    const cdn = createCloudFrontInvalidation({ distributionId: distributionIdFromEnv(process.env) });
 
     const owners = await readRecentlyCompletedOwners(db);
 

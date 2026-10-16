@@ -12,18 +12,47 @@
  * implement the SAME `CdnInvalidationPort` contract (`@kitchensink/recipe-core`), so the two packages can
  * never drift on WHAT an invalidation call means — only on how each constructs the client.
  *
- * **No `Distribution` construct exists anywhere in this repo's CDK** — the distribution is provisioned
- * outside it, so `CLOUDFRONT_DISTRIBUTION_ID` is genuinely OPTIONAL. When absent/blank, this factory
- * returns a documented NO-OP port (logs a warning, never throws) rather than a port that fails erasure or
- * crashes the Lambda — see `accountErasureWorker.ts` for how a REAL (configured) adapter's failure is
- * treated differently: it is allowed to throw, and that throw is what keeps the erasure job non-terminal
- * until the invalidation request has actually been submitted.
+ * The media distribution (ADR-0064) is provisioned by the global app and its id reaches every erasure Lambda from SSM.
+ * {@link distributionIdFromEnv} makes it REQUIRED on a deployed stage: a deployed invocation without it throws, which
+ * is what keeps the erasure job non-terminal (SQS redelivers, the dead-letter alarm fires) instead of erasing the S3
+ * object and leaving its photo served from the edge. This factory's no-op for an unset id is for a developer machine
+ * only. See `accountErasureWorker.ts` for how a REAL adapter's failure is treated: it is allowed to throw, and that
+ * throw is what keeps the erasure job non-terminal until the invalidation request has actually been submitted.
  */
 import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront';
 import { randomUUID } from 'node:crypto';
 import type { CdnInvalidationPort } from '@kitchensink/recipe-core';
 
 import { logger } from './logger.js';
+
+/** The stages where nothing is deployed: invalidation is a logged no-op there. Every other value is a deployed one. */
+const UNDEPLOYED_STAGES = new Set(['dev', 'test', 'local']);
+
+/**
+ * The media distribution id from the Lambda's environment, REQUIRED on a deployed stage.
+ *
+ * An unset `STAGE` counts as deployed: an unknown environment must fail closed, not silently skip a purge.
+ *
+ * @param env - The environment (injected for tests).
+ * @returns The id, or `undefined` on an undeployed stage with none set.
+ * @throws {Error} when a deployed stage has no `CLOUDFRONT_DISTRIBUTION_ID`.
+ */
+export function distributionIdFromEnv(env: Readonly<Record<string, string | undefined>>): string | undefined {
+    const id = env['CLOUDFRONT_DISTRIBUTION_ID']?.trim();
+
+    if (id !== undefined && id !== '') {
+        return id;
+    }
+
+    if (UNDEPLOYED_STAGES.has(env['STAGE'] ?? '')) {
+        return undefined;
+    }
+
+    throw new Error(
+        'CLOUDFRONT_DISTRIBUTION_ID is required on a deployed stage (ADR-0064): the media distribution id is read ' +
+            'from SSM /kitchensink/{baseStage}/media/distribution-id. Refusing to erase media without purging its edge.',
+    );
+}
 
 /** Config the CloudFront adapter needs. */
 export interface CloudFrontInvalidationConfig {

@@ -475,12 +475,6 @@ export interface RecipeWorkersStackProps extends StackProps {
     readonly mediaBucketName: string;
     /** ARN of the global handle-sync SNS topic (W8-a.2) this deployment subscribes its OWN queue to. */
     readonly handleSyncTopicArn: string;
-    /**
-     * CloudFront distribution id, so the account-erasure worker can invalidate an erased owner's media
-     * prefix (HAZ-051/067/039). OPTIONAL — no `Distribution` construct exists in this repo's CDK; when
-     * absent the worker's CDN adapter degrades to a logged no-op rather than failing erasure.
-     */
-    readonly cloudfrontDistributionId?: string;
 }
 
 /**
@@ -518,6 +512,14 @@ export class RecipeWorkersStack extends Stack {
 
     public constructor(scope: Construct, id: string, props: RecipeWorkersStackProps) {
         super(scope, id, props);
+
+        // ADR-0064: the media distribution the global app publishes under `/kitchensink/{baseStage}/media/`, resolved by
+        // CloudFormation at DEPLOY time. Prod reads its own tree; every other stage (`pr-{N}` included) the shared sandbox
+        // one. Never an export, which would lock the distribution against replacement.
+        const mediaDistributionId = ssm.StringParameter.valueForStringParameter(
+            this,
+            `/kitchensink/${props.baseStage === 'prod' ? 'prod' : 'sandbox'}/media/distribution-id`,
+        );
 
         // ⚠️ DELIBERATE — ADR-0060. Outside prod, every scheduled rule in this stack synthesizes DISABLED and tagged
         // with its stage; the sandbox scheduler's `sync` switches it on only while the stage is up. Prod: no change.
@@ -750,26 +752,19 @@ export class RecipeWorkersStack extends Stack {
         grantRecipeObjectErasure(erasureRole, [archiveBucket, mediaBucket]);
         this.erasureQueue.grantConsumeMessages(erasureRole);
 
-        // HAZ-051/067/039: least-privilege grant for the CDN-invalidation call, scoped to the ONE
-        // configured distribution — never a wildcard resource. No-op (no grant added) when
-        // `cloudfrontDistributionId` is unset, matching the worker's own CDN adapter degrading to a no-op
-        // in that case; there is nothing to scope a grant to.
+        // HAZ-051/067/039: least-privilege grant for the CDN-invalidation call, scoped to the ONE media distribution
+        // - never a wildcard resource. Unconditional (ADR-0064): the distribution exists once the global app is deployed,
+        // its id arrives from SSM at deploy time, and the handlers REFUSE to run on a deployed stage without it.
         //
         // ONE spelling for the two roles that call it: the erasure worker AND the erasure-orphan sweeper both build
-        // `createCloudFrontInvalidation({ distributionId: process.env['CLOUDFRONT_DISTRIBUTION_ID'] })`. The sweeper
-        // got neither the variable nor this grant, so its invalidation of a reconciled owner's media prefix was
-        // dead code the day a distribution was configured (found by `lambdaRolesCoverTheirSdkCalls`).
+        // `createCloudFrontInvalidation({ distributionId: distributionIdFromEnv(process.env) })`.
         const grantCdnInvalidation = (role: iam.IRole): void => {
-            if (props.cloudfrontDistributionId !== undefined) {
-                role.addToPrincipalPolicy(
-                    new iam.PolicyStatement({
-                        actions: ['cloudfront:CreateInvalidation'],
-                        resources: [
-                            `arn:aws:cloudfront::${this.account}:distribution/${props.cloudfrontDistributionId}`,
-                        ],
-                    }),
-                );
-            }
+            role.addToPrincipalPolicy(
+                new iam.PolicyStatement({
+                    actions: ['cloudfront:CreateInvalidation'],
+                    resources: [`arn:aws:cloudfront::${this.account}:distribution/${mediaDistributionId}`],
+                }),
+            );
         };
 
         grantCdnInvalidation(erasureRole);
@@ -899,21 +894,16 @@ export class RecipeWorkersStack extends Stack {
             targets: [new events_targets.LambdaFunction(sweeperFn)],
         });
 
-        // HAZ-051/067/039: CLOUDFRONT_DISTRIBUTION_ID is OPTIONAL passthrough (mirrors recipe-service's
-        // own optional `cloudfrontDistributionId` prop) — omitted entirely rather than set to an empty
-        // string when absent, so the worker's CDN adapter sees an actually-unset value and degrades to
-        // its documented no-op instead of being handed a blank id to (mis)interpret.
+        // HAZ-051/067/039: the media distribution id, from SSM at deploy time (ADR-0064). Always set: the handlers
+        // refuse to run on a deployed stage without it.
         const erasureEnvironment: Record<string, string> = {
             ...commonDbEnv,
             ...sentryEnv,
             RECIPE_ARCHIVE_BUCKET: props.archiveBucketName,
             RECIPE_MEDIA_BUCKET: props.mediaBucketName,
             STAGE: props.stage,
+            CLOUDFRONT_DISTRIBUTION_ID: mediaDistributionId,
         };
-
-        if (props.cloudfrontDistributionId !== undefined) {
-            erasureEnvironment['CLOUDFRONT_DISTRIBUTION_ID'] = props.cloudfrontDistributionId;
-        }
 
         const erasureFn = new lambda.Function(this, 'AccountErasureWorkerFunction', {
             runtime,
@@ -1048,10 +1038,7 @@ export class RecipeWorkersStack extends Stack {
                 RECIPE_ARCHIVE_BUCKET: props.archiveBucketName,
                 RECIPE_MEDIA_BUCKET: props.mediaBucketName,
                 STAGE: props.stage,
-                // Omitted entirely when absent, as for the erasure worker: the adapter then sees an UNSET value.
-                ...(props.cloudfrontDistributionId === undefined
-                    ? {}
-                    : { CLOUDFRONT_DISTRIBUTION_ID: props.cloudfrontDistributionId }),
+                CLOUDFRONT_DISTRIBUTION_ID: mediaDistributionId,
             },
             logGroup,
         });

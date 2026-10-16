@@ -53,7 +53,7 @@ import { createCloudFrontInvalidation } from './cdnInvalidation.js';
             provide: PHOTOS_CONFIG,
             inject: [ConfigService],
             useFactory: (config: ConfigService): PhotosConfig => ({
-                cloudfrontUrl: config.getOrThrow<string>('CLOUDFRONT_URL'),
+                cloudfrontUrl: config.getOrThrow<string>('MEDIA_CDN_URL'),
                 thumbnailMaxPx: config.get<number>('THUMBNAIL_MAX_PX') ?? 400,
                 thumbnailQuality: config.get<number>('THUMBNAIL_QUALITY') ?? 80,
             }),
@@ -61,8 +61,8 @@ import { createCloudFrontInvalidation } from './cdnInvalidation.js';
         {
             provide: PHOTOS_CDN,
             inject: [ConfigService],
-            // CLOUDFRONT_DISTRIBUTION_ID is OPTIONAL (config.types.ts) — an unset/blank value degrades to
-            // the adapter's own logged no-op rather than failing here; see cdnInvalidation.ts.
+            // CLOUDFRONT_DISTRIBUTION_ID is required on a deployed task (config.types.ts, ADR-0064); locally an
+            // unset/blank value degrades to the adapter's own logged no-op; see cdnInvalidation.ts.
             useFactory: (config: ConfigService) =>
                 createCloudFrontInvalidation({
                     distributionId: config.get<string>('CLOUDFRONT_DISTRIBUTION_ID'),

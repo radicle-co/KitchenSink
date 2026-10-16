@@ -11,7 +11,7 @@ export const RECIPE_APP_ENV_DEFAULTS: Readonly<Record<string, string>> = {
     S3_FORCE_PATH_STYLE: 'true',
     S3_BUCKET_PHOTOS: 'commise-photos',
     S3_BUCKET_VERSIONS: 'commise-versions',
-    CLOUDFRONT_URL: 'http://localhost:4566/commise-photos',
+    MEDIA_CDN_URL: 'http://localhost:4566/commise-photos',
     SQS_ENDPOINT: 'http://localhost:4566',
     // REQUIRED since issue #120 — the app refuses to boot without a food origin, deliberately (the old
     // in-code `http://localhost:3002` default is what silently pointed the deployed service at itself).

@@ -33,9 +33,9 @@ import { FoodFilterExpansionGateway } from './foodFilterExpansion.gateway.js';
             provide: SEARCH_DAL,
             inject: [DrizzleProvider, ConfigService],
             // The cover-photo LATERAL yields an object key; the DAL resolves it to an absolute CDN URL
-            // against CLOUDFRONT_URL (same base the recipes vertical uses for embedded photo URLs).
+            // against MEDIA_CDN_URL (same base the recipes vertical uses for embedded photo URLs).
             useFactory: (db: RecipeDrizzle, config: ConfigService): SearchDal =>
-                new SearchDal(db, FACET_SAMPLE_SIZE, config.getOrThrow<string>('CLOUDFRONT_URL')),
+                new SearchDal(db, FACET_SAMPLE_SIZE, config.getOrThrow<string>('MEDIA_CDN_URL')),
         },
         SearchService,
     ],

@@ -23,7 +23,7 @@ export const ACCOUNT_EXPORT_CONFIG = 'ACCOUNT_EXPORT_CONFIG';
 
 /** Configuration the export service needs: the CDN base URL used to resolve photo object keys to URLs. */
 export interface AccountExportConfig {
-    /** The CloudFront base URL (`CLOUDFRONT_URL`) photo/thumbnail keys are resolved against. */
+    /** The CloudFront base URL (`MEDIA_CDN_URL`) photo/thumbnail keys are resolved against. */
     readonly cloudfrontUrl: string;
 }
 

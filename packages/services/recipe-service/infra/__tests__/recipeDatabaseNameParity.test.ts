@@ -158,7 +158,6 @@ describe('the recipe database name has ONE producer and is read, never re-derive
             imageTag: 'test',
             desiredCount: 1,
             vpcId: 'vpc-12345678',
-            cloudfrontUrl: 'https://cdn.example.com',
             foodServiceUrl: `https://food-${stage}.example.com`,
         });
         const template = Template.fromStack(service);

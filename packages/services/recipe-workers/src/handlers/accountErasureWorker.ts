@@ -16,7 +16,7 @@ import { sql } from 'drizzle-orm';
 import { isValid as isValidUlid } from 'ulidx';
 
 import { requireEnv } from '../common/config.js';
-import { createCloudFrontInvalidation } from '../common/cdnInvalidation.js';
+import { createCloudFrontInvalidation, distributionIdFromEnv } from '../common/cdnInvalidation.js';
 import { getRecipeDb } from '../common/db.js';
 import { initObservability, withObservability } from '../common/observability.js';
 import { logger } from '../common/logger.js';
@@ -1396,7 +1396,7 @@ const rawHandler: SQSHandler = async (event) => {
     // id is genuinely optional and stage-specific, and reading it lazily here — rather than once at
     // module import — keeps the env read ordinary and testable instead of tangled in ESM import-hoisting
     // timing. See `common/cdnInvalidation.ts` for the unset-id no-op contract.
-    const cdn = createCloudFrontInvalidation({ distributionId: process.env['CLOUDFRONT_DISTRIBUTION_ID'] });
+    const cdn = createCloudFrontInvalidation({ distributionId: distributionIdFromEnv(process.env) });
 
     logger.info('account-erasure-worker invoked', { recordCount: event.Records.length });
 

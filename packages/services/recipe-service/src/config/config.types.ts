@@ -13,6 +13,7 @@ import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
 import { BASE_RECIPE_DATABASE_NAME } from '@kitchensink/recipe-core/database-name';
 import { TEST_PRINCIPAL_CONTAINMENT_MODES } from '../common/containmentPolicy.js';
 import { RATE_LIMIT_DEFAULTS } from '../common/throttle/throttleDefaults.js';
+import { isDeployedEnvironment } from './cors.js';
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -309,15 +310,17 @@ export const storageConfigSchema = z.object({
     /** S3 bucket for recipe version archives. */
     S3_BUCKET_VERSIONS: z.string().min(1),
 
-    /** CloudFront distribution URL for serving photos. */
-    CLOUDFRONT_URL: z.string().url(),
+    /**
+     * The media CDN's public base URL (ADR-0064): every stored photo key is composed against it at read time.
+     * REQUIRED on a deployed task (`apiConfigSchema` refuses to boot without it) and read from SSM, where the global
+     * app publishes it. Optional on a developer machine, where it falls back to the LocalStack bucket in path style.
+     */
+    MEDIA_CDN_URL: z.string().url().optional(),
 
     /**
-     * CloudFront distribution id, for issuing invalidations on photo delete + GDPR erasure
-     * (HAZ-051/067/039). OPTIONAL: no `Distribution` construct exists in this repo's CDK (the
-     * distribution is provisioned outside it), so a stage without one yet — or local/dev — simply omits
-     * this. When unset, invalidation degrades to a logged no-op rather than failing to boot or failing a
-     * delete request; see `photos/cdnInvalidation.ts`.
+     * The media distribution's id, for invalidations on photo delete + GDPR erasure (HAZ-051/067/039). REQUIRED on a
+     * deployed task: a delete or an erasure that cannot purge the edge leaves the photo served. Optional locally,
+     * where invalidation is a logged no-op (`photos/cdnInvalidation.ts`).
      */
     CLOUDFRONT_DISTRIBUTION_ID: z.string().min(1).optional(),
 
@@ -344,10 +347,10 @@ export const storageConfigMeta: Record<keyof StorageConfig, ConfigFieldMeta> = {
     S3_FORCE_PATH_STYLE: { secret: false, description: 'Force path-style S3 (LocalStack)' },
     S3_BUCKET_PHOTOS: { secret: false, description: 'Photo storage bucket' },
     S3_BUCKET_VERSIONS: { secret: false, description: 'Version archive bucket' },
-    CLOUDFRONT_URL: { secret: false, description: 'CloudFront distribution URL' },
+    MEDIA_CDN_URL: { secret: false, description: 'Media CDN base URL (required when deployed)' },
     CLOUDFRONT_DISTRIBUTION_ID: {
         secret: false,
-        description: 'CloudFront distribution id for invalidations (HAZ-051/067/039); optional',
+        description: 'Media distribution id for invalidations (HAZ-051/067/039); required when deployed',
     },
     PRESIGNED_URL_EXPIRY_SECONDS: { secret: false, description: 'Presigned URL TTL' },
     THUMBNAIL_MAX_PX: { secret: false, description: 'Cover-thumbnail longest-edge bound (px)' },
@@ -729,7 +732,31 @@ export const apiConfigSchema = baseConfigSchema
                 path: ['CLERK_AUTHORIZED_PARTIES'],
             });
         }
-    });
+
+        // ADR-0064: a deployed task with no media CDN serves photo URLs that do not resolve, and one with no
+        // distribution erases a photo and leaves it cached. Both are refused at boot. A blank value is absent.
+        if (isDeployedEnvironment(config.NODE_ENV)) {
+            for (const name of ['MEDIA_CDN_URL', 'CLOUDFRONT_DISTRIBUTION_ID'] as const) {
+                if ((config[name] ?? '').trim().length === 0) {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        message: `${name} is required on a deployed task (ADR-0064): it is read from SSM /kitchensink/{baseStage}/media/`,
+                        path: [name],
+                    });
+                }
+            }
+        }
+    })
+    // The media CDN URL is ALWAYS present downstream. Locally it is the LocalStack bucket in path style, which is
+    // unsigned, so a developer machine needs no CDN; a deployed task has already been refused above if it lacks one.
+    .transform((config) => ({
+        ...config,
+        MEDIA_CDN_URL:
+            config.MEDIA_CDN_URL ??
+            (config.S3_ENDPOINT === undefined
+                ? `https://${config.S3_BUCKET_PHOTOS}.s3.amazonaws.com`
+                : `${config.S3_ENDPOINT.replace(/\/+$/, '')}/${config.S3_BUCKET_PHOTOS}`),
+    }));
 
 /** Typed full API configuration. */
 export type ApiConfig = z.infer<typeof apiConfigSchema>;

@@ -60,7 +60,9 @@ const { cdnInvalidate, createCloudFrontInvalidationMock } = vi.hoisted(() => ({
     createCloudFrontInvalidationMock: vi.fn(),
 }));
 
-vi.mock('../../common/cdnInvalidation.js', () => ({
+// `distributionIdFromEnv` stays REAL: it is the deployed-stage refusal this suite asserts end to end (ADR-0064).
+vi.mock('../../common/cdnInvalidation.js', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../../common/cdnInvalidation.js')>()),
     createCloudFrontInvalidation: createCloudFrontInvalidationMock.mockImplementation(() => ({
         invalidate: cdnInvalidate,
     })),
@@ -208,6 +210,13 @@ const OWNER_2 = '01JQ8N2X4RBV6WK3ZT5Y7A9C1Q';
 beforeEach(() => {
     vi.clearAllMocks();
     timeline = [];
+    // An UNDEPLOYED stage for the whole file: without a distribution id the CDN purge is a logged no-op here, and
+    // the deployed-stage refusal is asserted explicitly where it belongs (ADR-0064).
+    process.env['STAGE'] = 'test';
+});
+
+afterEach(() => {
+    delete process.env['STAGE'];
 });
 
 /** Index in the {@link timeline} of the first entry matching `pattern`, or -1. */
@@ -1113,6 +1122,8 @@ describe('handler', () => {
     beforeEach(() => {
         process.env['RECIPE_MEDIA_BUCKET'] = 'media-bucket';
         process.env['RECIPE_ARCHIVE_BUCKET'] = 'archive-bucket';
+        // An undeployed stage: a missing distribution id is a logged no-op here, and a REFUSAL on any other (below).
+        process.env['STAGE'] = 'test';
         delete process.env['CLOUDFRONT_DISTRIBUTION_ID'];
         control = createFakeDb();
         vi.mocked(getRecipeDbMock).mockReturnValue(control.db as never);
@@ -1133,6 +1144,7 @@ describe('handler', () => {
     afterEach(() => {
         delete process.env['RECIPE_MEDIA_BUCKET'];
         delete process.env['RECIPE_ARCHIVE_BUCKET'];
+        delete process.env['STAGE'];
         delete process.env['CLOUDFRONT_DISTRIBUTION_ID'];
     });
 
@@ -1225,6 +1237,23 @@ describe('handler', () => {
 
             expect(cdnInvalidate).not.toHaveBeenCalled();
         });
+
+        // ADR-0064: a deployed invocation with no distribution id would erase the S3 objects and leave the photos
+        // served from the edge. It must fail BEFORE any destructive work, so SQS redelivers and the alarm fires.
+        it.each(['prod', 'sandbox', 'pr-91'])(
+            '⛔ REFUSES on deployed stage %s without CLOUDFRONT_DISTRIBUTION_ID: nothing erased, nothing swept',
+            async (stage) => {
+                process.env['STAGE'] = stage;
+
+                await expect(runHandler(makeErasureEvent({ ownerId: OWNER }))).rejects.toThrow(
+                    /CLOUDFRONT_DISTRIBUTION_ID/,
+                );
+
+                expect(timeline).toEqual([]);
+                expect(control.statements()).toEqual([]);
+                expect(cdnInvalidate).not.toHaveBeenCalled();
+            },
+        );
 
         it('is never invoked when RECIPE_MEDIA_BUCKET is unset (fails fast before any destructive work)', async () => {
             delete process.env['RECIPE_MEDIA_BUCKET'];

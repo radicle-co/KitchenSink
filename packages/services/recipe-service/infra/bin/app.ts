@@ -152,12 +152,6 @@ new RecipeServiceStack(app, `RecipeService-${stage}`, {
     vpcId,
     imageTag: process.env['RECIPE_IMAGE_TAG'] ?? 'latest',
     desiredCount: Number(process.env['RECIPE_DESIRED_COUNT'] ?? 1),
-    // No CloudFront distribution exists yet — a placeholder keeps the service's storage config valid so it
-    // boots and serves recipe CRUD; photo-via-CDN serving lands with a real distribution later.
-    cloudfrontUrl: process.env['RECIPE_CLOUDFRONT_URL'] ?? `https://recipe-cdn.${domainName}`,
-    // Optional (HAZ-051/067/039): no distribution is provisioned by this repo's CDK yet, so this is
-    // simply unset until one exists — the service degrades to a logged CDN-invalidation no-op.
-    cloudfrontDistributionId: process.env['RECIPE_CLOUDFRONT_DISTRIBUTION_ID'],
     // Food service origin — REQUIRED, validated above and again at synth (see `assertFoodServiceUrl`).
     foodServiceUrl,
 });

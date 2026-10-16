@@ -141,7 +141,7 @@ import { ParseJobsDal } from './dal/parseJobs.dal.js';
         {
             provide: RECIPE_PHOTOS_CDN_URL,
             inject: [ConfigService],
-            useFactory: (config: ConfigService): string => config.getOrThrow<string>('CLOUDFRONT_URL'),
+            useFactory: (config: ConfigService): string => config.getOrThrow<string>('MEDIA_CDN_URL'),
         },
         // ⛔ THE READ-SIDE COLLABORATOR (Nest resolves it by class token; array order is immaterial). Every detail
         // projection that needs the food service lives here behind three public methods; `RecipesService`

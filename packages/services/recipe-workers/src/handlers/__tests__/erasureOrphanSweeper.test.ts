@@ -55,7 +55,9 @@ const { cdnInvalidate, createCloudFrontInvalidationMock } = vi.hoisted(() => ({
     createCloudFrontInvalidationMock: vi.fn(),
 }));
 
-vi.mock('../../common/cdnInvalidation.js', () => ({
+// `distributionIdFromEnv` stays REAL: it is the deployed-stage refusal this suite asserts end to end (ADR-0064).
+vi.mock('../../common/cdnInvalidation.js', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../../common/cdnInvalidation.js')>()),
     createCloudFrontInvalidation: createCloudFrontInvalidationMock.mockImplementation(() => ({
         invalidate: cdnInvalidate,
     })),
@@ -141,10 +143,13 @@ beforeEach(() => {
     process.env['RECIPE_ARCHIVE_BUCKET'] = ARCHIVE;
     process.env['RECIPE_MEDIA_BUCKET'] = MEDIA;
     process.env['STAGE'] = 'sandbox';
+    // Required on a deployed stage (ADR-0064); the sweeper then purges a reconciled owner's media prefix.
+    process.env['CLOUDFRONT_DISTRIBUTION_ID'] = 'E-SWEEPER-TEST';
 });
 
 afterEach(() => {
     vi.useRealTimers();
+    delete process.env['CLOUDFRONT_DISTRIBUTION_ID'];
     delete process.env['RECIPE_ARCHIVE_BUCKET'];
     delete process.env['RECIPE_MEDIA_BUCKET'];
     delete process.env['STAGE'];
@@ -168,6 +173,7 @@ describe('erasure-orphan-sweeper handler — it sweeps whenever invoked', () => 
 
     it('does not need a STAGE to decide whether to sweep', async () => {
         delete process.env['STAGE'];
+        // An unset STAGE counts as deployed, so the distribution id (set by the suite) is what lets it run.
         vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners([]) as never);
 
         await handler();

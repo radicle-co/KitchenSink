@@ -124,20 +124,6 @@ const ACCEPTED_GAPS: Readonly<Record<string, string>> = {};
  */
 const PYTHON_EXCLUSION = 'src/*.py imports no boto3/botocore, so the role has no SDK call to cover';
 
-/**
- * Optional synth inputs the harness's shared environment leaves unset, supplied here so the role that is judged is the
- * role the OPTIONAL feature runs with.
- *
- * `RECIPE_CLOUDFRONT_DISTRIBUTION_ID` is read by `recipe-workers`' app and no workflow sets it today. Unset, the
- * account-erasure worker's CDN adapter logs and skips the call (`createCloudFrontInvalidation`), and the stack adds no
- * `cloudfront:CreateInvalidation` grant: consistent, so nothing is denied. Set, it calls and the stack scopes the
- * grant to that one distribution. Synthesizing it unset would report the grant "missing" for a call that is never
- * made; synthesizing it set judges the state in which the call IS made. The id is a stub: it names nothing.
- */
-const OPTIONAL_INPUTS_SUPPLIED: Readonly<Record<string, string>> = {
-    RECIPE_CLOUDFRONT_DISTRIBUTION_ID: 'EEXAMPLEDISTRIB',
-};
-
 interface JudgedFunction {
     readonly app: string;
     readonly stage: string;
@@ -173,7 +159,7 @@ function synthesizedFunctions(): {
     const take = (stage: string, apps: readonly string[]): readonly string[] => {
         const refused: string[] = [];
 
-        for (const synthesis of synthesizeEveryApp({ ...OPTIONAL_INPUTS_SUPPLIED, STAGE: stage }, apps)) {
+        for (const synthesis of synthesizeEveryApp({ STAGE: stage }, apps)) {
             if (synthesis.failure === undefined) {
                 passes.push({ stage, app: synthesis.app, outdir: synthesis.outdir });
                 stagesByApp.set(synthesis.app, [...(stagesByApp.get(synthesis.app) ?? []), stage]);

@@ -38,7 +38,8 @@ const validEnv = (): Record<string, string> => ({
     CLERK_AUTHORIZED_PARTIES: 'https://commise.app',
     S3_BUCKET_PHOTOS: 'commise-photos',
     S3_BUCKET_VERSIONS: 'commise-versions',
-    CLOUDFRONT_URL: 'https://cdn.commise.app',
+    MEDIA_CDN_URL: 'https://media.commise.app',
+    CLOUDFRONT_DISTRIBUTION_ID: 'E1234567890',
     DATABASE_URL: 'postgres://recipe_app@localhost:5432/kitchensink_recipes',
     ACCOUNT_ERASURE_QUEUE_URL: 'https://sqs.us-east-1.amazonaws.com/000000000000/account-erasure',
     INGREDIENT_VERIFICATION_QUEUE_URL: 'https://sqs.us-east-1.amazonaws.com/000000000000/recipe-verification',
@@ -53,7 +54,7 @@ describe('loadConfig', () => {
         expect(config.NODE_ENV).toBe('production');
         expect(config.CLERK_JWT_KEY).toContain('BEGIN PUBLIC KEY');
         expect(config.S3_BUCKET_PHOTOS).toBe('commise-photos');
-        expect(config.CLOUDFRONT_URL).toBe('https://cdn.commise.app');
+        expect(config.MEDIA_CDN_URL).toBe('https://media.commise.app');
         // Defaults from the schema are materialized and coerced to their target types.
         expect(config.PORT).toBe(3000);
         expect(config.LOG_LEVEL).toBe('info');
@@ -197,7 +198,7 @@ describe('loadConfig', () => {
     it('throws ConfigValidationError on an invalid value', () => {
         const env = validEnv();
         env['NODE_ENV'] = 'banana';
-        env['CLOUDFRONT_URL'] = 'not-a-url';
+        env['MEDIA_CDN_URL'] = 'not-a-url';
 
         expect(() => loadConfig(apiConfigSchema, env)).toThrow(ConfigValidationError);
 
@@ -208,7 +209,7 @@ describe('loadConfig', () => {
             expect(isConfigValidationError(error)).toBe(true);
             const message = (error as ConfigValidationError).message;
             expect(message).toContain('NODE_ENV');
-            expect(message).toContain('CLOUDFRONT_URL');
+            expect(message).toContain('MEDIA_CDN_URL');
         }
     });
 
@@ -216,7 +217,7 @@ describe('loadConfig', () => {
         const env = validEnv();
         delete env['CLERK_JWT_KEY'];
         delete env['S3_BUCKET_PHOTOS'];
-        delete env['CLOUDFRONT_URL'];
+        delete env['S3_BUCKET_VERSIONS'];
 
         try {
             loadConfig(apiConfigSchema, env);
@@ -228,13 +229,63 @@ describe('loadConfig', () => {
             const offendingKeys = configError.issues.map((issue) => String(issue.path[0]));
             expect(offendingKeys).toContain('CLERK_JWT_KEY');
             expect(offendingKeys).toContain('S3_BUCKET_PHOTOS');
-            expect(offendingKeys).toContain('CLOUDFRONT_URL');
+            expect(offendingKeys).toContain('S3_BUCKET_VERSIONS');
             expect(configError.issues.length).toBeGreaterThanOrEqual(3);
 
             expect(configError.message).toContain('CLERK_JWT_KEY');
             expect(configError.message).toContain('S3_BUCKET_PHOTOS');
-            expect(configError.message).toContain('CLOUDFRONT_URL');
+            expect(configError.message).toContain('S3_BUCKET_VERSIONS');
         }
+    });
+
+    /**
+     * ADR-0064: the media CDN is where every stored photo is read from, and its distribution is what a delete or an
+     * erasure must purge. A deployed task with either missing would serve URLs that do not resolve, or erase a photo
+     * and leave it cached, so a deployed boot REFUSES. Locally neither is needed: the CDN URL falls back to the
+     * LocalStack bucket in path style, and an unset distribution makes invalidation a logged no-op.
+     */
+    describe('media delivery (ADR-0064)', () => {
+        it.each(['production', 'staging'])('%s refuses to boot without MEDIA_CDN_URL', (nodeEnv) => {
+            const env: Record<string, string> = { ...validEnv(), NODE_ENV: nodeEnv };
+            delete env['MEDIA_CDN_URL'];
+
+            expect(() => loadConfig(apiConfigSchema, env)).toThrow(/MEDIA_CDN_URL/u);
+        });
+
+        it.each(['production', 'staging'])('%s refuses to boot without CLOUDFRONT_DISTRIBUTION_ID', (nodeEnv) => {
+            const env: Record<string, string> = { ...validEnv(), NODE_ENV: nodeEnv };
+            delete env['CLOUDFRONT_DISTRIBUTION_ID'];
+
+            expect(() => loadConfig(apiConfigSchema, env)).toThrow(/CLOUDFRONT_DISTRIBUTION_ID/u);
+        });
+
+        it('treats a blank value as absent when deployed', () => {
+            const env = { ...validEnv(), MEDIA_CDN_URL: '' };
+
+            expect(() => loadConfig(apiConfigSchema, env)).toThrow(/MEDIA_CDN_URL/u);
+        });
+
+        it('locally, falls back to the LocalStack bucket in path style (an unsigned URL)', () => {
+            const env: Record<string, string> = {
+                ...validEnv(),
+                NODE_ENV: 'development',
+                S3_ENDPOINT: 'http://localhost:4566',
+                S3_BUCKET_PHOTOS: 'commise-photos',
+            };
+            delete env['MEDIA_CDN_URL'];
+            delete env['CLOUDFRONT_DISTRIBUTION_ID'];
+
+            const config = loadConfig(apiConfigSchema, env);
+
+            expect(config.MEDIA_CDN_URL).toBe('http://localhost:4566/commise-photos');
+            expect(config.CLOUDFRONT_DISTRIBUTION_ID).toBeUndefined();
+        });
+
+        it('locally, a configured MEDIA_CDN_URL wins over the fallback', () => {
+            const env = { ...validEnv(), NODE_ENV: 'development', S3_ENDPOINT: 'http://localhost:4566' };
+
+            expect(loadConfig(apiConfigSchema, env).MEDIA_CDN_URL).toBe('https://media.commise.app');
+        });
     });
 
     describe('azp enforcement mode', () => {

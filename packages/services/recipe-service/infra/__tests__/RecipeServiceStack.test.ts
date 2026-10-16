@@ -141,7 +141,6 @@ function synthTemplate(stage: string, baseStage: string, foodServiceUrl?: string
         imageTag: 'test',
         desiredCount: 1,
         vpcId: 'vpc-12345678',
-        cloudfrontUrl: 'https://cdn.example.com',
         foodServiceUrl: foodServiceUrl ?? `https://food-${stage}.example.com`,
     });
 
@@ -1191,7 +1190,6 @@ describe('the log drains are attached only when CI resolved a forwarder ARN', ()
                 domainName: 'example.com',
                 imageTag: 'test',
                 desiredCount: 1,
-                cloudfrontUrl: 'https://cdn.example.com',
                 foodServiceUrl: 'https://food-sandbox.example.com',
                 ...(arn === undefined ? {} : { logForwarderArn: arn }),
             }),
@@ -1241,7 +1239,6 @@ describe('every ECS service and cluster carries the per-PR Environment tag (ADR-
             imageTag: 'test',
             desiredCount: 1,
             vpcId: 'vpc-12345678',
-            cloudfrontUrl: 'https://cdn.example.com',
             foodServiceUrl: 'https://food-pr-1.example.com',
         });
 
@@ -1295,5 +1292,68 @@ describe('every resource is deleted with its stack at pr-1 (ADR-0061)', () => {
         // Not vacuous: a stack with no resources would pass.
         expect(Object.keys(template.toJSON()['Resources'] as object).length).toBeGreaterThan(3);
         expect(undisposableResources(template)).toEqual([]);
+    });
+});
+
+/**
+ * ADR-0064 - photos are read from the base stage's media CDN, and a delete or an erasure purges its edge.
+ *
+ * Both values come from SSM at DEPLOY time (the global app publishes them under `/kitchensink/{baseStage}/media/`),
+ * never from a template string: the previous `https://recipe-cdn.{domain}` placeholder named a host that never
+ * existed, and the distribution id was an optional prop no workflow ever set, so the invalidation port never ran.
+ * Neither is a CloudFormation import: an export would lock the distribution against replacement.
+ */
+describe('media CDN wiring (ADR-0064)', () => {
+    const apiEnvironment = (template: Template): Record<string, unknown> => {
+        const definitions = Object.values(template.findResources('AWS::ECS::TaskDefinition'));
+        const environment = definitions.flatMap((definition) =>
+            (
+                (definition.Properties?.['ContainerDefinitions'] ?? []) as {
+                    Environment?: { Name: string; Value: unknown }[];
+                }[]
+            ).flatMap((container) => container.Environment ?? []),
+        );
+
+        return Object.fromEntries(environment.map((entry) => [entry.Name, entry.Value]));
+    };
+
+    const ssmPathOf = (template: Template, token: unknown): string | undefined => {
+        const ref = (token as { Ref?: string } | undefined)?.Ref;
+        const parameters = (template.toJSON().Parameters ?? {}) as Record<string, { Default?: string }>;
+
+        return ref === undefined ? undefined : parameters[ref]?.Default;
+    };
+
+    it.each([
+        ['prod', 'prod', 'prod'],
+        ['pr-73', 'sandbox', 'sandbox'],
+    ])('%s reads the CDN url and distribution id from the %s media SSM tree', (stage, baseStage, tree) => {
+        const template = synthTemplate(stage, baseStage);
+        const environment = apiEnvironment(template);
+
+        expect(ssmPathOf(template, environment['MEDIA_CDN_URL'])).toBe(`/kitchensink/${tree}/media/cdn-url`);
+        expect(ssmPathOf(template, environment['CLOUDFRONT_DISTRIBUTION_ID'])).toBe(
+            `/kitchensink/${tree}/media/distribution-id`,
+        );
+    });
+
+    it('never carries the retired CLOUDFRONT_URL placeholder', () => {
+        expect(apiEnvironment(synthTemplate('prod', 'prod'))).not.toHaveProperty('CLOUDFRONT_URL');
+        expect(JSON.stringify(synthTemplate('prod', 'prod').toJSON())).not.toContain('recipe-cdn.');
+    });
+
+    it('ALWAYS grants cloudfront:CreateInvalidation on the media distribution only, never a wildcard', () => {
+        const template = synthTemplate('prod', 'prod');
+        const statements = Object.values(template.findResources('AWS::IAM::Policy')).flatMap(
+            (policy) => (policy.Properties?.['PolicyDocument']?.Statement ?? []) as Array<Record<string, unknown>>,
+        );
+        const invalidation = statements.filter((statement) =>
+            ([] as string[]).concat(statement['Action'] as string | string[]).includes('cloudfront:CreateInvalidation'),
+        );
+
+        expect(invalidation).toHaveLength(1);
+        expect(JSON.stringify(invalidation[0]?.['Resource'])).toContain('distribution/');
+        expect(JSON.stringify(invalidation[0]?.['Resource'])).not.toBe('"*"');
+        expect(JSON.stringify(invalidation[0]?.['Resource'])).toContain('SsmParameterValue');
     });
 });

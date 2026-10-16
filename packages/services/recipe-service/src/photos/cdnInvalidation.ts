@@ -6,15 +6,11 @@
  * adapter isolated behind the port the service depends on, so `PhotosService` stays unit-testable against
  * a mock port with no network.
  *
- * **No `Distribution` construct exists anywhere in this repo's CDK** (see `photos.module.ts`'s
- * `cloudfrontUrl` doc) — the distribution is provisioned and owned OUTSIDE this repo, so the only thing
- * this service can be handed is its id, via `CLOUDFRONT_DISTRIBUTION_ID`. That id is genuinely OPTIONAL
- * (local/dev and any stage without a provisioned distribution yet have none), so this factory returns a
- * documented NO-OP port — never a port that throws — when the id is absent or blank: a delete/erasure
- * request must never fail, and a stage must never fail to BOOT, merely because the CDN side of a
- * best-effort privacy mitigation isn't wired up yet. See `PhotosService.invalidateDeletedPhoto` for
- * how the caller treats a real (configured) adapter's failure, which is different from — and stricter
- * than — this unset-id case.
+ * The media distribution (ADR-0064) is provisioned by the global app and its id reaches this service from SSM as
+ * `CLOUDFRONT_DISTRIBUTION_ID`. The config schema REQUIRES it on a deployed task, so a deployed process always gets a
+ * real adapter. This factory returns a documented NO-OP port - never a port that throws - only when the id is absent or
+ * blank, which can happen on a developer machine alone. See `PhotosService.invalidateDeletedPhoto` for how the caller
+ * treats a real (configured) adapter's failure, which is stricter than this unset-id case.
  */
 import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront';
 import { randomUUID } from 'node:crypto';

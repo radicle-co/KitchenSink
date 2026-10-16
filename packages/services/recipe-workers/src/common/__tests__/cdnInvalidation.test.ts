@@ -25,7 +25,7 @@ vi.mock('@aws-sdk/client-cloudfront', () => ({
     }),
 }));
 
-import { createCloudFrontInvalidation } from '../cdnInvalidation.js';
+import { createCloudFrontInvalidation, distributionIdFromEnv } from '../cdnInvalidation.js';
 
 describe('createCloudFrontInvalidation (recipe-workers)', () => {
     beforeEach(() => {
@@ -88,4 +88,36 @@ describe('createCloudFrontInvalidation (recipe-workers)', () => {
             await expect(port.invalidate(['/recipes/01JOWNER/*'])).resolves.toBeUndefined();
         });
     });
+});
+
+/**
+ * ADR-0064: the media distribution is published to SSM by the global app and handed to every erasure Lambda. A
+ * DEPLOYED invocation without it must FAIL - the invocation errors, SQS redelivers and the dead-letter alarm fires -
+ * rather than erase a photo from S3 and leave it served from the edge. Only a developer machine may run without it.
+ */
+describe('distributionIdFromEnv', () => {
+    it.each(['prod', 'sandbox', 'pr-91', 'staging'])('returns the id on %s', (stage) => {
+        expect(distributionIdFromEnv({ STAGE: stage, CLOUDFRONT_DISTRIBUTION_ID: 'E123' })).toBe('E123');
+    });
+
+    it.each(['prod', 'sandbox', 'pr-91'])('THROWS on deployed stage %s without an id', (stage) => {
+        expect(() => distributionIdFromEnv({ STAGE: stage })).toThrow(/CLOUDFRONT_DISTRIBUTION_ID/u);
+    });
+
+    it('treats a blank id as absent', () => {
+        expect(() => distributionIdFromEnv({ STAGE: 'prod', CLOUDFRONT_DISTRIBUTION_ID: '  ' })).toThrow(
+            /CLOUDFRONT_DISTRIBUTION_ID/u,
+        );
+    });
+
+    it('THROWS when STAGE itself is unset: an unknown environment is a deployed one (fail closed)', () => {
+        expect(() => distributionIdFromEnv({})).toThrow(/CLOUDFRONT_DISTRIBUTION_ID/u);
+    });
+
+    it.each(['dev', 'test', 'local'])(
+        'is undefined on the undeployed stage %s, where invalidation is a logged no-op',
+        (stage) => {
+            expect(distributionIdFromEnv({ STAGE: stage })).toBeUndefined();
+        },
+    );
 });

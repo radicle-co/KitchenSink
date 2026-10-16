@@ -34,7 +34,7 @@ beforeAll(async () => {
         CLERK_AUTHORIZED_PARTIES: 'http://localhost:3000',
         S3_BUCKET_PHOTOS: 'commise-photos',
         S3_BUCKET_VERSIONS: 'commise-versions',
-        CLOUDFRONT_URL: 'http://localhost:4566/commise-photos',
+        MEDIA_CDN_URL: 'http://localhost:4566/commise-photos',
         FOOD_SERVICE_URL: 'http://localhost:3002',
         ACCOUNT_ERASURE_QUEUE_URL: 'http://localhost:4566/000000000000/account-erasure',
         INGREDIENT_VERIFICATION_QUEUE_URL: 'http://localhost:4566/000000000000/recipe-verification',

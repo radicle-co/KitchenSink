@@ -28,7 +28,7 @@ import { RECIPE_PHOTOS_CDN_URL } from '../recipes/recipes.tokens.js';
         {
             provide: RECIPE_PHOTOS_CDN_URL,
             inject: [ConfigService],
-            useFactory: (config: ConfigService): string => config.getOrThrow<string>('CLOUDFRONT_URL'),
+            useFactory: (config: ConfigService): string => config.getOrThrow<string>('MEDIA_CDN_URL'),
         },
         {
             provide: AuthorHandlesDal,

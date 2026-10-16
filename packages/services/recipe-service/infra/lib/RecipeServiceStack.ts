@@ -93,15 +93,6 @@ export interface RecipeServiceStackProps extends StackProps {
     readonly desiredCount: number;
     /** Shared VPC id to import. */
     readonly vpcId: string;
-    /** CloudFront/CDN origin for serving photos. No CDN exists yet, so a placeholder is passed in. */
-    readonly cloudfrontUrl: string;
-    /**
-     * CloudFront distribution id, for invalidations on photo delete + GDPR erasure (HAZ-051/067/039).
-     * OPTIONAL — no `Distribution` construct exists in this repo's CDK (see `cloudfrontUrl` above); a
-     * stage without one yet passes nothing through, and the service degrades to a logged no-op rather
-     * than failing to boot. Contrast `foodServiceUrl` below, which is REQUIRED.
-     */
-    readonly cloudfrontDistributionId?: string;
     /**
      * The food service (003) origin the ingredients vertical reads nutrition and catalog suggestions from.
      *
@@ -158,8 +149,12 @@ export class RecipeServiceStack extends Stack {
     public constructor(scope: Construct, id: string, props: RecipeServiceStackProps) {
         super(scope, id, props);
 
-        const { stage, imageTag, desiredCount, vpcId, domainName, cloudfrontUrl, foodServiceUrl } = props;
+        const { stage, imageTag, desiredCount, vpcId, domainName, foodServiceUrl } = props;
         const baseStage = props.baseStage ?? stage;
+        // ADR-0064: the media CDN. Prod reads its own tree; every other stage (`pr-{N}` included) the shared sandbox one.
+        const mediaTree = `/kitchensink/${baseStage === 'prod' ? 'prod' : 'sandbox'}/media`;
+        const mediaCdnUrl = ssm.StringParameter.valueForStringParameter(this, `${mediaTree}/cdn-url`);
+        const mediaDistributionId = ssm.StringParameter.valueForStringParameter(this, `${mediaTree}/distribution-id`);
 
         // Fail at synth, in the deploy log, rather than as crash-looping tasks minutes later.
         assertFoodServiceUrl(foodServiceUrl);
@@ -285,9 +280,13 @@ export class RecipeServiceStack extends Stack {
             DB_USERNAME: DATABASE_ROLES.recipe.app,
             S3_BUCKET_PHOTOS: photosBucket.bucketName,
             S3_BUCKET_VERSIONS: versionsBucket.bucketName,
-            // No CloudFront distribution exists yet; a placeholder keeps config valid so the service boots
-            // and serves recipe CRUD. Photo-via-CDN serving lands with a real distribution later.
-            CLOUDFRONT_URL: cloudfrontUrl,
+            // ADR-0064: the media CDN and its distribution, published by the global app under
+            // `/kitchensink/{baseStage}/media/` and resolved by CloudFormation at DEPLOY time. Never a template string
+            // and never an export (which would lock the distribution against replacement). The service REFUSES to
+            // boot without either, so a stage the global app has not deployed fails loudly instead of serving photo
+            // URLs that do not resolve.
+            MEDIA_CDN_URL: mediaCdnUrl,
+            CLOUDFRONT_DISTRIBUTION_ID: mediaDistributionId,
             // ⛔ Clerk auth env — the ONE definition lives in `@radicle-co/infra-shared/security`
             // (`clerkAuthEnvironment`): the JWT public key, EXACTLY ONE azp mode (prod = exact-match list,
             // non-prod = anchored preview pattern + preview mode), and the every-stage native-admission gate.
@@ -353,10 +352,6 @@ export class RecipeServiceStack extends Stack {
             FOOD_SERVICE_URL: foodServiceUrl,
         };
 
-        if (props.cloudfrontDistributionId !== undefined) {
-            recipeDbEnvironment['CLOUDFRONT_DISTRIBUTION_ID'] = props.cloudfrontDistributionId;
-        }
-
         // ── API service (ECS/Fargate behind the shared ALB) ─────────────────────────────────────
         const apiTaskRole = new iam.Role(this, 'RecipeApiTaskRole', {
             assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
@@ -415,18 +410,15 @@ export class RecipeServiceStack extends Stack {
             }),
         );
 
-        // HAZ-051/067/039: least-privilege grant for photo-delete's CDN-invalidation call, scoped to the
-        // ONE configured distribution — never a wildcard resource. No-op (no grant added) when
-        // `cloudfrontDistributionId` is unset, matching the service's own CDN adapter degrading to a no-op
-        // in that case (`photos/cdnInvalidation.ts`) — there is nothing to scope a grant to.
-        if (props.cloudfrontDistributionId !== undefined) {
-            apiTaskRole.addToPolicy(
-                new iam.PolicyStatement({
-                    actions: ['cloudfront:CreateInvalidation'],
-                    resources: [`arn:aws:cloudfront::${this.account}:distribution/${props.cloudfrontDistributionId}`],
-                }),
-            );
-        }
+        // HAZ-051/067/039: least-privilege grant for photo-delete's CDN-invalidation call, scoped to the ONE media
+        // distribution - never a wildcard resource. Unconditional: the distribution always exists once the global
+        // app is deployed (ADR-0064), and the service refuses to boot without its id.
+        apiTaskRole.addToPolicy(
+            new iam.PolicyStatement({
+                actions: ['cloudfront:CreateInvalidation'],
+                resources: [`arn:aws:cloudfront::${this.account}:distribution/${mediaDistributionId}`],
+            }),
+        );
 
         const apiTaskDefinition = new ecs.FargateTaskDefinition(this, 'RecipeApiTaskDefinition', {
             cpu: 512,

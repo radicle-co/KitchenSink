@@ -195,12 +195,7 @@ const DB_RESOURCE_ID = 'db-EXAMPLERESOURCEID12345';
  * @returns The synthesized template.
  * @sideEffect Reads the bundle directories `Code.fromAsset` stages.
  */
-function synth(
-    stage = 'sandbox',
-    baseStage = 'sandbox',
-    alarmsEnabled = true,
-    cloudfrontDistributionId?: string,
-): Template {
+function synth(stage = 'sandbox', baseStage = 'sandbox', alarmsEnabled = true): Template {
     const app = testApp({ context: VPC_LOOKUP_CONTEXT });
     const stack = new RecipeWorkersStack(app, `RecipeWorkers-${stage}`, {
         env: { account: '123456789012', region: 'us-east-1' },
@@ -216,7 +211,6 @@ function synth(
         mediaBucketName: 'commise-photos-sandbox',
         handleSyncTopicArn: 'arn:aws:sns:us-east-1:123456789012:kitchensink-handle-sync-sandbox',
         alarmsEnabled,
-        ...(cloudfrontDistributionId === undefined ? {} : { cloudfrontDistributionId }),
     });
 
     return Template.fromStack(stack);
@@ -1114,7 +1108,6 @@ describe('RecipeWorkersStack — archive-orphan sweep', () => {
     });
 
     describe('CDN invalidation of a reconciled media owner (the sweeper calls CreateInvalidation)', () => {
-        const DISTRIBUTION = 'EEXAMPLEDISTRIB';
         const sweeperEnvironment = (t: Template): Record<string, unknown> =>
             Object.values(t.findResources('AWS::Lambda::Function')).find(
                 (fn) => fn.Properties?.Handler === 'handlers/erasureOrphanSweeper.handler',
@@ -1129,37 +1122,61 @@ describe('RecipeWorkersStack — archive-orphan sweep', () => {
                     typeof statement.Action === 'string' ? [statement.Action] : (statement.Action ?? []),
                 );
 
-        it('hands the sweeper the distribution id AND a grant scoped to that one distribution', () => {
-            // `erasureOrphanSweeper.ts` builds `createCloudFrontInvalidation({ distributionId:
-            // process.env['CLOUDFRONT_DISTRIBUTION_ID'] })`. The erasure worker got the variable and the grant; the
-            // sweeper got neither, so its documented invalidation of a reconciled owner's media prefix could never
-            // fire (found by `lambdaRolesCoverTheirSdkCalls`): unset, the adapter logs and skips.
-            const configured = synth('sandbox', 'sandbox', true, DISTRIBUTION);
+        /** The SSM path a `valueForStringParameter` token resolves from (a `Ref` to a template parameter's Default). */
+        const ssmPathOf = (t: Template, token: unknown): string | undefined => {
+            const ref = (token as { Ref?: string } | undefined)?.Ref;
+            const parameters = (t.toJSON().Parameters ?? {}) as Record<string, { Default?: string }>;
 
-            expect(sweeperEnvironment(configured)['CLOUDFRONT_DISTRIBUTION_ID']).toBe(DISTRIBUTION);
-            expect(sweeperActions(configured)).toContain('cloudfront:CreateInvalidation');
+            return ref === undefined ? undefined : parameters[ref]?.Default;
+        };
 
-            const grant = Object.values(configured.findResources('AWS::IAM::Policy'))
-                .filter((policy) =>
-                    /^ErasureOrphanSweeperRoleDefaultPolicy/.test(String(policy.Properties?.PolicyName)),
-                )
-                .flatMap(
-                    (policy) =>
-                        policy.Properties?.PolicyDocument?.Statement as {
-                            Action?: string | string[];
-                            Resource?: unknown;
-                        }[],
-                )
-                .find((statement) => JSON.stringify(statement.Action).includes('cloudfront:CreateInvalidation'));
+        const erasureEnvironment = (t: Template): Record<string, unknown> =>
+            Object.values(t.findResources('AWS::Lambda::Function')).find(
+                (fn) => fn.Properties?.Handler === 'handlers/accountErasureWorker.handler',
+            )?.Properties?.Environment?.Variables ?? {};
 
-            expect(resolveArn(grant?.Resource)).toMatch(new RegExp(`:distribution/${DISTRIBUTION}$`));
-        });
+        // ADR-0064: the distribution is published to SSM by the global app and is no longer an optional prop. Both
+        // Lambdas that call CreateInvalidation get the id and a grant scoped to that ONE distribution, on every stage.
+        it.each([
+            ['sandbox', 'sandbox'],
+            ['prod', 'prod'],
+        ])(
+            'hands the sweeper AND the erasure worker the %s distribution id from SSM, with a scoped grant',
+            (stage, tree) => {
+                const configured = synth(stage, stage);
+                const path = `/kitchensink/${tree}/media/distribution-id`;
 
-        it('adds neither when no distribution is configured — the adapter then skips the call, and prod is unchanged', () => {
-            const unset = synth();
+                expect(ssmPathOf(configured, sweeperEnvironment(configured)['CLOUDFRONT_DISTRIBUTION_ID'])).toBe(path);
+                expect(ssmPathOf(configured, erasureEnvironment(configured)['CLOUDFRONT_DISTRIBUTION_ID'])).toBe(path);
+                expect(sweeperActions(configured)).toContain('cloudfront:CreateInvalidation');
 
-            expect(sweeperEnvironment(unset)).not.toHaveProperty('CLOUDFRONT_DISTRIBUTION_ID');
-            expect(sweeperActions(unset).filter((action) => action.startsWith('cloudfront:'))).toEqual([]);
+                const grants = Object.values(configured.findResources('AWS::IAM::Policy'))
+                    .flatMap(
+                        (policy) =>
+                            policy.Properties?.PolicyDocument?.Statement as {
+                                Action?: string | string[];
+                                Resource?: unknown;
+                            }[],
+                    )
+                    .filter((statement) => JSON.stringify(statement.Action).includes('cloudfront:CreateInvalidation'));
+
+                // One per role that calls it: the erasure worker and the sweeper.
+                expect(grants).toHaveLength(2);
+
+                for (const grant of grants) {
+                    expect(JSON.stringify(grant.Resource)).toContain(':distribution/');
+                    expect(JSON.stringify(grant.Resource)).toContain('SsmParameterValue');
+                    expect(resolveArn(grant.Resource)).not.toBe('*');
+                }
+            },
+        );
+
+        it('a pr-{N} preview reads the SANDBOX tree: previews share the base stage distribution', () => {
+            const preview = synth('pr-91', 'sandbox');
+
+            expect(ssmPathOf(preview, sweeperEnvironment(preview)['CLOUDFRONT_DISTRIBUTION_ID'])).toBe(
+                '/kitchensink/sandbox/media/distribution-id',
+            );
         });
     });
 

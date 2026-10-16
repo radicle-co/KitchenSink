@@ -8,6 +8,8 @@
  *
  * Pull-to-refresh and the scroll bind are handed to the rails leaf unconditionally: the native leaf uses them, the web
  * leaf ignores them (its contract), so this part has no platform branch.
+ *
+ * @pattern Composite — three rails, each behind its own read boundary, assembled into one block
  */
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import type { RecipeSearchSortBy } from '@kitchensink/recipe-core';

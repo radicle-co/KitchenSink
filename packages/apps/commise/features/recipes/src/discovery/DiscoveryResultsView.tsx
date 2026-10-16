@@ -10,6 +10,9 @@
  * are the body these cards are not on screen, so nothing is asked about them; and the compact card draws no figure, so a
  * batch for it would have nobody to read the promise (a rejection would go unhandled). The id list is unmemoized on
  * purpose: the lookup keys its batches on the ids' content, never on the array's identity.
+ *
+ * @pattern Mediator — between the pages, the criteria and the results leaf: it picks the rails or the cards and wires the
+ *     no-result Trending slot
  */
 import type { useRefreshNotice } from '@commise/query/refresh-notice';
 import type { ScrollBind } from '@commise/ui/scroll-host';

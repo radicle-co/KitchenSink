@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @module @commise/features-recipes/discovery/DiscoveryPlatformProvider — hands the screen's parts the host's
+ * @module @commise/features-recipes/discovery/DiscoveryPlatformProvider — (orchestration) hands the screen's parts the host's
  * {@link DiscoveryPlatform}, so the rails, the results and the settled reads reach the boundary and the calorie lookup
  * without each passing them down four levels.
  *

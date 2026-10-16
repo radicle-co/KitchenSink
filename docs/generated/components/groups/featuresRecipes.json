@@ -11,8 +11,8 @@
         "implementationsWithModuleDoc": 252,
         "implementationsWithComponentDoc": 152,
         "documentedProps": 977,
-        "classifiedComponents": 125,
-        "componentsWithPatternTag": 66,
+        "classifiedComponents": 126,
+        "componentsWithPatternTag": 70,
         "crossPlatformComponents": 106
     },
     "components": [
@@ -8592,7 +8592,9 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/discovery",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Composite — three rails, each behind its own read boundary, assembled into one block"
+            ],
             "platforms": [
                 "web"
             ],
@@ -8610,6 +8612,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/discovery/DiscoveryBrowseRails — (orchestration) the curated rails, each behind its OWN read boundary,"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Composite — three rails, each behind its own read boundary, assembled into one block"
                         }
                     ],
                     "description": "The curated rails.",
@@ -9086,7 +9092,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/discovery",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
                 "Dependency Injection — React context carrying the platform port"
             ],
@@ -9102,11 +9108,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/discovery/DiscoveryPlatformProvider.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/discovery",
-                    "moduleDoc": "@commise/features-recipes/discovery/DiscoveryPlatformProvider — hands the screen's parts the host's\n{@link DiscoveryPlatform}, so the rails, the results and the settled reads reach the boundary and the calorie lookup\nwithout each passing them down four levels.",
+                    "moduleDoc": "@commise/features-recipes/discovery/DiscoveryPlatformProvider — (orchestration) hands the screen's parts the host's\n{@link DiscoveryPlatform}, so the rails, the results and the settled reads reach the boundary and the calorie lookup\nwithout each passing them down four levels.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes/discovery/DiscoveryPlatformProvider — hands the screen's parts the host's"
+                            "text": "@commise/features-recipes/discovery/DiscoveryPlatformProvider — (orchestration) hands the screen's parts the host's"
                         },
                         {
                             "name": "pattern",
@@ -9150,7 +9156,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -9233,7 +9239,9 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/discovery",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Mediator — between the pages, the criteria and the results leaf: it picks the rails or the cards and wires the\n    no-result Trending slot"
+            ],
             "platforms": [
                 "web"
             ],
@@ -9251,6 +9259,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/discovery/DiscoveryResultsView — (orchestration) the results of one search, from its pages: the rails"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Mediator — between the pages, the criteria and the results leaf: it picks the rails or the cards and wires the\n    no-result Trending slot"
                         }
                     ],
                     "description": "The results of one search.",
@@ -9567,7 +9579,9 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/discovery",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Humble Object — the read and the calorie batch are bound here so the rail leaf stays pure `props → JSX`"
+            ],
             "platforms": [
                 "web"
             ],
@@ -9585,6 +9599,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/discovery/DiscoverySettledRail — (orchestration) one browse rail's settled read: its cards, with"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Humble Object — the read and the calorie batch are bound here so the rail leaf stays pure `props → JSX`"
                         }
                     ],
                     "description": "One rail's settled read.",
@@ -9655,7 +9673,9 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/discovery",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Humble Object — the settled read is bound here so the results view stays free of the query"
+            ],
             "platforms": [
                 "web"
             ],
@@ -9673,6 +9693,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/discovery/DiscoverySettledResults — (orchestration) the results of a settled search: the suspense read,"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Humble Object — the settled read is bound here so the results view stays free of the query"
                         }
                     ],
                     "description": "The results of a settled search.",

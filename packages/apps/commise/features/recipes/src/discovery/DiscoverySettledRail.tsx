@@ -4,6 +4,8 @@
  * @module @commise/features-recipes/discovery/DiscoverySettledRail — (orchestration) one browse rail's settled read: its cards, with
  * ONE nutrition batch for this rail. The rails settle at different moments, so a batch spanning all three would change as
  * each landed and re-batch the rails already showing figures.
+ *
+ * @pattern Humble Object — the read and the calorie batch are bound here so the rail leaf stays pure `props → JSX`
  */
 import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { FC } from 'react';

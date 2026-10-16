@@ -3,6 +3,8 @@
 /**
  * @module @commise/features-recipes/discovery/DiscoverySettledResults — (orchestration) the results of a settled search: the suspense read,
  * its refresh notice and pull-to-refresh, and the pager.
+ *
+ * @pattern Humble Object — the settled read is bound here so the results view stays free of the query
  */
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { useSuspenseInfiniteQuery } from '@tanstack/react-query';

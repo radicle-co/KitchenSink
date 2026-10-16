@@ -933,9 +933,11 @@ describe('SyncProvider — discard', () => {
         });
         await waitFor(() => expect(screen.getByText('failed:1')).toBeTruthy());
 
+        // The create failed with no status, so it may exist on the server: withdrawing it answers `mayStand`
+        // (`entityMayStand`, `outboxLog.ts`), and the editor decides what to tell the cook.
         await act(async () => {
             await expect(current().discard({ kind: 'entity', intent: deleteOf(REF, [REF]) })).resolves.toStrictEqual({
-                kind: 'settled',
+                kind: 'mayStand',
             });
         });
 

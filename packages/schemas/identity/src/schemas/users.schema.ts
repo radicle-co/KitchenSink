@@ -143,7 +143,9 @@ export type UserProfile = z.infer<typeof userProfileSchema>;
  * `avatarUrl` accepts `null` (clearing the avatar) as well as an absolute URL. Validation is now `z.url()`, which
  * requires a scheme; class-validator's `@IsUrl()` accepted a bare `example.com/x.png`. That is a deliberate
  * TIGHTENING: the value is rendered as an image source and every real avatar URL comes back from this service's
- * own presign route as an `https://` S3 URL.
+ * own presign route as an `https://` S3 URL, so only the `https` scheme is admitted (`javascript:`, `data:` and
+ * `http:` are refused). The host is NOT pinned here: this schema is copied verbatim to every client, while the
+ * avatar bucket is a per-stage runtime setting, so a host check belongs to the service, not the wire contract.
  */
 export const patchUserMeRequestSchema = z.strictObject({
     /**
@@ -153,8 +155,8 @@ export const patchUserMeRequestSchema = z.strictObject({
      * server-side normalisation, so it is not part of the published shape.
      */
     displayName: z.string().max(100).regex(/\S/, { error: 'must not be blank' }).optional(),
-    /** New avatar URL (absolute, with a scheme), or `null` to clear it. */
-    avatarUrl: z.union([z.url(), z.null()]).optional(),
+    /** New avatar URL (absolute, `https` only), or `null` to clear it. */
+    avatarUrl: z.union([z.url({ protocol: /^https$/ }), z.null()]).optional(),
 });
 
 /** Request body for `PATCH /api/v1/users/me`. */

@@ -105,6 +105,17 @@ describe('patchUserMeRequestSchema', () => {
         expect(patchUserMeRequestSchema.safeParse({ avatarUrl: null }).success).toBe(true);
     });
 
+    // The value is rendered as an image source, so only `https` is admitted: `javascript:`/`data:` are script and
+    // inline-payload vectors and `http:` is mixed content. Every real avatar URL is the presign route's `https://`.
+    it.each([
+        ['javascript:', false, 'javascript:alert(1)'],
+        ['data:', false, 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4='],
+        ['http:', false, 'http://img.example/x.png'],
+        ['https:', true, 'https://img.example/x.png'],
+    ])('avatarUrl with a %s scheme: accepted=%s', (_label, accepted, avatarUrl) => {
+        expect(patchUserMeRequestSchema.safeParse({ avatarUrl }).success).toBe(accepted);
+    });
+
     it('rejects a non-URL avatarUrl', () => {
         expect(patchUserMeRequestSchema.safeParse({ avatarUrl: 'not-a-url' }).success).toBe(false);
     });

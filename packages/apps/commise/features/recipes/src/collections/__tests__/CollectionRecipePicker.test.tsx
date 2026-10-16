@@ -50,6 +50,7 @@ describe('CollectionRecipePicker (web) — the frame', () => {
     it('passes the sheet’s dismissal on, once, after Done closes it', async () => {
         const onDismissed = vi.fn();
         const user = userEvent.setup();
+
         const Host = () => {
             const [open, setOpen] = useState(true);
 

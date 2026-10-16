@@ -16,8 +16,6 @@
  * Finally it owns the DEFERRED CALORIE LOOKUP (ADR-0021 §6) — see {@link RecipeWidgetNutritionContainer}.
  */
 import {
-    MAX_RECENT_RECIPES,
-    RecipeNutritionSlot,
     RecipeWidgetLoadError,
     RecipeWidgetLoadingCard,
     cardVariantOf,
@@ -28,7 +26,7 @@ import {
     type RecipeWidgetSeeAll,
     type RenderRecipeNutrition,
 } from '@commise/features-recipes';
-import { useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
+import { RECENT_RECIPE_LIMIT, useRecentRecipesNutrition } from '@commise/features-recipes/widget';
 import { useLocale } from '@commise/i18n/react';
 import type { Recipe } from '@kitchensink/recipe-core';
 import { recipeQueries } from '@kitchensink/recipe-service-client';
@@ -53,9 +51,6 @@ interface RecipeHomeWidgetProps {
     readonly renderNutrition?: RenderRecipeNutrition;
 }
 
-/** Up to four recent recipes (FR-046). Home reads the same page to know its first run. */
-export const RECENT_RECIPE_LIMIT = 4;
-
 /** The code-split widget, client-only (it reads the browser's session). */
 const RecipeHomeWidget = dynamic<RecipeHomeWidgetProps>(
     () =>
@@ -75,7 +70,7 @@ const RecipeHomeWidget = dynamic<RecipeHomeWidgetProps>(
  */
 const RecipeWidgetNutritionContainer: FC<RecipeHomeWidgetProps> = (props) => {
     const recipes = use(props.recipesPromise);
-    const nutritionFor = useRecipeNutritionBatches([recipes.slice(0, MAX_RECENT_RECIPES).map((recipe) => recipe.id)]);
+    const renderNutrition = useRecentRecipesNutrition(recipes);
 
     return (
         // ⛔ THE WIDGET'S OWN BOUNDARY, with no retry. `next/dynamic` builds its lazy proxy once at module scope and a
@@ -84,16 +79,7 @@ const RecipeWidgetNutritionContainer: FC<RecipeHomeWidgetProps> = (props) => {
         <ErrorBoundary
             fallback={<RecipeWidgetLoadError {...(props.seeAll === undefined ? {} : { seeAll: props.seeAll })} />}
         >
-            <RecipeHomeWidget
-                {...props}
-                renderNutrition={(recipeId) => {
-                    const batch = nutritionFor(recipeId);
-
-                    return batch === null ? null : (
-                        <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />
-                    );
-                }}
-            />
+            <RecipeHomeWidget {...props} renderNutrition={renderNutrition} />
         </ErrorBoundary>
     );
 };

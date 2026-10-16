@@ -34,35 +34,9 @@ import type { RecipeNutritionResponse } from '@kitchensink/schema-recipe';
 
 import { renderWithRecipeClient } from '@commise/test-utils';
 
-const { pushMock, uncoveredLookup } = vi.hoisted(() => ({
-    pushMock: vi.fn(),
-    uncoveredLookup: { current: false },
-}));
+const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: pushMock }) }));
-
-/**
- * The REAL `useRecipeNutritionBatches` runs in every case here — it is what makes "one request", "no
- * re-batch" and the promise-identity claims true rather than asserted against a stub. The one thing it cannot
- * produce is its own `null` return ("no page on screen carries this recipe"), because the container derives
- * the batched page from the very list the widget paints, so every id it asks about is covered by
- * construction. That branch is still the host's guard against the worst outcome in ADR-0021 — a card mounting
- * a boundary with no promise to settle, i.e. a skeleton that never comes down — and it becomes REACHABLE the
- * day the container's cap and the widget's cap drift apart. So the real hook is always called (hook order is
- * unconditional), and one case overrides its RESULT to drive that branch.
- */
-vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('@commise/features-recipes/hooks')>();
-
-    return {
-        ...actual,
-        useRecipeNutritionBatches: (pages: readonly (readonly string[])[]) => {
-            const real = actual.useRecipeNutritionBatches(pages);
-
-            return uncoveredLookup.current ? () => null : real;
-        },
-    };
-});
 
 // Render the real recipe widget synchronously in place of the `next/dynamic` code-split, exactly as the
 // sibling slot suite does (see its DETERMINISM note #2) — the widget, its Suspense and the slot's promise
@@ -206,7 +180,6 @@ afterEach(() => {
 });
 
 beforeEach(() => {
-    uncoveredLookup.current = false;
     // React logs the caught render error from the rejected-batch case.
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
@@ -321,22 +294,6 @@ describe('RecipeWidgetSlot (web) — the deferred calorie lookup', () => {
         } finally {
             vi.useRealTimers();
         }
-    });
-
-    // ⛔ THE PERMANENT-SKELETON GUARD. `null` from the lookup means "no batch covers this recipe" — we never
-    // asked — and the host must turn that into a definite decision to render NOTHING. The two tempting
-    // "simplifications" both produce the failure ADR-0021 is built to make unrepresentable: a non-null
-    // assertion crashes the card, and substituting a stand-in promise mounts a boundary with nothing to
-    // settle, so the shimmer runs for the lifetime of the page with no request in flight to end it.
-    it('renders no nutrition node at all — and no spinner — when no batch covers the recipe', async () => {
-        uncoveredLookup.current = true;
-        const { client } = clientWith([makeRecipe({ id: PASTA, title: 'Weeknight Pasta' })]);
-
-        await renderSlot(client);
-
-        expect(screen.getByRole('link', { name: 'Weeknight Pasta' }), 'the card still renders').toBeInTheDocument();
-        expect(screen.queryByText('Loading calories'), 'an unasked question is not a pending one').toBeNull();
-        expect(screen.queryByRole('img', { name: /cal/u })).toBeNull();
     });
 
     it('asks for nothing at all when the viewer has no recipes', async () => {

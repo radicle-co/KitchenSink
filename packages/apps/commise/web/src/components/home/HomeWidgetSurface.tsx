@@ -30,7 +30,7 @@ import {
 } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_ID, RecipeCreateButton } from '@commise/features-recipes';
 import { useLibraryEmpty } from '@commise/features-recipes/hooks';
-import { LIVE_CAPABILITIES } from '@commise/features-recipes/widget';
+import { LIVE_CAPABILITIES, RECENT_RECIPE_LIMIT } from '@commise/features-recipes/widget';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { paidFeatureStateOf } from '@commise/features-account';
 import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
@@ -48,7 +48,7 @@ import { ProfileAvatarEntry } from './chrome/ProfileAvatarEntry';
 import { HomeGreeting } from './HomeGreeting';
 import { homeContainer } from './homeContainer';
 import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice';
-import { RECENT_RECIPE_LIMIT, RecipeWidgetSlot } from './RecipeWidgetSlot';
+import { RecipeWidgetSlot } from './RecipeWidgetSlot';
 import { RoadmapWidgetSlot } from './RoadmapWidgetSlot';
 import { SubscriptionNudge } from './SubscriptionNudge';
 

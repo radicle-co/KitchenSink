@@ -235,10 +235,6 @@ const SCREENS: readonly (readonly [string, () => ReactElement])[] = [
                 />,
             ),
     ],
-    [
-        'RecipeWidgetSlot (Home)',
-        () => withQueryClient(<RecipeWidgetSlot onSeeAllRecipes={noop} onSelectRecipe={noop} />),
-    ],
 ];
 
 describe.each(SCREENS)('%s — the deferred calorie figure', (_name, renderScreen) => {
@@ -427,12 +423,104 @@ describe('which ids each screen batches', () => {
             'the results hidden behind the rails are not batched',
         ).toHaveLength(0);
     });
+});
 
-    it('RecipeWidgetSlot batches the recent recipes it renders', async () => {
+/**
+ * The Home widget, with the REAL `useRecipeNutritionBatches` over a spied nutrition read. Its lookup is the shared
+ * `useRecentRecipesNutrition` (`@commise/features-recipes/widget`), which imports the declaring hook module rather
+ * than the `./hooks` barrel mocked above, so the table of mocked screens no longer reaches it. Web's
+ * `RecipeWidgetSlot.nutrition.test.tsx` runs the same cases; the null-lookup case lives with the hook, in
+ * `useRecentRecipesNutrition.test.tsx`.
+ */
+describe('RecipeWidgetSlot (Home) — the deferred calorie figure, end to end', () => {
+    const renderHome = async (): Promise<void> => {
         await act(async () => {
             render(withQueryClient(<RecipeWidgetSlot onSeeAllRecipes={noop} onSelectRecipe={noop} />));
         });
+    };
 
-        expect(useNutritionMock).toHaveBeenCalledWith([[RECIPE_ID]]);
+    it('shows the calorie SKELETON while the batch is in flight', async () => {
+        vi.spyOn(serviceClient, 'getRecipeNutrition').mockImplementation(pending);
+
+        await renderHome();
+
+        expect(screen.getAllByLabelText('Loading calories').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Weeknight Pasta').length).toBeGreaterThan(0);
+    });
+
+    it('shows the CHIP once the batch resolves', async () => {
+        vi.spyOn(serviceClient, 'getRecipeNutrition').mockResolvedValue(KNOWN_RESPONSE);
+
+        await renderHome();
+
+        expect(screen.getByRole('img', { name: '420 cal' })).toBeTruthy();
+        expect(screen.queryByLabelText('Loading calories')).toBeNull();
+    });
+
+    it('shows NOTHING when the batch OMITS this recipe — and no lingering skeleton', async () => {
+        vi.spyOn(serviceClient, 'getRecipeNutrition').mockResolvedValue(OMITTING_RESPONSE);
+
+        await renderHome();
+
+        expect(screen.queryByLabelText('Loading calories')).toBeNull();
+        expect(screen.queryByText(/cal$/u)).toBeNull();
+        expect(screen.getAllByText('Weeknight Pasta').length).toBeGreaterThan(0);
+    });
+
+    // The read seam sets its own `retry: 1`, which the test client's `retry: false` does not override: a failed batch is
+    // retried behind TanStack's backoff before it settles. Fake timers drain it, so the assertion runs after the skeleton
+    // legitimately comes down rather than at a moment it is still up.
+    it('shows NOTHING, and no spinner, when the batch REJECTS', async () => {
+        vi.useFakeTimers();
+
+        try {
+            const read = vi.spyOn(serviceClient, 'getRecipeNutrition').mockRejectedValue(new Error('food unavailable'));
+
+            await renderHome();
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(5_000);
+            });
+
+            expect(read, 'attempted, then retried once').toHaveBeenCalledTimes(2);
+            expect(screen.queryByLabelText('Loading calories'), 'a failed batch must not leave a spinner').toBeNull();
+            expect(screen.queryByText(/cal$/u)).toBeNull();
+            expect(screen.getAllByText('Weeknight Pasta').length).toBeGreaterThan(0);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('issues ONE batch request covering the recipes it renders', async () => {
+        const read = vi.spyOn(serviceClient, 'getRecipeNutrition').mockResolvedValue(KNOWN_RESPONSE);
+
+        await renderHome();
+
+        expect(read).toHaveBeenCalledTimes(1);
+        expect(read.mock.calls[0]?.[0]).toStrictEqual([RECIPE_ID]);
+    });
+
+    // ⛔ The widget caps its grid at MAX_RECENT_RECIPES, so the request must cap with it (web's slot always did; mobile
+    // used to ask about every recipe the page returned): answers for recipes the widget never paints cost an endpoint
+    // priced by its id count and show nothing.
+    it('batches only the recipes the widget SHOWS when the page carries more', async () => {
+        const ids = ['a', 'b', 'c', 'd', 'e', 'f'].map((tail) => `00000000-0000-4000-8000-00000000001${tail}`);
+        listRecipesMock.mockResolvedValue(
+            makeRecipePage(ids.map((id, index) => makeRecipe({ id, title: `Recipe ${index + 1}` }))),
+        );
+        const read = vi.spyOn(serviceClient, 'getRecipeNutrition').mockResolvedValue(OMITTING_RESPONSE);
+
+        await renderHome();
+
+        expect(screen.queryByText('Recipe 5'), 'the 5th card really is not shown').toBeNull();
+        expect(read.mock.calls[0]?.[0]).toStrictEqual(ids.slice(0, 4));
+    });
+
+    it('asks for nothing at all when the viewer has no recipes', async () => {
+        listRecipesMock.mockResolvedValue(makeRecipePage([]));
+        const read = vi.spyOn(serviceClient, 'getRecipeNutrition').mockResolvedValue(OMITTING_RESPONSE);
+
+        await renderHome();
+
+        expect(read, 'an empty batch is a guaranteed 400 — it must never be sent').not.toHaveBeenCalled();
     });
 });

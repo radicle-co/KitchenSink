@@ -22,7 +22,6 @@
  * Try again, which refetches.
  */
 import {
-    RecipeNutritionSlot,
     RecipeWidgetLoadError,
     RecipeWidgetLoadingCard,
     cardVariantOf,
@@ -33,7 +32,7 @@ import {
     type RecipeWidgetSeeAll,
     type RenderRecipeNutrition,
 } from '@commise/features-recipes';
-import { useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
+import { RECENT_RECIPE_LIMIT, useRecentRecipesNutrition } from '@commise/features-recipes/widget';
 import type { Recipe } from '@kitchensink/recipe-core';
 import { QueryBoundary } from '@commise/query/boundary';
 import { recipeQueries } from '@kitchensink/recipe-service-client';
@@ -51,9 +50,6 @@ interface RecipeHomeWidgetProps {
     readonly firstRun?: RecipeWidgetFirstRun;
     readonly renderNutrition?: RenderRecipeNutrition;
 }
-
-/** Up to four recent recipes (FR-046). Home reads the same page to know its first run. */
-export const RECENT_RECIPE_LIMIT = 4;
 
 const RecipeHomeWidget = lazy<ComponentType<RecipeHomeWidgetProps>>(() =>
     recipeHomeWidgetDescriptor
@@ -139,7 +135,7 @@ function RecentRecipesWidget({
     const { data: page } = useSuspenseQuery(recipeQueries(client).list({ pageSize: RECENT_RECIPE_LIMIT }));
     const recipes = page.data;
     // The deferred calorie lookup (ADR-0021 §6), started during render so the cards paint over an in-flight request.
-    const nutritionFor = useRecipeNutritionBatches([recipes.map((recipe) => recipe.id)]);
+    const renderNutrition = useRecentRecipesNutrition(recipes);
     const ways = firstRunOf(firstRun);
 
     return (
@@ -153,14 +149,7 @@ function RecentRecipesWidget({
                     onSelectRecipe={onSelectRecipe}
                     seeAll={seeAll}
                     {...(ways === undefined ? {} : { firstRun: ways })}
-                    // ONE promise, N slots. `null` ⇒ no batch covers this recipe: render nothing.
-                    renderNutrition={(recipeId) => {
-                        const batch = nutritionFor(recipeId);
-
-                        return batch === null ? null : (
-                            <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />
-                        );
-                    }}
+                    renderNutrition={renderNutrition}
                 />
             </Suspense>
         </ErrorBoundary>

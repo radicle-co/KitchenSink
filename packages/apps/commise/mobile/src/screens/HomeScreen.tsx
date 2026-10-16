@@ -14,6 +14,7 @@
 import { profileEntryOf } from '@commise/features-core';
 import { RecipeCreateButton } from '@commise/features-recipes';
 import { useLibraryEmpty } from '@commise/features-recipes/hooks';
+import { RECENT_RECIPE_LIMIT } from '@commise/features-recipes/widget';
 import { CondensedTitleBar } from '@commise/ui/large-title-header';
 import { useScrollHost, type ScrollBind } from '@commise/ui/scroll-host';
 import type { JSX } from 'react';
@@ -21,7 +22,6 @@ import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import { StyleSheet, View } from 'react-native';
 
 import { HomeWidgetSurface } from '../components/home/HomeWidgetSurface.js';
-import { RECENT_RECIPE_LIMIT } from '../components/home/RecipeWidgetSlot.js';
 import { useHomeGreeting } from '../components/home/HomeGreeting.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
 import { ProfileAvatarEntry } from '../navigation/ProfileAvatarEntry.js';

@@ -20,6 +20,7 @@ import { cleanup, screen } from '@testing-library/react';
 import { renderWithProviders } from '@commise/test-utils';
 import { act, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RECENT_RECIPE_LIMIT } from '@commise/features-recipes/widget';
 import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
 
 vi.mock('@sentry/react-native', () => ({ captureException: vi.fn() }));
@@ -47,7 +48,6 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
 
 const { HomeScreen } = await import('../../src/screens/HomeScreen.js');
 const { ScrollHost } = await import('@commise/ui/scroll-host');
-const { RECENT_RECIPE_LIMIT } = await import('../../src/components/home/RecipeWidgetSlot.js');
 
 afterEach(() => {
     cleanup();

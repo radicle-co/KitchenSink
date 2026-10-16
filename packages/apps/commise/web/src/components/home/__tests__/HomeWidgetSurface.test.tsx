@@ -22,6 +22,7 @@ import {
 } from '@commise/features-core';
 import { useHomeNudge } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
+import { RECENT_RECIPE_LIMIT } from '@commise/features-recipes/widget';
 import { renderWithProviders } from '@commise/test-utils';
 import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -55,7 +56,6 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
 
 const { HomeWidgetSurface } = await import('../HomeWidgetSurface');
 const { homeContainer } = await import('../homeContainer');
-const { RECENT_RECIPE_LIMIT } = await import('../RecipeWidgetSlot');
 
 afterEach(() => {
     cleanup();

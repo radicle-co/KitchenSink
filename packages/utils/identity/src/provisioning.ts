@@ -135,8 +135,14 @@ export interface ProvisionedUser {
  */
 const NON_REVIVABLE_STATES = ['tombstoned', 'erased'] as const;
 
-/** True when a row's lifecycle state forbids resurrection (tombstoned/erased). */
-function isNonRevivable(status: string): boolean {
+/**
+ * True when a row's lifecycle state forbids resurrection (tombstoned/erased). Exported so every provider-sync path
+ * (the `user.updated` webhook as well as provisioning) reads the one rule.
+ *
+ * @param status - The row's `users.status`.
+ * @returns Whether no provider sync may write to the row. Pure.
+ */
+export function isNonRevivable(status: string): boolean {
     return (NON_REVIVABLE_STATES as readonly string[]).includes(status);
 }
 

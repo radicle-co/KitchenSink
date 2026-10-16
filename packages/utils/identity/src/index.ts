@@ -1,5 +1,6 @@
 export {
     PROVISION_LOCK_NAMESPACE,
+    isNonRevivable,
     provisionCompleteUser,
     type CreatedByline,
     type Db,

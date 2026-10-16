@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 
 import { recordOnce, hasProcessedWebhookEvent, UserDAO, users } from '@kitchensink/identity-db';
 import type { UserRow } from '@kitchensink/identity-db';
-import { provisionCompleteUser, type ProvisionResult } from '@kitchensink/identity-utils';
+import { isNonRevivable, provisionCompleteUser, type ProvisionResult } from '@kitchensink/identity-utils';
 import {
     createSnsHandleSyncPublisher,
     noopHandleSyncPublisher,
@@ -177,6 +177,19 @@ const handleUserUpdated = async (
 
     if (!existing) {
         logger.warn('identity-webhook: user.updated user not found', { requestId, identityId: data.id });
+
+        return;
+    }
+
+    // ⛔ R10: a closed or erased row is scrubbed, and no provider sync may write it back. Self-service erasure commits
+    // `erased` while the Clerk delete still waits on the queue, so this event can arrive after the scrub.
+    if (isNonRevivable(existing.status)) {
+        logger.info('identity-webhook: user.updated ignored for a closed or erased user', {
+            requestId,
+            identityId: data.id,
+            userId: existing.id,
+            status: existing.status,
+        });
 
         return;
     }

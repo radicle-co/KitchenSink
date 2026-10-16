@@ -14,7 +14,11 @@ vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
 vi.mock('../../common/svix.js', () => ({ verifyWebhook: vi.fn() }));
 vi.mock('../../common/identityClient.js', () => ({ setExternalId: vi.fn(), ensureDefaultRole: vi.fn() }));
 vi.mock('../../common/provisioning.js', () => ({ buildProvisionDeps: vi.fn(() => ({})) }));
-vi.mock('@kitchensink/identity-utils', () => ({ provisionCompleteUser: vi.fn() }));
+vi.mock('@kitchensink/identity-utils', async (importOriginal) => ({
+    // The lifecycle predicate is the real one, so these tests prove the handler reads the shared rule.
+    ...(await importOriginal<typeof import('@kitchensink/identity-utils')>()),
+    provisionCompleteUser: vi.fn(),
+}));
 
 vi.mock('@kitchensink/identity-db', () => ({
     UserDAO: vi.fn().mockImplementation(function () {
@@ -442,6 +446,50 @@ describe('identity-webhook handler', () => {
         });
         expect(daoInstance.settleHandleSync).toHaveBeenCalledWith('usr_ulid', STAMPED, null);
     });
+
+    /**
+     * ⛔ R10: NO PROVIDER SYNC REPOPULATES A CLOSED OR ERASED ROW. Self-service erasure commits `status='erased'` while
+     * the Clerk delete still waits on the queue, so Clerk can send a `user.updated` after the scrub; the later
+     * `user.deleted` echo does not re-scrub an erased row. Provisioning already refuses these rows; the webhook must too.
+     */
+    it.each(['tombstoned', 'erased'])(
+        '⛔ user.updated for a %s row writes nothing and publishes nothing',
+        async (status) => {
+            const { db, setUser } = buildMockDb();
+            mockGetDb.mockResolvedValue(db);
+            mockVerifyWebhook.mockReturnValue(userUpdatedPayload as never);
+
+            const daoInstance = {
+                upsertByIdentityId: vi.fn(),
+                findByIdentityId: vi.fn().mockResolvedValue({
+                    id: 'usr_ulid',
+                    identityId: 'user_abc123',
+                    email: 'usr_ulid@erased.invalid',
+                    name: null,
+                    picture: null,
+                    status,
+                }),
+                updateProfile: vi.fn(),
+                syncProviderFields: vi.fn().mockResolvedValue({
+                    byline: { displayName: 'Jane Doe', username: 'janedoe', stampedAt: STAMPED },
+                }),
+                settleHandleSync: vi.fn().mockResolvedValue(undefined),
+            };
+            vi.mocked(UserDAO).mockImplementation(function () {
+                return daoInstance;
+            });
+
+            const result = await handler(
+                makeEvent(JSON.stringify(userUpdatedPayload), { 'svix-id': 'msg_closed' }),
+                makeContext(),
+            );
+
+            expect(result.statusCode).toBe(200);
+            expect(setUser).not.toHaveBeenCalled();
+            expect(daoInstance.syncProviderFields).not.toHaveBeenCalled();
+            expect(handleSyncPublish).not.toHaveBeenCalled();
+        },
+    );
 
     it('user.updated A -> B -> A: the revert is NOT silently dropped — both transitions write + publish', async () => {
         const { db } = buildMockDb();

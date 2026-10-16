@@ -102,8 +102,14 @@ function cappedApiDefect(triggers: readonly string[], job: Job, step: Step): str
 
     // The checkout that feeds the filter is the last one before it.
     const steps = job.steps ?? [];
+    const position = steps.indexOf(step);
+
+    if (position === -1) {
+        throw new Error('cappedApiDefect: the filter step is not one of the job steps it was given');
+    }
+
     const checkout = steps
-        .slice(0, steps.indexOf(step))
+        .slice(0, position)
         .findLast((candidate) => (candidate.uses ?? '').startsWith('actions/checkout@'));
 
     if (String(checkout?.with?.['fetch-depth']) !== '0') {
@@ -180,6 +186,12 @@ describe('cappedApiDefect — the rule, over shapes the tree does and does not h
         const filter = steps.find((step) => step.uses === FILTER) as Step;
 
         expect(cappedApiDefect(triggers, { steps }, filter) !== undefined).toBe(defective);
+    });
+
+    it('refuses a filter step that is not in the job, rather than searching every step', () => {
+        expect(() =>
+            cappedApiDefect(['pull_request'], { steps: [FULL_CHECKOUT] }, { uses: FILTER, with: { token: '' } }),
+        ).toThrow('not one of the job steps');
     });
 
     it('reads every shape of `on:`', () => {

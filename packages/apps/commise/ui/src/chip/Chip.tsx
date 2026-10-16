@@ -3,8 +3,9 @@
  *
  * A `filter` chip is a toggle button (`aria-pressed`) with a 16 px check before its label while selected and an
  * optional `figure` count after it; an `input` chip is a button named by the caller's remove label, with a trailing
- * `x`. A label over 24 characters shows truncated (`visibleChipLabel`) and keeps the full label as the name; the label clamps to two lines and the chip never
- * outgrows its row, so a 24-character label stays inside 320 px at a 200% font size.
+ * `x`. A label over 24 characters shows truncated (`visibleChipLabel`) and keeps the full label as the name; the label
+ * clamps to two lines and the chip never outgrows its row, so a 24-character label stays inside 320 px at a 200% font
+ * size.
  *
  * Presentational: props → JSX, with no data, no mutation and no effect of its own.
  *

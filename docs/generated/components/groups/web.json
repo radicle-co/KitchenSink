@@ -3036,7 +3036,7 @@
                             "text": "Context-injected dependency — a stable component reads what the composition root provides"
                         }
                     ],
-                    "description": "The reporter the surface provides; a no-op outside a surface, so a bare slot never throws for want of one.",
+                    "description": "The reporter the surface provides. `null` outside a surface: a no-op default would drop the slot's failures silently\n(B23), so the host refuses to render without one, as the mobile host does.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -3089,6 +3089,10 @@
                         {
                             "name": "returns",
                             "text": "The recipe slot, wired to the surface's reporter."
+                        },
+                        {
+                            "name": "throws",
+                            "text": "{Error} Outside a Home surface, which provides the reporter."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",

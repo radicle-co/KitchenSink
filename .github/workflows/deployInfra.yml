@@ -89,6 +89,7 @@ env:
     AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
     DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
     DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+    COST_ALERT_EMAIL: ${{ vars.COST_ALERT_EMAIL }}
     STAGE: ${{ inputs.stage }}
 
 permissions:

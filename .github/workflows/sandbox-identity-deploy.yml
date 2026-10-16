@@ -61,6 +61,7 @@ env:
     CDK_DEFAULT_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
     STAGE: sandbox
     DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+    COST_ALERT_EMAIL: ${{ vars.COST_ALERT_EMAIL }}
 
 jobs:
     deploy:

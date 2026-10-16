@@ -282,7 +282,7 @@
         // turbo, and this task declares `"outputs": []` so nothing cached is ever restored as an artifact.
         "synth": {
             "dependsOn": ["^build"],
-            "env": ["LOG_FORWARDER_ARN", "STAGE", "PAID_FEATURES_GATE", "ALARMS_ENABLED"],
+            "env": ["LOG_FORWARDER_ARN", "STAGE", "PAID_FEATURES_GATE", "ALARMS_ENABLED", "COST_ALERT_EMAIL"],
             "outputs": []
         }
     }

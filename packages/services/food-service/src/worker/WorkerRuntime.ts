@@ -162,7 +162,7 @@ export class WorkerRuntime {
 
     /**
      * Acquire the single-drainer lock (FR-022). When acquired, begin `LISTEN`ing, run the at-start
-     * reaper, do an initial drain, and arm the periodic reaper. When NOT acquired, another instance is
+     * reaper, arm the periodic reaper, then do an initial drain. When NOT acquired, another instance is
      * draining and this one stands by (returns `false`).
      *
      * @returns `true` when this instance acquired the lock and is now the drainer.
@@ -202,9 +202,10 @@ export class WorkerRuntime {
         this.listenSession.on('notification', this.onNotification);
         await this.listenSession.query(`LISTEN ${FETCH_QUEUED_CHANNEL}`);
 
-        // Reaper at start (FR-018) + an initial drain to catch rows enqueued before this worker came up.
+        // Reaper at start (FR-018), the first snapshot and check-in, then the tick — all BEFORE the initial drain.
+        // That drain runs until the queue is idle, which against a backlog is a long time, and the check rides the
+        // tick: arming it after the drain meant a busy, healthy drainer went silent and read as a dead one.
         await this.consumer.reapStaleLeases();
-        await this.wake();
         await this.snapshotMetrics();
         await this.runCheck();
 
@@ -217,6 +218,9 @@ export class WorkerRuntime {
                 .catch((error: unknown) => this.logger.error('reaper-failed', { error: String(error) }));
         }, this.reapIntervalMs);
         this.reapTimer.unref();
+
+        // The initial drain, to catch rows enqueued before this worker came up.
+        await this.wake();
 
         return true;
     }

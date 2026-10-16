@@ -14,6 +14,7 @@ import type { FieldMeasure, RevealScroller } from '../measureField.native.js';
 const seam = vi.hoisted(() => ({
     measures: [] as (FieldMeasure | null)[],
     measured: 0,
+    order: [] as string[],
     scrolls: [] as { readonly y: number; readonly animated: boolean }[],
     reduceMotion: false as boolean | undefined,
 }));
@@ -26,6 +27,7 @@ vi.mock('../measureField.native.js', () => ({
     },
     scrollContentTo: (_scroller: RevealScroller, y: number, animated: boolean): void => {
         seam.scrolls.push({ y, animated });
+        seam.order.push('scroll');
     },
 }));
 vi.mock('../../motion/useReduceMotion.native.js', () => ({ useReduceMotion: () => seam.reduceMotion }));
@@ -78,6 +80,7 @@ beforeEach(() => {
     seam.measures = [];
     seam.measured = 0;
     seam.scrolls = [];
+    seam.order = [];
     seam.reduceMotion = false;
 });
 
@@ -362,5 +365,341 @@ describe('useFieldRevealHost — an arrival (docs/design/uiOverhaul/ingredientAr
         await request(rendered);
 
         expect(rendered.result.current.spacer).not.toBeNull();
+    });
+});
+
+describe('useFieldRevealHost — a focus (specSharedSystem.md §16.3)', () => {
+    /** Send a focus request and let its measurement answer. */
+    async function focusOn(rendered: ReturnType<typeof host>): Promise<() => void> {
+        let release: () => void = () => undefined;
+
+        await act(async () => {
+            release = rendered.result.current.revealer({ kind: 'focus', field });
+            await Promise.resolve();
+        });
+
+        return release;
+    }
+
+    /** Resize the visible area and let the re-check answer. */
+    async function resize(rendered: ReturnType<typeof host>, height: number): Promise<void> {
+        await act(async () => {
+            rendered.result.current.onViewportLayout(layout(0, height));
+            await Promise.resolve();
+        });
+    }
+
+    it('a field that does not fit takes the smallest scroll that shows it, and lays out no space', async () => {
+        const rendered = host();
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+
+        await focusOn(rendered);
+
+        // 298 dp and the 8 dp gap end 11 dp past the 295 dp bottom edge.
+        expect(seam.scrolls).toEqual([{ y: 511, animated: true }]);
+        expect(rendered.result.current.spacer).toBeNull();
+    });
+
+    it('a field that fits scrolls nothing', async () => {
+        const rendered = host(600);
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+
+        await focusOn(rendered);
+
+        expect(seam.measured).toBe(1);
+        expect(seam.scrolls).toEqual([]);
+    });
+
+    it('stays armed: each shorter visible area (the keyboard, then the pinned footer) is checked, and the field ends inside the last', async () => {
+        const rendered = host(600);
+        seam.measures = [{ top: 300, height: 48, offset: 100 }];
+        await focusOn(rendered);
+
+        // The keyboard rises: 356 dp still fits in 400.
+        seam.measures = [{ top: 300, height: 48, offset: 100 }];
+        await resize(rendered, 400);
+        expect(seam.scrolls).toEqual([]);
+
+        // The footer pins: 356 dp does not fit in 324, so it scrolls the 32 dp it needs.
+        seam.measures = [{ top: 300, height: 48, offset: 100 }];
+        await resize(rendered, 324);
+
+        expect(seam.measured).toBe(3);
+        expect(seam.scrolls).toEqual([{ y: 132, animated: true }]);
+    });
+
+    it('scrolls again on a later shorter visible area, not just once', async () => {
+        const rendered = host(350);
+        seam.measures = [{ top: 300, height: 48, offset: 100 }];
+        await focusOn(rendered);
+        seam.measures = [{ top: 280, height: 48, offset: 106 }];
+
+        await resize(rendered, 324);
+
+        expect(seam.scrolls).toEqual([
+            { y: 106, animated: true },
+            { y: 118, animated: true },
+        ]);
+    });
+
+    it('does not check when the visible area gets taller', async () => {
+        const rendered = host(324);
+        seam.measures = [{ top: 100, height: 48, offset: 0 }];
+        await focusOn(rendered);
+
+        await resize(rendered, 600);
+
+        expect(seam.measured).toBe(1);
+    });
+
+    it('does not check on a re-render, which is all a change of the content leaves the host', async () => {
+        const rendered = host(324);
+        seam.measures = [{ top: 100, height: 48, offset: 0 }];
+        await focusOn(rendered);
+
+        await act(async () => {
+            rendered.rerender();
+            await Promise.resolve();
+        });
+
+        expect(seam.measured).toBe(1);
+    });
+
+    it('is dropped while an arrival is pending', async () => {
+        const rendered = host(600);
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+        await act(async () => {
+            rendered.result.current.revealer({ kind: 'arrival', field, above: 88 });
+            await Promise.resolve();
+        });
+        expect(seam.measured).toBe(1);
+
+        await focusOn(rendered);
+
+        expect(seam.measured).toBe(1);
+    });
+
+    it('is replaced by an arrival, which scrolls once and leaves nothing holding the field', async () => {
+        const rendered = host(600);
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+        await focusOn(rendered);
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+
+        await act(async () => {
+            rendered.result.current.revealer({ kind: 'arrival', field, above: 88 });
+            await Promise.resolve();
+        });
+        expect(seam.measured).toBe(2);
+
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+        await resize(rendered, VIEWPORT);
+
+        // The arrival's check at the shorter area scrolls, and then nothing holds the field any more.
+        expect(seam.scrolls).toEqual([{ y: 511, animated: true }]);
+        expect(seam.measured).toBe(3);
+        await resize(rendered, 200);
+        expect(seam.measured).toBe(3);
+    });
+
+    it('is skipped while a list is armed, and checked once the list closes', async () => {
+        const rendered = host(600);
+        seam.measures = [{ top: 20, height: 48, offset: 0 }];
+        const releaseList = await request(rendered);
+        expect(seam.measured).toBe(1);
+
+        await focusOn(rendered);
+        expect(seam.measured).toBe(1);
+
+        seam.measures = [{ top: 20, height: 48, offset: 0 }];
+        await act(async () => {
+            releaseList();
+            await Promise.resolve();
+        });
+
+        expect(seam.measured).toBe(2);
+    });
+
+    it('a release cancels a check still measuring', async () => {
+        const rendered = host();
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+
+        await act(async () => {
+            const release = rendered.result.current.revealer({ kind: 'focus', field });
+
+            release();
+            await Promise.resolve();
+        });
+
+        expect(seam.scrolls).toEqual([]);
+    });
+
+    it('checks nothing once released, whatever the visible area does', async () => {
+        const rendered = host(600);
+        seam.measures = [{ top: 100, height: 48, offset: 0 }];
+        const release = await focusOn(rendered);
+
+        act(() => {
+            release();
+        });
+        await resize(rendered, 324);
+
+        expect(seam.measured).toBe(1);
+    });
+
+    it('does not check before the visible area is laid out', async () => {
+        const rendered = renderHook(() => useFieldRevealHost({ current: scroller }));
+
+        await act(async () => {
+            rendered.result.current.revealer({ kind: 'focus', field });
+            await Promise.resolve();
+        });
+
+        expect(seam.measured).toBe(0);
+    });
+});
+
+describe('useFieldRevealHost — a target (specSharedSystem.md §16.3)', () => {
+    /** Send a target request, recording `onShown` in the order of the scrolls. */
+    async function aim(rendered: Pick<ReturnType<typeof host>, 'result'>): Promise<() => void> {
+        let release: () => void = () => undefined;
+
+        await act(async () => {
+            release = rendered.result.current.revealer({
+                kind: 'target',
+                field,
+                onShown: () => {
+                    seam.order.push('shown');
+                },
+            });
+            await Promise.resolve();
+        });
+
+        return release;
+    }
+
+    it('scrolls the field to the middle of the visible area, then tells it it was shown', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 300, height: 48, offset: 100 }];
+
+        await aim(rendered);
+
+        expect(seam.scrolls).toEqual([{ y: 224, animated: true }]);
+        expect(seam.order).toEqual(['scroll', 'shown']);
+        expect(rendered.result.current.spacer).toBeNull();
+    });
+
+    it.each([
+        [false, true],
+        [true, false],
+        [undefined, false],
+    ] as const)('with reduce motion %s, animates: %s', async (reduceMotion, animated) => {
+        seam.reduceMotion = reduceMotion;
+        const rendered = host(400);
+        seam.measures = [{ top: 300, height: 48, offset: 100 }];
+
+        await aim(rendered);
+
+        expect(seam.scrolls).toEqual([{ y: 224, animated }]);
+    });
+
+    it('tells the field it was shown even when nothing needs to scroll', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 176, height: 48, offset: 100 }];
+
+        await aim(rendered);
+
+        expect(seam.scrolls).toEqual([]);
+        expect(seam.order).toEqual(['shown']);
+    });
+
+    it('tells the field it was shown even when its place cannot be measured', async () => {
+        const rendered = host(400);
+        seam.measures = [null];
+
+        await aim(rendered);
+
+        expect(seam.scrolls).toEqual([]);
+        expect(seam.order).toEqual(['shown']);
+    });
+
+    it('shows it once: a later change of the visible area measures nothing', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 300, height: 48, offset: 100 }];
+        await aim(rendered);
+
+        await act(async () => {
+            rendered.result.current.onViewportLayout(layout(0, 300));
+            await Promise.resolve();
+        });
+
+        expect(seam.measured).toBe(1);
+        expect(seam.order).toEqual(['scroll', 'shown']);
+    });
+
+    it('waits for the visible area to be laid out', async () => {
+        const rendered = renderHook(() => useFieldRevealHost({ current: scroller }));
+        seam.measures = [{ top: 300, height: 48, offset: 100 }];
+
+        await aim(rendered);
+        expect(seam.measured).toBe(0);
+        expect(seam.order).toEqual([]);
+
+        await act(async () => {
+            rendered.result.current.onViewportLayout(layout(0, 400));
+            await Promise.resolve();
+        });
+
+        expect(seam.order).toEqual(['scroll', 'shown']);
+    });
+
+    it('a newer target replaces an older one, which is never shown', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 300, height: 48, offset: 100 }];
+        const first = vi.fn();
+        const second = vi.fn();
+
+        await act(async () => {
+            rendered.result.current.revealer({ kind: 'target', field, onShown: first });
+            rendered.result.current.revealer({ kind: 'target', field, onShown: second });
+            await Promise.resolve();
+        });
+
+        expect(first).not.toHaveBeenCalled();
+        expect(second).toHaveBeenCalledOnce();
+    });
+
+    it('a release cancels a target still measuring', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 300, height: 48, offset: 100 }];
+        const onShown = vi.fn();
+
+        await act(async () => {
+            const release = rendered.result.current.revealer({ kind: 'target', field, onShown });
+
+            release();
+            await Promise.resolve();
+        });
+
+        expect(onShown).not.toHaveBeenCalled();
+        expect(seam.scrolls).toEqual([]);
+    });
+
+    it('clears a held focus, so the focus check does not undo the centring', async () => {
+        const rendered = host(600);
+        seam.measures = [{ top: 100, height: 48, offset: 0 }];
+        await act(async () => {
+            rendered.result.current.revealer({ kind: 'focus', field });
+            await Promise.resolve();
+        });
+        seam.measures = [{ top: 300, height: 48, offset: 0 }];
+        await aim(rendered);
+        const measured = seam.measured;
+
+        await act(async () => {
+            rendered.result.current.onViewportLayout(layout(0, 324));
+            await Promise.resolve();
+        });
+
+        expect(seam.measured).toBe(measured);
     });
 });

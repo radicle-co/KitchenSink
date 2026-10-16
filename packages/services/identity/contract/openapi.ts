@@ -172,7 +172,7 @@ export const identityOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument(
                 operationId: 'patchUserMe',
                 summary: "Update the signed-in viewer's profile",
                 description:
-                    'Partial update of `displayName` and/or `avatarUrl`. An UNKNOWN FIELD IS A `400` — the body ' +
+                    'Partial update of `displayName` and/or `avatarKey`. An UNKNOWN FIELD IS A `400` — the body ' +
                     'schema is strict. A `displayName` change also publishes a handle-sync event so the recipe ' +
                     'service corrects its denormalized author handles; a failed publish does not fail the rename ' +
                     '(reconciliation backstops it). An empty object `{}` is an accepted no-op, but a request ' +
@@ -182,7 +182,7 @@ export const identityOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument(
                     '200': { description: 'The updated profile.', schema: 'UserProfile' },
                     '400': {
                         description:
-                            'Validation failure — over-long `displayName`, non-URL `avatarUrl`, an unknown ' +
+                            'Validation failure — over-long `displayName`, malformed `avatarKey`, an unknown ' +
                             'field, or an absent body. `details.fields` carries the individual messages, each ' +
                             'prefixed with the field it names; `message` is those same messages joined.',
                         schema: 'ApiError',

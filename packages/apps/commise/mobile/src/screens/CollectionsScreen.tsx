@@ -88,6 +88,7 @@ export function CollectionsScreen({
                 submitting={list.sheet.submitting}
                 failed={list.sheet.failed}
                 onCreate={list.sheet.onCreate}
+                onDismissed={list.sheet.onDismissed}
             />
         </CollectionListFrame>
     );

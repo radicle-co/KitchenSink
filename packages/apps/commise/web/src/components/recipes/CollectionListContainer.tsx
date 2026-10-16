@@ -87,6 +87,7 @@ export const CollectionListContainer: FC<CollectionListContainerProps> = ({ loca
                 submitting={list.sheet.submitting}
                 failed={list.sheet.failed}
                 onCreate={list.sheet.onCreate}
+                onDismissed={list.sheet.onDismissed}
             />
             <ClientQueryBoundary
                 prefetchedKeys={[list.read.queryKey]}

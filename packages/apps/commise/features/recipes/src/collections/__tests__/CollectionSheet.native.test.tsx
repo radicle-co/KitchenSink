@@ -54,6 +54,35 @@ const nameField = () => screen.getByLabelText('Name');
 const recorded = (label: string) =>
     [...recordedTextInputs.values()].find((props) => props.accessibilityLabel === label);
 
+describe('CollectionSheet (native) — dismissal', () => {
+    it('passes the sheet’s dismissal on, once, after it closes and not while it is open', () => {
+        const onDismissed = vi.fn();
+        const props: CollectionCreateSheetProps = {
+            open: true,
+            onOpenChange: vi.fn(),
+            onCreate: vi.fn(),
+            onDismissed,
+            submitting: false,
+            failed: false,
+        };
+        const view = render(
+            <LocaleProvider locale="en">
+                <CollectionSheet {...props} />
+            </LocaleProvider>,
+        );
+
+        expect(onDismissed).not.toHaveBeenCalled();
+
+        view.rerender(
+            <LocaleProvider locale="en">
+                <CollectionSheet {...props} open={false} />
+            </LocaleProvider>,
+        );
+
+        expect(onDismissed).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe('CollectionSheet (native) — what a screen reader receives', () => {
     it('names the name and description fields by their visible labels, for iOS', () => {
         sheet();

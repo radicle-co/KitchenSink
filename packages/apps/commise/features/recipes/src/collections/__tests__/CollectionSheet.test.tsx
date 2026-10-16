@@ -5,7 +5,7 @@
  * the field (SC 3.3.1), an inline alert for a server failure that keeps the input, and a discard confirmation when a
  * typed name would be lost.
  */
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -37,6 +37,35 @@ function sheet(over: Partial<CollectionCreateSheetProps> = {}) {
 
     return props;
 }
+
+describe('CollectionSheet (web) — dismissal', () => {
+    it('passes the sheet’s dismissal on, once, after it closes and not while it is open', async () => {
+        const onDismissed = vi.fn();
+        const props: CollectionCreateSheetProps = {
+            open: true,
+            onOpenChange: vi.fn(),
+            onCreate: vi.fn(),
+            onDismissed,
+            submitting: false,
+            failed: false,
+        };
+        const view = render(
+            <LocaleProvider locale="en">
+                <CollectionSheet {...props} />
+            </LocaleProvider>,
+        );
+
+        expect(onDismissed).not.toHaveBeenCalled();
+
+        view.rerender(
+            <LocaleProvider locale="en">
+                <CollectionSheet {...props} open={false} />
+            </LocaleProvider>,
+        );
+
+        await waitFor(() => expect(onDismissed).toHaveBeenCalledTimes(1));
+    });
+});
 
 describe('CollectionSheet (web)', () => {
     it('is a dialog titled "New collection" with a named Name and Description', () => {

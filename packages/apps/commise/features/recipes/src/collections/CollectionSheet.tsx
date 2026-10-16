@@ -49,6 +49,7 @@ export const CollectionSheet: FC<CollectionSheetProps> = (props) => {
                         requestClose();
                     }
                 }}
+                {...(props.onDismissed === undefined ? {} : { onDismissed: props.onDismissed })}
                 title={renaming ? rename.title : sheet.newTitle}
                 closeLabel={sheet.close}
                 size="content"

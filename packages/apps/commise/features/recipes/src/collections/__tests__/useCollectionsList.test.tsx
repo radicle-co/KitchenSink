@@ -88,7 +88,7 @@ describe('useCollectionsList — search and the new-collection sheet', () => {
         expect(result.current.search.value).toBe('pie');
     });
 
-    it('creates, closes the sheet and hands the new id to the app', async () => {
+    it('creates and closes the sheet, but hands the new id to the app only once the sheet is gone', async () => {
         const { client, onCreated, result } = setup();
         const create = vi
             .spyOn(client, 'createCollection')
@@ -98,9 +98,39 @@ describe('useCollectionsList — search and the new-collection sheet', () => {
         expect(result.current.sheet.open).toBe(true);
         act(() => result.current.sheet.onCreate({ name: 'Suppers' }));
 
-        await waitFor(() => expect(onCreated).toHaveBeenCalledWith('col_new'));
+        await waitFor(() => expect(result.current.sheet.open).toBe(false));
         expect(create).toHaveBeenCalledWith({ name: 'Suppers' });
-        expect(result.current.sheet.open).toBe(false);
+        // Native keeps the sheet's window up for its slide-out: closing is not leaving.
+        expect(onCreated).not.toHaveBeenCalled();
+
+        act(() => result.current.sheet.onDismissed());
+
+        expect(onCreated).toHaveBeenCalledExactlyOnceWith('col_new');
+    });
+
+    it('opens the created collection once, however often the sheet reports being dismissed', async () => {
+        const { client, onCreated, result } = setup();
+        vi.spyOn(client, 'createCollection').mockResolvedValue({ id: 'col_new' } as Awaited<
+            ReturnType<typeof client.createCollection>
+        >);
+
+        act(() => result.current.sheet.onOpen());
+        act(() => result.current.sheet.onCreate({ name: 'Suppers' }));
+        await waitFor(() => expect(result.current.sheet.open).toBe(false));
+        act(() => result.current.sheet.onDismissed());
+        act(() => result.current.sheet.onDismissed());
+
+        expect(onCreated).toHaveBeenCalledTimes(1);
+    });
+
+    it('opens nothing when the sheet is dismissed without a create (cancelled, or the discard confirmation)', () => {
+        const { onCreated, result } = setup();
+
+        act(() => result.current.sheet.onOpen());
+        act(() => result.current.sheet.onOpenChange(false));
+        act(() => result.current.sheet.onDismissed());
+
+        expect(onCreated).not.toHaveBeenCalled();
     });
 
     it('keeps the sheet open and says so when the create is refused, and opening again clears it', async () => {

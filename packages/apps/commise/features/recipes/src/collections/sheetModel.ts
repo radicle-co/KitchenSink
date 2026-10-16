@@ -16,6 +16,11 @@ interface CollectionSheetBaseProps {
     readonly submitting: boolean;
     /** The last request failed; what was typed stays. */
     readonly failed: boolean;
+    /**
+     * The sheet is off screen after a close, by any route (`Sheet`'s `onDismissed`): the moment the host can present
+     * what comes next. Closing is not leaving, because native keeps the sheet's window up for its slide-out.
+     */
+    readonly onDismissed?: () => void;
 }
 
 /** The sheet opened to create a collection. */

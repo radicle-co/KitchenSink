@@ -21,7 +21,7 @@ import { useLibraryEmpty } from '../hooks/useLibraryEmpty.js';
 
 /** What {@link useCollectionsList} reads. */
 export interface CollectionsListInput {
-    /** A collection was created and the sheet has closed: open it. */
+    /** A collection was created and the sheet is off screen: open it. */
     readonly onCreated: (collectionId: string) => void;
 }
 
@@ -41,6 +41,8 @@ export interface CollectionsList {
         readonly failed: boolean;
         readonly onOpen: () => void;
         readonly onCreate: (request: CreateCollectionRequest) => void;
+        /** The sheet is off screen: open the collection it created, if it created one. */
+        readonly onDismissed: () => void;
     };
 }
 
@@ -56,6 +58,9 @@ export function useCollectionsList({ onCreated }: CollectionsListInput): Collect
     const read = collectionQueries(client).listInfinite();
     const [searchValue, setSearchValue] = useState('');
     const [sheetOpen, setSheetOpen] = useState(false);
+    // The collection the sheet created, held until the sheet is GONE: native keeps its window up for the slide-out, so
+    // navigating from the mutation's success would open the collection over a sheet that is still on screen.
+    const [createdId, setCreatedId] = useState<string | undefined>(undefined);
     const createCollection = useCreateCollection();
     // One recipe is enough to know; while it is unknown the first run offers New collection, the common case.
     const anyRecipe = useQuery(recipeQueries(client).list({ pageSize: 1 }));
@@ -74,15 +79,22 @@ export function useCollectionsList({ onCreated }: CollectionsListInput): Collect
             failed: createCollection.isError,
             onOpen: () => {
                 createCollection.reset();
+                setCreatedId(undefined);
                 setSheetOpen(true);
             },
             onCreate: (request) =>
                 createCollection.mutate(request, {
                     onSuccess: (created) => {
+                        setCreatedId(created.id);
                         setSheetOpen(false);
-                        onCreated(created.id);
                     },
                 }),
+            onDismissed: () => {
+                if (createdId !== undefined) {
+                    setCreatedId(undefined);
+                    onCreated(createdId);
+                }
+            },
         },
     };
 }

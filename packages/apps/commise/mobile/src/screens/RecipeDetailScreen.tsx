@@ -69,7 +69,7 @@ import {
     useSetRecipeRating,
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
-import { NavigationContext } from '@react-navigation/native';
+import { NavigationContext, NavigationRouteContext } from '@react-navigation/native';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { knownPaidFeaturesOf, paidFeatureStateOf } from '@commise/features-account';
 import { RecipeVisibility, canClone, isOwner, makeViewer } from '@kitchensink/recipe-core';
@@ -210,8 +210,12 @@ function useBackLabel(): string {
     const { detailActions } = useMessages(recipeActionMessages);
     // Read-only, and absent outside a navigator (a test, a story): no route below means the recipe list.
     const navigation = useContext(NavigationContext);
-    const state = navigation?.getState();
-    const previous = state?.routes[state.index - 1]?.name;
+    // The route below THIS screen, found by its own key: `state.index` is the FOCUSED route, which is a different
+    // screen whenever this page re-renders while covered (Save a copy pushes the copy and its editor on top).
+    const ownKey = useContext(NavigationRouteContext)?.key;
+    const routes = navigation?.getState()?.routes ?? [];
+    const own = routes.findIndex((route) => route.key === ownKey);
+    const previous = own > 0 ? routes[own - 1]?.name : undefined;
 
     return detail.backTo.replace('{parent}', backParentOf(previous, detail, detailActions.backToRecipes));
 }

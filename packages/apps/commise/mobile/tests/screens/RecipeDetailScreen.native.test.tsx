@@ -13,7 +13,7 @@ import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { QueryClient } from '@tanstack/react-query';
 import { useState, type ReactElement } from 'react';
 import { AccessibilityInfo } from 'react-native';
-import { NavigationContext } from '@react-navigation/native';
+import { NavigationContext, NavigationRouteContext } from '@react-navigation/native';
 
 import { computedContrast, renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
 import { palette, tint } from '@commise/ui';
@@ -370,10 +370,22 @@ describe('RecipeDetailScreen — ready state', () => {
     });
 
     /** A navigator whose stack holds `routes`, the screen being the last. */
-    const stackOf = (...routes: string[]) =>
-        ({
-            getState: () => ({ index: routes.length - 1, routes: routes.map((name) => ({ name })) }),
-        }) as never;
+    /**
+     * Renders the screen as the route at `own` in a stack of `routes`, the top of which is focused. A real navigator
+     * provides both contexts: the navigation (its state) and the screen's OWN route (its key).
+     */
+    const renderInStack = (routes: readonly string[], own = routes.length - 1) => {
+        const state = { index: routes.length - 1, routes: routes.map((name, at) => ({ name, key: `${name}-${at}` })) };
+        const navigation = { getState: () => state } as never;
+
+        render(
+            <NavigationContext.Provider value={navigation}>
+                <NavigationRouteContext.Provider value={state.routes[own] as never}>
+                    <RecipeDetailScreen recipeId="rec_1" onBack={vi.fn()} />
+                </NavigationRouteContext.Provider>
+            </NavigationContext.Provider>,
+        );
+    };
 
     it.each([
         ['HomeRoot', 'Back to Home'],
@@ -384,11 +396,7 @@ describe('RecipeDetailScreen — ready state', () => {
     ])('names the screen the cook came from: %s → “%s”', (previous, name) => {
         seedRecipe(makeRecipeDetail({ title: 'Weeknight Pasta' }));
 
-        render(
-            <NavigationContext.Provider value={stackOf(previous, 'RecipeDetail')}>
-                <RecipeDetailScreen recipeId="rec_1" onBack={vi.fn()} />
-            </NavigationContext.Provider>,
-        );
+        renderInStack([previous, 'RecipeDetail']);
 
         expect(screen.getByRole('button', { name })).toBeTruthy();
     });
@@ -396,13 +404,19 @@ describe('RecipeDetailScreen — ready state', () => {
     it('falls back to My recipes when the stack has nothing below it (a deep link)', () => {
         seedRecipe(makeRecipeDetail({ title: 'Weeknight Pasta' }));
 
-        render(
-            <NavigationContext.Provider value={stackOf('RecipeDetail')}>
-                <RecipeDetailScreen recipeId="rec_1" onBack={vi.fn()} />
-            </NavigationContext.Provider>,
-        );
+        renderInStack(['RecipeDetail']);
 
         expect(screen.getByRole('button', { name: 'Back to My recipes' })).toBeTruthy();
+    });
+
+    // Save a copy pushes the copy's detail and its editor over this page, and the clone's settle re-renders this page
+    // while it is covered. The label must name the route under THIS screen, not the one under the focused screen.
+    it('names the route below its OWN screen while other screens sit on top of it', () => {
+        seedRecipe(makeRecipeDetail({ title: 'Weeknight Pasta' }));
+
+        renderInStack(['DiscoverRoot', 'RecipeDetail', 'RecipeDetail', 'RecipeEdit'], 1);
+
+        expect(screen.getByRole('button', { name: 'Back to Discover' })).toBeTruthy();
     });
 
     it('hides owner actions (including the More menu) from a non-owner', () => {

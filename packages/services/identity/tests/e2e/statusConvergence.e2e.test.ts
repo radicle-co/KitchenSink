@@ -14,7 +14,7 @@
  *
  * Runs as `identity_service` (ADR-0039); skipped without a database.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, sql } from 'drizzle-orm';
@@ -22,6 +22,9 @@ import { eq, sql } from 'drizzle-orm';
 import { accounts, profiles, UserDAO, users } from '@kitchensink/identity-db';
 import { providerChangeIsOwed } from '@kitchensink/identity-core';
 
+import { AdminService } from '../../src/admin/admin.service.js';
+import { noopHandleSyncPublisher } from '../../src/users/handleSync.publisher.js';
+import { UsersService } from '../../src/users/users.service.js';
 import { identityDb } from '../support/roleDb.js';
 import type { UserId } from '../../src/types/index.js';
 
@@ -154,5 +157,70 @@ describe('status convergence (integration)', () => {
         const state = await readState(userId);
         expect(state.statusAppliedVersion).not.toBe(state.statusVersion);
         expect(providerChangeIsOwed(state)).toBe(false);
+    });
+
+    /**
+     * ⛔ THE PRODUCTION WRITERS, not a stand-in. The cases above change status through `changeStatus`, which
+     * writes the increment itself, so they prove the settle and never that a real status writer bumps the
+     * intent. A closure or reactivation that forgot the bump would settle against an unchanged version, and the
+     * unordered-queue race above would silently return.
+     */
+    describe('the service paths that change status bump the intent by exactly one', () => {
+        const enqueueDeletion = vi.fn();
+        let usersService: UsersService;
+        let adminService: AdminService;
+
+        beforeAll(() => {
+            usersService = new UsersService(
+                db,
+                { enqueueDeletion } as never,
+                {} as never,
+                noopHandleSyncPublisher,
+                { deleteAllForUser: vi.fn().mockResolvedValue(undefined) } as never,
+                false,
+            );
+            adminService = new AdminService(db, { enqueueDeletion } as never);
+        });
+
+        beforeEach(() => {
+            enqueueDeletion.mockReset().mockResolvedValue(undefined);
+        });
+
+        const provisionViewer = (sub: string) =>
+            usersService.resolveOrCreateFromClaims({
+                sub,
+                email: `${sub}@example.test`,
+                firstName: 'A',
+                lastName: 'Cook',
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: false,
+            });
+
+        it('a closure (deleteUserMe) bumps the version once and leaves the account owed', async () => {
+            const ctx = await provisionViewer('user_conv_closure_writer');
+            const before = await readState(ctx.userId);
+
+            await usersService.deleteUserMe(ctx);
+
+            const after = await readState(ctx.userId);
+            expect(after.status).toBe('tombstoned');
+            expect(after.statusVersion).toBe(before.statusVersion + 1);
+            expect(providerChangeIsOwed(after)).toBe(true);
+        });
+
+        it('a reactivation (reactivateUser) bumps the version once more and leaves the account owed', async () => {
+            const ctx = await provisionViewer('user_conv_reactivation_writer');
+            await usersService.deleteUserMe(ctx);
+            const closed = await readState(ctx.userId);
+
+            await adminService.reactivateUser(ctx.userId, ctx);
+
+            const after = await readState(ctx.userId);
+            expect(after.status).toBe('active');
+            expect(after.statusVersion).toBe(closed.statusVersion + 1);
+            expect(providerChangeIsOwed(after)).toBe(true);
+        });
     });
 });

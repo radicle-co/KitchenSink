@@ -7,3 +7,5 @@
 export { RecipeAuthNotReadyError, isRecipeAuthNotReadyError } from './recipeAuthNotReady.js';
 export { useRecipeServiceClients } from './useRecipeServiceClients.js';
 export type { RecipeServiceClients, UseRecipeServiceClientsOptions } from './useRecipeServiceClients.js';
+export { RecipeServicesTree } from './RecipeServicesTree.js';
+export type { RecipeServicesTreeProps } from './RecipeServicesTree.js';

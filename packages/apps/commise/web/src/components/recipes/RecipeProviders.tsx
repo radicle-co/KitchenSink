@@ -26,11 +26,9 @@
  *     asks for neither, and the enforced provider order lives in one place rather than in every caller.
  */
 import { useAuth, useClerk } from '@clerk/nextjs';
-import { CookMarksProvider, useDeviceSessionScope } from '@commise/features-recipes';
-import { useRecipeServiceClients } from '@commise/features-recipes/session';
+import { useDeviceSessionScope } from '@commise/features-recipes';
+import { RecipeServicesTree, useRecipeServiceClients } from '@commise/features-recipes/session';
 import { createAppQueryClient } from '@commise/query';
-import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
-import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { QueryClientProvider } from '@tanstack/react-query';
 
 import { offlineNoticeMessages } from '@commise/features-core/offline';
@@ -39,13 +37,12 @@ import { OfflineReadNoticeProvider } from '@commise/query/offline';
 import { recipeSender } from '@commise/query/recipe-sender';
 import { useQuerySessionScope } from '@commise/query/session-scope';
 import { RecipeWriteCacheObserver } from '@commise/query/recipe-write-cache';
-import { SyncProvider } from '@commise/query/sync';
+import { SyncProvider, useSyncQueue } from '@commise/query/sync';
 import { OfflineReadSlot } from '@commise/ui/offline-notice';
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
 import { webDeviceStore } from '@/components/recipes/deviceSession';
-import { EditorDraftAnswers } from '@/components/recipes/EditorDraftAnswers';
 import { FOOD_SERVICE_BASE_URL } from '@/lib/foodServiceConfig';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
 
@@ -131,14 +128,14 @@ export function RecipeProviders({ children }: { readonly children: ReactNode }):
                     {/* Slice 7: the outbox's recipe writes reach the cache, and the editor's device draft, whether or
                         not the editor that queued them is still open. */}
                     <RecipeWriteCacheObserver />
-                    <EditorDraftAnswers subject={userId ?? undefined} />
-                    <RecipeServiceProvider client={clients.recipe}>
-                        <FoodServiceProvider client={clients.food} subject={userId ?? undefined}>
-                            {/* Blueprint A13: the cook's checks and current step, kept for the cook who made them
-                                and removed at the end of their session — the ADR-0054 rule, applied to marks. */}
-                            <CookMarksProvider subject={userId ?? undefined}>{children}</CookMarksProvider>
-                        </FoodServiceProvider>
-                    </RecipeServiceProvider>
+                    <RecipeServicesTree
+                        clients={clients}
+                        store={webDeviceStore}
+                        subject={userId ?? undefined}
+                        useQueue={useSyncQueue}
+                    >
+                        {children}
+                    </RecipeServicesTree>
                 </SyncProvider>
             </OfflineReadNoticeProvider>
         </QueryClientProvider>

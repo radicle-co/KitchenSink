@@ -4,15 +4,15 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 152,
-        "implementations": 260,
-        "props": 1280,
-        "documentedComponents": 152,
-        "implementationsWithModuleDoc": 260,
-        "implementationsWithComponentDoc": 153,
-        "documentedProps": 1001,
-        "classifiedComponents": 132,
-        "componentsWithPatternTag": 75,
+        "components": 153,
+        "implementations": 261,
+        "props": 1284,
+        "documentedComponents": 153,
+        "implementationsWithModuleDoc": 261,
+        "implementationsWithComponentDoc": 154,
+        "documentedProps": 1005,
+        "classifiedComponents": 133,
+        "componentsWithPatternTag": 76,
         "crossPlatformComponents": 108
     },
     "components": [
@@ -20644,6 +20644,91 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/session/RecipeServicesTree",
+            "name": "RecipeServicesTree",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/session",
+            "kind": "orchestration",
+            "patterns": [
+                "Composition root (Facade) over the recipe subtree's providers, with the outbox as an injected Port"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeServicesTree",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/session/RecipeServicesTree.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/session",
+                    "moduleDoc": "@commise/features-recipes/session — `RecipeServicesTree`, an orchestration component: the part of the\nrecipe provider tree that does not depend on `@commise/query` (the draft observer, then the recipe client, the food\nclient and the cook's marks).\n\nWeb's `RecipeProviders` and mobile's `RecipeServiceGate` mounted the same nest and differed only in the device\nstore, so the order lives here once. The host keeps what is query-bound or platform-bound: the `QueryClient`, the\noffline-read notice, `SyncProvider` and `RecipeWriteCacheObserver` (all `@commise/query`, which this package may not\nimport), the Clerk mint, and the origins.\n\n⛔ THE HOST MOUNTS THIS INSIDE ITS `SyncProvider`. A queued write outlives the screen that made it, so the queue's\nowner sits above every feature; the sender reads the client through a closure and needs no provider beneath it. The\nhosts' order tests (`RecipeProviders.order.test.tsx`, `RecipeServiceGate.order.native.test.tsx`) hold that half.\n\n⚠️ `useQueue` is a HOOK passed as a prop, on purpose: the draft observer must read the host's outbox, which lives in\n`SyncProvider`'s context in `@commise/query`. Passing the hook (`useSyncQueue`) keeps the dependency pointing the\nonly legal way. It must be a module-level function, stable for the tree's life, or the rules of hooks break.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/session — `RecipeServicesTree`, an orchestration component: the part of the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Composition root (Facade) over the recipe subtree's providers, with the outbox as an injected Port"
+                        }
+                    ],
+                    "description": "The recipe, food and cook-marks providers, with the outbox's recipe answers recorded in the cook's drafts.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "clients",
+                            "type": "RecipeServiceClients",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe and food clients built for this cook (`useRecipeServiceClients`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/session/RecipeServicesTree.tsx"
+                        },
+                        {
+                            "name": "store",
+                            "type": "OutboxStore",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The app's one device key/value store: the same object its `SyncProvider` and session end use.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/session/RecipeServicesTree.tsx"
+                        },
+                        {
+                            "name": "subject",
+                            "type": "string | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The signed-in cook (Clerk `userId`), or `undefined` while nobody is. Never a placeholder.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/session/RecipeServicesTree.tsx"
+                        },
+                        {
+                            "name": "useQueue",
+                            "type": "() => DraftAnswerSource",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Reads the outbox's settlement bus (`@commise/query/sync`'s `useSyncQueue`). A stable module-level hook.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/session/RecipeServicesTree.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]

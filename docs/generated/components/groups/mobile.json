@@ -4,15 +4,15 @@
     "packageName": "@commise/mobile",
     "layer": "app",
     "coverage": {
-        "components": 54,
-        "implementations": 54,
-        "props": 155,
-        "documentedComponents": 53,
-        "implementationsWithModuleDoc": 52,
-        "implementationsWithComponentDoc": 39,
-        "documentedProps": 149,
+        "components": 53,
+        "implementations": 53,
+        "props": 154,
+        "documentedComponents": 52,
+        "implementationsWithModuleDoc": 51,
+        "implementationsWithComponentDoc": 38,
+        "documentedProps": 148,
         "classifiedComponents": 36,
-        "componentsWithPatternTag": 24,
+        "componentsWithPatternTag": 23,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -1264,60 +1264,6 @@
                             "defaultValue": null,
                             "description": "The authenticated app, rendered only once the session resolves to an unblocked signed-in user.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/AuthGate.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "mobile/components/EditorDraftAnswers",
-            "name": "EditorDraftAnswers",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/components",
-            "kind": "unclassified",
-            "patterns": [
-                "Observer — the app's mount point for the draft observer"
-            ],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "EditorDraftAnswers",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/components/EditorDraftAnswers.tsx",
-                    "dir": "packages/apps/commise/mobile/src/components",
-                    "moduleDoc": "Records the outbox's recipe answers in the signed-in cook's device drafts, whether or not an editor is open\n(`useDraftAnswers`, slice 7): the cook can leave the editor while its write is still queued, and the outbox drains\nlater. Mounted once, inside `SyncProvider`, in `RecipeServiceGate`. Renders nothing.",
-                    "moduleTags": [
-                        {
-                            "name": "pattern",
-                            "text": "Observer — the app's mount point for the draft observer"
-                        }
-                    ],
-                    "description": "The native mount of the draft observer.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "subject",
-                            "type": "string | undefined",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The signed-in cook (Clerk `userId`), or `undefined` while nobody is signed in.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/EditorDraftAnswers.tsx"
                         }
                     ],
                     "usesRefApi": [],

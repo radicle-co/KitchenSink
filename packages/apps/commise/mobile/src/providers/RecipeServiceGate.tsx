@@ -25,20 +25,16 @@
  */
 import { useAuth, useClerk } from '@clerk/expo';
 import { recipeSender } from '@commise/query/recipe-sender';
-import { CookMarksProvider } from '@commise/features-recipes';
-import { useRecipeServiceClients } from '@commise/features-recipes/session';
+import { RecipeServicesTree, useRecipeServiceClients } from '@commise/features-recipes/session';
 import { useQuerySessionScope } from '@commise/query/session-scope';
 import { RecipeWriteCacheObserver } from '@commise/query/recipe-write-cache';
-import { SyncProvider } from '@commise/query/sync';
-import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
-import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
+import { SyncProvider, useSyncQueue } from '@commise/query/sync';
 import { useQueryClient } from '@tanstack/react-query';
 import type { JSX, ReactNode } from 'react';
 import { useCallback, useMemo } from 'react';
 
 import { NATIVE_JWT_TEMPLATE } from '../auth/nativeToken.js';
 import { env } from '../config/env.js';
-import { EditorDraftAnswers } from '../components/EditorDraftAnswers.js';
 import { nativeDeviceStore } from '../storage/deviceSession.js';
 
 /**
@@ -100,14 +96,14 @@ export function RecipeServiceGate({ children }: { readonly children: ReactNode }
             {/* Slice 7: the outbox's recipe writes reach the cache, and the editor's device draft, whether or
                 not the editor that queued them is still open. */}
             <RecipeWriteCacheObserver />
-            <EditorDraftAnswers subject={userId ?? undefined} />
-            <RecipeServiceProvider client={clients.recipe}>
-                <FoodServiceProvider client={clients.food} subject={userId ?? undefined}>
-                    {/* Blueprint A13: the cook's checks and current step, kept in memory for the cook who made them and
-                        removed at the end of their session — the ADR-0054 rule, applied to marks. */}
-                    <CookMarksProvider subject={userId ?? undefined}>{children}</CookMarksProvider>
-                </FoodServiceProvider>
-            </RecipeServiceProvider>
+            <RecipeServicesTree
+                clients={clients}
+                store={nativeDeviceStore}
+                subject={userId ?? undefined}
+                useQueue={useSyncQueue}
+            >
+                {children}
+            </RecipeServicesTree>
         </SyncProvider>
     );
 }

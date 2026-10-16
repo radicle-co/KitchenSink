@@ -4,15 +4,15 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 80,
-        "implementations": 80,
-        "props": 99,
-        "documentedComponents": 77,
-        "implementationsWithModuleDoc": 61,
-        "implementationsWithComponentDoc": 56,
-        "documentedProps": 66,
+        "components": 79,
+        "implementations": 79,
+        "props": 98,
+        "documentedComponents": 76,
+        "implementationsWithModuleDoc": 60,
+        "implementationsWithComponentDoc": 55,
+        "documentedProps": 65,
         "classifiedComponents": 32,
-        "componentsWithPatternTag": 28,
+        "componentsWithPatternTag": 27,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -1309,7 +1309,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/app/global-error.tsx",
                     "dir": "packages/apps/commise/web/src/app",
-                    "moduleDoc": "The last-resort error page: Next renders it IN PLACE OF the root layout when the layout itself throws, so nothing\nthe layout provides exists here — no locale provider, no global stylesheet, no Tailwind.\n\nIt still speaks the app's own copy: the default locale's `boundary.error` strings, the same ones every route\nboundary renders, resolved at module scope without a provider. `lang` comes from the same constant, so the page\nlanguage cannot disagree with the copy. Only one locale ships; when a second does, read it from the pathname.\n\nTry again is Next's `retry()`, which re-fetches the tree (`reset()` would re-render without fetching). Go to Home\nis a full page load of `/`, the way out of a crash a retry reproduces deterministically.",
+                    "moduleDoc": "The last-resort error page: Next renders it IN PLACE OF the root layout when the layout itself throws, so nothing\nthe layout provides exists here — no locale provider, no global stylesheet, no Tailwind.\n\nIt still speaks the shared crash copy (`boundaryMessages`, the same strings every route boundary renders) plus the\napp's own Home label, resolved at module scope without a provider. `lang` comes from the same constant, so the page\nlanguage cannot disagree with the copy. Only one locale ships; when a second does, read it from the pathname.\n\nTry again is Next's `retry()`, which re-fetches the tree (`reset()` would re-render without fetching). Go to Home\nis a full page load of `/`, the way out of a crash a retry reproduces deterministically.",
                     "moduleTags": [],
                     "description": "",
                     "tags": [],
@@ -1716,7 +1716,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/app/RouteErrorBoundary.tsx",
                     "dir": "packages/apps/commise/web/src/components/app",
-                    "moduleDoc": "components/app/RouteErrorBoundary — the shared orchestration every web App Router `error.tsx`\nboundary delegates to (B18). Composes the DA9 `ErrorReporter` seam (never a hard-coded Sentry\nimport at the call site) with the shared `BoundaryErrorNotice` (`@commise/features-core/boundary`, the same\nfallback the mobile screen boundary shows) given this app's body copy: reporting is a side effect a segment's\n`error.tsx` MUST perform (a route crash must never be silent), kept out of the pure presentational component per\nthe app's pure-render-component rule (`@sideEffect`).\n\nResolves the reporter from the SAME appShell container the Home-widget boundaries already bind\n(`homeContainer`, DA9) rather than introducing a second Sentry binding path — until the DA10 AppProviders\nfacade gives the whole app one composition root, `homeContainer` is the ONE bound `errorReporterToken` on\nweb, so every observability call site (widget or route) composes with it.",
+                    "moduleDoc": "components/app/RouteErrorBoundary — the shared orchestration every web App Router `error.tsx`\nboundary delegates to (B18). Composes the DA9 `ErrorReporter` seam (never a hard-coded Sentry\nimport at the call site) with the shared `BoundaryErrorNotice` (`@commise/features-core/boundary`, the same\nfallback the mobile screen boundary shows) given the shared body copy: reporting is a side effect a segment's\n`error.tsx` MUST perform (a route crash must never be silent), kept out of the pure presentational component per\nthe app's pure-render-component rule (`@sideEffect`).\n\nResolves the reporter from the SAME appShell container the Home-widget boundaries already bind\n(`homeContainer`, DA9) rather than introducing a second Sentry binding path — until the DA10 AppProviders\nfacade gives the whole app one composition root, `homeContainer` is the ONE bound `errorReporterToken` on\nweb, so every observability call site (widget or route) composes with it.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3674,60 +3674,6 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": true
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/components/recipes/EditorDraftAnswers",
-            "name": "EditorDraftAnswers",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "unclassified",
-            "patterns": [
-                "Observer — the app's mount point for the draft observer"
-            ],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "EditorDraftAnswers",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/recipes/EditorDraftAnswers.tsx",
-                    "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Records the outbox's recipe answers in the signed-in cook's device drafts, whether or not an editor is open\n(`useDraftAnswers`, slice 7): a cook can leave the editor while its write is still queued. Mounted once, inside\n`SyncProvider`, in `RecipeProviders`. Renders nothing.",
-                    "moduleTags": [
-                        {
-                            "name": "pattern",
-                            "text": "Observer — the app's mount point for the draft observer"
-                        }
-                    ],
-                    "description": "The web mount of the draft observer.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "subject",
-                            "type": "string | undefined",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The signed-in cook (Clerk `userId`), or `undefined` while nobody is signed in.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/EditorDraftAnswers.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
                     }
                 }
             ]

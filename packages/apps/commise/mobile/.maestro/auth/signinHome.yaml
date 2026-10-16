@@ -69,7 +69,11 @@ appId: io.commise.mobile
                     - eraseText: 64
                     - inputText: '${E2E_SIGNIN_EMAIL}'
           - assertVisible: '${E2E_SIGNIN_EMAIL}'
-          - tapOn: 'Your password'
+          # The email field's Next key moves focus to the password, as a cook on a keyboard does (`login.tsx`
+          # `onSubmit`, 4f685d9d4). NOT `tapOn: 'Your password'`: since the social buttons moved the form down, the
+          # iOS keyboard opened for the email covers the password field, so Maestro tapped the keyboard at the
+          # field's coordinates and the password went nowhere (run 38950847113, every iOS shard: "Enter password.").
+          - pressKey: Enter
           - inputText: '${E2E_SIGNIN_PASSWORD}'
           # The keyboard stays UP. `AuthScreenFrame` pins `Sign in` just above it while the keyboard is open
           # (`buildSpec.md` §8.1), so this tap is the shipped path: a cook types the password and presses the button

@@ -93,7 +93,8 @@ appId: io.commise.mobile
           - eraseText: 64
           - inputText: '${E2E_SIGNIN_EMAIL}'
 - assertVisible: '${E2E_SIGNIN_EMAIL}'
-- tapOn: 'Your password'
+# The Next key, for `signinHome.yaml`'s reason: the iOS keyboard covers the password field.
+- pressKey: Enter
 - inputText: 'wrongpassword123'
 # The keyboard stays up: `Sign in` is pinned above it (`signinHome.yaml`), and tapping it there is what a cook does.
 - tapOn: 'Sign in'

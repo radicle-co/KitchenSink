@@ -28,6 +28,7 @@ import { describe, expect, it } from 'vitest';
 import { LEGACY_RECREATE_TOKEN_PREFIX } from '../src/db-bootstrap/disposition.js';
 import { DataStack } from '../lib/platform/DataStack.js';
 import { NetworkStack } from '../lib/platform/NetworkStack.js';
+import { mediaDeliveryProps } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
 
 /** ⚠️ The stages the recreate is armed on. Emptied by the disarm commit. */
@@ -40,7 +41,7 @@ function dataTemplate(stage: string): Template {
     const app = testApp();
     const network = new NetworkStack(app, `Net-${stage}`, { env, stage });
 
-    return Template.fromStack(new DataStack(app, `Data-${stage}`, { env, network, stage }));
+    return Template.fromStack(new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps(app) }));
 }
 
 /** The bootstrap function's `LEGACY_RECREATE_ARMED` environment value, or `undefined`. */

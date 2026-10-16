@@ -35,6 +35,7 @@ import { SandboxSchedulerStack } from '../lib/platform/SandboxSchedulerStack.js'
 import { SHARED_TIER_DELETE_ORDER } from '../lib/sandbox-scheduler/reclaim.js';
 import { SCHEDULED_RULE_STAGE_TAG } from '../lib/sandbox-scheduler/scheduler.js';
 import { iamResourceMatches } from './iamGlob.js';
+import { TEST_UPLOAD_ORIGINS } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };
@@ -225,6 +226,7 @@ describe('GlobalStack scheduler guard (ADR-0007 / no prod diff)', () => {
             stackName: `kitchensink-global-${stage}`,
             stage,
             alarmsEnabled: true,
+            uploadOrigins: TEST_UPLOAD_ORIGINS,
             domainName: 'example.com',
         });
 
@@ -351,6 +353,7 @@ describe('GlobalStack hands the scheduler the stage alarm settings', () => {
             stackName: 'kitchensink-global-sandbox',
             stage: 'sandbox',
             alarmsEnabled: true,
+            uploadOrigins: TEST_UPLOAD_ORIGINS,
             domainName: 'example.com',
         });
         const template = Template.fromStack(global.sandboxScheduler!);

@@ -73,6 +73,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DataStack } from '../lib/platform/DataStack.js';
 import { NetworkStack } from '../lib/platform/NetworkStack.js';
+import { mediaDeliveryProps } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
 
 /**
@@ -167,7 +168,7 @@ function engineFaults(properties: EngineProperties, expected: string): readonly 
 function synthesizedInstances(stage: string): readonly { readonly logicalId: string; properties: EngineProperties }[] {
     const app = testApp();
     const network = new NetworkStack(app, `Net-${stage}`, { env, stage });
-    const data = new DataStack(app, `Data-${stage}`, { env, network, stage });
+    const data = new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps(app) });
 
     return Object.entries(Template.fromStack(data).findResources('AWS::RDS::DBInstance')).map(
         ([logicalId, resource]) => ({

@@ -60,6 +60,7 @@ import { describe, expect, it } from 'vitest';
 
 import { CostGuardrailsStack } from '../lib/platform/CostGuardrailsStack.js';
 import { GlobalStack } from '../lib/platform/GlobalStack.js';
+import { TEST_UPLOAD_ORIGINS } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
 import { scalarText } from './workflowScalar.js';
 
@@ -87,6 +88,7 @@ function synthesizePlatform(): { templates: Record<string, Template>; warnings: 
         // Alarms ON: this suite audits the platform's TRANSPORT surface, and the alarm topics it reaches
         // through (`enforceSSL`) only exist when the alarms that publish to them do.
         alarmsEnabled: true,
+        uploadOrigins: TEST_UPLOAD_ORIGINS,
     });
     new CostGuardrailsStack(app, 'CostGuardrails', {
         env,

@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 
 import { DataStack } from '../lib/platform/DataStack.js';
 import { NetworkStack } from '../lib/platform/NetworkStack.js';
+import { mediaDeliveryProps } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };
@@ -132,7 +133,7 @@ describe('DataStack credentials secret', () => {
     it('has no Auth0 reference (service migrated to Clerk)', () => {
         const app = testApp();
         const network = new NetworkStack(app, 'NetForData', { env, stage: 'test' });
-        const data = new DataStack(app, 'DataForTest', { env, network, stage: 'test' });
+        const data = new DataStack(app, 'DataForTest', { env, network, stage: 'test', ...mediaDeliveryProps(app) });
 
         const json = JSON.stringify(Template.fromStack(data).toJSON());
         expect(json.toLowerCase()).not.toContain('auth0');

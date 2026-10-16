@@ -51,6 +51,12 @@ export interface GlobalStackProps extends StackProps {
      * CloudFormation exports" step exists for.
      */
     readonly logForwarderArn?: string;
+    /**
+     * The origins a browser may PUT a presigned object from (the media bucket's CORS rule), derived at synth by
+     * `resolveUploadOrigins` from the CI-exported `CLERK_*` settings. REQUIRED and passed straight through, like
+     * `alarmsEnabled`: this stack must never decide the question itself (ADR-0064).
+     */
+    readonly uploadOrigins: readonly string[];
 }
 
 /**
@@ -90,19 +96,25 @@ export class GlobalStack extends Stack {
             stage,
         });
 
+        // The domain is built BEFORE the data stack: the media distribution (ADR-0064) takes the apex certificate and
+        // zone from it. Construct order changes no logical id; the dependency edge is the object reference.
+        this.domain = new DomainStack(this, `Domain-${stage}`, {
+            env: props.env,
+            stackName: `kitchensink-domain-${stage}`,
+            domainName,
+            stage,
+        });
+
         this.data = new DataStack(this, `Data-${stage}`, {
             env: props.env,
             stackName: `kitchensink-data-${stage}`,
             logForwarderArn: props.logForwarderArn,
             network: this.network,
             stage,
-        });
-
-        this.domain = new DomainStack(this, `Domain-${stage}`, {
-            env: props.env,
-            stackName: `kitchensink-domain-${stage}`,
             domainName,
-            stage,
+            certificate: this.domain.certificate,
+            hostedZone: this.domain.hostedZone,
+            uploadOrigins: props.uploadOrigins,
         });
 
         this.alb = new SharedAlbStack(this, `SharedAlb-${stage}`, {

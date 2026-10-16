@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DataStack } from '../lib/platform/DataStack.js';
 import { NetworkStack } from '../lib/platform/NetworkStack.js';
+import { mediaDeliveryProps } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };
@@ -27,7 +28,7 @@ const dataTemplate = (stage: string): Template => {
     const app = testApp();
     const network = new NetworkStack(app, `Net-${stage}`, { env, stage });
 
-    return Template.fromStack(new DataStack(app, `Data-${stage}`, { env, network, stage }));
+    return Template.fromStack(new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps(app) }));
 };
 
 type Resource = {

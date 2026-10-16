@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest';
 
 import { GlobalStack } from '../lib/platform/GlobalStack.js';
 import { SandboxSchedulerStack } from '../lib/platform/SandboxSchedulerStack.js';
+import { TEST_UPLOAD_ORIGINS } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };
@@ -27,6 +28,7 @@ const makeGlobal = (stage: string): GlobalStack =>
         // Alarms ON, so the platform's alarm resources stay inside everything this suite asserts. The flag
         // itself is proved by `alarmFeatureFlag.test.ts` and `MessageSubstrateStack.test.ts`.
         alarmsEnabled: true,
+        uploadOrigins: TEST_UPLOAD_ORIGINS,
         domainName,
     });
 

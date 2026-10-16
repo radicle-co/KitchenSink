@@ -11,9 +11,11 @@ import {
     SecretValue,
     Stack,
     type StackProps,
+    aws_certificatemanager as acm,
     aws_ec2 as ec2,
     aws_lambda as lambda,
     aws_rds as rds,
+    aws_route53 as route53,
     aws_s3 as s3,
     aws_secretsmanager as secretsmanager,
     aws_sns as sns,
@@ -26,6 +28,7 @@ import {
 import type { Construct } from 'constructs';
 
 import { AcceptedNagFindings, NODE_LAMBDA_RUNTIME, acceptNagFindings } from '@radicle-co/infra-shared/security';
+import { PREFLIGHT_MAX_AGE_SECONDS } from '@kitchensink/clerk-verify';
 import {
     DATABASE_ROLES,
     RDS_MASTER_USERNAME,
@@ -37,6 +40,7 @@ import {
 
 import { LEGACY_RECREATE_TOKEN_PREFIX } from '../../src/db-bootstrap/disposition.js';
 
+import { addMediaDelivery } from './mediaDelivery.js';
 import type { NetworkStack } from './NetworkStack.js';
 
 /**
@@ -128,6 +132,22 @@ export interface DataStackProps extends StackProps {
 
     readonly network: NetworkStack;
     readonly stage?: string;
+
+    /** The apex domain the media host sits under, e.g. `commise.app`. */
+    readonly domainName: string;
+    /**
+     * A certificate in us-east-1 that covers the media host — the apex wildcard `DomainStack` already owns. REQUIRED:
+     * a default would let a stack synthesize with no CDN, which is the defect ADR-0064 closes.
+     */
+    readonly certificate: acm.ICertificate;
+    /** The apex hosted zone the media alias records are written to. */
+    readonly hostedZone: route53.IHostedZone;
+    /**
+     * The origins a browser may PUT a presigned object from, as S3 CORS `AllowedOrigin` strings, derived from the Clerk
+     * `azp` settings by `resolveUploadOrigins` (`@kitchensink/clerk-verify`). REQUIRED and never empty or `*`: with none,
+     * every browser upload fails its preflight, which is defect D1.
+     */
+    readonly uploadOrigins: readonly string[];
 }
 
 /**
@@ -617,13 +637,48 @@ export class DataStack extends Stack {
             displayName: 'Recipe author/editor handle sync',
         });
 
+        if (props.uploadOrigins.length === 0 || props.uploadOrigins.includes('*')) {
+            throw new Error(
+                'DataStack needs at least one explicit upload origin and never a bare "*": the media bucket\'s CORS rule ' +
+                    'is what lets a browser PUT a presigned object (ADR-0064). Derive it with resolveUploadOrigins.',
+            );
+        }
+
         this.mediaBucket = new s3.Bucket(this, 'MediaBucket', {
             blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
             enforceSSL: true,
             encryption: s3.BucketEncryption.S3_MANAGED,
             versioned: true,
+            // A browser PUTs to a presigned URL, so the bucket must answer the preflight. PUT only, the one header a
+            // presigned upload sends, no credentials. The origins are the pages Clerk's `azp` boundary admits.
+            cors: [
+                {
+                    allowedMethods: [s3.HttpMethods.PUT],
+                    allowedOrigins: [...props.uploadOrigins],
+                    allowedHeaders: ['Content-Type'],
+                    maxAge: PREFLIGHT_MAX_AGE_SECONDS,
+                },
+            ],
+            // Versioning is on, so a delete only adds a marker and the erased photo stays recoverable. Expire the
+            // noncurrent versions a day later and clear the markers, or erasure is not erasure (GDPR).
+            lifecycleRules: [
+                {
+                    id: 'ExpireNoncurrentVersions',
+                    enabled: true,
+                    noncurrentVersionExpiration: Duration.days(1),
+                    expiredObjectDeleteMarker: true,
+                },
+            ],
             removalPolicy: RemovalPolicy.DESTROY,
             autoDeleteObjects: true,
+        });
+
+        addMediaDelivery(this, 'MediaDelivery', {
+            bucket: this.mediaBucket,
+            stage: stageTag,
+            domainName: props.domainName,
+            certificate: props.certificate,
+            hostedZone: props.hostedZone,
         });
 
         this.archiveBucket = new s3.Bucket(this, 'ArchiveBucket', {

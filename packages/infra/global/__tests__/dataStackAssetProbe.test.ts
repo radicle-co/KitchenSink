@@ -44,6 +44,7 @@
  */
 import { Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect, vi } from 'vitest';
+import { mediaDeliveryProps } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
 
 const probe = vi.hoisted(() => ({ calls: 0 }));
@@ -81,7 +82,9 @@ const synthesize = (label: string): Template => {
     const app = testApp();
     const network = new NetworkStack(app, `Net-${label}`, { env, stage: 'prod' });
 
-    return Template.fromStack(new DataStack(app, `Data-${label}`, { env, network, stage: 'prod' }));
+    return Template.fromStack(
+        new DataStack(app, `Data-${label}`, { env, network, stage: 'prod', ...mediaDeliveryProps(app) }),
+    );
 };
 
 /** The `codeSource` property of the food bootstrap custom resource — the value that moved in CI. */

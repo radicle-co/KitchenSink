@@ -30,6 +30,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DataStack } from '../lib/platform/DataStack.js';
 import { NetworkStack } from '../lib/platform/NetworkStack.js';
+import { mediaDeliveryProps } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };
@@ -37,7 +38,7 @@ const env = { account: '123456789012', region: 'us-east-1' };
 const dbProps = (stage: string): Record<string, unknown> => {
     const app = testApp();
     const network = new NetworkStack(app, `Network-${stage}`, { env, stage });
-    const data = new DataStack(app, `Data-${stage}`, { env, network, stage });
+    const data = new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps(app) });
     const instances = Object.values(Template.fromStack(data).findResources('AWS::RDS::DBInstance'));
 
     expect(instances).toHaveLength(1);

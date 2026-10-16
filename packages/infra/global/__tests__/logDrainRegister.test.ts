@@ -28,6 +28,7 @@ import { describe, expect, it } from 'vitest';
 
 import { LOG_DRAIN_SOURCES } from '../../../services/identity-webhooks/src/common/logDrainRegister.js';
 import { GlobalStack } from '../lib/platform/GlobalStack.js';
+import { TEST_UPLOAD_ORIGINS } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
 import { productionSources, readSource, withoutTsComments, REPO_ROOT } from './roleSplitSources.js';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -372,6 +373,7 @@ describe('the log-drain register (ADR-0042)', () => {
             stackName: `kitchensink-global-${stage}`,
             stage,
             alarmsEnabled: true,
+            uploadOrigins: TEST_UPLOAD_ORIGINS,
             domainName: 'commise.app',
             ...(logForwarderArn === undefined ? {} : { logForwarderArn }),
         });

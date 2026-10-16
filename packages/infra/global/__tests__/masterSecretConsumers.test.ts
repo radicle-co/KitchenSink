@@ -22,6 +22,7 @@ import { describe, expect, it } from 'vitest';
 import { DataStack } from '../lib/platform/DataStack.js';
 import { NetworkStack } from '../lib/platform/NetworkStack.js';
 import { productionSources, readSource, withoutTsComments } from './roleSplitSources.js';
+import { mediaDeliveryProps } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };
@@ -32,8 +33,9 @@ type Resource = { readonly Type: string; readonly Properties: Record<string, unk
 function masterSecretReaders(stage: string): readonly string[] {
     const app = testApp();
     const network = new NetworkStack(app, `Net-${stage}`, { env, stage });
-    const resources = Template.fromStack(new DataStack(app, `Data-${stage}`, { env, network, stage })).toJSON()
-        .Resources as Record<string, Resource>;
+    const resources = Template.fromStack(
+        new DataStack(app, `Data-${stage}`, { env, network, stage, ...mediaDeliveryProps(app) }),
+    ).toJSON().Resources as Record<string, Resource>;
     const secretId = Object.keys(resources).find((id) => /^DatabaseCredentialsSecret[0-9A-F]{8}$/u.test(id));
 
     expect(secretId, 'the master credentials secret must be discoverable').toBeDefined();

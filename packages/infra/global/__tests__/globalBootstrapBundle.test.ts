@@ -42,6 +42,7 @@ import { describe, expect, it } from 'vitest';
 import { withoutComments } from './cdkApps.js';
 import { DataStack } from '../lib/platform/DataStack.js';
 import { NetworkStack } from '../lib/platform/NetworkStack.js';
+import { mediaDeliveryProps } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
 
 const WORKFLOW_DIR = fileURLToPath(new URL('../../../../.github/workflows/', import.meta.url));
@@ -336,7 +337,12 @@ describe('DataStack — the missing-bundle placeholder never reports success', (
         // thing CloudFormation compares.
         const app = testApp();
         const network = new NetworkStack(app, 'Net-probe', { env: SYNTH_ENV, stage: 'prod' });
-        const data = new DataStack(app, 'Data-probe', { env: SYNTH_ENV, network, stage: 'prod' });
+        const data = new DataStack(app, 'Data-probe', {
+            env: SYNTH_ENV,
+            network,
+            stage: 'prod',
+            ...mediaDeliveryProps(app),
+        });
         const resources = Template.fromStack(data).findResources('AWS::CloudFormation::CustomResource');
         const bootstraps = Object.values(resources).filter((resource) => resource.Properties?.service);
 

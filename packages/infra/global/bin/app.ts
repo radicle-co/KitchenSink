@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { App, Tags } from 'aws-cdk-lib';
 
 import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
+import { resolveUploadOrigins } from '@kitchensink/clerk-verify';
 
 import { EdgeStack } from '../lib/platform/EdgeStack.js';
 import { GlobalStack } from '../lib/platform/GlobalStack.js';
@@ -65,8 +66,20 @@ const alertEmail = app.node.tryGetContext('costAlertEmail') ?? process.env['COST
 // Enforced by `packages/infra/global/__tests__/alarmFeatureFlag.test.ts`.
 const alarmsEnabled = process.env['ALARMS_ENABLED'] === 'true';
 
+// ⛔ THE MEDIA BUCKET'S CORS ORIGINS, DERIVED FROM THE CLERK `azp` SETTINGS AND NEVER DEFAULTED (ADR-0064).
+// A browser PUTs to a presigned URL, so the bucket must answer the preflight for exactly the pages Clerk admits.
+// CI exports the same `CLERK_*` values the services read (prod: the party list; every other stage: the preview
+// pattern and its mode) before synth, as it does for the edge's key. `resolveUploadOrigins` THROWS when neither is
+// set, so a synth without them fails here rather than shipping a bucket every browser upload is refused by.
+const uploadOrigins = resolveUploadOrigins({
+    authorizedPartiesRaw: process.env['CLERK_AUTHORIZED_PARTIES'],
+    previewBaseDomain: process.env['CLERK_AZP_PATTERN'],
+    previewMode: process.env['CLERK_AZP_PREVIEW_MODE'],
+}).origins;
+
 new GlobalStack(app, `Global-${stage}`, {
     alarmsEnabled,
+    uploadOrigins,
     // ⚠️ OPTIONAL BY DESIGN — see `GlobalStackProps.logForwarderArn`. Empty or unset means the log-drain
     // subscription filters this app owns are not attached on THIS deploy; they attach on the next one, once
     // the webhooks app has published its forwarder ARN. That is what breaks the deploy cycle between the two

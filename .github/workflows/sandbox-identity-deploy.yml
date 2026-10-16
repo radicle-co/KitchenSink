@@ -487,6 +487,13 @@ jobs:
                   fi
                   bash .github/scripts/safeEnv.sh LOG_FORWARDER_ARN "${arn}"
 
+            # ⛔ THE MEDIA BUCKET'S CORS ORIGINS COME FROM THE SAME CLERK `azp` SETTINGS THE SERVICES READ (ADR-0064).
+            # `packages/infra/global/bin/app.ts` derives them at synth and THROWS when none is set, so every step of this
+            # job that synthesizes the global app (the key-retirement check, the deploy, the drift verification) must see
+            # them: exported once for the job, like the forwarder ARN above.
+            - name: Export the Clerk azp selectors the media bucket CORS derives from
+              run: bash .github/scripts/exportClerkAzp.sh "${STAGE}"
+
             # ⛔ BEFORE the global deploy: step 3 of the signing key rotation runbook in `RemoteSearchSharedStack.ts`.
             # Dropping a generation removes the key CloudFront trusts, and a food still signing with it has every search
             # refused. This synthesizes the app the next step deploys and refuses while any service still runs a task

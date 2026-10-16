@@ -48,6 +48,7 @@ import { CostGuardrailsStack } from '../lib/platform/CostGuardrailsStack.js';
 import { EdgeStack } from '../lib/platform/EdgeStack.js';
 import { GlobalStack } from '../lib/platform/GlobalStack.js';
 import { TEST_EDGE_AUTHORIZED_PARTIES, TEST_EDGE_JWT_KEY, stubEdgeBundleDir } from './edgeBundleFixture.js';
+import { TEST_UPLOAD_ORIGINS } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };
@@ -74,6 +75,7 @@ function synthesizePlatform(stage: string, options: { readonly aspect?: IAspect 
         // both sides by construction. It is ON so the alarm resources are INSIDE the bytes being compared —
         // a parity proof run with alarms off would compare a template the flag had emptied.
         alarmsEnabled: true,
+        uploadOrigins: TEST_UPLOAD_ORIGINS,
     });
 
     // ADR-0008: created ONCE, prod-guarded in bin/app.ts. Included here so the account-scoped stack is
@@ -193,6 +195,7 @@ describe('the parity proof is not vacuous', () => {
             stage: 'prod',
             domainName,
             alarmsEnabled: true,
+            uploadOrigins: TEST_UPLOAD_ORIGINS,
         });
         app.synth();
 

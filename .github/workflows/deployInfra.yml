@@ -141,6 +141,12 @@ jobs:
                   account-id: ${{ vars.AWS_ACCOUNT_ID }}
                   region: ${{ vars.DEFAULT_AWS_REGION }}
                   session-minutes: '180'
+            # ⛔ The global app derives the media bucket's CORS origins from the Clerk `azp` settings and THROWS without
+            # them (ADR-0064), so the synth below - checks run included - needs them in its environment.
+            - name: Export the Clerk azp selectors the media bucket CORS derives from
+              env:
+                  AZP_STAGE: ${{ inputs.stage }}
+              run: bash .github/scripts/exportClerkAzp.sh "${AZP_STAGE}"
             - uses: ./.github/actions/infra-package
               with:
                   directory: packages/infra/global

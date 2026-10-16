@@ -34,7 +34,7 @@
 The following are explicitly **not** part of this feature and will be addressed as separate features if needed:
 
 - **Email change flow**: Users cannot change their email address through Commise. Email changes require a separate feature that coordinates with the IdP's email verification.
-- **Admin dashboard for user management**: No admin UI for viewing, searching, editing, or bulk-managing users. Suspension/reactivation (FR-035/FR-038) are backend/API operations only; admin UI is a separate feature. Operator impersonation is withdrawn (2026-10-15, see FR-036/FR-037).
+- **Admin dashboard for user management**: No admin UI for viewing, searching, editing, or bulk-managing users. Suspension/reactivation (FR-041/FR-044) are backend/API operations only; admin UI is a separate feature. Operator impersonation is withdrawn (2026-10-15, see FR-036/FR-037).
 - **MFA**: Multi-factor authentication is out of scope for this feature.
 - **Passkeys**: Passkey authentication is out of scope for this feature.
 - **Custom sign-in UI**: The IdP-hosted sign-in UI is used; no custom sign-in components are built.
@@ -262,8 +262,8 @@ The authentication layer consists of:
 
 > Operator impersonation is no longer part of this feature. The two routes `POST /api/v1/admin/users/{userId}/impersonation/{start,stop}` granted nothing: they logged a line and returned a made-up session id. They are deleted from the identity service and from `contracts/identityApi.openapi.json`. **What remains:** an impersonated session (a Clerk token with an `act` claim) is refused on both web and mobile ("Impersonation blocked"). Known gap, tracked separately: no backend service refuses an `act` claim yet.
 
-- **FR-036**: **⚠️ WITHDRAWN (2026-10-15).** There is no impersonation to audit. System MUST log all impersonation actions (who initiated, target user, timestamp, action taken) to an immutable audit log.
-- **FR-037**: **⚠️ WITHDRAWN (2026-10-15).** There is no impersonation to restrict. System MUST restrict impersonation initiation to users with explicit admin role permissions. Non-admin users MUST receive `403 Forbidden` when attempting impersonation.
+- **FR-036**: **⚠️ WITHDRAWN (2026-10-15).** There is no impersonation to audit.
+- **FR-037**: **⚠️ WITHDRAWN (2026-10-15).** There is no impersonation to restrict.
 
 ### Non-Functional Requirements _(constitution-derived)_
 

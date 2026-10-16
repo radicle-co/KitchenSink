@@ -201,7 +201,7 @@ As a security-conscious user, I can enroll MFA (TOTP) and receive second-factor 
 
 #### US-012 — Operator Impersonation with Audit Safety — **WITHDRAWN (2026-10-15)**
 
-> Owner ruling 2026-10-15: "Delete the impersonation then". The stub routes granted nothing, so they are deleted. FR-035/FR-036/FR-037 are withdrawn. What remains: an impersonated (Clerk `act`) session is refused on web and mobile.
+> Owner ruling 2026-10-15: "Delete the impersonation then". The stub routes granted nothing, so they are deleted. This story's own numbering is FR-035..FR-037, but `spec.md` defines no FR-035: its impersonation requirements are FR-036 and FR-037, both withdrawn. What remains: an impersonated (Clerk `act`) session is refused on web and mobile.
 
 As an authorized support operator, I can impersonate users for diagnostics with explicit session marking and restricted destructive actions.
 

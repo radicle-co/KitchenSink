@@ -18,20 +18,20 @@
 
 ## User Story Reference
 
-| US     | Title                                              | FR Coverage    | Priority |
-| ------ | -------------------------------------------------- | -------------- | -------- |
-| US-001 | Cross-platform Auth Entry and Callback             | FR-001..FR-005 | P0       |
-| US-002 | Secure Session Persistence and Refresh             | FR-006..FR-009 | P1       |
-| US-003 | Deterministic Logout                               | FR-010..FR-012 | P1       |
-| US-004 | Signup-to-Database Identity Synchronization        | FR-013..FR-017 | P0       |
-| US-005 | API Authorization Gate                             | FR-038..FR-040 | P0       |
-| US-006 | Profile Visibility and Account Editing             | FR-018..FR-021 | P1       |
-| US-007 | Account Deletion with Eventual IdP Consistency     | FR-022..FR-026 | P2       |
-| US-008 | Password Reset Entry                               | FR-027..FR-028 | P2       |
-| US-009 | Social Provider Linking Lifecycle                  | FR-032..FR-034 | P2       |
-| US-010 | Suspended Account Enforcement and Reactivation     | FR-041..FR-044 | P2       |
-| US-011 | MFA Enrollment _(OUT OF SCOPE — see spec.md §OOS)_ | FR-029..FR-031 | —        |
-| US-012 | Operator Impersonation with Audit Safety           | FR-035..FR-037 | P2       |
+| US     | Title                                                                                                        | FR Coverage    | Priority |
+| ------ | ------------------------------------------------------------------------------------------------------------ | -------------- | -------- |
+| US-001 | Cross-platform Auth Entry and Callback                                                                       | FR-001..FR-005 | P0       |
+| US-002 | Secure Session Persistence and Refresh                                                                       | FR-006..FR-009 | P1       |
+| US-003 | Deterministic Logout                                                                                         | FR-010..FR-012 | P1       |
+| US-004 | Signup-to-Database Identity Synchronization                                                                  | FR-013..FR-017 | P0       |
+| US-005 | API Authorization Gate                                                                                       | FR-038..FR-040 | P0       |
+| US-006 | Profile Visibility and Account Editing                                                                       | FR-018..FR-021 | P1       |
+| US-007 | Account Deletion with Eventual IdP Consistency                                                               | FR-022..FR-026 | P2       |
+| US-008 | Password Reset Entry                                                                                         | FR-027..FR-028 | P2       |
+| US-009 | Social Provider Linking Lifecycle                                                                            | FR-032..FR-034 | P2       |
+| US-010 | Suspended Account Enforcement and Reactivation                                                               | FR-041..FR-044 | P2       |
+| US-011 | MFA Enrollment _(OUT OF SCOPE — see spec.md §OOS)_                                                           | FR-029..FR-031 | —        |
+| US-012 | Operator Impersonation with Audit Safety — withdrawn 2026-10-15 (owner ruling): the stub routes were deleted | FR-035..FR-037 | P2       |
 
 ---
 
@@ -350,7 +350,7 @@ T-020, T-021 → T-095[P]
 
 > Covers FR-035..FR-037: immutable audit log, admin-only initiation, restricted operations during sessions.
 
-- [x] **T-037** [US-012] Implement impersonation guardrails and audit logging — `packages/services/identity/src/admin/impersonation.controller.ts`
+- [x] **T-037** [US-012] Implement impersonation guardrails and audit logging — `packages/services/identity/src/admin/impersonation.controller.ts` — **withdrawn 2026-10-15 (owner ruling): the stub routes were deleted.**
     - **Depends on**: T-030, T-020
     - **Implements**: REQ-035, REQ-036, REQ-037, FR-036, FR-037, ARCH-022, ARCH-023, MOD-022, MOD-023
     - Accept impersonation context for authorized roles only. Emit audit fields (`impersonatorId`, `impersonatedUserId`, flags) on all impersonated requests. Block restricted operations during impersonation sessions.
@@ -500,7 +500,7 @@ T-020, T-021 → T-095[P]
     - Wire CI jobs for all new workspaces and localstack-backed e2e stage. Add performance benchmark gates (NFR-011a): CI MUST fail if token refresh >500ms P99, profile endpoint >1s P99, or webhook processing >2s P99. Test split: `@kitchensink/identity-service` exposes `npm test` (unit/integration, Vitest, excluding LocalStack e2e); `@kitchensink/identity-webhooks` exposes `npm test` (unit); root e2e target exercises LocalStack stack.
     - **Acceptance**: CI validates strict typing/lint/tests across shared, infra, webhook, service, web, and mobile packages.
 
-- [x] **T-088** [QUALITY] Add feature flag for staged rollout — `packages/services/identity/src/config/featureFlags.ts`
+- [x] **T-088** [QUALITY] Add feature flag for staged rollout — `packages/services/identity/src/config/featureFlags.ts` — **deleted 2026-10-15 (unreferenced).**
     - **Depends on**: T-083
     - **Implements**: NFR-001, NFR-014
     - Implement feature flag `auth-v2-rollout` with percentage-based traffic split. Staged rollout: 10% → 50% → 100% over 2-week period. Fallback to legacy auth path if flag disabled or error.

@@ -43,8 +43,8 @@
 | T-084        | 1     | ✅          | Mobile profile wireframe at `product-spec/wireframes/mobile-profile.md`. Login/signup/MFA/session-expired/callback intentionally absent — rendered by Clerk's hosted UI |
 | T-085        | 1     | ➖          | REMOVED — login/signup loading states are owned by Clerk's hosted UI, not the app                                                                                       |
 | T-086        | 1     | ✅          | Design tokens verified (Tailwind CSS utility classes with semantic naming; no hard-coded hex values in auth UI components)                                              |
-| T-087        | 1     | ✅          | Retry strategy doc authored (`packages/services/identity-webhooks/src/common/retry.md`)                                                                                 |
-| T-088        | 1     | ✅          | Feature flags module created                                                                                                                                            |
+| T-087        | 1     | ✅          | Retry strategy doc authored (`packages/services/identity-webhooks/src/common/retry.md`, deleted 2026-10-15 as unreferenced)                                             |
+| T-088        | 1     | ✅          | Feature flags module created (`config/featureFlags.ts`, deleted 2026-10-15 as unreferenced)                                                                             |
 | T-089        | 1     | ✅          | OpenAPI 3.1 contract generated (`specs/002-user-auth/contracts/identityApi.openapi.json`)                                                                               |
 | T-090        | 1     | ✅          | Test distribution metric gate in CI                                                                                                                                     |
 | T-032b       | 1     | ✅          | Avatar upload validation endpoint implemented (`avatarUpload.controller.ts` + tests pass)                                                                               |

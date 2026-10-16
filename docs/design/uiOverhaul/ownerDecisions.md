@@ -122,3 +122,10 @@ These come after the UI walk-through. Where an earlier line in this file or in `
     test asserts the email shows once.
 12. **The guided first-recipe editor mode is dropped, on both platforms.** The editor is the same for every cook. The
     index shows no hints, no "Start here" and no "{done} of 4 done".
+
+## Owner decision of 2026-10-16
+
+13. **Profile shows the username and the email once, in the header, on both apps.** The owner picked "Header only,
+    like mobile". Web drops the read-only Username and Email rows under Account; the Account group holds the display
+    name row alone. This amends decision 11 (which covered mobile only) and plan
+    `docs/plans/2026-10-15-010-feat-username-byline-plan.md` D12 (the "web Account-group row").

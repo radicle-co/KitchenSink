@@ -12,7 +12,6 @@ import { DisplayNameSheet } from '../DisplayNameSheet.js';
 import { ProfileGroup } from '../ProfileGroup.js';
 import { ProfileHeader } from '../ProfileHeader.js';
 import { ProfileRow } from '../ProfileRow.js';
-import { ProfileValueRow } from '../ProfileValueRow.js';
 import { DISPLAY_NAME_MAX_LENGTH } from '../model.js';
 import type { DisplayNameSheetProps, ProfileRowProps } from '../props.js';
 
@@ -202,31 +201,11 @@ describe('ProfileRow (web)', () => {
     });
 });
 
-describe('ProfileValueRow and ProfileGroup (web)', () => {
-    it('lists a read-only value as a term and its definition, not a control', () => {
-        render(<ProfileValueRow label="Email" value="eliza@example.com" />);
-
-        expect(screen.getByText('Email')).toBeTruthy();
-        expect(screen.getByText('eliza@example.com')).toBeTruthy();
-        expect(screen.queryByRole('button')).toBeNull();
-    });
-
-    // `evaluateFinal.md` sev-2: the email broke inside the word ("examp / le"). A row value is one line, truncated
-    // (`buildSpec.md` §9.1); the header shows the whole address, and the row names it in full on hover.
-    it('keeps a long value on one line, truncated, with the whole value in its title', () => {
-        render(<ProfileValueRow label="Email" value="eliza.moreno+longaddress@example-kitchen.com" />);
-
-        const value = screen.getByText('eliza.moreno+longaddress@example-kitchen.com');
-
-        expect(value.className.split(' ')).toContain('truncate');
-        expect(value.className).not.toContain('overflow-wrap');
-        expect(value.getAttribute('title')).toBe('eliza.moreno+longaddress@example-kitchen.com');
-    });
-
+describe('ProfileGroup (web)', () => {
     it('names a group by its H2 heading', () => {
         render(
             <ProfileGroup heading="Preferences">
-                <ProfileValueRow label="Email" value="x" />
+                <ProfileRow label="Email" tone="ink" chevron={false} onPress={() => undefined} />
             </ProfileGroup>,
         );
 
@@ -237,7 +216,7 @@ describe('ProfileValueRow and ProfileGroup (web)', () => {
     it('names a group with no visible heading by its label', () => {
         render(
             <ProfileGroup label="Account">
-                <ProfileValueRow label="Email" value="x" />
+                <ProfileRow label="Email" tone="ink" chevron={false} onPress={() => undefined} />
             </ProfileGroup>,
         );
 

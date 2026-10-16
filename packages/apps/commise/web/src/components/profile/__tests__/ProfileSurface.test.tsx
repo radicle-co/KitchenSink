@@ -86,20 +86,22 @@ describe('ProfileSurface — the page', () => {
         expect(screen.getAllByText(/Back to Home|Home/).length).toBeGreaterThan(0);
     });
 
-    it('shows the name and the email in the header and the rows once the profile is ready', () => {
+    // Owner ruling 2026-10-16: "Header only, like mobile" - the email is read once, in the header.
+    it('shows the name and the email once, in the header, when the profile is ready', () => {
         mount();
 
         expect(screen.getAllByText('Eliza Moreno').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('eliza@example.com')).toHaveLength(2);
+        expect(screen.getAllByText('eliza@example.com')).toHaveLength(1);
+        expect(screen.queryByText('Email')).toBeNull();
         expect(screen.getByRole('button', { name: /Display name/ })).toBeTruthy();
     });
 
-    // Plan 2026-10-15-010 D12: the username is read-only (Clerk owns it), in the header and as a plain Account row.
-    it('shows the username in the header and as a read-only Account row with no way to edit it', () => {
+    // Plan 2026-10-15-010 D12 (amended 2026-10-16): the username is read-only (Clerk owns it) and shown once, in the header.
+    it('shows the username once, in the header, with no row and no way to edit it', () => {
         mount();
 
-        expect(screen.getAllByText('@braise')).toHaveLength(2);
-        expect(screen.getByText('Username')).toBeTruthy();
+        expect(screen.getAllByText('@braise')).toHaveLength(1);
+        expect(screen.queryByText('Username')).toBeNull();
         expect(screen.queryByRole('button', { name: /Username/u })).toBeNull();
     });
 

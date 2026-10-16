@@ -196,7 +196,7 @@ describe('ProfileScreen — the one page (§9.1)', () => {
         const account = screen.getByRole('button', { name: t.displayName });
         expect(account.textContent).toContain('Eliza Moreno');
         expect(screen.getAllByText('eliza@example.com')).toHaveLength(1);
-        expect(screen.queryByText(t.email)).toBeNull();
+        expect(screen.queryByText('Email')).toBeNull();
     });
 
     // Plan 2026-10-15-010 D12: the header carries the username, read-only; native has no Account row for it.
@@ -285,7 +285,7 @@ describe('ProfileScreen — states', () => {
 
         expect(screen.getByRole('status', { name: t.loading })).toBeTruthy();
         expect(screen.queryByRole('button', { name: t.displayName })).toBeNull();
-        expect(screen.queryByText(t.email)).toBeNull();
+        expect(screen.queryByText('Email')).toBeNull();
         expect(screen.getByRole('button', { name: t.signOut })).toBeTruthy();
         expect(screen.getByRole('button', { name: erase.trigger })).toBeTruthy();
     });
@@ -299,7 +299,7 @@ describe('ProfileScreen — states', () => {
         expect(refetch).toHaveBeenCalledTimes(1);
 
         expect(screen.queryByRole('button', { name: t.displayName })).toBeNull();
-        expect(screen.queryByText(t.email)).toBeNull();
+        expect(screen.queryByText('Email')).toBeNull();
         expect(screen.queryByRole('button', { name: 'Pick photo' })).toBeNull();
         fireEvent.click(screen.getByRole('button', { name: t.signOut }));
         expect(signOutAndVerify).toHaveBeenCalledTimes(1);

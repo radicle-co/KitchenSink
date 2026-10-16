@@ -25,20 +25,16 @@ export interface ProfileMessages {
     readonly loadError: string;
     /** The retry control beside {@link loadError}. */
     readonly retry: string;
-    /** The accessible name of the group holding the display name and the email. */
+    /** The accessible name of the group holding the display name. */
     readonly account: string;
     /** The label of the display-name row. */
     readonly displayName: string;
     /** The row's value while no name is set. */
     readonly displayNameUnset: string;
-    /** The label of the email row. */
-    readonly email: string;
     /** The sheet's title. */
     readonly namePrompt: string;
     /** The hint under the display-name field: where the name shows. */
     readonly nameHint: string;
-    /** The Account group's read-only username row label. */
-    readonly username: string;
     /** The username as the header shows it, read-only (contains `{username}`): "@braise". */
     readonly usernameValue: string;
     /** The counter under the field near its limit; `{count}` and `{max}` are filled in ("85/100"). */
@@ -95,10 +91,8 @@ export const profileMessages: LocalizedMessages<ProfileMessages> = {
         account: 'Account',
         displayName: 'Display name',
         displayNameUnset: 'Add your name',
-        email: 'Email',
         namePrompt: 'What should we call you?',
         nameHint: 'Shown next to your username on recipes you publish.',
-        username: 'Username',
         usernameValue: '@{username}',
         nameCounter: '{count}/{max}',
         nameLimitReached: 'That is the longest name we can take.',

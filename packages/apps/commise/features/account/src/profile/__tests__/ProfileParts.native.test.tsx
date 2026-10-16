@@ -33,7 +33,6 @@ import { DisplayNameSheet } from '../DisplayNameSheet.native.js';
 import { ProfileGroup } from '../ProfileGroup.native.js';
 import { ProfileHeader } from '../ProfileHeader.native.js';
 import { ProfileRow } from '../ProfileRow.native.js';
-import { ProfileValueRow } from '../ProfileValueRow.native.js';
 import { DISPLAY_NAME_MAX_LENGTH } from '../model.js';
 import type { DisplayNameSheetProps, ProfileRowProps } from '../props.js';
 
@@ -276,19 +275,11 @@ describe('ProfileRow (native)', () => {
     });
 });
 
-describe('ProfileValueRow and ProfileGroup (native)', () => {
-    it('lists a read-only value as a term and its definition, not a control', () => {
-        render(<ProfileValueRow label="Email" value="eliza@example.com" />);
-
-        expect(screen.getByText('Email')).toBeTruthy();
-        expect(screen.getByText('eliza@example.com')).toBeTruthy();
-        expect(screen.queryByRole('button')).toBeNull();
-    });
-
+describe('ProfileGroup (native)', () => {
     it('names a group by its H2 heading', () => {
         render(
             <ProfileGroup heading="Preferences">
-                <ProfileValueRow label="Email" value="x" />
+                <ProfileRow label="Email" tone="ink" chevron={false} onPress={() => undefined} />
             </ProfileGroup>,
         );
 
@@ -298,7 +289,7 @@ describe('ProfileValueRow and ProfileGroup (native)', () => {
     it('draws a group with no visible heading as its rows alone', () => {
         render(
             <ProfileGroup label="Account">
-                <ProfileValueRow label="Email" value="x" />
+                <ProfileRow label="Email" tone="ink" chevron={false} onPress={() => undefined} />
             </ProfileGroup>,
         );
 

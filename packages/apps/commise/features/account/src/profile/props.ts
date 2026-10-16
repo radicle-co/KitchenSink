@@ -17,12 +17,6 @@ export interface ProfileGroupProps {
     readonly children: ReactNode;
 }
 
-/** A read-only row: a label and its value. */
-export interface ProfileValueRowProps {
-    readonly label: string;
-    readonly value: string;
-}
-
 /** A pressable row (56 px): a label, a value, an optional hint, and a chevron when it opens something. */
 export interface ProfileRowProps {
     readonly label: string;

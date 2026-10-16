@@ -82,7 +82,7 @@ test.describe('the byline is the username', () => {
         await expect(card).not.toContainText('user_');
     });
 
-    test('the cook’s own Profile shows their username, read-only', async ({ page }) => {
+    test('the cook’s own Profile shows their username once, read-only', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
 
@@ -99,9 +99,9 @@ test.describe('the byline is the username', () => {
         await page.goto(route('/profile'));
 
         await expect(page.getByRole('heading', { level: 1, name: 'Profile' })).toBeVisible();
-        const account = page.getByRole('region', { name: 'Account' });
-        await expect(account).toContainText('Username');
-        await expect(page.getByRole('main')).toContainText('@braise');
+        // Header only (owner ruling 2026-10-16): the username shows once, with no Username row under Account.
+        await expect(page.getByRole('main').getByText('@braise')).toHaveCount(1);
+        await expect(page.getByRole('region', { name: 'Account' })).not.toContainText('Username');
         await expect(page.getByRole('button', { name: /Username/u })).toHaveCount(0);
     });
 });

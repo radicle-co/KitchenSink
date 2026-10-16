@@ -2,17 +2,16 @@
 
 /**
  * @module @commise/features-account/profile/ProfileAccountGroup — the Profile page's "Account" group, once for both apps:
- * the display-name row that opens the editor sheet, with whatever read-only rows the platform adds after it.
+ * the display-name row that opens the editor sheet.
  *
- * Both pages drew the same row with the same value rule (the name, or "Add your name" when none is saved). They differ
- * only in what follows it, and that is a decision for the page: web adds username and email rows, mobile adds none.
- * Those rows arrive as `children`, so this group neither knows nor changes which rows either platform shows.
+ * Both pages draw the same row with the same value rule (the name, or "Add your name" when none is saved). The username
+ * and email are read once, in the header, on both apps (owner ruling 2026-10-16), so this group holds no read-only rows.
  *
  * Presentational: props → JSX. The leaves it composes (`ProfileGroup`, `ProfileRow`) resolve to their web or native file at bundle time, so this one
  * module serves both platforms.
  */
 import { useMessages } from '@commise/i18n/react';
-import type { FC, ReactNode } from 'react';
+import type { FC } from 'react';
 
 import { profileMessages } from './messages.js';
 import { ProfileGroup } from './ProfileGroup.js';
@@ -24,12 +23,10 @@ export interface ProfileAccountGroupProps {
     readonly displayName: string;
     /** Open the display-name editor. */
     readonly onEditDisplayName: () => void;
-    /** Read-only rows the platform shows after the display name. */
-    readonly children?: ReactNode;
 }
 
 /** The "Account" group. */
-export const ProfileAccountGroup: FC<ProfileAccountGroupProps> = ({ displayName, onEditDisplayName, children }) => {
+export const ProfileAccountGroup: FC<ProfileAccountGroupProps> = ({ displayName, onEditDisplayName }) => {
     const t = useMessages(profileMessages);
 
     return (
@@ -41,7 +38,6 @@ export const ProfileAccountGroup: FC<ProfileAccountGroupProps> = ({ displayName,
                 chevron
                 onPress={onEditDisplayName}
             />
-            {children}
         </ProfileGroup>
     );
 };

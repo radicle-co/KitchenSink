@@ -22,12 +22,10 @@ import { profileMutations } from '@commise/features-account';
 import { initialsFor } from '@commise/features-core';
 import {
     DisplayNameSheet,
-    formatUsername,
     ProfileAccountGroup,
     ProfileGroup,
     ProfileHeader,
     ProfileRow,
-    ProfileValueRow,
     profileMessages,
     useProfileScreen,
 } from '@commise/features-account/profile';
@@ -84,12 +82,7 @@ export const ProfileSurface: FC = () => {
                 onRetry={() => void query.refetch()}
             />
             {read.status === 'ready' ? (
-                <ProfileAccountGroup displayName={read.displayName} onEditDisplayName={editor.openSheet}>
-                    {read.username === null ? null : (
-                        <ProfileValueRow label={t.username} value={formatUsername(t.usernameValue, read.username)} />
-                    )}
-                    <ProfileValueRow label={t.email} value={read.email} />
-                </ProfileAccountGroup>
+                <ProfileAccountGroup displayName={read.displayName} onEditDisplayName={editor.openSheet} />
             ) : null}
             <ProfileGroup heading={t.preferences}>
                 <ProfileRow

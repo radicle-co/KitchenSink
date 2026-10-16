@@ -8,7 +8,6 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProfileAccountGroup } from '../ProfileAccountGroup.js';
-import { ProfileValueRow } from '../ProfileValueRow.js';
 
 afterEach(cleanup);
 
@@ -29,20 +28,5 @@ describe('ProfileAccountGroup (web)', () => {
         render(<ProfileAccountGroup displayName="" onEditDisplayName={vi.fn()} />);
 
         expect(screen.getByRole('button', { name: 'Display name' }).textContent).toContain('Add your name');
-    });
-
-    it('shows the platform’s extra rows after the display name, and none when there are none', () => {
-        const { rerender } = render(<ProfileAccountGroup displayName="Ada" onEditDisplayName={vi.fn()} />);
-
-        expect(screen.queryByText('Email')).toBeNull();
-
-        rerender(
-            <ProfileAccountGroup displayName="Ada" onEditDisplayName={vi.fn()}>
-                <ProfileValueRow label="Email" value="ada@example.com" />
-            </ProfileAccountGroup>,
-        );
-
-        expect(screen.getByText('Email')).toBeTruthy();
-        expect(screen.getByText('ada@example.com')).toBeTruthy();
     });
 });

@@ -29,6 +29,8 @@ export interface SignUpAttempt {
     readonly status: string | null;
     readonly missingFields: readonly string[];
     readonly unverifiedFields: readonly string[];
+    /** `transferable` when the provider account already belongs to a user, so a transfer sign-in follows. */
+    readonly verifications?: { readonly externalAccount?: { readonly status?: string | null } | null } | null;
 }
 
 /** The members of a Clerk sign-in resource this rule reads. */
@@ -75,8 +77,14 @@ export function classifySocialOutcome<TSignUp extends SignUpAttempt>(
     }
 
     const { signIn, signUp } = result;
+    const signInCreated = signIn !== undefined && changed(signIn.id, before.signInId);
 
-    if (signUp !== undefined && changed(signUp.id, before.signUpId)) {
+    // Apple's hook creates the sign-up FIRST and, when its provider account is `transferable` (the account exists),
+    // follows with `signIn.create({ transfer: true })`: the sign-in is then the attempt that stopped, not the sign-up.
+    // (Google's runs the other way round, so its sign-up is the later attempt and is never transferable here.)
+    const transferredToSignIn = signInCreated && signUp?.verifications?.externalAccount?.status === 'transferable';
+
+    if (signUp !== undefined && changed(signUp.id, before.signUpId) && !transferredToSignIn) {
         const unsupported = {
             kind: 'unsupported',
             status: signUp.status,
@@ -97,7 +105,7 @@ export function classifySocialOutcome<TSignUp extends SignUpAttempt>(
         return { kind: 'needsFields', signUp, fields: plan.fields };
     }
 
-    if (signIn !== undefined && changed(signIn.id, before.signInId)) {
+    if (signInCreated) {
         return { kind: 'unsupported', status: signIn.status, missingFields: [], unverifiedFields: [] };
     }
 

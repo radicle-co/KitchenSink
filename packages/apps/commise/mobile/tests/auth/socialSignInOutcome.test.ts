@@ -21,6 +21,7 @@ function signUp(
         status: string | null;
         missingFields: string[];
         unverifiedFields: string[];
+        verifications: { externalAccount: { status: string | null } };
     }> = {},
 ) {
     return {
@@ -112,6 +113,19 @@ describe('classifySocialOutcome', () => {
                 signUp: signUp({ id: 'sua_old' }),
             }),
         ).toMatchObject({ kind: 'unsupported', status: 'needs_second_factor' });
+    });
+
+    // Apple's hook runs `signUp.create` FIRST and, for an existing account, then `signIn.create({ transfer: true })`, so
+    // BOTH ids change and the sign-in is the attempt that stopped. The transferable sign-up must not decide the outcome
+    // — above all it must not send an existing account to the username finish step it cannot complete.
+    it('⛔ decides from the transfer SIGN-IN when the new sign-up was transferable (Apple ordering, MFA account)', () => {
+        expect(
+            classifySocialOutcome(before, {
+                createdSessionId: null,
+                signIn: signIn({ id: 'sia_new', status: 'needs_second_factor' }),
+                signUp: signUp({ verifications: { externalAccount: { status: 'transferable' } } }),
+            }),
+        ).toEqual({ kind: 'unsupported', status: 'needs_second_factor', missingFields: [], unverifiedFields: [] });
     });
 });
 

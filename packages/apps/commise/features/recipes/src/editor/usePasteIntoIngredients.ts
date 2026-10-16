@@ -286,7 +286,17 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
             },
             onError: (_error, line) => {
                 claimed.delete(claim);
-                setSession((current) => (current === undefined ? current : { ...current, failedAt: line.lineIndex }));
+                // The same guard as the answer: a failure of a join for a paste that was replaced, or for a line the session
+                // has already moved past, must not mark the newer state failed.
+                setPasteState((state) => {
+                    const current = state.session;
+
+                    if (current?.jobId !== from.jobId || current.done !== from.done) {
+                        return state;
+                    }
+
+                    return { ...state, session: { ...current, failedAt: line.lineIndex } };
+                });
             },
         });
     });

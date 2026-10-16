@@ -417,6 +417,41 @@ describe('usePasteIntoIngredients — a lookup that fails', () => {
 
         expect(mocks.polledId).not.toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111');
     });
+
+    it('⛔ a join that FAILS for a paste that was replaced does not mark the newer paste failed', async () => {
+        let fail: () => void = () => undefined;
+        mocks.byName.mockImplementationOnce(
+            () =>
+                new Promise<Ingredient>((_resolve, reject) => {
+                    fail = () => reject(new Error('down'));
+                }),
+        );
+        const { result, rerender, dispatch } = render();
+        act(() => result.current.submit('2 cups flour\n1 tsp salt'));
+        accept(makeParseJob({ id: '11111111-1111-4111-8111-111111111111' }));
+        mocks.job = makeParseJob({
+            id: '11111111-1111-4111-8111-111111111111',
+            status: 'complete',
+            lines: [parsed(0, '2 cups flour', 'flour'), parsed(1, '1 tsp salt', 'salt')],
+        });
+        rerender({ offered: true, keepsSource: true, dispatch });
+        await settle();
+        expect(mocks.byName).toHaveBeenCalledTimes(1);
+
+        // A second paste replaces the session while the first paste's join is still in flight; its line 0 is still reading.
+        mocks.job = makeParseJob({
+            id: '22222222-2222-4222-8222-222222222222',
+            lines: [
+                makeParseJobLine({ lineIndex: 0, sourceLine: '3 eggs', progress: { phase: 'reading' } }),
+                makeParseJobLine({ lineIndex: 1, sourceLine: '1 tsp salt', progress: { phase: 'reading' } }),
+            ],
+        });
+        accept(mocks.job);
+        await act(async () => fail());
+        await settle();
+
+        expect(result.current.reading.map((row) => row.state)).not.toContain('lookupFailed');
+    });
 });
 
 /**

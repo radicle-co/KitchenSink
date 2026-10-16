@@ -473,7 +473,11 @@ describe('ProfileScreen — sign out (ADR-0009, B17)', () => {
         expect((await screen.findByRole('alert')).textContent).toBe(t.signOutFailed);
         expect(screen.queryByText(/sess_live/)).toBeNull();
 
-        fireEvent.click(screen.getByRole('button', { name: t.signOut }));
+        // The control stays busy until the failed attempt settles; a press while it is busy is ignored, so wait until
+        // it is enabled again (CI flaked here when the press landed inside that window).
+        const retry = screen.getByRole('button', { name: t.signOut });
+        await waitFor(() => expect(retry.getAttribute('aria-disabled')).not.toBe('true'));
+        fireEvent.click(retry);
         await waitFor(() => expect(signOutAndVerify).toHaveBeenCalledTimes(2));
     });
 });

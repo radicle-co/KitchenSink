@@ -696,3 +696,103 @@ At +35% the body is three to four lines at 320. It still fits above the fold, an
 dismissal). A component test per leaf, web and native, for hidden, shown, and Dismiss calling `onDismiss`. A host test
 that offline plus a set-aside renders both. A Playwright and a Maestro flow that plant unparseable bytes under
 `editor.draft.v1.{subject}`, open the editor, see the notice and dismiss it. The native one needs the mount above.
+
+## 18. The loading notice: one leaf for a region with no shape to hold (2026-10-16)
+
+This file has no `StateNotice` section. It shipped in `a8a19b9b1` without one. This is its loading sibling.
+
+**Decision: a new leaf, `LoadingNotice` at `@commise/ui/loading-notice`** (`ui/src/loadingNotice/LoadingNotice.tsx`
+and `.native.tsx`, props in `props.ts`). Props: `{ readonly label: string }`. Presentational. It replaces mobile's
+`components/LoadingState.tsx` and web's hand-rolled `<p role="status">` captions.
+
+- **Not a `StateNotice` tone.** A loading tone changes four things at once: `alert` becomes `status`, assertive
+  becomes polite, the `h1` goes, and the actions are banned. That is a mode prop that switches behaviour, which
+  `CLAUDE.md` design-pattern rule 3 sends to a separate render component. §17 made the same call ("a second leaf,
+  not a new member").
+- **Not skeletons for these.** Use it only where the settled layout has no fixed shape to reserve: the session
+  check, the editor (its sections depend on the recipe), and collection detail. Web already shows text for the last
+  two, so skeletons on mobile only open a new web↔mobile gap. Where a skeleton exists, it stays (below).
+
+**Look**
+
+- **Indicator.** Web: the `Spinner` that is private in `ui/src/button/Button.tsx` today moves to
+  `ui/src/spinner/Spinner.tsx` (internal, no package export). Button and this leaf both use it. 20 px, `text-action`.
+  Native: the system `ActivityIndicator`, `size="small"`, `colors.action`, as `LoadingState` draws it today.
+- **Caption.** The label, visible, `bodySm` / `text-body-sm` in `inkMuted` / `text-ink-muted`. It wraps freely,
+  with no truncation. The spinner is decorative (the caption carries the meaning), so SC 1.4.11 does not apply to it.
+- **Placement. It sits where `StateNotice` sits, so a load that fails swaps in place.** Web: in the page flow,
+  start-aligned, `max-w-reading`, `py-8`, the spinner then the caption in one row with `gap-3`, wrapping. This drops
+  `RouteLoadingState`'s `max-w-4xl`, which is not one of §2.2's widths. Native: the same upper-two-thirds slot as
+  `StateNotice.native`'s message (`flex: 2` message over a `flex: 1` spacer, padding 24), the spinner above the
+  caption, gap 8.
+- **Delay: 400 ms**, through the existing `EnterTransition delayMs={400}` on both platforms, with no timer in the leaf.
+  A load that ends inside the Doherty budget (~400 ms, corpus `interaction-motion.md`) never flashes a spinner. The
+  cost is a blank region of the theme `canvas` for that time, including AuthGate's first paint after the splash.
+  Judgement: acceptable, because a blank screen right after the splash still reads as "starting", and a spinner that
+  flashes for 200 ms reads as a glitch. Web's keyframe is `both`-filled (`globals.css:97`). So the notice stays
+  hidden during the delay. It does not show and then jump back.
+- **Reduced motion.** `EnterTransition` snaps in, so the notice shows at once, with no delay and no rise. Web's
+  spinner is `motion-safe:animate-spin`: under reduce it is a still arc beside the caption. Native's
+  `ActivityIndicator` follows the OS, which we do not override. Button's busy spinner keeps its unconditional
+  `animate-spin`: inside a control the spin is the only busy cue, and the caption is not there to carry it.
+
+**Accessibility (WCAG 2.2 AA)**
+
+- **Web:** the wrapper is `role="status"` (SC 4.1.3). Its content is the caption, with no `aria-label` (it repeats
+  the content). The spinner is `aria-hidden`. No `aria-busy`: the notice replaces the region, so no node
+  stays to be busy. ⚠️ **The visible caption and its accessible name are guaranteed. A spoken announcement is
+  not.** A Suspense fallback mounts with its text already inside, and a status region inserted like that
+  is not reliably spoken. §17's mounted-empty trick needs a host that stays mounted, and a fallback has none. Loading
+  is not a must-hear message, so we accept this.
+- **Native:** the tested `LoadingState` contract, kept: one element (`accessible`), `accessibilityRole="progressbar"`,
+  `accessibilityLabel={label}`, plus `accessibilityState={{ busy: true }}`. The spinner sits in an `aria-hidden`
+  wrapper. No `LiveRegion`. On AuthGate the notice is the only element, so the reader lands on it. On the pushed
+  editor and collection screens the header's Back can come first, so the notice is reached by the next swipe.
+  Device check owed. During the 400 ms delay the element is at opacity 0 but still readable, so a reader can speak
+  the caption before it shows. That is accepted: the words are true at that moment.
+- **Focus is never moved,** on either platform.
+
+**Copy.** The caller passes a contextual label, never a bare "Loading". The form is "Loading ‹thing›…", with
+U+2026. The two shared keys already exist at HEAD: `recipeLoadMessages.loadingLabel` ("Loading recipe…",
+`features/recipes/src/detail/messages.ts`) and `collectionMessages.detail.loadingLabel` ("Loading collection…"). The
+app copies are already retired. Two strings still change: `collectionMessages.list.loadingLabel` goes from "Loading
+collections" to "Loading collections…", and web `boundary.loading.label` goes from "Loading" to "Loading…". The
+second is the one named exception to the contextual rule: the root `[locale]/loading.tsx` cannot know what it is
+loading. Mobile `auth.sessionLoading` ("Checking your session…") stays as it is.
+
+**Who switches**
+
+| Platform | Consumer                                                      | Label                                    |
+| -------- | ------------------------------------------------------------- | ---------------------------------------- |
+| native   | `mobile/src/components/AuthGate.tsx:108`                      | `auth.sessionLoading`                    |
+| native   | `mobile/src/screens/RecipeEditorScreen.tsx:98`                | `recipeLoadMessages.loadingLabel`        |
+| native   | `mobile/src/screens/CollectionDetailScreen.tsx:75`            | `collectionMessages.detail.loadingLabel` |
+| web      | `web/src/app/[locale]/loading.tsx`                            | `boundary.loading.label`                 |
+| web      | `web/src/app/[locale]/collections/loading.tsx`                | `collectionMessages.list.loadingLabel`   |
+| web      | `web/src/app/[locale]/recipes/[id]/edit/loading.tsx`          | `recipeLoadMessages.loadingLabel`        |
+| web      | `web/src/components/recipes/RecipeEditorContainer.tsx:88`     | `recipeLoadMessages.loadingLabel`        |
+| web      | `web/src/components/recipes/CollectionDetailContainer.tsx:72` | `collectionMessages.detail.loadingLabel` |
+
+Then delete `mobile/src/components/LoadingState.tsx` and web's `components/app/RouteLoadingState.tsx`.
+
+`collections/loading.tsx` keeps the notice, not the `CollectionListLoading` skeleton. Its stacked rows do not
+match web's three-column collection grid (`RecipeGridRouteLoading.tsx:18-21`), so they reflow instead of reserving the space.
+That route still swaps twice (notice, then rows, then grid). The fix belongs in `CollectionListLoading`: give it
+the grid's shape, then the route can use it.
+
+**What must NOT change**
+
+- The skeletons: web `RecipeGridRouteLoading`, `RecipeDetailRouteLoading`, `RecipeVersionsRouteLoading`, and every
+  in-page and native skeleton (`RecipeCardGridSkeleton`, `RecipeDetailSkeleton`, `CollectionListLoading`,
+  `DataSourcesSkeleton`, and the rest). A skeleton holds the layout. This leaf is for a region with no layout to hold.
+- `StateNotice`'s props and roles. No tone is added.
+- `RecipePhotoManager`'s upload line (web and native). It shows progress for an action inside a section, not a
+  region load. Its comments that cite the "`components/LoadingState` doctrine" change to cite this section.
+- `PullUpdatesDialog` and `CollectionRecipePickerLoading`. They are loads inside a dialog or a sheet, not a region,
+  and they are out of scope here. If a parity check shows they drift, they can adopt the leaf later.
+
+**Tests first:** move `mobile/tests/components/LoadingState.native.test.tsx` and the `LoadingState` case in
+`shellColourRoles.native.test.tsx` into `ui/src/loadingNotice/__tests__/`. Do not delete them. Add web tests: a
+`role="status"` named by its visible caption, a hidden spinner, and `motion-safe:animate-spin`. Add a test that
+`Button`'s busy spinner still spins after the extraction. The `routeBoundaries.test.tsx` and `RouteLoadingState.test.tsx`
+assertions move to the new leaf.

@@ -167,7 +167,6 @@
             "sourcePath": "packages/apps/commise/ui/src/combobox/Combobox.native.tsx",
             "message": "props carry no JSDoc description",
             "evidence": [
-                "invalid",
                 "onValueChange",
                 "placeholder"
             ]
@@ -179,7 +178,6 @@
             "sourcePath": "packages/apps/commise/ui/src/combobox/Combobox.tsx",
             "message": "props carry no JSDoc description",
             "evidence": [
-                "invalid",
                 "onValueChange",
                 "placeholder"
             ]

@@ -6,11 +6,11 @@
     "coverage": {
         "components": 64,
         "implementations": 110,
-        "props": 640,
+        "props": 650,
         "documentedComponents": 64,
         "implementationsWithModuleDoc": 110,
         "implementationsWithComponentDoc": 102,
-        "documentedProps": 603,
+        "documentedProps": 615,
         "classifiedComponents": 57,
         "componentsWithPatternTag": 64,
         "crossPlatformComponents": 46
@@ -2053,6 +2053,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/combobox/props.ts"
                         },
                         {
+                            "name": "error",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The message that says what is wrong with the field and how to fix it, localised by the host (WCAG 3.3.1, 3.3.3).\nPresent means invalid: the `danger` edge too. Drawn directly under the field row, before {@link belowField} and\nbefore the list, in the `label` role and `dangerText`. The slot is NEVER live (no role): a host that must speak\nan error uses {@link alertAnnouncement}. Web: a `<p>` whose id (`fieldErrorId`) the input names in\n`aria-describedby`, ahead of the hint and the host's `describedBy`, with `aria-invalid`. Native has neither\nattribute, so the input's `accessibilityHint` becomes the error, a space, then the hint.",
+                            "declaredIn": "packages/apps/commise/ui/src/combobox/props.ts"
+                        },
+                        {
                             "name": "focusRequested",
                             "type": "boolean",
                             "typeDetail": null,
@@ -2094,7 +2103,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": "false",
-                            "description": "",
+                            "description": "The field holds a value its form rejects: the `danger` edge, with no text. A host with a message passes\n{@link error} instead, which implies this.",
                             "declaredIn": "packages/apps/commise/ui/src/combobox/props.ts"
                         },
                         {
@@ -2398,6 +2407,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/combobox/props.ts"
                         },
                         {
+                            "name": "error",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The message that says what is wrong with the field and how to fix it, localised by the host (WCAG 3.3.1, 3.3.3).\nPresent means invalid: the `danger` edge too. Drawn directly under the field row, before {@link belowField} and\nbefore the list, in the `label` role and `dangerText`. The slot is NEVER live (no role): a host that must speak\nan error uses {@link alertAnnouncement}. Web: a `<p>` whose id (`fieldErrorId`) the input names in\n`aria-describedby`, ahead of the hint and the host's `describedBy`, with `aria-invalid`. Native has neither\nattribute, so the input's `accessibilityHint` becomes the error, a space, then the hint.",
+                            "declaredIn": "packages/apps/commise/ui/src/combobox/props.ts"
+                        },
+                        {
                             "name": "focusRequested",
                             "type": "boolean",
                             "typeDetail": null,
@@ -2439,7 +2457,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": "false",
-                            "description": "",
+                            "description": "The field holds a value its form rejects: the `danger` edge, with no text. A host with a message passes\n{@link error} instead, which implies this.",
                             "declaredIn": "packages/apps/commise/ui/src/combobox/props.ts"
                         },
                         {
@@ -4827,6 +4845,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
+                            "name": "error",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The message the caller draws for this field (WCAG 3.3.1), repeated here for the platform that cannot link them.\nNative only: React Native has no `aria-describedby`, so the field's `accessibilityHint` is this text and a screen\nreader speaks it on reaching the field; present means invalid, the `danger` edge too. The caller still draws the\nmessage wherever its layout needs it. The web leaf ignores it, because `invalid` and `describedBy` already tie the\nmessage to the field there.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
                             "name": "focusRequested",
                             "type": "boolean",
                             "typeDetail": null,
@@ -4868,6 +4895,15 @@
                             "required": false,
                             "defaultValue": "false",
                             "description": "The field holds a value its form rejects: a `danger` edge and `aria-invalid`.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The visible label's text, repeated as the field's accessible name. Native only: the field's `aria-labelledby` is\nhonoured on Android alone, and `accessibilityLabel` is what iOS reads. The web leaf ignores it, because the\nlabel's `htmlFor` names the field there.",
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
@@ -5043,6 +5079,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
+                            "name": "error",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The message the caller draws for this field (WCAG 3.3.1), repeated here for the platform that cannot link them.\nNative only: React Native has no `aria-describedby`, so the field's `accessibilityHint` is this text and a screen\nreader speaks it on reaching the field; present means invalid, the `danger` edge too. The caller still draws the\nmessage wherever its layout needs it. The web leaf ignores it, because `invalid` and `describedBy` already tie the\nmessage to the field there.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
                             "name": "focusRequested",
                             "type": "boolean",
                             "typeDetail": null,
@@ -5084,6 +5129,15 @@
                             "required": false,
                             "defaultValue": "false",
                             "description": "The field holds a value its form rejects: a `danger` edge and `aria-invalid`.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The visible label's text, repeated as the field's accessible name. Native only: the field's `aria-labelledby` is\nhonoured on Android alone, and `accessibilityLabel` is what iOS reads. The web leaf ignores it, because the\nlabel's `htmlFor` names the field there.",
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
@@ -5505,6 +5559,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
+                            "name": "error",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The message the caller draws for this field (WCAG 3.3.1), repeated here for the platform that cannot link them.\nNative only: React Native has no `aria-describedby`, so the field's `accessibilityHint` is this text and a screen\nreader speaks it on reaching the field; present means invalid, the `danger` edge too. The caller still draws the\nmessage wherever its layout needs it. The web leaf ignores it, because `invalid` and `describedBy` already tie the\nmessage to the field there.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
                             "name": "focusRequested",
                             "type": "boolean",
                             "typeDetail": null,
@@ -5529,6 +5592,15 @@
                             "required": false,
                             "defaultValue": "false",
                             "description": "The field holds a value its form rejects: a `danger` edge and `aria-invalid`.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The visible label's text, repeated as the field's accessible name. Native only: the field's `aria-labelledby` is\nhonoured on Android alone, and `accessibilityLabel` is what iOS reads. The web leaf ignores it, because the\nlabel's `htmlFor` names the field there.",
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
@@ -5652,6 +5724,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
+                            "name": "error",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The message the caller draws for this field (WCAG 3.3.1), repeated here for the platform that cannot link them.\nNative only: React Native has no `aria-describedby`, so the field's `accessibilityHint` is this text and a screen\nreader speaks it on reaching the field; present means invalid, the `danger` edge too. The caller still draws the\nmessage wherever its layout needs it. The web leaf ignores it, because `invalid` and `describedBy` already tie the\nmessage to the field there.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
                             "name": "focusRequested",
                             "type": "boolean",
                             "typeDetail": null,
@@ -5676,6 +5757,15 @@
                             "required": false,
                             "defaultValue": "false",
                             "description": "The field holds a value its form rejects: a `danger` edge and `aria-invalid`.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The visible label's text, repeated as the field's accessible name. Native only: the field's `aria-labelledby` is\nhonoured on Android alone, and `accessibilityLabel` is what iOS reads. The web leaf ignores it, because the\nlabel's `htmlFor` names the field there.",
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {

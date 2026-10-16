@@ -15,9 +15,8 @@
  *
  * **One rule for room.** "Is there room?" is `remainingPhotoSlots` — the cap from the shared constant, less the
  * photos held (confirmed, plus `heldElsewhere` for picks a caller keeps outside the server), less every queue item
- * still holding a grid cell. It is the rule `enqueue` judges a batch by, so Replace's gate and the queue's admission
- * cannot disagree: web used `queue.remaining`, mobile summed the three counts by hand, and a pending draft pick made
- * them differ.
+ * still holding a grid cell. The queue computes it once as `queue.remaining` and `enqueue` judges a batch by it, so
+ * Replace's gate reads that same value and cannot disagree with the queue's admission.
  *
  * **Copy.** Every sentence comes from `photoMessages`, the size limit derived from `MAX_RECIPE_PHOTO_UPLOAD_MB` so
  * the number is never a second literal.
@@ -36,7 +35,7 @@ import { useState } from 'react';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { photoMessages } from '../photos/messages.js';
-import { MAX_RECIPE_PHOTO_UPLOAD_MB, remainingPhotoSlots, type RecipePhotoAdmission } from '../photos/model.js';
+import { MAX_RECIPE_PHOTO_UPLOAD_MB, type RecipePhotoAdmission } from '../photos/model.js';
 import { useRecipePhotoUpload } from './useRecipePhotoUpload.js';
 import {
     useRecipePhotoUploadQueue,
@@ -140,7 +139,7 @@ export function useRecipePhotoManager({
     };
 
     const beginReplace = (): boolean => {
-        if (remainingPhotoSlots(heldCount, queue.items) === 0) {
+        if (queue.remaining === 0) {
             setErrorMessage(copy.replaceAtCapError);
 
             return false;

@@ -184,6 +184,10 @@ export function makeFakeEditorWritePort() {
                 answer: { kind: 'recipeWritten', detail },
             });
         },
+        /** The drain parked the record in the log, but the editor has not heard yet: the breath before a Discard's bound. */
+        parkUnannounced: (seq: number, status?: number) => {
+            apply(settle(log, { seq, outcome: 'parked', ...(status === undefined ? {} : { status }) }));
+        },
         /** The drain answered: parked. */
         park: (seq: number, status?: number, answer?: EditorWriteAnswer) => {
             const record = recordAt(seq);

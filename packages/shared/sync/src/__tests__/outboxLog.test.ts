@@ -1083,13 +1083,96 @@ describe('applyDiscard — one parked write, decided from the log as it is', () 
         ).toStrictEqual(['rec_2']);
     });
 
-    it('an entity Discard is discardEntity, and nothing it covered can stand', () => {
+    it('an entity Discard changes the log exactly as discardEntity does', () => {
         const log = parkedWith(409);
         const remove = intent({ entity: 'recipe', intentKind: 'delete', localId: 'rec_1' });
 
-        const applied = applyDiscard(log, { kind: 'entity', intent: remove });
+        expect(applyDiscard(log, { kind: 'entity', intent: remove }).log).toStrictEqual(discardEntity(log, remove));
+    });
+});
 
-        expect(applied.log).toStrictEqual(discardEntity(log, remove));
-        expect(applied.outcome).toStrictEqual({ kind: 'settled' });
+/**
+ * ⛔ THE ENTITY PATH ANSWERS THE SAME QUESTION AS THE PARKED-WRITE PATH (ADR-0057). A parked create whose outcome is
+ * unknown may already exist on the server; withdrawing it leaves nothing that can name it, so the delete the Discard
+ * queued cannot be sent and is dropped (`supersede`). The recipe may stand. `applyDiscard` used to answer `settled` for
+ * every entity request, so the editor never told the cook.
+ */
+describe('applyDiscard — the entity path reports a withdrawn create that may stand', () => {
+    const REF = 'local:recipe:r1';
+    const create = intent({ entity: 'recipe', intentKind: 'create', localId: REF, produces: REF });
+    const remove = intent({ entity: 'recipe', intentKind: 'delete', localId: REF, dependsOn: [REF] });
+    const parkedCreate = (status?: number): OutboxLog =>
+        settle(appendIntent(EMPTY, create), {
+            seq: 1,
+            outcome: 'parked',
+            ...(status === undefined ? {} : { status }),
+        });
+
+    it('⛔ a parked create with an unknown outcome is withdrawn, no delete is left, and the recipe may stand', () => {
+        const { log, outcome } = applyDiscard(parkedCreate(), { kind: 'entity', intent: remove });
+
+        expect(log.records).toStrictEqual([]);
+        expect(outcome).toStrictEqual({ kind: 'mayStand' });
+    });
+
+    it.each([
+        ['a conflict', 409],
+        ['a terminal refusal', 400],
+        ['a refusal for a signed-out cook (nothing was sent)', 401],
+        ['a transient refusal (the server did not process it)', 503],
+    ])('a parked create refused as %s is withdrawn and settled', (_label, status) => {
+        const { log, outcome } = applyDiscard(parkedCreate(status), { kind: 'entity', intent: remove });
+
+        expect(log.records).toStrictEqual([]);
+        expect(outcome).toStrictEqual({ kind: 'settled' });
+    });
+
+    it('⛔ the answer is the parked-write path`s answer for the same record, not a second rule', () => {
+        for (const status of [undefined, 400, 401, 409, 503]) {
+            const viaEntity = applyDiscard(parkedCreate(status), { kind: 'entity', intent: remove }).outcome;
+            const viaWrite = applyDiscard(parkedCreate(status), { kind: 'parkedWrite', seq: 1 }).outcome;
+
+            expect(viaEntity).toStrictEqual(viaWrite);
+        }
+    });
+
+    it('a parked update of a recipe the server holds is deleted by its id: nothing can stand, whatever its outcome', () => {
+        const update = intent({ entity: 'recipe', intentKind: 'update', localId: 'rec_1' });
+        const parked = settle(appendIntent(EMPTY, update), { seq: 1, outcome: 'parked' });
+
+        const { log, outcome } = applyDiscard(parked, {
+            kind: 'entity',
+            intent: intent({ entity: 'recipe', intentKind: 'delete', localId: 'rec_1' }),
+        });
+
+        expect(log.records.map((record) => record.intentKind)).toStrictEqual(['delete']);
+        expect(outcome).toStrictEqual({ kind: 'settled' });
+    });
+
+    it('another recipe`s parked create is not withdrawn, and does not make this Discard stand', () => {
+        const other = intent({
+            entity: 'recipe',
+            intentKind: 'create',
+            localId: 'local:recipe:r2',
+            produces: 'local:recipe:r2',
+        });
+        const log = settle(appendIntent(EMPTY, other), { seq: 1, outcome: 'parked' });
+
+        const { log: after, outcome } = applyDiscard(log, { kind: 'entity', intent: remove });
+
+        expect(after.records.map((record) => record.localId)).toStrictEqual(['local:recipe:r2']);
+        expect(outcome).toStrictEqual({ kind: 'settled' });
+    });
+
+    it('a create on the wire is left, the delete queues behind it, and nothing is withdrawn', () => {
+        const sending = markSending(appendIntent(EMPTY, create), 1);
+
+        const { log, outcome } = applyDiscard(sending, { kind: 'entity', intent: remove });
+
+        expect(log.records.map((record) => [record.intentKind, record.state])).toStrictEqual([
+            ['create', 'sending'],
+            ['delete', 'pending'],
+        ]);
+        expect(outcome).toStrictEqual({ kind: 'settled' });
     });
 });

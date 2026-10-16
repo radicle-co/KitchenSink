@@ -429,7 +429,8 @@ const MAY_STAND: DiscardOutcome = { kind: 'mayStand' };
  * before the act (a `401` resumes when the cook signs in again). A withdrawal by number then threw, was swallowed, and
  * the save landed while the confirm said the recipe stays as it was. Here a record found on its way (pending or on the
  * wire) is left to the drain and reported as `mayStand`; one already gone settled meanwhile and may have synced, so it
- * is `mayStand` too; one still parked is withdrawn, and may stand only if its outcome is unknown. It never throws.
+ * is `mayStand` too; one still parked is withdrawn, and may stand only if its outcome is unknown. An entity Discard
+ * answers the same for the create it withdraws ({@link entityMayStand}). It never throws.
  *
  * @param log - The log as stored now.
  * @param request - What the cook confirmed.
@@ -440,7 +441,7 @@ export function applyDiscard(
     request: DiscardRequest,
 ): { readonly log: OutboxLog; readonly outcome: DiscardOutcome } {
     if (request.kind === 'entity') {
-        return { log: discardEntity(log, request.intent), outcome: SETTLED };
+        return { log: discardEntity(log, request.intent), outcome: entityMayStand(log, request.intent) };
     }
 
     const record = log.records.find((candidate) => candidate.seq === request.seq);
@@ -449,11 +450,35 @@ export function applyDiscard(
         return { log, outcome: MAY_STAND };
     }
 
-    const unknown =
-        classifyFailure({ ...record, ...(record.lastStatus === undefined ? {} : { status: record.lastStatus }) }) ===
-        'unknown';
+    return { log: withdraw(log, request.seq), outcome: outcomeIsUnknown(record) ? MAY_STAND : SETTLED };
+}
 
-    return { log: withdraw(log, request.seq), outcome: unknown ? MAY_STAND : SETTLED };
+/** Whether a parked `record` may have been processed by the server: it failed with no answer to classify. Pure. */
+function outcomeIsUnknown(record: OutboxRecord): boolean {
+    return (
+        classifyFailure({ ...record, ...(record.lastStatus === undefined ? {} : { status: record.lastStatus }) }) ===
+        'unknown'
+    );
+}
+
+/**
+ * Whether an entity Discard leaves the recipe standing on the server. Only the CREATE can: a withdrawn create whose
+ * outcome is unknown may exist, and with no record left to produce its id the delete cannot name it (`supersede` drops
+ * it). Any other parked record of the entity is covered by the delete, which names the server's id. A create whose ref a
+ * drain resolved is deleted by that id, so it cannot stand. Pure.
+ */
+function entityMayStand(log: OutboxLog, incoming: Intent): DiscardOutcome {
+    const stands = log.records.some(
+        (record) =>
+            record.state === 'parked' &&
+            (record.intentKind === 'create' || record.intentKind === 'createFreeform') &&
+            record.entity === incoming.entity &&
+            record.localId === incoming.localId &&
+            (record.produces === undefined || log.resolutions[record.produces] === undefined) &&
+            outcomeIsUnknown(record),
+    );
+
+    return stands ? MAY_STAND : SETTLED;
 }
 
 /**

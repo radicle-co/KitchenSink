@@ -1346,6 +1346,42 @@ describe('discard while the create is on the wire', () => {
         expect(result.current.discardFailed).toBe(true);
     });
 
+    /**
+     * ⛔ THE ENTITY PATH HONOURS `mayStand` TOO. The wait for a create on the wire runs out in the breath after the
+     * create parked: the outbox withdraws the parked create, and if its outcome is unknown it may exist on the server
+     * with nothing left that could delete it. The confirm promised a delete, so the gap is reported, as for a write.
+     */
+    it('⛔ the bound passes after the create parked with an unknown outcome: it finishes, and the gap is reported', async () => {
+        const { port, onExit, reportError, seq } = await discardingOnTheWire();
+
+        port.parkUnannounced(seq);
+        act(() => {
+            vi.advanceTimersByTime(DEFAULT_REQUEST_TIMEOUT_MS);
+        });
+        await settle();
+        await settle();
+
+        expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
+        expect(port.queued()).toEqual([]);
+        expect(reportError).toHaveBeenCalledTimes(1);
+        expect(isDiscardPromiseBrokenError(reportError.mock.calls[0]?.[0])).toBe(true);
+    });
+
+    it('the bound passes after the create was refused (400): it finishes, and nothing is reported', async () => {
+        const { port, onExit, reportError, seq } = await discardingOnTheWire();
+
+        port.parkUnannounced(seq, 400);
+        act(() => {
+            vi.advanceTimersByTime(DEFAULT_REQUEST_TIMEOUT_MS);
+        });
+        await settle();
+        await settle();
+
+        expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
+        expect(port.queued()).toEqual([]);
+        expect(reportError).not.toHaveBeenCalled();
+    });
+
     it('the wait is bounded by the request timeout: then a delete waits on the create, and the editor closes', async () => {
         const { port, onExit, ref } = await discardingOnTheWire();
 

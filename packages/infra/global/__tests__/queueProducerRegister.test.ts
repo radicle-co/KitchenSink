@@ -61,8 +61,8 @@ const REGISTER: Readonly<Record<string, readonly string[]>> = {
     'packages/services/recipe-service/infra/lib/RecipeServiceStack.ts': ['iam:sqs:SendMessage'],
     'packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts': [
         'iam:sqs:GetQueueAttributes',
-        // The queue BACKSTOP (plan U12) reads depth on eight queues and holds NO other authority on any of
-        // them. Enumerated one per line rather than looped, so a ninth queue joining its reach is a visible
+        // The queue BACKSTOP (plan U12) reads depth on ten queues and holds NO other authority on any of
+        // them. Enumerated one per line rather than looped, so an eleventh queue joining its reach is a visible
         // change to this register — see the stack's own note at the grants.
         "parseDlq.grant(queueCheckRole, 'sqs:GetQueueAttributes')",
         "parseQueue.grant(queueCheckRole, 'sqs:GetQueueAttributes')",
@@ -71,6 +71,8 @@ const REGISTER: Readonly<Record<string, readonly string[]>> = {
         "this.archiveQueue.grant(queueCheckRole, 'sqs:GetQueueAttributes')",
         'this.archiveQueue.grantConsumeMessages(workerRole)',
         'this.archiveQueue.grantSendMessages(sweeperRole)',
+        "this.erasureDlq.grant(queueCheckRole, 'sqs:GetQueueAttributes')",
+        "this.erasureQueue.grant(queueCheckRole, 'sqs:GetQueueAttributes')",
         'this.erasureQueue.grantConsumeMessages(erasureRole)',
         'this.erasureQueue.grantSendMessages(erasureSweeperRole)',
         "this.handleSyncDlq.grant(queueCheckRole, 'sqs:GetQueueAttributes')",
@@ -197,8 +199,8 @@ describe('queue and topic authorities', () => {
             .filter((authority) => authority.includes('queueCheckRole'));
 
         // A scan that found nothing would pass this vacuously, which is how a guard quietly stops guarding —
-        // the backstop reads eight queues in recipe-workers and two in identity-webhooks.
-        expect(backstop.length).toBe(10);
+        // the backstop reads ten queues in recipe-workers and two in identity-webhooks.
+        expect(backstop.length).toBe(12);
 
         const mutations = backstop.filter((authority) => !/\.grant\(\w+, 'sqs:GetQueueAttributes'\)$/u.test(authority));
 

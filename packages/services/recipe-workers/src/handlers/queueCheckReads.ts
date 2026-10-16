@@ -13,6 +13,7 @@
  * `never_received` is read as "nobody is coming", which is the escalation an operator drops everything for.
  */
 
+import { ERASURE_GIVE_UP_ATTEMPTS } from '../common/erasureGiveUp.js';
 import { PARSE_LINE_DELIVERY } from '@kitchensink/recipe-core/parsing/parse-line-delivery';
 
 /** A class the backstop covers, and where its transport depth is read from. */
@@ -158,7 +159,34 @@ export const RECIPE_WORK_CLASSES: readonly RecipeWorkClass[] = [
             FROM test_reset_jobs
         `,
         params: ['TEST_RESET_STALE_SECONDS'],
-        queueUrlEnv: undefined,
+        // The reset MESSAGES ride the account-erasure queue (recipe-service enqueues `testPrincipalReset`, the
+        // sweeper re-drains `test_reset_jobs` onto it), so a queued reset is carried, not lost. Only the queue is
+        // read here: its DLQ is read ONCE, by the `account-erasure` class, so one dead letter pages once.
+        queueUrlEnv: 'ACCOUNT_ERASURE_QUEUE_URL',
         dlqUrlEnv: undefined,
+    },
+    {
+        queueName: 'account-erasure',
+        // GDPR Art. 17, the queue whose silent failure is the most expensive one. A job row is owed while it is
+        // `queued` or `running`; `completed` and `failed` are terminal (a `failed` job was abandoned by the
+        // sweeper after ERASURE_GIVE_UP_ATTEMPTS and has a DLQ message behind it, which is read below).
+        //
+        // `claimed_too_long` is a `running` job untouched for longer than the worker may legitimately run
+        // (a claim, a success and a failure annotation all write `updated_at`).
+        sql: `
+            SELECT
+                count(*)::int AS owed_past_deadline,
+                count(*) FILTER (WHERE status = 'queued')::int AS never_received,
+                count(*) FILTER (WHERE attempts >= $1)::int AS at_allowance,
+                count(*) FILTER (
+                    WHERE status = 'running' AND updated_at < now() - ($2 || ' seconds')::interval
+                )::int AS claimed_too_long,
+                COALESCE(MAX(EXTRACT(EPOCH FROM (now() - created_at))), 0)::int AS oldest_owed_seconds
+            FROM account_erasure_jobs
+            WHERE status IN ('queued', 'running')
+        `,
+        params: [ERASURE_GIVE_UP_ATTEMPTS, 'ERASURE_CLAIM_LEASE_SECONDS'],
+        queueUrlEnv: 'ACCOUNT_ERASURE_QUEUE_URL',
+        dlqUrlEnv: 'ACCOUNT_ERASURE_DLQ_URL',
     },
 ];

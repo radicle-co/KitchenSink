@@ -2538,6 +2538,83 @@ describe('RecipeWorkersStack — the queue backstop holds no queue mutation (pla
     });
 
     /**
+     * ⛔ THE BACKSTOP WATCHES THE ENTIRE QUEUE OF EVERY CLASS IT COVERS (owner rule), DERIVED FROM THE CLASS LIST.
+     * Every queue and DLQ env a work class names must reach the Lambda as a queue of THIS stack, and the role must be
+     * allowed to read that queue's attributes. A class added to `RECIPE_WORK_CLASSES` without the stack wiring (the
+     * account-erasure queue was exactly that) reads depth 0 from an unset env: "empty", which is a silent pass.
+     */
+    it('⛔ wires and grants every queue and DLQ named by a work class, derived rather than enumerated', () => {
+        const template = synth('pr-73', 'sandbox');
+        const fn = Object.values(template.findResources('AWS::Lambda::Function')).find(
+            (candidate) => candidate.Properties?.Handler === 'handlers/queueCheck.handler',
+        );
+        const env = (fn?.Properties?.Environment as { Variables?: Record<string, { Ref?: string }> } | undefined)
+            ?.Variables;
+        const readable = new Set<string>();
+
+        for (const policy of Object.values(template.findResources('AWS::IAM::Policy'))) {
+            if (!JSON.stringify(policy.Properties?.Roles).includes('QueueCheckRole')) {
+                continue;
+            }
+
+            const statements = (policy.Properties?.PolicyDocument?.Statement ?? []) as { Resource?: unknown }[];
+
+            for (const statement of statements) {
+                const resources = Array.isArray(statement.Resource) ? statement.Resource : [statement.Resource];
+
+                for (const resource of resources as { 'Fn::GetAtt'?: string[] }[]) {
+                    const logicalId = resource?.['Fn::GetAtt']?.[0];
+
+                    if (logicalId !== undefined) {
+                        readable.add(logicalId);
+                    }
+                }
+            }
+        }
+
+        expect(env, 'the queue-check function must be found').toBeDefined();
+
+        // Read from the class list's own source: this package cannot import the worker package's modules (rootDir,
+        // `no-relative-packages`), and the declaration is a plain string literal beside each class.
+        const reads = readFileSync(
+            path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../src/handlers/queueCheckReads.ts'),
+            'utf8',
+        );
+        const named = [
+            ...new Set([...reads.matchAll(/(?:queueUrlEnv|dlqUrlEnv): '([A-Z_]+)'/gu)].map((m) => m[1] ?? '')),
+        ];
+
+        expect(named.length).toBeGreaterThan(8);
+
+        for (const name of named) {
+            const queueLogicalId = env?.[name]?.Ref;
+
+            expect(queueLogicalId, `${name} must be set to a queue of this stack`).toBeDefined();
+            expect(readable.has(queueLogicalId ?? ''), `${name}'s queue must be readable by the backstop`).toBe(true);
+        }
+
+        expect(named).toContain('ACCOUNT_ERASURE_DLQ_URL');
+    });
+
+    // The backstop's lease for an erasure job is the worker's own timeout, from the same constant.
+    it('⛔ gives the backstop the erasure worker timeout as its lease, not a copy', () => {
+        const template = synth('pr-73', 'sandbox');
+        const fn = Object.values(template.findResources('AWS::Lambda::Function')).find(
+            (candidate) => candidate.Properties?.Handler === 'handlers/queueCheck.handler',
+        );
+        const erasure = Object.values(template.findResources('AWS::Lambda::Function')).find(
+            (candidate) => candidate.Properties?.Handler === 'handlers/accountErasureWorker.handler',
+        );
+
+        expect(erasure?.Properties?.Timeout).toBe(300);
+        expect(
+            (fn?.Properties?.Environment as { Variables?: Record<string, unknown> } | undefined)?.Variables?.[
+                'ERASURE_CLAIM_LEASE_SECONDS'
+            ],
+        ).toBe(String(erasure?.Properties?.Timeout));
+    });
+
+    /**
      * ⛔ A scan that found nothing would satisfy the assertion above vacuously, which is how a guard stops
      * guarding without anyone noticing. The consuming roles in this same template DO hold receive and
      * delete, so a reader that returned an empty set everywhere is caught here.

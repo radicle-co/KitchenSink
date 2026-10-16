@@ -35,6 +35,7 @@ const PARAMS: NodeJS.ProcessEnv = {
     VERIFICATION_CLAIM_LEASE_SECONDS: '60',
     VERIFICATION_ATTEMPT_ALLOWANCE: '20',
     TEST_RESET_STALE_SECONDS: '900',
+    ERASURE_CLAIM_LEASE_SECONDS: '300',
 };
 
 describe('the recipe queue backstop (integration)', () => {
@@ -47,6 +48,7 @@ describe('the recipe queue backstop (integration)', () => {
     afterEach(async () => {
         await pool.query(`DELETE FROM recipe_parse_jobs WHERE owner_id = $1`, [OWNER]);
         await pool.query(`DELETE FROM test_reset_jobs WHERE user_id = $1`, [OWNER]);
+        await pool.query(`DELETE FROM account_erasure_jobs WHERE owner_id LIKE $1`, [`${OWNER}-erasure-%`]);
     });
 
     afterAll(async () => {
@@ -242,6 +244,55 @@ describe('the recipe queue backstop (integration)', () => {
      * counting them escalates work the system has correctly abandoned — forever, because nothing ever clears
      * an expired job's lines.
      */
+    /**
+     * The account-erasure class against real rows (the queue the backstop used to skip). One job per state, each aged
+     * differently, so a mis-filtered statement (counting terminal rows, or measuring the lease against the wrong
+     * column) changes a number.
+     */
+    it('⛔ counts owed erasure jobs by state: queued, stale-running and at-allowance, never terminal ones', async () => {
+        const insert = async (suffix: string, status: string, attempts: number, updatedAgoSeconds: number) => {
+            await pool.query(
+                `INSERT INTO account_erasure_jobs (owner_id, status, attempts, created_at, updated_at)
+                 VALUES ($1, $2, $3, now() - interval '2 hours', now() - ($4 || ' seconds')::interval)`,
+                [`${OWNER}-erasure-${suffix}`, status, attempts, updatedAgoSeconds],
+            );
+        };
+
+        await insert('queued', 'queued', 0, 60);
+        await insert('fresh', 'running', 1, 10);
+        await insert('stale', 'running', 2, 3600);
+        await insert('exhausted', 'running', 10, 10);
+        await insert('done', 'completed', 12, 7200);
+        await insert('abandoned', 'failed', 10, 7200);
+
+        const counts = await withSession(async (session) => readOnlyCounts(session, PARAMS));
+        const index = RECIPE_WORK_CLASSES.findIndex((workClass) => workClass.queueName === 'account-erasure');
+        const erasure = counts[index];
+
+        // Four owed rows (completed and failed are terminal), but the table may hold other tests' rows: assert
+        // the deltas this seed produces as lower bounds, and the terminal rows by exactness below.
+        expect(erasure?.owedPastDeadline).toBeGreaterThanOrEqual(4);
+        expect(erasure?.neverReceived).toBeGreaterThanOrEqual(1);
+        expect(erasure?.atAllowance).toBeGreaterThanOrEqual(1);
+        expect(erasure?.claimedTooLong).toBeGreaterThanOrEqual(1);
+        expect(erasure?.oldestOwedSeconds).toBeGreaterThanOrEqual(7000);
+
+        await pool.query(`DELETE FROM account_erasure_jobs WHERE owner_id = ANY($1)`, [
+            ['queued', 'fresh', 'stale', 'exhausted'].map((suffix) => `${OWNER}-erasure-${suffix}`),
+        ]);
+
+        const settled = await withSession(async (session) => readOnlyCounts(session, PARAMS));
+
+        // Only the two TERMINAL rows remain: nothing is owed, however old or however many attempts they hold.
+        expect(settled[index]).toEqual({
+            owedPastDeadline: 0,
+            neverReceived: 0,
+            atAllowance: 0,
+            claimedTooLong: 0,
+            oldestOwedSeconds: 0,
+        });
+    });
+
     it('⛔ does not count lines belonging to an expired job', async () => {
         await seedParseJob(4, 7200, -60);
 

@@ -2239,6 +2239,8 @@ export class RecipeWorkersStack extends Stack {
         this.archiveDlq.grant(queueCheckRole, 'sqs:GetQueueAttributes');
         this.handleSyncQueue.grant(queueCheckRole, 'sqs:GetQueueAttributes');
         this.handleSyncDlq.grant(queueCheckRole, 'sqs:GetQueueAttributes');
+        this.erasureQueue.grant(queueCheckRole, 'sqs:GetQueueAttributes');
+        this.erasureDlq.grant(queueCheckRole, 'sqs:GetQueueAttributes');
 
         const queueCheckFn = new lambda.Function(this, 'QueueCheckFunction', {
             retryAttempts: FREQUENT_SCHEDULE_RETRIES,
@@ -2250,7 +2252,7 @@ export class RecipeWorkersStack extends Stack {
             vpc,
             vpcSubnets,
             securityGroups: [lambdaSecurityGroup],
-            // Five bounded indexed reads and eight queue attribute calls. Generous against a cold start and a
+            // Six bounded indexed reads and eleven queue attribute calls. Generous against a cold start and a
             // first connection, and far inside the 5-minute schedule below.
             timeout: Duration.seconds(60),
             memorySize: 512,
@@ -2269,6 +2271,8 @@ export class RecipeWorkersStack extends Stack {
                 RECIPE_ARCHIVE_DLQ_URL: this.archiveDlq.queueUrl,
                 RECIPE_HANDLE_SYNC_QUEUE_URL: this.handleSyncQueue.queueUrl,
                 RECIPE_HANDLE_SYNC_DLQ_URL: this.handleSyncDlq.queueUrl,
+                ACCOUNT_ERASURE_QUEUE_URL: this.erasureQueue.queueUrl,
+                ACCOUNT_ERASURE_DLQ_URL: this.erasureDlq.queueUrl,
                 // ⛔ THE SAME VALUES THE CONSUMERS GET, from the same constants, for the reason those
                 // constants exist: a backstop measuring "claimed too long" against a different window than
                 // the consumer leases on reports rows as stuck that the consumer is about to finish, or
@@ -2277,6 +2281,7 @@ export class RecipeWorkersStack extends Stack {
                 VERIFICATION_CLAIM_LEASE_SECONDS: String(VERIFICATION_WORKER_TIMEOUT.toSeconds()),
                 VERIFICATION_ATTEMPT_ALLOWANCE: String(CLAIM_ATTEMPT_ALLOWANCE),
                 TEST_RESET_STALE_SECONDS: String(TEST_RESET_STALE.toSeconds()),
+                ERASURE_CLAIM_LEASE_SECONDS: String(ERASURE_WORKER_TIMEOUT.toSeconds()),
             },
             logGroup,
         });

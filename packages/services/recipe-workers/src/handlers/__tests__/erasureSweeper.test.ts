@@ -34,9 +34,8 @@ const { getRecipeDb } = vi.hoisted(() => ({ getRecipeDb: vi.fn() }));
 vi.mock('../../common/db.js', () => ({ getRecipeDb }));
 
 import { getRecipeDb as getRecipeDbMock } from '../../common/db.js';
+import { ERASURE_GIVE_UP_AGE_SECONDS, ERASURE_GIVE_UP_ATTEMPTS } from '../../common/erasureGiveUp.js';
 import {
-    ERASURE_GIVE_UP_AGE_SECONDS,
-    ERASURE_GIVE_UP_ATTEMPTS,
     handler,
     toErasureMessage,
     toTestPrincipalResetMessage,

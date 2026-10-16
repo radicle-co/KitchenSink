@@ -5,6 +5,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
 import { requireEnv } from './config.js';
+import { logger } from './logger.js';
 
 /**
  * Passwordless connection to this stage's recipe logical database on the shared RDS instance — the base
@@ -30,6 +31,10 @@ import { requireEnv } from './config.js';
 const DEFAULT_DB_PORT = 5432;
 const DEFAULT_DB_USER = DATABASE_ROLES.recipe.app;
 const DEFAULT_POOL_MAX = 5;
+/** How long a query waits for a connection before rejecting. `pg`'s default is forever. Matches recipe-service. */
+const CONNECT_TIMEOUT_MS = 5_000;
+/** How long an idle pooled connection is kept. Matches recipe-service. */
+const IDLE_TIMEOUT_MS = 30_000;
 
 let pool: Pool | null = null;
 let dbInstance: NodePgDatabase<Record<string, never>> | null = null;
@@ -61,6 +66,16 @@ export const getRecipeDb = (): NodePgDatabase<Record<string, never>> => {
         // IAM auth, a per-connection token FUNCTION and TLS — the wiring lives once in `@kitchensink/rds-iam-auth`.
         ...rdsPoolConfig({ host, port, database, username: user }),
         max: Number(process.env['RECIPE_DB_POOL_MAX'] ?? String(DEFAULT_POOL_MAX)),
+        // A stopped or half-open database must REJECT, not hang until the Lambda timeout: the single-concurrency
+        // consumers would stall their queue, and the lease/degrade paths only fall back on a rejection.
+        connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
+        idleTimeoutMillis: IDLE_TIMEOUT_MS,
+    });
+
+    // `pg-pool` re-emits an idle connection's error on the pool, and an EventEmitter with no listener throws it.
+    // The pool has already dropped the client; the next query opens a new one.
+    pool.on('error', (error) => {
+        logger.error('recipe-pg-pool-idle-client-error', { cause: String(error) });
     });
 
     dbInstance = drizzle(pool);

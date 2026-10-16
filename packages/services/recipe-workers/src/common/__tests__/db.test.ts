@@ -14,6 +14,8 @@ interface PoolConfig {
     password: () => Promise<string>;
     ssl: { rejectUnauthorized: boolean };
     max: number;
+    connectionTimeoutMillis?: number;
+    idleTimeoutMillis?: number;
 }
 
 interface SignerConfig {
@@ -23,30 +25,49 @@ interface SignerConfig {
     region: string;
 }
 
-const { PoolMock, poolConfigs, SignerMock, signerConfigs, getAuthToken, drizzleMock } = vi.hoisted(() => {
-    const poolConfigs: PoolConfig[] = [];
-    const signerConfigs: SignerConfig[] = [];
-    const getAuthToken = vi.fn<() => Promise<string>>().mockResolvedValue('iam-token');
+const { PoolMock, poolConfigs, poolListeners, SignerMock, signerConfigs, getAuthToken, drizzleMock, loggerError } =
+    vi.hoisted(() => {
+        const poolConfigs: PoolConfig[] = [];
+        const poolListeners: Array<{ event: string; listener: (error: Error) => void }> = [];
+        const loggerError = vi.fn();
+        const signerConfigs: SignerConfig[] = [];
+        const getAuthToken = vi.fn<() => Promise<string>>().mockResolvedValue('iam-token');
 
-    // Regular `function` (not arrow) implementations so the mocks are constructable with `new`.
-    const PoolMock = vi.fn(function (this: unknown, config: PoolConfig) {
-        poolConfigs.push(config);
+        // Regular `function` (not arrow) implementations so the mocks are constructable with `new`.
+        const PoolMock = vi.fn(function (this: unknown, config: PoolConfig) {
+            poolConfigs.push(config);
 
-        return { config, end: vi.fn() };
+            return {
+                config,
+                end: vi.fn(),
+                on: vi.fn((event: string, listener: (error: Error) => void) => {
+                    poolListeners.push({ event, listener });
+                }),
+            };
+        });
+        const SignerMock = vi.fn(function (this: unknown, config: SignerConfig) {
+            signerConfigs.push(config);
+
+            return { getAuthToken };
+        });
+        const drizzleMock = vi.fn((pool: unknown) => ({ __drizzle: true, pool }));
+
+        return {
+            PoolMock,
+            poolConfigs,
+            poolListeners,
+            SignerMock,
+            signerConfigs,
+            getAuthToken,
+            drizzleMock,
+            loggerError,
+        };
     });
-    const SignerMock = vi.fn(function (this: unknown, config: SignerConfig) {
-        signerConfigs.push(config);
-
-        return { getAuthToken };
-    });
-    const drizzleMock = vi.fn((pool: unknown) => ({ __drizzle: true, pool }));
-
-    return { PoolMock, poolConfigs, SignerMock, signerConfigs, getAuthToken, drizzleMock };
-});
 
 vi.mock('pg', () => ({ Pool: PoolMock }));
 vi.mock('@aws-sdk/rds-signer', () => ({ Signer: SignerMock }));
 vi.mock('drizzle-orm/node-postgres', () => ({ drizzle: drizzleMock }));
+vi.mock('../logger.js', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: loggerError } }));
 
 const ENV_KEYS = [
     'RECIPE_DB_HOST',
@@ -83,6 +104,7 @@ beforeEach(() => {
     }
 
     poolConfigs.length = 0;
+    poolListeners.length = 0;
     signerConfigs.length = 0;
     vi.clearAllMocks();
     getAuthToken.mockResolvedValue('iam-token');
@@ -231,5 +253,42 @@ describe('getRecipeDb', () => {
         expect(first).toBe(second);
         expect(PoolMock).toHaveBeenCalledTimes(1);
         expect(drizzleMock).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * `pg` waits FOREVER for a connection by default, so a stopped or half-open database hangs an invocation until
+     * the Lambda timeout instead of rejecting — and the parse and verification consumers run one at a time, so one
+     * hang stalls the queue and defeats every catch-based degrade path. Values match the recipe service's pool.
+     */
+    it('bounds the connection wait and recycles idle connections', async () => {
+        process.env['RECIPE_DB_HOST'] = 'db.internal';
+        process.env['RECIPE_DB_NAME'] = 'kitchensink_recipes';
+        process.env['AWS_REGION'] = 'us-east-1';
+        const { getRecipeDb } = await import('../db.js');
+
+        getRecipeDb();
+
+        expect(poolConfigs[0]).toMatchObject({ connectionTimeoutMillis: 5_000, idleTimeoutMillis: 30_000 });
+    });
+
+    /**
+     * `pg-pool` re-emits an idle connection's error on the pool, and an `EventEmitter` with no `error` listener
+     * throws it — so a database restart under a warm container would crash the next invocation.
+     */
+    it('logs an idle-client error instead of letting it throw', async () => {
+        process.env['RECIPE_DB_HOST'] = 'db.internal';
+        process.env['RECIPE_DB_NAME'] = 'kitchensink_recipes';
+        process.env['AWS_REGION'] = 'us-east-1';
+        const { getRecipeDb } = await import('../db.js');
+
+        getRecipeDb();
+        const errorListeners = poolListeners.filter(({ event }) => event === 'error');
+
+        expect(errorListeners).toHaveLength(1);
+        expect(() => errorListeners[0]?.listener(new Error('terminating connection'))).not.toThrow();
+        expect(loggerError).toHaveBeenCalledWith(
+            'recipe-pg-pool-idle-client-error',
+            expect.objectContaining({ cause: 'Error: terminating connection' }),
+        );
     });
 });

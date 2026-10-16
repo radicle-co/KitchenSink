@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
 
-import type { RecipeVisibility } from '@kitchensink/recipe-core';
+import { recipeVisibilitySchema } from '@kitchensink/recipe-core';
 
 import { recipeServiceKeys } from '../queries.js';
 import { useRecipeServiceClient } from './recipeServiceProvider.js';
@@ -12,13 +13,25 @@ import { useRecipeServiceClient } from './recipeServiceProvider.js';
  */
 export const RECIPE_VISIBILITY_MUTATION_KEY = ['recipe-service', 'mutations', 'recipeVisibility'] as const;
 
+const recipeVisibilityVariablesSchema = z.object({ id: z.string(), visibility: recipeVisibilitySchema }).readonly();
+
 /**
  * What a visibility write carries: the variables `useSetRecipeVisibility` files under
  * {@link RECIPE_VISIBILITY_MUTATION_KEY}. Exported so a reader of the mutation cache names this shape, not a copy of it.
  */
-export interface RecipeVisibilityVariables {
-    readonly id: string;
-    readonly visibility: RecipeVisibility;
+export type RecipeVisibilityVariables = z.infer<typeof recipeVisibilityVariablesSchema>;
+
+/**
+ * Read a cached write's variables as {@link RecipeVisibilityVariables}. The mutation cache holds every mutation's
+ * variables as `unknown` and the key names only ours, so this parses the shape rather than claiming it.
+ *
+ * @param variables - A mutation's `state.variables`, of any type.
+ * @returns The variables, or `undefined` when they are not a visibility write's.
+ */
+export function recipeVisibilityVariablesOf(variables: unknown): RecipeVisibilityVariables | undefined {
+    const parsed = recipeVisibilityVariablesSchema.safeParse(variables);
+
+    return parsed.success ? parsed.data : undefined;
 }
 
 /**

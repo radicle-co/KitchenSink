@@ -86,7 +86,11 @@ export { applyRecipeCreated, applyRecipeUpdated } from './hooks/recipeWriteCache
 export { useRebindIngredientLine } from './hooks/useRebindIngredientLine.js';
 export { useDeleteRecipe } from './hooks/useDeleteRecipe.js';
 export { SAVE_COPY_MUTATION_KEY, useCloneRecipe } from './hooks/useCloneRecipe.js';
-export { RECIPE_VISIBILITY_MUTATION_KEY, useSetRecipeVisibility } from './hooks/useSetRecipeVisibility.js';
+export {
+    RECIPE_VISIBILITY_MUTATION_KEY,
+    recipeVisibilityVariablesOf,
+    useSetRecipeVisibility,
+} from './hooks/useSetRecipeVisibility.js';
 export type { RecipeVisibilityVariables } from './hooks/useSetRecipeVisibility.js';
 export { invalidateCollections } from './hooks/invalidateCollections.js';
 export { useRestoreRecipeVersion } from './hooks/useRestoreRecipeVersion.js';

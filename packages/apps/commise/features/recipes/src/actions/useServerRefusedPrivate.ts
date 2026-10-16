@@ -13,14 +13,14 @@
  * @pattern Observer — `useMutationState` subscribes the page to the visibility writes in the cache, whoever sent them
  */
 import type { PaidFeatureState } from '@commise/features-account';
-import { RecipeVisibility, recipeVisibilitySchema } from '@kitchensink/recipe-core';
+import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { isBadRequestError } from '@kitchensink/recipe-service-client';
 import {
     RECIPE_VISIBILITY_MUTATION_KEY,
+    recipeVisibilityVariablesOf,
     type RecipeVisibilityVariables,
 } from '@kitchensink/recipe-service-client/hooks';
 import { useMutationState, type Mutation } from '@tanstack/react-query';
-import { z } from 'zod';
 
 import { serverRefusalOf, type PrivateRefusal } from './privateGate.js';
 
@@ -30,21 +30,8 @@ interface VisibilityAttempt {
     readonly error: unknown;
 }
 
-/** The visibility mutation's own variables. */
-const visibilityVariablesSchema = z.object({ id: z.string(), visibility: recipeVisibilitySchema });
-
-/**
- * Read a cached write's variables as the visibility mutation's own variables type. The cache holds every mutation's
- * variables as `unknown`, and the key names only ours, so this parses the shape rather than claiming it.
- */
-function visibilityVariablesOf(variables: unknown): RecipeVisibilityVariables | undefined {
-    const parsed = visibilityVariablesSchema.safeParse(variables);
-
-    return parsed.success ? parsed.data : undefined;
-}
-
 const attemptOf = (mutation: Mutation): VisibilityAttempt => ({
-    variables: visibilityVariablesOf(mutation.state.variables),
+    variables: recipeVisibilityVariablesOf(mutation.state.variables),
     error: mutation.state.error,
 });
 

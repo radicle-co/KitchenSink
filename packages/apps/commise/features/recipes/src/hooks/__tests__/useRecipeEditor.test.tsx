@@ -596,6 +596,30 @@ describe('Publish', () => {
         expect(port.submitExclusive).not.toHaveBeenCalled();
     });
 
+    /**
+     * A refused Publish's field error goes when the cook fixes the field. Run 38973223138 (Maestro `cuisineField`): the
+     * cuisine kept its red edge and "Choose a cuisine, or type your own." after a cuisine was picked, because the gate's
+     * errors were recorded once, at the press, and only the section badges read the draft live.
+     */
+    it('drops a refused field error once the draft no longer has it, and keeps the ones it still has', async () => {
+        const { result } = mount();
+
+        typeTitle(result);
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+        expect(result.current.errors.cuisine).toBe('cuisineRequired');
+
+        act(() => {
+            result.current.setField('cuisine', 'Nyonya');
+        });
+
+        expect(result.current.errors.cuisine).toBeUndefined();
+        expect(result.current.errors).toMatchObject({ ingredients: 'ingredientsEmpty', steps: 'stepsRequired' });
+        expect(result.current.publishAttempted).toBe(true);
+    });
+
     it('creates a complete new recipe as published, waits for the answer, then hands off as a first publish', async () => {
         const recipe = makeRecipeDetail({ id: 'rec_x', currentVersion: 1, status: RecipeStatus.PUBLISHED });
         const { result, port, drafts, onExit } = mount();

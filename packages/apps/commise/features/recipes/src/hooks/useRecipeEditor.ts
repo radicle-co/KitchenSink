@@ -681,6 +681,27 @@ function runCheckpoint(ctx: EditorContext, trigger: CheckpointTrigger, options: 
 }
 
 /**
+ * The errors a refused Publish recorded that the draft still has. A field the cook has since fixed loses its error; one
+ * that was never refused never gains one before the next press (the section badges read the draft live and need no help).
+ *
+ * @param recorded - The errors the last refused Publish or Save changes recorded.
+ * @param draft - The draft as it is now.
+ * @param entryText - The ingredient entry text the press had.
+ * @returns `recorded`, without the codes the draft no longer fails. Pure.
+ */
+function errorsStillHolding(recorded: RecipeFormErrors, draft: RecipeFormValues, entryText: string): RecipeFormErrors {
+    if (Object.keys(recorded).length === 0) {
+        return recorded;
+    }
+
+    const live = validateRecipeForm(draft, entryText);
+
+    return Object.fromEntries(
+        Object.entries(recorded).filter(([field]) => live[field as keyof RecipeFormErrors] !== undefined),
+    );
+}
+
+/**
  * Validate the draft for a Publish or Save changes, recording the errors (and the refusal) for the form.
  *
  * @returns The gate's outcome. @sideEffect Sets the gate's state.
@@ -1747,10 +1768,15 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         [stores],
     );
 
+    const errors = useMemo(
+        () => errorsStillHolding(gate.errors, core.draft, gate.entryText),
+        [gate.errors, core.draft, gate.entryText],
+    );
+
     return {
         state: editorStateOf(view.status, core),
         values: core.draft,
-        errors: gate.errors,
+        errors,
         publishAttempted: gate.attempted,
         lifecycle: view.lifecycle,
         recipeId: view.serverId,

@@ -50,6 +50,18 @@
  * that costs a Backend API call per hundred users against a limit every suite shares, and a stray user is no reason
  * to fail a mobile run whose own slots are healthy.
  *
+ * ## The downgraded owner — three steps, in this order (plan 2026-10-14-009 T2)
+ *
+ * `roles/roledowngraded` owns a PRIVATE recipe and a PRIVATE collection yet holds no entitled role, which the recipe
+ * service refuses to create — so it is made premium, seeded, and only then downgraded. `planPool`'s `phase` decides it:
+ *
+ *   1. `poolAdmin --apply` — creates it `premium` (a plain run never downgrades it, and never upgrades it again).
+ *   2. `npm run seed-downgraded --workspace=packages/tools/e2e-seed` — writes its fixed world as that premium cook.
+ *   3. `poolAdmin --apply --settle-downgraded` — merges its declared `default` roles. Until step 3 the report says
+ *      `UNSETTLED`, and a user step 3 had to create is premium again, so the order is repeated, not skipped.
+ *
+ * The world is never reset (`resetPool` does not touch the `roles` tier), so the three steps are run once.
+ *
  * ## Running it
  *
  *   CLERK_SECRET_KEY=sk_test_… npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts            # dry run, whole roster
@@ -75,12 +87,14 @@ import { withClerkBackendRetry } from './clerkSession.js';
 import { awaitExternalId, EXTERNAL_ID_DEADLINE_MS, EXTERNAL_ID_POLL_MS } from './externalId.js';
 import { judgePoolSlot } from './leaseSession.js';
 import {
+    DEFAULT_POOL_PHASE,
     MAESTRO_PLATFORMS,
     maestroErasureSlots,
     POOL_PASSWORD,
     poolSlotMetadata,
     rosterSlots,
     type MaestroPlatform,
+    type PoolPhase,
     type PoolSlot,
     type PoolSlotMetadata,
 } from './testPool.js';
@@ -146,6 +160,11 @@ export interface PoolReport {
     readonly applied: boolean;
     /** Why each slot in scope would be refused by a lease, read AFTER any writes. Empty when every one is leasable. */
     readonly unleasable: readonly string[];
+    /**
+     * Addresses of slots that do not hold the roles the PHASE asks of them, read AFTER any writes. Settling a downgraded
+     * owner that did not exist creates it premium (it has no world to keep yet), so it is unsettled until a later run.
+     */
+    readonly unsettled: readonly string[];
     /** Nothing ambiguous, no drift, every slot leasable, and — on a dry run — nothing left to do. */
     readonly healthy: boolean;
 }
@@ -181,6 +200,8 @@ export function poolScopeOptions(scope: PoolScope): {
 /** A parsed command line. */
 export interface PoolAdminArgs {
     readonly apply: boolean;
+    /** `settled` only with `--settle-downgraded`; see {@link planPool}. */
+    readonly phase: PoolPhase;
     readonly scope: PoolScope;
 }
 
@@ -196,6 +217,7 @@ function readPoolAdminArgv(argv: readonly string[]) {
             'maestro-erasure': { type: 'boolean' },
             platform: { type: 'string' },
             shard: { type: 'string' },
+            'settle-downgraded': { type: 'boolean' },
         },
     });
 }
@@ -220,6 +242,7 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
     }
 
     const apply = parsed.values.apply === true;
+    const phase: PoolPhase = parsed.values['settle-downgraded'] === true ? 'settled' : DEFAULT_POOL_PHASE;
     const erasure = parsed.values['maestro-erasure'] === true;
     const shard = parsed.values.shard;
     const platform = parsed.values.platform;
@@ -236,7 +259,14 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
             throw new Error('poolAdmin: --shard and --platform scope only a --maestro-erasure refill');
         }
 
-        return { apply, scope: { kind: 'roster' } };
+        return { apply, phase, scope: { kind: 'roster' } };
+    }
+
+    // The CI refill reconciles consumable erasure subjects; settling the owner's downgraded lane is the owner's alone.
+    if (phase === 'settled') {
+        throw new Error(
+            'poolAdmin: --settle-downgraded is the owner’s whole-roster run, not a --maestro-erasure refill',
+        );
     }
 
     if (platform === undefined) {
@@ -259,7 +289,7 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
         throw new Error(`poolAdmin: --shard '${shard}' is not a positive integer`);
     }
 
-    return { apply, scope: { kind: 'maestroErasure', platform, shard: Number(shard) } };
+    return { apply, phase, scope: { kind: 'maestroErasure', platform, shard: Number(shard) } };
 }
 
 const isMaestroPlatform = (value: string): value is MaestroPlatform =>
@@ -284,16 +314,34 @@ export function metadataSatisfies(actual: Readonly<Record<string, unknown>>, des
 }
 
 /**
+ * Whether a user's metadata is acceptable for its slot in a phase. Pure.
+ *
+ * A lane with one state asks for exactly its metadata. A downgraded owner (`seedRoles`) is acceptable in either state
+ * while `seeding` and only in its declared one when `settled` — which is what makes a plain run idempotent on both
+ * sides of the downgrade.
+ */
+function holdsInPhase(actual: Readonly<Record<string, unknown>>, slot: PoolSlot, phase: PoolPhase): boolean {
+    return phase === 'settled' || slot.seedRoles === undefined
+        ? metadataSatisfies(actual, poolSlotMetadata(slot, phase))
+        : metadataSatisfies(actual, poolSlotMetadata(slot, 'seeding')) ||
+              metadataSatisfies(actual, poolSlotMetadata(slot, 'settled'));
+}
+
+/**
  * Decide, purely, what the reconciliation does.
  *
  * @param slots - The roster slots to reconcile.
  * @param holders - For each slot address, the users holding it. A slot the map does not answer is ABSENT.
  * @param everyone - Every user on the instance, for drift.
+ * @param phase - What a lane with `seedRoles` (a downgraded owner) is asked to hold. While `seeding`, an existing user
+ *   is left as it is if it holds EITHER state — a plain run must neither downgrade the owner before its world is seeded
+ *   nor upgrade it again after. Only `settled` moves a premium user to its declared roles.
  */
 export function planPool(
     slots: readonly PoolSlot[],
     holders: ReadonlyMap<string, readonly ObservedPoolUser[]>,
     everyone: readonly ObservedPoolUser[],
+    phase: PoolPhase = DEFAULT_POOL_PHASE,
 ): PoolPlan {
     const actions = slots.map((slot): PoolAction => {
         const found = holders.get(slot.email) ?? [];
@@ -307,7 +355,7 @@ export function planPool(
             return { kind: 'ambiguous', slot, userIds: found.map((holder) => holder.id) };
         }
 
-        return metadataSatisfies(only.publicMetadata, poolSlotMetadata(slot))
+        return holdsInPhase(only.publicMetadata, slot, phase)
             ? { kind: 'ok', slot, userId: only.id }
             : { kind: 'mark', slot, userId: only.id };
     });
@@ -335,7 +383,8 @@ export function poolUserCreateInput(slot: PoolSlot, randomPassword: string): Poo
         firstName: 'Test',
         lastName: slot.id,
         skipPasswordChecks: true,
-        publicMetadata: poolSlotMetadata(slot),
+        // ⛔ ALWAYS the seeding roles: a downgraded owner created as `default` could never have its private world written.
+        publicMetadata: poolSlotMetadata(slot, 'seeding'),
     };
 }
 
@@ -382,6 +431,30 @@ function unleasableSlots(
 }
 
 /**
+ * The addresses of slots that do not hold what the phase asks of them. Pure.
+ *
+ * Only `settled` can leave one: a downgraded owner the run had to CREATE is premium (see {@link poolUserCreateInput}),
+ * and "settled" is a claim that its world has been seeded, which a run that just created it cannot make.
+ */
+function unsettledSlots(
+    slots: readonly PoolSlot[],
+    holders: ReadonlyMap<string, readonly ObservedPoolUser[]>,
+    phase: PoolPhase,
+): readonly string[] {
+    if (phase !== 'settled') {
+        return [];
+    }
+
+    return slots
+        .filter((slot) => slot.seedRoles !== undefined)
+        .filter(
+            (slot) =>
+                !(holders.get(slot.email) ?? []).some((holder) => holdsInPhase(holder.publicMetadata, slot, phase)),
+        )
+        .map((slot) => slot.email);
+}
+
+/**
  * Observe, plan, and — only with `apply` — write.
  *
  * Writes happen one at a time: the Backend API limit is instance-wide and shared with every suite running
@@ -400,6 +473,8 @@ export async function reconcilePool(
         readonly drift: DriftAudit;
         /** Default `'leave'`: re-writing existing users is a decision about the Backend API budget, never implicit. */
         readonly profile?: ProfileReassert;
+        /** Default `'seeding'`: moving a downgraded owner to its settled roles is a decision, never implicit. */
+        readonly phase?: PoolPhase;
         readonly randomPassword: () => string;
         readonly now: () => number;
         readonly sleep: (ms: number) => Promise<void>;
@@ -407,21 +482,29 @@ export async function reconcilePool(
 ): Promise<PoolReport> {
     const slots = options.slots ?? rosterSlots();
     const holders = await observeSlots(port, slots);
-    const plan = planPool(slots, holders, options.drift === 'audit' ? await port.listUsers() : []);
+    const phase = options.phase ?? DEFAULT_POOL_PHASE;
+    const plan = planPool(slots, holders, options.drift === 'audit' ? await port.listUsers() : [], phase);
     const broken = plan.drift.length > 0 || plan.actions.some((action) => action.kind === 'ambiguous');
     const pending = plan.actions.some((action) => action.kind === 'create' || action.kind === 'mark');
 
     if (!options.apply) {
         const unleasable = unleasableSlots(slots, holders);
+        const unsettled = unsettledSlots(slots, holders, phase);
 
-        return { plan, applied: false, unleasable, healthy: !broken && !pending && unleasable.length === 0 };
+        return {
+            plan,
+            applied: false,
+            unleasable,
+            unsettled,
+            healthy: !broken && !pending && unleasable.length === 0 && unsettled.length === 0,
+        };
     }
 
     const created: { readonly slot: PoolSlot; readonly id: string }[] = [];
 
     for (const action of plan.actions) {
         if (action.kind === 'mark') {
-            await port.mergeMetadata(action.userId, poolSlotMetadata(action.slot));
+            await port.mergeMetadata(action.userId, poolSlotMetadata(action.slot, phase));
 
             if (options.profile === 'reassert') {
                 await port.reassertProfile(action.userId, poolProfileReassert(action.slot));
@@ -445,9 +528,17 @@ export async function reconcilePool(
     }
 
     // Judged on a FRESH read, never on the plan: a write that returned is not a slot a lease will accept.
-    const unleasable = unleasableSlots(slots, await observeSlots(port, slots));
+    const after = await observeSlots(port, slots);
+    const unleasable = unleasableSlots(slots, after);
+    const unsettled = unsettledSlots(slots, after, phase);
 
-    return { plan, applied: true, unleasable, healthy: !broken && unleasable.length === 0 };
+    return {
+        plan,
+        applied: true,
+        unleasable,
+        unsettled,
+        healthy: !broken && unleasable.length === 0 && unsettled.length === 0,
+    };
 }
 
 /** 429s a reconciliation waits out before it gives up. Its creates are paced by Clerk's own retry-after. */
@@ -545,6 +636,9 @@ export function describeReport(report: PoolReport): readonly string[] {
             (stray) => `DRIFT marked user ${stray.id} holds no roster address: ${stray.emails.join(', ')}`,
         ),
         ...report.unleasable.map((refusal) => `UNLEASABLE ${refusal}`),
+        ...report.unsettled.map(
+            (email) => `UNSETTLED ${email} does not yet hold its settled roles — seed it, then run again`,
+        ),
         `${report.applied ? 'applied' : 'dry run (pass --apply to write)'} — ${report.healthy ? 'healthy' : 'NOT healthy'}`,
     ];
 }
@@ -573,6 +667,7 @@ async function main(): Promise<void> {
 
     const report = await reconcilePool(port, {
         apply: args.apply,
+        phase: args.phase,
         ...scoped,
         randomPassword: () => `Pp1!${randomBytes(24).toString('base64url')}`,
         now: Date.now,

@@ -276,9 +276,14 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // co-author's pool lane has no password sign-in (`POOL_ROSTER` in `@kitchensink/e2e-fixtures`), so the flow cannot
     // sign in as them until the owner gives that lane one (`poolAdmin --apply`). Promote it to FLOW_PLAN then.
     'sessionHandoff',
-    // The make-public confirm (plan 2026-10-14-009 Q5): it needs a cook who owns a PRIVATE recipe and holds no entitled
-    // role, which the recipe service refuses to create, so `e2e-seed` cannot provide it; a lane seeded premium and then
-    // downgraded (`poolAdmin`) is owed first. Its states are pinned by the component suites and `paidFeatureGate.spec.ts`.
+    // The make-public confirm (plan 2026-10-14-009 Q5, T1, T2): it signs in as the pool's downgraded owner
+    // (`roles/roledowngraded`), a cook who owns a PRIVATE recipe and a PRIVATE collection while holding no entitled role.
+    // The recipe service refuses to create that state, so the lane is made premium, seeded, then downgraded, in the order
+    // `poolAdmin.ts` states: `poolAdmin --apply`, `npm run seed-downgraded --workspace=packages/tools/e2e-seed`, then
+    // `poolAdmin --apply --settle-downgraded`. The roster, the seeder, the manifest keys and the flow are all written and
+    // tested; no run has performed those three steps, so planning the flow now would turn the next Maestro run red. When the
+    // owner has, add the flow to `FLOW_PLAN` and delete this entry in the same commit. Its states are pinned meanwhile by the
+    // component suites and `paidFeatureGate.spec.ts`.
     'recipes/makePublicConfirm',
     'homeRecentRecipeTap',
     // Slice 3: the iOS edge swipe needs the iOS Simulator, which does not run on Linux (blueprint Q4); it runs by name on

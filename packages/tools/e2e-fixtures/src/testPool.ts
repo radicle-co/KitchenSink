@@ -102,7 +102,23 @@ export interface PoolLane {
     readonly consumable: boolean;
     /** A flow TYPES a password for this user, so `poolAdmin` creates it with {@link POOL_PASSWORD}. */
     readonly signsInByPassword: boolean;
+    /**
+     * The roles this lane holds WHILE ITS WORLD IS BEING SEEDED, when they differ from {@link PoolLane.roles}: a DOWNGRADED
+     * OWNER. The recipe service refuses a private recipe from a caller with no entitled role, so a cook who owns private
+     * things and holds none has to be made premium first and downgraded after. `poolAdmin` does both, as two
+     * {@link PoolPhase}s of the same lane; absent means the lane has one state.
+     */
+    readonly seedRoles?: readonly Role[];
 }
+
+/**
+ * Which roles a reconciliation writes to a lane that has {@link PoolLane.seedRoles}: `seeding` writes those, `settled`
+ * writes {@link PoolLane.roles}. Every other lane has one answer in both.
+ */
+export type PoolPhase = 'seeding' | 'settled';
+
+/** The phase every caller gets unless it asks to SETTLE: a downgrade is something a run does on purpose. */
+export const DEFAULT_POOL_PHASE: PoolPhase = 'seeding';
 
 /** A leasable user: a lane, placed in its tier, with its derived identifiers. */
 export interface PoolSlot extends PoolLane {
@@ -171,6 +187,14 @@ const K6_VU_IDS = [
 const K6_VU_ID_SET: ReadonlySet<string> = new Set(K6_VU_IDS);
 
 /**
+ * The `roles` tier's DOWNGRADED OWNER: a user with a private recipe and a private collection who holds no entitled role,
+ * so Make public asks before it goes (plan 2026-10-14-009 T1/T2). Its world is fixed (`DOWNGRADED_OWNER_WORLD`, in
+ * `@kitchensink/e2e-seed`), is seeded ONCE while the lane is `premium`, and is never reset — `resetPool` does not touch
+ * the `roles` tier — so every run finds it as the owner left it. The owner's order is in `poolAdmin.ts`.
+ */
+export const DOWNGRADED_OWNER_LANE_ID = 'roledowngraded';
+
+/**
  * THE roster. Adding a slot is a commit here plus an owner run of `poolAdmin --apply`; no test creates a user (the
  * Maestro job's refill only recreates consumed erasure subjects — `poolAdmin.ts`).
  *
@@ -228,6 +252,10 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
         lane('rolepremium', { roles: ['premium'], signsInByPassword: true }),
         lane('rolesuperuser', { roles: ['superuser'], signsInByPassword: true }),
         lane('rolevip', { roles: ['vip'], signsInByPassword: true }),
+        // ⚠️ APPENDED, and not a role: a cook who OWNS private things and holds no entitled role (the make-public confirm,
+        // plan 2026-10-14-009 Q5/T1). It is the one lane of this tier written to, ONCE and out of band — see
+        // `DOWNGRADED_OWNER_LANE_ID` — and the flows that sign in as it only READ, like every other lane here.
+        lane(DOWNGRADED_OWNER_LANE_ID, { roles: ['default'], seedRoles: ['premium'], signsInByPassword: true }),
     ],
 };
 
@@ -522,6 +550,11 @@ export function assertPoolMember(email: string): void {
     }
 }
 
+/** The roles a lane holds in a phase: its {@link PoolLane.seedRoles} while seeding, otherwise its declared roles. Pure. */
+export function rolesInPhase(slot: PoolLane, phase: PoolPhase): readonly Role[] {
+    return phase === 'seeding' && slot.seedRoles !== undefined ? slot.seedRoles : slot.roles;
+}
+
 /**
  * The `public_metadata` a slot must carry. Pure.
  *
@@ -529,10 +562,10 @@ export function assertPoolMember(email: string): void {
  * wholesale, so an empty list is what revokes a grant the roster no longer declares. `roles` is written on EVERY slot,
  * so the identity webhook's sign-up writer (which merges `default` only where no `roles` key exists) never touches one.
  */
-export function poolSlotMetadata(slot: PoolLane): PoolSlotMetadata {
+export function poolSlotMetadata(slot: PoolLane, phase: PoolPhase = DEFAULT_POOL_PHASE): PoolSlotMetadata {
     return {
         testPrincipal: true,
-        roles: [...slot.roles],
+        roles: [...rolesInPhase(slot, phase)],
         // ⛔ Always EMPTY: premium is a role now, and the old `premium` permission grants nothing. Stating the list is
         // what makes the merge-PATCH revoke it from a user that still carries it.
         permissions: [],

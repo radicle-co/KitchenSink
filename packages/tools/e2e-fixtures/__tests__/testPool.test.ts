@@ -29,6 +29,7 @@ import {
     POOL_ROSTER,
     POOL_TIERS,
     poolSlotMetadata,
+    DOWNGRADED_OWNER_LANE_ID,
     ROLE_LANE_IDS,
     rosterSlots,
     slotFor,
@@ -491,7 +492,19 @@ describe('the roles tier', () => {
             ['rolepremium', ['premium']],
             ['rolesuperuser', ['superuser']],
             ['rolevip', ['vip']],
+            // Appended, and not a role's lane: the downgraded owner (plan 2026-10-14-009 T2), settled at `default`.
+            [DOWNGRADED_OWNER_LANE_ID, ['default']],
         ]);
+    });
+
+    it('⛔ the downgraded owner is the ONLY lane with two states: premium to be seeded, default once settled', () => {
+        expect(POOL_ROSTER.roles.filter((lane) => lane.seedRoles !== undefined).map((lane) => lane.id)).toEqual([
+            DOWNGRADED_OWNER_LANE_ID,
+        ]);
+        expect(poolSlotMetadata(slotFor('roles', DOWNGRADED_OWNER_LANE_ID), 'seeding').roles).toEqual(['premium']);
+        expect(poolSlotMetadata(slotFor('roles', DOWNGRADED_OWNER_LANE_ID), 'settled').roles).toEqual(['default']);
+        // Not a role, so the per-role registry does not name it.
+        expect(Object.values(ROLE_LANE_IDS)).not.toContain(DOWNGRADED_OWNER_LANE_ID);
     });
 
     it('names its lanes once, for the specs and flows that sign in as them', () => {
@@ -513,7 +526,7 @@ describe('the roles tier', () => {
         const gated = POOL_ROSTER.roles.filter((lane) => !hasPaidFeatures(lane.roles)).map((lane) => lane.id);
 
         expect(entitled).toStrictEqual(['rolepremium', 'rolesuperuser', 'rolevip']);
-        expect(gated).toStrictEqual(['roledefault', 'roleadmin']);
+        expect(gated).toStrictEqual(['roledefault', 'roleadmin', DOWNGRADED_OWNER_LANE_ID]);
     });
 
     it('signs in by password (the Maestro flows type it), holds no scope and is never consumed', () => {

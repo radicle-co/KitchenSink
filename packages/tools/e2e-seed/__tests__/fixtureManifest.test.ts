@@ -9,6 +9,7 @@ import {
     maestroShardCapacity,
     maestroSlotForShard,
     POOL_PASSWORD,
+    DOWNGRADED_OWNER_LANE_ID,
     ROLE_LANE_IDS,
     slotFor,
 } from '@kitchensink/e2e-fixtures/testPool';
@@ -23,6 +24,7 @@ import {
     PRIVATE_FOOD_NAME,
     PRIVATE_FOOD_RECIPE,
     runScopedTitle,
+    DOWNGRADED_OWNER_WORLD,
     SEED_WORLD,
     UNATTACHED_PROBE_INGREDIENT,
 } from '../src/fixtureManifest.js';
@@ -397,6 +399,16 @@ describe('manifestToEnvLines', () => {
         const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE);
 
         expect(lines).toContain(`${FIXTURE_ENV_KEYS[key]}=${slotFor('roles', ROLE_LANE_IDS[role]).email}`);
+    });
+
+    it('carries the downgraded owner’s address and its fixed world, for `recipes/makePublicConfirm.yaml`', () => {
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE);
+
+        expect(lines).toContain(
+            `${FIXTURE_ENV_KEYS.roleDowngradedEmail}=${slotFor('roles', DOWNGRADED_OWNER_LANE_ID).email}`,
+        );
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.downgradedRecipe}=${DOWNGRADED_OWNER_WORLD.recipe.title}`);
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.downgradedCollection}=${DOWNGRADED_OWNER_WORLD.collectionName}`);
     });
 
     it('carries the co-author’s email, which the session handoff flow signs in as second', () => {

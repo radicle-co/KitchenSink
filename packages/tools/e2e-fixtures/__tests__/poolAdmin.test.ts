@@ -25,6 +25,7 @@ import {
 } from '../src/poolAdmin.js';
 import {
     consumableSlots,
+    DOWNGRADED_OWNER_LANE_ID,
     MAESTRO_ERASURE_SHARD,
     MAESTRO_PLATFORMS,
     maestroErasureSlots,
@@ -335,6 +336,7 @@ describe('reconcilePool', () => {
                 plan: { actions: [{ kind: 'ok', slot: alfa, userId: 'u' }], drift: [] },
                 applied: true,
                 unleasable: ['test-alfa+clerk_test@radcile.com has no external_id'],
+                unsettled: [],
                 healthy: false,
             });
 
@@ -436,20 +438,30 @@ describe('poolScopeOptions', () => {
 
 describe('parsePoolAdminArgs', () => {
     it('is a dry run over the whole roster with no arguments', () => {
-        expect(parsePoolAdminArgs([])).toEqual({ apply: false, scope: { kind: 'roster' } });
+        expect(parsePoolAdminArgs([])).toEqual({ apply: false, phase: 'seeding', scope: { kind: 'roster' } });
     });
 
     it('writes the whole roster with --apply alone (the owner’s run)', () => {
-        expect(parsePoolAdminArgs(['--apply'])).toEqual({ apply: true, scope: { kind: 'roster' } });
+        expect(parsePoolAdminArgs(['--apply'])).toEqual({ apply: true, phase: 'seeding', scope: { kind: 'roster' } });
+    });
+
+    it('settles the downgraded owner only when asked: --settle-downgraded', () => {
+        expect(parsePoolAdminArgs(['--apply', '--settle-downgraded'])).toEqual({
+            apply: true,
+            phase: 'settled',
+            scope: { kind: 'roster' },
+        });
     });
 
     it('scopes to one platform shard’s erasure subjects with --maestro-erasure --platform P --shard N', () => {
         expect(parsePoolAdminArgs(['--apply', '--maestro-erasure', '--platform', 'ios', '--shard', '2'])).toEqual({
             apply: true,
+            phase: 'seeding',
             scope: { kind: 'maestroErasure', platform: 'ios', shard: 2 },
         });
         expect(parsePoolAdminArgs(['--shard', '1', '--platform', 'android', '--maestro-erasure'])).toEqual({
             apply: false,
+            phase: 'seeding',
             scope: { kind: 'maestroErasure', platform: 'android', shard: 1 },
         });
     });
@@ -470,6 +482,7 @@ describe('parsePoolAdminArgs', () => {
         [['--maestro-erasure', '--platform', 'ios', '--shard', ' 1'], /positive integer/u],
         [['--maestro-erasure', '--platform', 'ios', '--shard', '1.5'], /positive integer/u],
         [['--maestro-erasure', '--platform', 'ios', '--shard', '1', '--shard', '2'], /once/u],
+        [['--maestro-erasure', '--platform', 'ios', '--shard', '1', '--settle-downgraded'], /--settle-downgraded/u],
         [['--force'], /^poolAdmin: Unknown option '--force'/u],
         [['apply'], /^poolAdmin: Unexpected argument 'apply'/u],
         [['--maestro-erasure', '--platform', 'ios', '--shard', '--apply'], /--shard/u],
@@ -664,5 +677,116 @@ describe('clerkPoolAdminPort', () => {
 
         expect(users).toHaveLength(150);
         expect(clerk.getUserList).toHaveBeenNthCalledWith(2, { limit: 100, offset: 100 });
+    });
+});
+
+/**
+ * The DOWNGRADED OWNER (plan 2026-10-14-009 T2): a lane that owns private things yet holds no entitled role. The recipe
+ * service refuses a private recipe from such a cook, so its world can only be seeded while it is `premium`, then it is
+ * downgraded. The order is a pure decision of `planPool`, never prose: a plain run never downgrades and never undoes a
+ * downgrade, and only `--settle-downgraded` moves the roles.
+ */
+describe('the downgraded owner', () => {
+    const owner = slotFor('roles', DOWNGRADED_OWNER_LANE_ID);
+    const asPremium = (): ObservedPoolUser =>
+        user(owner.email, { publicMetadata: { ...poolSlotMetadata(owner, 'seeding') } });
+    const asDefault = (): ObservedPoolUser =>
+        user(owner.email, { publicMetadata: { ...poolSlotMetadata(owner, 'settled') } });
+
+    it('is declared premium while its world is seeded and default once it is settled', () => {
+        expect(poolSlotMetadata(owner, 'seeding').roles).toEqual(['premium']);
+        expect(poolSlotMetadata(owner, 'settled').roles).toEqual(['default']);
+    });
+
+    it('is created premium, whatever the phase — a user created default could never be seeded', () => {
+        expect(poolUserCreateInput(owner, 'random').publicMetadata.roles).toEqual(['premium']);
+    });
+
+    it('a lane with one state is the same in both phases', () => {
+        expect(poolSlotMetadata(alfa, 'seeding')).toEqual(poolSlotMetadata(alfa, 'settled'));
+    });
+
+    it('⛔ while seeding, leaves the user as it finds it — premium (not yet seeded) or default (already settled)', () => {
+        for (const holder of [asPremium(), asDefault()]) {
+            const plan = planPool([owner], new Map([[owner.email, [holder]]]), [], 'seeding');
+
+            expect(plan.actions, holder.publicMetadata['roles']?.toString()).toEqual([
+                { kind: 'ok', slot: owner, userId: holder.id },
+            ]);
+        }
+    });
+
+    it('when settling, downgrades a premium user and leaves a default one alone', () => {
+        expect(planPool([owner], new Map([[owner.email, [asPremium()]]]), [], 'settled').actions).toEqual([
+            { kind: 'mark', slot: owner, userId: asPremium().id },
+        ]);
+        expect(planPool([owner], new Map([[owner.email, [asDefault()]]]), [], 'settled').actions).toEqual([
+            { kind: 'ok', slot: owner, userId: asDefault().id },
+        ]);
+    });
+
+    const options = { randomPassword: () => 'random', now: () => 0, sleep: async () => undefined };
+
+    const portHolding = (holder: ObservedPoolUser) => {
+        let current = holder;
+
+        return {
+            findUsers: vi.fn(async () => [current]),
+            listUsers: vi.fn(async () => [current]),
+            createUser: vi.fn(async () => ({ id: 'unused' })),
+            mergeMetadata: vi.fn(async (_id: string, metadata: PoolSlotMetadata) => {
+                current = { ...current, publicMetadata: { ...current.publicMetadata, ...metadata } };
+            }),
+            readExternalId: vi.fn(async () => 'ext'),
+            reassertProfile: vi.fn(async () => undefined),
+        } satisfies PoolAdminPort;
+    };
+
+    it('writes default roles to the premium user only when settling', async () => {
+        const seeding = portHolding(asPremium());
+        await reconcilePool(seeding, { ...options, slots: [owner], drift: 'skip', apply: true, phase: 'seeding' });
+        expect(seeding.mergeMetadata).not.toHaveBeenCalled();
+
+        const settling = portHolding(asPremium());
+        const report = await reconcilePool(settling, {
+            ...options,
+            slots: [owner],
+            drift: 'skip',
+            apply: true,
+            phase: 'settled',
+        });
+
+        expect(settling.mergeMetadata).toHaveBeenCalledWith(asPremium().id, poolSlotMetadata(owner, 'settled'));
+        expect(report.healthy).toBe(true);
+    });
+
+    it('⛔ settling a user that did not exist is NOT healthy: it was created premium and is still to be seeded', async () => {
+        const created: ObservedPoolUser[] = [];
+        const port = {
+            ...portHolding(asPremium()),
+            findUsers: vi.fn(async () => created),
+            createUser: vi.fn(async (input: PoolUserCreate) => {
+                created.push({
+                    id: 'new',
+                    emails: [...input.emailAddress],
+                    publicMetadata: { ...input.publicMetadata },
+                    externalId: 'ext',
+                });
+
+                return { id: 'new' };
+            }),
+        } satisfies PoolAdminPort;
+
+        const report = await reconcilePool(port, {
+            ...options,
+            slots: [owner],
+            drift: 'skip',
+            apply: true,
+            phase: 'settled',
+        });
+
+        expect(created[0]?.publicMetadata['roles']).toEqual(['premium']);
+        expect(report.unsettled).toEqual([owner.email]);
+        expect(report.healthy).toBe(false);
     });
 });

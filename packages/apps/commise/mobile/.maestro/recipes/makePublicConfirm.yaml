@@ -3,29 +3,45 @@
 # recipe page's ⋯ menu and in the editor's "Who can see it". The mobile twin of the Q5 block in
 # `web/tests/e2e/paidFeatureGate.spec.ts`.
 #
-# ⛔ PRECONDITION THE FIXTURE CONTRACT DOES NOT PROVIDE, which is why this flow is in `KNOWN_UNRUN_FLOWS`: the signed-in
-# cook must own a PRIVATE recipe while holding no entitled role. The recipe service refuses to make a recipe private for
-# such a cook (`visibilityPolicy`), so `e2e-seed` cannot create that state through the API; it needs a lane seeded as
-# `premium` and then downgraded (`poolAdmin`), an operation no run performs. Run by hand on a stage where the shard
-# signer's `premium` role has been removed after `e2e-seed provision`: `${E2E_RECIPE_LAMB}` is then that state.
+# ⛔ PRECONDITION NO RUN PROVIDES, which is why this flow is in `KNOWN_UNRUN_FLOWS`: it signs in as the pool's DOWNGRADED
+# OWNER (`roles/roledowngraded`), a cook who owns a PRIVATE recipe and a PRIVATE collection while holding no entitled role.
+# The recipe service refuses to make anything private for such a cook, so that world can only be written while the lane is
+# premium and the lane downgraded after. The owner does it once, in this order (`poolAdmin.ts` states it):
+#   1. poolAdmin --apply                          2. npm run seed-downgraded --workspace=packages/tools/e2e-seed
+#   3. poolAdmin --apply --settle-downgraded
+# Then plan this flow in `FLOW_PLAN` and delete its `KNOWN_UNRUN_FLOWS` entry (`maestroFlowSelection.test.ts` fails until
+# both are done together). The names are the fixed `DOWNGRADED_OWNER_WORLD`, delivered through the manifest.
 #
-# READ-ONLY by construction: every confirm is answered Keep private, so the lamb stays private for the next flow and no
-# restore is owed. The Make public leg is pinned by `RecipeDetailScreen.native.test.tsx` and the web spec.
+# READ-ONLY by construction (the `roles` tier's rule, `POOL_TIERS`): every confirm is answered Keep private, so the world
+# stays private for every later run and no restore is owed. The Make public leg is pinned by the component suites and the
+# web spec — confirming it HERE would destroy the fixture for good, since this cook cannot go private again.
+#
+# Two surfaces, one confirm: the recipe page's ⋯ and the editor's "Who can see it" (recipes), then a collection's ⋯.
 #
 # The confirm's body differs by reason (hidden: "won't be able to", upsell: "you'll need Premium"), and the stage's gate
 # is the owner's, so the body is matched by the sentence both share. ⚠️ The editor's radios are named by ALL their texts,
 # the cost note included (`visibility.yaml` says why), so the Public radio is matched by its leading words.
 appId: io.commise.mobile
+# The device is cleared after the run, pass or fail, so the next flow signs in as the shard's signer (`signinHome.yaml`
+# skips the form when any session is persisted).
+onFlowComplete:
+    - launchApp:
+          clearState: true
 ---
-- runFlow: ../auth/signin.yaml
+- launchApp:
+      clearState: true
+- runFlow:
+      file: ../auth/signin.yaml
+      env:
+          E2E_SIGNIN_EMAIL: ${E2E_ROLE_DOWNGRADED_EMAIL}
 - assertVisible: 'Recipes'
 
 # ── The recipe page's ⋯ Make public ──────────────────────────────────────────────────────────────────────────────────
 - scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
+      element: '${E2E_DOWNGRADED_RECIPE}'
       direction: DOWN
       timeout: 20000
-- tapOn: '${E2E_RECIPE_LAMB}'
+- tapOn: '${E2E_DOWNGRADED_RECIPE}'
 - scrollUntilVisible:
       element: 'More actions for .*'
       direction: DOWN
@@ -71,3 +87,26 @@ appId: io.commise.mobile
                 text: 'radio button, checked'
                 below: 'Public, Anyone can find it in Discover.*'
 - tapOn: 'Close editor'
+
+# ── A collection's ⋯ Make public (plan 2026-10-14-009 T1) ─────────────────────────────────────────────────────────────
+# The same confirm, in the collection's own words. Back out of the recipe, then open the cook's one private collection.
+- tapOn: 'Collections'
+- extendedWaitUntil:
+      visible: '${E2E_DOWNGRADED_COLLECTION}(, .*)?'
+      timeout: 40000
+- tapOn: '${E2E_DOWNGRADED_COLLECTION}(, .*)?'
+- extendedWaitUntil:
+      visible: 'More actions for ${E2E_DOWNGRADED_COLLECTION}'
+      timeout: 40000
+- assertVisible: 'Private'
+- tapOn: 'More actions for ${E2E_DOWNGRADED_COLLECTION}'
+- tapOn: 'Make public'
+- assertVisible: 'Make this collection public?'
+- assertVisible: 'Anyone can see a public collection and save a copy\..*'
+- assertVisible: 'Keep private'
+- assertNotVisible: 'See Premium'
+- tapOn: 'Keep private'
+- assertNotVisible: 'Make this collection public?'
+# Nothing was sent: it is still private, and no "now public" snackbar stands.
+- assertNotVisible: 'Collection is now public\.'
+- assertVisible: 'Private'

@@ -34,6 +34,7 @@
  * across the whole `.maestro` corpus, zero hits — so creating it would be a fixture nothing reads.
  */
 import {
+    DOWNGRADED_OWNER_LANE_ID,
     MAESTRO_ERASURE_SHARD,
     maestroErasureSlots,
     maestroSlotForShard,
@@ -72,7 +73,7 @@ export const UNATTACHED_PROBE_INGREDIENT = 'Flour';
 export const CAP_FOOD_BASE_NAME = 'Cap Probe';
 
 /** Which identity owns a seeded recipe. */
-export type FixtureOwner = 'signer' | 'coAuthor';
+export type FixtureOwner = 'signer' | 'coAuthor' | 'downgradedOwner';
 
 /** One ingredient line. `unit` absent is the unitless line ("1 lemon", "8 lamb chops"). */
 export interface FixtureIngredientLine {
@@ -105,7 +106,7 @@ export interface FixtureRecipeDefinition {
 }
 
 /** The recipes a run seeds, keyed the way the flows refer to them. */
-export type FixtureRecipeKey = 'lamb' | 'asparagus' | 'salad' | 'risotto' | 'privateFood';
+export type FixtureRecipeKey = 'lamb' | 'asparagus' | 'salad' | 'risotto' | 'privateFood' | 'downgradedStew';
 
 /**
  * The world, before run-scoping.
@@ -302,6 +303,35 @@ export const PRIVATE_FOOD_RECIPE: FixtureRecipeDefinition = {
 };
 
 /**
+ * The fixed world. The names are plain letters and spaces, because the Maestro flow puts them inside a pattern, and they
+ * share no word with any text another flow types.
+ */
+export const DOWNGRADED_OWNER_WORLD: {
+    readonly recipe: FixtureRecipe;
+    readonly collectionName: string;
+} = Object.freeze({
+    recipe: Object.freeze({
+        key: 'downgradedStew',
+        owner: 'downgradedOwner',
+        baseTitle: 'Secret Stew',
+        title: 'Secret Stew',
+        cuisine: 'American',
+        description: 'A stew only its cook may see.',
+        visibility: 'private',
+        servings: 4,
+        prepTimeMinutes: 15,
+        cookTimeMinutes: 45,
+        totalTimeMinutes: 60,
+        ingredients: [{ name: 'beef chuck', quantity: 1, unit: 'lb' }],
+        steps: [
+            { instruction: 'Brown the beef in a heavy pot.', timerSeconds: undefined },
+            { instruction: 'Simmer until tender.', timerSeconds: undefined },
+        ],
+    } as const),
+    collectionName: 'Secret Dinners',
+});
+
+/**
  * The env contract between this package, `runMaestroFlows.sh` and the flow YAML — ONE registry, so the
  * producer and the consumers cannot drift.
  *
@@ -331,6 +361,11 @@ export const FIXTURE_ENV_KEYS = {
     rolePremiumEmail: 'E2E_ROLE_PREMIUM_EMAIL',
     roleVipEmail: 'E2E_ROLE_VIP_EMAIL',
     roleSuperuserEmail: 'E2E_ROLE_SUPERUSER_EMAIL',
+    // The DOWNGRADED OWNER (plan 2026-10-14-009 T2), for `recipes/makePublicConfirm.yaml`: its address and the fixed names
+    // of its private recipe and collection. Not run-scoped — it is seeded once and never reset.
+    roleDowngradedEmail: 'E2E_ROLE_DOWNGRADED_EMAIL',
+    downgradedRecipe: 'E2E_DOWNGRADED_RECIPE',
+    downgradedCollection: 'E2E_DOWNGRADED_COLLECTION',
 } as const;
 
 /** A key of {@link FIXTURE_ENV_KEYS}. */
@@ -466,5 +501,8 @@ export function manifestToEnvLines(manifest: FixtureManifest, erasureEmail: stri
         `${FIXTURE_ENV_KEYS.rolePremiumEmail}=${slotFor('roles', ROLE_LANE_IDS.premium).email}`,
         `${FIXTURE_ENV_KEYS.roleVipEmail}=${slotFor('roles', ROLE_LANE_IDS.vip).email}`,
         `${FIXTURE_ENV_KEYS.roleSuperuserEmail}=${slotFor('roles', ROLE_LANE_IDS.superuser).email}`,
+        `${FIXTURE_ENV_KEYS.roleDowngradedEmail}=${slotFor('roles', DOWNGRADED_OWNER_LANE_ID).email}`,
+        `${FIXTURE_ENV_KEYS.downgradedRecipe}=${DOWNGRADED_OWNER_WORLD.recipe.title}`,
+        `${FIXTURE_ENV_KEYS.downgradedCollection}=${DOWNGRADED_OWNER_WORLD.collectionName}`,
     ];
 }

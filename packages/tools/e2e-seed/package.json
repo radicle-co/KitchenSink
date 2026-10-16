@@ -17,6 +17,7 @@
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "provision": "tsx src/provision.ts",
+        "seed-downgraded": "tsx src/seedDowngraded.ts",
         "reset": "tsx src/reset.ts",
         "seed-catalog": "tsx src/seedCatalog.ts",
         "reset-pool": "tsx src/resetPool.ts",

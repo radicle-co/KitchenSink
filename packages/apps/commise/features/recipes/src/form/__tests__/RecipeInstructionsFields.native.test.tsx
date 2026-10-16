@@ -142,16 +142,16 @@ describe('RecipeInstructionsFields (native) — the timer', () => {
     it('"Add a timer" reveals an empty Timer field; "Remove timer" clears and hides it', () => {
         const { onChange } = renderLive();
 
-        expect(within(item(0)).queryByRole('group', { name: e.steps.timerLabel })).toBeNull();
+        expect(within(item(0)).queryByText(e.steps.timerLabel)).toBeNull();
         fireEvent.click(within(item(0)).getByRole('button', { name: e.steps.addTimer }));
-        expect(within(item(0)).getByRole('group', { name: e.steps.timerLabel })).toBeTruthy();
+        expect(within(item(0)).getByText(e.steps.timerLabel)).toBeTruthy();
 
         fireEvent.change(within(item(0)).getByLabelText('Step 1 timer, minutes'), { target: { value: '5' } });
         expect(lastValues(onChange).steps[0]).toEqual({ instruction: 'Toast the rice.', timerSeconds: 300 });
 
         fireEvent.click(within(item(0)).getByRole('button', { name: e.steps.removeTimer }));
         expect(lastValues(onChange).steps[0]).toEqual({ instruction: 'Toast the rice.' });
-        expect(within(item(0)).queryByRole('group', { name: e.steps.timerLabel })).toBeNull();
+        expect(within(item(0)).queryByText(e.steps.timerLabel)).toBeNull();
     });
 
     it('a step with a timer shows it, with "Remove timer"', () => {
@@ -168,8 +168,8 @@ describe('RecipeInstructionsFields (native) — the timer', () => {
         choose(1, e.steps.moveDown);
 
         expect(stepBox(2).value).toBe('Toast the rice.');
-        expect(within(item(1)).getByRole('group', { name: e.steps.timerLabel })).toBeTruthy();
-        expect(within(item(2)).queryByRole('group', { name: e.steps.timerLabel })).toBeNull();
+        expect(within(item(1)).getByText(e.steps.timerLabel)).toBeTruthy();
+        expect(within(item(2)).queryByText(e.steps.timerLabel)).toBeNull();
     });
 });
 

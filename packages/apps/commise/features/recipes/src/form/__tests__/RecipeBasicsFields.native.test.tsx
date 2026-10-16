@@ -570,10 +570,13 @@ describe('RecipeBasicsFields (native) — tags and dietary flags', () => {
 });
 
 describe('RecipeBasicsFields (native) — layout by container width', () => {
-    /** The row a duration field's cell sits in: the field's parent is the cell. */
-    const rowOf = (name: string): HTMLElement | null =>
-        screen.getByRole('group', { name }).parentElement?.parentElement ?? null;
-    const cellOf = (name: string): HTMLElement | null => screen.getByRole('group', { name }).parentElement;
+    /**
+     * A duration field is found by its visible label: its View carries no name of its own (nativeContainerNames.md N1),
+     * so the label Text's parent is the field, the field's parent is the cell, and the cell's parent is the row.
+     */
+    const fieldOf = (name: string): HTMLElement | null => screen.getByText(name).parentElement;
+    const cellOf = (name: string): HTMLElement | null => fieldOf(name)?.parentElement ?? null;
+    const rowOf = (name: string): HTMLElement | null => cellOf(name)?.parentElement ?? null;
 
     // A-009 (build spec §7.4: "below 600, Prep and Cook sit side by side, about 136 dp each at 320"): each is a cell that
     // takes half the row and may shrink, so the row never has to wrap Cook under Prep.
@@ -599,7 +602,7 @@ describe('RecipeBasicsFields (native) — layout by container width', () => {
         const times = rowOf(m.prepTimeLabel);
 
         expect(times !== null && appliedStyle(times, 'flex-direction')).toBe('row');
-        expect(times?.contains(screen.getByRole('group', { name: m.cookTimeLabel }))).toBe(true);
+        expect(times?.contains(fieldOf(m.cookTimeLabel))).toBe(true);
         expect(times?.contains(screen.getByRole('group', { name: m.servingsLabel }))).toBe(false);
     });
 

@@ -21,7 +21,7 @@ import { defaultRecipeFormValues, mintLineKey, recipeFormMessages } from '@commi
 
 import { RecipeEditorContainer } from '@/components/recipes/RecipeEditorContainer';
 import { webDeviceStore } from '@/components/recipes/deviceSession';
-import { editorDraftsFor } from '@/components/recipes/editorDrafts';
+import { editorDraftsFor } from '@commise/features-recipes/editor';
 
 import { makeRecipeDetail as makeBaseRecipeDetail } from './__fixtures__/recipeFixtures';
 
@@ -296,7 +296,7 @@ describe('RecipeEditorContainer (web)', () => {
             ],
             steps: [{ instruction: 'Simmer.' }],
         };
-        await editorDraftsFor('user_cook')!.save({
+        await editorDraftsFor(webDeviceStore, 'user_cook')!.save({
             recipeRef: ref,
             baseVersion: null,
             savedAt: '2026-10-09T09:00:00.000Z',

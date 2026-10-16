@@ -13,7 +13,7 @@ vi.mock('../../src/storage/outboxStore.js', async () => ({
 }));
 
 const { endDeviceSession, nativeDeviceStore } = await import('../../src/storage/deviceSession.js');
-const { editorDraftsFor } = await import('../../src/storage/editorDrafts.js');
+const { editorDraftsFor } = await import('@commise/features-recipes/editor');
 
 const memento = (recipeRef: string) => ({
     recipeRef,
@@ -38,7 +38,7 @@ const memento = (recipeRef: string) => ({
 describe('endDeviceSession (mobile)', () => {
     it('⛔ removes one cook`s drafts and outbox from the one device store, and keeps another cook`s', async () => {
         for (const subject of ['user_a', 'user_b']) {
-            await editorDraftsFor(subject)?.save(memento('local:recipe:a'));
+            await editorDraftsFor(nativeDeviceStore, subject)?.save(memento('local:recipe:a'));
             await outboxMutatorFor(nativeDeviceStore, subject).mutate((log) =>
                 appendIntent(log, {
                     entity: 'recipe',
@@ -52,9 +52,9 @@ describe('endDeviceSession (mobile)', () => {
 
         await endDeviceSession('user_a');
 
-        expect(await editorDraftsFor('user_a')?.load('local:recipe:a')).toBeUndefined();
+        expect(await editorDraftsFor(nativeDeviceStore, 'user_a')?.load('local:recipe:a')).toBeUndefined();
         expect((await loadOutbox(nativeDeviceStore, 'user_a')).records).toEqual([]);
-        expect(await editorDraftsFor('user_b')?.load('local:recipe:a')).toBeDefined();
+        expect(await editorDraftsFor(nativeDeviceStore, 'user_b')?.load('local:recipe:a')).toBeDefined();
         expect((await loadOutbox(nativeDeviceStore, 'user_b')).records).toHaveLength(1);
     });
 });

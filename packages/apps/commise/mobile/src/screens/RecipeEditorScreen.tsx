@@ -42,6 +42,7 @@ import {
     type EditorSectionId,
     type EditorFinish,
 } from '@commise/features-recipes';
+import { cookDraftsOf, type CookDrafts } from '@commise/features-recipes/editor';
 import type { EditorSeed } from '@commise/features-recipes/hooks';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
@@ -62,7 +63,7 @@ import { RecipePhotoUploader } from '../components/RecipePhotoUploader.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
 import { mobileMessages } from '../i18n/messages.js';
 import { reportErrorToSentry } from '../observability/sentryErrorReporter.js';
-import { editorDraftsFor } from '../storage/editorDrafts.js';
+import { nativeDeviceStore } from '../storage/deviceSession.js';
 
 /** Where the editor hands off: the navigator decides what each means. */
 export interface RecipeEditorScreenProps {
@@ -87,11 +88,8 @@ export interface RecipeEditorScreenProps {
 }
 
 /** The signed-in cook and their draft store, or `undefined` while nobody is signed in. */
-function useCookDrafts(): { readonly subject: string; readonly drafts: DraftStore } | undefined {
-    const { userId } = useAuth();
-    const drafts = editorDraftsFor(userId ?? undefined);
-
-    return userId === null || userId === undefined || drafts === undefined ? undefined : { subject: userId, drafts };
+function useCookDrafts(): CookDrafts | undefined {
+    return cookDraftsOf(nativeDeviceStore, useAuth().userId);
 }
 
 /**
@@ -163,7 +161,7 @@ function SeededEditor({
 }: RecipeEditorScreenProps & {
     readonly recipeId: string;
     readonly opening: number;
-    readonly cook: { readonly subject: string; readonly drafts: DraftStore };
+    readonly cook: CookDrafts;
     readonly recipe: RecipeDetail;
 }): JSX.Element {
     const memento = useDeviceDraft({ drafts: cook.drafts, subject: cook.subject, ref: recipe.id, opening });

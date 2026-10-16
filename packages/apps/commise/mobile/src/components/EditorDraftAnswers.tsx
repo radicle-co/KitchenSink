@@ -6,10 +6,11 @@
  * @pattern Observer — the app's mount point for the draft observer
  */
 import { useDraftAnswers } from '@commise/features-recipes';
+import { editorDraftsFor } from '@commise/features-recipes/editor';
 import { useSyncQueue } from '@commise/query/sync';
 import type { JSX } from 'react';
 
-import { editorDraftsFor } from '../storage/editorDrafts.js';
+import { nativeDeviceStore } from '../storage/deviceSession.js';
 
 /** Props for {@link EditorDraftAnswers}. */
 export interface EditorDraftAnswersProps {
@@ -19,7 +20,7 @@ export interface EditorDraftAnswersProps {
 
 /** The native mount of the draft observer. */
 export function EditorDraftAnswers({ subject }: EditorDraftAnswersProps): JSX.Element | null {
-    useDraftAnswers(useSyncQueue(), editorDraftsFor(subject));
+    useDraftAnswers(useSyncQueue(), editorDraftsFor(nativeDeviceStore, subject));
 
     return null;
 }

@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { EMPTY_OUTBOX, appendIntent, loadOutbox, outboxMutatorFor, saveOutbox, storeKeyFor } from '@kitchensink/sync';
 
 import { endDeviceSession, webDeviceStore } from '@/components/recipes/deviceSession';
-import { editorDraftsFor } from '@/components/recipes/editorDrafts';
+import { editorDraftsFor } from '@commise/features-recipes/editor';
 
 afterEach(() => {
     window.sessionStorage.clear();
@@ -37,8 +37,8 @@ const memento = (recipeRef: string) => ({
 
 describe('endDeviceSession', () => {
     it('removes the cook`s drafts and outbox, and keeps another cook`s', async () => {
-        await editorDraftsFor('user_a')?.save(memento('local:recipe:a'));
-        await editorDraftsFor('user_b')?.save(memento('local:recipe:b'));
+        await editorDraftsFor(webDeviceStore, 'user_a')?.save(memento('local:recipe:a'));
+        await editorDraftsFor(webDeviceStore, 'user_b')?.save(memento('local:recipe:b'));
         const queued = appendIntent(EMPTY_OUTBOX, {
             entity: 'recipe',
             intentKind: 'update',
@@ -51,19 +51,19 @@ describe('endDeviceSession', () => {
 
         await endDeviceSession('user_a');
 
-        expect(await editorDraftsFor('user_a')?.load('local:recipe:a')).toBeUndefined();
+        expect(await editorDraftsFor(webDeviceStore, 'user_a')?.load('local:recipe:a')).toBeUndefined();
         expect((await loadOutbox(webDeviceStore, 'user_a')).records).toEqual([]);
-        expect(await editorDraftsFor('user_b')?.load('local:recipe:b')).toBeDefined();
+        expect(await editorDraftsFor(webDeviceStore, 'user_b')?.load('local:recipe:b')).toBeDefined();
         expect((await loadOutbox(webDeviceStore, 'user_b')).records).toHaveLength(1);
     });
 
     it('keeps every cook`s drafts when nobody was signed in, and still removes the cook marks', async () => {
-        await editorDraftsFor('user_a')?.save(memento('local:recipe:a'));
+        await editorDraftsFor(webDeviceStore, 'user_a')?.save(memento('local:recipe:a'));
         window.sessionStorage.setItem('cook.v1..0a6c2f4e-8b1d-4c3a-9e2f-1d2c3b4a5f60', '{"lines":["a"],"step":null}');
 
         await endDeviceSession(undefined);
 
-        expect(await editorDraftsFor('user_a')?.load('local:recipe:a')).toBeDefined();
+        expect(await editorDraftsFor(webDeviceStore, 'user_a')?.load('local:recipe:a')).toBeDefined();
         expect(window.sessionStorage.getItem('cook.v1..0a6c2f4e-8b1d-4c3a-9e2f-1d2c3b4a5f60')).toBeNull();
     });
 });

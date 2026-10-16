@@ -5,4 +5,5 @@
  * consolidation so the slice that fills it (S4 of `docs/plans/2026-10-13-007-chore-finish-pr91-plan.md`) edits
  * neither the package root index nor `package.json`.
  */
-export {};
+export { cookDraftsOf, editorDraftsFor } from './cookDrafts.js';
+export type { CookDrafts } from './cookDrafts.js';

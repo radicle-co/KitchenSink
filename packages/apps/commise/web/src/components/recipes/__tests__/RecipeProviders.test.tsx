@@ -44,7 +44,7 @@ import { appendIntent, loadOutbox, outboxMutatorFor } from '@kitchensink/sync';
 
 import { RecipeAuthNotReadyError } from '@/lib/recipeAuthNotReady';
 import { webDeviceStore } from '@/components/recipes/deviceSession';
-import { editorDraftsFor } from '@/components/recipes/editorDrafts';
+import { editorDraftsFor } from '@commise/features-recipes/editor';
 
 const { useAuthMock, clerk } = vi.hoisted(() => ({
     useAuthMock: vi.fn(),
@@ -446,7 +446,7 @@ describe('RecipeProviders (web) — the cache ends with the cook’s session', (
  */
 describe('RecipeProviders (web) — the cook’s editor work ends with their session', () => {
     async function seedEditorWork(subject: string): Promise<void> {
-        await editorDraftsFor(subject)?.save({
+        await editorDraftsFor(webDeviceStore, subject)?.save({
             recipeRef: 'local:recipe:a',
             baseVersion: null,
             values: {
@@ -473,7 +473,7 @@ describe('RecipeProviders (web) — the cook’s editor work ends with their ses
     /** Whether the cook's draft and queued write are still in the tab. */
     async function kept(subject: string): Promise<readonly boolean[]> {
         return [
-            (await editorDraftsFor(subject)?.load('local:recipe:a')) !== undefined,
+            (await editorDraftsFor(webDeviceStore, subject)?.load('local:recipe:a')) !== undefined,
             (await loadOutbox(webDeviceStore, subject)).records.length > 0,
         ];
     }

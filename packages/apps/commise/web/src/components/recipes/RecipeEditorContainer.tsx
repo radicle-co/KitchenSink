@@ -53,6 +53,7 @@ import {
     type EditorNavigation,
     type EditorSectionId,
 } from '@commise/features-recipes';
+import { cookDraftsOf, type CookDrafts } from '@commise/features-recipes/editor';
 import type { EditorSeed } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
@@ -71,7 +72,6 @@ import { useEffect, useState, type FC, type ReactNode } from 'react';
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { EditorStateFrame } from '@/components/recipes/EditorStateFrame';
 import { webDeviceStore } from '@/components/recipes/deviceSession';
-import { editorDraftsFor } from '@/components/recipes/editorDrafts';
 import { freshTokenOf, withDraftRef } from '@/components/recipes/freshRecipeHref';
 import { opensPasteSheet } from '@/components/recipes/pasteIngredientsHref';
 import { IngredientStatusPoller } from '@/components/recipes/IngredientStatusPoller';
@@ -91,11 +91,8 @@ export interface RecipeEditorContainerProps {
 }
 
 /** The signed-in cook and their draft store, or `undefined` while nobody is signed in. */
-function useCookDrafts(): { readonly subject: string; readonly drafts: DraftStore } | undefined {
-    const { userId } = useAuth();
-    const drafts = editorDraftsFor(userId ?? undefined);
-
-    return userId === null || userId === undefined || drafts === undefined ? undefined : { subject: userId, drafts };
+function useCookDrafts(): CookDrafts | undefined {
+    return cookDraftsOf(webDeviceStore, useAuth().userId);
 }
 
 /** The web recipe editor: new or edit. */
@@ -190,7 +187,7 @@ const NewRecipeSeed: FC<{ readonly locale: string; readonly opening: number }> =
 /** Where a `?draft=` ref leads: the recipe the server holds, or the device draft (a suspense read of the journal). */
 const DraftDestination: FC<{
     readonly locale: string;
-    readonly cook: { readonly subject: string; readonly drafts: DraftStore };
+    readonly cook: CookDrafts;
     readonly draftRef: string | undefined;
     readonly opening: number;
     readonly openPaste: boolean;
@@ -299,7 +296,7 @@ const StoredRecipeEditor: FC<{
 interface SeededEditorProps {
     readonly locale: string;
     readonly mode: 'create' | 'edit';
-    readonly cook: { readonly subject: string; readonly drafts: DraftStore };
+    readonly cook: CookDrafts;
     /** The settled recipe (edit); absent for a new recipe. */
     readonly recipe?: EditorSeed['recipe'];
     /** The ref the device draft is kept under, or `undefined` for a blank new recipe. */

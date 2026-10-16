@@ -59,7 +59,7 @@ const GREETING_LINE = `${LARGE_TITLE_CLASS} focus:outline-none`;
 const DATE_LINE = LARGE_SUBTITLE_CLASS;
 
 /** The id of Home's H1. */
-export const HOME_TITLE_ID = 'home-title';
+const HOME_TITLE_ID = 'home-title';
 
 /** Props for {@link HomeGreeting}. */
 export interface HomeGreetingProps {

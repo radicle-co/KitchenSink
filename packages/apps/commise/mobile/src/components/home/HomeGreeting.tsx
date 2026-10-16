@@ -15,7 +15,7 @@ import { LargeTitleHeader, type HeaderAction } from '@commise/ui/large-title-hea
 import type { JSX } from 'react';
 
 /** The id of Home's large title. */
-export const HOME_TITLE_ID = 'home-title';
+const HOME_TITLE_ID = 'home-title';
 
 /**
  * Home's title now: the greeting for the hour, with the cook's name when there is one.

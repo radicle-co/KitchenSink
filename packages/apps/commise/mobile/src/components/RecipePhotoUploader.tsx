@@ -35,31 +35,17 @@
  * MIME allowlist) — this container's only involvement is supplying the two localized rejection strings;
  * the admission check itself lives in `useRecipePhotoUploadQueue`.
  */
-import {
-    RecipePhotoManager,
-    fillTemplate,
-    isAtPhotoCap,
-    photoMessages,
-    visibleQueueItems,
-    type RecipeFormPhoto,
-} from '@commise/features-recipes';
-import { useRecipePhotoUpload, useRecipePhotoUploadQueue, type DraftPhotoPick } from '@commise/features-recipes/hooks';
+import { RecipePhotoManager, photoMessages, type RecipeFormPhoto } from '@commise/features-recipes';
+import { useRecipePhotoManager, type DraftPhotoPick } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Icon, type IconName } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import { Sheet } from '@commise/ui/sheet';
 import { useTheme } from '@commise/ui/theme';
-import {
-    useDeleteRecipePhoto,
-    useRecipePhotos,
-    useReorderRecipePhotos,
-} from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-
-import { mobileMessages } from '../i18n/messages.js';
 
 /** Props for {@link RecipePhotoUploader}. */
 export interface RecipePhotoUploaderProps {
@@ -155,30 +141,11 @@ export function RecipePhotoUploader({
     title,
     cuisine,
 }: RecipePhotoUploaderProps): JSX.Element {
-    const { recipePhotos: t } = useMessages(mobileMessages);
     const photoCopy = useMessages(photoMessages);
-    // `''` disables the query (`enabled: id.length > 0`) — a create has no photos to list yet.
-    const photosQuery = useRecipePhotos(recipeId ?? '');
-    const deletePhoto = useDeleteRecipePhoto();
-    const reorderPhotos = useReorderRecipePhotos();
-    const uploader = useRecipePhotoUpload(recipeId ?? '', t.uploadError);
-    const photos = photosQuery.data ?? [];
-    const queue = useRecipePhotoUploadQueue(uploader, photos.length, {
-        tooLarge: t.tooLargeError,
-        badType: t.unsupportedTypeError,
-    });
-
-    // Two local error slots neither the upload hook nor the queue know about: `pickErrorMessage` covers a
-    // failed local Blob read of the picked asset's URI (before `enqueue()` is ever called, so no queue item
-    // exists yet to carry it) and a pick the queue REFUSED for want of a slot (nothing was queued, so again no
-    // item carries it); `removeErrorMessage` covers a failed delete of a CONFIRMED photo. A fresh attempt at
-    // either action clears its own slot.
-    const [pickErrorMessage, setPickErrorMessage] = useState<string | undefined>(undefined);
-    const [removeErrorMessage, setRemoveErrorMessage] = useState<string | undefined>(undefined);
-    // A third slot for the one way a REPLACE can be refused before anything happens: no free slot for the
-    // replacement to land in (see `replacePhoto`). Cleared by the next replace attempt and by any removal
-    // (which is exactly the advice the message gives, so it must not linger once followed).
-    const [replaceErrorMessage, setReplaceErrorMessage] = useState<string | undefined>(undefined);
+    // The session (photos, queue, delete, cover, the one error slot, the cap rule and every refusal sentence) is
+    // shared with web. Draft picks a create holds take slots too, so they count against the room.
+    const session = useRecipePhotoManager({ recipeId, heldElsewhere: pendingDrafts.length });
+    const { queue } = session;
 
     // Tracks the picker-launch + local-blob-read window, BEFORE `enqueue()` ever runs — see the re-entrancy
     // guard in the module doc above.
@@ -189,11 +156,8 @@ export function RecipePhotoUploader({
     const [chosenSource, setChosenSource] = useState<PhotoSource | undefined>(undefined);
     const [buttonFocusRequested, setButtonFocusRequested] = useState(false);
     // The caller's own error wins: it describes the action the cook just took and explains why nothing
-    // appeared, where the local slots describe older, already-badged failures.
-    const errorMessage = externalError ?? replaceErrorMessage ?? removeErrorMessage ?? pickErrorMessage;
-
-    // The delete mutation carries its target in `variables`; busy only that row while its deletion is pending.
-    const removingPhotoId = deletePhoto.isPending ? (deletePhoto.variables?.photoId ?? null) : null;
+    // appeared, where the session's slot describes an older failure.
+    const errorMessage = externalError ?? session.errorMessage;
 
     // Pick an image (from `source`), then enqueue it onto the upload queue — the queue drives the presign → PUT-to-S3 →
     // confirm sequence itself. A canceled pick is a silent no-op. `picking` spans ONLY the picker-launch +
@@ -208,7 +172,7 @@ export function RecipePhotoUploader({
     // reads busy while the sheet slides away (the picker opens only after that, see `onSheetDismissed`), and a tap
     // in that gap does nothing. This function resets it, whatever happens.
     const runPick = async (source: PhotoSource, onUploaded?: () => void): Promise<void> => {
-        setPickErrorMessage(undefined);
+        session.reportError(undefined);
 
         try {
             // Load the native picker lazily (on first use). `expo-image-picker` pulls in `expo-modules-core`,
@@ -225,7 +189,7 @@ export function RecipePhotoUploader({
                     const permission = await ImagePicker.requestCameraPermissionsAsync();
 
                     if (!permission.granted) {
-                        setPickErrorMessage(photoCopy.cameraDenied);
+                        session.reportError(photoCopy.cameraDenied);
 
                         return;
                     }
@@ -233,7 +197,7 @@ export function RecipePhotoUploader({
                     result = await ImagePicker.launchCameraAsync(options);
                 } catch {
                     // A device with no camera (a simulator) rejects here rather than answering `canceled`.
-                    setPickErrorMessage(photoCopy.cameraUnavailable);
+                    session.reportError(photoCopy.cameraUnavailable);
 
                     return;
                 }
@@ -259,7 +223,7 @@ export function RecipePhotoUploader({
             try {
                 blob = await (await fetch(asset.uri)).blob();
             } catch {
-                setPickErrorMessage(t.uploadError);
+                session.reportError(photoCopy.uploadError);
 
                 return;
             }
@@ -287,40 +251,12 @@ export function RecipePhotoUploader({
                 return;
             }
 
-            const admission = queue.enqueue([picked]);
-
             // Near-unreachable here — the add control is hidden at the cap and `picking` serialises picks — but a
-            // refusal queued nothing, so saying nothing would be the silent drop the verdict exists to end.
-            if (admission.status === 'overCap') {
-                setPickErrorMessage(fillTemplate(t.overCapError, { count: admission.remaining }));
-            }
+            // refusal queued nothing, and the session says so rather than letting the pick vanish.
+            session.enqueuePicked([picked], onUploaded === undefined ? 'add' : 'replace');
         } finally {
             setPicking(false);
         }
-    };
-
-    // Unreachable while `recipeId` is null: there are no persisted photos to remove until the recipe exists,
-    // so the manager renders no per-photo controls at all. Guarded anyway rather than asserted away — a
-    // non-null assertion here would be a claim about a caller this component does not own.
-    const removePhoto = (photoId: string): void => {
-        if (recipeId === null) {
-            return;
-        }
-
-        setRemoveErrorMessage(undefined);
-        setReplaceErrorMessage(undefined);
-        deletePhoto.mutate({ id: recipeId, photoId }, { onError: () => setRemoveErrorMessage(t.removeError) });
-    };
-
-    // U6 "Set as cover": the cover is the lowest-sort-order photo (server projection), so choosing a cover is
-    // a reorder that moves the chosen id to the front, keeping the rest in their current order.
-    const setCover = (photoId: string): void => {
-        if (recipeId === null) {
-            return;
-        }
-
-        const photoIds = [photoId, ...photos.filter((photo) => photo.id !== photoId).map((photo) => photo.id)];
-        reorderPhotos.mutate({ id: recipeId, photoIds });
     };
 
     // U6 "Replace" — UPLOAD-FIRST, then swap (cancel-safe; mirrors the web container). No atomic replace
@@ -339,9 +275,7 @@ export function RecipePhotoUploader({
     // the confirm transaction), so rather than delete first (data loss) or surface a misleading "upload
     // failed", Replace refuses with actionable copy and the user frees a slot deliberately.
     const replacePhoto = (photoId: string): void => {
-        if (isAtPhotoCap(photos.length + pendingDrafts.length + visibleQueueItems(queue.items).length)) {
-            setReplaceErrorMessage(t.replaceAtCapError);
-
+        if (!session.beginReplace()) {
             return;
         }
 
@@ -350,11 +284,10 @@ export function RecipePhotoUploader({
             return;
         }
 
-        setReplaceErrorMessage(undefined);
         setPicking(true);
         // Replace stays on the library: it swaps one photo for another that already exists, and the sheet's
         // choice is for adding.
-        void runPick('library', () => removePhoto(photoId));
+        void runPick('library', () => session.removePhoto(photoId));
     };
 
     // The sheet's choice. It is HELD until the sheet has gone and runs at `onSheetDismissed`: iOS shows one modal at
@@ -408,10 +341,10 @@ export function RecipePhotoUploader({
     return (
         <>
             <RecipePhotoManager
-                photos={photos}
-                onRemovePhoto={removePhoto}
-                removingPhotoId={removingPhotoId}
-                uploading={uploader.uploading}
+                photos={session.photos}
+                onRemovePhoto={session.removePhoto}
+                removingPhotoId={session.removingPhotoId}
+                uploading={session.uploading}
                 errorMessage={errorMessage}
                 queueItems={[
                     // Draft picks first: they were chosen before anything in the queue, and negative ids cannot
@@ -439,7 +372,7 @@ export function RecipePhotoUploader({
                           },
                       }
                     : {})}
-                onSetCover={setCover}
+                onSetCover={session.setCover}
                 onReplacePhoto={replacePhoto}
                 {...(canPick ? { addControl } : {})}
                 coverPreview={{

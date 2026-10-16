@@ -54,11 +54,10 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useReorderRecipePhotos: reorderPhotoMock,
 }));
 
-vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('@commise/features-recipes/hooks')>();
-
+// Doubled at the MODULE that defines it: `useRecipePhotoManager` composes the real queue over `useRecipePhotoUpload`
+// from inside the features package, so a double on the package's barrel would never reach it.
+vi.mock('../../../../../features/recipes/src/hooks/useRecipePhotoUpload.js', () => {
     return {
-        ...actual,
         // A minimal but REAL (stateful) stand-in for the single-flight upload hook, so the real
         // `useRecipePhotoUploadQueue` composed on top of it drives an authentic queued→uploading→ok/stuck
         // lifecycle instead of a hand-asserted mock sequence.
@@ -298,7 +297,7 @@ describe('RecipePhotoUploaderContainer (web) — delete', () => {
 
         await user.click(screen.getByRole('button', { name: 'Remove photo 1' }));
 
-        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' });
+        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' }, expect.any(Object));
     });
 });
 
@@ -390,7 +389,7 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
         await user.upload(screen.getByLabelText('Choose a replacement photo'), makeFile('new.png'));
 
         await waitFor(() => expect(deleteMutate).toHaveBeenCalledTimes(1));
-        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_2' });
+        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_2' }, expect.any(Object));
         // Cover semantics are untouched by a replace: the cover is still resolved as the lowest-sort-order
         // photo, so replacing one never reorders (and never silently reassigns the cover).
         expect(reorderMutate).not.toHaveBeenCalled();
@@ -403,7 +402,7 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
         await user.upload(screen.getByLabelText('Choose a replacement photo'), makeFile('new-cover.png'));
 
         await waitFor(() => expect(deleteMutate).toHaveBeenCalledTimes(1));
-        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' });
+        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' }, expect.any(Object));
         expect(reorderMutate).not.toHaveBeenCalled();
     });
 
@@ -472,7 +471,7 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
         // has made some.
         await user.click(screen.getByRole('button', { name: 'Remove photo 1' }));
 
-        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' });
+        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' }, expect.any(Object));
         expect(screen.queryByRole('alert')).toBeNull();
     });
 });

@@ -36,6 +36,12 @@ export type {
     RecipePhotoUploadOutcome,
     UseRecipePhotoUploadResult,
 } from './useRecipePhotoUpload.js';
+export { useRecipePhotoManager } from './useRecipePhotoManager.js';
+export type {
+    RecipePhotoPickIntent,
+    UseRecipePhotoManagerOptions,
+    UseRecipePhotoManagerResult,
+} from './useRecipePhotoManager.js';
 export { useRecipePhotoUploadQueue } from './useRecipePhotoUploadQueue.js';
 export type {
     RecipePhotoQueueFile,

@@ -337,6 +337,24 @@ describe('RecipePhotoUploaderContainer', () => {
         expect(del).toHaveBeenCalledWith('rec_1', 'photo_42');
     });
 
+    it('says so when the delete fails — the same sentence mobile shows, and a later removal retires it', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([makeRecipePhoto({ id: 'photo_42', order: 1 })]);
+        const del = vi.spyOn(client, 'deleteRecipePhoto').mockRejectedValueOnce(new Error('boom'));
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+        await user.click(await screen.findByRole('button', { name: 'Remove photo 1' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t remove this photo. Please try again.');
+
+        del.mockReturnValue(new Promise(() => {}));
+        await user.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+
+        await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    });
+
     it('busies the removing photo row from the delete mutation’s in-flight variables', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();

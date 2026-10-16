@@ -21,7 +21,7 @@
  * reachable here.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { MAX_RECIPE_PHOTO_UPLOAD_BYTES } from '@kitchensink/recipe-core';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
@@ -38,31 +38,6 @@ import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { RecipePhotoUploader } from '../../src/components/RecipePhotoUploader.js';
-
-const { queueVerdict } = vi.hoisted(() => ({
-    // `refuseWith` set → the queue's `enqueue` answers `overCap` with that many slots left. Every other case runs
-    // the REAL queue. The refusal is not reachable through the real one from a leaf test: the add control is
-    // hidden at the cap and `picking` serialises picks, so a refusal needs the confirmed count to move while the
-    // picker is open — and the pick's closure still holds the pre-refetch `enqueue`. The leaf's job is to honour
-    // the verdict, and this knob is how that job is tested.
-    queueVerdict: { refuseWith: undefined as number | undefined },
-}));
-
-vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('@commise/features-recipes/hooks')>();
-
-    return {
-        ...actual,
-        useRecipePhotoUploadQueue: (...args: Parameters<typeof actual.useRecipePhotoUploadQueue>) => {
-            const queue = actual.useRecipePhotoUploadQueue(...args);
-            const refuseWith = queueVerdict.refuseWith;
-
-            return refuseWith === undefined
-                ? queue
-                : { ...queue, enqueue: () => ({ status: 'overCap' as const, remaining: refuseWith }) };
-        },
-    };
-});
 
 // The device's scheme, for the D15 case below; every other case leaves it unset and reads the light roles.
 vi.mock('react-native', async (importOriginal) => {
@@ -154,7 +129,6 @@ afterEach(() => {
 });
 
 beforeEach(() => {
-    queueVerdict.refuseWith = undefined;
     launchImageLibraryAsyncMock.mockReset();
     launchCameraAsyncMock.mockReset();
     requestCameraPermissionsAsyncMock.mockReset();
@@ -833,6 +807,23 @@ describe('RecipePhotoUploader — remove', () => {
         );
     });
 
+    it('says so when the delete fails, and a later removal retires the message', () => {
+        const mutate = vi.fn();
+        useRecipePhotosMock.mockReturnValue(photosResult([makePhoto({ id: 'pht_42' })]));
+        useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+        const options = mutate.mock.calls[0]?.[1] as { onError: () => void };
+        act(() => options.onError());
+
+        expect(screen.getByText('We couldn’t remove this photo. Please try again.')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+
+        expect(screen.queryByText('We couldn’t remove this photo. Please try again.')).toBeNull();
+    });
+
     it('busies the row whose removal is in flight', () => {
         useRecipePhotosMock.mockReturnValue(photosResult([makePhoto({ id: 'pht_42' })]));
         useDeleteRecipePhotoMock.mockReturnValue(
@@ -920,7 +911,7 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
         render(<RecipePhotoUploader recipeId="rec_1" />);
         fireEvent.click(screen.getByRole('button', { name: 'Replace photo 2' }));
 
-        expect(await screen.findByText('We couldn’t add your photo. Please try again.')).toBeTruthy();
+        expect(await screen.findByText('We couldn’t upload that photo. Please try again.')).toBeTruthy();
         expect(mutate).not.toHaveBeenCalled();
         expect(screen.getByLabelText('Recipe photo 2')).toBeTruthy();
     });
@@ -996,22 +987,26 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
     });
 });
 
-describe('RecipePhotoUploader — photo cap', () => {
-    it('tells the cook how many fit when the queue refuses the pick, and uploads nothing', async () => {
-        queueVerdict.refuseWith = 0;
-        const createMutateAsync = vi.fn();
-        useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(createMutateAsync) as never);
-        fetchMock.mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) });
+describe('RecipePhotoUploader — Replace counts the drafts a create holds', () => {
+    it('refuses to replace when confirmed photos plus pending draft picks fill the cap', () => {
+        useRecipePhotosMock.mockReturnValue(
+            photosResult(Array.from({ length: 9 }, (_unused, index) => makePhoto({ id: `pht_${index + 1}` }))),
+        );
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
-        chooseFromLibrary();
+        render(
+            <RecipePhotoUploader
+                recipeId="rec_1"
+                pendingDrafts={[{ fileName: 'draft.jpg', contentType: 'image/jpeg', fileSize: 5 } as never]}
+            />,
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'Replace photo 3' }));
 
-        expect(
-            await screen.findByText('That’s more photos than this recipe can hold — you can add 0 more.'),
-        ).toBeTruthy();
-        expect(createMutateAsync).not.toHaveBeenCalled();
+        expect(screen.getByText('Remove a photo first — replacing needs room for the new one.')).toBeTruthy();
+        expect(launchImageLibraryAsyncMock).not.toHaveBeenCalled();
     });
+});
 
+describe('RecipePhotoUploader — photo cap', () => {
     it('hides the add control once the recipe is at the 10-photo cap', () => {
         const photos = Array.from({ length: 10 }, (_unused, index) =>
             makePhoto({ id: `pht_${index + 1}`, order: index + 1 }),

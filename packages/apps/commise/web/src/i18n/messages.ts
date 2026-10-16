@@ -198,34 +198,15 @@ export interface WebMessages {
             readonly photosFinishWithout: string;
         };
         /**
-         * Copy owned by the photo-uploader container (T067). The shared `RecipePhotoManager` block localizes
-         * its own grid/remove/empty/cap copy; these are the app-owned strings — the accessible label of the
-         * caller-supplied add-photo control, the error shown when the presign → PUT → confirm upload fails,
-         * and the two client-side pre-validation rejections (REQ-011/REQ-012) run before a file ever reaches
-         * that upload.
+         * Copy owned by the web photo-uploader container: the accessible names of the two hidden file inputs it
+         * supplies. Every sentence the cook reads (upload, remove, size, type, cap) is `photoMessages` in
+         * `@commise/features-recipes`, shared with mobile.
          */
         readonly photos: {
             /** Accessible label of the add-photo file-input control the container supplies to the block. */
             readonly addLabel: string;
-            /** Error shown when uploading a photo (presign, direct PUT, or confirm) fails. */
-            readonly uploadError: string;
-            /** Error shown when a picked file's size exceeds the 5 MB limit (REQ-011), before upload starts. */
-            readonly tooLargeError: string;
-            /** Error shown when a picked file's type is outside the allowlist (REQ-012), before upload starts. */
-            readonly unsupportedTypeError: string;
             /** Accessible label of the hidden single-select input that picks a photo's replacement (U6). */
             readonly replaceInputLabel: string;
-            /** Error shown when Replace is pressed at the photo cap — a lossless swap needs a free slot (U6). */
-            readonly replaceAtCapError: string;
-            /**
-             * Shown when ONE pick carries more photos than the recipe can still hold (contains `{count}`), on the
-             * create form and the edit uploader alike.
-             *
-             * ⛔ The cap can be breached WITHIN a single pick — the add control's own gate only bounds picks
-             * between each other — and the pick is refused WHOLE rather than truncated, so this sentence is
-             * the only thing standing between the cook and silently losing the files that would not fit.
-             */
-            readonly overCapError: string;
         };
     };
     /**
@@ -369,12 +350,7 @@ export const webMessages: LocalizedMessages<WebMessages> = {
             },
             photos: {
                 addLabel: 'Add photo',
-                uploadError: 'We couldn’t upload that photo. Please try again.',
-                tooLargeError: 'That photo is larger than 5 MB. Choose a smaller file.',
-                unsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
                 replaceInputLabel: 'Choose a replacement photo',
-                replaceAtCapError: 'Remove a photo first — replacing needs room for the new one.',
-                overCapError: 'That’s more photos than this recipe can hold — you can add {count} more.',
             },
         },
         collections: {

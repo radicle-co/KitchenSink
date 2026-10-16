@@ -69,6 +69,20 @@ export interface PhotoMessages {
     /** Shown when the cook refuses (or has switched off) the camera permission: says why nothing opened and where
      *  else a photo can come from. */
     readonly cameraDenied: string;
+    /** Shown when acquiring, uploading or confirming a photo fails: the ONE sentence for both platforms. */
+    readonly uploadError: string;
+    /** Shown when deleting a confirmed photo fails. */
+    readonly removeError: string;
+    /** Shown when a picked file is over the size limit (REQ-011); contains `{maxMb}`, derived from the shared
+     *  `MAX_RECIPE_PHOTO_UPLOAD_BYTES` constant — never a second literal. */
+    readonly tooLargeError: string;
+    /** Shown when a picked file's type is outside the allowlist (REQ-012). */
+    readonly unsupportedTypeError: string;
+    /** Shown when Replace is refused for want of a free slot — a lossless swap needs room (U6). */
+    readonly replaceAtCapError: string;
+    /** Shown when ONE pick carries more photos than the recipe can still hold (contains `{count}`). The pick is
+     *  refused whole, so this sentence is what stops the cook silently losing the files that did not fit. */
+    readonly overCapError: string;
 }
 
 /** The photo manager copy, per locale. `en` is required; other locales extend the same shape. */
@@ -101,5 +115,11 @@ export const photoMessages: LocalizedMessages<PhotoMessages> = {
         chooseFromLibrary: 'Choose from library',
         cameraUnavailable: 'The camera did not open. Try again, or choose a photo from your library.',
         cameraDenied: 'Camera access is off. Turn it on in your phone’s settings, or choose a photo from your library.',
+        uploadError: 'We couldn’t upload that photo. Please try again.',
+        removeError: 'We couldn’t remove this photo. Please try again.',
+        tooLargeError: 'That photo is larger than {maxMb} MB. Choose a smaller file.',
+        unsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
+        replaceAtCapError: 'Remove a photo first — replacing needs room for the new one.',
+        overCapError: 'That’s more photos than this recipe can hold — you can add {count} more.',
     },
 };

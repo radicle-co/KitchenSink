@@ -253,26 +253,6 @@ export interface MobileMessages {
          *  must offer a way forward, not only a way back). */
         readonly versionsRetry: string;
     };
-    readonly recipePhotos: {
-        /** Visible + accessible label of the control that opens the native image picker. */
-        readonly addLabel: string;
-        /** Alert shown when acquiring, uploading, or confirming a photo fails. */
-        readonly uploadError: string;
-        /** Alert shown when removing a photo fails. */
-        readonly removeError: string;
-        /** Alert shown when a picked asset's size exceeds the 5 MB limit (REQ-011), before upload starts. */
-        readonly tooLargeError: string;
-        /** Alert shown when a picked asset's type is outside the allowlist (REQ-012), before upload starts. */
-        readonly unsupportedTypeError: string;
-        /** Alert shown when Replace is pressed at the photo cap — a lossless swap needs a free slot (U6). */
-        readonly replaceAtCapError: string;
-        /**
-         * Shown when ONE pick carries more photos than the recipe can still hold (contains `{count}`), on the
-         * create screen and the edit uploader alike. The pick is refused WHOLE rather than truncated — see the
-         * web dictionary's twin for why.
-         */
-        readonly overCapError: string;
-    };
     readonly collections: {
         /** Accessible label shown while a single collection is loading. */
         readonly detailLoading: string;
@@ -468,15 +448,6 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             versionsLoading: 'Loading version history…',
             versionsError: 'We couldn’t load the version history.',
             versionsRetry: 'Try again',
-        },
-        recipePhotos: {
-            addLabel: 'Add photo',
-            uploadError: 'We couldn’t add your photo. Please try again.',
-            removeError: 'We couldn’t remove this photo. Please try again.',
-            tooLargeError: 'That photo is larger than 5 MB. Choose a smaller file.',
-            unsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
-            replaceAtCapError: 'Remove a photo first — replacing needs room for the new one.',
-            overCapError: 'That’s more photos than this recipe can hold — you can add {count} more.',
         },
         collections: {
             detailLoading: 'Loading collection…',

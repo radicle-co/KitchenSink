@@ -17,9 +17,9 @@
  * folded into the confirmed `photos` list on success), and resetting the input so the same file can be
  * re-picked after being removed from the queue.
  *
- * Every picked file also passes through the queue's client-side pre-validation (REQ-011 size, REQ-012 MIME
- * allowlist) — this container's only involvement is supplying the two localized rejection strings; the
- * admission check itself lives in `useRecipePhotoUploadQueue`.
+ * The session itself — the photos, the queue and its client-side pre-validation, delete, cover, the cap rule and every
+ * refusal sentence — is `useRecipePhotoManager`, shared with the mobile uploader; this container is only how a file
+ * reaches it on the web.
  *
  * **Replace is upload-first (U6, cancel-safe).** A second, single-select hidden input serves the per-photo
  * "Replace" control, and the original photo is deleted only from the replacement's `onUploaded` continuation
@@ -28,25 +28,15 @@
  * **A pick past the cap is refused whole.** `<input multiple>` cannot bound how many files a cook chooses, so one
  * pick can carry more than the recipe has room for. The queue admits the batch whole or refuses it whole
  * (`admitPhotoBatch`); on a refusal this container revokes every preview URL it minted for the pick — those files
- * never became queue items, so the ledger below would never see them — and says how many would fit.
+ * never became queue items, so the ledger below would never see them — and the session says how many would fit.
  *
  * @pattern Orchestration container over the `useRecipePhotoUploadQueue` hook — it owns the DOM file-input Facade and
  *     the Object-URL lifecycle ledger that the presentational `RecipePhotoManager` deliberately omits.
  */
-import { RecipePhotoManager, fillTemplate, photoMessages } from '@commise/features-recipes';
-import {
-    useRecipePhotoUpload,
-    useRecipePhotoUploadQueue,
-    type RecipePhotoQueueFile,
-} from '@commise/features-recipes/hooks';
+import { RecipePhotoManager, photoMessages } from '@commise/features-recipes';
+import { useRecipePhotoManager, type RecipePhotoQueueFile } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
-import type { RecipePhoto } from '@kitchensink/recipe-core';
-import {
-    useDeleteRecipePhoto,
-    useRecipePhotos,
-    useReorderRecipePhotos,
-} from '@kitchensink/recipe-service-client/hooks';
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FC } from 'react';
 
@@ -74,20 +64,9 @@ export interface RecipePhotoUploaderContainerProps {
 export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps> = ({ recipeId, title, cuisine }) => {
     const { recipes } = useMessages(webMessages);
     const photoCopy = useMessages(photoMessages);
-    const photosQuery = useRecipePhotos(recipeId);
-    const deletePhoto = useDeleteRecipePhoto();
-    const reorderPhotos = useReorderRecipePhotos();
-    const uploader = useRecipePhotoUpload(recipeId, recipes.photos.uploadError);
-
-    const photos: readonly RecipePhoto[] = photosQuery.data ?? [];
-    const queue = useRecipePhotoUploadQueue(uploader, photos.length, {
-        tooLarge: recipes.photos.tooLargeError,
-        badType: recipes.photos.unsupportedTypeError,
-    });
-
-    // ONE refusal slot for the two ways this container turns a cook away before anything happens — a pick past
-    // the cap, and Replace at the cap. The latest action wins; an accepted pick and any removal clear it.
-    const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
+    // The session (photos, queue, delete, cover, error slot, the cap rule and its sentences) is shared with mobile.
+    const session = useRecipePhotoManager({ recipeId });
+    const { photos, queue } = session;
 
     // ALLOWED REF (§3 — wraps a genuinely external, non-declarative system): the DOM `<input type="file">`
     // element itself. Imperatively clearing `.value` after a pick (below) is the only way to let the SAME
@@ -136,26 +115,22 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
 
     // The ONE hand-off from a pick to the queue, shared by Add and Replace so the two cannot drift: mint each
     // file's preview URL, offer the batch, and on a refusal release every URL just minted (none became a queue
-    // item, so the ledger above will never see them) and show `refusal(remaining)`. An accepted pick clears any
-    // earlier refusal. Returns whether the queue took the batch.
+    // item, so the ledger above will never see them). The session says the right sentence. Returns whether the
+    // queue took the batch.
     const enqueuePicked = (
         files: readonly (Omit<RecipePhotoQueueFile, 'previewUri'> & { readonly blob: File })[],
-        refusal: (remaining: number) => string,
+        intent: 'add' | 'replace',
     ): boolean => {
         const picked = files.map((file) => ({ ...file, previewUri: URL.createObjectURL(file.blob) }));
-        const admission = queue.enqueue(picked);
+        const admission = session.enqueuePicked(picked, intent);
 
         if (admission.status === 'overCap') {
             for (const file of picked) {
                 URL.revokeObjectURL(file.previewUri);
             }
 
-            setErrorMessage(refusal(admission.remaining));
-
             return false;
         }
-
-        setErrorMessage(undefined);
 
         return true;
     };
@@ -172,32 +147,12 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
                 contentType: file.type,
                 fileSize: file.size,
             })),
-            (remaining) => fillTemplate(recipes.photos.overCapError, { count: remaining }),
+            'add',
         );
 
         if (inputRef.current !== null) {
             inputRef.current.value = '';
         }
-    };
-
-    const removingPhotoId = deletePhoto.isPending ? (deletePhoto.variables?.photoId ?? null) : null;
-
-    // Removing a photo is exactly the advice both cap refusals give, so neither may linger once followed — the
-    // message would otherwise still claim there is no room after the user has made some.
-    const handleRemovePhoto = (photoId: string): void => {
-        setErrorMessage(undefined);
-        deletePhoto.mutate({ id: recipeId, photoId });
-    };
-
-    // U6 "Set as cover": the cover is the LOWEST-sort-order photo, so choosing a cover is a REORDER that moves
-    // the chosen id to index 0 (rest keep their current relative order). The existing `reorder` endpoint
-    // persists it and `invalidateRecipeProjections` (inside the hook's `onSuccess`) reprojects the new
-    // `coverPhotoUrl` into the card/detail surfaces — no backend change, no `isCover` field. Selecting the
-    // photo that is ALREADY the cover would be a no-op reorder; a checked radio does not re-fire `onChange`,
-    // so that call never happens.
-    const handleSetCover = (photoId: string): void => {
-        const photoIds = [photoId, ...photos.filter((photo) => photo.id !== photoId).map((photo) => photo.id)];
-        reorderPhotos.mutate({ id: recipeId, photoIds });
     };
 
     // U6 "Replace" — UPLOAD-FIRST, then swap (cancel-safe). There is no atomic replace primitive server-side,
@@ -226,13 +181,10 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
     const replaceInputRef = useRef<HTMLInputElement>(null);
 
     const handleReplacePhoto = (photoId: string): void => {
-        if (queue.remaining === 0) {
-            setErrorMessage(recipes.photos.replaceAtCapError);
-
+        if (!session.beginReplace()) {
             return;
         }
 
-        setErrorMessage(undefined);
         setReplacingPhotoId(photoId);
         replaceInputRef.current?.click();
     };
@@ -264,10 +216,10 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
                     contentType: file.type,
                     fileSize: file.size,
                     // The swap's commit step — runs exactly once, only after this file has been confirmed.
-                    onUploaded: () => deletePhoto.mutate({ id: recipeId, photoId: replacedPhotoId }),
+                    onUploaded: () => session.removePhoto(replacedPhotoId),
                 },
             ],
-            () => recipes.photos.replaceAtCapError,
+            'replace',
         );
     };
 
@@ -296,14 +248,14 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
         <>
             <RecipePhotoManager
                 photos={photos}
-                onRemovePhoto={handleRemovePhoto}
-                removingPhotoId={removingPhotoId}
-                uploading={uploader.uploading}
-                errorMessage={errorMessage}
+                onRemovePhoto={session.removePhoto}
+                removingPhotoId={session.removingPhotoId}
+                uploading={session.uploading}
+                errorMessage={session.errorMessage}
                 queueItems={queue.items}
                 onRetryQueueItem={queue.retry}
                 onRemoveQueueItem={queue.remove}
-                onSetCover={handleSetCover}
+                onSetCover={session.setCover}
                 onReplacePhoto={handleReplacePhoto}
                 addControl={addControl}
                 coverPreview={{ recipeId, title: title ?? '', ...(cuisine === undefined ? {} : { cuisine }) }}

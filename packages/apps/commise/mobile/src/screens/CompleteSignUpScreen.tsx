@@ -24,6 +24,7 @@ import type { SignUpResource } from '@clerk/shared/types';
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { authSurfaceMessages } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
 import * as Sentry from '@sentry/react-native';
 import type { JSX } from 'react';
@@ -66,6 +67,7 @@ export function CompleteSignUpScreen({
     onStartOver,
 }: CompleteSignUpScreenProps): JSX.Element {
     const { auth: t } = useMessages(mobileMessages);
+    const shared = useMessages(authSurfaceMessages);
     const { colors } = useTheme();
     const { setActive } = useClerk();
     const [fields, setFields] = useState<readonly SignUpFieldSpec[]>(initialFields);
@@ -75,7 +77,7 @@ export function CompleteSignUpScreen({
     const [focusField, setFocusField] = useState<SignUpFieldName | null>(null);
     const [busy, setBusy] = useState(false);
 
-    const copy = signUpFailureCopy(t, t.signUpFailed);
+    const copy = signUpFailureCopy(t, shared, t.signUpFailed);
 
     function changeField(field: SignUpFieldName, text: string) {
         setValues((current) => ({ ...current, [field]: text }));

@@ -3,7 +3,6 @@
  * copy lives in the feature packages' `messages.ts`. A {@link LocalizedMessages} dictionary resolved per
  * active locale via `useMessages` from `@commise/i18n/react`. The `en` set is required.
  */
-import { authSurfaceMessages, type AuthSurfaceMessages } from '@commise/features-account';
 import type { GreetingBucket, HomeNavItemId, RoadmapWidgetId } from '@commise/features-core';
 import type { LocalizedMessages } from '@commise/i18n';
 
@@ -75,9 +74,10 @@ export interface MobileMessages {
     /** Copy for the sign-in / sign-up surface (U2). All auth copy is localized (repo mandate). */
     /**
      * The sign-in and sign-up screens' copy. The sentences both platforms say (brand line, sign-up prompt and link, the
-     * two email messages) are `authSurfaceMessages` in `@commise/features-account`, spread into the `en` set below.
+     * two email messages) are `authSurfaceMessages` in `@commise/features-account`; call sites read them per locale with
+     * `useMessages(authSurfaceMessages)` and they are deliberately NOT part of this dictionary.
      */
-    readonly auth: AuthSurfaceMessages & {
+    readonly auth: {
         /** Brand wordmark shown atop the sign-in / sign-up screens. */
         readonly brand: string;
         /** The sign-in screen's H1 (`buildSpec.md` §8: "Sign in to Commise"). */
@@ -318,7 +318,6 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             },
         },
         auth: {
-            ...authSurfaceMessages.en,
             brand: 'Commise',
             signInTitle: 'Sign in to Commise',
             createHeading: 'Create your account',

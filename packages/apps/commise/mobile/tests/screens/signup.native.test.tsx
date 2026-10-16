@@ -4,6 +4,7 @@
  * labels, and a `SafeAreaView` + `KeyboardAvoidingView` shell. `@clerk/expo` is mocked; queries are by
  * role / accessible label / dictionary text.
  */
+import { authSurfaceMessages } from '@commise/features-account';
 import { createElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -22,6 +23,7 @@ import { mobileMessages } from '../../src/i18n/messages.js';
 import Constants from '../stubs/expoConstants.js';
 
 const { auth } = mobileMessages.en;
+const shared = authSurfaceMessages.en;
 
 vi.mock('@clerk/expo', async () => {
     // The REAL predicate (the screens' failure wording reads it); only the hooks are doubles.
@@ -354,7 +356,7 @@ describe('SignUpScreen — sign-up flow', () => {
         [auth.firstNameLabel, 'signup-first_name', auth.firstNameRequired],
         [auth.lastNameLabel, 'signup-last_name', auth.lastNameRequired],
         [auth.usernameLabel, 'signup-username', auth.usernameRequired],
-        [auth.emailLabel, 'signup-email_address', auth.emailRequired],
+        [auth.emailLabel, 'signup-email_address', shared.emailRequired],
     ])('refuses an empty %s without calling Clerk, and says why UNDER that field', async (label, id, message) => {
         const signUp = setup('nothing');
 
@@ -500,10 +502,10 @@ describe('SignUpScreen — sign-up flow', () => {
         submitCredentials('pw');
 
         await screen.findByText('That username is taken.');
-        await screen.findByText(auth.emailInvalid);
+        await screen.findByText(shared.emailInvalid);
 
         expect(recordedTextInput('signup-username').accessibilityHint).toContain('That username is taken.');
-        expect(recordedTextInput('signup-email_address').accessibilityHint).toBe(auth.emailInvalid);
+        expect(recordedTextInput('signup-email_address').accessibilityHint).toBe(shared.emailInvalid);
         expect(screen.queryByRole('alert')).toBeNull();
     });
 
@@ -556,7 +558,7 @@ describe('SignUpScreen — Section 8 native: order, copy and field hints', () =>
         const ordered = [
             screen.getByText(auth.brand),
             screen.getByRole('heading', { name: auth.createHeading, level: 1 }),
-            screen.getByText(auth.brandLine),
+            screen.getByText(shared.brandLine),
             screen.getByLabelText(auth.firstNameLabel),
             screen.getByLabelText(auth.lastNameLabel),
             screen.getByLabelText(auth.usernameLabel),
@@ -647,7 +649,7 @@ describe.each([
 
         expect(colour(screen.getByText(auth.brand))).toBe(rgb(roles.ink));
         expect(colour(screen.getByRole('heading', { name: auth.createHeading }))).toBe(rgb(roles.ink));
-        expect(colour(screen.getByText(auth.brandLine))).toBe(rgb(roles.inkMuted));
+        expect(colour(screen.getByText(shared.brandLine))).toBe(rgb(roles.inkMuted));
         expect(colour(screen.getByText(auth.haveAccountPrompt))).toBe(rgb(roles.inkMuted));
 
         submitCredentials('pw');
@@ -687,7 +689,7 @@ describe('SignUpScreen — Continue with Apple / Google', () => {
         setupSocial('ios');
 
         const ordered = [
-            screen.getByText(auth.brandLine),
+            screen.getByText(shared.brandLine),
             screen.getByRole('button', { name: 'Continue with Apple' }),
             screen.getByRole('button', { name: auth.continueWithGoogle }),
             screen.getByText(auth.orDivider),

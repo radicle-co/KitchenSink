@@ -7,6 +7,7 @@
  *
  * Presentational: props → JSX.
  */
+import { authSurfaceMessages } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
 import { useContainerClass } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
@@ -28,6 +29,7 @@ export interface AuthHeaderProps {
  */
 export function AuthHeader({ title }: AuthHeaderProps): JSX.Element {
     const { auth } = useMessages(mobileMessages);
+    const shared = useMessages(authSurfaceMessages);
     const { colors } = useTheme();
     const containerClass = useContainerClass();
 
@@ -41,7 +43,7 @@ export function AuthHeader({ title }: AuthHeaderProps): JSX.Element {
             >
                 {title}
             </Text>
-            <Text style={[nativeTokens.type.body, { color: colors.inkMuted }]}>{auth.brandLine}</Text>
+            <Text style={[nativeTokens.type.body, { color: colors.inkMuted }]}>{shared.brandLine}</Text>
         </View>
     );
 }

@@ -28,6 +28,7 @@ import { Button } from '@commise/ui/button';
 import { FieldLabel, Input } from '@commise/ui/input';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { authSurfaceMessages } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
 import { useState } from 'react';
@@ -61,6 +62,7 @@ export interface SignUpScreenProps {
 
 export function SignUpScreen({ onBack, onNeedsFields }: SignUpScreenProps): JSX.Element {
     const { auth: t } = useMessages(mobileMessages);
+    const shared = useMessages(authSurfaceMessages);
     const { colors } = useTheme();
     const { setActive } = useClerk();
     const { signUp } = useSignUp();
@@ -77,9 +79,9 @@ export function SignUpScreen({ onBack, onNeedsFields }: SignUpScreenProps): JSX.
     // One lock for the whole screen: the form, the provider group and the switch link (plan 012 D10).
     const locked = busy || social.busyProvider !== null;
 
-    const failureCopy = signUpFailureCopy(t, t.signUpFailed);
-    const sendCodeCopy = authFailureCopy(t, t.sendCodeFailed);
-    const verifyCopy = authFailureCopy(t, t.verifyFailed);
+    const failureCopy = signUpFailureCopy(t, shared, t.signUpFailed);
+    const sendCodeCopy = authFailureCopy(t, shared, t.sendCodeFailed);
+    const verifyCopy = authFailureCopy(t, shared, t.verifyFailed);
 
     function changeField(field: SignUpErrorField, text: string) {
         if (field === 'password') {

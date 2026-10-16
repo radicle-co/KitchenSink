@@ -3,6 +3,7 @@
  * when it was; otherwise show what Clerk said; otherwise the screen's own localized fallback. The raw `Error` of a
  * thrown failure is never shown unless it carries a message Clerk wrote.
  */
+import { authSurfaceMessages } from '@commise/features-account';
 import { ClerkAPIResponseError } from '@clerk/shared/error';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -99,11 +100,12 @@ describe('authFailureMessage', () => {
 describe('authFailureCopy', () => {
     it('assembles the shared words from the auth messages plus the screen’s own fallback', () => {
         const { auth } = mobileMessages.en;
+        const shared = authSurfaceMessages.en;
 
-        expect(authFailureCopy(auth, 'SCREEN FALLBACK')).toEqual({
+        expect(authFailureCopy(auth, shared, 'SCREEN FALLBACK')).toEqual({
             networkError: auth.networkError,
-            emailRequired: auth.emailRequired,
-            emailInvalid: auth.emailInvalid,
+            emailRequired: shared.emailRequired,
+            emailInvalid: shared.emailInvalid,
             fallback: 'SCREEN FALLBACK',
         });
     });

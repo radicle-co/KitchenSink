@@ -5,6 +5,7 @@
  * field the step does not show, or on no field, goes to the one alert above the button: a message is never dropped,
  * and a failure is never silent. Pure.
  */
+import { authSurfaceMessages } from '@commise/features-account';
 import { ClerkAPIResponseError } from '@clerk/shared/error';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -133,17 +134,18 @@ describe('signUpFailure', () => {
 describe('signUpFailureCopy', () => {
     it('adds each field’s required message to the shared auth words', () => {
         const { auth } = mobileMessages.en;
+        const shared = authSurfaceMessages.en;
 
-        expect(signUpFailureCopy(auth, 'SCREEN FALLBACK')).toEqual({
+        expect(signUpFailureCopy(auth, shared, 'SCREEN FALLBACK')).toEqual({
             networkError: auth.networkError,
-            emailRequired: auth.emailRequired,
-            emailInvalid: auth.emailInvalid,
+            emailRequired: shared.emailRequired,
+            emailInvalid: shared.emailInvalid,
             fallback: 'SCREEN FALLBACK',
             required: {
                 first_name: auth.firstNameRequired,
                 last_name: auth.lastNameRequired,
                 username: auth.usernameRequired,
-                email_address: auth.emailRequired,
+                email_address: shared.emailRequired,
                 password: auth.passwordRequired,
             },
         });

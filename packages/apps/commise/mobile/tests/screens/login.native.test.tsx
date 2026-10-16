@@ -11,6 +11,7 @@
  * parse under jsdom anyway (see the AppRoot suite). `@clerk/expo` is mocked so no live instance is needed;
  * queries are by role / accessible label / dictionary text (never by raw English literal).
  */
+import { authSurfaceMessages } from '@commise/features-account';
 import { createElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -30,6 +31,7 @@ import { mobileMessages } from '../../src/i18n/messages.js';
 import Constants from '../stubs/expoConstants.js';
 
 const { auth } = mobileMessages.en;
+const shared = authSurfaceMessages.en;
 
 vi.mock('@clerk/expo', async () => {
     // The REAL predicate (the screens' failure wording reads it); only the hooks are doubles.
@@ -234,7 +236,7 @@ describe('LoginScreen — chrome + design system', () => {
         // Copy comes from the dictionary — a hard-coded literal would break these.
         expect(screen.getByText(auth.brand)).toBeTruthy();
         expect(screen.getByRole('button', { name: auth.signInAction })).toBeTruthy();
-        expect(screen.getByRole('link', { name: auth.signUpLink })).toBeTruthy();
+        expect(screen.getByRole('link', { name: shared.signUpLink })).toBeTruthy();
 
         // Every field is associated with its visible label (assistive tech names it).
         expect(screen.getByLabelText(auth.emailLabel)).toBeTruthy();
@@ -269,7 +271,7 @@ describe('LoginScreen — chrome + design system', () => {
         useSignInMock.mockReturnValue(partialHook({ signIn }));
         render(<LoginScreen onSignUp={onSignUp} onNeedsFields={() => undefined} />);
 
-        fireEvent.click(screen.getByRole('link', { name: auth.signUpLink }));
+        fireEvent.click(screen.getByRole('link', { name: shared.signUpLink }));
 
         expect(onSignUp).toHaveBeenCalledTimes(1);
     });
@@ -299,7 +301,7 @@ describe('LoginScreen — sign-in flow (A-001: the password is ALWAYS checked)',
         fireEvent.change(screen.getByLabelText(auth.passwordLabel), { target: { value: 'pw' } });
         fireEvent.click(screen.getByRole('button', { name: auth.signInAction }));
 
-        expect((await screen.findByRole('alert')).textContent).toBe(auth.emailRequired);
+        expect((await screen.findByRole('alert')).textContent).toBe(shared.emailRequired);
         expect(signIn.password).not.toHaveBeenCalled();
         expect(signIn.create).not.toHaveBeenCalled();
     });
@@ -326,7 +328,7 @@ describe('LoginScreen — sign-in flow (A-001: the password is ALWAYS checked)',
 
         submitCredentials('pw');
 
-        expect((await screen.findByRole('alert')).textContent).toBe(auth.emailInvalid);
+        expect((await screen.findByRole('alert')).textContent).toBe(shared.emailInvalid);
     });
 
     it('a WRONG password shows the error, sends no code, and never reaches the code step', async () => {
@@ -535,12 +537,12 @@ describe('LoginScreen — Section 8 native: order, copy and field hints', () => 
         const ordered = [
             screen.getByText(auth.brand),
             screen.getByRole('heading', { name: auth.signInTitle, level: 1 }),
-            screen.getByText(auth.brandLine),
+            screen.getByText(shared.brandLine),
             screen.getByLabelText(auth.emailLabel),
             screen.getByLabelText(auth.passwordLabel),
             screen.getByRole('button', { name: auth.signInAction }),
-            screen.getByText(auth.noAccountPrompt),
-            screen.getByRole('link', { name: auth.signUpLink }),
+            screen.getByText(shared.noAccountPrompt),
+            screen.getByRole('link', { name: shared.signUpLink }),
         ];
 
         ordered.slice(1).forEach((node, index) => {
@@ -548,7 +550,7 @@ describe('LoginScreen — Section 8 native: order, copy and field hints', () => 
 
             expect(
                 before.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING,
-                auth.brandLine,
+                shared.brandLine,
             ).toBeTruthy();
         });
     });
@@ -556,9 +558,9 @@ describe('LoginScreen — Section 8 native: order, copy and field hints', () => 
     it('uses the spec copy: the brand line, and “New to Commise? Create an account”', () => {
         setup();
 
-        expect(auth.brandLine).toBe('Your recipes, in one place.');
-        expect(auth.noAccountPrompt).toBe('New to Commise?');
-        expect(auth.signUpLink).toBe('Create an account');
+        expect(shared.brandLine).toBe('Your recipes, in one place.');
+        expect(shared.noAccountPrompt).toBe('New to Commise?');
+        expect(shared.signUpLink).toBe('Create an account');
     });
 
     it('asks the OS for email, current-password autofill, and a numeric one-time-code', async () => {
@@ -673,8 +675,8 @@ describe.each([
 
         expect(colour(screen.getByText(auth.brand))).toBe(rgb(roles.ink));
         expect(colour(screen.getByRole('heading', { name: auth.signInTitle }))).toBe(rgb(roles.ink));
-        expect(colour(screen.getByText(auth.brandLine))).toBe(rgb(roles.inkMuted));
-        expect(colour(screen.getByText(auth.noAccountPrompt))).toBe(rgb(roles.inkMuted));
+        expect(colour(screen.getByText(shared.brandLine))).toBe(rgb(roles.inkMuted));
+        expect(colour(screen.getByText(shared.noAccountPrompt))).toBe(rgb(roles.inkMuted));
 
         fireEvent.click(screen.getByRole('button', { name: auth.signInAction }));
         expect(colour(await screen.findByRole('alert'))).toBe(rgb(roles.dangerText));
@@ -713,7 +715,7 @@ describe('LoginScreen — Continue with Apple / Google', () => {
         setupSocial('ios');
 
         const ordered = [
-            screen.getByText(auth.brandLine),
+            screen.getByText(shared.brandLine),
             screen.getByRole('button', { name: 'Continue with Apple' }),
             screen.getByRole('button', { name: auth.continueWithGoogle }),
             screen.getByText(auth.orDivider),

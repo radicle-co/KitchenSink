@@ -25,6 +25,7 @@ import { useClerk } from '@clerk/expo';
 import { useSignInWithApple } from '@clerk/expo/apple';
 import { useSignInWithGoogle } from '@clerk/expo/google';
 import type { SignUpResource } from '@clerk/shared/types';
+import { authSurfaceMessages } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
@@ -68,6 +69,7 @@ export interface SocialSignIn {
  */
 export function useSocialSignIn(onNeedsFields: (pending: PendingSignUp) => void): SocialSignIn {
     const { auth: t } = useMessages(mobileMessages);
+    const shared = useMessages(authSurfaceMessages);
     const clerk = useClerk();
     const { startGoogleAuthenticationFlow } = useSignInWithGoogle();
     const { startAppleAuthenticationFlow } = useSignInWithApple();
@@ -76,7 +78,7 @@ export function useSocialSignIn(onNeedsFields: (pending: PendingSignUp) => void)
 
     const providers = socialProvidersFor(readSocialAuthConfig(Constants.expoConfig?.extra), Platform.OS);
     const copy = {
-        ...authFailureCopy(t, t.signInFailed),
+        ...authFailureCopy(t, shared, t.signInFailed),
         googleUnavailable: t.googleUnavailable,
         appleUnavailable: t.appleUnavailable,
         socialFailed: t.socialFailed,

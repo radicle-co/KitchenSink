@@ -21,6 +21,7 @@ import { useClerk, useSignIn } from '@clerk/expo';
 import { Button } from '@commise/ui/button';
 import { FieldLabel, Input } from '@commise/ui/input';
 import { nativeTokens } from '@commise/ui/native';
+import { authSurfaceMessages } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
 import { useState } from 'react';
@@ -46,6 +47,7 @@ export interface LoginScreenProps {
 
 export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.Element {
     const { auth: t } = useMessages(mobileMessages);
+    const shared = useMessages(authSurfaceMessages);
     const { setActive } = useClerk();
     const { signIn } = useSignIn();
     const [email, setEmail] = useState('');
@@ -61,9 +63,9 @@ export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.
     // One lock for the whole screen: the email form, the provider group and the switch link (plan 012 D10).
     const locked = busy || social.busyProvider !== null;
 
-    const signInCopy = authFailureCopy(t, t.signInFailed);
-    const codeCopy = authFailureCopy(t, t.sendCodeFailed);
-    const verifyCopy = authFailureCopy(t, t.verifyFailed);
+    const signInCopy = authFailureCopy(t, shared, t.signInFailed);
+    const codeCopy = authFailureCopy(t, shared, t.sendCodeFailed);
+    const verifyCopy = authFailureCopy(t, shared, t.verifyFailed);
 
     // Send the second-factor email code. Returns true when a code is on its way.
     async function sendSecondFactorCode(): Promise<boolean> {
@@ -138,7 +140,7 @@ export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.
         const identifier = email.trim();
 
         if (identifier === '') {
-            setError(t.emailRequired);
+            setError(shared.emailRequired);
 
             return;
         }
@@ -227,7 +229,12 @@ export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.
         </AuthFooter>
     );
     const trailing = onCredentials ? (
-        <AuthSwitchLink prompt={t.noAccountPrompt} label={t.signUpLink} disabled={locked} onPress={onSignUp} />
+        <AuthSwitchLink
+            prompt={shared.noAccountPrompt}
+            label={shared.signUpLink}
+            disabled={locked}
+            onPress={onSignUp}
+        />
     ) : (
         <AuthCodeActions busy={busy} onResend={() => void handleResend()} onStartOver={() => void handleStartOver()} />
     );

@@ -10,6 +10,8 @@
  */
 import { isClerkAPIResponseError } from '@clerk/expo';
 
+import type { AuthSurfaceMessages } from '@commise/features-account';
+
 import type { MobileMessages } from '../i18n/messages.js';
 
 import { isNetworkFailure } from './networkFailure.js';
@@ -30,14 +32,19 @@ export interface AuthFailureCopy {
  * The shared words of the auth messages plus the screen's own fallback.
  *
  * @param auth - The `auth` block of the mobile messages.
+ * @param shared - The sign-in copy both platforms say (`authSurfaceMessages`), read at the active locale.
  * @param fallback - What the screen says for a failure that carries no words of its own.
  * @returns The copy `authFailureMessage` draws on. Pure.
  */
-export function authFailureCopy(auth: MobileMessages['auth'], fallback: string): AuthFailureCopy {
+export function authFailureCopy(
+    auth: MobileMessages['auth'],
+    shared: AuthSurfaceMessages,
+    fallback: string,
+): AuthFailureCopy {
     return {
         networkError: auth.networkError,
-        emailRequired: auth.emailRequired,
-        emailInvalid: auth.emailInvalid,
+        emailRequired: shared.emailRequired,
+        emailInvalid: shared.emailInvalid,
         fallback,
     };
 }

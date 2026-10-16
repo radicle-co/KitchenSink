@@ -12,6 +12,7 @@
  * Pure.
  */
 import { isClerkAPIResponseError } from '@clerk/expo';
+import type { AuthSurfaceMessages } from '@commise/features-account';
 
 import type { MobileMessages } from '../i18n/messages.js';
 
@@ -29,17 +30,22 @@ export interface SignUpFailureCopy extends AuthFailureCopy {
 
 /**
  * @param auth - The `auth` block of the mobile messages.
+ * @param shared - The sign-in copy both platforms say (`authSurfaceMessages`), read at the active locale.
  * @param fallback - What the screen says for a failure that carries no words of its own.
  * @returns The copy `signUpFailure` routes with: the shared auth words plus each field's required message. Pure.
  */
-export function signUpFailureCopy(auth: MobileMessages['auth'], fallback: string): SignUpFailureCopy {
+export function signUpFailureCopy(
+    auth: MobileMessages['auth'],
+    shared: AuthSurfaceMessages,
+    fallback: string,
+): SignUpFailureCopy {
     return {
-        ...authFailureCopy(auth, fallback),
+        ...authFailureCopy(auth, shared, fallback),
         required: {
             first_name: auth.firstNameRequired,
             last_name: auth.lastNameRequired,
             username: auth.usernameRequired,
-            email_address: auth.emailRequired,
+            email_address: shared.emailRequired,
             password: auth.passwordRequired,
         },
     };

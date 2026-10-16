@@ -498,7 +498,9 @@ export class UsersService {
 
         // ONE definition of "erased" for all three callers (this, the tombstone-sweep, the user.deleted
         // webhook) — the field-scrub, the companion-row purge and the R8 audit row, in one transaction.
-        await eraseIdentityRow(this.db, { userId, triggerSource: 'user', actor: userId }, now);
+        // `providerDeletedAt: null` — this service holds no Clerk secret, so the provider deletion is OWED; the
+        // deletion worker the message below wakes confirms it, and erasure reconciliation re-enqueues until it does.
+        await eraseIdentityRow(this.db, { userId, triggerSource: 'user', actor: userId, providerDeletedAt: null }, now);
 
         // The row is already scrubbed and S3 is not transactional, so a failed object delete cannot roll the
         // erasure back — but it leaves a real photograph of a user who asked to be erased, with no DB row

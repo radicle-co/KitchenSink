@@ -1,12 +1,12 @@
 import type { Context, ScheduledEvent } from 'aws-lambda';
 import { and, eq, lte } from 'drizzle-orm';
-import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 
 import { eraseIdentityRow, users, type UserId } from '@kitchensink/identity-db';
 
 import { getConfig } from '../config/env.js';
 import { withDb, type DbContext } from '../common/handlerPipeline.js';
 
+import { enqueueErasure } from '../common/erasureEnqueue.js';
 import { deleteUser, isAlreadyDeleted } from '../common/identityClient.js';
 import { emitMetric, logger, withObservability } from '../common/observability.js';
 
@@ -29,34 +29,10 @@ export function erasureCutoff(now: Date): Date {
     return cutoff;
 }
 
-const sqsClient = new SQSClient({});
-
 /** An expired tombstone to erase — the durable ULID + the Clerk `sub` the erasure deletes. */
 interface ExpiredTombstone {
     id: UserId;
     identityId: string;
-}
-
-/**
- * Enqueue the recipe/food erasure legs via the EXISTING deletion path (SEAM). The identity-side scrub +
- * Clerk delete are done in-sweep; the downstream consumers — recipe erasure (U3) and food `eraseUser`
- * (U4/R11) — are a separate follow-up unit, so the deletion-worker's `erasure` branch is currently a
- * no-op that logs. Wiring the real fan-out happens in U4b.
- *
- * @sideEffect sends an erasure message to the SQS deletion queue.
- */
-async function enqueueErasureLegs(queueUrl: string, tombstone: ExpiredTombstone): Promise<void> {
-    await sqsClient.send(
-        new SendMessageCommand({
-            QueueUrl: queueUrl,
-            MessageBody: JSON.stringify({
-                identityId: tombstone.identityId,
-                userId: tombstone.id,
-                event: 'erasure',
-                enqueuedAt: new Date().toISOString(),
-            }),
-        }),
-    );
 }
 
 /** The sweep result — how many tombstones were scanned and how many were fully erased this run. */
@@ -108,14 +84,20 @@ const innerHandler = async (_event: ScheduledEvent, _context: Context, { db }: D
             }
         }
 
-        await eraseIdentityRow(db, { userId: tombstone.id, triggerSource: 'sweep', actor: null }, now);
+        // Clerk was deleted (or already gone) just above, so the provider deletion is confirmed in the SAME update
+        // as the scrub — this path never leaves reconciliation anything to re-enqueue.
+        await eraseIdentityRow(
+            db,
+            { userId: tombstone.id, triggerSource: 'sweep', actor: null, providerDeletedAt: now },
+            now,
+        );
 
         // Enqueue the recipe/food erasure legs via the existing deletion path (U3/U4 seam). Best-effort: a
-        // failed enqueue leaves the identity erased but the downstream legs unqueued — a gap the (unbuilt)
-        // U4b erasure-reconciliation is designed to detect; it must not undo the completed identity erasure.
+        // failed enqueue leaves the identity erased but the downstream legs unqueued — a gap the nightly
+        // erasure reconciliation (R7) detects and repairs; it must not undo the completed identity erasure.
         if (DELETION_QUEUE_URL !== undefined) {
             try {
-                await enqueueErasureLegs(DELETION_QUEUE_URL, tombstone);
+                await enqueueErasure(DELETION_QUEUE_URL, { identityId: tombstone.identityId, userId: tombstone.id });
             } catch (err) {
                 logger.error('tombstone-sweep: failed to enqueue recipe/food erasure legs (identity erased)', {
                     userId: tombstone.id,

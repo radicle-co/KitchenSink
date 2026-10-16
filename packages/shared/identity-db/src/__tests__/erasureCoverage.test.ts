@@ -59,7 +59,11 @@ async function tablesTouchedByErasure(): Promise<ReadonlySet<string>> {
     };
     const db = { transaction: (callback: (t: typeof tx) => unknown) => callback(tx) };
 
-    await eraseIdentityRow(db as never, { userId: newUserId(), triggerSource: 'admin', actor: 'guard' }, new Date());
+    await eraseIdentityRow(
+        db as never,
+        { userId: newUserId(), triggerSource: 'admin', actor: 'guard', providerDeletedAt: null },
+        new Date(),
+    );
 
     return touched;
 }

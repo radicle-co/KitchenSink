@@ -77,7 +77,11 @@ describe('eraseIdentityRow (integration — real Postgres)', () => {
         const bystanderId = await seedCompleteUser({ name: 'Bystander Person', email: 'bystander@example.com' });
         const now = new Date('2026-08-01T00:00:00.000Z');
 
-        await eraseIdentityRow(db, { userId: targetId, triggerSource: 'admin', actor: 'clerk-webhook' }, now);
+        await eraseIdentityRow(
+            db,
+            { userId: targetId, triggerSource: 'admin', actor: 'clerk-webhook', providerDeletedAt: null },
+            now,
+        );
 
         const [target] = await db.select().from(users).where(eq(users.id, targetId));
         expect(target!.status).toBe('erased');
@@ -97,7 +101,11 @@ describe('eraseIdentityRow (integration — real Postgres)', () => {
     it('NEVER hard-deletes the users row — it stays present and resolvable by id (R1)', async () => {
         const targetId = await seedCompleteUser({ identityId: 'user_clerk_r1' });
 
-        await eraseIdentityRow(db, { userId: targetId, triggerSource: 'sweep', actor: null }, new Date());
+        await eraseIdentityRow(
+            db,
+            { userId: targetId, triggerSource: 'sweep', actor: null, providerDeletedAt: null },
+            new Date(),
+        );
 
         const rows = await db.select().from(users).where(eq(users.id, targetId));
         expect(rows).toHaveLength(1);
@@ -109,7 +117,11 @@ describe('eraseIdentityRow (integration — real Postgres)', () => {
         const targetId = await seedCompleteUser();
         const bystanderId = await seedCompleteUser();
 
-        await eraseIdentityRow(db, { userId: targetId, triggerSource: 'admin', actor: 'clerk-webhook' }, new Date());
+        await eraseIdentityRow(
+            db,
+            { userId: targetId, triggerSource: 'admin', actor: 'clerk-webhook', providerDeletedAt: null },
+            new Date(),
+        );
 
         expect(await db.select().from(accounts).where(eq(accounts.userId, targetId))).toHaveLength(0);
         expect(await db.select().from(profiles).where(eq(profiles.userId, targetId))).toHaveLength(0);
@@ -128,7 +140,11 @@ describe('eraseIdentityRow (integration — real Postgres)', () => {
             { userId: bystanderId, searchShortcut: false },
         ]);
 
-        await eraseIdentityRow(db, { userId: targetId, triggerSource: 'admin', actor: 'clerk-webhook' }, new Date());
+        await eraseIdentityRow(
+            db,
+            { userId: targetId, triggerSource: 'admin', actor: 'clerk-webhook', providerDeletedAt: null },
+            new Date(),
+        );
 
         expect(await db.select().from(settings).where(eq(settings.userId, targetId))).toHaveLength(0);
         expect(await db.select().from(settings).where(eq(settings.userId, bystanderId))).toHaveLength(1);
@@ -138,7 +154,11 @@ describe('eraseIdentityRow (integration — real Postgres)', () => {
         const targetId = await seedCompleteUser();
         const now = new Date('2026-08-02T12:00:00.000Z');
 
-        await eraseIdentityRow(db, { userId: targetId, triggerSource: 'sweep', actor: null }, now);
+        await eraseIdentityRow(
+            db,
+            { userId: targetId, triggerSource: 'sweep', actor: null, providerDeletedAt: null },
+            now,
+        );
 
         const audit = await db.select().from(lifecycleEvents).where(eq(lifecycleEvents.userId, targetId));
         expect(audit).toHaveLength(1);
@@ -170,7 +190,11 @@ describe('eraseIdentityRow (integration — real Postgres)', () => {
 
         try {
             await expect(
-                eraseIdentityRow(db, { userId: targetId, triggerSource: 'admin', actor: 'probe' }, new Date()),
+                eraseIdentityRow(
+                    db,
+                    { userId: targetId, triggerSource: 'admin', actor: 'probe', providerDeletedAt: null },
+                    new Date(),
+                ),
             ).rejects.toThrow();
         } finally {
             await identityDb().asOwner(async (owner) =>
@@ -199,7 +223,11 @@ describe('eraseIdentityRow (integration — real Postgres)', () => {
         // can prove, since a mock has no uniqueness at all.
         const targetId = await seedCompleteUser({ email: 'reuse@example.com' });
 
-        await eraseIdentityRow(db, { userId: targetId, triggerSource: 'admin', actor: 'clerk-webhook' }, new Date());
+        await eraseIdentityRow(
+            db,
+            { userId: targetId, triggerSource: 'admin', actor: 'clerk-webhook', providerDeletedAt: null },
+            new Date(),
+        );
 
         const reregistered = makeIdentityUser({ email: 'reuse@example.com' });
         await expect(db.insert(users).values(reregistered)).resolves.toBeDefined();

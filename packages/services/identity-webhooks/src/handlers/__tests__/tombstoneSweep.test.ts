@@ -115,6 +115,10 @@ describe('tombstone-sweep handler', () => {
         // Identity scrubbed to the erased state: name destroyed, email → placeholder, status erased.
         expect(userSets[0]).toMatchObject({ status: 'erased', name: null, picture: null });
         expect(userSets[0]!.email).toContain('@erased.invalid');
+        // The sweep deletes at Clerk BEFORE it scrubs, so the same UPDATE records that the provider account is
+        // gone (P1 #5) — with the sweep's own instant, not a second clock reading.
+        expect(userSets[0]!.providerDeletedAt).toBeInstanceOf(Date);
+        expect(userSets[0]!.providerDeletedAt).toBe(userSets[0]!.updatedAt);
         // Companion rows purged (accounts + profiles) and the user's settings (ADR-0059). This mock cannot name the
         // table; `eraseIdentityRow.test.ts` pins which three, and the real-database spec pins the bystander.
         expect(deletedTables).toHaveLength(3);
@@ -127,6 +131,17 @@ describe('tombstone-sweep handler', () => {
         expect(body).toMatchObject({ identityId: 'user_a', userId: 'usr_01', event: 'erasure' });
 
         expect(result).toMatchObject({ scanned: 1, erased: 1 });
+    });
+
+    it('a Clerk 404 (account already gone) still records the provider deletion as confirmed', async () => {
+        const { db, userSets } = buildMockDb([{ id: 'usr_01', identityId: 'user_a' }]);
+        mockGetDb.mockResolvedValue(db as never);
+        mockDeleteUser.mockRejectedValue(Object.assign(new Error('not found'), { status: 404 }));
+
+        const result = await handler(makeEvent(), makeContext());
+
+        expect(result).toMatchObject({ erased: 1 });
+        expect(userSets[0]!.providerDeletedAt).toBeInstanceOf(Date);
     });
 
     it('no expired tombstones → no Clerk delete, no enqueue (idempotent no-op)', async () => {

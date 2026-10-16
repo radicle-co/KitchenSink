@@ -40,6 +40,15 @@ export interface EraseIdentityInput {
     readonly triggerSource: LifecycleTriggerSource;
     /** The R8 audit actor label (e.g. the webhook name), or `null` for an unattributed automated sweep. */
     readonly actor: string | null;
+    /**
+     * When the identity provider's account was confirmed deleted, or `null` if that deletion is still owed.
+     *
+     * REQUIRED, with no default, so every caller decides: the tombstone sweep deletes at Clerk first and passes
+     * the instant; the user's own erasure request cannot (the identity service holds no Clerk secret) and passes
+     * `null`, leaving the deletion worker to confirm it. Written in the same UPDATE as the scrub, so a row is never
+     * observable as erased with a confirmation that was decided later.
+     */
+    readonly providerDeletedAt: Date | null;
 }
 
 /**
@@ -60,7 +69,7 @@ export interface EraseIdentityInput {
  * directly. No casts remain anywhere.
  *
  * @param db - Any Postgres Drizzle handle (`node-postgres` or `postgres-js`).
- * @param input - The target user, trigger source, and actor.
+ * @param input - The target user, trigger source, actor, and the provider-deletion confirmation (or `null`).
  * @param now - The transaction instant (stamped on `updatedAt` and `occurredAt`).
  * @sideEffect Updates the `users` row, deletes the `accounts`/`profiles`/`settings` rows, inserts a `lifecycle_events` row.
  */
@@ -70,7 +79,7 @@ export async function eraseIdentityRow(db: IdentityWriter, input: EraseIdentityI
     await db.transaction(async (tx) => {
         await tx
             .update(users)
-            .set({ ...directive.userColumns, updatedAt: now })
+            .set({ ...directive.userColumns, updatedAt: now, providerDeletedAt: input.providerDeletedAt })
             .where(eq(users.id, input.userId));
 
         if (directive.purgeCompanionRows) {

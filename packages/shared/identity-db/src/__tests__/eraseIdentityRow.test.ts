@@ -57,7 +57,11 @@ describe('eraseIdentityRow', () => {
         const now = new Date('2026-07-26T00:00:00.000Z');
         const userId = newUserId();
 
-        await eraseIdentityRow(db as never, { userId, triggerSource: 'admin', actor: 'clerk-webhook' }, now);
+        await eraseIdentityRow(
+            db as never,
+            { userId, triggerSource: 'admin', actor: 'clerk-webhook', providerDeletedAt: null },
+            now,
+        );
 
         expect(transactionCount()).toBe(1);
         // Erased scrub: name + picture destroyed, email → ULID placeholder, status erased.
@@ -81,8 +85,29 @@ describe('eraseIdentityRow', () => {
 
         const userId = newUserId();
 
-        await eraseIdentityRow(db as never, { userId, triggerSource: 'sweep', actor: null }, new Date());
+        await eraseIdentityRow(
+            db as never,
+            { userId, triggerSource: 'sweep', actor: null, providerDeletedAt: null },
+            new Date(),
+        );
 
         expect(auditRows[0]).toMatchObject({ userId, triggerSource: 'sweep', actor: null });
+    });
+
+    it.each([
+        ['an instant when the caller already deleted the provider account', new Date('2026-10-01T00:00:00.000Z')],
+        ['null when the provider deletion is still owed', null],
+    ])('writes %s in the SAME update as the scrub (P1 #5)', async (_label, providerDeletedAt) => {
+        const { db, userSets } = buildMockDb();
+
+        await eraseIdentityRow(
+            db as never,
+            { userId: newUserId(), triggerSource: 'user', actor: null, providerDeletedAt },
+            new Date(),
+        );
+
+        expect(userSets).toHaveLength(1);
+        expect(userSets[0]).toHaveProperty('providerDeletedAt', providerDeletedAt);
+        expect(userSets[0]).toMatchObject({ status: 'erased' });
     });
 });

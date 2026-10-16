@@ -1,5 +1,5 @@
 import type { BylineSnapshot } from '@kitchensink/identity-core';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { IdentityWriter } from '../identityWriter.js';
 
 import { profileClock } from '../profileClock.js';
@@ -223,6 +223,25 @@ export class UserDAO {
             .returning({ id: users.id });
 
         return settled.length > 0;
+    }
+
+    /**
+     * Record that the identity provider confirmed an erased account no longer exists (P1 #5).
+     *
+     * Idempotent and monotone: it stamps only an `erased` row whose confirmation is still NULL, so a duplicate
+     * delivery, a webhook echo or a reconciliation re-run can neither move the first instant nor stamp a row that
+     * is not erased (the CHECK would reject it). It leaves `updated_at` alone — this is bookkeeping about the
+     * provider, not a change to the identity, and `updated_at` is the reconciliation grace clock.
+     *
+     * @param id - The erased user.
+     * @param at - The instant the provider confirmed the deletion.
+     * @sideEffect Updates `users.provider_deleted_at`.
+     */
+    async confirmProviderDeleted(id: UserId, at: Date): Promise<void> {
+        await this.db
+            .update(users)
+            .set({ providerDeletedAt: at })
+            .where(and(eq(users.id, id), eq(users.status, 'erased'), isNull(users.providerDeletedAt)));
     }
 
     async softDelete(id: UserId): Promise<UserRow | undefined> {

@@ -52,6 +52,15 @@ export const users = pgTable(
          * — a second change during a failed apply would be indistinguishable from the first.
          */
         statusAppliedVersion: integer('status_applied_version').notNull().default(1),
+        /**
+         * P1 #5: the instant the identity provider CONFIRMED this account no longer exists. NULL = not confirmed.
+         *
+         * Written by the deletion worker after Clerk's delete succeeds or 404s, by the `user.deleted` webhook path,
+         * and by the tombstone sweep. Erasure reconciliation treats a NULL on an `erased` row as an incomplete leg
+         * and refuses to stamp `reconciled_at` (a CHECK makes that combination unstorable). Only an `erased` row may
+         * carry it. See migration 0017.
+         */
+        providerDeletedAt: timestamp('provider_deleted_at', { withTimezone: true }),
     },
     (table) => [
         // Partial: email is unique only among ACTIVE users. A soft-deleted user (deleted_at set)

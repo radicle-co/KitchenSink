@@ -325,6 +325,9 @@ describe('UsersService', () => {
         expect(userSet).toBeDefined();
         expect(userSet.email).not.toBe(mockUser.email);
         expect(userSet.picture).toBeNull();
+        // Identity holds no Clerk secret, so it cannot have deleted the provider account: it records the
+        // deletion as still owed (explicit null, never absent) and the worker confirms it later.
+        expect(userSet).toHaveProperty('providerDeletedAt', null);
 
         expect(insertValues).toHaveBeenCalledWith(
             expect.objectContaining({ event: 'erasure', triggerSource: 'user', userId: userCtx.userId }),

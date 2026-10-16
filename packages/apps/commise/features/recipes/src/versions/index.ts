@@ -1,8 +1,11 @@
 /**
  * @module @commise/features-recipes/versions — the version history screen's shared controller.
  *
- * A package-export entry (the one kind of barrel this repo keeps), registered ahead of the web/mobile UI
- * consolidation so the slice that fills it (S8 of `docs/plans/2026-10-13-007-chore-finish-pr91-plan.md`) edits
- * neither the package root index nor `package.json`.
+ * A package-export entry (the one kind of barrel this repo keeps): web's `RecipeVersionsContainer` and mobile's
+ * `RecipeVersionsScreen` each keep their read boundary, loading and failed states and way back, and take the settled
+ * history from here.
  */
-export {};
+export { RecipeVersionsView } from './RecipeVersionsView.js';
+export type { RecipeVersionsViewProps } from './RecipeVersionsView.js';
+export { useRecipeVersions } from './useRecipeVersions.js';
+export type { RecipeVersionsInput, RecipeVersionsSession } from './useRecipeVersions.js';

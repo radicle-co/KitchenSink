@@ -12,7 +12,8 @@
  *     changes on every "load more", which re-batches page one for nothing — gives each browse rail its own
  *     batch, and asks nothing about the results hidden behind the rails.
  *   - `CollectionDetailScreen` batches EVERY member, not the revealed window, for the same reason (the
- *     window grows on tap), and chunks at the published cap so a 501-member collection loses nothing.
+ *     window grows on tap) — proved below against the real hook, because its lookup is now the shared
+ *     `useCollectionDetail`'s.
  *   - `RecipeWidgetSlot` (Home) batches the four recent recipes.
  *
  * `useRecipeNutritionBatches` is mocked here: it owns `ensureQueryData`, promise identity and the one-request
@@ -223,21 +224,6 @@ const SCREENS: readonly (readonly [string, () => ReactElement])[] = [
                 />,
             ),
     ],
-    [
-        'CollectionDetailScreen',
-        () =>
-            withQueryClient(
-                <CollectionDetailScreen
-                    collectionId="col_1"
-                    onSelectRecipe={noop}
-                    onCreateRecipe={noop}
-                    onDeleted={noop}
-                    onCloned={noop}
-                    onViewSource={noop}
-                    onBack={noop}
-                />,
-            ),
-    ],
 ];
 
 describe.each(SCREENS)('%s — the deferred calorie figure', (_name, renderScreen) => {
@@ -363,33 +349,6 @@ describe('which ids each screen batches', () => {
 
         // Two pages, kept apart: page one's promise must survive a "load more" untouched.
         expect(useNutritionMock).toHaveBeenCalledWith([[RECIPE_ID], [OTHER_ID]]);
-    });
-
-    it('⛔ CollectionDetailScreen batches EVERY member, not just the revealed window', async () => {
-        const members = Array.from({ length: 12 }, (_unused, index) =>
-            makeRecipe({ id: `0000000-0000-4000-8000-0000000000${index}`, title: `Member ${index}` }),
-        );
-        getCollectionByIdMock.mockResolvedValue(makeCollectionWithRecipes(members));
-
-        await act(async () => {
-            render(
-                withQueryClient(
-                    <CollectionDetailScreen
-                        collectionId="col_1"
-                        onSelectRecipe={noop}
-                        onCreateRecipe={noop}
-                        onDeleted={noop}
-                        onCloned={noop}
-                        onViewSource={noop}
-                        onBack={noop}
-                    />,
-                ),
-            );
-        });
-
-        // The member list reveals a window at a time; batching only the window would re-batch on every
-        // "show more" and blink the figures already on screen.
-        expect(useNutritionMock).toHaveBeenCalledWith([members.map((member) => member.id)]);
     });
 
     it('⛔ RecipeDiscoveryScreen wires its BROWSE RAILS too — ONE batch per rail, none for the hidden results', async () => {
@@ -525,5 +484,100 @@ describe('RecipeWidgetSlot (Home) — the deferred calorie figure, end to end', 
         await renderHome();
 
         expect(read, 'an empty batch is a guaranteed 400 — it must never be sent').not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * The collection detail, with the REAL `useRecipeNutritionBatches` over a spied nutrition read. Its lookup is the shared
+ * `useCollectionDetail` (`@commise/features-recipes/collections`), which imports the declaring hook module rather than
+ * the `./hooks` barrel mocked above, so the table of mocked screens no longer reaches it. Web's
+ * `CollectionDetailContainer.nutrition.test.tsx` runs the same cases, and the session's own ids are pinned in
+ * `useCollectionDetail.nutrition.test.tsx`.
+ */
+describe('CollectionDetailScreen — the deferred calorie figure, end to end', () => {
+    const renderDetail = async (): Promise<void> => {
+        await act(async () => {
+            render(
+                withQueryClient(
+                    <CollectionDetailScreen
+                        collectionId="col_1"
+                        onSelectRecipe={noop}
+                        onCreateRecipe={noop}
+                        onDeleted={noop}
+                        onCloned={noop}
+                        onViewSource={noop}
+                        onBack={noop}
+                    />,
+                ),
+            );
+        });
+    };
+
+    it('shows the calorie SKELETON while the batch is in flight', async () => {
+        vi.spyOn(serviceClient, 'getRecipeNutrition').mockImplementation(pending);
+
+        await renderDetail();
+
+        expect(screen.getAllByLabelText('Loading calories').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Weeknight Pasta').length).toBeGreaterThan(0);
+    });
+
+    it('shows the CHIP once the batch resolves', async () => {
+        vi.spyOn(serviceClient, 'getRecipeNutrition').mockResolvedValue(KNOWN_RESPONSE);
+
+        await renderDetail();
+
+        expect(screen.getByRole('img', { name: '420 cal' })).toBeTruthy();
+        expect(screen.queryByLabelText('Loading calories')).toBeNull();
+    });
+
+    it('shows NOTHING when the batch OMITS this recipe — and no lingering skeleton', async () => {
+        vi.spyOn(serviceClient, 'getRecipeNutrition').mockResolvedValue(OMITTING_RESPONSE);
+
+        await renderDetail();
+
+        expect(screen.queryByLabelText('Loading calories')).toBeNull();
+        expect(screen.queryByText(/cal$/u)).toBeNull();
+        expect(screen.getAllByText('Weeknight Pasta').length).toBeGreaterThan(0);
+    });
+
+    // The read seam sets its own `retry: 1`: a failed batch is retried behind TanStack's backoff before it settles, so
+    // fake timers drain it and the assertion runs after the skeleton legitimately comes down.
+    it('shows NOTHING, and no spinner, when the batch REJECTS', async () => {
+        vi.useFakeTimers();
+
+        try {
+            const read = vi.spyOn(serviceClient, 'getRecipeNutrition').mockRejectedValue(new Error('food unavailable'));
+
+            await renderDetail();
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(5_000);
+            });
+
+            expect(read, 'attempted, then retried once').toHaveBeenCalledTimes(2);
+            expect(screen.queryByLabelText('Loading calories'), 'a failed batch must not leave a spinner').toBeNull();
+            expect(screen.queryByText(/cal$/u)).toBeNull();
+            expect(screen.getAllByText('Weeknight Pasta').length).toBeGreaterThan(0);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('⛔ batches EVERY member in ONE request, not just the revealed window', async () => {
+        const members = Array.from({ length: 12 }, (_unused, index) =>
+            makeRecipe({
+                id: `00000000-0000-4000-8000-0000000000${String(index).padStart(2, '0')}`,
+                title: `Member ${index}`,
+            }),
+        );
+        getCollectionByIdMock.mockResolvedValue(makeCollectionWithRecipes(members));
+        const read = vi.spyOn(serviceClient, 'getRecipeNutrition').mockResolvedValue(OMITTING_RESPONSE);
+
+        await renderDetail();
+
+        // The member list reveals a window at a time; batching only the window would re-batch on every "show more"
+        // and blink the figures already on screen.
+        expect(read).toHaveBeenCalledTimes(1);
+        expect(read.mock.calls[0]?.[0]).toStrictEqual(members.map((member) => member.id));
     });
 });

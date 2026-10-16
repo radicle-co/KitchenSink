@@ -6,9 +6,10 @@
  * read off the collection — which the toggles rewrite at once. A suspense read: the host puts it under its own read
  * boundary, with {@link CollectionRecipePickerLoading} and {@link CollectionRecipePickerLoadError} as the fallbacks.
  *
- * Plain `.tsx` with no native twin: it composes the candidates and row pairs, which resolve per platform.
+ * Orchestration: it reads, and draws only through the candidates and row pairs, which resolve per platform — plain
+ * `.tsx` with no native twin.
  *
- * @pattern Container — suspense reads composed into a presentational candidates list
+ * @pattern Adapter — the picker's suspense reads, projected into the candidates list's props
  */
 import { collectionQueries, recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';

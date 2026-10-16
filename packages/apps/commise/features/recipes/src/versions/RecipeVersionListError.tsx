@@ -23,8 +23,8 @@ export interface RecipeVersionListErrorProps {
     readonly retryLabel: string;
     /** Read the history again. */
     readonly onRetry: () => void;
-    /** Back to the recipe. */
-    readonly onBack: () => void;
+    /** Back to the recipe; absent draws no Back (the native screen keeps its own above the read boundary). */
+    readonly onBack?: () => void;
     /** The recipe's address, so a modified click on Back still works. */
     readonly backHref?: string;
 }

@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 150,
-        "implementations": 257,
-        "props": 1265,
-        "documentedComponents": 150,
-        "implementationsWithModuleDoc": 257,
+        "components": 151,
+        "implementations": 259,
+        "props": 1273,
+        "documentedComponents": 151,
+        "implementationsWithModuleDoc": 259,
         "implementationsWithComponentDoc": 152,
-        "documentedProps": 986,
-        "classifiedComponents": 128,
-        "componentsWithPatternTag": 73,
-        "crossPlatformComponents": 107
+        "documentedProps": 994,
+        "classifiedComponents": 131,
+        "componentsWithPatternTag": 74,
+        "crossPlatformComponents": 108
     },
     "components": [
         {
@@ -1031,7 +1031,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/collections",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
                 "Composite — the detail's header, members and sheets over one view-model",
                 "Strategy — the picker's read boundary, injected per platform"
@@ -1048,7 +1048,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDetailBody.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes/collections — the SETTLED collection detail, composed once for web and mobile\n(`docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3): the {@link CollectionHeader} (back, name, meta, description, Add\nrecipes and the ⋯ menu), the two failure lines, the {@link CollectionMembers} list, and the sheets the header opens —\nrename, delete, Premium, the add-recipes picker and the pull-updates dialog.\n\nPlain `.tsx` with no native twin: every piece it draws is a leaf pair that resolves per platform, and what it reads is\nthe {@link CollectionDetail} view-model. The app keeps only what differs: the frame around it (a page `<section>` on\nweb, a `ScrollView` on mobile), the read boundary, the navigation, and the links web needs so a card is a real anchor.\n\nThe picker's read boundary is the app's (`ClientQueryBoundary` on web, `QueryBoundary` on mobile; this package may\nnot import `@commise/query`), handed in as {@link CollectionDetailBodyProps.PickerBoundary}.",
+                    "moduleDoc": "@commise/features-recipes/collections — the SETTLED collection detail, composed once for web and mobile\n(`docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3): the {@link CollectionHeader} (back, name, meta, description, Add\nrecipes and the ⋯ menu), the two failure lines, the {@link CollectionMembers} list, and the sheets the header opens —\nrename, delete, Premium, the add-recipes picker and the pull-updates dialog.\n\nOrchestration: every piece it draws is a leaf pair that resolves per platform, and what it reads is the\n{@link CollectionDetail} view-model — plain `.tsx` with no native twin. The app keeps only what differs: the frame around it (a page `<section>` on\nweb, a `ScrollView` on mobile), the read boundary, the navigation, and the links web needs so a card is a real anchor.\n\nThe picker's read boundary is the app's (`ClientQueryBoundary` on web, `QueryBoundary` on mobile; this package may\nnot import `@commise/query`), handed in as {@link CollectionDetailBodyProps.PickerBoundary}.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1127,7 +1127,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -2682,9 +2682,9 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/collections",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
-                "Container — suspense reads composed into a presentational candidates list"
+                "Adapter — the picker's suspense reads, projected into the candidates list's props"
             ],
             "platforms": [
                 "web"
@@ -2698,7 +2698,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionPickerBody.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes/collections — the add-recipes picker's SETTLED body, shared by web and mobile: the\nwhole library (the same read My recipes narrows on the device), narrowed by the search, with each row's membership\nread off the collection — which the toggles rewrite at once. A suspense read: the host puts it under its own read\nboundary, with {@link CollectionRecipePickerLoading} and {@link CollectionRecipePickerLoadError} as the fallbacks.\n\nPlain `.tsx` with no native twin: it composes the candidates and row pairs, which resolve per platform.",
+                    "moduleDoc": "@commise/features-recipes/collections — the add-recipes picker's SETTLED body, shared by web and mobile: the\nwhole library (the same read My recipes narrows on the device), narrowed by the search, with each row's membership\nread off the collection — which the toggles rewrite at once. A suspense read: the host puts it under its own read\nboundary, with {@link CollectionRecipePickerLoading} and {@link CollectionRecipePickerLoadError} as the fallbacks.\n\nOrchestration: it reads, and draws only through the candidates and row pairs, which resolve per platform — plain\n`.tsx` with no native twin.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2706,7 +2706,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Container — suspense reads composed into a presentational candidates list"
+                            "text": "Adapter — the picker's suspense reads, projected into the candidates list's props"
                         }
                     ],
                     "description": "",
@@ -2755,7 +2755,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -2914,9 +2914,9 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/collections",
-            "kind": "presentational",
+            "kind": "orchestration",
             "patterns": [
-                "Container — binds a presentational row to its mutation"
+                "Adapter — a row's press, bound to its per-pair toggle mutation"
             ],
             "platforms": [
                 "web"
@@ -2930,7 +2930,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionPickerToggleRow.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes/collections — one add-recipes picker row WITH its toggle: the presentational\n{@link CollectionPickerRow} wired to `useMemberToggle` (a per-row mutation, serialized per collection/recipe pair, that\nrewrites the cached membership at once and flips back when the server refuses).\n\nPlain `.tsx` with no native twin: it renders only the row pair, which resolves per platform.",
+                    "moduleDoc": "@commise/features-recipes/collections — one add-recipes picker row WITH its toggle: the presentational\n{@link CollectionPickerRow} wired to `useMemberToggle` (a per-row mutation, serialized per collection/recipe pair, that\nrewrites the cached membership at once and flips back when the server refuses).\n\nOrchestration: it owns the toggle and draws only the row pair, which resolves per platform — plain `.tsx` with no\nnative twin.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2938,7 +2938,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Container — binds a presentational row to its mutation"
+                            "text": "Adapter — a row's press, bound to its per-pair toggle mutation"
                         }
                     ],
                     "description": "",
@@ -2978,7 +2978,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -21108,9 +21108,10 @@
             "kind": "presentational",
             "patterns": [],
             "platforms": [
-                "web"
+                "web",
+                "native"
             ],
-            "crossPlatform": false,
+            "crossPlatform": true,
             "propsDiverge": false,
             "documented": true,
             "implementations": [
@@ -21151,11 +21152,11 @@
                         },
                         {
                             "name": "onBack",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Back to the recipe.",
+                            "description": "Back to the recipe; absent draws no Back (the native screen keeps its own above the read boundary).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
                         },
                         {
@@ -21184,6 +21185,85 @@
                             "defaultValue": null,
                             "description": "Why there is no history: \"We couldn’t load the history.\"",
                             "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "RecipeVersionListError",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/versions",
+                    "moduleDoc": "@commise/features-recipes — the native version history's FAILED state (D3, D13; `buildSpec.md` §6.6: \"We\ncouldn't load the history.\" + Try again), the twin of the web leaf.\n\nThe settled list's title, so nothing moves between loading, failed and loaded; then an alert and a secondary Try again.\nThe way back is the SCREEN's — it sits above the read boundary in every state — so the header draws a Back only when it\nis given one, as the native skeleton does. The copy arrives as props from the app's boundary dictionary.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes — the native version history's FAILED state (D3, D13; `buildSpec.md` §6.6: \"We"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The words, the retry and, when given, the way back."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The title, an alert, and a secondary Try again button."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "backHref",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web only: the recipe's address. Native has none.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.native.tsx"
+                        },
+                        {
+                            "name": "onBack",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Back to the recipe; absent draws no Back (the screen keeps its own above the read boundary).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.native.tsx"
+                        },
+                        {
+                            "name": "onRetry",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Read the history again.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.native.tsx"
+                        },
+                        {
+                            "name": "retryLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The retry control's label: \"Try again\".",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.native.tsx"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Why there is no history: \"We couldn’t load the history.\"",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.native.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -21393,6 +21473,82 @@
                     "docSignals": {
                         "presentational": true,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/versions/RecipeVersionsView",
+            "name": "RecipeVersionsView",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/versions",
+            "kind": "orchestration",
+            "patterns": [
+                "Composite — the list, the preview and the compare over one session"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeVersionsView",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionsView.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/versions",
+                    "moduleDoc": "@commise/features-recipes/versions — the SETTLED version history, composed once for web and mobile\n(`docs/design/uiOverhaul/buildSpec.md` §6.6): the version list, the Preview modal and the Compare sheet over one\n{@link useRecipeVersions} session.\n\nOrchestration: every piece it draws is a leaf pair that resolves per platform — plain `.tsx` with no native twin. The app keeps what\ndiffers — the read boundary and its loading and failed states, and the way back: web hands the list its Back link\n(`onBack`, `backHref`); mobile's screen keeps its own Back above the boundary in every state and hands none.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/versions — the SETTLED version history, composed once for web and mobile"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Composite — the list, the preview and the compare over one session"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "backHref",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web: the recipe's address, so a modified click on Back still works.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionsView.tsx"
+                        },
+                        {
+                            "name": "onBack",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Back to the recipe, drawn in the list's header; absent draws none.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionsView.tsx"
+                        },
+                        {
+                            "name": "recipeId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe whose history to show.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionsView.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]

@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "generatedBy": "@kitchensink/docgen-components",
     "totals": {
-        "components": 363,
-        "implementations": 526,
-        "props": 2288,
-        "documentedComponents": 359,
-        "implementationsWithModuleDoc": 505,
+        "components": 364,
+        "implementations": 528,
+        "props": 2296,
+        "documentedComponents": 360,
+        "implementationsWithModuleDoc": 507,
         "implementationsWithComponentDoc": 372,
-        "documentedProps": 1912,
-        "classifiedComponents": 265,
-        "componentsWithPatternTag": 194,
-        "crossPlatformComponents": 163
+        "documentedProps": 1920,
+        "classifiedComponents": 268,
+        "componentsWithPatternTag": 196,
+        "crossPlatformComponents": 164
     },
     "groups": [
         {
@@ -40,16 +40,16 @@
             "layer": "feature",
             "catalogue": "docs/generated/components/groups/featuresRecipes.json",
             "coverage": {
-                "components": 150,
-                "implementations": 257,
-                "props": 1265,
-                "documentedComponents": 150,
-                "implementationsWithModuleDoc": 257,
+                "components": 151,
+                "implementations": 259,
+                "props": 1273,
+                "documentedComponents": 151,
+                "implementationsWithModuleDoc": 259,
                 "implementationsWithComponentDoc": 152,
-                "documentedProps": 986,
-                "classifiedComponents": 128,
-                "componentsWithPatternTag": 73,
-                "crossPlatformComponents": 107
+                "documentedProps": 994,
+                "classifiedComponents": 131,
+                "componentsWithPatternTag": 74,
+                "crossPlatformComponents": 108
             }
         },
         {
@@ -86,7 +86,7 @@
                 "implementationsWithComponentDoc": 59,
                 "documentedProps": 66,
                 "classifiedComponents": 35,
-                "componentsWithPatternTag": 26,
+                "componentsWithPatternTag": 27,
                 "crossPlatformComponents": 0
             }
         },

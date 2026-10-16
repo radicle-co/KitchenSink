@@ -12,7 +12,7 @@
         "implementationsWithComponentDoc": 59,
         "documentedProps": 66,
         "classifiedComponents": 35,
-        "componentsWithPatternTag": 26,
+        "componentsWithPatternTag": 27,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -4538,8 +4538,10 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "presentational",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Facade — the route's boundary and navigation over the shared version-history view"
+            ],
             "platforms": [
                 "web"
             ],
@@ -4552,8 +4554,13 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeVersionsContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the recipe version-history route: binds the shared, presentational `RecipeVersionList`\nbuilding block to live data, plus the Preview modal and two-version Compare view (W6 Task 5). It reads the\nrecipe's versions and the recipe itself (for its current version, which the block marks and makes\nnon-restorable) with suspense queries under a `ClientQueryBoundary`, and wires the restore action to\n`useRestoreRecipeVersion`. The boundary owns the fetch-state affordances (loading, and an error whose retry\nrefetches), localized through the web dictionary; the block owns the list + empty states. The boundary is\nthe hydration-gated one because this route is not server-prefetched: its server render was already the\nloading state, and a suspense read there would fetch on the server. The row being restored\nis busied via `restoringVersion`, with the mutation carrying `{ id, versionNumber }`. It holds no server\ndata of its own — TanStack Query is the source of truth for the remote version list. Wires `onBack` (V6)\nto navigate to the recipe-detail route, present in EVERY state (loading/error/populated) — the web parity\nfix for the native `RecipeVersionsScreen`, which already receives its own `onBack` from its navigator.\n\n## Preview (W6 Task 5)\n\n`onPreview(n)` sets `previewTarget` to `n`; the previewed version's full snapshot is read straight off the\nalready-loaded `versionsQuery.data` (every entry the list endpoint returns carries its own `snapshot` —\nsee `recipeQueries(client).versions`), so opening the modal makes NO extra fetch. The \"changed from current\"\nline needs the CURRENT version's snapshot too, looked up the SAME way (from the list) rather than\nre-fetched: the DB retention window keeps the newest `VERSION_RETENTION_LIMIT` (10) versions\n(`versions.dal.ts`), and the current version is BY CONSTRUCTION the highest version number that exists —\nevery write that changes `currentVersion` also records a new, higher-numbered version row — so it is\nALWAYS inside that window and therefore always present in the list this container already has. If that\ninvariant were ever violated (e.g. a future retention-policy change), this gracefully OMITS the \"changed\nfrom current\" line (`diffFromCurrent` stays `undefined`) rather than adding a `useRecipeVersion` fallback\nfetch for a state that cannot occur today — see the W6 Task 5 report for the fuller rationale on that\nchoice. `isRestoring` on the modal reflects the restore mutation's OWN pending state for the previewed\nversion's number, so a restore-from-preview cannot be double-submitted; `onRestore` shares the SAME\n`restoreVersion` helper the list's row action uses (including the B17 conflict-refetch), closing the modal\nonly on success.\n\n## Compare (W6 Task 5)\n\n`compareSelection` tracks 0–2 selected version numbers (`RecipeVersionList`'s per-row Compare checkbox,\n`onToggleCompare`); like Preview, both versions are read from the already-loaded list — no fetch. Once\nexactly two are picked they are ordered older→newer (independent of click order) and diffed via\n`diffSnapshots(older.snapshot, newer.snapshot)`, so `VersionCompareView`'s \"Compare v{B} vs v{A}\" heading\nalways reads newer-vs-older. `onClose` clears the selection (closing the panel is equivalent to\ndeselecting both).",
-                    "moduleTags": [],
+                    "moduleDoc": "Container for the recipe version-history route (orchestration): the route's read boundary around the shared\n{@link RecipeVersionsView}. The view reads the recipe's versions and the recipe itself (for its current version, which\nthe list marks and makes non-restorable) with suspense queries, wires the restore, the Preview modal and the two-version\nCompare view, and holds no server data of its own — TanStack Query is the source of truth. The session behind it\n(`useRecipeVersions`) is shared with the mobile screen; its module docs carry the Preview, Compare and restore rationale.\n\nWhat stays here is what is web's: the boundary owns the fetch-state affordances (loading, and an error whose retry\nrefetches), localized through the web dictionary, and it is the hydration-gated one because this route is not\nserver-prefetched — its server render was already the loading state, and a suspense read there would fetch on the\nserver. Back (V6) navigates to the recipe-detail route and is present in EVERY state (loading, error, populated).",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Facade — the route's boundary and navigation over the shared version-history view"
+                        }
+                    ],
                     "description": "The live recipe version-history container: the route's read boundary around {@link RecipeVersionsView}.",
                     "tags": [
                         {
@@ -4581,8 +4588,8 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]

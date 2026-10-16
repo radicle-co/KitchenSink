@@ -6,8 +6,8 @@
  * recipes and the ⋯ menu), the two failure lines, the {@link CollectionMembers} list, and the sheets the header opens —
  * rename, delete, Premium, the add-recipes picker and the pull-updates dialog.
  *
- * Plain `.tsx` with no native twin: every piece it draws is a leaf pair that resolves per platform, and what it reads is
- * the {@link CollectionDetail} view-model. The app keeps only what differs: the frame around it (a page `<section>` on
+ * Orchestration: every piece it draws is a leaf pair that resolves per platform, and what it reads is the
+ * {@link CollectionDetail} view-model — plain `.tsx` with no native twin. The app keeps only what differs: the frame around it (a page `<section>` on
  * web, a `ScrollView` on mobile), the read boundary, the navigation, and the links web needs so a card is a real anchor.
  *
  * The picker's read boundary is the app's (`ClientQueryBoundary` on web, `QueryBoundary` on mobile; this package may

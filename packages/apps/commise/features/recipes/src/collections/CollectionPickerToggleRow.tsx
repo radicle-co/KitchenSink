@@ -5,9 +5,10 @@
  * {@link CollectionPickerRow} wired to `useMemberToggle` (a per-row mutation, serialized per collection/recipe pair, that
  * rewrites the cached membership at once and flips back when the server refuses).
  *
- * Plain `.tsx` with no native twin: it renders only the row pair, which resolves per platform.
+ * Orchestration: it owns the toggle and draws only the row pair, which resolves per platform — plain `.tsx` with no
+ * native twin.
  *
- * @pattern Container — binds a presentational row to its mutation
+ * @pattern Adapter — a row's press, bound to its per-pair toggle mutation
  */
 import type { Recipe } from '@kitchensink/recipe-core';
 import type { FC } from 'react';

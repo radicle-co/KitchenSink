@@ -86,7 +86,7 @@ export interface CollectionDetail {
         readonly variant: CardVariant;
         readonly onViewModeChange: (mode: ListViewMode) => void;
     };
-    /** The deferred calorie lookup over EVERY member; a compact card draws no figure, so it asks for none. */
+    /** The deferred calorie lookup over EVERY member (one page). */
     readonly nutritionFor: RecipeNutritionLookup;
     readonly removal: MemberRemoval;
     readonly visibility: CollectionVisibilityControl;
@@ -166,10 +166,9 @@ export function useCollectionDetail({
         [collection.recipes, removal.hiddenIds],
     );
     // The deferred calorie lookup (ADR-0021 §6), fed from EVERY member, not the revealed window: the window grows on tap,
-    // and batching it would re-batch on every "load more" and blink the figures already on screen back to skeletons.
-    // The compact card draws no figure, so a batch for it would have nobody to read the promise (a rejection would go
-    // unhandled).
-    const nutritionFor = useRecipeNutritionBatches(variant === 'compact' ? [] : [memberIds]);
+    // and batching it would re-batch on every "load more" and blink the figures already on screen back to skeletons. The
+    // library surface never draws the compact card (`cardVariantOf`), so every card here can read its promise.
+    const nutritionFor = useRecipeNutritionBatches([memberIds]);
 
     useLeaveWhenClosed(deleteCollection.isSuccess, deleteOpen, nav.onDeleted);
     useLeaveWhenClosed(creatingRecipe, pickerOpen, nav.onCreateRecipe);

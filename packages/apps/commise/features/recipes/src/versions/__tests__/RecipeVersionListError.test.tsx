@@ -51,4 +51,13 @@ describe('RecipeVersionListError (web)', () => {
 
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
+
+    it('draws no Back when it is given none, as the native twin does', () => {
+        render(
+            <RecipeVersionListError title="We couldn’t load the history." retryLabel="Try again" onRetry={vi.fn()} />,
+        );
+
+        expect(screen.queryByRole('link', { name: versionList.backToRecipe })).toBeNull();
+        expect(screen.queryByRole('button', { name: versionList.backToRecipe })).toBeNull();
+    });
 });

@@ -315,7 +315,7 @@ sharpest in the portfolio.**
   (`${value}`, or `${value}::interval` for an interval) instead. Two gates keep it at zero rather than trusting
   the prose: an ESLint **`no-restricted-syntax`** ban in `packages/tools/eslint/index.js`, and repo-wide AST
   gate **G3** ("never calls `sql.raw`") in
-  `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`. Search remains the surface that would
+  `packages/tools/repoGuards/__tests__/serviceSecurityInvariants.test.ts`. Search remains the surface that would
   break it first — facet, sort and filter selections arrive **from the request** — so a validated enum still
   maps to a **closed allowlist of literals in code**: the request supplies the key, never the SQL fragment.
 - **⛔ Response validation is DEFERRED (GR-016 §16-g) — do not "complete" it.** No service validates its own

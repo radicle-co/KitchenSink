@@ -184,8 +184,8 @@ Units land as separate commits on the existing PR 91 branch, in this order.
 - **Requirements:** R22, R23.
 - **Dependencies:** none.
 - **Files:**
-    - `packages/infra/global/__tests__/queueProducerRegister.test.ts` (new)
-    - `packages/infra/global/__tests__/serviceInfraWiringInvariants.test.ts`
+    - `packages/tools/repoGuards/__tests__/queueProducerRegister.test.ts` (new)
+    - `packages/tools/repoGuards/__tests__/serviceInfraWiringInvariants.test.ts`
     - `packages/services/recipe-service/src/recipes/parseJobs.service.ts`
     - `packages/services/recipe-service/src/recipes/recipes.service.ts`
     - `packages/services/recipe-service/src/common/sqsBatchQueue.ts`
@@ -420,7 +420,7 @@ Units land as separate commits on the existing PR 91 branch, in this order.
     - `packages/services/identity-webhooks/src/handlers/queueCheck.ts` (new) and its `__tests__`
     - `packages/services/identity-webhooks/infra/lib/WebhooksStack.ts`
     - `docs/architecture/decisions/0004-minimize-nat-egress.md` (consumer table)
-    - `packages/infra/global/__tests__/queueProducerRegister.test.ts` (check roles hold no queue mutation)
+    - `packages/tools/repoGuards/__tests__/queueProducerRegister.test.ts` (check roles hold no queue mutation)
     - `packages/services/recipe-workers/__tests__/integration/queueCheck.integration.test.ts` (new)
 - **Approach:** each service gets its own scheduled function with its own role: connect as the service role, read
   queue attributes, and receive `SENTRY_DSN` from its base stage's SSM parameter (see Sentry DSN configuration). Each opens a read-only transaction, reads owed rows past their deadline in
@@ -651,8 +651,8 @@ Units land as separate commits on the existing PR 91 branch, in this order.
     - `packages/shared/service-logging/` (new: the routing rule, the sink, the Error render, the two adapters)
     - `packages/services/{recipe-service,recipe-workers,food-service,identity,identity-webhooks}/src/**`
     - `packages/services/ingredient-parser/src/**`
-    - `packages/infra/global/__tests__/errorReportingRegister.test.ts` (new)
-    - `packages/infra/global/__tests__/serviceLoggingInvariants.test.ts` (new: L1–L6)
+    - `packages/tools/repoGuards/__tests__/errorReportingRegister.test.ts` (new)
+    - `packages/tools/repoGuards/__tests__/serviceLoggingInvariants.test.ts` (new: L1–L6)
     - `.github/workflows/*` (release creation and source-map upload)
     - `docs/SENTRY_OBSERVABILITY_SETUP.md`
 - **Approach:** identity is the reference implementation, and every runtime adopts the same six parts.

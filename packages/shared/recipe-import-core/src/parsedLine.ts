@@ -149,7 +149,7 @@ export type ParseFactSource = ParseEngine | 'correction';
  * Which reader produced each fact.
  *
  * ⛔ DERIVED from {@link ParsedFacts}, never enumerated — the same discipline as `UNIT_WORDS` in
- * `ingredientLine.ts` and the guard tables in `packages/infra/global/__tests__/`. A hand-written list is
+ * `ingredientLine.ts` and the guard tables in `packages/tools/repoGuards/__tests__/`. A hand-written list is
  * a second representation of the fact set and rots the moment a fact is added.
  */
 export type ParseProvenance = { readonly [Fact in keyof ParsedFacts]: ParseFactSource };

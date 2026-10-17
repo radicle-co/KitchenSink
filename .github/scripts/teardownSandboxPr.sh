@@ -35,7 +35,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 
 # The scope predicates are the security boundary of this script, so they live in ONE sourceable file
-# with a regression suite (packages/infra/global/__tests__/prScope.test.ts) instead of inline here.
+# with a regression suite (packages/tools/repoGuards/__tests__/prScope.test.ts) instead of inline here.
 # shellcheck source=./prScope.sh
 . "$SCRIPT_DIR/prScope.sh"
 # The CloudFormation statuses that mean "still exists", shared with every other sweep so the reaper cannot

@@ -187,7 +187,7 @@ route is in some _other_ service (001's visibility PATCH is in the recipe servic
 routes likewise), so the guard is a **shared** concern under `packages/shared/*` that reads the entitlement as a
 **claim from the signed Clerk session token** — the mechanism `FR-044` specifies and
 `packages/shared/clerk-verify` already implements for admin `scopes`/`permissions`. It is **NOT** an import of
-`@kitchensink/identity-service`: `packages/infra/global/__tests__/appServiceDependency.test.ts` already
+`@kitchensink/identity-service`: `packages/tools/repoGuards/__tests__/appServiceDependency.test.ts` already
 forbids an app depending on a service package, and ADR-0014's rejected alternative 2 is exactly this — it drags
 NestJS, Drizzle and the AWS SDK into every consumer and inverts the build order. ⚠️ §4's `PlanGuard` sketch reads
 `user.plan` / `user.subscriptionStatus` off the request; under `FR-044` those values arrive from the verified
@@ -315,7 +315,7 @@ callback (ADR-0017) — so every obligation below binds a package that exists.
   `ZodValidationPipe` references and 10 classes extending `createZodDto` across 6 files**, correcting the "6 sites,
   up from 3" this line carried. Adoption is still climbing, so **count it rather than quoting this number**;
   `ZodValidationPipe` coverage over every controller is now also asserted repo-wide by **G5** in
-  `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which runs with **no exception list**.
+  `packages/tools/repoGuards/__tests__/serviceSecurityInvariants.test.ts`, which runs with **no exception list**.
 - **⛔ THE FLOOR — and 010 has the TIGHTEST real bounds of any of these features, with a thin margin.** §2's
   `stripe_webhook_events` declares `stripe_event_id VARCHAR(255)`, `event_type VARCHAR(100)` and `status VARCHAR(20)`.
   ⚠️ **`'processing'` is 10 characters, so `VARCHAR(20)` leaves almost no room** — a future status string longer

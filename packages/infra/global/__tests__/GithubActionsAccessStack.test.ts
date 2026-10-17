@@ -16,9 +16,15 @@ import {
     LEGACY_QUALIFIER_ALLOW_EXPIRES_ON,
 } from '../lib/platform/GithubActionsAccessStack.js';
 import { SHARED_TIER_DELETE_ORDER } from '../lib/sandbox-scheduler/reclaim.js';
-import { OBSERVE_SERVICE, OBSERVE_TIERS, TEARDOWN, observeCommands, type ObserveTier } from './ciAwsCommands.js';
+import {
+    OBSERVE_SERVICE,
+    OBSERVE_TIERS,
+    TEARDOWN,
+    observeCommands,
+    type ObserveTier,
+} from '@kitchensink/repo-guards/ciAwsCommands';
 import { policyAdmits, policyAdmitsTagged, type PolicyStatementJson } from './iamGlob.js';
-import { repoRoot } from './serviceSources.js';
+import { repoRoot } from '@kitchensink/repo-guards/serviceSources';
 import { testApp } from './testApp.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };

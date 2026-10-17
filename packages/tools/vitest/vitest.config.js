@@ -46,7 +46,7 @@ export const baseConfig = {
         // them a root-scoped run walks into every registered worktree and runs another branch's tests under
         // this config: measured 2026-09-04 at 544 test files instead of 20, 282 of them "failing" for no
         // reason but the wrong config. CI never sees it (one clone, no worktrees), which is precisely why it
-        // needs a guard rather than a habit — `packages/infra/global/__tests__/vitestWorktreeExclusion.test.ts`
+        // needs a guard rather than a habit — `packages/tools/repoGuards/__tests__/vitestWorktreeExclusion.test.ts`
         // asserts it against `git worktree list`, so a new root fails without anyone remembering this line.
         // ⚠️ The `/**` tail is load-bearing: `.worktrees` alone matches the DIRECTORY and none of its files.
         exclude: ['node_modules', 'dist', '**/.worktrees/**', '**/.claude/worktrees/**'],

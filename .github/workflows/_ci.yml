@@ -749,7 +749,7 @@ jobs:
     # ⚠️ `python3 -m pip`, never bare `pip`: the tools must land in the interpreter this job then runs
     # them under. Same reason the engine-installing steps further down spell it that way.
     #
-    # `packages/infra/global/__tests__/pythonSourceChecks.test.ts` asserts that this job exists and runs
+    # `packages/tools/repoGuards/__tests__/pythonSourceChecks.test.ts` asserts that this job exists and runs
     # every declared check — a linter no job invokes is the silent success this repository has already
     # paid for twice (21 unwired k6 scripts, one Maestro flow executed by nothing for months).
     python-checks:
@@ -845,7 +845,7 @@ jobs:
     # Same shape as the `format` job: re-run the tool that OWNS the file, then require the tree to be unchanged.
     # The whole decision lives in `scripts/contractDriftGate.mjs` — runnable locally as `npm run contract:verify`
     # and regression-tested against REAL temp git repositories by
-    # `packages/infra/global/__tests__/contractDriftGate.test.ts`, including the two states a plausible
+    # `packages/tools/repoGuards/__tests__/contractDriftGate.test.ts`, including the two states a plausible
     # implementation gets wrong (a DELETED artifact, and one a `.gitignore` entry has made invisible).
     #
     # It lives here, in the base tier, rather than in a workflow of its own: `_ci.yml` already owns the
@@ -902,14 +902,20 @@ jobs:
         name: Test (${{ matrix.group }})
         timeout-minutes: 30
         runs-on: ubuntu-latest
-        needs: [install]
+        # `infra-shared` for the guards group, which installs infra-global's own packages (below) and so must not start
+        # before this branch's `@radicle-co/infra-shared` prerelease is published. A matrix job has one `needs`, so the
+        # frontend and services groups wait on it too: accepted, since `integration-infra` already waits on it.
+        needs: [install, infra-shared]
+        permissions:
+            contents: read
+            packages: read # zizmor: ignore[use-trusted-publishing]
         # ⛔ THREE GROUPS, and the split is by MEASURED cost, not by taste.
         #
         # `turbo run test` was 399s on one runner. Per-package wall times (measured 2026-08-18):
         # infra-global 71.5s, web 42.7s, food-service 40.1s, recipe-service 37.1s, mobile 33.9s,
-        # features-recipes 32.4s, everything else under 25s. `infra-global` alone is the longest pole and
-        # is ALSO the one task that can never be cached (below), so it gets its own runner; the rest split
-        # frontend from services.
+        # features-recipes 32.4s, everything else under 25s. The repo-wide guards (then inside infra-global,
+        # now `@kitchensink/repo-guards`) are the longest pole and ALSO a task that can never be cached
+        # (below), so they get their own runner; the rest split frontend from services.
         #
         # ⚠️ The groups are asserted COMPLETE by `unitTestGroupCoverage.test.ts` — every workspace package
         # with a `test` script must be reachable from exactly one group. A package added to none would
@@ -919,11 +925,10 @@ jobs:
             fail-fast: false
             matrix:
                 include:
-                    # ⛔ THE `infra` GROUP IS GONE, and its tests did not go with it. `@kitchensink/infra-global`
-                    # left the npm workspace (infra installs on its own — see its package.json), so turbo can no
-                    # longer resolve a filter for it and a shard here would silently match ZERO packages. Its
-                    # 2500+ guards now run in `cdk-checks`, which installs every CDK directory and is asserted
-                    # to do so by `unitTestGroupCoverage.test.ts`.
+                    # The repo-wide guards: the slowest unit package, and one turbo never caches (`turbo.json`), so
+                    # it gets a runner of its own. Infra's own suites are not a workspace and run in `deployInfra.yml`.
+                    - group: guards
+                      filter: --filter=@kitchensink/repo-guards
                     # `!@commise/test-utils` because it is NAMED `@commise/*` but LIVES in
                     # `packages/tools/`, so both this glob and the services group's directory glob claim
                     # it — the coverage gate caught it being tested twice, on two runners.
@@ -942,9 +947,12 @@ jobs:
                           --filter=./packages/clients/*
                           --filter=./packages/utils/*
                           --filter=./packages/infra/bootstrap
+                          --filter=!@kitchensink/repo-guards
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
+                  # Full history for the guards only: several read `origin/main`, which a depth-1 checkout lacks.
+                  fetch-depth: ${{ matrix.group == 'guards' && '0' || '1' }}
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
@@ -977,17 +985,25 @@ jobs:
                   fi
                   echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
                   npm ci
+            # The guards read infra-global's source through the TypeScript checker (`docLinkResolution` resolves its TSDoc
+            # links), which needs that package's own CDK install. Only infra-global: no guard reads another app's types.
+            - name: Install infra-global's own packages (guards only)
+              if: matrix.group == 'guards'
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              working-directory: packages/infra/global
+              run: npm install --no-audit --no-fund
             # ⛔ PERSIST turbo's cache, which this repo has deliberately not done until now.
             #
-            # `turbo.json` records why: `infra-global`'s gates read `.github/**`, `specs/*/tasks.md` and
+            # `turbo.json` records why: `repo-guards`' gates read `.github/**`, `specs/*/tasks.md` and
             # OTHER packages' sources, and turbo does not hash files belonging to another workspace package
             # into a task's inputs (measured: 993 files declared, ZERO resolved from
             # `packages/services/*/src/**`). A cache hit there would report green on gates that never ran
             # against this commit.
             #
-            # That hazard is already fenced: `@kitchensink/infra-global#test` is `cache: false`. Verified
-            # before enabling this — a second run reports `identity-core:test: cache hit` and
-            # `infra-global:test: cache bypass, force executing`. So the cache accelerates the other 56
+            # That hazard is already fenced: `@kitchensink/repo-guards#test` is `cache: false`. Verified
+            # before enabling this (then as infra-global) — a second run reports `identity-core:test: cache hit`
+            # and `infra-global:test: cache bypass, force executing`. So the cache accelerates the other 56
             # tasks and cannot serve a stale answer for the one that matters.
             #
             # Keyed on the lockfile AND the commit so each run writes its own entry, with `restore-keys`
@@ -1207,7 +1223,7 @@ jobs:
         # alternative (a looser `restore-keys` chain) is worse: it would serve the PREVIOUS lockfile's
         # `node_modules` to a job that deploys the result to AWS.
         #
-        # Asserted by `packages/infra/global/__tests__/depsCacheOrdering.test.ts`.
+        # Asserted by `packages/tools/repoGuards/__tests__/depsCacheOrdering.test.ts`.
         needs: [sandbox-status, resolve-sandbox, install]
         if: ${{ needs.sandbox-status.outputs.branch == 'run' }}
         uses: ./.github/workflows/sandboxPreview.yml
@@ -1238,7 +1254,7 @@ jobs:
     # `commit_sha` is the PR HEAD sha because Vercel builds the branch, so a preview's commit is never the
     # `refs/pull/N/merge` sha. The callee chooses the deployment BY that commit and waits for it to be READY, so the
     # alias cannot land on the previous build. The create / teardown ORDER inside the scripts is unchanged.
-    # `packages/infra/global/__tests__/previewAddressOnPush.test.ts` holds all of it.
+    # `packages/tools/repoGuards/__tests__/previewAddressOnPush.test.ts` holds all of it.
     preview-address:
         name: Publish this PR's preview address
         needs: [sandbox-status, resolve-sandbox]
@@ -1931,7 +1947,13 @@ jobs:
                       npm install --prefix "${app}" --no-audit --no-fund
                       echo "::endgroup::"
                   done
+            # The repo-wide guards' integration tier: shell scripts and CLIs driven against stubs. It needs none of the
+            # CDK packages above, and runs here because its suites are minutes, like infra's.
+            - name: Run repo-guards integration tests
+              run: npm run test:integration --workspace=@kitchensink/repo-guards
+            # Runs even when the guards step above fails, so one red does not hide the other.
             - name: Run infra integration tests
+              if: ${{ !cancelled() }}
               working-directory: packages/infra/global
               run: npm run test:integration
 

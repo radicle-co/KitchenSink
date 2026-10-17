@@ -9,7 +9,7 @@
  * drops logical databases. It is the only thing standing between a `pr-{N}` token and
  * `kitchensink_identity` — the database every preview signs in against — so it lives in one module with a
  * regression suite that executes it, exactly like `.github/scripts/prScope.sh` and
- * `packages/infra/global/__tests__/prScope.test.ts`.
+ * `packages/tools/repoGuards/__tests__/prScope.test.ts`.
  *
  * ## The rule, in one line
  *

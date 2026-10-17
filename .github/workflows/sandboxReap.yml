@@ -40,7 +40,7 @@ name: Sandbox Reap
 # It never names a target. It derives `{N}` from a stack name matching `kitchensink-*-pr-{N}`, hands those
 # DIGITS to `sandboxDown.yml`, and that workflow builds the `pr-{N}` token itself. Production and the
 # shared sandbox tier carry no `pr-{N}` in their names, so they are not merely refused — they are never
-# candidates. See `packages/infra/global/__tests__/sandboxDestroyTargetSafety.test.ts` for the three layers.
+# candidates. See `packages/tools/repoGuards/__tests__/sandboxDestroyTargetSafety.test.ts` for the three layers.
 
 on:
     # ⛔ A REGISTRATION TRIGGER, NOT A WORK TRIGGER. GitHub holds no RECORD for a workflow until the file

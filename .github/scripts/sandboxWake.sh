@@ -6,7 +6,7 @@
 # stopped RDS instance and a stopped NAT before a deploy or a test run). Nothing in CI may do that any more:
 # "There should not be a wake of CI push. I never authorized that." The only start is the Sandbox Up workflow
 # (docs/plans/2026-10-12-001-fix-sandbox-manual-start-plan.md, D2). The start subcommand and both start helpers
-# are deleted, and `packages/infra/global/__tests__/sandboxWake.test.ts` fails if a start verb comes back, in
+# are deleted, and `packages/tools/repoGuards/__tests__/sandboxWake.test.ts` fails if a start verb comes back, in
 # code or in a comment. A job that needs the sandbox SKIPS when `check` says it is down; it never
 # fails for that reason.
 #
@@ -55,7 +55,7 @@
 # 2026-09-05 race behind a green check.
 #
 # Regression-tested for real — the tests execute THIS file rather than re-implementing it — by
-# packages/infra/global/__tests__/sandboxWake.test.ts, tests/sandboxWake.integration.test.ts, and
+# packages/tools/repoGuards/__tests__/sandboxWake.test.ts, tests/sandboxWake.integration.test.ts, and
 # __tests__/sandboxWakeWiring.test.ts.
 set -uo pipefail
 

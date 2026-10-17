@@ -255,7 +255,7 @@ export function localContainerEnv(keys: readonly string[], context: LocalEnvCont
     // vanishes, and `key in env` answers TRUE for `constructor`/`toString`/`valueOf`, so a service declaring
     // one of those would be skipped and shipped with no value at all. Both are silent; the second is the one
     // that would surface as a container that boots and misbehaves. Same class as `scripts/
-    // prepareProdManifest.mjs`, guarded by `packages/infra/global/__tests__/prototypePollutionSinks.test.ts`.
+    // prepareProdManifest.mjs`, guarded by `packages/tools/repoGuards/__tests__/prototypePollutionSinks.test.ts`.
     const env: Record<string, string> = Object.assign(Object.create(null) as Record<string, string>, {
         ...LOCAL_INFRA,
         PORT: String(context.port),

@@ -63,7 +63,7 @@ It needs an owner decision.
 ## Files
 
 `.github/workflows/_ci-heavy.yml` (the iOS job), `packages/apps/commise/mobile/scripts/runMaestroFlows.sh`, and the
-guards that read them: `packages/infra/global/__tests__/maestroIosTier.test.ts` and the other Maestro guard suites.
+guards that read them: `packages/tools/repoGuards/__tests__/maestroIosTier.test.ts` and the other Maestro guard suites.
 Each change gets its guard first.
 
 ## Proof

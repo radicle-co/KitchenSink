@@ -62,7 +62,7 @@ import { CostGuardrailsStack } from '../lib/platform/CostGuardrailsStack.js';
 import { GlobalStack } from '../lib/platform/GlobalStack.js';
 import { TEST_UPLOAD_ORIGINS } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
-import { scalarText } from './workflowScalar.js';
+import { scalarText } from '@kitchensink/repo-guards/workflowScalar';
 
 const env = { account: '123456789012', region: 'us-east-1' };
 

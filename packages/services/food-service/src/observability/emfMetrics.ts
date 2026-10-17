@@ -8,7 +8,7 @@
  * another, because the infra tsconfig's `rootDir` forbids reaching across the `src`↔`infra` boundary (TS6059),
  * and NO test compares this block to either of the others. Do not add a claim that one does.
  *
- * What DOES protect the contract is `packages/infra/global/__tests__/serviceInfraWiringInvariants.test.ts`
+ * What DOES protect the contract is `packages/tools/repoGuards/__tests__/serviceInfraWiringInvariants.test.ts`
  * W3, repo-wide: an alarm on a custom metric must watch a name that appears as a string literal in the
  * service's runtime sources. Rename one here and the alarm watching the old name reds. Coarse but unfakeable,
  * and it is the guard to keep working.
@@ -123,7 +123,7 @@ export type MetricUnit = 'Count' | 'Seconds' | 'Milliseconds' | 'Percent' | 'Non
  * `identity-webhooks` shipped at eight call sites (`06107d97`: ≈ $3,000/month at 10k users, for series that each
  * hold one datapoint and aggregate to nothing chartable). Naming the facets makes that not compile rather than
  * merely discouraged; the repo-wide AST gate
- * (`packages/infra/global/__tests__/emfIdentifierDimensionRepoGate.test.ts`) is the second line for every
+ * (`packages/tools/repoGuards/__tests__/emfIdentifierDimensionRepoGate.test.ts`) is the second line for every
  * service, and its docstring carries the full arithmetic plus the PRIVACY reason an identifier does not belong
  * in an unbilled EMF property either.
  *
@@ -214,7 +214,7 @@ export function buildEmf(input: EmfInput): EmfPayload {
     // `payload[name] = …` with a name that came from the DATA — a dimension key and a metric name — so on an
     // ordinary object literal a name of `__proto__` reaches `Object.prototype`'s inherited setter instead of
     // defining a field: the value is dropped and the record ships one metric short, which is the silent half
-    // of the failure `packages/infra/global/__tests__/prototypePollutionSinks.test.ts` guards repo-wide.
+    // of the failure `packages/tools/repoGuards/__tests__/prototypePollutionSinks.test.ts` guards repo-wide.
     // Seeding the bag with `{ _aws: … }` made this invisible to that guard for a while — its detector wanted
     // a bare `{}` — so the shape is now in its positive table, not just fixed here.
     //

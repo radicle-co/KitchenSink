@@ -609,7 +609,7 @@ The section above decides **who authors** the contract; this one is where it **r
   `package.json` and `prod.package.json`**. `grep -rn "from 'class-validator'" packages --include="*.ts"` finds no
   importer anywhere under `packages/services`. So 004 inherits a **single-mechanism** service — ⛔ which raises the
   cost of adding a `class-validator` DTO here from "joining a mess" to "**re-creating** one", and it would now also
-  fail **G5** in `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which carries **no
+  fail **G5** in `packages/tools/repoGuards/__tests__/serviceSecurityInvariants.test.ts`, which carries **no
   exception list**.
 - **⚠️ The pipe hazard is invisible in review.** Under Nest's **own** built-in `ValidationPipe`, a
   `createZodDto` DTO **validates nothing while looking correctly wired** — the schema is present, the DTO is

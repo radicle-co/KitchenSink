@@ -11,7 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // `.github/scripts/verifyDeployment.sh` runs `cdk ls --long --json --app "<this app>"` and parses the
 // result, so one stray line ahead of the JSON makes the post-deploy verifier report nothing at all.
 // dotenv@17 prints a marketing banner on every `config()` call — measured, even for a path that does
-// not exist. `packages/infra/global/__tests__/cdkAppStdoutPurity.test.ts` asserts this flag on every
+// not exist. `packages/tools/repoGuards/__tests__/cdkAppStdoutPurity.test.ts` asserts this flag on every
 // DISCOVERED CDK app and observes the installed library actually honouring it.
 dotenvConfig({ path: join(__dirname, '../../.env'), quiet: true });
 
@@ -69,7 +69,7 @@ if (!vpcId) {
 // ⛔ NOT `ssm.StringParameter.valueForStringParameter`: that resolves at DEPLOY time and returns a
 // `${Token[…]}` string, so `=== 'true'` is false forever and the bare token is truthy forever — a flag that
 // compiles, deploys and silently does nothing. Whether a construct EXISTS is decided here, at synth.
-// Enforced by `packages/infra/global/__tests__/alarmFeatureFlag.test.ts`.
+// Enforced by `packages/tools/repoGuards/__tests__/alarmFeatureFlag.test.ts`.
 const alarmsEnabled = process.env['ALARMS_ENABLED'] === 'true';
 
 new WebhooksStack(app, `IdentityWebhooks-${stage}`, {

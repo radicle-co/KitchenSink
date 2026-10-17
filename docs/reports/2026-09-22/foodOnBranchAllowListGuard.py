@@ -34,7 +34,7 @@ Two further rules make the pin real rather than decorative:
 ⚠️ NOT under `packages/`, and that is deliberate. This guard's input is `foodon.owl` — 40 MB,
 downloaded out of band, and not committed — so it cannot run in CI wherever it is put. Under
 `packages/` it would be swept up by the root `ruff`/`mypy` checks (`pyproject.toml`,
-`packages/infra/global/__tests__/pythonSourceChecks.test.ts`) and go green in CI forever while its
+`packages/tools/repoGuards/__tests__/pythonSourceChecks.test.ts`) and go green in CI forever while its
 assertions never executed once: a check no job can run, reported as a check that passes. That is the
 exact silent success that guard's own docstring was written against. It lives beside the measurements
 it guards, is HAND-RUN, and says so.

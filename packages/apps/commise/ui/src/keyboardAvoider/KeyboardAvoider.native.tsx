@@ -2,7 +2,7 @@
  * @module @commise/ui/keyboard-avoider — the one keyboard rule for a screen or a modal's content
  * (`docs/design/compactHeightLayout.md` §9.2; `docs/design/ingredientSpecialization.md` §S8.1 "Keyboard: where the
  * sheet sits"). The only module in the apps that renders React Native's `KeyboardAvoidingView`
- * (`packages/infra/global/__tests__/keyboardAvoiderAdapterImports.test.ts`).
+ * (`packages/tools/repoGuards/__tests__/keyboardAvoiderAdapterImports.test.ts`).
  *
  * The content is padded up by the part of it the keyboard covers, on both platforms. On iOS the keyboard overlays the
  * window. On Android this app's windows are edge to edge, the house `Modal`'s too (`navigationBarTranslucent`), and an

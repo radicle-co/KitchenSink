@@ -152,7 +152,7 @@ function synthFoodTemplate(stage: string, baseStage: string, alarmsEnabled = tru
 // three can reference another. Be clear about what this buys: asserting the synthesized template uses
 // these literals proves the template matches THIS file, not that the worker emits them. The
 // emitter↔alarm agreement is enforced repo-wide by
-// `packages/infra/global/__tests__/serviceInfraWiringInvariants.test.ts` W3.
+// `packages/tools/repoGuards/__tests__/serviceInfraWiringInvariants.test.ts` W3.
 const FOOD_METRIC_NAMESPACE = 'Commise/Food';
 const FOOD_METRIC = {
     fetchQueueDepth: 'food-fetch-queue-depth',

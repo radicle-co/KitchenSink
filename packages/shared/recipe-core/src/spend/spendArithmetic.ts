@@ -133,7 +133,7 @@ export const DEFAULT_MONTHLY_CEILING_MICROS = 100 * MICROS_PER_DOLLAR;
  *
  * ⚠️ It is a CLOSED union because in EMF every distinct combination of dimension values is a separately
  * billed custom metric. The value space is bounded by releases rather than by traffic, which is the property
- * `packages/infra/global/__tests__/emfIdentifierDimensionRepoGate.test.ts` admits `callsite` on — and it is
+ * `packages/tools/repoGuards/__tests__/emfIdentifierDimensionRepoGate.test.ts` admits `callsite` on — and it is
  * the property `food-service`'s `source-rolling-window-count` lost by carrying `source` with no `stage`, so
  * that prod and every preview co-mingle into one series and no call can be attributed at all.
  */

@@ -122,7 +122,7 @@ jobs:
                   # 403) stranded that name PERMANENTLY — by the next sweep the stacks, ECR repos and the
                   # CNAME were already reclaimed, leaving no token to rediscover the PR by. Same defect
                   # shape as the log-group sweep that matched nothing for two years, and cheap to close.
-                  # Asserted by `packages/infra/global/__tests__/reaperDiscoveryCoversTeardown.test.ts`.
+                  # Asserted by `packages/tools/repoGuards/__tests__/reaperDiscoveryCoversTeardown.test.ts`.
                   stacks=$(aws cloudformation list-stacks --region "$REGION" \
                       --stack-status-filter CREATE_COMPLETE CREATE_FAILED ROLLBACK_COMPLETE ROLLBACK_FAILED UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE UPDATE_ROLLBACK_FAILED IMPORT_COMPLETE IMPORT_ROLLBACK_COMPLETE IMPORT_ROLLBACK_FAILED DELETE_FAILED \
                       --query 'StackSummaries[].StackName' --output text 2>/dev/null | tr '\t' '\n')

@@ -267,7 +267,7 @@ correspondence check both passed throughout — the tree has no duplicate today,
 
 ---
 
-### 9. `PRRT_kwDOR7sDRs6bZHFU` — copilot · `packages/infra/global/__tests__/commentTriggerGuard.test.ts:195`
+### 9. `PRRT_kwDOR7sDRs6bZHFU` — copilot · `packages/tools/repoGuards/__tests__/commentTriggerGuard.test.ts:195`
 
 Workflow-level `env` invisible; secret matcher misses `secrets['X']` and `toJSON(secrets)`.
 **Verdict: REAL — fixed in `34e98b96`.**

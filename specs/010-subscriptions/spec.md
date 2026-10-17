@@ -133,7 +133,7 @@ the API is scaled down**, and writes its idempotency rows into **that** database
 `stripe_webhook_events` and the shipped svix `webhook_events` is untouched — same name, different columns, different
 sender, and one shared table would have to relax the `identity_id text NOT NULL` that GR-019 leans on. ⛔ **`@RequirePremium()` / `PlanGuard` live in a SHARED package** reading the entitlement
 as a **claim from the signed Clerk session token** — every gated route lives in some _other_ service, and
-`packages/infra/global/__tests__/appServiceDependency.test.ts` already forbids an app importing a service package.
+`packages/tools/repoGuards/__tests__/appServiceDependency.test.ts` already forbids an app importing a service package.
 
 **The service MUST** author every checkout, portal and subscription-status request/response shape — **and the
 webhook endpoint's own response** — as **zod in the service** at `src/billing/*.schema.ts`, **beside the controller

@@ -47,7 +47,7 @@ const ROLE_WRITER = 'packages/services/identity-webhooks/src/common/identityClie
 const WRITERS: ReadonlySet<string> = new Set([POOL_WRITER, ROLE_WRITER]);
 
 /** This guard names every pattern it hunts for, so it is not itself a writer. */
-const SELF = 'packages/infra/global/__tests__/metadataSingleWriter.test.ts';
+const SELF = 'packages/tools/repoGuards/__tests__/metadataSingleWriter.test.ts';
 
 /** The shapes of a metadata write. */
 const WRITES: readonly { readonly name: string; readonly pattern: RegExp }[] = [

@@ -21,7 +21,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DataStack } from '../lib/platform/DataStack.js';
 import { NetworkStack } from '../lib/platform/NetworkStack.js';
-import { productionSources, readSource, withoutTsComments } from './roleSplitSources.js';
+import { productionSources, readSource, withoutTsComments } from '@kitchensink/repo-guards/roleSplitSources';
 import { mediaDeliveryProps } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
 

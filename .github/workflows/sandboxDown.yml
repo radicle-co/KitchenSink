@@ -23,7 +23,7 @@ name: Sandbox Down
 # spectrum that a typo moves along; the second is unreachable rather than merely refused.
 #
 # That is the SECOND of three independent layers, all asserted by
-# `packages/infra/global/__tests__/sandboxDestroyTargetSafety.test.ts`:
+# `packages/tools/repoGuards/__tests__/sandboxDestroyTargetSafety.test.ts`:
 #
 #   1. `teardownSandboxPr.sh` runs `pr_scope_is_token` and exits 2 on anything that is not `pr-{N}`.
 #   2. no caller can express a target that is not a PR number — this file.

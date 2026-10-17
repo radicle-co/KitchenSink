@@ -459,7 +459,7 @@ Native's TextInput`.
   `RecipeBasicsFields`, `RecipeIngredientsFields`, `CollectionRecipePicker`, `ParseJobReview`, `RecipeFilterBar`,
   `RecipeInstructionsFields`, `RecipeListFrame`, `ParsePasteForm` and `CollectionForm`. Elsewhere:
   `AuthoredFoodCreateForm.tsx`, `IngredientPicker.tsx`, `AccountEraseDialog.native.tsx` and `Input.native.tsx`.
-- **Guard:** `packages/infra/global/__tests__/textInputAdapterImports.test.ts`, modelled on
+- **Guard:** `packages/tools/repoGuards/__tests__/textInputAdapterImports.test.ts`, modelled on
   `modalAdapterImports.test.ts`. A value import of `TextInput` from `react-native` anywhere in the apps, outside the
   adapter, fails. `import type { TextInput }` for ref typing is allowed.
 - **iOS** has no such editor. The prop does nothing there.

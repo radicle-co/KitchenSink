@@ -24,7 +24,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { SHARED_TIER_DELETE_ORDER, environmentTagBelongs, liveTokens } from '../lib/sandbox-scheduler/reclaim.js';
-import { repoRoot } from './serviceSources.js';
+import { repoRoot } from '@kitchensink/repo-guards/serviceSources';
 
 const PR_SCOPE = path.join(repoRoot, '.github/scripts/prScope.sh');
 const SHARED_TIER = path.join(repoRoot, '.github/scripts/sandboxSharedTier.sh');

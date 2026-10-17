@@ -106,7 +106,7 @@ The first three are deterministic and produce no comment noise. The fifth is the
 - Modify: `AGENTS.md`
 - Modify: `.github/copilot-instructions.md`
 - Create: `.github/instructions/infra.instructions.md`, `.github/instructions/workflows.instructions.md`
-- Create: `packages/infra/global/__tests__/reviewerContext.test.ts`
+- Create: `packages/tools/repoGuards/__tests__/reviewerContext.test.ts`
 
 **Approach:** `AGENTS.md` currently names `@auth0/nextjs-auth0` and `react-native-auth0` for a Clerk repo, and states _"Sandbox front-ends use path routing, NOT per-PR subdomains"_ — the inverse of the ruling since the 2026-07-13 cutover, where the path form 404s by design. Correct both. Then add path-scoped Copilot instruction files with `applyTo` frontmatter, inlining each ADR's "looks wrong, isn't" ruling scoped to the paths it governs. Copilot's documentation states instructions cannot follow external links, so the rulings must be inlined rather than referenced.
 
@@ -259,14 +259,14 @@ Score per arm, in this order: **(a) ADR-revert count** — how often it advised 
 **Dependencies:** none
 **Files:**
 
-- Create: `packages/infra/global/__tests__/workflowInvariants.test.ts`
+- Create: `packages/tools/repoGuards/__tests__/workflowInvariants.test.ts`
 - Modify: existing guards if shared helpers are extracted
 
 **Approach:** Three guards already exist and work — build-order, reachability, bootstrap-bundle — and they share a pattern worth generalising: parse the workflow YAML, and **execute the embedded bash rather than re-implementing it**, so a second copy of the rules cannot drift from the one CI runs. Extend to invariants currently unguarded: every job in the `needs` closure of a real trigger is reachable; every `download-artifact` name has an earlier matching upload; no prune-like step precedes a build-like step; and the `continue-on-error` / `|| true` surface (8 and 9 occurrences respectively) is enumerated so silent-success additions are visible.
 
 **Execution note:** test-first — each invariant's test must be observed failing against a deliberately broken fixture before the assertion is trusted.
 
-**Patterns to follow:** `packages/infra/global/__tests__/prodDeployReachability.test.ts` — in particular its treatment of an unrecognised `${{ }}` expression as a hard error rather than an empty string.
+**Patterns to follow:** `packages/tools/repoGuards/__tests__/prodDeployReachability.test.ts` — in particular its treatment of an unrecognised `${{ }}` expression as a hard error rather than an empty string.
 
 **Test scenarios:**
 

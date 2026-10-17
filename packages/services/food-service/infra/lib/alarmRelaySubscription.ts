@@ -1,7 +1,7 @@
 // ⚠️ DELIBERATE — see docs/architecture/decisions/0062-stage-scoped-metrics-and-alarm-relay.md.
 //
 // A MIRRORED MODULE: every CDK app that owns an alarm topic carries an identical copy, held identical by
-// `packages/infra/global/__tests__/mirroredModuleParity.test.ts`. Its natural home, `@radicle-co/infra-shared`, is
+// `packages/tools/repoGuards/__tests__/mirroredModuleParity.test.ts`. Its natural home, `@radicle-co/infra-shared`, is
 // consumed at a pinned PUBLISHED version that only a commit may move (owner ruling), so a new export there cannot reach
 // the apps in the change that introduces it. `scheduledRuleGate.ts` is the precedent.
 //

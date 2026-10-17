@@ -11,7 +11,7 @@
  *
  * Every other prop passes through, `ref` included (React 19 hands a function component its ref as a prop), so a caller
  * that focuses its field keeps doing so. A value import of `TextInput` from `react-native` anywhere else in the apps
- * fails `packages/infra/global/__tests__/textInputAdapterImports.test.ts`; a type-only one, for typing a ref, is fine.
+ * fails `packages/tools/repoGuards/__tests__/textInputAdapterImports.test.ts`; a type-only one, for typing a ref, is fine.
  *
  * A field with a `nativeID` also registers itself while mounted (`labelFocus.native.ts`), so the `FieldLabel` naming
  * that id focuses it when pressed, as a web `<label for>` does. That takes the field's node, through a callback ref

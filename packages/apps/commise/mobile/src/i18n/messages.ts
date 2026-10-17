@@ -2,7 +2,7 @@
  * Mobile-app-specific user-facing copy (strings that live only in the mobile app: the sign-in forms and the root crash
  * body). Copy web and mobile say identically lives in the feature packages' `messages.ts`
  * (`@commise/features-core/home`'s `homeMessages`, the recipe, collection and version sets), and
- * `packages/infra/global/__tests__/appCopyIsNotDuplicated.test.ts` fails when a sentence is authored in both apps' own
+ * `packages/tools/repoGuards/__tests__/appCopyIsNotDuplicated.test.ts` fails when a sentence is authored in both apps' own
  * dictionaries. A {@link LocalizedMessages} dictionary resolved per
  * active locale via `useMessages` from `@commise/i18n/react`. The `en` set is required.
  */

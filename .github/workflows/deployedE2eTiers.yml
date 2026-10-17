@@ -172,7 +172,7 @@ jobs:
               run: |
                   set -euo pipefail
                   # ⛔ ONE PREDICATE, in `.github/scripts/targetScope.sh`, regression-tested for real by
-                  # `packages/infra/global/__tests__/targetScope.test.ts`. This block was written out inline in
+                  # `packages/tools/repoGuards/__tests__/targetScope.test.ts`. This block was written out inline in
                   # ten jobs across three workflows — ten places to fix one rule and no place to test it — and
                   # the cases no inline copy covered are exactly the dangerous ones: a suffix-confusion host
                   # (`evil-commise.app` for `commise.app`), a plaintext `http://` origin, and an unset
@@ -250,7 +250,7 @@ jobs:
               run: |
                   set -euo pipefail
                   # ⛔ ONE PREDICATE, in `.github/scripts/targetScope.sh`, regression-tested for real by
-                  # `packages/infra/global/__tests__/targetScope.test.ts`. This block was written out inline in
+                  # `packages/tools/repoGuards/__tests__/targetScope.test.ts`. This block was written out inline in
                   # ten jobs across three workflows — ten places to fix one rule and no place to test it — and
                   # the cases no inline copy covered are exactly the dangerous ones: a suffix-confusion host
                   # (`evil-commise.app` for `commise.app`), a plaintext `http://` origin, and an unset
@@ -345,7 +345,7 @@ jobs:
               run: |
                   set -euo pipefail
                   # ⛔ ONE PREDICATE, in `.github/scripts/targetScope.sh`, regression-tested for real by
-                  # `packages/infra/global/__tests__/targetScope.test.ts`. This block was written out inline in
+                  # `packages/tools/repoGuards/__tests__/targetScope.test.ts`. This block was written out inline in
                   # ten jobs across three workflows — ten places to fix one rule and no place to test it — and
                   # the cases no inline copy covered are exactly the dangerous ones: a suffix-confusion host
                   # (`evil-commise.app` for `commise.app`), a plaintext `http://` origin, and an unset
@@ -417,7 +417,7 @@ jobs:
               run: |
                   set -euo pipefail
                   # ⛔ ONE PREDICATE, in `.github/scripts/targetScope.sh`, regression-tested for real by
-                  # `packages/infra/global/__tests__/targetScope.test.ts`. This block was written out inline in
+                  # `packages/tools/repoGuards/__tests__/targetScope.test.ts`. This block was written out inline in
                   # ten jobs across three workflows — ten places to fix one rule and no place to test it — and
                   # the cases no inline copy covered are exactly the dangerous ones: a suffix-confusion host
                   # (`evil-commise.app` for `commise.app`), a plaintext `http://` origin, and an unset
@@ -630,7 +630,7 @@ jobs:
               run: |
                   set -euo pipefail
                   # ⛔ ONE PREDICATE, in `.github/scripts/targetScope.sh`, regression-tested for real by
-                  # `packages/infra/global/__tests__/targetScope.test.ts`. This block was written out inline in
+                  # `packages/tools/repoGuards/__tests__/targetScope.test.ts`. This block was written out inline in
                   # ten jobs across three workflows — ten places to fix one rule and no place to test it — and
                   # the cases no inline copy covered are exactly the dangerous ones: a suffix-confusion host
                   # (`evil-commise.app` for `commise.app`), a plaintext `http://` origin, and an unset
@@ -729,7 +729,7 @@ jobs:
             # referencing it at job level does not warn and does not skip the job — GitHub refuses to LOAD the
             # workflow, and the run reports "a workflow file issue" with ZERO jobs. This branch ran that way
             # for three days and fifteen units, publishing no checks at all.
-            # `packages/infra/global/__tests__/workflowContextAvailability.test.ts` fails if it comes back.
+            # `packages/tools/repoGuards/__tests__/workflowContextAvailability.test.ts` fails if it comes back.
             #
             # ⛔ ONE MINT PER SPEC FILE. A Clerk session token lives about sixty seconds (the seeding note above), so
             # one token minted for the whole run has to outlast every file in it. Each file gets a fresh token
@@ -828,7 +828,7 @@ jobs:
               run: |
                   set -euo pipefail
                   # ⛔ ONE PREDICATE, in `.github/scripts/targetScope.sh`, regression-tested for real by
-                  # `packages/infra/global/__tests__/targetScope.test.ts`. This block was written out inline in
+                  # `packages/tools/repoGuards/__tests__/targetScope.test.ts`. This block was written out inline in
                   # ten jobs across three workflows — ten places to fix one rule and no place to test it — and
                   # the cases no inline copy covered are exactly the dangerous ones: a suffix-confusion host
                   # (`evil-commise.app` for `commise.app`), a plaintext `http://` origin, and an unset
@@ -1386,7 +1386,7 @@ jobs:
               run: |
                   set -euo pipefail
                   # ⛔ ONE PREDICATE, in `.github/scripts/targetScope.sh`, regression-tested for real by
-                  # `packages/infra/global/__tests__/targetScope.test.ts`. This block was written out inline in
+                  # `packages/tools/repoGuards/__tests__/targetScope.test.ts`. This block was written out inline in
                   # ten jobs across three workflows — ten places to fix one rule and no place to test it — and
                   # the cases no inline copy covered are exactly the dangerous ones: a suffix-confusion host
                   # (`evil-commise.app` for `commise.app`), a plaintext `http://` origin, and an unset

@@ -15,7 +15,7 @@
  * instance reflects any `Origin` regardless of what we send). **If a route ever reads a cookie, a session
  * credential, or accepts a WebSocket upgrade, this precondition is broken and these branches must be
  * re-derived before that route ships.** The one shared guard,
- * `packages/infra/global/__tests__/bearerOnlyPrecondition.test.ts`, finds this package because it calls the shared
+ * `packages/tools/repoGuards/__tests__/bearerOnlyPrecondition.test.ts`, finds this package because it calls the shared
  * policy, parses `src/` (AST, not grep — this very comment mentions `req.cookies`) and fails the build if the
  * premise stops holding. See `docs/architecture/decisions/0047-shared-cors-policy.md`.
  *

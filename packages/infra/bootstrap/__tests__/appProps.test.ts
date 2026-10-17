@@ -5,7 +5,7 @@
  * that nothing the CDK CLI or `cdk.json` says can override either.
  *
  * What the CDK DOES with these props is proved against the real `aws-cdk-lib` in
- * `packages/infra/global/__tests__/cdkQualifierCoverage.test.ts` and the template-parity proof; this package is
+ * `packages/tools/repoGuards/__tests__/cdkQualifierCoverage.test.ts` and the template-parity proof; this package is
  * deliberately CDK-free (an app resolves its own single `aws-cdk-lib` instance), so it can only pin the data.
  */
 import { describe, expect, it } from 'vitest';

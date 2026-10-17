@@ -43,7 +43,7 @@ this `tests/load/` directory (vitest's `include` matches only `*.test.ts`).
 > on whichever box ran them, never production capacity.
 >
 > They are kept rather than deleted **because the accepted-loss list in
-> `packages/infra/global/__tests__/k6LoadTierWiring.test.ts` IS the record that these gates no longer run** —
+> `packages/tools/repoGuards/__tests__/k6LoadTierWiring.test.ts` IS the record that these gates no longer run** —
 > deleting the scripts would remove the record, not the gap. Read a green run as an algorithmic regression
 > check (a dropped index shows as a large multiple on any substrate), never as evidence of capacity.
 

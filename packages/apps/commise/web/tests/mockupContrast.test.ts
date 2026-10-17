@@ -56,7 +56,7 @@ import { describe, expect, it } from 'vitest';
  * The archive's location, resolved from this file rather than the working directory (the suite must give the
  * same answer under `npm test`, a Turbo task and an editor run alike).
  *
- * `fileURLToPath(new URL(…, import.meta.url))` — the idiom `infra/global`'s repo-wide guards use — cannot be
+ * `fileURLToPath(new URL(…, import.meta.url))` — the idiom the repo-wide guards (`@kitchensink/repo-guards`) use — cannot be
  * used here: this suite runs under jsdom, whose global `URL` is not Node's, so `fileURLToPath` rejects the
  * instance with "The URL must be of scheme file".
  */

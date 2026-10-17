@@ -19,7 +19,7 @@
  * ⚠️ The two must agree on every scalar the flows read, because the flows were written against `seed.ts`
  * and cite it by name (`servingScale.yaml` asserts 2 servings and 10/10/20 minutes "per
  * packages/services/recipe-service/src/database/seed.ts"). That agreement is ASSERTED, by
- * `packages/infra/global/__tests__/maestroFixtureWorld.test.ts`: every `SEED_WORLD` recipe matches the `seed.ts`
+ * `packages/tools/repoGuards/__tests__/maestroFixtureWorld.test.ts`: every `SEED_WORLD` recipe matches the `seed.ts`
  * recipe of the same title on every field its definition declares but `key`, and no other `seed.ts` recipe is the
  * signer's.
  * Changing the asparagus's servings in one place is a red test naming both files.
@@ -335,7 +335,7 @@ export const DOWNGRADED_OWNER_WORLD: {
  * The env contract between this package, `runMaestroFlows.sh` and the flow YAML — ONE registry, so the
  * producer and the consumers cannot drift.
  *
- * `packages/infra/global/__tests__/maestroFixtureVariables.test.ts` asserts SET EQUALITY in both
+ * `packages/tools/repoGuards/__tests__/maestroFixtureVariables.test.ts` asserts SET EQUALITY in both
  * directions: every `${E2E_…}` a flow interpolates is a key here, and every key here is referenced by at
  * least one flow. A variable nothing reads is a fixture nothing needs; a variable nothing supplies renders
  * as the literal text `${E2E_RECIPE_LAMB}` on screen and fails a flow for a reason that reads like an app

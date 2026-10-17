@@ -174,7 +174,7 @@ needs.detect-mobile-flows.result == 'success' && <branch> && needs.deploy-previe
 
 New:
 
-- `packages/infra/global/__tests__/mobileTestAppBuild.test.ts`: (a) every caller that turns Maestro on through
+- `packages/tools/repoGuards/__tests__/mobileTestAppBuild.test.ts`: (a) every caller that turns Maestro on through
   `deployedE2eTiers` needs a job calling `_mobileAppBuild.yml` and relays its two outputs. (b) the build job's label
   term is the same string as `run_mobile_maestro`'s. (c) `deployed-tiers`' `if:` lists every earlier need as
   `result == 'success'` and never gates on the build. (d) no `_ci-heavy.yml` step runs `gradlew`, `xcodebuild ...

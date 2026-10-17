@@ -38,8 +38,8 @@ import {
     topicsWithoutRelay,
     type CfnTemplate,
 } from '../__tests__/alarmPosture.js';
-import { parseSource, productionSources } from '../__tests__/roleSplitSources.js';
-import { repoRoot } from '../__tests__/serviceSources.js';
+import { parseSource, productionSources } from '@kitchensink/repo-guards/roleSplitSources';
+import { repoRoot } from '@kitchensink/repo-guards/serviceSources';
 import {
     prepareWorkspace,
     removeSynthesisScratch,

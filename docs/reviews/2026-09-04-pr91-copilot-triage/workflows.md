@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-04
 **Scope:** every open (`isResolved: false`, `isOutdated: false`) Copilot thread on a `.github/` path, plus
-the one on `packages/infra/global/__tests__/commentTriggerGuard.test.ts` (a guard over `.github/`).
+the one on `packages/tools/repoGuards/__tests__/commentTriggerGuard.test.ts` (a guard over `.github/`).
 **Branch:** `chore/code-quality-enforcement-phase-1-2`, from `254a906b`.
 
 ⚠️ **Nothing here has been posted to the PR.** Replies are drafted for the owner to approve and send.

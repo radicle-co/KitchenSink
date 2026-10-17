@@ -32,7 +32,7 @@
 #
 # `maestro_select_flows` is PURE — plan + selector pairs in, verdict out; no adb, no network, no device — and
 # it is regression-tested by EXECUTING this file (never by re-implementing it) from
-# `packages/infra/global/__tests__/maestroFlowSelection.test.ts`, which also owns the inventory assertion
+# `packages/tools/repoGuards/__tests__/maestroFlowSelection.test.ts`, which also owns the inventory assertion
 # that every committed `.maestro` flow is planned, is a `runFlow` sub-flow, is inert for a stated reason, or
 # is a recorded gap. That guard exists because a flow (`recipes/ingredientCatalogBlend.yaml`, since deleted) was
 # committed and then executed by nothing for months: `FLOWS` was a hand-maintained list and nobody added it.
@@ -500,7 +500,7 @@ EMPTY_LIBRARY_FLOWS=" recipes/emptyLibrary "
 #
 # ⛔ The key set is a CONTRACT across three languages and none can typecheck against the others, so it is
 # asserted from disk in both directions by
-# `packages/infra/global/__tests__/maestroFixtureVariables.test.ts`: a key no flow reads is dead weight, and
+# `packages/tools/repoGuards/__tests__/maestroFixtureVariables.test.ts`: a key no flow reads is dead weight, and
 # a `${E2E_…}` nothing supplies renders on screen as its own literal text and fails like an app defect.
 MAESTRO_FIXTURE_ENV_FILE="${MAESTRO_FIXTURE_ENV_FILE:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/e2e-seed/fixture.env}"
 

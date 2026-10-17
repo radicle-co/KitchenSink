@@ -5,7 +5,7 @@
  * the build makes. The function digests its own task root with {@link assertSeedBundleMatches} before it applies
  * anything; `runSeed.sh manifest` digests the directory the pipeline built. The two are independent
  * implementations over one rendering (`formatManifest`), held in agreement by
- * `packages/infra/global/__tests__/seedManifestAgreement.test.ts`.
+ * `packages/tools/repoGuards/__tests__/seedManifestAgreement.test.ts`.
  *
  * ⛔ A symlink, a special file or a path outside `isSeedManifestPath` is refused, never followed or skipped: either
  * would let the two halves digest the same tree differently, and an empty tree is refused because it digests

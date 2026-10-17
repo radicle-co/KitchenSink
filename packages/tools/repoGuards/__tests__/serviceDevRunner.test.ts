@@ -176,7 +176,7 @@ interface ProbeResult {
 }
 
 /** The committed fixture each runner is pointed at — see its docstring for what it measures and why. */
-const PROBE_ENTRY = path.join(repoRoot, 'packages/infra/global/__tests__/__fixtures__/devRunnerProbe/probe.ts');
+const PROBE_ENTRY = path.join(repoRoot, 'packages/tools/repoGuards/__tests__/__fixtures__/devRunnerProbe/probe.ts');
 
 /**
  * Run one runner against {@link PROBE_ENTRY} and read back what its transform produced.

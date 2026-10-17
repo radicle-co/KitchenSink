@@ -21,7 +21,7 @@
 #   issues                       → github.event.issue.author_association     (the ISSUE AUTHOR)
 #
 # Every `github.event_name` branch below carries the association check for ITS OWN path, conjoined
-# with (never or'd beside) its trigger-phrase check. `packages/infra/global/__tests__/
+# with (never or'd beside) its trigger-phrase check. `packages/tools/repoGuards/__tests__/
 # commentTriggerGuard.test.ts` asserts that property structurally for every workflow in the tree —
 # it EVALUATES each job's `if:` with the association atom forced false and requires the job to become
 # unreachable, so it catches a guard added to three of four branches, and it catches a future

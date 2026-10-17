@@ -61,8 +61,8 @@ import { minimatch } from 'minimatch';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 import { EDGE_POLICY } from '../lib/platform/EdgeStack.js';
-import { isServiceDirectoryOf } from './serviceSources.js';
-import { scalarText } from './workflowScalar.js';
+import { isServiceDirectoryOf } from '@kitchensink/repo-guards/serviceSources';
+import { scalarText } from '@kitchensink/repo-guards/workflowScalar';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const WORKFLOW_DIR = fileURLToPath(new URL('../../../../.github/workflows/', import.meta.url));

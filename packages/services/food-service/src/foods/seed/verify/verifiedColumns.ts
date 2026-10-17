@@ -244,7 +244,7 @@ const isCompared = (entry: readonly [string, ColumnDisposition]): boolean => ent
 
 /**
  * The compared columns no verifier SQL compares yet, as `table.column`, sorted. While any remain, no deploy may run the
- * seed (`packages/infra/global/__tests__/seedVerifierOwed.test.ts`).
+ * seed (`packages/tools/repoGuards/__tests__/seedVerifierOwed.test.ts`).
  */
 export const OWED: readonly string[] = Object.entries(VERIFIED_COLUMNS)
     .flatMap(([table, columns]) =>

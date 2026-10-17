@@ -103,11 +103,11 @@ seed.
   `iamLoginStatements` grants to refuses before any `rds_iam` grant.
 - `packages/shared/db-schema-guard/src/__tests__/loginRights.test.ts`: each login role's database rights, the policy
   the bootstrap and the runner share.
-- `packages/infra/global/__tests__/dbTouchingStackBarrier.test.ts`: the seed function is the one registered
+- `packages/tools/repoGuards/__tests__/dbTouchingStackBarrier.test.ts`: the seed function is the one registered
   pipeline-only handler, and nothing in a schema stack can start a function by itself.
-- `packages/infra/global/__tests__/seedVerifierOwed.test.ts`: no workflow runs the seed while the verifier owes a
+- `packages/tools/repoGuards/__tests__/seedVerifierOwed.test.ts`: no workflow runs the seed while the verifier owes a
   column.
-- `packages/infra/global/__tests__/seedStepOrder.test.ts`: in both pipelines, the seed step follows the food migration,
+- `packages/tools/repoGuards/__tests__/seedStepOrder.test.ts`: in both pipelines, the seed step follows the food migration,
   precedes the deploy that reads the catalog, never continues on error, and applies the bundle the pipeline built.
 - `packages/infra/global/tests/e2e/seederBootstrap.e2e.test.ts`: the bootstrap and the runner against a real
   PostgreSQL.

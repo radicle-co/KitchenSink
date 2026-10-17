@@ -17,7 +17,7 @@ import { Template } from 'aws-cdk-lib/assertions';
 import { describe, expect, it } from 'vitest';
 
 import { AlarmRelayStack } from '../lib/platform/AlarmRelayStack.js';
-import { productionSources, REPO_ROOT } from './roleSplitSources.js';
+import { productionSources, REPO_ROOT } from '@kitchensink/repo-guards/roleSplitSources';
 import { testApp } from './testApp.js';
 
 /** Every copy of the subscription module, discovered. */

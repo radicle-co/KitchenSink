@@ -14,7 +14,7 @@
 #      glob reaches. Read what you are admitting before you admit it.
 #   2. **The AWS account id must not appear in the corpus at all**, and that is CHECKED rather than
 #      trusted — by `Assert the built site carries no AWS account id` below (which gates the artifact, on
-#      pull requests too) and by `packages/infra/global/__tests__/assertNoAwsAccountIds.test.ts` over
+#      pull requests too) and by `packages/tools/repoGuards/__tests__/assertNoAwsAccountIds.test.ts` over
 #      `docs/` in the ordinary test tier. Both run `scripts/assertNoAwsAccountIds.mjs`, which DISCOVERS
 #      the ids from the repository's own ARNs rather than hardcoding one, so the guard never restates the
 #      value it exists to keep out of print. If either goes red, scrub the document — do not weaken the
@@ -241,7 +241,7 @@ jobs:
               # because the upload below is the only producer of what the deploy job consumes.
               #
               # The script DERIVES the ids from the repository's own ARNs instead of naming one — see
-              # its header, and `packages/infra/global/__tests__/assertNoAwsAccountIds.test.ts` for the
+              # its header, and `packages/tools/repoGuards/__tests__/assertNoAwsAccountIds.test.ts` for the
               # non-vacuity argument. It fails closed: no derived id, a missing directory, or a walk
               # that reached no files are all failures, not passes.
               run: node scripts/assertNoAwsAccountIds.mjs packages/tools/docs-site/build

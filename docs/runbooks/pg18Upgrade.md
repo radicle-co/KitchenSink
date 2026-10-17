@@ -648,9 +648,9 @@ instance has served cleanly for at least 24 hours. Take a final snapshot before 
 
 ## What the gates in the repo enforce, so you do not have to remember
 
-| Gate                                                             | What it fails on                                                                                                                                                                 |
-| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/infra/global/__tests__/engineVersionDiff.test.ts`      | The synthesized `EngineVersion` drifting from the reviewed constant; a missing `AllowMajorVersionUpgrade`; a frozen minor; a custom parameter group; prod and sandbox diverging. |
-| `packages/infra/global/__tests__/localPostgresParity.test.ts`    | Any `postgres:` image pin in the repo whose major disagrees with `DataStack` — 12 CI service containers and four compose files — or any `-alpine` (musl `C` collation) variant.  |
-| `packages/infra/global/__tests__/generatedColumnStorage.test.ts` | Any generated column in any migration that omits `STORED`, which PostgreSQL 18 silently reads as `VIRTUAL`.                                                                      |
-| `packages/infra/global/__tests__/cdkNagTemplateParity.test.ts`   | ⛔ **Not this.** It compares the same source against itself and structurally cannot fire on an engine-version change — the reason `engineVersionDiff.test.ts` exists.            |
+| Gate                                                                 | What it fails on                                                                                                                                                                 |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/infra/global/__tests__/engineVersionDiff.test.ts`          | The synthesized `EngineVersion` drifting from the reviewed constant; a missing `AllowMajorVersionUpgrade`; a frozen minor; a custom parameter group; prod and sandbox diverging. |
+| `packages/tools/repoGuards/__tests__/localPostgresParity.test.ts`    | Any `postgres:` image pin in the repo whose major disagrees with `DataStack` — 12 CI service containers and four compose files — or any `-alpine` (musl `C` collation) variant.  |
+| `packages/tools/repoGuards/__tests__/generatedColumnStorage.test.ts` | Any generated column in any migration that omits `STORED`, which PostgreSQL 18 silently reads as `VIRTUAL`.                                                                      |
+| `packages/infra/global/__tests__/cdkNagTemplateParity.test.ts`       | ⛔ **Not this.** It compares the same source against itself and structurally cannot fire on an engine-version change — the reason `engineVersionDiff.test.ts` exists.            |

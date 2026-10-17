@@ -33,7 +33,7 @@
  * ⛔ PRECONDITION: the loopback and preview-pattern branches are safe only for a BEARER-ONLY service, one where no
  * route reads a cookie or session credential and none accepts a WebSocket upgrade. A page on an admitted origin then
  * has no ambient credential to ride, and the anchored `azp` regex, not CORS, is the trust boundary on sandbox. A
- * package that calls this function is found by `packages/infra/global/__tests__/bearerOnlyPrecondition.test.ts`,
+ * package that calls this function is found by `packages/tools/repoGuards/__tests__/bearerOnlyPrecondition.test.ts`,
  * which fails when that premise stops holding for its routes (ADR-0047). Adopting the policy needs no test of its own.
  *
  * @pattern Policy — a pure function from configuration to the admitted origins, derived from the `azp` resolver

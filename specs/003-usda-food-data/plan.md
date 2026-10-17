@@ -629,7 +629,7 @@ rather than deleted, because it is the argument for the rule.** Food now registe
 `z.strictObject` schemas; its controllers hold **no** `safeParse` and **no** `@Body() body: unknown`. Committed in
 **`49a1df7f`** — ⛔ so do not re-schedule the convergence, and do not restore a per-method `safeParse` "as belt
 and braces" (§16-a.2: a second mechanism is a second error contract). The invariant is now held repo-wide by **G5**
-in `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which requires a `ZodValidationPipe`
+in `packages/tools/repoGuards/__tests__/serviceSecurityInvariants.test.ts`, which requires a `ZodValidationPipe`
 over every HTTP controller in every discovered deployable and runs with **no exception list at all**.
 
 - **One mechanism, one `400`.** Every `/api/v1/foods/*` input — add-by-name, read, status, candidates,

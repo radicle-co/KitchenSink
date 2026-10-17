@@ -339,7 +339,7 @@ the first place** (JSDoc narrating the migration), not an importer count. There 
 that has exactly one means two error contracts, two sets of edge cases, and a mechanism-per-route that is a
 per-file accident — and **006 would now be the one INTRODUCING the second mechanism**, not joining a residue, which
 is a strictly worse position to be in. **006's own `plan.md` forbids it**, and so does repo-wide gate **G5** in
-`packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which runs with no exception list.
+`packages/tools/repoGuards/__tests__/serviceSecurityInvariants.test.ts`, which runs with no exception list.
 
 Schemas are authored as zod at **`packages/services/recipe-service/src/meal-plans/meal-plans.schema.ts`**,
 **beside the controller they serve** (`docs/CODING_STANDARDS.md` §15.2) — **never** in a `dto/` directory — and

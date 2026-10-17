@@ -4,7 +4,7 @@
  *
  * ⛔ DEEP IMPORTS ONLY (`lucide-react-native/icons/<glyph>`). Metro does not tree-shake by default, so the package root
  * would ship every one of Lucide's glyphs in the app bundle. This is the only module on native that imports Lucide, and
- * `packages/infra/global/__tests__/iconImportBoundary.test.ts` holds it to the deep form. The web table (`glyphs.ts`)
+ * `packages/tools/repoGuards/__tests__/iconImportBoundary.test.ts` holds it to the deep form. The web table (`glyphs.ts`)
  * must draw the same glyph for every meaning; `__tests__/glyphs.test.tsx` holds the two tables to that.
  *
  * @pattern Registry — a table keyed by the closed `IconName` union, so a meaning without a glyph does not compile

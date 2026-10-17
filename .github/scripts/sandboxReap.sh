@@ -26,7 +26,7 @@
 # ## Shape
 #
 # The decisions are PURE — text or values in, verdict out, no AWS, no `gh`, no clock — and are regression-tested
-# by executing this file in packages/infra/global/__tests__/sandboxReap.test.ts. All I/O lives in
+# by executing this file in packages/tools/repoGuards/__tests__/sandboxReap.test.ts. All I/O lives in
 # `sandbox_reap_evaluate`, which tests/sandboxReap.integration.test.ts drives against stubbed `aws`, `gh` and
 # `date`.
 #

@@ -4,7 +4,7 @@
  * @pattern Execute Around — the lock is taken before the work and released after it, however the work ends
  *
  * The one place in the repository that takes and releases a blocking SESSION advisory lock
- * (`packages/infra/global/__tests__/sessionAdvisoryLockSites.test.ts`). The lock is a registered class in the
+ * (`packages/tools/repoGuards/__tests__/sessionAdvisoryLockSites.test.ts`). The lock is a registered class in the
  * two-argument space or a reserved key in the single-argument one (`roles/advisoryLockClasses.ts`).
  *
  * A SESSION lock outlives every transaction the work opens, which is the point: a caller that must plan against

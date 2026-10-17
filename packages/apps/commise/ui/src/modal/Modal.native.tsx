@@ -21,7 +21,7 @@
  * So the modal hands its contents the Null Object revealer.
  *
  * A raw `Modal` import from `react-native` anywhere else in the apps fails
- * `packages/infra/global/__tests__/modalAdapterImports.test.ts`.
+ * `packages/tools/repoGuards/__tests__/modalAdapterImports.test.ts`.
  *
  * @pattern Adapter over React Native's `Modal`
  */

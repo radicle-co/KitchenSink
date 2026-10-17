@@ -30,7 +30,7 @@ import { LOG_DRAIN_SOURCES } from '../../../services/identity-webhooks/src/commo
 import { GlobalStack } from '../lib/platform/GlobalStack.js';
 import { TEST_UPLOAD_ORIGINS } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
-import { productionSources, readSource, withoutTsComments, REPO_ROOT } from './roleSplitSources.js';
+import { productionSources, readSource, withoutTsComments, REPO_ROOT } from '@kitchensink/repo-guards/roleSplitSources';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 

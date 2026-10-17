@@ -857,7 +857,7 @@ jobs:
               run: |
                   set -euo pipefail
                   # ⛔ ONE PREDICATE, in `.github/scripts/targetScope.sh`, regression-tested for real by
-                  # `packages/infra/global/__tests__/targetScope.test.ts`. This was one of ten inline copies
+                  # `packages/tools/repoGuards/__tests__/targetScope.test.ts`. This was one of ten inline copies
                   # across three workflows, and the cases none of them covered are the dangerous ones: a
                   # suffix-confusion host, a plaintext `http://` origin, and an unset `DOMAIN_NAME`.
                   . .github/scripts/targetScope.sh

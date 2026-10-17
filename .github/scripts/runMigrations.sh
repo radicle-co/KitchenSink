@@ -27,7 +27,7 @@
 # deploy of the throwing inline placeholder over a working runner. Gating costs nothing because the property
 # lives HERE: a service's migrations are under that service's own path, so either they changed and the flag
 # is true, or the deployed runner still holds a set whose digest matches the tree.
-# `packages/infra/global/__tests__/schemaDeployGating.test.ts` asserts it.
+# `packages/tools/repoGuards/__tests__/schemaDeployGating.test.ts` asserts it.
 #
 # Running every time is safe, and that is a property of the runner rather than optimism: `schema_migrations`
 # is keyed by FILENAME (`name TEXT PRIMARY KEY`, no checksum) and the runner skips on a name match, so a run
@@ -55,8 +55,8 @@
 #
 # `run_migrations_classify` is PURE; every AWS call lives in `run_migrations_resolve` and `run_migrations_invoke`,
 # which `runSeed.sh` shares. Both halves are executed —
-# not re-implemented — by packages/infra/global/__tests__/runMigrations.test.ts and
-# packages/infra/global/tests/runMigrations.integration.test.ts.
+# not re-implemented — by packages/tools/repoGuards/__tests__/runMigrations.test.ts and
+# packages/tools/repoGuards/tests/runMigrations.integration.test.ts.
 #
 # ## Usage
 #
@@ -143,7 +143,7 @@ run_migrations_classify() {
 # implementations cannot, because sha256 has exactly one right answer. The rendering is byte-for-byte GNU
 # `sha256sum`'s (`<64 hex><space><space><name><newline>`, ordered by name under C collation) precisely so
 # that both sides can produce it without coordinating, and
-# `packages/infra/global/__tests__/migrationManifestAgreement.test.ts` runs this function and
+# `packages/tools/repoGuards/__tests__/migrationManifestAgreement.test.ts` runs this function and
 # `@kitchensink/db-schema-guard` over the SAME directories and asserts they agree — on the rendered text,
 # not only the final digest, so a future disagreement names the line it happened on.
 #

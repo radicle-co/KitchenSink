@@ -84,7 +84,7 @@ import { minimatch } from 'minimatch';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-/** This file sits at `packages/infra/global/__tests__`, so the repo root is four levels up. */
+/** This file sits at `packages/tools/repoGuards/__tests__`, so the repo root is four levels up. */
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 /** The one spelling of `lint` this repo accepts. See the header: a glob is what drifts, `.` cannot. */
@@ -400,8 +400,8 @@ describe('static-analysis coverage', () => {
         // asserted above — but they are no longer counted here, and a floor that still claimed 1700 would be
         // asserting against a tree that no longer exists.
         expect(subjects.length).toBeGreaterThanOrEqual(1500);
-        // This guard's own file now lives in a standalone package, so it anchors that set instead.
-        expect(standaloneSources()).toContain('packages/infra/global/__tests__/staticAnalysisCoverage.test.ts');
+        expect(subjects).toContain('packages/tools/repoGuards/__tests__/staticAnalysisCoverage.test.ts');
+        expect(standaloneSources()).toContain('packages/infra/global/__tests__/NetworkStack.test.ts');
         expect(subjects).toContain('packages/services/recipe-service/src/main.ts');
         // Every subject belongs to exactly one workspace, so no file can be double-counted into coverage.
         expect(new Set(subjects).size).toBe(subjects.length);

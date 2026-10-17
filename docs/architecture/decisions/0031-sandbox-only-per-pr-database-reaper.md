@@ -233,6 +233,6 @@ claiming — is reused by the reaper's catalogue read, so that trap is solved in
 - `packages/infra/global/__tests__/perPrDatabaseDropDoors.test.ts` — the reaper's base register EQUALS the
   `*DatabaseNameForStage` producers discovered in the infra tree, both directions, so a third service's
   per-PR database cannot be silently unreapable.
-- `packages/infra/global/tests/teardownPerPrDatabases.integration.test.ts` — the script's control flow,
+- `packages/tools/repoGuards/tests/teardownPerPrDatabases.integration.test.ts` — the script's control flow,
   including a PR whose stacks are all gone.
-- `packages/infra/global/__tests__/natEgressConsumers.test.ts` — ADR-0004's table, by equality.
+- `packages/tools/repoGuards/__tests__/natEgressConsumers.test.ts` — ADR-0004's table, by equality.

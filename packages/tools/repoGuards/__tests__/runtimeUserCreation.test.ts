@@ -59,7 +59,7 @@ const CREATION: readonly { readonly name: string; readonly pattern: RegExp }[] =
 ];
 
 /** This guard names every pattern it hunts for, so it is not itself a creator. */
-const SELF = 'packages/infra/global/__tests__/runtimeUserCreation.test.ts';
+const SELF = 'packages/tools/repoGuards/__tests__/runtimeUserCreation.test.ts';
 
 /** Source with block and line comments blanked (URLs inside strings survive: `//` after `:` is kept). */
 function code(source: string): string {

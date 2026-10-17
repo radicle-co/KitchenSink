@@ -23,7 +23,7 @@
 # prod-shaped tags among them — the running releases (`kitchensink-identity:1422c4b8…`,
 # `kitchensink-{food,recipes}:67f56925…`) were absent from all three expiry sets. keep-200 was chosen when
 # the repositories held 716 GB and the safe floor was unknown; the structural exclusion is what makes 50 as
-# safe as 200, which `packages/infra/global/__tests__/ecrRetentionPolicy.test.ts` now asserts directly.
+# safe as 200, which `packages/tools/repoGuards/__tests__/ecrRetentionPolicy.test.ts` now asserts directly.
 #
 # ⛔ RELEASE TAGS ARE IMMUTABLE (CI roles security review, MEDIUM-1). The non-prod CI role is assumable by any branch's
 # workflow and pushes previews into these same repositories, so with MUTABLE tags a branch could re-point the tag

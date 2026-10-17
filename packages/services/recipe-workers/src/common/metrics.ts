@@ -21,7 +21,7 @@ export type MetricUnit = 'Seconds' | 'Count' | 'None';
  * cost bomb: `identity-webhooks` shipped one at eight call sites and it costed out at ≈$3,000/month at 10k
  * users, for series that each held one datapoint and aggregated to nothing chartable. Naming the facets makes
  * that not compile rather than merely discouraged; the repo-wide AST gate
- * (`packages/infra/global/__tests__/emfIdentifierDimensionRepoGate.test.ts`) is the second line, and it
+ * (`packages/tools/repoGuards/__tests__/emfIdentifierDimensionRepoGate.test.ts`) is the second line, and it
  * requires a new key to be admitted there with its cardinality BOUND stated.
  *
  * `CallSite` qualifies because its value space is the consumers of ADR-0024's single spend pool — declared in

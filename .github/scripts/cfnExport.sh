@@ -27,7 +27,7 @@
 #
 # Every export lookup in every deploy workflow — sandbox, identity AND prod — goes through here, so
 # there is one implementation to get right. Exercised by
-# `packages/infra/global/__tests__/cfnExport.test.ts`, which drives THIS file rather than a
+# `packages/tools/repoGuards/__tests__/cfnExport.test.ts`, which drives THIS file rather than a
 # reimplementation of it.
 #
 # Usage:  cfnExport.sh [--optional] <export-name> [region]

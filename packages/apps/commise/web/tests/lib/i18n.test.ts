@@ -52,7 +52,7 @@ describe('negotiateLocale', () => {
  * The pseudo-locale (`en-XA`) is BUILD-GATED: web routes it only in a build made with `COMMISE_PSEUDO_LOCALE=1`
  * (`docs/architecture/uiOverhaulBlueprint.md` Part B, "Pseudo-localisation"), which `next.config.ts` inlines. The
  * shared `SUPPORTED_LOCALES` is mobile's too and never changes. A production build therefore routes exactly the
- * shipped locales; `packages/infra/global/__tests__/pseudoLocaleBuildGate.test.ts` holds that no
+ * shipped locales; `packages/tools/repoGuards/__tests__/pseudoLocaleBuildGate.test.ts` holds that no
  * workflow or Vercel configuration sets the flag.
  */
 describe('routableLocales', () => {

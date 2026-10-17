@@ -49,7 +49,7 @@ Two facts recorded in the file that are worth not re-litigating: the action's ow
 substitute (it runs after the runner is provisioned and the secret is in the environment, and is disableable
 from this file), and **zizmor does not catch this class** — `dangerous-triggers` covers only
 `pull_request_target`/`workflow_run`. The property is asserted structurally instead, by
-`packages/infra/global/__tests__/commentTriggerGuard.test.ts`, which forces the association atom false and
+`packages/tools/repoGuards/__tests__/commentTriggerGuard.test.ts`, which forces the association atom false and
 requires the job to become unreachable.
 
 ## 3. `PRRT_kwDOR7sDRs6YGX7C` — `boundaries` scripts pipe without `pipefail` — **stale**

@@ -603,7 +603,7 @@ async function consultEngines(
     const asked = ENGINES.filter((engine) => missing[engine].length > 0);
     const settled = await Promise.allSettled(asked.map(async (engine) => deps.engines[engine].parse(missing[engine])));
     // ⚠️ A `Map`, not a record written through `answers[engine] = …`. The repo-wide guard
-    // (`packages/infra/global/__tests__/prototypePollutionSinks.test.ts`) reads an accumulator indexed by a
+    // (`packages/tools/repoGuards/__tests__/prototypePollutionSinks.test.ts`) reads an accumulator indexed by a
     // VARIABLE as data-keyed, and it is deliberately over-broad because its remedy is never wrong. The
     // narrower remedy — `Object.create(null)` — would cost the exhaustiveness the return literal below
     // carries: a third `ParseEngine` fails to compile there, which is the check worth keeping.

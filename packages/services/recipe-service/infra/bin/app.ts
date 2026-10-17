@@ -11,7 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // `.github/scripts/verifyDeployment.sh` runs `cdk ls --long --json --app "<this app>"` and parses the
 // result, so one stray line ahead of the JSON makes the post-deploy verifier report nothing at all.
 // dotenv@17 prints a marketing banner on every `config()` call — measured, even for a path that does
-// not exist. `packages/infra/global/__tests__/cdkAppStdoutPurity.test.ts` asserts this flag on every
+// not exist. `packages/tools/repoGuards/__tests__/cdkAppStdoutPurity.test.ts` asserts this flag on every
 // DISCOVERED CDK app and observes the installed library actually honouring it.
 dotenvConfig({ path: join(__dirname, '../../.env'), quiet: true });
 

@@ -45,7 +45,7 @@ function testApp(props: AppProps = {}): App {
 //
 // `importOriginal` keeps every other export genuine and still calls through: `SandboxRouterStack` itself
 // imports `acceptNagFindings` from this package, so a bare factory mock would break the suite above.
-// That the call site EXISTS is not assumed here — `packages/infra/global/__tests__/commitProvenanceCoverage
+// That the call site EXISTS is not assumed here — `packages/tools/repoGuards/__tests__/commitProvenanceCoverage
 // .test.ts` asserts it from the AST for every CDK app in the repository, so this seam cannot silently
 // vanish and leave these assertions unreachable.
 const { capturedApps } = vi.hoisted(() => ({ capturedApps: [] as App[] }));

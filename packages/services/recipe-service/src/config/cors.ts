@@ -16,7 +16,7 @@
  * Clerk dev instance reflects any `Origin` regardless of what we send). **If any route ever reads a cookie or
  * a session credential, or accepts a WebSocket upgrade, this precondition is broken and the loopback and
  * preview-pattern branches must be re-derived in that same change.** The one shared guard,
- * `packages/infra/global/__tests__/bearerOnlyPrecondition.test.ts`, finds this package because it calls the shared
+ * `packages/tools/repoGuards/__tests__/bearerOnlyPrecondition.test.ts`, finds this package because it calls the shared
  * policy, parses `src/` (AST, not grep — this very comment names `req.cookies`) and fails the build if the premise
  * stops holding. See `docs/architecture/decisions/0047-shared-cors-policy.md`.
  *

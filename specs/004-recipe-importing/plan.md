@@ -267,7 +267,7 @@ the boundary parse is not hygiene here, it is the feature's primary control surf
   (`src/search/dto/searchRecipes.query.dto.ts`) is converged onto `nestjs-zod`, and `class-validator` /
   `class-transformer` are **removed from the service's `package.json` and `prod.package.json`**. 004 therefore
   inherits **one** mechanism — adding a second would not join a residue, it would **re-create** one, and it would
-  fail repo-wide gate **G5** in `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`.
+  fail repo-wide gate **G5** in `packages/tools/repoGuards/__tests__/serviceSecurityInvariants.test.ts`.
 - **⛔ THE FLOOR, and this is where a hostile page reaches it.** 001's five int-backed fields — **`servings`,
   `prepTimeMinutes`, `cookTimeMinutes`, `totalTimeMinutes`, `timerSeconds`** — write `integer` (`int4`) columns
   capped at **2,147,483,647**, and **004 is the channel that populates them from data we did not author**. A

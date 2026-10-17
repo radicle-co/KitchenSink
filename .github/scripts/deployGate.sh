@@ -30,7 +30,8 @@
 #
 # `decide` is PURE: no I/O, no AWS calls, no network — inputs in, verdict out. All I/O lives in
 # `evaluate`. Both are regression-tested for real (the tests execute THIS file rather than
-# re-implementing it) by packages/infra/global/__tests__/deployGate{,.integration}.test.ts.
+# re-implementing it) by packages/tools/repoGuards/__tests__/deployGate.test.ts and
+# packages/tools/repoGuards/tests/deployGate.integration.test.ts.
 #
 # Usage — as a CLI:
 #     deployGate.sh decide     <intent> <changed> <forced> <healthCode> <expected> <seed:none|current|stale> <name=STATUS> […]

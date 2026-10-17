@@ -40,7 +40,7 @@
  * Every advisory-lock class, by the concern that owns it. A class means the same in every database it is taken in.
  *
  * ⛔ `as const` and exhaustively typed so a new class is a code change here, visible in review, rather than
- * an integer invented at a call site. `packages/infra/global/__tests__/advisoryLockClasses.test.ts` asserts
+ * an integer invented at a call site. `packages/tools/repoGuards/__tests__/advisoryLockClasses.test.ts` asserts
  * that every advisory-lock call in the repo takes the two-argument form with a member of this object, and
  * that the numbers are unique.
  */

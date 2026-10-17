@@ -38,7 +38,7 @@ import {
     type BootstrapPorts,
 } from '../../src/db-bootstrap/bootstrapPass.js';
 import { catalogProbes } from '../common/catalogProbes.js';
-import { throwawayServerUrl } from '../common/throwawayServer.js';
+import { throwawayServerUrl } from '@kitchensink/repo-guards/throwawayServer';
 
 const ADMIN_URL = process.env['DATABASE_ADMIN_URL'];
 /** The throwaway server — loopback only; a refused URL fails the run here (see `throwawayServer.ts`). */

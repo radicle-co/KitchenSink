@@ -21,10 +21,10 @@ import path from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
-import { cdkApps } from '../../__tests__/cdkApps.js';
+import { cdkApps } from '@kitchensink/repo-guards/cdkApps';
 import { prodDeployLiteralEnvironment } from '../../__tests__/prodDeployEnvironment.js';
-import { repoRoot } from '../../__tests__/serviceSources.js';
-import { scalarText } from '../../__tests__/workflowScalar.js';
+import { repoRoot } from '@kitchensink/repo-guards/serviceSources';
+import { scalarText } from '@kitchensink/repo-guards/workflowScalar';
 
 /**
  * Apps this suite cannot synthesize, each with the prerequisite that makes it impossible — never a bare

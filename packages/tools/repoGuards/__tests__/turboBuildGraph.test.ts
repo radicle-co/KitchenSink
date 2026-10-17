@@ -33,7 +33,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, it, expect } from 'vitest';
 
-// .../packages/infra/global/__tests__ → repo root is four levels up.
+// .../packages/tools/repoGuards/__tests__ → repo root is four levels up.
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 /** The `packages/*` areas the root `workspaces` globs cover. */

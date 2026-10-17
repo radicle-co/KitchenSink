@@ -61,7 +61,7 @@ const DELAY_MS = Number(process.env['FOOD_STUB_DELAY_MS'] ?? 25);
  *
  * ⚠️ Not a real sink — every key written here is a literal, and the `/__stats/reset` merge below takes its
  * source from a literal too. The repo-wide guard
- * (`packages/infra/global/__tests__/prototypePollutionSinks.test.ts`) reads any `Object.assign` INTO an
+ * (`packages/tools/repoGuards/__tests__/prototypePollutionSinks.test.ts`) reads any `Object.assign` INTO an
  * object literal as data-keyed, deliberately over-broad because its remedy is never wrong and because
  * missing the `Object.assign` shape once already cost it a real site. This takes the remedy rather than
  * arguing the exception.

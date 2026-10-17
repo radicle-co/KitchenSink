@@ -314,7 +314,7 @@ the gated code path, so a caller that skips the gate emits **nothing**. Its "Sto
 bugs only. The real control is authorization, not observation: **`bedrock:InvokeModel` / `bedrock:Converse`
 is granted to exactly one Lambda execution role** (layer 4b), asserted by a discovery-based guard test over
 the infra tree that fails on any additional grantee — the exact-set-equality shape
-`packages/infra/global/__tests__/natEgressConsumers.test.ts` already uses for NAT membership. A permission
+`packages/tools/repoGuards/__tests__/natEgressConsumers.test.ts` already uses for NAT membership. A permission
 nobody else holds cannot be bypassed; a metric nobody else emits cannot notice.
 
 **Layer 5's job is to disagree with layer 3.** It is not a smaller ceiling; it is an independent

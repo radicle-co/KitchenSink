@@ -51,7 +51,7 @@ import path from 'node:path';
 
 import { parse } from 'yaml';
 
-import { repoRoot } from './serviceSources.js';
+import { repoRoot } from '@kitchensink/repo-guards/serviceSources';
 
 /** The one workflow that deploys production. */
 export const PROD_DEPLOY_WORKFLOW = '.github/workflows/prod-deploy.yml';

@@ -281,7 +281,9 @@ const DECLARED_IGNORES: Readonly<Record<string, number>> = {
     // `sandboxPreview.yml::deploy`. Each restatement is another site, not another decision.
     // ⚠️ `sandboxPreview.yml` dropped from 2 to 1 when its two deploy JOBS became one call to
     // `deployInfra.yml` — the grant is restated once per call site, and there is now one call site.
-    '_ci.yml:use-trusted-publishing': 5,
+    // ⚠️ `_ci.yml` went from 5 to 6 with the `test` job's grant: its `guards` group installs infra-global's own
+    // packages, because `docLinkResolution` type-checks that package's source (ADR-0066).
+    '_ci.yml:use-trusted-publishing': 6,
     'prod-deploy.yml:use-trusted-publishing': 1,
     'sandbox-identity-deploy.yml:use-trusted-publishing': 1,
     'sandboxPreview.yml:use-trusted-publishing': 1,

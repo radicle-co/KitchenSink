@@ -99,7 +99,14 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-import { parse, referenceText, repoRoot, trackedFiles, visit, type SourceFile } from './serviceSources.js';
+import {
+    parse,
+    referenceText,
+    repoRoot,
+    trackedFiles,
+    visit,
+    type SourceFile,
+} from '@kitchensink/repo-guards/serviceSources';
 import { PER_PR_DATABASE_BASE_BY_PRODUCER } from '../src/db-reaper/perPrDatabaseScope.js';
 
 /** The teardown script that must reach per-PR databases through the reaper, and through nothing else. */

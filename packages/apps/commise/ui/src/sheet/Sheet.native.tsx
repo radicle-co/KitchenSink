@@ -12,7 +12,7 @@
  * - The keyboard: `KeyboardAvoider`, shared with the centred dialog frame, lifts the sheet above it. A tap in the sheet
  *   with the keyboard up also needs every scroller AROUND it, the host screen's included, to persist taps: React
  *   Native gives a touch to the outermost scroller that captures it, across the Modal's window
- *   (`packages/infra/global/__tests__/nativeScrollerTapPersistence.test.ts`).
+ *   (`packages/tools/repoGuards/__tests__/nativeScrollerTapPersistence.test.ts`).
  * - It slides in only when reduce motion is known to be off. The answer is read even while closed, so it is ready
  *   before the first open.
  * - The `Modal` stays mounted with `visible={open}`, because React Native plays the iOS slide-out only for a Modal

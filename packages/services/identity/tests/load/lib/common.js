@@ -171,7 +171,7 @@ export function totalRampDuration() {
 // environment and that job was deleted (see this directory's README banner).
 //
 // ⚠️ SO THE LATENCY IS BACK, and saying so is the point: nothing in CI runs this file any more.
-// `packages/infra/global/__tests__/k6LoadTierWiring.test.ts` is the guard that notices, and it currently
+// `packages/tools/repoGuards/__tests__/k6LoadTierWiring.test.ts` is the guard that notices, and it currently
 // FAILS for this script and twenty others. Run this tier by hand (`npm run test:load`) after editing it.
 const TOKENS_FILE = __ENV['IDENTITY_TOKENS_FILE'] || '../clerk-tokens.json';
 

@@ -92,7 +92,7 @@ jobs:
                   region: ${{ vars.DEFAULT_AWS_REGION }}
                   session-minutes: '180'
             # ⚠️ DELIBERATE — this step MUST NOT be able to abort the job. See the analyzer in
-            # packages/infra/global/__tests__/sandboxReclamationReachability.test.ts.
+            # packages/tools/repoGuards/__tests__/sandboxReclamationReachability.test.ts.
             #
             # The hosted zone is an input to ONE part of teardown (the preview DNS record). The stacks, ECR
             # repos and log groups — all of the billable compute — need no zone at all. When this step

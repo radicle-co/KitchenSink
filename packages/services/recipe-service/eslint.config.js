@@ -20,7 +20,7 @@ const base = createConfig('./tsconfig.json', import.meta.dirname);
  * config's `patterns` allow-list (the "don't reach into another package's internals" guard) OFF for every
  * `src/**\/*.ts` in this package. Measured on an identical probe file importing
  * `@kitchensink/recipe-core/src/parsing/parseKey.js`: `contract/zzprobe.ts` reported the error and
- * `src/zzprobe.ts` was clean. `packages/infra/global/__tests__/restrictedImportsOverride.test.ts` now
+ * `src/zzprobe.ts` was clean. `packages/tools/repoGuards/__tests__/restrictedImportsOverride.test.ts` now
  * fires that probe at the real config from inside `src/`, so the override cannot come back quietly.
  */
 const restrictCredentialAccessor = {

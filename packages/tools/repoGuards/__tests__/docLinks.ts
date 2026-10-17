@@ -44,7 +44,7 @@ import ts from 'typescript';
 
 import { presentFiles } from './serviceSources.js';
 
-/** Repo root — this file sits at `packages/infra/global/__tests__`, so the root is four levels up. */
+/** Repo root — this file sits at `packages/tools/repoGuards/__tests__`, so the root is four levels up. */
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 /**

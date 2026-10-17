@@ -41,7 +41,7 @@ import { describe, expect, it } from 'vitest';
 
 import { SandboxSchedulerStack } from '../lib/platform/SandboxSchedulerStack.js';
 import { testApp } from './testApp.js';
-import { runWorkflowStep, type StepOutcome } from './workflowStepRunner.js';
+import { runWorkflowStep, type StepOutcome } from '@kitchensink/repo-guards/workflowStepRunner';
 
 const WORKFLOW_DIR = fileURLToPath(new URL('../../../../.github/workflows/', import.meta.url));
 const SCRIPT_DIR = fileURLToPath(new URL('../../../../.github/scripts/', import.meta.url));

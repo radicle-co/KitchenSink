@@ -32,7 +32,7 @@ import {
     type CopyTree,
 } from './appCopyDuplicates.js';
 
-/** The repo root — this file sits at `packages/infra/global/__tests__/`. */
+/** The repo root — this file sits at `packages/tools/repoGuards/__tests__/`. */
 const REPO_ROOT = join(import.meta.dirname, '../../../..');
 
 /**

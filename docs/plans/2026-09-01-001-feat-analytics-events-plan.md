@@ -216,7 +216,7 @@ only), `0041_ingredient_source_phrase.sql` (header register).
 new numbered step in the `eraseRecipeRows` transaction);
 `packages/services/recipe-workers/src/handlers/__tests__/accountErasureWorker.test.ts` (modify);
 `packages/services/recipe-workers/__tests__/integration/erasure/analyticsEventsErasure.integration.test.ts`
-(create); `packages/infra/global/__tests__/erasureSweepCoverage.test.ts` (verify — fold discovery
+(create); `packages/tools/repoGuards/__tests__/erasureSweepCoverage.test.ts` (verify — fold discovery
 classifies without a map edit; mechanically confirmed pre-plan).
 **Approach:** One UPDATE in the existing transaction, argued in the worker's normative docstring:
 nulls `user_id` AND `query_text` where `user_id = $1`. Cite ADR-0027 and the origin's

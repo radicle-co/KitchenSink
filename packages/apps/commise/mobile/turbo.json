@@ -11,7 +11,7 @@
         // nothing here is ever restored from a turbo cache.
         //
         // The hash is turbo's own, so there is no hasher of ours to drift — and what it covers is asserted against turbo's
-        // RESOLVED graph by `packages/infra/global/__tests__/testAppContentKey.test.ts`:
+        // RESOLVED graph by `packages/tools/repoGuards/__tests__/testAppContentKey.test.ts`:
         //
         //   - `dependsOn: ["^transit"]` walks the whole dependency closure (`transit` is a no-op task, root `turbo.json`),
         //     because most workspace dependencies export `./src` with no `build` script and `^build` would skip them;

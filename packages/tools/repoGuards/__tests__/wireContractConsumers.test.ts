@@ -50,7 +50,7 @@ import {
 } from './wireContractConsumers.js';
 import type { ConsumerManifest, ConsumerPackage } from './wireContractConsumers.js';
 
-// .../packages/infra/global/__tests__ → repo root is four levels up.
+// .../packages/tools/repoGuards/__tests__ → repo root is four levels up.
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const fixturesRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures/wire-contract');
 

@@ -7,7 +7,7 @@
  * datapoints, and under `treatMissingData: NOT_BREACHING` it reports a permanent, confident `OK`.
  *
  * ⛔ The `Stage`-only dimension set is a rule, not a default — see the module docstring and
- * `packages/infra/global/__tests__/emfIdentifierDimensionRepoGate.test.ts`. It is asserted here so a facet
+ * `packages/tools/repoGuards/__tests__/emfIdentifierDimensionRepoGate.test.ts`. It is asserted here so a facet
  * added "just for this one metric" fails a test rather than multiplying the billed series count.
  */
 import { describe, it, expect, vi } from 'vitest';

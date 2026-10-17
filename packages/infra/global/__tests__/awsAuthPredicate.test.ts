@@ -29,9 +29,9 @@ import { afterAll, describe, expect, it } from 'vitest';
 
 import { GITHUB_ACTIONS_ROLE_NAMES } from '../lib/platform/GithubActionsAccessStack.js';
 import { GITHUB_OIDC_TIERS } from '../lib/platform/githubOidcTrust.js';
-import { repoRoot } from './serviceSources.js';
-import { runWorkflowStep, type StepOutcome } from './workflowStepRunner.js';
-import { scalarText } from './workflowScalar.js';
+import { repoRoot } from '@kitchensink/repo-guards/serviceSources';
+import { runWorkflowStep, type StepOutcome } from '@kitchensink/repo-guards/workflowStepRunner';
+import { scalarText } from '@kitchensink/repo-guards/workflowScalar';
 
 interface ActionStep {
     readonly id?: string;

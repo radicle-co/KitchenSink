@@ -17,7 +17,7 @@
 # Deliberate, as for the migration manifest. A single shared helper can be wrong identically on both sides and still
 # agree; two independent implementations cannot, because sha256 has exactly one right answer. Both render
 # `<64 hex><space><space><path><newline>` per regular file, C-ordered by bundle-relative path, and digest the text.
-# `packages/infra/global/__tests__/seedManifestAgreement.test.ts` runs both over the same trees and asserts they
+# `packages/tools/repoGuards/__tests__/seedManifestAgreement.test.ts` runs both over the same trees and asserts they
 # agree on the text as well as the digest.
 #
 # ⛔ The path contract makes that possible: every path segment is plain ASCII from `[A-Za-z0-9._-]`, so C collation

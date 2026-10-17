@@ -78,7 +78,7 @@ Consequences that follow immediately and are not separate decisions:
    2026-10-15). 010's `@RequirePremium()` / `PlanGuard` wrap that predicate; they do not restate it. Whether a cook without an entitled role is SHOWN an upsell is a separate,
    display-only answer that identity alone gives (`account.paidFeatures`), and it never decides who may use a paid
    feature. An app or service importing `@kitchensink/identity-service` to gate a route would violate the boundary
-   `packages/infra/global/__tests__/appServiceDependency.test.ts` already enforces.
+   `packages/tools/repoGuards/__tests__/appServiceDependency.test.ts` already enforces.
 4. **Existing NestJS modules are the internal boundary.** `MealPlansModule`, `GroceryListsModule`,
    `NutritionPlansModule` are siblings of `RecipesModule`/`SearchModule`, each with its own DAL and its own
    `*.schema.ts` beside its controller. This is a modular monolith on purpose; the module edges are where a

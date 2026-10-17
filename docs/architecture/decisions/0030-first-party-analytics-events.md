@@ -130,7 +130,7 @@ matches the code:
 - **The event-id minter is a platform seam** (`mintEventId.ts` / `mintEventId.native.ts`): Hermes
   ships no `crypto` global, so the native leaf delegates to `expo-crypto`; the shared hook never
   touches the bare global (guarded at source by
-  `packages/infra/global/__tests__/analyticsMintEventIdSeam.test.ts`). ⚠️ Residual: the native leaf
+  `packages/tools/repoGuards/__tests__/analyticsMintEventIdSeam.test.ts`). ⚠️ Residual: the native leaf
   has run under vitest stubs only — the on-device/Maestro pass is the outstanding confirmation.
 
 ### 7. Retention: 6 months, fold-before-delete by construction

@@ -161,7 +161,7 @@ function classifyFoodError(exception: unknown): ClassifiedEnvelope | undefined {
  * shared type is what lets the domain arm and the `HttpException` arm return one shape without a cast, and it is
  * TIGHTER: `ApiErrorBody` is `.loose()`, so it carries an index signature and would accept any stray top-level key
  * here — the exact thing `asExplicitEnvelope` rebuilds the envelope to prevent. The two are asserted equivalent in
- * `packages/infra/global/__tests__/errorEnvelopeParity.test.ts`.
+ * `packages/tools/repoGuards/__tests__/errorEnvelopeParity.test.ts`.
  */
 
 /** The codes whose `details.retryAfterSeconds` is also sent as the `Retry-After` header. */

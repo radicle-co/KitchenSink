@@ -32,7 +32,7 @@ only because two things enforce it:
 - **The AWS account id is absent, and checked.** A document that needs to name the account it measured
   against writes `` `<aws-account-id>` `` instead of the digits. `docs.yml` scans the BUILT site before
   the artifact is uploaded — on pull requests too, so an offending document is red before it merges —
-  and `packages/infra/global/__tests__/assertNoAwsAccountIds.test.ts` scans the sources on the ordinary
+  and `packages/tools/repoGuards/__tests__/assertNoAwsAccountIds.test.ts` scans the sources on the ordinary
   test tier. Both run `scripts/assertNoAwsAccountIds.mjs`, which DERIVES the ids from the repository's
   own ARNs rather than hardcoding one, so neither the guard nor its failure output ever restates the
   value. If either goes red, scrub the document — do not weaken the guard.
@@ -40,7 +40,7 @@ only because two things enforce it:
 The project keeps **no custom domain and no branch domain**, still — the reason is no longer protection
 (nothing is protected) but ADR-0001 item 2's measurement that a branch domain resolves to the wrong
 deployment, plus the plain fact that one generated `*.vercel.app` is all the site needs.
-`packages/infra/global/__tests__/docsSiteDeployGuards.test.ts` asserts that the workflow never grows a
+`packages/tools/repoGuards/__tests__/docsSiteDeployGuards.test.ts` asserts that the workflow never grows a
 domain-attaching step, that the account-id scan gates the artifact, and that the post-deploy probe
 demands a `200` carrying this site's own generator tag. The workflow's own header lists exactly what the
 owner must create in Vercel and GitHub.
@@ -161,7 +161,7 @@ rather than a rewrite if that ever becomes wanted.
   evaluated (vitest and Docusaurus both load them as ESM).
 - **Vitest warns that `vitest.config.ts` uses ESM syntax in a CommonJS file.** Cosmetic — vitest
   transpiles it. The file must keep the `.ts` extension because
-  `packages/infra/global/__tests__/staticAnalysisCoverage.test.ts` resolves each package's config by
+  `packages/tools/repoGuards/__tests__/staticAnalysisCoverage.test.ts` resolves each package's config by
   that exact name and would go blind to any other one. (It used to cite `vitestTempRoot.test.ts`,
   which was deleted with the temp-root globalSetup — the constraint outlived the guard that stated it.)
 - **The build script is `docs:build`, not `build`.** That keeps Docusaurus out of `turbo run build`,

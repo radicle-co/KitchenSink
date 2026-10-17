@@ -437,7 +437,7 @@ FR-021 and FR-039 already state the requirements; GR-016 states where they execu
   "6 / 6 (8 `extends`) … up from 3/4" this bullet carried, which has now been superseded twice in two days.
   ⛔ **Stop quoting the number and run the count** — adoption is still climbing, and `ZodValidationPipe` coverage over
   every controller is asserted repo-wide by **G5** in
-  `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which is the durable statement. Identity is
+  `packages/tools/repoGuards/__tests__/serviceSecurityInvariants.test.ts`, which is the durable statement. Identity is
   genuinely on **one** mechanism, and ✅ so is `recipe-service` now — the "still has one `class-validator` importer"
   clause here is **corrected**: that importer is converged and the dependency is removed from its `package.json`
   and `prod.package.json`. Every `/api/v1/users/*`, `/api/v1/profile/*`, `/api/v1/accounts/*` and

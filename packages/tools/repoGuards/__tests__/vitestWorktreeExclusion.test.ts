@@ -39,7 +39,7 @@ describe('the shared vitest config excludes nested worktrees', () => {
     });
 
     it('still collects a test in the real tree — the exclusion is not a blanket', () => {
-        expect(isExcluded('packages/infra/global/__tests__/vitestWorktreeExclusion.test.ts')).toBe(false);
+        expect(isExcluded('packages/tools/repoGuards/__tests__/vitestWorktreeExclusion.test.ts')).toBe(false);
         expect(isExcluded('packages/services/recipe-workers/__tests__/parsing/z.test.ts')).toBe(false);
     });
 

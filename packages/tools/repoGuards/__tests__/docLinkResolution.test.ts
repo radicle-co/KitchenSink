@@ -159,7 +159,7 @@ describe('doc links across the repository', () => {
         expect(units.length).toBeGreaterThan(20);
         expect(discovered.length).toBeGreaterThan(600);
         expect(discovered).toContain(SELF);
-        expect(discovered).toContain('packages/infra/global/__tests__/docLinks.ts');
+        expect(discovered).toContain('packages/tools/repoGuards/__tests__/docLinks.ts');
     });
 
     /**
@@ -175,7 +175,7 @@ describe('doc links across the repository', () => {
     });
 
     it('the fixture cannot be reported: this file holds a dead link in a string, and is clean', () => {
-        const mechanism = 'packages/infra/global/__tests__/docLinks.ts';
+        const mechanism = 'packages/tools/repoGuards/__tests__/docLinks.ts';
 
         // Positive control: the mechanism's own docstrings carry real links, so "no findings" cannot mean
         // "these two files were never parsed".
@@ -208,7 +208,7 @@ describe('subject discovery', () => {
      * about coverage, not about the link. It is removed in `finally` so a failure cannot leave it behind.
      */
     it('covers a link-bearing source that is present but not yet committed', () => {
-        const relative = 'packages/infra/global/__tests__/untrackedProbe.generated.ts';
+        const relative = 'packages/tools/repoGuards/__tests__/untrackedProbe.generated.ts';
         const probe = path.join(repoRoot, relative);
 
         writeFileSync(

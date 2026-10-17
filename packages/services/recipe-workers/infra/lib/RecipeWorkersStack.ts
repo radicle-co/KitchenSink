@@ -450,7 +450,7 @@ export interface RecipeWorkersStackProps extends StackProps {
      * ⛔ REQUIRED rather than optional — an optional prop lets a call site keep the old behaviour by saying
      * nothing. And never read from SSM inside CDK: `valueForStringParameter` resolves at DEPLOY time and
      * returns a token, so gating on it compiles, deploys, and does nothing. Both rules are enforced by
-     * `packages/infra/global/__tests__/alarmFeatureFlag.test.ts`.
+     * `packages/tools/repoGuards/__tests__/alarmFeatureFlag.test.ts`.
      */
     readonly alarmsEnabled: boolean;
 
@@ -1489,7 +1489,7 @@ export class RecipeWorkersStack extends Stack {
                 // can join them: this stack invokes the parser by a hand-formatted ARN because the function
                 // lives in `packages/services/ingredient-parser` (ADR-0025), so a rename or a version bump
                 // applied to one app and not the other compiles, synthesizes and deploys clean. The guard is
-                // `packages/infra/global/__tests__/crossAppParserIdentity.test.ts`, which reads both apps.
+                // `packages/tools/repoGuards/__tests__/crossAppParserIdentity.test.ts`, which reads both apps.
                 CRF_ENGINE_VERSION: 'ingredient-parser-nlp==2.3.0',
             },
             logGroup,
@@ -1613,7 +1613,7 @@ export class RecipeWorkersStack extends Stack {
         // could publish here at all. Nothing fails at deploy: the topic exists, the action is attached, the
         // diff is clean, and the sole symptom is an `Action  Failed to execute action` line in an alarm
         // history nobody reads. That is how a correctly-firing production crash-loop alarm stayed silent for
-        // 14.2 days. `packages/infra/global/__tests__/alarmTopicPublishGrant.test.ts` carries the measured
+        // 14.2 days. `packages/tools/repoGuards/__tests__/alarmTopicPublishGrant.test.ts` carries the measured
         // account and asserts this grant on every alarm topic in the repository.
         alarmTopic.addToResourcePolicy(
             new iam.PolicyStatement({
@@ -1632,7 +1632,7 @@ export class RecipeWorkersStack extends Stack {
         // ⛔ THE ALARMS ARE GATED; THE TOPIC ABOVE IS NOT — CloudWatch bills per alarm above a 10-alarm free
         // tier this account is already over, while SNS bills per publish, so a topic nothing publishes to
         // costs nothing. Gating it would thread an `SnsAction | undefined` through every alarm for $0. The
-        // reasoning and the enforcement live in `packages/infra/global/__tests__/alarmFeatureFlag.test.ts`.
+        // reasoning and the enforcement live in `packages/tools/repoGuards/__tests__/alarmFeatureFlag.test.ts`.
         //
         // ⚠️ SEVENTEEN alarms sit in this one block — the largest concentration in the repository, and the
         // reason a `pr-{N}` preview alone provisioned ten. FR-007b-i and ADR-0024's layer 4 still REQUIRE

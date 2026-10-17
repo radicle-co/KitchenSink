@@ -1,7 +1,7 @@
 /**
  * @module @commise/ui/icon — the web glyph table: every meaning in the Registry mapped to its `lucide-react` glyph.
  *
- * The only module on web that imports `lucide-react` (`packages/infra/global/__tests__/iconImportBoundary.test.ts`).
+ * The only module on web that imports `lucide-react` (`packages/tools/repoGuards/__tests__/iconImportBoundary.test.ts`).
  * The package is `sideEffects: false` and its named exports tree-shake, so only the glyphs listed here ship. The native
  * table (`glyphs.native.ts`) must draw the same glyph for every meaning; `__tests__/glyphs.test.tsx` holds the two
  * tables to that.

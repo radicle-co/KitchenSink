@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-// .../packages/infra/global/__tests__ → repo root is four levels up.
+// .../packages/tools/repoGuards/__tests__ → repo root is four levels up.
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const schemasRoot = path.join(repoRoot, 'packages/schemas');
 

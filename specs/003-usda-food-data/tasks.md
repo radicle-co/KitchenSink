@@ -1670,7 +1670,7 @@ surface tracking source-call volume is the dashboard widget "Per-source rolling-
 (`src/observability/emfMetrics.ts:324-331`), so prod and every preview co-mingle into one series and no call can be
 attributed to a preview; and (b) the widget's `emfMetric` helper (`:934-940`) builds a **dimensionless** metric
 while the emitter publishes only the `source`-dimensioned series, so the widget plots nothing — UNVERIFIED against
-live CloudWatch, and W4 in `packages/infra/global/__tests__/serviceInfraWiringInvariants.test.ts:806` cannot catch
+live CloudWatch, and W4 in `packages/tools/repoGuards/__tests__/serviceInfraWiringInvariants.test.ts:806` cannot catch
 it because W4 gates alarms, not dashboard widgets. No alarm watches the metric at all.
 
 ### The options — none chosen

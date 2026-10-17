@@ -19,7 +19,7 @@
     //
     // ⚠️ `tsconfig.tsbuildinfo` is NOT here and must not be added: it is build output that changes on every
     // compile, so declaring it would invalidate every cache entry on every run — a permanent miss wearing
-    // correctness as a costume. Asserted by `packages/infra/global/__tests__/turboGlobalHash.test.ts`, which
+    // correctness as a costume. Asserted by `packages/tools/repoGuards/__tests__/turboGlobalHash.test.ts`, which
     // reads turbo's RESOLVED graph rather than this key, so a setting that is present but inert still fails.
     "globalDependencies": [".npmrc", ".nvmrc", "prettier.config.js", "tsconfig.json"],
     "tasks": {
@@ -172,7 +172,7 @@
         },
         // ⛔ THE CONFORMANCE LAYER MUST NOT CACHE ON ITS OWN PACKAGE ALONE.
         //
-        // `infra-global`'s suite is not a unit suite over `lib/**` — it is the repo-wide guard layer. Its
+        // `repo-guards`' suite is the repo-wide guard layer, not a unit suite over its own package. Its
         // assertions read `.github/workflows/**` (workflow invariants, reclamation gating, deploy-gate,
         // heavy-tier wiring), `specs/*/tasks.md` (task-id and table-collision sweeps), every
         // `packages/services/*/**` source (the G1–G6 security invariants and W1–W5 infra wiring, both
@@ -181,7 +181,7 @@
         // The base `test` task above declares NO `inputs`, so turbo hashes only this package's own files.
         // Measured 2026-08-12 with `--dry=json`: 104 inputs, ZERO from `.github/`, `specs/` or any other
         // package, and two consecutive runs returned FULL TURBO. That silently degrades the layer's
-        // guarantee to "these gates ran on whichever commit last touched infra-global" — so adding a
+        // guarantee to "these gates ran on whichever commit last touched the guards" — so adding a
         // service that violates G1, or a workflow that re-gates a reclamation job, could serve a cache hit
         // and report green. It is latent only because no `.turbo` cache is persisted between CI runs today;
         // one `actions/cache` step, or a remote-cache token, makes it live.
@@ -201,13 +201,18 @@
         //
         // A package-task entry REPLACES the base task rather than merging with it, so `^build` is repeated
         // here deliberately — dropping it is the exact defect documented at length in the schema blocks above.
-        "@kitchensink/infra-global#test": {
+        "@kitchensink/repo-guards#test": {
+            "dependsOn": ["^build"],
+            "outputs": [],
+            "cache": false
+        },
+        "@kitchensink/repo-guards#test:integration": {
             "dependsOn": ["^build"],
             "outputs": [],
             "cache": false
         },
         // ⛔ THE SUBPATH-EXPORT GUARD MUST NOT CACHE ON ITS OWN PACKAGE ALONE — the same defect and the
-        // same reasoning as `@kitchensink/infra-global#test` above, and this one was not latent.
+        // same reasoning as `@kitchensink/repo-guards#test` above, and this one was not latent.
         //
         // `subpathExports.test.js` reads the `exports` map of EVERY workspace `package.json` and asserts the
         // allow-list in `index.js` names each declared subpath, so the rule cannot report a published entry
@@ -225,7 +230,7 @@
             "cache": false
         },
         // ⛔ THE DOCUMENTATION STALENESS GUARD MUST NOT CACHE ON ITS OWN PACKAGE ALONE — the same defect,
-        // and the same reasoning, as `@kitchensink/infra-global#test` above.
+        // and the same reasoning, as `@kitchensink/repo-guards#test` above.
         //
         // This package's `test` script runs a regenerate-and-diff over EVERY `.tsx` file in
         // `packages/apps/commise/**` plus the `@commise/ui` token modules, and compares the result with the
@@ -233,7 +238,7 @@
         // hash only this package's own files: edit a component, do not regenerate, and the gate serves a
         // cache hit and reports green — which is precisely the rot the artifact exists to prevent.
         //
-        // ⚠️ `inputs` CANNOT express it, for the reason measured and written up on infra-global: turbo does
+        // ⚠️ `inputs` CANNOT express it, for the reason measured and written up on repo-guards: turbo does
         // not hash files belonging to ANOTHER workspace package into a task's inputs. And the `dependsOn`
         // edge is not a substitute either — it would order the app packages' builds, not invalidate on their
         // SOURCES. An always-run task is honest; it costs ~9s.

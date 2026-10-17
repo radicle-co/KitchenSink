@@ -7,7 +7,7 @@
  * database and no service.
  *
  * The expected text is built here from `node:crypto` directly, not through the module under test; the shell half's
- * agreement is `packages/infra/global/__tests__/seedManifestAgreement.test.ts`.
+ * agreement is `packages/tools/repoGuards/__tests__/seedManifestAgreement.test.ts`.
  */
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';

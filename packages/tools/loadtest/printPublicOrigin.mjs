@@ -12,7 +12,7 @@
  * ⚠️ THIS EXISTS BECAUSE A HOST LITERAL IN YAML ROTS SILENTLY. `food-loadtest.yml` carried
  * `https://food-pr-59.commise.app` as its dispatch DEFAULT long after PR 59 closed — a name that resolves to
  * nothing, whose failure mode is a run that reports the target as down rather than the default as stale.
- * `packages/infra/global/__tests__/k6TargetsDeployedOrigins.test.ts` fails on any `*.commise.app` literal in
+ * `packages/tools/repoGuards/__tests__/k6TargetsDeployedOrigins.test.ts` fails on any `*.commise.app` literal in
  * a workflow that drives k6, so the only way to name a target now is through this door.
  *
  * It is the sibling of `packages/services/food-service/infra/bin/printFoodHost.ts` — that one is food's own

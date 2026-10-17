@@ -15,7 +15,7 @@
  *
  * ## ⛔ Why this guard is not "two constants agree"
  *
- * The previous guard on this pin (`packages/infra/global/__tests__/crossAppParserIdentity.test.ts`) asserted
+ * The previous guard on this pin (`packages/tools/repoGuards/__tests__/crossAppParserIdentity.test.ts`) asserted
  * `CRF_ENGINE_VERSION` against `requirements.txt` and PASSED throughout — because both carry the `==` form.
  * It compared two copies that agreed while the comparison that mattered disagreed, which is this repository's
  * recurring defect stated exactly: a copy of a value cannot detect that the value changed.

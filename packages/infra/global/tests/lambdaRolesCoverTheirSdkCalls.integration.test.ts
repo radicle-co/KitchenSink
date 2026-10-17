@@ -48,7 +48,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { repoRoot, presentFiles, visit } from '../__tests__/serviceSources.js';
+import { repoRoot, presentFiles, visit } from '@kitchensink/repo-guards/serviceSources';
 import {
     handlerSource,
     lambdaFunctionsOf,

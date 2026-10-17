@@ -182,25 +182,25 @@ schema**, deployed and invoked by its own pipeline step ahead of every consumer.
 
 ## Implementation guards
 
-- `packages/infra/global/__tests__/dbTouchingStackBarrier.test.ts` — one apply path per database: a schema
+- `packages/tools/repoGuards/__tests__/dbTouchingStackBarrier.test.ts` — one apply path per database: a schema
   stack holds the runner and nothing that reads the schema, no other stack ships a runner, no stack
   constructs an in-deploy Trigger.
 - `packages/infra/global/__tests__/prodDeployMigrationOrder.test.ts` — the pipeline half: the schema stack
   deploys before the migrate step that invokes it, and every consumer deploys after that database's own
   migrate step, in every workflow.
-- `packages/infra/global/__tests__/migrationManifestAgreement.test.ts` — the two digest implementations
+- `packages/tools/repoGuards/__tests__/migrationManifestAgreement.test.ts` — the two digest implementations
   agree, on the rendered text as well as the digest, over fixtures and over every real migrations directory.
-- `packages/infra/global/__tests__/migrationBundleIntegrity.test.ts` — every bundler refuses to ship a
+- `packages/tools/repoGuards/__tests__/migrationBundleIntegrity.test.ts` — every bundler refuses to ship a
   migration Lambda carrying no `.sql`, and refuses before emptying its output directory.
-- `packages/infra/global/__tests__/migrationRunnerLock.test.ts` — the one engine acquires, bounds and
+- `packages/tools/repoGuards/__tests__/migrationRunnerLock.test.ts` — the one engine acquires, bounds and
   releases the advisory lock, and every runner routes through it.
-- `packages/infra/global/__tests__/migrationSafetyNetCoverage.test.ts` — one runner output per database, and
+- `packages/tools/repoGuards/__tests__/migrationSafetyNetCoverage.test.ts` — one runner output per database, and
   every one of them invoked from prod and from a sandbox deploy.
-- `packages/infra/global/__tests__/stackProbeCoverage.test.ts` — the ensure-exists probes name the schema
+- `packages/tools/repoGuards/__tests__/stackProbeCoverage.test.ts` — the ensure-exists probes name the schema
   stacks, so a stage without one cannot read as complete.
 - `packages/services/recipe-service/infra/__tests__/recipeDatabaseNameParity.test.ts` — the API, the workers
   and the schema runner resolve the same per-PR database name across three templates.
-- `packages/infra/global/__tests__/bootSchemaGuardPackaging.test.ts` — the boot check can find its own
+- `packages/tools/repoGuards/__tests__/bootSchemaGuardPackaging.test.ts` — the boot check can find its own
   migrations: the module resolves them as its own sibling, they exist, the Dockerfile copies them to the
   path the compiled module will resolve, and the check runs before `listen`. Without that last mile the
   check reports a packaging fault on every start and, in `warn`, nobody notices.

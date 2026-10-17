@@ -6,7 +6,7 @@
  * readable array rather than being assembled inside the service or sorted at runtime. It lives HERE, beside
  * the tiers, rather than in the module wiring, so the guard that checks it can read the array production
  * actually uses instead of a copy: a copy of a list cannot detect that the list changed
- * (`shared/infra/src/alb/listenerPriority.ts`, `packages/infra/global/__tests__/natEgressConsumers.test.ts`).
+ * (`shared/infra/src/alb/listenerPriority.ts`, `packages/tools/repoGuards/__tests__/natEgressConsumers.test.ts`).
  *
  * ## ⛔ THE ORDER IS `[curated, memo, lexical]`, AND IT IS NOT R11's LITERAL ORDER — read this before
  * "restoring" it

@@ -82,7 +82,7 @@ Two decisions inside this are deliberate:
   the same way, at the top of `RecipesService.requestVerification`, whose containment subject is a required parameter.
 
 Required fields cannot see a write path that never passes through a composed policy, so a guard covers that gap:
-`packages/infra/global/__tests__/containmentDisposition.test.ts` discovers every `@Post`/`@Put`/`@Patch`/`@Delete`
+`packages/tools/repoGuards/__tests__/containmentDisposition.test.ts` discovers every `@Post`/`@Put`/`@Patch`/`@Delete`
 handler on a recipe-service controller, and every queue-port `enqueue*` call, from the AST. Each must carry a written
 disposition in its register: the contained actions it reaches, `ownerScoped` with a reason, or `sharedByRuling` with
 the ruling or ADR that accepts it. The check runs in both directions, and every contained action must be reached by at

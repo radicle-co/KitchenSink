@@ -16,7 +16,7 @@
  *     `__tests__/testPool.test.ts`;
  *   - the random per-user creation password (and the committed one only where a flow types it) →
  *     `e2e-fixtures` `__tests__/poolAdmin.test.ts`;
- *   - "no tooling creates a user" → `packages/infra/global/__tests__/runtimeUserCreation.test.ts`.
+ *   - "no tooling creates a user" → `packages/tools/repoGuards/__tests__/runtimeUserCreation.test.ts`.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';

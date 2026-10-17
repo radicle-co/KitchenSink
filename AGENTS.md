@@ -4,7 +4,7 @@
 > CodeRabbit and Qodo. A stale claim here is not a typo — it is an instruction, and a bot acting on it
 > produces confidently wrong review advice that a human then has to spend budget rejecting.
 > Every technology claim below is verified against the actual dependency graph, and every ADR ruling
-> against `CLAUDE.md`, by `packages/infra/global/__tests__/reviewerContext.test.ts`. Keep it that way:
+> against `CLAUDE.md`, by `packages/tools/repoGuards/__tests__/reviewerContext.test.ts`. Keep it that way:
 > if you change the stack, change this file in the same PR.
 
 ## Active Technologies
@@ -99,7 +99,7 @@ ADR under `docs/architecture/decisions/` and confirm you are not reintroducing t
   and egresses via the IGW; `assignPublicIp` does **not** give a VPC Lambda egress. Don't move those Lambdas
   off the NAT or delete it. ⛔ Don't add a VPC **interface** endpoint to dodge the NAT either — $0.01 per
   endpoint-hour **per AZ** ($14.60/month/stage here) is several times the NAT itself; gateway endpoints are
-  free and fine. Both facts are asserted by `packages/infra/global/__tests__/natEgressConsumers.test.ts`.
+  free and fine. Both facts are asserted by `packages/tools/repoGuards/__tests__/natEgressConsumers.test.ts`.
 - **ADR-0005 — the `Environment` tag governs teardown: `global` persists, `pr-{N}` is deleted on PR close.**
   There is no denylist, so safety depends entirely on never naming or tagging a global resource `pr-{N}`.
   The delimiter-aware match lives once, in `.github/scripts/prScope.sh` (so pr-1 ≠ pr-15) — do not add a
@@ -505,7 +505,7 @@ yet** — the case prose in a feature spec has repeatedly failed to cover.
 - ⚠️ **A conformance test that enumerates services or clients from a HARDCODED LIST is itself the defect** — it
   cannot see the next package. Discover them from `packages/services/*/package.json`,
   `packages/clients/*/package.json` or `git ls-files`, as
-  `packages/infra/global/__tests__/appServiceDependency.test.ts` and `scripts/contractOwners.mjs` already do.
+  `packages/tools/repoGuards/__tests__/appServiceDependency.test.ts` and `scripts/contractOwners.mjs` already do.
 - **`z.strictObject()` is the portfolio default for every MUTATING request body.** Plain `z.object()` needs a
   forward-compatibility reason documented at the schema, which in practice means a read surface. On a mutating
   body a silently stripped unknown key is a `200` **plus a partial write the caller was told succeeded**.
@@ -592,7 +592,7 @@ documents that had already been reviewed.
   duplicates; 001's suffixed IDs (`T001`, `T001a`, `T001-alb` are three different tasks) make a `T\d+` match
   manufacture **~50 more**; drizzle writes `pgTable(` and the table name on **different lines**, so a single-line
   regex sees **3** of this repo's tables instead of all of them; and SQL comments name tables constantly. Gates:
-  `packages/infra/global/__tests__/specTaskIds.test.ts` and `.../specTableCollisions.test.ts` over
+  `packages/tools/repoGuards/__tests__/specTaskIds.test.ts` and `.../specTableCollisions.test.ts` over
   `.../specDeclarations.ts`.
 - **An exemption needs a substantive written `why`, and pins the owner set EXACTLY** (precedent:
   `contract-gen`'s `AllowedPackageImport.why`, `ColumnAccount.why`). A blank or one-word reason is a hard failure,

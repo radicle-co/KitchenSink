@@ -573,7 +573,7 @@ function trackedFiles(pathspec) {
 /**
  * Every CDK app entrypoint, DISCOVERED by content.
  *
- * The same predicate `packages/infra/global/__tests__/cdkApps.ts` uses — a tracked file under a `bin/`
+ * The same predicate `packages/tools/repoGuards/__tests__/cdkApps.ts` uses — a tracked file under a `bin/`
  * directory that constructs a CDK `App`, whatever it is named. Deliberately not imported from there: that module is a test helper in a workspace,
  * and a repo-root script importing across that boundary is the coupling `packages/infra/global`'s ESLint
  * exemption exists to bound in ONE direction only. `infrastructureManifest.test.ts` asserts the two

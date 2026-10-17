@@ -31,7 +31,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, it, expect } from 'vitest';
 
-// .../packages/infra/global/__tests__ → repo root is four levels up.
+// .../packages/tools/repoGuards/__tests__ → repo root is four levels up.
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 // ⛔ ONE SPELLING. The migration is complete: `packages/infra/{alb,messaging,security}` are deleted and the

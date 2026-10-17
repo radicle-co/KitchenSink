@@ -356,7 +356,7 @@ above decides **who authors** the contract; this one is where it **runs**. It ad
       inside the repo-wide AST gate.
     - So recipe-service is **no longer the GR-016 §16-a.2 example**; it is the converged case. The rule is
       unchanged and now enforced repo-wide by **G5** in
-      `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which requires a `ZodValidationPipe`
+      `packages/tools/repoGuards/__tests__/serviceSecurityInvariants.test.ts`, which requires a `ZodValidationPipe`
       over every HTTP controller in every discovered deployable and runs with **no exception list at all** — the
       `UNCONVERGED_CONTROLLERS` ratchet was **deleted** when search's controller, its one entry, converged. A new
       endpoint never adds a `class-validator` DTO, and the gate now fails the build rather than trusting prose.
@@ -432,7 +432,7 @@ above decides **who authors** the contract; this one is where it **runs**. It ad
   Those sites now pass a **bound parameter** (`${value}`, or `${value}::interval` for an interval) instead.
   ⛔ **Do not "restore" a `sql.raw()` for readability** — two gates now hold the count at zero: an ESLint
   **`no-restricted-syntax`** ban in `packages/tools/eslint/index.js`, and repo-wide AST gate **G3** in
-  `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`. Search is still the surface that would
+  `packages/tools/repoGuards/__tests__/serviceSecurityInvariants.test.ts`. Search is still the surface that would
   break it first — facet, sort and filter selections arrive **from the request** — so a validated enum still maps
   to a **closed allowlist of literals in code**: the request supplies the key, never the SQL fragment.
 - **⛔ Server-side RESPONSE validation is DEFERRED by owner decision (GR-016 §16-g) and MUST NOT be

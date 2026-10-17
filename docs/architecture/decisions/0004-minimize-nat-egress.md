@@ -3,14 +3,14 @@
 - **Status:** Accepted
 - **Date:** 2026-06-21
 - **Area:** AWS network topology · cost · `NetworkStack` NAT · ECS subnet placement · VPC Lambda egress
-- **Related:** issue #46, `packages/infra/global/lib/platform/NetworkStack.ts`, `packages/services/identity/infra/lib/IdentityServiceStack.ts`, `packages/infra/global/__tests__/NetworkStack.test.ts`, `packages/infra/global/__tests__/natEgressConsumers.test.ts`, ADR-0002 (VPC/CIDR — the replacement trap), ADR-0022 (a migration runner per DB-touching stack), ADR-0024 (the LLM gate whose endpoint this update dropped)
+- **Related:** issue #46, `packages/infra/global/lib/platform/NetworkStack.ts`, `packages/services/identity/infra/lib/IdentityServiceStack.ts`, `packages/infra/global/__tests__/NetworkStack.test.ts`, `packages/tools/repoGuards/__tests__/natEgressConsumers.test.ts`, ADR-0002 (VPC/CIDR — the replacement trap), ADR-0022 (a migration runner per DB-touching stack), ADR-0024 (the LLM gate whose endpoint this update dropped)
 
 ## ⚠️ Before you change this — the trap
 
 - **Do not move the DB-bound lambdas off the NAT, and do not "simplify" by deleting the NAT.** The
   consumer set is no longer the three webhook handlers plus a migration runner this ADR was written around;
   it has grown several times over, across six stacks. Its members are the marked table below and its size is
-  whatever that table says — `packages/infra/global/__tests__/natEgressConsumers.test.ts` asserts the table
+  whatever that table says — `packages/tools/repoGuards/__tests__/natEgressConsumers.test.ts` asserts the table
   against the infra tree by exact set equality, in both directions, so an addition that skips the table and a
   table entry with no construct both fail. Do not restate the count in prose; that copy has rotted three
   times.
@@ -85,7 +85,7 @@ consequence is nil either way (a NAT instance is billed by the hour, not per con
 
 <!-- nat-consumers:end -->
 
-`packages/infra/global/__tests__/natEgressConsumers.test.ts` discovers that set from the infra tree and
+`packages/tools/repoGuards/__tests__/natEgressConsumers.test.ts` discovers that set from the infra tree and
 asserts **exact equality** with the table above — in both directions, so a function the table has not heard
 of and a name the table still claims after deletion fail identically. The same suite asserts that **no
 interface VPC endpoint exists anywhere in the tree**, which is what makes "VPC-attached" and "NAT consumer"
@@ -115,7 +115,7 @@ ADR first, then in the guard. Gateway endpoints (S3, DynamoDB) are free and deli
 ## Implementation guards
 
 - `packages/infra/global/__tests__/NetworkStack.test.ts` asserts `AWS::EC2::NatGateway` count 0 and a `t4g.nano` NAT instance — fails if a Gateway is reintroduced.
-- `packages/infra/global/__tests__/natEgressConsumers.test.ts` asserts the consumer table above matches the
+- `packages/tools/repoGuards/__tests__/natEgressConsumers.test.ts` asserts the consumer table above matches the
   infra tree exactly, and that no interface VPC endpoint exists — the two facts every later decision about
   "what is on the NAT" is made against.
 - The NAT instance SG is VPC-CIDR-scoped (`NetworkStack.ts`), not `0.0.0.0/0`.

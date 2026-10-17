@@ -41,7 +41,7 @@ import { applyRoleModel, readRoleCensus, type DatabaseRoles } from '@kitchensink
 
 import { executeReap, readPerPrCatalog } from '../../src/db-reaper/handler.js';
 import { planReap } from '../../src/db-reaper/reapPlan.js';
-import { throwawayServerUrl } from '../common/throwawayServer.js';
+import { throwawayServerUrl } from '@kitchensink/repo-guards/throwawayServer';
 
 const ADMIN_URL = process.env['DATABASE_ADMIN_URL'];
 /** The throwaway server — loopback only; a refused URL fails the run here (see `throwawayServer.ts`). */

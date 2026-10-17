@@ -74,8 +74,8 @@ import {
     repoRoot,
     trackedFiles,
     visit,
-} from './serviceSources.js';
-import type { SourceFile } from './serviceSources.js';
+} from '@kitchensink/repo-guards/serviceSources';
+import type { SourceFile } from '@kitchensink/repo-guards/serviceSources';
 import { consumerConcurrencyFor } from '../../../services/recipe-workers/infra/lib/consumerConcurrency.js';
 
 /** The construct id of the one role ADR-0024 layer 4b permits to invoke a model. */

@@ -3,10 +3,10 @@
 - **Status:** Accepted
 - **Date:** 2026-08-07
 - **Area:** IaC security · CDK Aspects · prod-template stability
-- **Related:** `docs/architecture/decisions/0002-vpc-consolidation-and-cidr-scheme.md` (no-prod-diff), `0008-additional-cost-levers-gp3-fargate-spot-budget-guardrails.md` (no-prod-diff), `packages/infra/security/**`, `packages/infra/global/__tests__/cdkNag{Attachment,TemplateParity}.test.ts` and `tests/cdkNagSynth.integration.test.ts`, `packages/infra/global/tests/nagRulesAtZero.integration.test.ts`
+- **Related:** `docs/architecture/decisions/0002-vpc-consolidation-and-cidr-scheme.md` (no-prod-diff), `0008-additional-cost-levers-gp3-fargate-spot-budget-guardrails.md` (no-prod-diff), `packages/infra/security/**`, `packages/tools/repoGuards/__tests__/cdkNagAttachment.test.ts`, `packages/infra/global/__tests__/cdkNagTemplateParity.test.ts` and `tests/cdkNagSynth.integration.test.ts`, `packages/infra/global/tests/nagRulesAtZero.integration.test.ts`
 
 ⚠️ **Every CDK app attaches, and the roster is asserted rather than counted here.**
-`packages/infra/global/__tests__/cdkNagAttachment.test.ts` pins the entrypoint list and fails when an app is
+`packages/tools/repoGuards/__tests__/cdkNagAttachment.test.ts` pins the entrypoint list and fails when an app is
 added without `attachSecurityChecks`. This ADR deliberately quotes no total: the number has been wrong twice
 already, in both directions.
 
@@ -58,7 +58,7 @@ already, in both directions.
 - `packages/infra/global/__tests__/cdkNagTemplateParity.test.ts` — byte-identical prod + sandbox templates, per stack, plus "a suppression would show up here" (`no cdk_nag metadata`) and a mutating-Aspect negative control.
 - `packages/infra/global/tests/cdkNagSynth.integration.test.ts` — the integration tier, so `tests/` rather
   than `__tests__/` (`docs/CODING_STANDARDS.md` §7).
-- `packages/infra/global/__tests__/cdkNagAttachment.test.ts` — discovery-based; also pins the known entrypoint set so a broken walk cannot pass silently.
+- `packages/tools/repoGuards/__tests__/cdkNagAttachment.test.ts` — discovery-based; also pins the known entrypoint set so a broken walk cannot pass silently.
 
 ---
 
@@ -212,7 +212,7 @@ has no way to know whether its "0" is still true.
 
 ### What now holds it
 
-`packages/infra/global/__tests__/queueBaselineDeclarations.test.ts` — a repo-wide, SOURCE-derived guard
+`packages/tools/repoGuards/__tests__/queueBaselineDeclarations.test.ts` — a repo-wide, SOURCE-derived guard
 asserting that every `new sqs.Queue(...)` construction site declares `enforceSSL: true`, `encryption` and
 `retentionPeriod`. It enumerates nothing, so a queue written tomorrow joins its subject set that day.
 

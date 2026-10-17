@@ -39,7 +39,7 @@ import { Template } from 'aws-cdk-lib/assertions';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
-import { withoutComments } from './cdkApps.js';
+import { withoutComments } from '@kitchensink/repo-guards/cdkApps';
 import { DataStack } from '../lib/platform/DataStack.js';
 import { NetworkStack } from '../lib/platform/NetworkStack.js';
 import { mediaDeliveryProps } from './mediaDeliveryProps.js';

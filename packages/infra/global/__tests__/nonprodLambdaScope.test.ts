@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest';
 
 import { NONPROD_STACK_NAME_PATTERNS } from '../lib/platform/GithubActionsAccessStack.js';
 import { iamResourceMatches } from './iamGlob.js';
-import { isTestFile, parse, repoRoot, trackedFiles, visit } from './serviceSources.js';
+import { isTestFile, parse, repoRoot, trackedFiles, visit } from '@kitchensink/repo-guards/serviceSources';
 
 interface StackNameTemplate {
     readonly file: string;

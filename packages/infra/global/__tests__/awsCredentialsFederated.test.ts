@@ -49,10 +49,16 @@ import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
 import { GITHUB_OIDC_TIERS, PRODUCTION_ENVIRONMENT } from '../lib/platform/githubOidcTrust.js';
-import { RECLAMATION_JOBS } from './reclamationJobs.js';
-import { repoRoot } from './serviceSources.js';
-import { evaluateCondition, selectedLiteral, tokenize, unwrap, type Truth } from './workflowExpression.js';
-import { scalarText } from './workflowScalar.js';
+import { RECLAMATION_JOBS } from '@kitchensink/repo-guards/reclamationJobs';
+import { repoRoot } from '@kitchensink/repo-guards/serviceSources';
+import {
+    evaluateCondition,
+    selectedLiteral,
+    tokenize,
+    unwrap,
+    type Truth,
+} from '@kitchensink/repo-guards/workflowExpression';
+import { scalarText } from '@kitchensink/repo-guards/workflowScalar';
 
 const AWS_AUTH = './.github/actions/awsAuth';
 const AWS_AUTH_ACTION = '.github/actions/awsAuth/action.yml';

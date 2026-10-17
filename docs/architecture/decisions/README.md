@@ -18,7 +18,7 @@ memory of the system, and the difference is one line:
 > A **status** is what happens to be true today.
 > ADRs record the first. The second belongs where it is CHECKED — CI, a guard test, or the code.
 
-Three rules follow, and `packages/infra/global/__tests__/adrHygiene.test.ts` enforces them over every file
+Three rules follow, and `packages/tools/repoGuards/__tests__/adrHygiene.test.ts` enforces them over every file
 here, with no allowlist:
 
 - **`Status` is one of `Proposed` / `Accepted` / `Deprecated` / `Superseded by NNNN`, and nothing else.**
@@ -108,3 +108,4 @@ generated table instead.
 | [0063](0063-github-actions-aws-oidc-roles.md)                                 | GitHub Actions reaches AWS through one OIDC provider and three tiered roles, not an access key                                                            | Accepted           |
 | [0064](0064-media-delivery-base-stage-cloudfront-oac-plain-urls.md)           | Media is served from one base-stage CloudFront over an OAC-protected bucket, on plain public URLs                                                         | Accepted           |
 | [0065](0065-ci-deploys-through-kitchensink-owned-cdk-bootstrap-qualifiers.md) | CI deploys through KitchenSink-owned CDK bootstrap qualifiers                                                                                             | Accepted           |
+| [0066](0066-repo-wide-guards-live-in-their-own-package.md)                    | Repo-wide guards live in their own package; only tests that reach infrastructure code live in infra                                                       | Accepted           |

@@ -100,9 +100,9 @@ import path from 'node:path';
 import { App, Stack, aws_sns as sns, aws_sqs as sqs } from 'aws-cdk-lib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { repositorySites } from '../__tests__/messagingConstructSites.js';
+import { repositorySites } from '@kitchensink/repo-guards/messagingConstructSites';
 import { PROD_DEPLOY_WORKFLOW, prodDeployLiteralEnvironment } from '../__tests__/prodDeployEnvironment.js';
-import { repoRoot } from '../__tests__/serviceSources.js';
+import { repoRoot } from '@kitchensink/repo-guards/serviceSources';
 import { EDGE_LAMBDA_RUNTIME } from '../lib/platform/EdgeStack.js';
 import {
     ACCOUNT,

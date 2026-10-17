@@ -142,7 +142,7 @@ ECS Container Insights log groups, out-of-band ECR repos). See
     leak `teardownSandboxPr.sh` exists to prevent. Documenting "never protect `Sandbox`" was not
     sufficient, because that setting lives in repo configuration where no test can see it and any admin can
     change it from a UI that gives no hint a scheduled reaper depends on it. The invariant is enforced in
-    code by `packages/infra/global/__tests__/reclamationNeverGated.test.ts`.
+    code by `packages/tools/repoGuards/__tests__/reclamationNeverGated.test.ts`.
 
     The **CI** workflows (`_ci`, `ci-pr`, `ci-main`, `ci-full`, `_ci-heavy`, `deployedE2eTiers`, the loadtests, `claude*`) are
     deliberately left **unbound** too: none is a deployment, binding them to a zero-protection environment

@@ -60,7 +60,7 @@ export function createClerkEdgeVerifier({
         previewBaseDomain: undefined,
         previewMode: undefined,
         // One bundle answers for every fronted service, so it would grant credentials while any of them does; none
-        // does. `packages/infra/global/__tests__/edgeCorsCredentials.test.ts` holds this to the OR over the adopters.
+        // does. `packages/tools/repoGuards/__tests__/edgeCorsCredentials.test.ts` holds this to the OR over the adopters.
     });
 
     return createEdgeVerifier({

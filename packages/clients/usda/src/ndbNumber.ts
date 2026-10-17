@@ -3,7 +3,7 @@
  *
  * A module of its own, apart from the HTTP client: food's bulk reader, which the catalog seed function bundles, shares
  * this rule with the client, and the seed must ship no HTTP code (curated catalog plan R38,
- * `packages/infra/global/__tests__/seedBundleImports.test.ts`).
+ * `packages/tools/repoGuards/__tests__/seedBundleImports.test.ts`).
  */
 
 /**

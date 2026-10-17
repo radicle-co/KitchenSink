@@ -2,7 +2,7 @@
  * The IMPURE half of the packaging guard: everything that reads the filesystem or the interpreter.
  *
  * Split from `assetContents.ts` so the predicate stays pure and can be fired at a deliberately-violating
- * fake — the property `packages/infra/global/__tests__/serviceSources.ts` establishes for the repo-wide
+ * fake — the property `packages/tools/repoGuards/__tests__/serviceSources.ts` establishes for the repo-wide
  * gates ("everything here is MECHANISM; the invariants live in the guard suites as pure predicates").
  *
  * ## ⚠️ Python is PARSED, never grepped

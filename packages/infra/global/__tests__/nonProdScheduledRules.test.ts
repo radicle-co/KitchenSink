@@ -23,8 +23,12 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { SCHEDULED_RULE_STAGE_TAG } from '../lib/sandbox-scheduler/scheduler.js';
-import { productionSources, readSource, REPO_ROOT, withoutTsComments } from './roleSplitSources.js';
-import { constructsScheduledRule, SHARED_CONSTRUCTS, scheduledRuleOwners } from './scheduledRuleOwners.js';
+import { productionSources, readSource, REPO_ROOT, withoutTsComments } from '@kitchensink/repo-guards/roleSplitSources';
+import {
+    constructsScheduledRule,
+    SHARED_CONSTRUCTS,
+    scheduledRuleOwners,
+} from '@kitchensink/repo-guards/scheduledRuleOwners';
 
 /** The gate's call, as each owning stack makes it: on itself, with its stage. */
 const GATE_CALL = /\bholdScheduledRulesForTheSandbox\s*\(\s*this\s*,\s*props\.stage\s*\)/u;

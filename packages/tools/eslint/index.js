@@ -42,7 +42,7 @@ function namingRegimeForRoot(rootDir) {
  * which only recipe declared, and every guard passed (2026-10-01). A bundled Lambda inlines its imports, so a
  * package without a `Dockerfile` gets no block. Tests and fixtures may import development packages.
  *
- * Guarded by `packages/infra/global/__tests__/imageRuntimeDependencies.test.ts`.
+ * Guarded by `packages/tools/repoGuards/__tests__/imageRuntimeDependencies.test.ts`.
  *
  * @param {string} rootDir - Absolute package root (the caller's `import.meta.dirname`).
  * @returns {import('eslint').Linter.Config[]}
@@ -351,6 +351,9 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/eslint/*',
         '!@kitchensink/typescript/*',
         '!@kitchensink/vitest/*',
+        // `repo-guards`' test helpers, which infra's own suites share with the repo-wide guards. Allowed per-package for
+        // the same reason: every subpath is a declared export, one helper module each, with no barrel to route through.
+        '!@kitchensink/repo-guards/*',
     ],
     message:
         "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, database-name, scaling, external-url, food-name, infra, types/*, hooks, testing, users/handle-sync-publisher, denylist, core, logAttributes, or any subpath of the shared tooling packages) — don't reach into other internals.",
@@ -409,7 +412,7 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
              * ⚠️ These are the ONLY thing standing between `eslint .` and a package's build output.
              *
              * Every package's `lint` script is the bare `eslint .` (pinned by
-             * `packages/infra/global/__tests__/staticAnalysisCoverage.test.ts`) because a per-package glob is a
+             * `packages/tools/repoGuards/__tests__/staticAnalysisCoverage.test.ts`) because a per-package glob is a
              * claim about a file tree that only the tree can settle — `lib/**\/*.ts` looked correct beside a
              * `lib/` directory while 62 conformance suites in the `__tests__/` next to it were linted by nothing.
              * Handing ESLint the directory removes the glob, and moves the whole exclusion decision HERE, where

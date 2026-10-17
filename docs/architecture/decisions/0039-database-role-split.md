@@ -140,7 +140,7 @@ master holds none. PostgreSQL's own `is_member_of_role` does.
 - The `DatabaseSecretArn` export remains until a later release: the previous service stacks import it, and
   CloudFormation refuses to delete an export in use.
 
-**Guards** (`packages/infra/global/__tests__/`)
+**Guards** (`packages/tools/repoGuards/__tests__/`, except `masterSecretConsumers`, which synthesizes the stacks and lives in `packages/infra/global/__tests__/`)
 
 - `databaseRoleLiterals` — no production file spells a role name outside the registry.
 - `dbUserGrantRegister` — which stack logs in as which role, by exact equality; no owner grant; no one-argument grant

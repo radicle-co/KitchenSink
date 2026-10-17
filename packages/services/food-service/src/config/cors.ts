@@ -9,7 +9,7 @@
  * ⚠️ DELIBERATE — see `docs/architecture/decisions/0047-shared-cors-policy.md`. The preview-pattern and loopback
  * branches are safe only because this service is BEARER-ONLY: `FoodAuthGuard` and `FoodServiceErasureGuard` read
  * `Authorization: Bearer` and nothing else, no route reads a cookie or a session, and none accepts a WebSocket
- * upgrade. `packages/infra/global/__tests__/bearerOnlyPrecondition.test.ts` finds this package because it calls the
+ * upgrade. `packages/tools/repoGuards/__tests__/bearerOnlyPrecondition.test.ts` finds this package because it calls the
  * shared policy, and fails the build if that stops being true.
  *
  * @pattern Adapter over `resolveCorsPolicy` — translates `STAGE` into `deployed` and adds no behaviour

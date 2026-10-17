@@ -443,7 +443,7 @@ justified.
 
 - `ui/src/icon/glyphs.ts` maps a closed `IconName` union to the Lucide component on each leaf. That is the spec's
   "one glyph list".
-- A new guard, `packages/infra/global/__tests__/iconImportBoundary.test.ts`, asserts:
+- A new guard, `packages/tools/repoGuards/__tests__/iconImportBoundary.test.ts`, asserts:
     1. no file outside `ui/src/icon/` imports `lucide-react*`;
     2. the native leaf imports only `lucide-react-native/icons/*`;
     3. a ratchet: the number of files importing `@expo/vector-icons` only goes down, to 0 at the end of slice 2,
@@ -851,7 +851,7 @@ keyboardOpen, firstRun, labelWidthPx, windowWidthPx }): 'hidden' | 'icon' | 'ext
     - The `account` destination survives as a pushed `AccountSettings` route until slice 9.
 8. **One `scrollsToTop` per screen.** Every horizontal `ScrollView`/`FlatList`/`FlashList` and every scroller
    inside a sheet sets `scrollsToTop={false}`. New guard
-   `packages/infra/global/__tests__/nativeScrollsToTop.test.ts` parses `.native.tsx` and `mobile/src/**/*.tsx`
+   `packages/tools/repoGuards/__tests__/nativeScrollsToTop.test.ts` parses `.native.tsx` and `mobile/src/**/*.tsx`
    for `horizontal` scrollers without `scrollsToTop={false}`. Set equality with an empty allowlist.
 
 **Tests owed (slice 3).**

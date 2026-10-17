@@ -213,7 +213,7 @@ unqualified whole-table `DELETE`s. Adding `IF NOT EXISTS` to the loud half would
 rotted once: `RecipeWorkersStack` grew four DB-touching Lambdas and the barrier swept every one of them with
 no edit, which is §2's derivation working — the table is simply what fell behind. It is also not a census of
 stacks; the ones absent from it touch no database. What IS a check is
-`packages/infra/global/__tests__/dbTouchingStackBarrier.test.ts`.
+`packages/tools/repoGuards/__tests__/dbTouchingStackBarrier.test.ts`.
 
 Two stacks deliberately do not carry a barrier.
 
@@ -256,7 +256,7 @@ decision.
 
 A stack with DB-touching compute and **no runner at all** was invisible to every guard, because each one
 started from a runner it could see — the `1e96ac08` defect verbatim.
-`packages/infra/global/__tests__/dbTouchingStackBarrier.test.ts` asserts the missing direction: a stack that
+`packages/tools/repoGuards/__tests__/dbTouchingStackBarrier.test.ts` asserts the missing direction: a stack that
 names a DB connection variable or an `rds-db:connect` / `grantConnect` grant AND constructs compute must ship
 a runner behind a barrier, or be a recorded exemption carrying a reason and a citation that must exist on
 disk. `WebhooksStack` and `DataStack` are the two exemptions.

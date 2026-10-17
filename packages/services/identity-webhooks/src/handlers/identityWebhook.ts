@@ -162,7 +162,7 @@ const handleUserCreated = async (data: IdentityUserData, db: IdentityWriter, req
     // users — for a series holding one datapoint that aggregates to nothing. The id is on the log line below,
     // where it is searchable AND pseudonymized by `@kitchensink/observability-scrubbers`; the EMF line goes straight to stdout
     // and never passes a scrubber. Enforced repo-wide by
-    // `packages/infra/global/__tests__/emfIdentifierDimensionRepoGate.test.ts`.
+    // `packages/tools/repoGuards/__tests__/emfIdentifierDimensionRepoGate.test.ts`.
     emitMetric('UserCreatedWebhook', 1);
     logger.info('identity-webhook: user.created processed', { requestId, identityId: data.id, userId: user.id });
 };

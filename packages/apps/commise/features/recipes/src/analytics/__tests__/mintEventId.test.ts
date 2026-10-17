@@ -4,7 +4,7 @@
  * The minter is a PLATFORM SEAM because Hermes ships no `crypto` global — the structural half of that
  * rule (the shared hook reaches ids only through the seam; the native leaf delegates to `expo-crypto`
  * and never the bare global) is guarded where source-reading guards live:
- * `packages/infra/global/__tests__/analyticsMintEventIdSeam.test.ts`. This browser-typed package
+ * `packages/tools/repoGuards/__tests__/analyticsMintEventIdSeam.test.ts`. This browser-typed package
  * (`types: []`) pins only the leaf's behavior.
  */
 import { describe, expect, it } from 'vitest';

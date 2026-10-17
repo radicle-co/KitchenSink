@@ -40,7 +40,7 @@ const VOCABULARY: EnvelopeVocabulary = {
  *
  * ⚠️ Deliberately NOT the authored `ApiErrorBody`. That type is `.loose()`, so it carries an index signature and
  * would accept any extra top-level key here — the exact thing `asExplicitEnvelope` rebuilds the envelope to
- * prevent. The two shapes are asserted equivalent in `packages/infra/global/__tests__/errorEnvelopeParity.test.ts`
+ * prevent. The two shapes are asserted equivalent in `packages/tools/repoGuards/__tests__/errorEnvelopeParity.test.ts`
  * (every service's published `apiErrorSchema` parses a mechanism envelope), so using the tighter one loses nothing.
  */
 type ClassifiedEnvelope = ApiErrorEnvelope & { readonly code: RecipeErrorCode };

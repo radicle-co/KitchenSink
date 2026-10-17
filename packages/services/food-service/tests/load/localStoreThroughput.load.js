@@ -5,7 +5,7 @@
 //   100 requests a second
 // ⚠️ WEAK BUDGET, and the owner was told on 2026-09-06. `SUSTAIN_FRACTION` thresholds the MACHINE's ability to absorb
 // the offered rate, so the number belongs to whatever box happened to run it. It is kept rather than deleted because
-// the accepted-loss list in `packages/infra/global/__tests__/k6LoadTierWiring.test.ts` IS the record that these gates
+// the accepted-loss list in `packages/tools/repoGuards/__tests__/k6LoadTierWiring.test.ts` IS the record that these gates
 // no longer run — deleting the script would remove the record, not the gap. Treat a green run as an ALGORITHMIC
 // regression check (a dropped index shows as a large multiple on any substrate), never as evidence of production
 // capacity.

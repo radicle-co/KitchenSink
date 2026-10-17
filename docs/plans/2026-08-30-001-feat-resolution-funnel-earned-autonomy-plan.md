@@ -460,7 +460,7 @@ hosted where the single Bedrock grantee lives.
 **Files:** `packages/services/recipe-workers/src/handlers/parseLine.ts` (or job-batch shaped — named at
 implementation), queue + DLQ + event source in `packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts`
 (copying the verification block's shape; SAME role — no new grantee, `llmSpendGuards` stays green),
-reserve-then-settle wiring per callSite, `packages/infra/global/__tests__/natEgressConsumers.test.ts`
+reserve-then-settle wiring per callSite, `packages/tools/repoGuards/__tests__/natEgressConsumers.test.ts`
 amendment + ADR-0004 dated update (the new handler is a VPC-attached Lambda and therefore a NAT consumer —
 the guard asserts the list in both directions), integration + e2e tiers, ADR-0022 note: workers deploy before
 recipe-service (consumer before producer — the parse-job message contract).

@@ -52,7 +52,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, it, expect } from 'vitest';
 
-// .../packages/infra/global/__tests__ → repo root is four levels up.
+// .../packages/tools/repoGuards/__tests__ → repo root is four levels up.
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 /** A scanned workspace package: where it lives, and which `@kitchensink/*` packages it needs at RUNTIME. */

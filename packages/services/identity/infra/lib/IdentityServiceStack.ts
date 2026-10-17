@@ -60,7 +60,7 @@ export interface IdentityServiceStackProps extends StackProps {
      * ⛔ REQUIRED rather than optional — an optional prop lets a call site keep the old behaviour by saying
      * nothing. And never read from SSM inside CDK: `valueForStringParameter` resolves at DEPLOY time and
      * returns a token, so gating on it compiles, deploys, and does nothing. Both rules are enforced by
-     * `packages/infra/global/__tests__/alarmFeatureFlag.test.ts`.
+     * `packages/tools/repoGuards/__tests__/alarmFeatureFlag.test.ts`.
      */
     readonly alarmsEnabled: boolean;
 
@@ -595,7 +595,7 @@ export class IdentityServiceStack extends Stack {
         // could publish here at all. Nothing fails at deploy: the topic exists, the action is attached, the
         // diff is clean, and the sole symptom is an `Action  Failed to execute action` line in an alarm
         // history nobody reads. That is how a correctly-firing production crash-loop alarm stayed silent for
-        // 14.2 days. `packages/infra/global/__tests__/alarmTopicPublishGrant.test.ts` carries the measured
+        // 14.2 days. `packages/tools/repoGuards/__tests__/alarmTopicPublishGrant.test.ts` carries the measured
         // account and asserts this grant on every alarm topic in the repository.
         alarmTopic.addToResourcePolicy(
             new iam.PolicyStatement({
@@ -615,7 +615,7 @@ export class IdentityServiceStack extends Stack {
         // notification, so a topic with no alarm publishing to it and (outside prod) no subscriber costs
         // nothing at all — while CloudWatch bills per alarm above a 10-alarm free tier, which this account
         // was already over. Gating the topic would also mean threading an `SnsAction | undefined` through
-        // every alarm below for a saving of zero. See `packages/infra/global/__tests__/alarmFeatureFlag.test.ts`.
+        // every alarm below for a saving of zero. See `packages/tools/repoGuards/__tests__/alarmFeatureFlag.test.ts`.
         if (props.alarmsEnabled) {
             // ADR-0062: deliver this topic's transitions to the stage's alarm relay, and forward the OKs too. Inside the
             // switch, like the alarms: no alarm, nothing to deliver.

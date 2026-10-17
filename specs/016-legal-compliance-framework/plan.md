@@ -170,7 +170,7 @@ every test tier.
 **Costs this plan incurs and pays explicitly:**
 
 - **Two new VPC-attached Lambdas** (`noticeIntake`, `legalRetentionSweep`) join ADR-0004's NAT consumer list.
-  `packages/infra/global/__tests__/natEgressConsumers.test.ts` asserts that list **in both directions**,
+  `packages/tools/repoGuards/__tests__/natEgressConsumers.test.ts` asserts that list **in both directions**,
   discovery-based, against the entries between ADR-0004's `<!-- nat-consumers:start -->` /
   `<!-- nat-consumers:end -->` markers. Adding either without updating the ADR fails the gate, and so does the
   reverse. Two tasks, not a footnote.

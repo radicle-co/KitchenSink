@@ -27,7 +27,7 @@ its U17). Read these amendments before building any unit below:
   `config/cors.ts` are now adapters that decide only `deployed`. Their header and wiring tests did not change, which
   is the proof that behaviour did not. A policy change now touches only `clerk-verify`, so every deploy filter that
   decides a recipe or food deploy watches it, the per-PR preview's included (`deployLegsWatchTheirLibraries`).
-- **S4, landed:** one bearer-only precondition guard (`packages/infra/global/__tests__/bearerOnlyPrecondition.test.ts`)
+- **S4, landed:** one bearer-only precondition guard (`packages/tools/repoGuards/__tests__/bearerOnlyPrecondition.test.ts`)
   finds every package calling `resolveCorsPolicy`, so food's CORS inherits it with no adoption step. It detects a
   WebSocket upgrade and checks that its scan reached the auth entry point. ADR-0047 records the shared CORS policy.
 - **Withdrawn:** the ADR-0048 and ADR-0049 reservations, so §14 no longer lists them. ADR-0051 records the catalog

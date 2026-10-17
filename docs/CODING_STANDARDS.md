@@ -80,7 +80,7 @@ defines immutable principles; this document translates them into enforceable rul
 
 > **Enforced, not advisory.** File names are checked in CI by `eslint-plugin-check-file`
 > (see `packages/tools/eslint`). A non-conforming name FAILS lint. ESLint sees only JS/TS and checks only the
-> first segment of a name, so `packages/infra/global/__tests__/fileNameConvention.test.ts` holds EVERY tracked
+> first segment of a name, so `packages/tools/repoGuards/__tests__/fileNameConvention.test.ts` holds EVERY tracked
 > file — scripts, workflows, Maestro flows, JSON, docs — and every segment of its name to the same rule.
 >
 > **Two names in one directory must differ by more than case** once the extension and any platform suffix are
@@ -143,14 +143,14 @@ NestJS providers — it is a _dot_, never a hyphen. `clerkAuth.service.ts` is wr
    anything — so it is recorded as the owner's ruling rather than dressed up as a mandate. A markdown file
    _named_ freely still has to keep every path it cites _correct_.
 
-`packages/infra/global/__tests__/fileNameConvention.test.ts` carries classes 1 and 2 as `MANDATED` (each
+`packages/tools/repoGuards/__tests__/fileNameConvention.test.ts` carries classes 1 and 2 as `MANDATED` (each
 entry naming the tool and its evidence) and class 3 as `EXEMPT_BY_OWNER_RULING`. Nothing else is exempt, and
 there is no legacy allow-list.
 
 ## One file, one thing
 
 > **Enforced, not advisory.** The class/component half is checked in CI by
-> `packages/infra/global/__tests__/oneFileOneThing.test.ts`, which parses every tracked source with the
+> `packages/tools/repoGuards/__tests__/oneFileOneThing.test.ts`, which parses every tracked source with the
 > TypeScript AST and fails a file exporting more than one class or more than one React component. The
 > tree carries **no pending violations**: the nine god files the gate was born recording have been split.
 > The 17 files still listed there are the **ruled exemptions** below, each pinned to its **exact** export
@@ -686,7 +686,7 @@ of the deployed tier's triggers.
 
 ⛔ **The reclassification is done, and a guard holds it.** Plan 002's cleanup unit X1 moved every integration-named
 suite that opened a real database or LocalStack into its package's LOCAL e2e tier, and the fully mocked e2e-named
-suites the other way. `packages/infra/global/__tests__/testTierDependencies.test.ts` derives both tiers from the
+suites the other way. `packages/tools/repoGuards/__tests__/testTierDependencies.test.ts` derives both tiers from the
 vitest configs and fails when an integration suite reaches a real dependency, or when a LOCAL e2e tier holds a suite
 that reaches none. A LOCAL e2e suite does not skip when its dependency is absent: its global setup throws instead.
 
@@ -725,7 +725,7 @@ that reaches none. A LOCAL e2e suite does not skip when its dependency is absent
 **Naming is enforced, not advisory**, and the reason is that the fifteen-day failure was a naming failure
 before it was a testing failure. A CI e2e job declares its target as a job-level literal,
 `env: E2E_TARGET: deployed`, and its displayed name says `deployed`.
-`packages/infra/global/__tests__/e2eTargetDeclaration.ts` defines what counts, and three guards hold the rule:
+`packages/tools/repoGuards/__tests__/e2eTargetDeclaration.ts` defines what counts, and three guards hold the rule:
 
 - `workflowInvariants.test.ts` **invariant 7**: no job declares `E2E_TARGET: local`. Every job named `E2E`
   declares DEPLOYED, and its name and shape agree: no service containers, no runner address, and a remote
@@ -952,7 +952,7 @@ This rule applies to all testing layers: unit tests (Testing Library), E2E tests
   (the leading `*` is read as the target). Also never write the literal opener sequence in prose — the check
   parses comments, so an opener in your own explanation is reported as a dead link. Enforced across `.ts`,
   `.tsx`, `.js`, `.jsx`, `.mjs` and `.cjs` by
-  `packages/infra/global/__tests__/docLinkResolution.test.ts`, which resolves every target through the
+  `packages/tools/repoGuards/__tests__/docLinkResolution.test.ts`, which resolves every target through the
   compiler rather than by pattern-matching.
 - Non-trivial functions: `@param`, `@returns`, `@throws` tags required.
 - Impure functions: `@sideEffect` tag required.
@@ -1070,7 +1070,7 @@ emit must be narrower, that belongs in `tsconfig.build.json`, not in the check p
 The two halves are coupled: widening the lint glob without widening the tsconfig makes every newly-matched file
 a **fatal parse error**, which is worse than not linting it — ESLint opens the file, runs no rule on it, and the
 file still appears in a passing run. Directory-level exclusions (build output, workspace-root `*.config.*`) live
-once, in `packages/tools/eslint`. `packages/infra/global/__tests__/staticAnalysisCoverage.test.ts` enforces
+once, in `packages/tools/eslint`. `packages/tools/repoGuards/__tests__/staticAnalysisCoverage.test.ts` enforces
 all of this by asking TypeScript's config parser and ESLint's own API for actual project membership, never by
 comparing glob text.
 
@@ -1341,7 +1341,7 @@ documentation contradicts that. ⛔ Do not "fix" that by teaching the classifier
 `Humble Object — the pure render half of the orchestration/render split` sits on a presentational leaf and
 contains the word "orchestration", so a tag-reading classifier manufactures the wrong answer.
 
-Enforced by `packages/infra/global/__tests__/patternRegister.test.ts`, over the pure predicates in
+Enforced by `packages/tools/repoGuards/__tests__/patternRegister.test.ts`, over the pure predicates in
 `patternRegister.ts`. The same guard carries the triage of every ref site in the tree — CLAUDE.md's
 "refs are near-forbidden" rule, made checkable — as a set-equality register with a per-site verdict and a
 substantive reason, so a new ref cannot land untriaged and a removed one cannot leave a stale exemption
@@ -1421,7 +1421,7 @@ location for new code is a shared workspace; per-platform code is the exception.
 
 Duplicating logic across platforms requires a code-review-visible justification
 comment (`// PLATFORM-FORK: <reason>`). The comment sits directly above the one statement or declaration it excuses,
-and excuses nothing else. `packages/infra/global/__tests__/crossPlatformLeafDuplication.test.ts` counts the logic a
+and excuses nothing else. `packages/tools/repoGuards/__tests__/crossPlatformLeafDuplication.test.ts` counts the logic a
 `.ts(x)` and its `.native` twin share, and fails a pair over its limit.
 
 ### 14.3 The `.native.ts(x)` Suffix (Hard Rule)
@@ -1759,7 +1759,7 @@ and a contract-skew guard (`packages/clients/{food-service,recipe-service}/src/c
 is a thing to forget, and the package created next week will not be on it. Every gate discovers its subjects
 from `packages/services/*/package.json`, `packages/clients/*/package.json`, `packages/schemas/*/package.json`
 or `git ls-files` — the pattern already used by
-`packages/infra/global/__tests__/appServiceDependency.test.ts` (discovers services, scans `git ls-files`,
+`packages/tools/repoGuards/__tests__/appServiceDependency.test.ts` (discovers services, scans `git ls-files`,
 counts type-only imports as violations) and by `scripts/contractOwners.mjs` `discoverContractOwners`.
 
 ⚠️ **`*.schema.ts` is an overloaded suffix — a globbing gate must not treat every match as a wire contract.**
@@ -1969,5 +1969,5 @@ is itself the defect, because the next feature arrives unguarded.
 **Exemptions carry a mandatory, substantive `why`** and pin the **exact** owner set, per the precedent of
 `contract-gen`'s `AllowedPackageImport.why` and `ColumnAccount.why`. A blank or one-word reason fails, and a third
 declarer joining an exempted pair fails. Gates:
-`packages/infra/global/__tests__/specTaskIds.test.ts` and `.../specTableCollisions.test.ts`, over the shared
+`packages/tools/repoGuards/__tests__/specTaskIds.test.ts` and `.../specTableCollisions.test.ts`, over the shared
 parser `.../specDeclarations.ts`.

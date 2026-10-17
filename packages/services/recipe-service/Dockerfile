@@ -14,7 +14,7 @@ COPY node_modules ./node_modules
 # It copied nothing either way: the only entries that directory EVER held were `@types/node` and
 # `undici-types`, both dev-only, and the pipeline runs `npm prune --omit=dev` BEFORE this build — so the
 # line was copying an empty directory. Asserted by
-# `packages/infra/global/__tests__/serviceImageWorkspaceModules.test.ts`, which permits the COPY again if
+# `packages/tools/repoGuards/__tests__/serviceImageWorkspaceModules.test.ts`, which permits the COPY again if
 # a runtime dependency is ever genuinely pinned into a workspace.
 COPY packages/services/recipe-service/prod.package.json ./packages/services/recipe-service/package.json
 COPY packages/services/recipe-service/dist ./packages/services/recipe-service/dist

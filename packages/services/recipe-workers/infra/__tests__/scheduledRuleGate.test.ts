@@ -1,6 +1,6 @@
 /**
  * The non-prod scheduled-rule gate (ADR-0060), tested once here and held identical in every app that carries a copy
- * by `packages/infra/global/__tests__/mirroredModuleParity.test.ts`.
+ * by `packages/tools/repoGuards/__tests__/mirroredModuleParity.test.ts`.
  *
  * What it must do, and what each test below would catch if it stopped:
  *

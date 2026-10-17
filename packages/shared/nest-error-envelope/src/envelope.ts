@@ -50,7 +50,7 @@ import type { HttpException } from '@nestjs/common';
  * it is structurally what all three `z.infer`s already are. Nothing publishes it, and no client can reach it.
  *
  * The property that keeps it honest is asserted mechanically rather than assumed: `errorEnvelopeParity.test.ts`
- * (`packages/infra/global/__tests__`) parses a value of this type with EVERY service's published `apiErrorSchema`,
+ * (`packages/tools/repoGuards/__tests__`) parses a value of this type with EVERY service's published `apiErrorSchema`,
  * which is what makes the long-standing claim — "shared VERBATIM with the food and identity services (ARCH-PS-2),
  * so one client-side handler covers all three" — a checked fact instead of prose.
  */

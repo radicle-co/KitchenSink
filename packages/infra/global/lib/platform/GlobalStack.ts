@@ -22,7 +22,7 @@ export interface GlobalStackProps extends StackProps {
      *
      * ⛔ REQUIRED, and passed straight through — this stack owns no alarm of its own, so its only job here is
      * to refuse to construct a child that would decide the question for itself. Enforced by
-     * `packages/infra/global/__tests__/alarmFeatureFlag.test.ts`.
+     * `packages/tools/repoGuards/__tests__/alarmFeatureFlag.test.ts`.
      */
     readonly alarmsEnabled: boolean;
     /**

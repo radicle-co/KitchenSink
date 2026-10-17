@@ -3,7 +3,7 @@
 > **What this is.** A design-system rule, from the end-of-plan EVALUATE, by `staff-ux-engineer`, 2026-10-03. It
 > binds every React Native `View` in `@commise/ui` and the apps. It is not production code.
 >
-> **Who holds it.** The guard `packages/infra/global/__tests__/nativeLabelledViews.test.ts` (§N3), and the reviewer.
+> **Who holds it.** The guard `packages/tools/repoGuards/__tests__/nativeLabelledViews.test.ts` (§N3), and the reviewer.
 > `rowEditorOpenDecisions.md` P11 cites this file. Nothing else restates the rule.
 
 ## N0. What was measured

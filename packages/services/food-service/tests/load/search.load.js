@@ -5,7 +5,7 @@
 //   USDA-synced preview has not got
 // ⚠️ WEAK BUDGET, and the owner was told on 2026-09-06. Its budget is stated 'at 50,000 foods' and the fixture
 // supplies exactly that corpus, so the figure describes a seeded store rather than a real one. It is kept rather than
-// deleted because the accepted-loss list in `packages/infra/global/__tests__/k6LoadTierWiring.test.ts` IS the record
+// deleted because the accepted-loss list in `packages/tools/repoGuards/__tests__/k6LoadTierWiring.test.ts` IS the record
 // that these gates no longer run — deleting the script would remove the record, not the gap. Treat a green run as an
 // ALGORITHMIC regression check (a dropped index shows as a large multiple on any substrate), never as evidence of
 // production capacity.

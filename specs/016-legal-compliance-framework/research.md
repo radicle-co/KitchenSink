@@ -44,7 +44,7 @@ of the service that performs authentication, whose `AuthMiddleware` currently pr
 `/health`.
 
 **Cost this incurs, to be paid explicitly.** The intake is a VPC-attached Lambda, so it joins ADR-0004's NAT
-consumer list. `packages/infra/global/__tests__/natEgressConsumers.test.ts` asserts that list **in both
+consumer list. `packages/tools/repoGuards/__tests__/natEgressConsumers.test.ts` asserts that list **in both
 directions** against the entries between ADR-0004's `<!-- nat-consumers:start -->` /
 `<!-- nat-consumers:end -->` markers — discovery-based, not a hardcoded array. Adding the Lambda without
 updating the ADR fails the gate; the reverse fails too.

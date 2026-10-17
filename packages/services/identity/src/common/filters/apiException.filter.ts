@@ -50,7 +50,7 @@ const VOCABULARY: EnvelopeVocabulary = {
  *
  * No `satisfies ApiErrorBody` on the bodies: that type is `.loose()`, so it carries an index signature the
  * mechanism's tighter envelope does not have. The two shapes are asserted equivalent in
- * `packages/infra/global/__tests__/errorEnvelopeParity.test.ts`, which parses a mechanism envelope with every
+ * `packages/tools/repoGuards/__tests__/errorEnvelopeParity.test.ts`, which parses a mechanism envelope with every
  * service's PUBLISHED `apiErrorSchema` — a stronger check than a structural annotation.
  *
  * @param exception - The thrown value.

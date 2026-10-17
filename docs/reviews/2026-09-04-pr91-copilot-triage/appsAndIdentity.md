@@ -38,7 +38,7 @@ package is deliberately Bundler for `nest build` — and that is precisely why T
 (TS2835 fires only under NodeNext).
 
 **Fix.** The barrel is dead code, so it is deleted rather than repaired. Guard added:
-`packages/infra/global/__tests__/emittedEsmSpecifierExtensions.test.ts` — for every `type: module` workspace
+`packages/tools/repoGuards/__tests__/emittedEsmSpecifierExtensions.test.ts` — for every `type: module` workspace
 whose build project emits, every relative specifier in the files TypeScript's own config parser says it
 compiles must end in `.js`/`.mjs`/`.cjs`/`.jsx`/`.json`. Specifiers come from TypeScript's parser. Red on the
 barrel, green after; field measurement found zero other violations across every emitting workspace.
@@ -51,7 +51,7 @@ identity alone).
 > Real, and latent: nothing imported this barrel, so it never ran. The package is deliberately
 > `moduleResolution: Bundler` for `nest build` (not NodeNext), which is exactly why `tsc` did not flag it.
 > Deleted the dead barrel rather than fixing it, and added a repo-wide guard
-> (`packages/infra/global/__tests__/emittedEsmSpecifierExtensions.test.ts`) that scans the emitted file set
+> (`packages/tools/repoGuards/__tests__/emittedEsmSpecifierExtensions.test.ts`) that scans the emitted file set
 > of every `type: module` workspace with TypeScript's parser and fails on any relative specifier without a
 > loadable extension — the check TypeScript only performs under NodeNext. Zero other violations across the
 > tree.
@@ -77,7 +77,7 @@ finds the hoisted workspace link. The vitest alias beside it was already correct
 off-by-one, with a comment explaining the trap; the tsconfig copy was missed.
 
 **Fix.** `../../../schemas/identity/src/index.ts`; mobile `tsc --noEmit` green. Guard added:
-`packages/infra/global/__tests__/tsconfigPathsResolve.test.ts` asks TypeScript's config parser for every
+`packages/tools/repoGuards/__tests__/tsconfigPathsResolve.test.ts` asks TypeScript's config parser for every
 workspace tsconfig's effective `paths` + `pathsBasePath` and asserts each target exists. Red on mobile before
 the fix, green after.
 

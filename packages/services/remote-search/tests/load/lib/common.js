@@ -1,6 +1,6 @@
 /**
  * The remote search service's k6 library: the profile seam every service's load tier shares
- * (`packages/infra/global/__tests__/loadProfileThresholds.test.ts`).
+ * (`packages/tools/repoGuards/__tests__/loadProfileThresholds.test.ts`).
  *
  * The remote search service has ONE profile today, `deployed`. Its scenario measures CloudFront's signature check and
  * its cache, and nothing on a runner stands in for either, so `remoteSearch.load.js` refuses every other profile.

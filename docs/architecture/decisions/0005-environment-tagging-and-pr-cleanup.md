@@ -3,14 +3,14 @@
 - **Status:** Accepted
 - **Date:** 2026-06-21
 - **Area:** AWS resource lifecycle · cost · CDK tagging · CI teardown · global-vs-ephemeral split
-- **Related:** `.github/workflows/sandbox-deploy.yml` (the `cleanup` + `reap-abandoned` jobs), `.github/scripts/teardownSandboxPr.sh` + `.github/scripts/prScope.sh` (+ its regression suite `packages/infra/global/__tests__/prScope.test.ts`), `packages/infra/global/__tests__/sandboxReclamationReachability.test.ts` (the reachability + export-lookup guards, _Update (2026-08-10)_), `.github/scripts/cfnExport.sh`, `packages/apps/commise/web/scripts/teardownPreviewDomain.ts`, ADR-0001 (the preview address this now reclaims), `packages/infra/global/bin/app.ts`, `packages/services/identity{,-webhooks}/infra/bin/app.ts`, `packages/services/food-service/infra/bin/app.ts`, `docs/CI_ARCHITECTURE.md`, ADR-0002 (the global infra it protects)
+- **Related:** `.github/workflows/sandbox-deploy.yml` (the `cleanup` + `reap-abandoned` jobs), `.github/scripts/teardownSandboxPr.sh` + `.github/scripts/prScope.sh` (+ its regression suite `packages/tools/repoGuards/__tests__/prScope.test.ts`), `packages/tools/repoGuards/__tests__/sandboxReclamationReachability.test.ts` (the reachability + export-lookup guards, _Update (2026-08-10)_), `.github/scripts/cfnExport.sh`, `packages/apps/commise/web/scripts/teardownPreviewDomain.ts`, ADR-0001 (the preview address this now reclaims), `packages/infra/global/bin/app.ts`, `packages/services/identity{,-webhooks}/infra/bin/app.ts`, `packages/services/food-service/infra/bin/app.ts`, `docs/CI_ARCHITECTURE.md`, ADR-0002 (the global infra it protects)
 
 ## ⚠️ Before you change this — the trap
 
 - **Never name or tag a persistent resource with a `pr-{N}` token.** The cleanup deletes by an `Environment` tag value the PR owns **or** a `pr-{N}` name match — there is deliberately **no denylist**; the precision of "only a `pr-{N}` token matches" is the entire safety model. A persistent resource that accidentally carries a `pr-{N}` name/tag will be deleted on PR close.
 - ⛔ **The persistent tag value is a TIER word (`sandbox` / `production`), and a tier word is not a protection word.** Nothing derives protection from the string itself. What protects the persistent tier is that every matcher is keyed on a `pr-{N}` token, a token always contains digits, and neither tier word contains one — so no token can produce either value under equality, the name-prefix rule, or the both-sides-anchored path rule. That is the property to preserve; a future tier word containing a digit would break it.
-- ⚠️ **The per-PR value `pr-{N}-sandbox` CONTAINS the persistent value `sandbox`.** The earlier `pr-{N}` / `global` pair shared no substring, so "can a per-PR matcher reach a persistent value" was a question nobody had to ask. It is now asked and answered, in both directions, by `packages/infra/global/__tests__/environmentTagScheme.test.ts` — which reads the value out of each CDK app's own expression and feeds it to the real `bash` predicates.
-- **The match requires a delimiter:** a name belongs to PR _N_ only if it is exactly `pr-{N}` or starts with `pr-{N}-`. A plain `starts-with("pr-1")` would also match `pr-15` / `pr-100`. `pr_scope_belongs` / `pr_scope_path_belongs` in **`.github/scripts/prScope.sh`** enforce this — do not relax them to a bare prefix, do not add a second matcher elsewhere, and do not add an "orphaned-looking" sweep. They are regression-tested by `packages/infra/global/__tests__/prScope.test.ts`, which executes the real shell functions (a TypeScript copy would be free to drift) and asserts that every persistent name — `kitchensink-identity-service-*`, `kitchensink-{data,network,alb,domain,global}-*`, `sandbox`, `prod` — answers **false**.
+- ⚠️ **The per-PR value `pr-{N}-sandbox` CONTAINS the persistent value `sandbox`.** The earlier `pr-{N}` / `global` pair shared no substring, so "can a per-PR matcher reach a persistent value" was a question nobody had to ask. It is now asked and answered, in both directions, by `packages/tools/repoGuards/__tests__/environmentTagScheme.test.ts` — which reads the value out of each CDK app's own expression and feeds it to the real `bash` predicates.
+- **The match requires a delimiter:** a name belongs to PR _N_ only if it is exactly `pr-{N}` or starts with `pr-{N}-`. A plain `starts-with("pr-1")` would also match `pr-15` / `pr-100`. `pr_scope_belongs` / `pr_scope_path_belongs` in **`.github/scripts/prScope.sh`** enforce this — do not relax them to a bare prefix, do not add a second matcher elsewhere, and do not add an "orphaned-looking" sweep. They are regression-tested by `packages/tools/repoGuards/__tests__/prScope.test.ts`, which executes the real shell functions (a TypeScript copy would be free to drift) and asserts that every persistent name — `kitchensink-identity-service-*`, `kitchensink-{data,network,alb,domain,global}-*`, `sandbox`, `prod` — answers **false**.
 - **The persistent tier stays persistent.** Identity, networking, RDS, domain, the shared ALB, and the webhook lambdas are tagged with their tier (`sandbox` in the non-prod stages, `production` in prod) and named `kitchensink-*`. They must never be torn down per-PR (ADR-0002 — replacing the network/data stacks replaces the RDS).
 
 ## Context
@@ -132,7 +132,7 @@ defect and **failed all 11 runs it has ever made**, which also meant the only re
   never ran" were indistinguishable from outside — which is precisely how this stayed invisible. The signal is
   keyed on a **stack**, not on any leftover token, so it reports real un-reclaimed infrastructure and stays
   silent in steady state.
-- All of it is enforced by `packages/infra/global/__tests__/sandboxReclamationReachability.test.ts`, which
+- All of it is enforced by `packages/tools/repoGuards/__tests__/sandboxReclamationReachability.test.ts`, which
   parses the workflow YAML: analyzer 1 removes the _coupling_, analyzer 2 removes the _trigger_ (every export
   lookup is pinned to the shared helper), analyzer 3 removes the _consequence_. Neither `actionlint` nor
   `zizmor` can see any of these failures — the YAML is valid and the shell is well-formed.
@@ -167,7 +167,7 @@ by an exact `Environment=pr-{N}` tag, the same authority that already licenses d
 is widened; the per-PR cluster NAME is deliberately not used, because `pr_scope_belongs` is a prefix rule and
 loosening it is what this ADR forbids. Proven live: pr-82, pr-83 and pr-90 deleted all three stacks cleanly with
 no `DELETE_FAILED` at all, where every earlier PR had left two. Covered by
-`packages/infra/global/tests/ecsQuiesce.integration.test.ts` (an integration tier, so it lives in `tests/` rather than `__tests__/`), which executes the real script against a
+`packages/tools/repoGuards/tests/ecsQuiesce.integration.test.ts` (an integration tier, so it lives in `tests/` rather than `__tests__/`), which executes the real script against a
 stubbed AWS CLI and asserts the call ORDER (a wait that ran before the deletes, or not at all, is the whole bug).
 
 **Pattern worth naming: `list-exports` + `--query` is broken per-page, and it has now bitten twice.**

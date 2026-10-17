@@ -289,7 +289,7 @@ cannot collide with the `e2e-web` Playwright job over the shared Clerk dev insta
 Because `clerk-tokens.json` is gitignored, the job **mints the pool itself** and can never assume the file
 exists.
 
-Three repo-level guards now hold this in place, in `packages/infra/global/__tests__/`:
+Three repo-level guards now hold this in place, in `packages/tools/repoGuards/__tests__/`:
 
 - `k6LoadTierWiring.test.ts` — fails if any committed `*.load.js` is invoked by no workflow step (the
   state this suite was in), if a CI job's script order contradicts the `test:load` chain above, if an

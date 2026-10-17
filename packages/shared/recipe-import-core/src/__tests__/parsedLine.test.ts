@@ -358,7 +358,7 @@ describe('projectToIngredientLine, on U31 — a measurement in the name', () => 
  *    structurally identical unions. `Exact<A, B>` is `true` for two copies of `'crf' | 'llm'`, so no
  *    type-level assertion can tell a re-export from a duplicate, and neither can `tsc`. What CAN be
  *    asserted is the property that actually matters — that this module holds no second declaration — and
- *    the shape for that is the source-reading guard `packages/infra/global/__tests__/` uses for the same
+ *    the shape for that is the source-reading guard `packages/tools/repoGuards/__tests__/` uses for the same
  *    class of problem.
  *  - **`ParseProvenance` had no inhabitant for a human correction.** U21's correction tier ships, and a
  *    cook is neither `crf` nor `llm`, so its output was untypeable. The fix is a SECOND AXIS —

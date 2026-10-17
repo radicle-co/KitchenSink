@@ -813,8 +813,8 @@ refuse a LOCAL-target job in any workflow (`docs/CODING_STANDARDS.md` §7.1a).
     - Tests (I): `packages/shared/db-schema-guard/tests/seedManifest.integration.test.ts` (new tier: a
       `vitest.integration.config.ts`, a `test:integration` script and a step in `_ci.yml`'s
       `integration-selfcontained` job). It walks a real temporary filesystem and touches no database or service.
-    - Tests (I): `packages/infra/global/tests/runSeed.integration.test.ts`, and the flags case added to
-      `packages/infra/global/tests/runMigrations.integration.test.ts`.
+    - Tests (I): `packages/tools/repoGuards/tests/runSeed.integration.test.ts`, and the flags case added to
+      `packages/tools/repoGuards/tests/runMigrations.integration.test.ts`.
     - Guards: `G/seedManifestAgreement.test.ts`, `G/runSeed.test.ts`.
 - **Approach:** the invoke uses `--cli-read-timeout 960` (Lambda's 900 s maximum plus a margin), a connect
   timeout, `AWS_MAX_ATTEMPTS=1` and `--no-cli-pager`, so a long apply is neither abandoned nor invoked twice.
@@ -1193,7 +1193,7 @@ run` takes one directory), `.github/workflows/deployInfra.yml`.
     - Modify `.github/actions/infra-package/action.yml` (seed apply after migrate),
       `.github/scripts/deployGate.sh` (the stay-current term, from `describe`), and every caller:
       `.github/workflows/sandboxPreview.yml`, `_ci.yml`, `_ci-heavy.yml`, `deployedE2e.yml`.
-    - Guards: `G/deployGate.test.ts`, `packages/infra/global/tests/deployGate.integration.test.ts`,
+    - Guards: `G/deployGate.test.ts`, `packages/tools/repoGuards/tests/deployGate.integration.test.ts`,
       `G/deployGateSeedRef.test.ts` (every gate caller names its leg's seed reference), and
       `G/seedStepOrder.test.ts` (in the shared action and in `prod-deploy.yml`: the seed follows the migration,
       precedes the catalog's readers, never continues on error, applies the built bundle, and every published
@@ -1406,7 +1406,7 @@ run` takes one directory), `.github/workflows/deployInfra.yml`.
       builds its bundle, so it never applies a bundle this run did not build.
     - Guards: `G/seedStepOrder.test.ts` (order, gate, bundle and output), `G/prodDeployReachability.test.ts`
       (a stale, current and absent seed state).
-    - Tests (I): a prod-order case in `packages/infra/global/tests/runSeed.integration.test.ts`.
+    - Tests (I): a prod-order case in `packages/tools/repoGuards/tests/runSeed.integration.test.ts`.
 - **Test scenarios:**
     - The order guard fails on fixtures with the seed step before migrate, after the service deploy, or
       ungated from food's deploy flag.

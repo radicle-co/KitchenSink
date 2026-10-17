@@ -10,7 +10,7 @@
 # ⛔ This file deliberately declares NO `[project]` table. It is a TOOL CONFIG, not a distributable Python
 # package: nothing here is ever `pip install`ed, and a `[project]` table would invite exactly that.
 #
-# `packages/infra/global/__tests__/pythonSourceChecks.test.ts` asserts this file exists, carries both tool
+# `packages/tools/repoGuards/__tests__/pythonSourceChecks.test.ts` asserts this file exists, carries both tool
 # sections, and excludes none of the sources it is supposed to check.
 
 [tool.ruff]

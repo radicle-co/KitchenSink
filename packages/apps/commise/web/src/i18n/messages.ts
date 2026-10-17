@@ -2,7 +2,7 @@
  * Web-app-specific user-facing copy (strings that live only in the web app — the shell chrome, page titles, route
  * boundaries). Copy that web and mobile say identically lives in the feature packages' `messages.ts`
  * (`@commise/features-core/home`'s `homeMessages`, `@commise/features-recipes`'s recipe, collection and version sets), and
- * `packages/infra/global/__tests__/appCopyIsNotDuplicated.test.ts` fails when a sentence is authored in both apps' own
+ * `packages/tools/repoGuards/__tests__/appCopyIsNotDuplicated.test.ts` fails when a sentence is authored in both apps' own
  * dictionaries. A {@link LocalizedMessages} dictionary resolved per request by `getDictionary` (server) / `useMessages`
  * (client). The `en` set is required; adding a locale is another key.
  */

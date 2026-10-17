@@ -681,7 +681,7 @@ The section above decides **who authors** the contract; this one is where it **r
   controllers' `safeParse` count is **0**. ⛔ **Do not read the bullet above as the current state, and do not
   re-schedule this work** — the "committed state is still the violation" sentence it used to end on is no longer
   true. The invariant is now held by a gate rather than by prose: **G5** in
-  `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts` requires a `ZodValidationPipe` over every
+  `packages/tools/repoGuards/__tests__/serviceSecurityInvariants.test.ts` requires a `ZodValidationPipe` over every
   HTTP controller in every discovered deployable, with **no exception list**.
 - **One mechanism, one `400`.** Every `/api/v1/foods/*` input — add-by-name, read, status, candidates, resolve,
   search, **batch**, refetch, plus the admin surface — is parsed by the service's own `*.schema.ts` zod via

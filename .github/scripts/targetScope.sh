@@ -11,7 +11,7 @@
 #
 # This repository's own standard, stated in CLAUDE.md for the sibling case: *"The NAME match lives ONCE, in
 # `.github/scripts/prScope.sh` … do not add a second matcher."* `deployGate.sh` and `prScope.sh` are the
-# shape — a pure predicate here, regression-tested for real by a suite under `packages/infra/global/__tests__`
+# shape — a pure predicate here, regression-tested for real by a suite under `packages/tools/repoGuards/__tests__`
 # that EXECUTES this file rather than re-implementing it.
 #
 # Usage — source it:

@@ -109,7 +109,7 @@ describe('contract authority (ADR-0014, 001 T186/T187, 002 T-091)', () => {
      * forever and the exclusion hides it. Asserting the path resolves is what keeps that visible.
      */
     it('⛔ excludes exactly this file, by self-reference', () => {
-        expect(SELF).toBe('packages/infra/global/__tests__/contractAuthority.test.ts');
+        expect(SELF).toBe('packages/tools/repoGuards/__tests__/contractAuthority.test.ts');
         expect(trackedPackageFiles()).toContain(SELF);
     });
 

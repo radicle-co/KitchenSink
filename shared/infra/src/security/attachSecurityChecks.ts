@@ -9,7 +9,7 @@ import { AdvisoryAwsSolutionsChecks } from './AdvisoryAwsSolutionsChecks.js';
  * This is the single authoritative representation of "how this repo security-lints its infrastructure":
  * which pack, at which severity posture, attached where. Every `bin/app.ts` calls this rather than
  * constructing a pack itself, so the posture is changed in one place — and
- * `packages/infra/global/__tests__/cdkNagAttachment.test.ts` discovers every CDK app in the workspace
+ * `packages/tools/repoGuards/__tests__/cdkNagAttachment.test.ts` discovers every CDK app in the workspace
  * and fails if one does not call it, so a new app cannot ship unreviewed.
  *
  * **Advisory, by design.** Findings are reported as CDK warnings; the build is NOT failed. There is a

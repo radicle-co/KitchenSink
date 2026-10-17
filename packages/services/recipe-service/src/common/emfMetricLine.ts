@@ -38,7 +38,7 @@
  * the Sentry log facade and therefore `sentryScrubbers.ts` — so a RAW EXTERNAL identifier (a Clerk `sub`)
  * sits unscrubbed in CloudWatch for 15 months. An app ULID is already this repo's pseudonymous form and is
  * fine; anything else belongs on the scrubbed structured log line beside the metric.
- * `packages/infra/global/__tests__/emfIdentifierDimensionRepoGate.test.ts` carries the full argument, and
+ * `packages/tools/repoGuards/__tests__/emfIdentifierDimensionRepoGate.test.ts` carries the full argument, and
  * cannot see properties — only a reader can.
  */
 

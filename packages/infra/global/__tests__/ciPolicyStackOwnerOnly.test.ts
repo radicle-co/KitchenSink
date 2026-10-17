@@ -11,7 +11,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { CI_POLICIES_CONTEXT_FLAG, CI_POLICIES_STACK_NAME } from '../lib/platform/CiExecutionPolicyStack.js';
-import { repoRoot, trackedFiles } from './serviceSources.js';
+import { repoRoot, trackedFiles } from '@kitchensink/repo-guards/serviceSources';
 
 const read = (relative: string): string => readFileSync(path.join(repoRoot, relative), 'utf8');
 

@@ -53,7 +53,7 @@ looked for a WebSocket upgrade, and only recipe's proved that its scan reached t
    cookie, session or WebSocket package, and accepts no WebSocket upgrade. It authenticates from the `Authorization`
    header and nothing else.
 7. **One guard enforces it, and it finds its own subjects.**
-   `packages/infra/global/__tests__/bearerOnlyPrecondition.test.ts` scans the tree for every package that imports or
+   `packages/tools/repoGuards/__tests__/bearerOnlyPrecondition.test.ts` scans the tree for every package that imports or
    calls `resolveCorsPolicy`. A new adopter is covered the day it adopts, with no step of its own. Every package that
    turns CORS on by any route must be one of them, so a hand-rolled CORS setup cannot escape. For each adopter the
    guard reads the TypeScript syntax tree of its own `src/` and of the `src/` of every workspace package it declares
@@ -64,8 +64,8 @@ looked for a WebSocket upgrade, and only recipe's proved that its scan reached t
    `Authorization` header, and the guard proves that its scan reached each one and reached the package that declares
    the policy.
 8. **The guard lives in a test package, not in `clerk-verify`.** It reads other packages' source. A library that scans
-   its consumers inverts the dependency, and `clerk-verify` ships inside every service image. `packages/infra/global`
-   already owns the repo-wide guards and the one shared walk they use (`serviceSources.ts`).
+   its consumers inverts the dependency, and `clerk-verify` ships inside every service image. `packages/tools/repoGuards`
+   owns the repo-wide guards and the one shared walk they use (`serviceSources.ts`).
 9. **A cache in front of a CORS-enabled service keys on `Origin`.** Every response the policy touches carries
    `Vary: Origin`. A cache that ignores it serves one origin's allow-origin to another origin. It can also serve a
    response that a caller with no `Origin` (the mobile app) filled to a browser, and the browser then blocks it.
@@ -98,15 +98,15 @@ looked for a WebSocket upgrade, and only recipe's proved that its scan reached t
   adopter, and the `401` carries the policy's headers. Two costs come with it. The party list is compiled into the
   edge bundle, so a change to prod's list reaches the edge only when the edge is rebuilt. And one bundle answers for
   every service behind the edge, so it would grant credentials while any adopter did, food and recipe included;
-  `packages/infra/global/__tests__/edgeCorsCredentials.test.ts` holds its value to the OR over the other adopters'.
+  `packages/tools/repoGuards/__tests__/edgeCorsCredentials.test.ts` holds its value to the OR over the other adopters'.
 - The loopback and preview-pattern branches must be re-derived in the same change as any route that reads an ambient
   credential or accepts an upgrade. The guard makes that change fail. It cannot make the decision.
 
 **Guards**
 
-- `packages/infra/global/__tests__/bearerOnlyPrecondition.test.ts`: which packages adopt the policy, the packages that
+- `packages/tools/repoGuards/__tests__/bearerOnlyPrecondition.test.ts`: which packages adopt the policy, the packages that
   turn CORS on, the precondition for each adopter, and the scan reaching the authentication code.
-- `packages/infra/global/__tests__/edgeCorsCredentials.test.ts`: the edge's `credentials` equals the OR over every
+- `packages/tools/repoGuards/__tests__/edgeCorsCredentials.test.ts`: the edge's `credentials` equals the OR over every
   other adopter's.
 - `packages/shared/clerk-verify/src/__tests__/corsPolicy.test.ts`: each mode's admitted and refused origins.
 - Each adapter's own tests: its `deployed` decision, and, where one exists, a wiring test that its `main.ts` installs

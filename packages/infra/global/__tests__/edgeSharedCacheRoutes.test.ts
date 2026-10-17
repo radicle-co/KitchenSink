@@ -38,7 +38,7 @@ import {
     servingRoutes,
     type DeclaredRoute,
     type SourceFile,
-} from './serviceSources.js';
+} from '@kitchensink/repo-guards/serviceSources';
 
 /** The parameter decorators that read only the request's URL, which is the shared cache's key. */
 const URL_ONLY_PARAMETERS: ReadonlySet<string> = new Set(['Query', 'Param']);

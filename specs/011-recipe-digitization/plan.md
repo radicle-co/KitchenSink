@@ -209,7 +209,7 @@ packages/
       `recipe_versions` applies verbatim to a second durable import record)_. This is also what this feature's own
       `pre-impl-review.md` already assumed when it filed `recipe_versions` under _"Feature 001 recipe persistence —
       ✅ Covered"_; the plan and the task list were the outliers.
-    - Enforced by `packages/infra/global/__tests__/specTableCollisions.test.ts`
+    - Enforced by `packages/tools/repoGuards/__tests__/specTableCollisions.test.ts`
       ([GR-021](../governance-rules.md#gr-021-one-declarer-per-table-name-and-one-definition-per-task-id)).
 7. Raw OCR retention
     - ⚠️ **Restated 2026-08-16.** With `digitization_jobs` withdrawn there is no row to null out. The 90-day

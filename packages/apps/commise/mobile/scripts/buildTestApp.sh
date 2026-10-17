@@ -28,7 +28,7 @@
 # `content-key` prints the `hash` of the `@commise/mobile#testApp:<platform>` task from `turbo run --dry=json` (and, on
 # stderr, what was hashed — inputs and variable digests, never values — so a plan/build mismatch can be diffed). What that
 # hash covers is declared in this package's `turbo.json` and asserted against turbo's resolved graph by
-# `packages/infra/global/__tests__/testAppContentKey.test.ts`: the app's source, its whole dependency closure, this
+# `packages/tools/repoGuards/__tests__/testAppContentKey.test.ts`: the app's source, its whole dependency closure, this
 # script, the workflow that runs it, and the VALUES of the origins, the publishable key and the cache epoch. An artifact
 # is named `commise-test-app-<platform>-<key>`, and an artifact of that name is reused instead of rebuilt.
 #
@@ -41,7 +41,7 @@
 # Each artifact carries `testApp.manifest`, exact `key=value` lines recording what it was built FROM. A shard holds a
 # binary some other run may have built, so it REFUSES anything that is not exactly what this run resolved: a missing,
 # unknown, duplicated or different field is a red job, never a green one. `builtFromSha` and `builtInRun` are provenance:
-# required, never compared. `packages/infra/global/__tests__/buildTestAppManifest.test.ts` executes this file over a
+# required, never compared. `packages/tools/repoGuards/__tests__/buildTestAppManifest.test.ts` executes this file over a
 # table of faults. ⚠️ Portable to bash 3.2 (the macOS runner's `/bin/bash`): no associative arrays, no `mapfile`.
 set -euo pipefail
 

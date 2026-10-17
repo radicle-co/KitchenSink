@@ -13,7 +13,7 @@
  * the thing, and this script is what makes that a checked property instead of a hope. It runs in two
  * places, for two different failure modes:
  *
- *   • over `docs/` from `packages/infra/global/__tests__/assertNoAwsAccountIds.test.ts`, so an author
+ *   • over `docs/` from `packages/tools/repoGuards/__tests__/assertNoAwsAccountIds.test.ts`, so an author
  *     finds out at `npm run test` — before review, let alone before publication;
  *   • over the BUILT SITE in `docs.yml`, before the artifact is uploaded, so anything that reaches the
  *     rendered output by a route the source scan does not model (a generated section, a plugin's

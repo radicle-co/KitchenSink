@@ -101,7 +101,7 @@ interface SharedPipelineProps {
  *   asset it must hold (curated catalog plan U3). It reads and writes the catalog, which is safe here only because it
  *   cannot run before the migration does.
  *
- * `packages/infra/global/__tests__/dbTouchingStackBarrier.test.ts` holds every schema stack to that: each function is
+ * `packages/tools/repoGuards/__tests__/dbTouchingStackBarrier.test.ts` holds every schema stack to that: each function is
  * the runner or a registered pipeline-only handler, and nothing can invoke one but the pipeline.
  *
  * ⚠️ On a first-ever `pr-{N}` deploy the runner CREATES the per-PR logical database, from `template0` (ADR-0006,

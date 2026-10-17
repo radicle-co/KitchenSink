@@ -48,7 +48,7 @@ import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
 import { prodDeployLiteralEnvironment } from './prodDeployEnvironment.js';
-import { readRepoFile, runnerDeployingPackages, stackSources } from './migrationRunners.js';
+import { readRepoFile, runnerDeployingPackages, stackSources } from '@kitchensink/repo-guards/migrationRunners';
 
 /** Repo root — this file sits at `packages/infra/global/__tests__`, so the root is four levels up. */
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');

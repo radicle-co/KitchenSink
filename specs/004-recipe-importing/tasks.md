@@ -121,7 +121,7 @@ Contract-first: the contract is authored **before** any handler.
       count was a mention count anyway.** The service has **zero** `class-validator` importers and has dropped the
       dependency from `package.json` and `prod.package.json`, so a DTO added here would **re-introduce** the second
       mechanism GR-016 §16-a.2 forbids and would fail repo-wide gate **G5** in
-      `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which has no exception list
+      `packages/tools/repoGuards/__tests__/serviceSecurityInvariants.test.ts`, which has no exception list
 - [ ] **Every mutating body uses `z.strictObject()`** (GR-017 §17-c) — `z.object()` strips unknown keys silently,
       so a misspelled field on an import request yields a `200` and a partial write the caller was told succeeded
 - [ ] `Idempotency-Key` required on `/api/v1/import/{url,instagram,text}` — modelled in the schema (a required

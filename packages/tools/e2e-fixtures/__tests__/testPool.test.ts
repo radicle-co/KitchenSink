@@ -314,7 +314,7 @@ describe('password-bearing slots', () => {
  * the per-flow reset RECONCILES the signer's library to the run manifest and `resetPool` hard-deletes every row a
  * slot owns, so two shards on one signer delete each other's fixtures mid-flow and answer `423
  * ERASURE_IN_PROGRESS` while a purge runs. These are the allocator's side of that argument;
- * `packages/infra/global/__tests__/maestroShardPartition.test.ts` owns the workflow's side.
+ * `packages/tools/repoGuards/__tests__/maestroShardPartition.test.ts` owns the workflow's side.
  *
  * REWRITTEN 2026-10-13: the lanes are now partitioned by (platform, shard). Android and iOS each have four, so the
  * two platforms run side by side instead of queueing on one lane's concurrency group.

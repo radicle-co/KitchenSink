@@ -6,7 +6,7 @@
 # `pr-{N}` (ADR-0005, `prScope.sh`). This script is the single exception: it deletes stacks whose names end
 # in `-sandbox`, which is precisely the shape `prScope.sh` exists to protect. Nothing about the NAME makes
 # an operation here safe, so safety is an explicit, pinned ALLOWLIST of two exact stack names and a refusal
-# for anything else — asserted by `packages/infra/global/__tests__/sandboxSharedTier.test.ts`, which fires
+# for anything else — asserted by `packages/tools/repoGuards/__tests__/sandboxSharedTier.test.ts`, which fires
 # the predicate at the shared database, the network stack, the webhooks and both prod stacks.
 #
 # ## Why these two, and why nothing else

@@ -21,7 +21,7 @@ client half, T-053 split out of a duplicated T-046 on 2026-08-12)
 >   (`mobile/app/meal-plan.tsx`) and the mobile cross-link **E2E test** (`mobile/e2e/shopping-lists.test.js`).
 >   The E2E half is now **T-053**, and depends on T-046 rather than restating it.
 >
-> Enforced from now on by `packages/infra/global/__tests__/specTaskIds.test.ts`, which discovers every
+> Enforced from now on by `packages/tools/repoGuards/__tests__/specTaskIds.test.ts`, which discovers every
 > `specs/*/tasks.md` and fails on any identifier defined twice. It parses fenced blocks out first, so the ASCII
 > dependency graph below — full of `[T-001]` tokens — is correctly read as references, not definitions.
 

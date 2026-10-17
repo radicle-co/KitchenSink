@@ -4,7 +4,7 @@
  *
  * ## ⛔ WHY THIS IS A RAW-SQL FUNCTION AND NOT A DAO CALL — the shape is load-bearing
  *
- * `packages/infra/global/__tests__/erasureSweepCoverage.test.ts` gates every user-bearing table in this
+ * `packages/tools/repoGuards/__tests__/erasureSweepCoverage.test.ts` gates every user-bearing table in this
  * database against the statements of THIS function, exactly as it reads `eraseRecipeRows` for the recipe
  * database. That gate reads TEMPLATE LITERALS from the function's own body (comments are stripped; a
  * drizzle query-builder call is invisible to it), so the sweep and the audit surface must be the same

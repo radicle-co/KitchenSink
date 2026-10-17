@@ -47,8 +47,8 @@
 #
 # `classify_resource` and `classify_reference` are PURE: a status in, a verdict out; a name/value in, a probe
 # out. Every AWS call lives in `verify_stacks`. Both halves are executed — not re-implemented — by
-# packages/infra/global/__tests__/deploymentVerification.test.ts and
-# packages/infra/global/tests/deploymentVerification.integration.test.ts.
+# packages/tools/repoGuards/__tests__/deploymentVerification.test.ts and
+# packages/tools/repoGuards/tests/deploymentVerification.integration.test.ts.
 #
 # ## Usage
 #
@@ -408,7 +408,7 @@ verify_deployment_cdk_prefix() {
 # became inert across every deploy pipeline while still exiting 1.
 #
 # Two rules follow, and BOTH are needed. Silencing dotenv (`quiet: true`, guarded by
-# `packages/infra/global/__tests__/cdkAppStdoutPurity.test.ts`) fixes today's pollutant. Recovering the JSON
+# `packages/tools/repoGuards/__tests__/cdkAppStdoutPurity.test.ts`) fixes today's pollutant. Recovering the JSON
 # means the NEXT one cannot make this check inert. And the dropped prefix is REPORTED rather than swallowed,
 # because a tool writing to a channel this repository parses as data is itself the finding — a recovery
 # nobody is told about is how the second occurrence takes just as long to diagnose as the first.

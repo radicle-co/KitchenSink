@@ -262,10 +262,11 @@
                             action="{{v23}}"
                             segments="{{v24}}"
                         ></x-import>
-                        <!-- PROPOSAL (owner comments, 2026-10-17): the create button sits on the search row as a primary button,
-                             with 32 px between them so it does not read as a search button. -->
-                        <div style="display: flex; align-items: center; gap: 32px">
-                            <div style="min-width: 0; flex: 1">
+                        <!-- PROPOSAL (owner comments, 2026-10-17): the create button sits on the search row as a primary button.
+                             The search stops at 560 px and the button sits at the far right edge, so the two never read
+                             as one control. -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 48px">
+                            <div style="min-width: 0; flex: 0 1 560px">
                                 <div style="margin: 0 -4px; padding: 8px 4px">
                                     <x-import
                                         component-from-global-scope="Commise.SearchField"

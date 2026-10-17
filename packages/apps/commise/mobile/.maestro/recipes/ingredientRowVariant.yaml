@@ -60,19 +60,27 @@ appId: ${APP_ID}
       # The line lands above the add field the cook is at: one page, so it is UP.
       direction: UP
       timeout: 30000
-# The first line sits above it; bring it into view too, for the assertions over both.
+# The add field is still focused, so the soft keyboard hides the lower rows: close it first, which leaves the page at its top.
+- runFlow: common/closeEditorKeyboard.yaml
+# The first line sits below the top; bring it into view, for the assertions over both.
 # Centred: Android reports a row cut by the sticky Sections bar as visible, with its name and parts clipped away (run
 # 38835438945), so the assertions below would read a sliver.
 - scrollUntilVisible:
       element: 'Edit boneless skinless chicken breasts'
-      direction: UP
+      direction: DOWN
       timeout: 20000
       centerElement: true
 
 # The variant's parts sit under the root name, and the root-bound line shows the name only (R28).
-- assertVisible:
-      text: 'fried'
-      below: 'Edit boneless skinless chicken breasts'
+# iOS merges a row's dotted line into the row's own label ("Edit <name>"), so the part is not a node of its own there; the
+# row's ⋮ label, asserted on both platforms, names it too.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'fried'
+                below: 'Edit boneless skinless chicken breasts'
 - assertVisible: 'Actions for boneless skinless chicken breasts, fried'
 - assertVisible: 'Actions for beef brisket'
 - assertNotVisible: 'Actions for beef brisket, .*'
@@ -87,9 +95,13 @@ appId: ${APP_ID}
       visible:
           text: 'Close details for boneless skinless chicken breasts, fried'
       timeout: 20000
-- assertVisible:
-      text: 'fried'
-      below: 'Close details for boneless skinless chicken breasts, fried'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'fried'
+                below: 'Close details for boneless skinless chicken breasts, fried'
 - tapOn: 'Close details for boneless skinless chicken breasts, fried'
 - extendedWaitUntil:
       notVisible:

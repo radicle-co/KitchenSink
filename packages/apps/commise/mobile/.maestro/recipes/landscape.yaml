@@ -154,6 +154,9 @@ onFlowComplete:
 # The FIELD's copy: the editor's header names the TASK ('New recipe'), never the recipe, so only the field holds it.
 - assertVisible:
       text: 'Maestro Landscape Draft'
+# ⛔ Sideways the soft keyboard fills the screen, so the scroll below to the ingredient field swipes on the keyboard and
+# moves nothing (run 38988891871). The section heading closes it (`common/typeTitle.yaml` says why a heading).
+- tapOn: 'About the recipe'
 
 # The trailing "Add an ingredient" field, typed into sideways: its list renders where the cook can reach it. Read,
 # never picked. 'Flou', a prefix of the run's probe food (`e2e-seed provision` authors `Flour`), so the cook's own

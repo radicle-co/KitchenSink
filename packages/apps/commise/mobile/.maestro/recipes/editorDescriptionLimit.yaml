@@ -14,7 +14,9 @@ appId: ${APP_ID}
 
 - tapOn: 'Description'
 - inputText: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-
+# The counter sits under the focused field, which is behind the soft keyboard while it is up. The section heading closes
+# the keyboard (`common/typeTitle.yaml` says why a heading), so the counter and the limit are read on screen.
+- tapOn: 'About the recipe'
 - extendedWaitUntil:
       visible: '257/256'
       timeout: 20000

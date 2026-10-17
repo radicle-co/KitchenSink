@@ -2,7 +2,7 @@ appId: ${APP_ID}
 ---
 # Reusable sub-flow: from the editor with a title set, add one ingredient declared as written ("Tomato", no food service
 # needed) and one step, the least a recipe needs to publish but its cuisine. Called with
-# `runFlow: common/addTomatoAndStep.yaml`; it ends with the iOS keyboard closed and the action bar reachable.
+# `runFlow: common/addTomatoAndStep.yaml`; it ends with the keyboard closed and the action bar reachable.
 - scrollUntilVisible:
       element: 'Add an ingredient'
       direction: DOWN
@@ -25,10 +25,6 @@ appId: ${APP_ID}
       timeout: 20000
 - tapOn: 'Add step'
 - inputText: 'Simmer.'
-# The step field keeps the iOS keyboard up over the action bar; a tap on the section heading closes it
-# (`common/typeTitle.yaml` says why a heading, and why not Return).
-- runFlow:
-      when:
-          platform: iOS
-      commands:
-          - tapOn: 'Steps'
+# The step field keeps the soft keyboard up over the action bar on both platforms; a tap on the section heading closes it
+# (`common/typeTitle.yaml` says why a heading, and why not Return or `hideKeyboard`).
+- tapOn: 'Steps'

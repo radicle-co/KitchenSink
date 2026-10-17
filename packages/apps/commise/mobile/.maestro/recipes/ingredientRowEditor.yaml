@@ -49,7 +49,7 @@ appId: ${APP_ID}
 - inputText: '3'
 - tapOn: 'Unit'
 - inputText: 'cups'
-- hideKeyboard
+# No `hideKeyboard`: it is a BACK event on Android and failed on iOS (run 38988891871). The sheet's own Done closes it.
 - tapOn: 'Done'
 - assertVisible: 'Edit 3 cups Flour'
 
@@ -89,6 +89,8 @@ appId: ${APP_ID}
 - tapOn: 'Add step'
 - tapOn: 'Step 1'
 - inputText: 'Roast.'
+# The step field keeps the soft keyboard up over the action bar; the section heading closes it (`common/typeTitle.yaml`).
+- tapOn: 'Steps'
 - tapOn: 'Publish'
 
 # The refusal says how many things there are to fix (the bar), and the row says why. Nothing was published: the editor

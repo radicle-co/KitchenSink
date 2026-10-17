@@ -28,6 +28,7 @@ import { buildExecutionPolicy } from '../src/executionPolicy.js';
 import { isTagAddPattern, tagKeySupport } from '../src/iamCatalogue.js';
 import type { PolicyDocument, Statement } from '../src/policyDocument.js';
 import { QUALIFIERS, STACK_TAG_PATTERNS, TIER_TAG_KEY, tierTagValue, type QualifierName } from '../src/qualifiers.js';
+import { allows as evaluates } from './boundaryEval.js';
 import { iamCatalogue } from './iamCatalogueFixture.js';
 
 const RESOURCE_TAG = `aws:ResourceTag/${TIER_TAG_KEY}`;
@@ -286,5 +287,40 @@ describe.each(stageQualifiers)('executionPolicy(%s) — PassRole is gated by iam
             );
             expect(condition, statement.Sid).not.toContain('aws:ResourceTag');
         }
+    });
+});
+
+/**
+ * An event-source mapping is addressed by an id, so only the tier tag scopes it. A mapping created before the tier tag
+ * existed must still RECEIVE it: the sandbox identity-webhooks deploy was refused `lambda:TagResource` on
+ * `event-source-mapping:9b324d52-...` (2026-10-17), and production holds mappings of the same age.
+ */
+describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod])('executionPolicy(%s) — event-source mapping tags', (qualifier) => {
+    const own = tierTagValue(qualifier);
+    const other = tierTagValue(qualifier === QUALIFIERS.nonprod ? QUALIFIERS.prod : QUALIFIERS.nonprod);
+    const rendered = (): PolicyDocument =>
+        JSON.parse(
+            JSON.stringify({
+                Version: '2012-10-17',
+                Statement: buildExecutionPolicy(qualifier).flatMap((part) => part.document.Statement),
+            })
+                .replaceAll('<region>', 'us-east-1')
+                .replaceAll('<account>', '040663841500'),
+        ) as PolicyDocument;
+    const mapping = 'arn:aws:lambda:us-east-1:040663841500:event-source-mapping:9b324d52-c1e3-46e0-b518-eebd40b61274';
+
+    it('lets an untagged mapping receive its own tier tag', () => {
+        expect(evaluates(rendered(), 'lambda:TagResource', mapping, { [REQUEST_TAG]: own })).toBe(true);
+    });
+
+    it('lets a mapping of its own tier change its tags', () => {
+        expect(evaluates(rendered(), 'lambda:TagResource', mapping, { [RESOURCE_TAG]: own })).toBe(true);
+        expect(evaluates(rendered(), 'lambda:UntagResource', mapping, { [RESOURCE_TAG]: own })).toBe(true);
+    });
+
+    it("never touches a mapping of the other tier, nor stamps the other tier's tag", () => {
+        expect(evaluates(rendered(), 'lambda:TagResource', mapping, { [RESOURCE_TAG]: other })).toBe(false);
+        expect(evaluates(rendered(), 'lambda:UntagResource', mapping, { [RESOURCE_TAG]: other })).toBe(false);
+        expect(evaluates(rendered(), 'lambda:TagResource', mapping, { [REQUEST_TAG]: other })).toBe(false);
     });
 });

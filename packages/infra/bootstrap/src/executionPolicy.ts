@@ -418,6 +418,16 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ['AWS::Lambda::EventSourceMapping'],
             { ArnLike: { 'lambda:FunctionArn': [arn('lambda', `function:${KS}`)] } },
         ),
+        // Tags on a mapping take no `lambda:FunctionArn` key, so the tier tag is their only scope; `ownAllow` adds the
+        // request-tag statement that lets a mapping made before the tier tag existed receive it.
+        ...ownAllow(
+            'compute',
+            'LambdaEventSourceMappingTags',
+            ['lambda:TagResource', 'lambda:UntagResource'],
+            [arn('lambda', 'event-source-mapping:*')],
+            [],
+            own,
+        ),
         ...createAllow(
             qualifier,
             'compute',

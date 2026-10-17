@@ -24,13 +24,31 @@ const toRegexSource = (pattern: string): string =>
         })
         .join('');
 
+// Guards judge every action against every resource of every statement, so the same few hundred patterns are matched
+// millions of times; compiling each once keeps an exhaustive guard inside the test timeout on a loaded CI runner.
+const compiledPatterns = new Map<string, RegExp>();
+
+const compiled = (pattern: string): RegExp => {
+    const known = compiledPatterns.get(pattern);
+
+    if (known !== undefined) {
+        return known;
+    }
+
+    const regex = new RegExp(`^${toRegexSource(pattern)}$`, 'su');
+
+    compiledPatterns.set(pattern, regex);
+
+    return regex;
+};
+
 /**
  * Whether `value` matches the IAM wildcard `pattern`.
  *
  * @returns True on a full match. Pure.
  */
 export function iamLike(pattern: string, value: string): boolean {
-    return new RegExp(`^${toRegexSource(pattern)}$`, 'su').test(value);
+    return compiled(pattern).test(value);
 }
 
 /** Whether `value` matches any of the patterns. Pure. */

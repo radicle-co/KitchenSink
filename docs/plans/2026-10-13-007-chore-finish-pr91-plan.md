@@ -160,15 +160,16 @@ Each one gets its plan doc before code, built on web and mobile in lock-step, te
 
 ## Owner decisions and actions
 
-| Item                                                                                                                          | Needed for      |
-| ----------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| Confirm the prod web client ID (the two prod IDs sent were the same)                                                          | Wave 2          |
-| DONE (checked 2026-10-16): Clerk Native applications entries on both instances                                                | Wave 2          |
-| DONE (ADR-0065 option 1, deployed 2026-10-17): Phase 2 of the AWS separation: KitchenSink's own CDK qualifier or own accounts | Wave 3          |
-| DECIDED (require PRs and green CI; the owner sets it in the GitHub UI): Whether `main` requires pull requests                 | Wave 3          |
-| Whether to delete the org-level AWS key secrets, which armoury's repositories can also read                                   | After the merge |
-| Delete the unused root key ending 3MEB                                                                                        | Any time        |
-| The merge itself, and when                                                                                                    | Wave 4          |
+| Item                                                                                                                                              | Needed for      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Confirm the prod web client ID (the two prod IDs sent were the same)                                                                              | Wave 2          |
+| DONE (checked 2026-10-16): Clerk Native applications entries on both instances                                                                    | Wave 2          |
+| DONE (ADR-0065 option 1, deployed 2026-10-17): Phase 2 of the AWS separation: KitchenSink's own CDK qualifier or own accounts                     | Wave 3          |
+| DECIDED (require PRs and green CI; the owner sets it in the GitHub UI): Whether `main` requires pull requests                                     | Wave 3          |
+| Whether to delete the org-level AWS key secrets, which armoury's repositories can also read                                                       | After the merge |
+| Delete the unused root key ending 3MEB                                                                                                            | Any time        |
+| Whether to build a shared repoGuards test harness (review Q2: 71 files hard-code the repo root; it reopens ADR-0066's helpers-outside-src choice) | Any time        |
+| The merge itself, and when                                                                                                                        | Wave 4          |
 
 ## Kept for later on purpose
 

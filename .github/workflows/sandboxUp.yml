@@ -83,6 +83,7 @@ jobs:
             id-token: write # awsAuth: the non-prod role
         outputs:
             stage: ${{ steps.pr.outputs.stage }}
+            head_sha: ${{ steps.pr.outputs.head_sha }}
         env:
             GH_TOKEN: ${{ github.token }}
             PR: ${{ inputs.pr }}
@@ -103,12 +104,19 @@ jobs:
                   if ! [[ $PR =~ ^[1-9][0-9]*$ ]]; then
                       echo "::error::'${PR}' is not a PR number" >&2; exit 1
                   fi
-                  state=$(gh pr view "$PR" --json state --jq .state 2>/dev/null || echo MISSING)
+                  # The head commit is read in the same call: the preview address is pinned to it (see `domain`).
+                  view=$(gh pr view "$PR" --json state,headRefOid 2>/dev/null || echo '{}')
+                  state=$(jq -r '.state // "MISSING"' <<<"$view")
+                  head_sha=$(jq -r '.headRefOid // ""' <<<"$view")
                   if [ "$state" != 'OPEN' ]; then
                       echo "::error::PR #${PR} is ${state}, not OPEN — refusing to stand up a sandbox that the on-close cleanup will never see." >&2
                       exit 1
                   fi
+                  if ! [[ $head_sha =~ ^[0-9a-f]{40}$ ]]; then
+                      echo "::error::could not read PR #${PR}'s head commit (got '${head_sha}'); the preview address would not know which build to serve." >&2; exit 1
+                  fi
                   echo "stage=pr-${PR}" >>"$GITHUB_OUTPUT"
+                  echo "head_sha=${head_sha}" >>"$GITHUB_OUTPUT"
 
             # ⛔ REFUSE A PRESS INSIDE THE PRE-MIDNIGHT HEADROOM (ADR-0060). The midnight stop takes the database
             # and the NAT down whoever is mid-deploy; a deploy that straddles it fails the update, fails the
@@ -281,6 +289,12 @@ jobs:
             id-token: write # awsAuth in previewDomain.yml (a callee can only downgrade)
         with:
             stage: ${{ needs.start.outputs.stage }}
+            # ⛔ Pinned to the PR head, as every push's address job is. Without it the callee falls back to "the latest
+            # build of the branch", which in the window after a push is the PREVIOUS build, so a press could move the
+            # address back to an older commit. The lock `previewDomain.yml` takes is shared with the push path ON
+            # PURPOSE: a separate one would let the two finish out of order and leave the address on the older
+            # commit SILENTLY, where a replaced waiting run fails LOUDLY and a second press is the retry.
+            commit_sha: ${{ needs.start.outputs.head_sha }}
         secrets:
             VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 

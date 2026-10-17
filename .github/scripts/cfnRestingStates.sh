@@ -14,6 +14,9 @@
 # to pr-{N}" — and a list of CloudFormation statuses is a different piece of knowledge that would have no
 # reason to change at the same time.
 #
+# `REVIEW_IN_PROGRESS` (a first change set that was never executed) belongs here, not in `cfnInProgressStates.sh`: it
+# holds nothing and runs nothing, it never leaves that state on its own, and `delete-stack` removes it.
+#
 # Sourced, never executed: it defines a variable and does nothing else.
 
 # shellcheck disable=SC2034 — consumed by the sourcing script, not by this one.
@@ -23,4 +26,5 @@ CFN_RESTING_STATES=(
     UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE UPDATE_ROLLBACK_FAILED
     IMPORT_COMPLETE IMPORT_ROLLBACK_COMPLETE IMPORT_ROLLBACK_FAILED
     DELETE_FAILED
+    REVIEW_IN_PROGRESS
 )

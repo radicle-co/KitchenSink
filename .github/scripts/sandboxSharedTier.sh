@@ -192,7 +192,7 @@ shared_tier_busy() {
 
     for file in $(printf '%s\n' "${!seen[@]}" | sort); do
         [ "$file" = "${self:-<none>}" ] && continue
-        for state in in_progress queued; do
+        for state in in_progress queued pending waiting requested; do
             if ! count=$(gh run list --workflow "$file" --status "$state" --limit 1 --json databaseId --jq 'length' 2>/dev/null); then
                 busy="${busy} ${file}(unknown)"
                 continue
@@ -254,15 +254,22 @@ shared_tier_release_in_progress() {
     local region="$1" stack status workflow state count why='' unknown=''
 
     for stack in "${SHARED_TIER_DELETE_ORDER[@]}"; do
-        status=$(aws cloudformation describe-stacks --region "$region" --stack-name "$stack" \
-            --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo ABSENT)
-        if [ "$status" = 'DELETE_IN_PROGRESS' ]; then
-            why="${why} ${stack}(DELETE_IN_PROGRESS)"
+        # Only CloudFormation's own "does not exist" is an answer (an absent stack is not being deleted). Anything else
+        # (throttling, expired credentials) says nothing about the stack, so it is UNKNOWN, never "clear".
+        if status=$(aws cloudformation describe-stacks --region "$region" --stack-name "$stack" \
+            --query 'Stacks[0].StackStatus' --output text 2>&1); then
+            if [ "$status" = 'DELETE_IN_PROGRESS' ]; then
+                why="${why} ${stack}(DELETE_IN_PROGRESS)"
+            fi
+        elif [[ "$status" != *'does not exist'* ]]; then
+            unknown="${unknown} ${stack}"
         fi
     done
 
+    # Every state in which a run exists but has not finished: a Sandbox Down that is still queued behind a concurrency
+    # group is `pending`/`waiting`/`requested`, and is about to delete the tier all the same.
     for workflow in sandboxDown.yml sandboxReconcile.yml; do
-        for state in in_progress queued; do
+        for state in in_progress queued pending waiting requested; do
             if ! count=$(gh run list --workflow "$workflow" --status "$state" --limit 1 --json databaseId --jq 'length' 2>/dev/null); then
                 unknown="${unknown} ${workflow}"
                 continue
@@ -278,7 +285,7 @@ shared_tier_release_in_progress() {
         return 3
     fi
     if [ -n "${unknown// /}" ]; then
-        echo "could not tell whether a release is in progress (gh run list failed for:${unknown})" >&2
+        echo "could not tell whether a release is in progress (the lookup failed for:${unknown})" >&2
         return 1
     fi
 

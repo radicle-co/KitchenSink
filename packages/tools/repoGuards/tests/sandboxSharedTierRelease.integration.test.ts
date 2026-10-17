@@ -44,6 +44,10 @@ interface World {
     readonly ghFails?: boolean;
     /** Stacks CloudFormation reports as DELETE_IN_PROGRESS. */
     readonly deleting?: readonly string[];
+    /** `describe-stacks` fails with something that is not "does not exist" (throttling, expired credentials). */
+    readonly describeFails?: boolean;
+    /** When set, `gh run list` reports a run only for this `--status`; unset, for every status. */
+    readonly runningState?: string;
     /** A Sandbox Up appears (queued) once this many stacks have been deleted. */
     readonly upAppearsAfterDeletes?: number;
 }
@@ -73,8 +77,9 @@ case "$1 $2" in
     'cloudformation describe-stacks')
         shift 2
         while [ "$#" -gt 0 ]; do [ "$1" = --stack-name ] && name="$2"; shift; done
+        [ -n "\${STUB_DESCRIBE_FAILS:-}" ] && { echo 'An error occurred (Throttling) when calling the DescribeStacks operation: Rate exceeded' >&2; exit 254; }
         case " \${STUB_DELETING:-} " in *" $name "*) echo DELETE_IN_PROGRESS; exit 0 ;; esac
-        case " \${STUB_STACKS:-} " in *" $name "*) echo UPDATE_COMPLETE ;; *) exit 255 ;; esac
+        case " \${STUB_STACKS:-} " in *" $name "*) echo UPDATE_COMPLETE ;; *) echo "An error occurred (ValidationError) when calling the DescribeStacks operation: Stack with id $name does not exist" >&2; exit 254 ;; esac
         ;;
     'cloudformation delete-stack')
         shift 2
@@ -89,7 +94,8 @@ esac
         path.join(workspace, 'gh'),
         `#!/usr/bin/env bash
 [ -n "\${STUB_GH_FAILS:-}" ] && exit 1
-while [ "$#" -gt 0 ]; do [ "$1" = --workflow ] && wf="$2"; shift; done
+while [ "$#" -gt 0 ]; do [ "$1" = --workflow ] && wf="$2"; [ "$1" = --status ] && st="$2"; shift; done
+if [ -n "\${STUB_RUNNING_STATE:-}" ] && [ "$st" != "$STUB_RUNNING_STATE" ]; then echo 0; exit 0; fi
 if [ -n "\${STUB_UP_AFTER_DELETES:-}" ] && [ "$wf" = sandboxUp.yml ] && [ -f "${deletedLog}" ] &&
     [ "$(wc -l <"${deletedLog}")" -ge "$STUB_UP_AFTER_DELETES" ]; then echo 1; exit 0; fi
 case " \${STUB_RUNNING:-} " in *" $wf "*) echo 1 ;; *) echo 0 ;; esac
@@ -108,6 +114,8 @@ case " \${STUB_RUNNING:-} " in *" $wf "*) echo 1 ;; *) echo 0 ;; esac
             STUB_RUNNING: (world.running ?? []).join(' '),
             ...(world.listFails ? { STUB_LIST_FAILS: '1' } : {}),
             ...(world.ghFails ? { STUB_GH_FAILS: '1' } : {}),
+            ...(world.describeFails ? { STUB_DESCRIBE_FAILS: '1' } : {}),
+            ...(world.runningState === undefined ? {} : { STUB_RUNNING_STATE: world.runningState }),
             STUB_DELETING: (world.deleting ?? []).join(' '),
             ...(world.upAppearsAfterDeletes === undefined
                 ? {}
@@ -165,6 +173,13 @@ describe('sandboxSharedTier.sh release-if-idle', () => {
             // while a push's `ci-pr.yml` → `_ci.yml` → `sandboxPreview.yml` is creating a preview. The busy set must
             // walk from every workflow that can deploy a preview up through its callers, transitively.
             expect(release({ stacks: SHARED, running: [workflow] }).deleted).toEqual([]);
+        },
+    );
+
+    it.each(['pending', 'waiting', 'requested'])(
+        '⛔ keeps it while a Sandbox Up is %s: a run held behind a concurrency group is about to build on the tier',
+        (state) => {
+            expect(release({ stacks: SHARED, running: ['sandboxUp.yml'], runningState: state }).deleted).toEqual([]);
         },
     );
 
@@ -230,6 +245,26 @@ describe('sandboxSharedTier.sh release-in-progress — what Sandbox Up asks befo
     it('⛔ answers 1 (cannot tell), never 0, when GitHub cannot be asked', () => {
         expect(release({ stacks: SHARED, ghFails: true }, 'release-in-progress').status).toBe(1);
     });
+
+    // A lookup that fails says nothing about the stack: it may be the very one mid-delete under a Sandbox Down that was
+    // cancelled after `delete-stack`, so no run is listed. Only "does not exist" is an answer (an absent stack is fine).
+    it('⛔ answers 1 (cannot tell), never 0, when a stack lookup fails for any reason but "does not exist"', () => {
+        expect(release({ stacks: SHARED, describeFails: true }, 'release-in-progress').status).toBe(1);
+    });
+
+    it('answers 0 when the stacks are simply absent (nothing to release)', () => {
+        expect(release({ stacks: [] }, 'release-in-progress').status).toBe(0);
+    });
+
+    it.each(['pending', 'waiting', 'requested'])(
+        '⛔ answers 3 for a Sandbox Down that is %s, not yet running',
+        (state) => {
+            expect(
+                release({ stacks: SHARED, running: ['sandboxDown.yml'], runningState: state }, 'release-in-progress')
+                    .status,
+            ).toBe(3);
+        },
+    );
 
     it('deletes nothing, whatever it answers', () => {
         expect(

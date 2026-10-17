@@ -236,6 +236,40 @@ describe('ConfirmDialog (web) — the overhaul contract', () => {
         expect(onKeep).toHaveBeenCalledOnce();
     });
 
+    /**
+     * Owner ruling 2026-10-17, "Don't allow users to delete while saving": a confirm can be UNAVAILABLE with a reason. The
+     * reason is announced politely and drawn as text (not colour alone), the confirm is disabled, and Keep still closes it.
+     */
+    it('⛔ while unavailable, the confirm is disabled and fires nothing, the reason is said, and Keep still closes it', async () => {
+        const user = userEvent.setup();
+        const onConfirm = vi.fn();
+        const onKeep = vi.fn();
+        render(<ConfirmDialog {...baseProps({ unavailable: 'Saving…', onConfirm, onKeep })} />);
+
+        const confirm = screen.getByRole('button', { name: 'Discard changes' });
+
+        expect(screen.getByRole('status').textContent).toBe('Saving…');
+        expect((confirm as HTMLButtonElement).disabled || confirm.getAttribute('aria-disabled') === 'true').toBe(true);
+
+        await user.click(confirm);
+        await user.click(screen.getByRole('button', { name: 'Keep editing' }));
+
+        expect(onConfirm).not.toHaveBeenCalled();
+        expect(onKeep).toHaveBeenCalledOnce();
+    });
+
+    it('⛔ an available confirm says nothing about saving and fires', async () => {
+        const user = userEvent.setup();
+        const onConfirm = vi.fn();
+        render(<ConfirmDialog {...baseProps({ onConfirm })} />);
+
+        expect(screen.queryByRole('status')).toBeNull();
+
+        await user.click(screen.getByRole('button', { name: 'Discard changes' }));
+
+        expect(onConfirm).toHaveBeenCalledOnce();
+    });
+
     it('shows a failure inside the dialog as an alert, but not while a retry is in flight', () => {
         const { rerender } = render(<ConfirmDialog {...baseProps({ error: 'We couldn’t discard. Try again.' })} />);
 

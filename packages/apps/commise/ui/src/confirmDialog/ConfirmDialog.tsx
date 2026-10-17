@@ -33,6 +33,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
     busy = false,
     busyLabel,
     error,
+    unavailable,
 }) => {
     // Snapshots whatever had focus at the render where `open` flips true — the edge guard lives in the hook,
     // so a busy/error re-render while open cannot re-snapshot a control inside the dialog.
@@ -59,6 +60,11 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
                             {busyLabel}
                         </span>
                     ) : null}
+                    {unavailable !== undefined && !busy ? (
+                        <span role="status" className="text-meta text-ink-muted">
+                            {unavailable}
+                        </span>
+                    ) : null}
                     <div className="flex flex-col-reverse gap-3 @[25rem]/dialog:flex-row @[25rem]/dialog:justify-end">
                         <AlertDialog.Cancel
                             type="button"
@@ -72,6 +78,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
                             tone="confirm"
                             icon={confirm.icon}
                             busy={busy}
+                            disabled={unavailable !== undefined}
                             width="fill"
                             onPress={onConfirm}
                         >

@@ -33,6 +33,14 @@ export interface ActionMenuItem {
      */
     readonly disabled?: boolean;
     readonly onSelect: () => void;
+    /**
+     * Why the action cannot run NOW, already localised ("Saving…"). The item stays in the menu, reads as unavailable, says
+     * why in words a screen reader is given (not colour alone), and runs nothing when chosen. Read LIVE: an open menu shows
+     * the host's current reason, so an action becomes available the moment the host stops reporting one, and a late choice of
+     * one that has become unavailable runs nothing. A reason, not a boolean, because "unavailable" with no why is a dead
+     * control (WCAG 3.3.1 spirit; owner ruling 2026-10-17, "Don't allow users to delete while saving").
+     */
+    readonly unavailable?: string;
 }
 
 /** How the menu's trigger looks. */

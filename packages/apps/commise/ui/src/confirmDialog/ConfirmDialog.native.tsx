@@ -39,6 +39,7 @@ const Body: FC<Omit<ConfirmDialogProps, 'open' | 'title'>> = ({
     busy = false,
     busyLabel,
     error,
+    unavailable,
 }) => {
     // Asked once per opening (this body mounts with the frame), and cleared when the Keep button has taken it.
     const [keepFocusAsked, setKeepFocusAsked] = useState(true);
@@ -59,6 +60,11 @@ const Body: FC<Omit<ConfirmDialogProps, 'open' | 'title'>> = ({
                     {busyLabel}
                 </LiveRegion>
             ) : null}
+            {unavailable !== undefined && !busy ? (
+                <LiveRegion politeness="polite" style={[styles.status, { color: colors.inkMuted }]}>
+                    {unavailable}
+                </LiveRegion>
+            ) : null}
             <View style={sideBySide ? styles.row : styles.stacked}>
                 <Button
                     variant="secondary"
@@ -75,6 +81,7 @@ const Body: FC<Omit<ConfirmDialogProps, 'open' | 'title'>> = ({
                     tone="confirm"
                     icon={confirm.icon}
                     busy={busy}
+                    disabled={unavailable !== undefined}
                     width={sideBySide ? 'auto' : 'fill'}
                     onPress={onConfirm}
                 >

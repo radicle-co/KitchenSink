@@ -28,7 +28,7 @@
  * @pattern Command — the chosen item is held and executed after the menu's dismissal
  */
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { useContext, useRef, useState, type FC } from 'react';
+import { useContext, useId, useRef, useState, type FC } from 'react';
 
 import { BUSY_CONTROL_CLASS } from '../button/busyControlProps.js';
 import { HERO_DISC_CLASS } from '../heroButton/HeroButton.js';
@@ -51,18 +51,47 @@ const ITEM =
 /** One menu item: its glyph and label, in the tone of its place in the menu. */
 const MenuItem: FC<{
     readonly item: ActionMenuItem;
+    /** The host's reason this action cannot run now, read live (`ActionMenuItem.unavailable`). */
+    readonly reason: string | undefined;
     readonly tone: 'text-ink' | 'text-danger-text';
     readonly onChoose: (id: string) => void;
-}> = ({ item, tone, onChoose }) => (
-    <DropdownMenu.Item
-        disabled={item.disabled === true}
-        onSelect={() => onChoose(item.id)}
-        className={`${ITEM} ${tone}`}
-    >
-        {item.icon === undefined ? null : <Icon name={item.icon} size={20} />}
-        {item.label}
-    </DropdownMenu.Item>
-);
+}> = ({ item, reason, tone, onChoose }) => {
+    const reasonId = useId();
+
+    // ⛔ NOT Radix's `disabled`: a disabled item is skipped by roving focus, so a screen-reader user would never land on it
+    // and never hear why. `aria-disabled` keeps it reachable; the reason is its description and is drawn as text. The
+    // reason is `aria-hidden` so the item's NAME stays its label alone; a description may point at hidden text.
+    return (
+        <DropdownMenu.Item
+            // A positional `disabled` (the first photo cannot move earlier) has nothing to explain, so Radix may skip it.
+            disabled={item.disabled === true && reason === undefined}
+            aria-disabled={reason === undefined && item.disabled !== true ? undefined : true}
+            aria-describedby={reason === undefined ? undefined : reasonId}
+            onSelect={(event) => {
+                if (reason !== undefined) {
+                    event.preventDefault();
+
+                    return;
+                }
+
+                onChoose(item.id);
+            }}
+            className={`${ITEM} ${tone}${reason === undefined ? '' : ' opacity-70'}`}
+        >
+            {item.icon === undefined ? null : <Icon name={item.icon} size={20} />}
+            {reason === undefined ? (
+                item.label
+            ) : (
+                <span className="flex flex-col py-1">
+                    <span>{item.label}</span>
+                    <span id={reasonId} aria-hidden="true" className="text-caption text-ink-muted">
+                        {reason}
+                    </span>
+                </span>
+            )}
+        </DropdownMenu.Item>
+    );
+};
 
 /** The row-actions menu. */
 export const ActionMenu: FC<ActionMenuProps> = ({
@@ -121,12 +150,24 @@ export const ActionMenu: FC<ActionMenuProps> = ({
                         event.preventDefault();
                         triggerNode.current?.focus();
                         setHeldKey(undefined);
-                        actionNamed(items, destructiveItem, heldKey)?.onSelect();
+
+                        const chosen = actionNamed(items, destructiveItem, heldKey);
+
+                        // A write may have started between the choice and the menu going: it is unavailable now.
+                        if (chosen?.unavailable === undefined) {
+                            chosen?.onSelect();
+                        }
                     }}
                     className="z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[12rem] overflow-y-auto rounded-lg bg-paper-overlay p-1 shadow-lg"
                 >
                     {shown.items.map((item) => (
-                        <MenuItem key={item.id} item={item} tone="text-ink" onChoose={setHeldKey} />
+                        <MenuItem
+                            key={item.id}
+                            item={item}
+                            reason={actionNamed(items, destructiveItem, item.id)?.unavailable}
+                            tone="text-ink"
+                            onChoose={setHeldKey}
+                        />
                     ))}
                     {shown.destructiveItem === undefined ? null : (
                         <>
@@ -134,7 +175,12 @@ export const ActionMenu: FC<ActionMenuProps> = ({
                             {shown.items.length === 0 ? null : (
                                 <DropdownMenu.Separator className="my-1 h-px bg-line-divider" />
                             )}
-                            <MenuItem item={shown.destructiveItem} tone="text-danger-text" onChoose={setHeldKey} />
+                            <MenuItem
+                                item={shown.destructiveItem}
+                                reason={actionNamed(items, destructiveItem, shown.destructiveItem.id)?.unavailable}
+                                tone="text-danger-text"
+                                onChoose={setHeldKey}
+                            />
                         </>
                     )}
                 </DropdownMenu.Content>

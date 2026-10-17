@@ -36,27 +36,39 @@ const TARGET_DP = 48;
 /** One menu item: its glyph and label, in the role of its place in the menu. */
 const MenuItem: FC<{
     readonly item: ActionMenuItem;
+    /** The host's reason this action cannot run now, read live (`ActionMenuItem.unavailable`). */
+    readonly reason: string | undefined;
     readonly tone: 'ink' | 'dangerText';
     readonly onChoose: (id: string) => void;
-}> = ({ item, tone, onChoose }) => {
+}> = ({ item, reason, tone, onChoose }) => {
     const { colors, wash } = useTheme();
+    const unavailable = reason !== undefined;
+    // A positional `disabled` (the first photo cannot move earlier) needs no reason; either way the row stays on the
+    // screen-reader cursor and runs nothing.
+    const inactive = unavailable || item.disabled === true;
 
+    // The reason is the row's `accessibilityHint` (React Native has no `aria-describedby`) AND visible text, so it is not
+    // colour alone. The row keeps the screen-reader cursor (it is not removed from the sheet) and runs nothing.
     return (
         <Pressable
             accessibilityRole="menuitem"
             accessibilityLabel={item.label}
-            accessibilityState={{ disabled: item.disabled === true }}
-            aria-disabled={item.disabled === true ? true : undefined}
-            disabled={item.disabled === true}
-            onPress={() => onChoose(item.id)}
-            style={({ pressed }) => [
-                styles.item,
-                item.disabled === true && styles.unavailable,
-                pressed && { backgroundColor: wash },
-            ]}
+            {...(unavailable ? { accessibilityHint: reason } : {})}
+            accessibilityState={{ disabled: inactive }}
+            aria-disabled={inactive ? true : undefined}
+            disabled={item.disabled === true && !unavailable}
+            onPress={() => {
+                if (!inactive) {
+                    onChoose(item.id);
+                }
+            }}
+            style={({ pressed }) => [styles.item, inactive && styles.unavailable, pressed && { backgroundColor: wash }]}
         >
             {item.icon === undefined ? null : <Icon name={item.icon} size={20} tone={tone} />}
-            <Text style={[styles.itemLabel, { color: colors[tone] }]}>{item.label}</Text>
+            <View style={styles.itemText}>
+                <Text style={[styles.itemLabel, { color: colors[tone] }]}>{item.label}</Text>
+                {unavailable && <Text style={[styles.reason, { color: colors.inkMuted }]}>{reason}</Text>}
+            </View>
         </Pressable>
     );
 };
@@ -92,7 +104,13 @@ export const ActionMenu: FC<ActionMenuProps> = ({
         }
 
         setHeldKey(undefined);
-        actionNamed(items, destructiveItem, heldKey)?.onSelect();
+
+        const chosen = actionNamed(items, destructiveItem, heldKey);
+
+        // A write may have started between the choice and the sheet going: it is unavailable now.
+        if (chosen?.unavailable === undefined) {
+            chosen?.onSelect();
+        }
     };
 
     const choose = (id: string): void => {
@@ -153,7 +171,13 @@ export const ActionMenu: FC<ActionMenuProps> = ({
             >
                 <View collapsable={false} accessibilityRole="menu">
                     {shown.items.map((item) => (
-                        <MenuItem key={item.id} item={item} tone="ink" onChoose={choose} />
+                        <MenuItem
+                            key={item.id}
+                            item={item}
+                            reason={actionNamed(items, destructiveItem, item.id)?.unavailable}
+                            tone="ink"
+                            onChoose={choose}
+                        />
                     ))}
                     {shown.destructiveItem === undefined ? null : (
                         <>
@@ -165,7 +189,12 @@ export const ActionMenu: FC<ActionMenuProps> = ({
                                     style={[styles.divider, { backgroundColor: colors.lineDivider }]}
                                 />
                             )}
-                            <MenuItem item={shown.destructiveItem} tone="dangerText" onChoose={choose} />
+                            <MenuItem
+                                item={shown.destructiveItem}
+                                reason={actionNamed(items, destructiveItem, shown.destructiveItem.id)?.unavailable}
+                                tone="dangerText"
+                                onChoose={choose}
+                            />
                         </>
                     )}
                 </View>
@@ -191,6 +220,8 @@ const styles = StyleSheet.create({
         minHeight: TARGET_DP,
         paddingHorizontal: nativeTokens.spacing[2],
     },
+    itemText: { flexShrink: 1 },
     itemLabel: nativeTokens.type.body,
+    reason: nativeTokens.type.caption,
     divider: { height: 1, marginVertical: nativeTokens.spacing[1] },
 });

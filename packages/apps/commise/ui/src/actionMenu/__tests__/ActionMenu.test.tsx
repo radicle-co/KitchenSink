@@ -523,3 +523,113 @@ describe('ActionMenu (web) — the overhaul contract', () => {
         });
     });
 });
+
+/**
+ * Owner ruling 2026-10-17, "Don't allow users to delete while saving": an item can be UNAVAILABLE with a reason. It stays
+ * in the menu so the cook sees it exists, is `aria-disabled` and still reachable by keyboard (a Radix `disabled` item is
+ * skipped by roving focus, so a screen reader would never hear why), carries the reason as its accessible description
+ * and as visible text (not colour alone), and runs nothing.
+ */
+describe('ActionMenu (web) — an unavailable item', () => {
+    const menu = (unavailable: string | undefined, onSelect: () => void) => (
+        <ActionMenu
+            triggerLabel="Actions for Saffron"
+            title="Saffron"
+            closeLabel="Close actions for Saffron"
+            items={[{ id: 'changeFood', label: 'Change food', onSelect: vi.fn() }]}
+            destructiveItem={{
+                id: 'discard',
+                label: 'Discard draft',
+                onSelect,
+                ...(unavailable === undefined ? {} : { unavailable }),
+            }}
+        />
+    );
+
+    /** The text an item's `aria-describedby` points at: its accessible description. */
+    const descriptionOf = (item: HTMLElement): string | undefined => {
+        const id = item.getAttribute('aria-describedby');
+
+        return id === null ? undefined : (document.getElementById(id)?.textContent ?? undefined);
+    };
+
+    it('stays in the menu, aria-disabled, named by its label alone, described by its reason, with the reason visible', async () => {
+        const user = userEvent.setup();
+        render(menu('Saving…', vi.fn()));
+
+        await user.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+        const item = screen.getByRole('menuitem', { name: 'Discard draft' });
+
+        expect(item.getAttribute('aria-disabled')).toBe('true');
+        expect(descriptionOf(item)).toBe('Saving…');
+        expect(item.textContent).toContain('Saving…');
+    });
+
+    it('⛔ choosing it runs nothing and leaves the menu open', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        render(menu('Saving…', onSelect));
+
+        await user.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+        await user.click(screen.getByRole('menuitem', { name: 'Discard draft' }));
+
+        expect(onSelect).not.toHaveBeenCalled();
+        expect(screen.getByRole('menu')).toBeTruthy();
+    });
+
+    it('⛔ the keyboard still reaches it, so a screen reader hears the reason', async () => {
+        const user = userEvent.setup();
+        render(menu('Saving…', vi.fn()));
+        screen.getByRole('button', { name: 'Actions for Saffron' }).focus();
+
+        await user.keyboard('{ArrowDown}{End}');
+
+        expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Discard draft' }));
+    });
+
+    it('⛔ an item that is available has no reason, is not aria-disabled, and runs', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        render(menu(undefined, onSelect));
+
+        await user.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+        const item = screen.getByRole('menuitem', { name: 'Discard draft' });
+
+        expect(item.getAttribute('aria-disabled')).toBeNull();
+        expect(item.getAttribute('aria-describedby')).toBeNull();
+
+        await user.click(item);
+
+        expect(onSelect).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ becomes available in an open menu the moment the host stops reporting it unavailable', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        const { rerender } = render(menu('Saving…', onSelect));
+
+        await user.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+        expect(screen.getByRole('menuitem', { name: 'Discard draft' }).getAttribute('aria-disabled')).toBe('true');
+
+        rerender(menu(undefined, onSelect));
+        const item = screen.getByRole('menuitem', { name: 'Discard draft' });
+
+        expect(item.getAttribute('aria-disabled')).toBeNull();
+
+        await user.click(item);
+
+        expect(onSelect).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ becomes unavailable in an open menu when a write starts: the late choice runs nothing', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        const { rerender } = render(menu(undefined, onSelect));
+
+        await user.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+        rerender(menu('Saving…', onSelect));
+        await user.click(screen.getByRole('menuitem', { name: 'Discard draft' }));
+
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+});

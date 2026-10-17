@@ -16,7 +16,7 @@
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createElement, type ComponentProps } from 'react';
-import { AccessibilityInfo, type Modal as ModalType } from 'react-native';
+import { AccessibilityInfo, type Modal as ModalType, type Pressable as PressableType } from 'react-native';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -29,6 +29,8 @@ import type { ActionMenuItem, ActionMenuProps } from '../props.js';
 const state = vi.hoisted(() => ({
     modal: undefined as ComponentProps<typeof ModalType> | undefined,
     os: undefined as 'ios' | undefined,
+    /** Each menu item's hint and disabled state, by its accessibility label: what a screen reader is given. */
+    items: new Map<string, { readonly hint: string | undefined; readonly disabled: boolean }>(),
 }));
 
 vi.mock('react-native', async (importOriginal) => {
@@ -37,6 +39,16 @@ vi.mock('react-native', async (importOriginal) => {
     return {
         ...actual,
         AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
+        Pressable: (props: ComponentProps<typeof PressableType>) => {
+            if (props.accessibilityRole === 'menuitem' && typeof props.accessibilityLabel === 'string') {
+                state.items.set(props.accessibilityLabel, {
+                    hint: props.accessibilityHint,
+                    disabled: props.accessibilityState?.disabled === true,
+                });
+            }
+
+            return createElement(actual.Pressable, props);
+        },
         Platform: {
             ...actual.Platform,
             get OS() {
@@ -57,6 +69,7 @@ vi.mock('../../layout/useKeyboardShown.native.js', () => ({ useKeyboardShown: ()
 
 beforeEach(() => {
     state.os = undefined;
+    state.items.clear();
     vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
 });
 
@@ -458,5 +471,69 @@ describe('ActionMenu (native) — the overhaul contract', () => {
                 Number.parseFloat(getComputedStyle(screen.getByRole('menuitem', { name: 'Move earlier' })).minHeight),
             ).toBeGreaterThanOrEqual(48);
         });
+    });
+});
+
+/**
+ * Owner ruling 2026-10-17, "Don't allow users to delete while saving": an item can be UNAVAILABLE with a reason. It stays
+ * in the sheet, reads as disabled, carries the reason as its `accessibilityHint` (React Native has no `aria-describedby`)
+ * and as visible text (not colour alone), and runs nothing.
+ */
+describe('ActionMenu (native) — an unavailable item', () => {
+    const menu = (unavailable: string | undefined, onSelect: () => void) => (
+        <ActionMenu
+            triggerLabel="Actions for Saffron"
+            title="Saffron"
+            closeLabel="Close actions for Saffron"
+            items={[{ id: 'changeFood', label: 'Change food', onSelect: vi.fn() }]}
+            destructiveItem={{
+                id: 'discard',
+                label: 'Discard draft',
+                onSelect,
+                ...(unavailable === undefined ? {} : { unavailable }),
+            }}
+        />
+    );
+
+    it('reads as disabled with the reason as its hint, and shows the reason as text', () => {
+        render(menu('Saving…', vi.fn()));
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+
+        expect(state.items.get('Discard draft')).toStrictEqual({ hint: 'Saving…', disabled: true });
+        expect(screen.getByRole('menuitem', { name: 'Discard draft' }).textContent).toContain('Saving…');
+    });
+
+    it('⛔ choosing it runs nothing and leaves the sheet open', () => {
+        const onSelect = vi.fn();
+        render(menu('Saving…', onSelect));
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Discard draft' }));
+
+        expect(onSelect).not.toHaveBeenCalled();
+        expect(screen.getByRole('menuitem', { name: 'Discard draft' })).toBeTruthy();
+    });
+
+    it('⛔ an available item has no hint, is not disabled, and runs', () => {
+        const onSelect = vi.fn();
+        render(menu(undefined, onSelect));
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+
+        expect(state.items.get('Discard draft')).toStrictEqual({ hint: undefined, disabled: false });
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Discard draft' }));
+
+        expect(onSelect).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ becomes available in an open sheet when the host stops reporting it unavailable', () => {
+        const onSelect = vi.fn();
+        const { rerender } = render(menu('Saving…', onSelect));
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+
+        rerender(menu(undefined, onSelect));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Discard draft' }));
+
+        expect(onSelect).toHaveBeenCalledTimes(1);
     });
 });

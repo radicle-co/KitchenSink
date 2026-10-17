@@ -53,4 +53,11 @@ export interface ConfirmDialogProps {
     readonly busyLabel?: string;
     /** Why the last confirmed request failed, shown inside the dialog. Hidden while a retry is in flight. */
     readonly error?: string;
+    /**
+     * Why the confirm cannot be pressed NOW, already localised ("Saving…"): the confirm is disabled, the reason is said
+     * politely and drawn as text (not colour alone), and Keep still closes the dialog. Distinct from {@link busy}, which
+     * is the confirmed request itself in flight. Used by a Discard or Delete while the recipe is being saved (owner
+     * ruling 2026-10-17, "Don't allow users to delete while saving"); the dialog may already be open when the write starts.
+     */
+    readonly unavailable?: string;
 }

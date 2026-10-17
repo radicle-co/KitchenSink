@@ -25,8 +25,8 @@ Only the claude.ai Artifact tool can publish. A person runs steps 1 to 3 and the
 ### Before you start
 
 1. Use Node 24. Run `node --version` and make sure that it prints `v24`.
-2. From the repo root, run `npm ci` if `node_modules` is missing or out of date.
-3. Check out the commit you want to publish. The Design System's README records the commit it was built from, and it adds "plus uncommitted changes" when the tree was dirty. Publish from a clean tree.
+2. If `node_modules` is missing or out of date, run `npm ci` from the repo root.
+3. Check out the commit you want to publish. The Design System's README records the commit it was built from. If the tree was dirty, it adds "plus uncommitted changes". Publish from a clean tree.
 
 ### Steps
 
@@ -50,7 +50,7 @@ Only the claude.ai Artifact tool can publish. A person runs steps 1 to 3 and the
     npm run test:integration --workspace=@kitchensink/design-artifact
     ```
 
-    The LOCAL e2e (`npm run test:e2e`) renders every card and board in a browser. Run it too when its requirements are met (see [Tests](#tests)).
+    The LOCAL e2e (`npm run test:e2e`) renders every card and board in a browser. If its requirements are met, run it too (see [Tests](#tests)).
 
 3. Build both artifacts:
 
@@ -101,6 +101,18 @@ Do these steps for each artifact, the Design System first:
 1. List the files of each artifact again. Every file in the dist folder is listed, and no stale `project/` path remains.
 2. Read `project/README.md` from the Design System. Its last line names the commit you built from, with no "plus uncommitted changes".
 3. Read `project/canvas.json` from the canvas. The `version` under `designSystems` equals the Design System version id from step 4.
+
+## Add a board
+
+A board is one screen in one state, drawn twice: `Name.dc.html` for web (1280 px wide) and `NameMobile.dc.html` for mobile (390 px wide). Boards live in `content/canvas/boards/`.
+
+1. Start from the board of the same screen. Copy it, and keep only the part that the state changes.
+2. Draw components from the bundle (`Commise.X` on web, `Commise.Native.X` on mobile). Draw by hand only what the bundle does not export.
+3. Take every list, status line and label from the app's own pure model, not from memory. Write a scratch vitest file in the feature package that calls the model with the package's own fixtures and prints the props as JSON. Delete the scratch file after the run.
+4. To show a `Combobox` list open, set `focus-requested`, `list-requested` and `on-focus-request-handled`. The web list floats below the field, so give the web board room under the field for it.
+5. Add the board to `src/canvas/boards.ts`. The title ends with `(web)` or `(mobile)`, and a board that shows an unbuilt change has `proposal` in its title. Boards of one row stay together.
+6. Render the board at its width and set `height` to the rendered page height. On web, add the room that a floating list needs.
+7. Run the unit, integration and LOCAL e2e tiers. The unit tests pin the board count, the row count and some canvas positions. When you add boards, update those numbers.
 
 ## Tests
 

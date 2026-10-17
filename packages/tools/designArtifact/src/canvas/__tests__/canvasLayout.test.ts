@@ -56,6 +56,25 @@ describe('canvasLayout', () => {
         });
     });
 
+    it('lays out each board at its own width', () => {
+        const layout = canvasLayout([
+            { file: 'A.html', title: 'A, 768 px (web)', row: 'One', platform: 'web', height: 500, width: 768 },
+            {
+                file: 'BMobile.html',
+                title: 'B, 834 px (mobile)',
+                row: 'One',
+                platform: 'native',
+                height: 900,
+                width: 834,
+            },
+            { file: 'CMobile.html', title: 'C (mobile)', row: 'One', platform: 'native', height: 900 },
+        ]);
+
+        expect(layout.boards['A.html']).toMatchObject({ x: 0, w: 768 });
+        expect(layout.boards['BMobile.html']).toMatchObject({ x: 768 + 80, w: 834 });
+        expect(layout.boards['CMobile.html']).toMatchObject({ x: 768 + 80 + 834 + 80, w: 390 });
+    });
+
     it('reproduces the published prototype canvas positions from the registry', () => {
         const real = canvasLayout(BOARDS);
 

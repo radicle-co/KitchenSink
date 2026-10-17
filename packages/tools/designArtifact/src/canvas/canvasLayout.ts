@@ -6,7 +6,7 @@
  */
 import type { CanvasBoard, CanvasNote } from '../artifactFormat.js';
 
-import { BOARD_WIDTH } from './boards.js';
+import { boardWidth } from './boards.js';
 import type { BoardSpec } from './boards.js';
 
 /** Space between boards of one row. */
@@ -52,7 +52,7 @@ export function canvasLayout(boards: readonly BoardSpec[]): CanvasLayout {
         notes[`row${String(index)}`] = { x: 0, y: y - NOTE_OFFSET, text: title, kind: 'title1', maxW: NOTE_MAX_WIDTH };
 
         for (const board of members) {
-            const w = BOARD_WIDTH[board.platform];
+            const w = boardWidth(board);
 
             placed[board.file] = {
                 x,

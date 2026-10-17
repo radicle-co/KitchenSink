@@ -21,21 +21,42 @@ export const BOARDS_DIR = join(CONTENT_DIR, 'canvas/boards');
 /** What a board draws. */
 export type BoardPlatform = 'web' | 'native';
 
-/** One screen on the canvas. */
-export interface BoardSpec {
+/**
+ * The widths a board may be drawn at, one per breakpoint of `@commise/ui/tokens/layout`. Web: compact (a phone
+ * browser, below 600), medium (600 to 839), and the expanded nav with a regular container (1024) and a wide one (1280).
+ * Native: a phone, a tablet in portrait, and a tablet in landscape.
+ */
+export const BOARD_WIDTHS = { web: [390, 768, 1024, 1280], native: [390, 834, 1194] } as const;
+
+/** A board's width per platform when it names none: a desktop window and an iPhone. */
+export const BOARD_WIDTH: Readonly<Record<BoardPlatform, number>> = { web: 1280, native: 390 };
+
+/** What every board names. */
+interface BoardBase {
     /** The file name in {@link BOARDS_DIR}, which is also its key on the canvas. */
     readonly file: string;
-    /** The label above the board. */
+    /** The label above the board. A width that is not the default is named in it, as `768 px`. */
     readonly title: string;
     /** The row title; boards sharing it sit in one row. */
     readonly row: string;
-    readonly platform: BoardPlatform;
     /** Declared height in CSS pixels. */
     readonly height: number;
 }
 
-/** A board's width per platform: a desktop window and an iPhone. */
-export const BOARD_WIDTH: Readonly<Record<BoardPlatform, number>> = { web: 1280, native: 390 };
+/** One screen on the canvas. A width, when named, is one of its platform's breakpoints. */
+export type BoardSpec = BoardBase &
+    (
+        | { readonly platform: 'web'; readonly width?: (typeof BOARD_WIDTHS.web)[number] }
+        | { readonly platform: 'native'; readonly width?: (typeof BOARD_WIDTHS.native)[number] }
+    );
+
+/**
+ * The width a board is drawn at. Pure.
+ *
+ * @param board - The board.
+ * @returns Its named width, else its platform's default.
+ */
+export const boardWidth = (board: BoardSpec): number => board.width ?? BOARD_WIDTH[board.platform];
 
 /** Every board, in canvas order. */
 export const BOARDS: readonly BoardSpec[] = [

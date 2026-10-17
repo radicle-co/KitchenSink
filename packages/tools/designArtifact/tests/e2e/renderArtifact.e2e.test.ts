@@ -26,7 +26,7 @@ import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 
 import { CARDS_DIR } from '../../src/buildArtifact.js';
-import { BOARDS, BOARD_WIDTH } from '../../src/canvas/boards.js';
+import { BOARDS, boardWidth } from '../../src/canvas/boards.js';
 import { loadCardSpec } from '../../src/cards/loadCardSpec.js';
 
 const THEMES = ['light', 'dark'] as const;
@@ -235,7 +235,7 @@ describe('component cards', () => {
 describe('canvas boards', () => {
     describe.each(BOARDS)('$file', (board) => {
         it.each(THEMES)('renders in %s', async (theme) => {
-            const width = BOARD_WIDTH[board.platform];
+            const width = boardWidth(board);
             const { page, problems } = await openPage(theme, width, board.height);
 
             try {

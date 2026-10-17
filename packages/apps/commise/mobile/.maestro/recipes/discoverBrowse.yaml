@@ -103,6 +103,12 @@ appId: ${APP_ID}
       timeout: 20000
 - tapOn: 'Search recipes'
 - eraseText
+# ⛔ A blank field that keeps focus shows the RECENT SEARCHES panel in place of the rails (the idle state,
+# `discoverRecentSearches.yaml`), and the soft keyboard keeps it focused on both platforms. A tap on the screen's title
+# (found above the field, never by position) blurs the field, so the rails come back (run 38988891871).
+- tapOn:
+      text: 'Discover'
+      above: 'Search recipes'
 - extendedWaitUntil:
       visible: 'Trending'
       timeout: 40000

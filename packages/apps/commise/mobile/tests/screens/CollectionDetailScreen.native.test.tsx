@@ -53,10 +53,11 @@ vi.mock('../../src/hooks/useUserProfile.js', () => ({
     useUserProfile: vi.fn(),
 }));
 
-// The list/grid choice reads `AsyncStorage`; this file is not about it, so the stored choice is "none".
-vi.mock('../../src/hooks/useStoredViewMode.js', () => ({
-    useStoredViewMode: () => ['list', vi.fn()],
-}));
+// The list/grid choice is an account setting (ADR-0059). The shared hook has its own tests over a real cache
+// (`tests/hooks/useRecipeViewSetting.native.test.tsx`); here the screen is shown what each state of it draws.
+const { useRecipeViewSettingMock } = vi.hoisted(() => ({ useRecipeViewSettingMock: vi.fn() }));
+
+vi.mock('../../src/hooks/useRecipeViewSetting.js', () => ({ useRecipeViewSetting: useRecipeViewSettingMock }));
 
 // The screen starts the deferred calorie batch (ADR-0021 §6) through this shared hook. This file is not about nutrition,
 // so the lookup is stubbed to "no batch covers this recipe". The wiring is covered by `screenNutrition.native.test.tsx`.
@@ -144,6 +145,7 @@ beforeEach(() => {
     client = createFakeRecipeServiceClient();
     seed(makeCollectionWithRecipes([pasta, tacos], { id: 'col_1', name: 'Weeknight favourites' }));
     useUserProfileMock.mockReturnValue(profile('granted'));
+    useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'list', chooseView: vi.fn(), saveFailed: false });
     // react-native-web reports a screen reader as ON, which holds a snackbar open (SC 2.2.1); the timeout test needs it off.
     vi.spyOn(AccessibilityInfo, 'isScreenReaderEnabled').mockResolvedValue(false);
 });
@@ -242,6 +244,43 @@ describe('CollectionDetailScreen — loading and error', () => {
 
         expect(await screen.findByRole('heading', { name: 'Collection B' })).toBeTruthy();
         expect(screen.queryByText('Delete Collection A?')).toBeNull();
+    });
+});
+
+describe('CollectionDetailScreen — the list/grid choice is an account setting', () => {
+    it('CHOSEN: shows the view the account holds', async () => {
+        useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'grid', chooseView: vi.fn(), saveFailed: false });
+
+        renderOver(<CollectionDetailScreen {...props} />);
+
+        expect((await screen.findByRole('radio', { name: 'Grid view' })).getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('hands a choice to the setting', async () => {
+        const chooseView = vi.fn();
+        useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'list', chooseView, saveFailed: false });
+
+        renderOver(<CollectionDetailScreen {...props} />);
+        fireEvent.click(await screen.findByRole('radio', { name: 'Grid view' }));
+
+        expect(chooseView).toHaveBeenCalledWith('grid');
+    });
+
+    it('FAILED: says the choice was not saved, in an alert', async () => {
+        useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'list', chooseView: vi.fn(), saveFailed: true });
+
+        renderOver(<CollectionDetailScreen {...props} />);
+
+        expect((await screen.findByRole('alert')).textContent).toBe(
+            'We couldn’t save your view. Try choosing it again.',
+        );
+    });
+
+    it('SAVED: shows no alert', async () => {
+        renderOver(<CollectionDetailScreen {...props} />);
+
+        await screen.findByRole('link', { name: 'Weeknight Pasta' });
+        expect(screen.queryByRole('alert')).toBeNull();
     });
 });
 

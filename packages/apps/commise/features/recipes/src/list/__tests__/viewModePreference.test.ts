@@ -1,32 +1,13 @@
 /**
- * The library's list/grid choice, kept per device (`docs/design/uiOverhaul/buildSpec.md` §4.3, blueprint Part C): one
- * key for both platforms, a stored value parsed rather than trusted, and the web cookie the server reads so the first
- * render matches.
+ * The library's list/grid view: the cook's choice (an account setting, ADR-0059, read by the host) wins; with no choice
+ * the container's width picks (`docs/design/uiOverhaul/buildSpec.md` §4.3). Rewritten 2026-10-17: the cookie, the shared
+ * device-store key and the stored-value parser went with the device stores; the setting is parsed by the wire schema.
  */
 import { describe, expect, it } from 'vitest';
 
-import { VIEW_MODE_KEY, viewModeCookieFor, viewModeFrom, viewModeOf } from '../viewModePreference.js';
+import { viewModeOf } from '../viewModePreference.js';
 
 describe('the view-mode preference', () => {
-    it('is stored under one key on both platforms', () => {
-        expect(VIEW_MODE_KEY).toBe('recipes.viewMode');
-    });
-
-    it.each([
-        ['list', 'list'],
-        ['grid', 'grid'],
-        [undefined, undefined],
-        ['', undefined],
-        ['tiles', undefined],
-        [null, undefined],
-    ] as const)('reads %j as %j', (stored, mode) => {
-        expect(viewModeFrom(stored)).toBe(mode);
-    });
-
-    it('writes a year-long, site-wide, lax cookie', () => {
-        expect(viewModeCookieFor('grid')).toBe('recipes.viewMode=grid; path=/; max-age=31536000; samesite=lax');
-    });
-
     it.each([
         ['grid', 'narrow', 'grid'],
         ['list', 'wide', 'list'],

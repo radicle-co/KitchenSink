@@ -106,6 +106,9 @@ APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outpu
 #     the shared entry path is still proven on every run, whatever vertical was selected. (It absorbed
 #     `auth/welcome-flow`, deleted with the welcome screen itself by owner decision on 2026-07-28.)
 #   - `home` next, then the recipe stories.
+#   - `recipes/viewSetting` sits right after `listDetail`: same populated seed. The list's grid/list choice is an ACCOUNT
+#     setting (ADR-0059), and the flow clears the app to prove it lives on the server. It writes the signer's setting, so
+#     its last step chooses the list again, the phone default's own layout, for every later flow on that account.
 #   - `recipes/landscape` sits next to `listDetail`: the same story rotated to LANDSCAPE (WCAG 2.2 SC 1.3.4), on
 #     the same populated seed. It discards its draft, so it mutates nothing, and its `onFlowComplete` puts the
 #     emulator back in portrait for every later flow, pass or fail.
@@ -221,6 +224,7 @@ FLOW_PLAN="spine:auth/loginFlow
 home:home
 recipes:recipes/rating
 recipes:recipes/listDetail
+recipes:recipes/viewSetting
 recipes:shell/tabBar
 recipes:recipes/landscape
 recipes:recipes/servingScale

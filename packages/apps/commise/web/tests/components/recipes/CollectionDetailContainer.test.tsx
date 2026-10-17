@@ -33,10 +33,11 @@ import { makeCollectionWithRecipes } from './__fixtures__/collectionFixtures';
 import { renderWithSnackbar } from './__fixtures__/renderCollectionDetail';
 import { makeRecipe } from './__fixtures__/recipeFixtures';
 
-const { pushMock, useAuthMock, useUserProfileMock } = vi.hoisted(() => ({
+const { pushMock, useAuthMock, useUserProfileMock, useRecipeViewSettingMock } = vi.hoisted(() => ({
     pushMock: vi.fn(),
     useAuthMock: vi.fn(),
     useUserProfileMock: vi.fn(),
+    useRecipeViewSettingMock: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -51,6 +52,12 @@ vi.mock('@/hooks/useUserProfile', () => ({
     useUserProfile: useUserProfileMock,
 }));
 
+// The grid/list choice is an account setting (ADR-0059). The shared hook has its own tests over a real cache; here the
+// container is shown what each state of it draws.
+vi.mock('@/hooks/useRecipeViewSetting', () => ({
+    useRecipeViewSetting: useRecipeViewSettingMock,
+}));
+
 /** Build a settled profile-query stub carrying only the paid-feature state the visibility gate reads. */
 function profileWith(paidFeatures: 'granted' | 'upsell' | 'hidden') {
     return { status: 'success', data: { account: { paidFeatures } } };
@@ -60,6 +67,7 @@ beforeEach(() => {
     // Signed-in viewer whose paid features are granted by default (Private works unless a test overrides it).
     useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_1' } });
     useUserProfileMock.mockReturnValue(profileWith('granted'));
+    useRecipeViewSettingMock.mockReturnValue({ viewChoice: undefined, chooseView: vi.fn(), saveFailed: false });
 });
 
 afterEach(() => {
@@ -124,6 +132,54 @@ describe('CollectionDetailContainer — states', () => {
         expect(screen.getByRole('link', { name: 'Sunday Roast' })).toBeInTheDocument();
         // The meta line and the list's own count both say it.
         expect(screen.getAllByText('2 recipes')).toHaveLength(2);
+    });
+
+    describe('the list/grid choice is an account setting', () => {
+        it('CHOSEN: shows the view the account holds', async () => {
+            useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'grid', chooseView: vi.fn(), saveFailed: false });
+            renderWithSnackbar(
+                <CollectionDetailContainer id="col_1" locale="en" />,
+                clientSeededWith(makeCollectionWithRecipes()),
+            );
+
+            expect(await screen.findByRole('radio', { name: 'Grid view' })).toBeChecked();
+        });
+
+        it('hands a choice to the setting, and never to a cookie', async () => {
+            const chooseView = vi.fn();
+            useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'grid', chooseView, saveFailed: false });
+            const user = userEvent.setup();
+            renderWithSnackbar(
+                <CollectionDetailContainer id="col_1" locale="en" />,
+                clientSeededWith(makeCollectionWithRecipes()),
+            );
+
+            await user.click(await screen.findByRole('radio', { name: 'List view' }));
+
+            expect(chooseView).toHaveBeenCalledWith('list');
+            expect(document.cookie).not.toContain('recipes.viewMode');
+        });
+
+        it('FAILED: says the choice was not saved, in an alert', async () => {
+            useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'grid', chooseView: vi.fn(), saveFailed: true });
+            renderWithSnackbar(
+                <CollectionDetailContainer id="col_1" locale="en" />,
+                clientSeededWith(makeCollectionWithRecipes()),
+            );
+
+            expect(await screen.findByText('We couldn’t save your view. Try choosing it again.')).toBeInTheDocument();
+            expect(screen.getByRole('alert')).toHaveTextContent('We couldn’t save your view.');
+        });
+
+        it('SAVED: shows no alert', async () => {
+            renderWithSnackbar(
+                <CollectionDetailContainer id="col_1" locale="en" />,
+                clientSeededWith(makeCollectionWithRecipes()),
+            );
+
+            await screen.findByRole('heading', { level: 1 });
+            expect(screen.queryByText('We couldn’t save your view. Try choosing it again.')).not.toBeInTheDocument();
+        });
     });
 
     it('navigates to a recipe when a member card is selected', async () => {

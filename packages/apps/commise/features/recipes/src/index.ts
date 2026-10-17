@@ -85,6 +85,7 @@ export { RecipeCreateButton } from './list/RecipeCreateButton.js';
 export type { RecipeCreateButtonAppearance, RecipeCreateButtonProps } from './list/createButtonProps.js';
 export { RecipeListFrame } from './list/RecipeListFrame.js';
 export { RecipeListLoadError } from './list/RecipeListLoadError.js';
+export { ViewSaveFailedNotice } from './list/ViewSaveFailedNotice.js';
 export { RecipeListLoading } from './list/RecipeListLoading.js';
 export { RecipeListResults } from './list/RecipeListResults.js';
 export {
@@ -96,7 +97,7 @@ export {
     sortLabelOf,
 } from './list/library.js';
 export type { LibraryFacet, LibraryState } from './list/libraryTypes.js';
-export { VIEW_MODE_KEY, viewModeCookieFor, viewModeFrom, viewModeOf } from './list/viewModePreference.js';
+export { viewModeOf } from './list/viewModePreference.js';
 export { useMainContainerClass } from './layout/useMainContainerClass.js';
 export { fillTemplate } from './format/fillTemplate.js';
 export {

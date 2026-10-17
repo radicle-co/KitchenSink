@@ -3,6 +3,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+import { mockSettingsApi } from './utils/settingsApi';
 
 /**
  * The recipe card's layout contract on My recipes (`docs/design/uiOverhaul/buildSpec.md` §4.1, slice 4 in §13):
@@ -55,18 +56,20 @@ for (const colorScheme of ['light', 'dark'] as const) {
             await signInWithTicket(page);
             const viewerId = await readViewerAppId(page);
             await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: seed(viewerId) });
+            const settings = await mockSettingsApi(page);
             await page.goto(route('/recipes'));
             const cards = page.getByRole('article');
             await expect(cards).toHaveCount(3);
 
-            // The cook's choice, kept in a cookie so the next server render draws it first: list, then back to grid.
+            // The cook's choice is an account setting (ADR-0059), saved to the server: list, then back to grid.
             const view = page.getByRole('radiogroup', { name: 'View' });
             await view.getByRole('radio', { name: 'List view' }).click();
             await expect(cards.first()).toHaveAttribute('data-card-variant', 'row');
             await view.getByRole('radio', { name: 'Grid view' }).click();
-            expect((await page.context().cookies()).find((cookie) => cookie.name === 'recipes.viewMode')?.value).toBe(
-                'grid',
-            );
+            await expect.poll(() => settings.current().recipeViewMode).toBe('grid');
+            expect(
+                (await page.context().cookies()).find((cookie) => cookie.name === 'recipes.viewMode'),
+            ).toBeUndefined();
 
             for (const card of await cards.all()) {
                 await expect(card).toHaveAttribute('data-card-variant', 'grid');
@@ -104,6 +107,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
             await signInWithTicket(page);
             const viewerId = await readViewerAppId(page);
             await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: seed(viewerId) });
+            // Never chosen: the account answers `auto`, so the phone's width picks the list.
+            await mockSettingsApi(page);
 
             await page.goto(route('/recipes'));
             const first = page.getByRole('article').first();

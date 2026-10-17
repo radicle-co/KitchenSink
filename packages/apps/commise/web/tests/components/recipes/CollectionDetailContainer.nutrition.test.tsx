@@ -23,15 +23,17 @@ import { makeCollectionWithRecipes } from './__fixtures__/collectionFixtures';
 import { renderWithSnackbar } from './__fixtures__/renderCollectionDetail';
 import { makeRecipe } from './__fixtures__/recipeFixtures';
 
-const { pushMock, useAuthMock, useUserProfileMock } = vi.hoisted(() => ({
+const { pushMock, useAuthMock, useUserProfileMock, useRecipeViewSettingMock } = vi.hoisted(() => ({
     pushMock: vi.fn(),
     useAuthMock: vi.fn(),
     useUserProfileMock: vi.fn(),
+    useRecipeViewSettingMock: vi.fn(() => ({ viewChoice: undefined, chooseView: vi.fn(), saveFailed: false })),
 }));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: pushMock }) }));
 vi.mock('@clerk/nextjs', () => ({ useAuth: useAuthMock }));
 vi.mock('@/hooks/useUserProfile', () => ({ useUserProfile: useUserProfileMock }));
+vi.mock('@/hooks/useRecipeViewSetting', () => ({ useRecipeViewSetting: useRecipeViewSettingMock }));
 
 const MEMBER = '00000000-0000-4000-8000-00000000000a';
 

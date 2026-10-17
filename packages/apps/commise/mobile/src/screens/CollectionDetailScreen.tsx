@@ -25,7 +25,7 @@
  * @pattern Facade — one screen over the shared collection-detail session and body
  * @pattern Port — the navigator callbacks, as the session's navigation
  */
-import { collectionMessages } from '@commise/features-recipes';
+import { collectionMessages, ViewSaveFailedNotice } from '@commise/features-recipes';
 import { CollectionDetailBody, CollectionLoadError, useCollectionDetail } from '@commise/features-recipes/collections';
 import { useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
@@ -39,7 +39,7 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import type { JSX } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 
-import { useStoredViewMode } from '../hooks/useStoredViewMode.js';
+import { useRecipeViewSetting } from '../hooks/useRecipeViewSetting.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
 
 /** Props for {@link CollectionDetailScreen}. */
@@ -118,19 +118,21 @@ function CollectionDetailView({
     // A failed refresh of the collection on screen does not throw into the boundary: it keeps the collection and is
     // reported by the header's refresh notice.
     const refreshNotice = useRefreshNotice(query);
-    const [viewChoice, setViewChoice] = useStoredViewMode();
+    // The grid/list choice is an account setting shared with My recipes and the web app (ADR-0059).
+    const { viewChoice, chooseView, saveFailed } = useRecipeViewSetting();
     const detail = useCollectionDetail({
         collection: query.data,
         refreshNotice,
         // Plan 2026-10-14-009 D14: private from the viewer's paid features alone (owner ruling 2026-10-13).
         paidFeatures: paidFeatureStateOf(profile),
         viewChoice,
-        onViewChoice: setViewChoice,
+        onViewChoice: chooseView,
         nav: { onDeleted, onCloned, onCreateRecipe },
     });
 
     return (
         <ScrollView keyboardShouldPersistTaps="handled" style={styles.container} contentContainerStyle={styles.content}>
+            {saveFailed ? <ViewSaveFailedNotice /> : null}
             <CollectionDetailBody
                 detail={detail}
                 onBack={onBack}

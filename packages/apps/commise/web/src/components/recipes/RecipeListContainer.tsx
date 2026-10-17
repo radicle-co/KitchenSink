@@ -10,8 +10,8 @@
  * a new sort is a new key, read under `useDeferredValue` so the cards on screen stay until the new order lands.
  *
  * The container owns what outlives the boundary — the search term, the chips, the sort and the list/grid choice — and
- * decides the presentation: the container class of `<main>`, the stored view (a cookie the page reads on the server, so
- * the first render is the cook's choice) and so the card variant (`cardVariantOf`). The frame sits outside the boundary,
+ * decides the presentation: the container class of `<main>`, the cook's view (an account setting the page's server render
+ * put in the cache, so the first render is the cook's choice) and so the card variant (`cardVariantOf`). The frame sits outside the boundary,
  * so a pending or failed read never unmounts the field a cook is typing in; it hides the field on a settled empty
  * library, read through a cache-only observer of the same key.
  *
@@ -23,7 +23,7 @@ import {
     RecipeListLoadError,
     RecipeListLoading,
     RecipeListResults,
-    viewModeCookieFor,
+    ViewSaveFailedNotice,
     type ListViewMode,
 } from '@commise/features-recipes';
 import {
@@ -38,19 +38,17 @@ import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
 import type { FC, ReactNode } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { pasteIngredientsHref } from '@/components/recipes/pasteIngredientsHref';
 import { useHydratedNutrition } from '@/hooks/useHydratedNutrition';
+import { useRecipeViewSetting } from '@/hooks/useRecipeViewSetting';
 
 /** Props for {@link RecipeListContainer}. */
 export interface RecipeListContainerProps {
     /** The active route locale, used to build locale-prefixed navigation targets. */
     readonly locale: string;
-    /** The cook's list/grid choice, read from its cookie on the server. Absent → the width's default. */
-    readonly storedViewMode?: ListViewMode;
     /**
      * The large title's avatar (slice 3): the page hands in the app's `ProfileAvatarEntry`, so the profile read stays
      * where data enters the chrome and this container does not depend on the auth session.
@@ -61,13 +59,14 @@ export interface RecipeListContainerProps {
 /**
  * The live My recipes container.
  *
- * @param props - The active locale and the stored view.
+ * @param props - The active locale and the large title's avatar.
  * @returns The frame around the read boundary.
  */
-export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale, storedViewMode, avatar }) => {
+export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale, avatar }) => {
     const router = useRouter();
     const controls = useRecipeLibraryControls();
-    const [viewChoice, setViewChoice] = useState<ListViewMode | undefined>(storedViewMode);
+    // The cook's grid/list choice is an account setting (ADR-0059); the page's server render put it in the cache.
+    const { viewChoice, chooseView, saveFailed } = useRecipeViewSetting();
     const recovery = useRecoverySignal();
     const presentation = useRecipeListPresentation(viewChoice);
     const onCreateRecipe = () => router.push(`/${locale}/recipes/new` as Route);
@@ -91,6 +90,7 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale, stor
             }}
             headingFocusSignal={recovery.signal}
         >
+            {saveFailed ? <ViewSaveFailedNotice /> : null}
             <ClientQueryBoundary
                 prefetchedKeys={[controls.read.queryKey]}
                 loading={<RecipeListLoading variant={presentation.variant} />}
@@ -102,11 +102,7 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale, stor
                     locale={locale}
                     controls={controls}
                     presentation={presentation}
-                    onViewModeChange={(mode) => {
-                        setViewChoice(mode);
-                        // The cookie the page reads on the server, so the next visit renders this view first.
-                        document.cookie = viewModeCookieFor(mode);
-                    }}
+                    onViewModeChange={chooseView}
                     onSelectRecipe={(id) => router.push(`/${locale}/recipes/${id}` as Route)}
                     onCreateRecipe={onCreateRecipe}
                     onPasteIngredients={onPasteIngredients}

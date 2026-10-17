@@ -33,6 +33,10 @@ import { makeRecipe, makeRecipesPage } from './__fixtures__/recipeFixtures';
 
 const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
 
+// The grid/list choice is an account setting (ADR-0059), covered over a real cache in `src/components/recipes/__tests__`.
+vi.mock('@/hooks/useRecipeViewSetting', () => ({
+    useRecipeViewSetting: () => ({ viewChoice: undefined, chooseView: () => undefined, saveFailed: false }),
+}));
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ push: pushMock }),
 }));

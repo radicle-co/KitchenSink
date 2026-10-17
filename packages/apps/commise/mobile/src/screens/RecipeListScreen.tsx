@@ -12,7 +12,7 @@
  *
  * Slice 4 of the UI overhaul (`docs/design/uiOverhaul/buildSpec.md` §4.3): the screen reads the WHOLE library in
  * chunks of up to 500 (`recipeQueries(client).library`), so the chips, their counts and the no-match states are right
- * past the first page (blueprint A11); forwards the sort to the server; keeps the list/grid choice per device; and
+ * past the first page (blueprint A11); forwards the sort to the server; reads and saves the list/grid choice as an account setting; and
  * decides the card variant from the container class. The My recipes · Collections segments are the host's to pass
  * (`segments`), with the large title's avatar (`headerAction`).
  *
@@ -25,6 +25,7 @@ import {
     RecipeListLoading,
     RecipeListResults,
     nutritionSlotRenderer,
+    ViewSaveFailedNotice,
     type ListViewMode,
     type RecipesSegmentControl,
 } from '@commise/features-recipes';
@@ -45,7 +46,7 @@ import type { ScrollBind } from '@commise/ui/scroll-host';
 import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { JSX } from 'react';
 
-import { useStoredViewMode } from '../hooks/useStoredViewMode.js';
+import { useRecipeViewSetting } from '../hooks/useRecipeViewSetting.js';
 
 /** Props for {@link RecipeListScreen}. */
 export interface RecipeListScreenProps {
@@ -83,7 +84,8 @@ export function RecipeListScreen({
     scrollBind,
 }: RecipeListScreenProps): JSX.Element {
     const controls = useRecipeLibraryControls();
-    const [viewChoice, setViewChoice] = useStoredViewMode();
+    // The grid/list choice is an account setting (ADR-0059), shared with the web app and the collection screen.
+    const { viewChoice, chooseView, saveFailed } = useRecipeViewSetting();
     const recovery = useRecoverySignal();
     const presentation = useRecipeListPresentation(viewChoice);
 
@@ -96,6 +98,7 @@ export function RecipeListScreen({
             {...(headerAction === undefined ? {} : { headerAction })}
             headingFocusSignal={recovery.signal}
         >
+            {saveFailed ? <ViewSaveFailedNotice /> : null}
             <QueryBoundary
                 loading={<RecipeListLoading variant={presentation.variant} />}
                 renderError={({ resetErrorBoundary }) => (
@@ -105,7 +108,7 @@ export function RecipeListScreen({
                 <SettledRecipeList
                     controls={controls}
                     presentation={presentation}
-                    onViewModeChange={setViewChoice}
+                    onViewModeChange={chooseView}
                     onSelectRecipe={onSelectRecipe}
                     onCreateRecipe={onCreateRecipe}
                     onPasteIngredients={onPasteIngredients}

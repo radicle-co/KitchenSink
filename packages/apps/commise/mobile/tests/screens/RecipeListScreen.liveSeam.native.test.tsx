@@ -11,7 +11,7 @@
  * REWRITTEN (header only) for the suspense conversion: the chain used to end in a `status` flag the leaf branched on;
  * it now ends in which boundary branch renders. Every assertion is on the surface and is unchanged.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
 
 import { renderWithRecipeClient } from '@commise/test-utils';
@@ -19,6 +19,12 @@ import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 
 import { RecipeListScreen } from '../../src/screens/RecipeListScreen.js';
 import { makeRecipe, makeRecipePage } from '../__fixtures__/recipes.js';
+
+// The grid/list choice is an account setting (ADR-0059) with its own tests (`tests/hooks/useRecipeViewSetting.native.test.tsx`);
+// this file is about the transport seam, so the cook has made no choice and the save has not failed.
+vi.mock('../../src/hooks/useRecipeViewSetting.js', () => ({
+    useRecipeViewSetting: () => ({ viewChoice: undefined, chooseView: () => undefined, saveFailed: false }),
+}));
 
 const BASE_URL = 'https://recipes.example.test';
 

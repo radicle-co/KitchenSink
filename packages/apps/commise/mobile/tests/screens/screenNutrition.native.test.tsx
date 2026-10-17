@@ -73,6 +73,12 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
     default: { getItem: async () => null, setItem: async () => undefined },
 }));
 
+// The grid/list choice is an account setting (ADR-0059) with its own tests (`tests/hooks/useRecipeViewSetting.native.test.tsx`);
+// this file is not about it, so the cook has made no choice and the save has not failed.
+vi.mock('../../src/hooks/useRecipeViewSetting.js', () => ({
+    useRecipeViewSetting: () => ({ viewChoice: undefined, chooseView: () => undefined, saveFailed: false }),
+}));
+
 const { getCollectionByIdMock, listRecipesMock, searchRecipesMock } = vi.hoisted(() => ({
     getCollectionByIdMock: vi.fn(),
     listRecipesMock: vi.fn(),

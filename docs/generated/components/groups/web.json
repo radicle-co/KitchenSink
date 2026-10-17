@@ -6,11 +6,11 @@
     "coverage": {
         "components": 81,
         "implementations": 81,
-        "props": 98,
+        "props": 96,
         "documentedComponents": 78,
         "implementationsWithModuleDoc": 62,
         "implementationsWithComponentDoc": 57,
-        "documentedProps": 65,
+        "documentedProps": 63,
         "classifiedComponents": 34,
         "componentsWithPatternTag": 29,
         "crossPlatformComponents": 0
@@ -39,7 +39,7 @@
                     "dir": "packages/apps/commise/web/src/app/[locale]/collections/[id]",
                     "moduleDoc": "",
                     "moduleTags": [],
-                    "description": "Collection-detail route (`/[locale]/collections/[id]`). A thin server page: it enforces auth and hands the\ncollection id + locale to the client {@link CollectionDetailContainer}, which fetches the collection and\nrenders the detail view (or a localized loading / not-found / error affordance).\n\nL9: renders inside the shared {@link AppShell} with `recipes` active — collections are a recipe-domain\nsurface, and the shared nav model has no separate collections destination.",
+                    "description": "Collection-detail route (`/[locale]/collections/[id]`). A thin server page: it enforces auth and hands the\ncollection id + locale to the client {@link CollectionDetailContainer}, which fetches the collection and\nrenders the detail view (or a localized loading / not-found / error affordance).\n\nThe collection is NOT prefetched (its read is hydration-gated on the client). What IS read here is the cook's\nlist/grid choice — an account setting shared with My recipes (ADR-0059) — through `prefetchUserSettings`, so the\nchoice is in the client cache before the collection resolves and the members never draw in the width's default view\nfirst. A failed read dehydrates to nothing and the view follows the width.\n\nL9: renders inside the shared {@link AppShell} with `recipes` active — collections are a recipe-domain\nsurface, and the shared nav model has no separate collections destination.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "default",
@@ -1190,7 +1190,7 @@
                     "dir": "packages/apps/commise/web/src/app/[locale]/recipes",
                     "moduleDoc": "",
                     "moduleTags": [],
-                    "description": "Recipe-list route (`/[locale]/recipes`). A thin server page: it enforces auth (these are the caller's\nprivate recipes) and hands the locale to the client {@link RecipeListContainer}, which owns the data\nfetching. Route protection is at the resource, per the app's middleware ADR.\n\nB19 — SSR prefetch + `HydrationBoundary`: a server `QueryClient` prefetches the SAME query the container's\n`useRecipes()` reads (the P5 `recipeQueries(client).list({})` factory — the identical `queryKey`/`queryFn`\nas the client hook, so the hydrated cache entry IS the one the hook subscribes to, never a near-miss key).\nThe server client is built from THIS request's own Clerk session token (`auth().getToken()`, the same\npattern `profile/page.tsx` already proves), so the prefetch fetches the CALLER's own recipes — not a\ngeneric/unauthenticated read. `prefetchQuery` never throws (TanStack Query catches the query's own error\ninternally) and `dehydrate()` only serializes `status: 'success'` queries by default, so a failed prefetch\n(offline API, cold start, …) silently dehydrates to an EMPTY state rather than 500ing this page — the\nclient container then just runs its normal client-side fetch, exactly as it did before B19.",
+                    "description": "Recipe-list route (`/[locale]/recipes`). A thin server page: it enforces auth (these are the caller's\nprivate recipes) and hands the locale to the client {@link RecipeListContainer}, which owns the data\nfetching. Route protection is at the resource, per the app's middleware ADR.\n\nB19 — SSR prefetch + `HydrationBoundary`: a server `QueryClient` prefetches the SAME query the container's\n`useRecipes()` reads (the P5 `recipeQueries(client).list({})` factory — the identical `queryKey`/`queryFn`\nas the client hook, so the hydrated cache entry IS the one the hook subscribes to, never a near-miss key).\nThe server client is built from THIS request's own Clerk session token (`auth().getToken()`, the same\npattern `profile/page.tsx` already proves), so the prefetch fetches the CALLER's own recipes — not a\ngeneric/unauthenticated read. `prefetchQuery` never throws (TanStack Query catches the query's own error\ninternally) and `dehydrate()` only serializes `status: 'success'` queries by default, so a failed prefetch\n(offline API, cold start, …) silently dehydrates to an EMPTY state rather than 500ing this page — the\nclient container then just runs its normal client-side fetch, exactly as it did before B19.\n\nThe cook's list/grid choice (an account setting, ADR-0059) is prefetched into the SAME boundary under the settings\nkey (`prefetchUserSettings`), in parallel with the library, so the server renders the cook's view.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "default",
@@ -3646,7 +3646,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/CollectionDetailContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the collection-detail route (orchestration; W5 Task 12; slice 5 of the UI overhaul, `docs/design/uiOverhaul/buildSpec.md`\n§5.2, §5.3). It reads a single collection (with its member recipes) and composes the shared building blocks around it:\nthe collection header (back, name, meta, description, Add recipes and the ⋯ menu), the members list, the rename sheet,\nthe delete confirmation, the Premium sheet, the add-recipes picker and the pull-updates dialog.\nThe fetch-state affordances (loading, generic error with retry, distinct not-found) belong to the app, not the blocks.\n\nThe read is a suspense read under a `ClientQueryBoundary` — hydration-gated, because this route is not\nserver-prefetched. A background refetch that fails while the collection is on screen does not throw, so the cook keeps\nreading it, and the header's refresh notice says so and offers a retry. The settled {@link CollectionDetailView} is KEYED\non the id: the App Router keeps this container mounted across `/collections/A` → `/collections/B`, and the remount is what\nclears A's pending removal, sheets and pull state before B renders.\n\nRemote state stays in TanStack Query: the view is derived from the query, never copied into local state. The work —\nremoval, visibility, pull, rename, delete, Save a copy and the picker — is `useCollectionDetail`'s, shared with the mobile\nscreen, and the settled body is `CollectionDetailBody`'s. What stays here is what is web's: the page frame, the\nhydration-gated read boundary, the router, the stored view choice (a cookie) and the links that make a card an anchor.\n\nPaid-feature gate (plan 2026-10-14-009 D14): the viewer's `paidFeatureStateOf` the profile — the SAME signal the recipe\ndetail container and the mobile screen read — decides whether the ⋯ menu offers the visibility item and what choosing\nprivate does. While the profile loads, or if it failed, nothing private is offered.",
+                    "moduleDoc": "Container for the collection-detail route (orchestration; W5 Task 12; slice 5 of the UI overhaul, `docs/design/uiOverhaul/buildSpec.md`\n§5.2, §5.3). It reads a single collection (with its member recipes) and composes the shared building blocks around it:\nthe collection header (back, name, meta, description, Add recipes and the ⋯ menu), the members list, the rename sheet,\nthe delete confirmation, the Premium sheet, the add-recipes picker and the pull-updates dialog.\nThe fetch-state affordances (loading, generic error with retry, distinct not-found) belong to the app, not the blocks.\n\nThe read is a suspense read under a `ClientQueryBoundary` — hydration-gated, because this route is not\nserver-prefetched. A background refetch that fails while the collection is on screen does not throw, so the cook keeps\nreading it, and the header's refresh notice says so and offers a retry. The settled {@link CollectionDetailView} is KEYED\non the id: the App Router keeps this container mounted across `/collections/A` → `/collections/B`, and the remount is what\nclears A's pending removal, sheets and pull state before B renders.\n\nRemote state stays in TanStack Query: the view is derived from the query, never copied into local state. The work —\nremoval, visibility, pull, rename, delete, Save a copy and the picker — is `useCollectionDetail`'s, shared with the mobile\nscreen, and the settled body is `CollectionDetailBody`'s. What stays here is what is web's: the page frame, the\nhydration-gated read boundary, the router, the grid/list choice (an account setting) and the links that make a card an anchor.\n\nPaid-feature gate (plan 2026-10-14-009 D14): the viewer's `paidFeatureStateOf` the profile — the SAME signal the recipe\ndetail container and the mobile screen read — decides whether the ⋯ menu offers the visibility item and what choosing\nprivate does. While the profile loads, or if it failed, nothing private is offered.",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -3687,18 +3687,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The active route locale, used to build locale-prefixed navigation targets.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/CollectionDetailContainer.tsx"
-                        },
-                        {
-                            "name": "storedViewMode",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"list\"",
-                                "\"grid\""
-                            ],
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The cook's stored list/grid choice (the cookie the page read), so the server renders it.",
                             "declaredIn": "packages/apps/commise/web/src/components/recipes/CollectionDetailContainer.tsx"
                         }
                     ],
@@ -4192,7 +4180,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeListContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the My recipes route (orchestration, `docs/design/uiOverhaul/buildSpec.md` §4.3): the shared list\nFRAME around a suspense read of the cook's whole library.\n\nThe library is read with `recipeQueries(client).library` — chunks of up to 500 recipes — because the search and the\nchips narrow it on the device: over one server page of 20 they misreported every count past the first page\n(`docs/architecture/uiOverhaulBlueprint.md` A11). The sort is the server's (`sortBy`), so it is correct across chunks;\na new sort is a new key, read under `useDeferredValue` so the cards on screen stay until the new order lands.\n\nThe container owns what outlives the boundary — the search term, the chips, the sort and the list/grid choice — and\ndecides the presentation: the container class of `<main>`, the stored view (a cookie the page reads on the server, so\nthe first render is the cook's choice) and so the card variant (`cardVariantOf`). The frame sits outside the boundary,\nso a pending or failed read never unmounts the field a cook is typing in; it hides the field on a settled empty\nlibrary, read through a cache-only observer of the same key.",
+                    "moduleDoc": "Container for the My recipes route (orchestration, `docs/design/uiOverhaul/buildSpec.md` §4.3): the shared list\nFRAME around a suspense read of the cook's whole library.\n\nThe library is read with `recipeQueries(client).library` — chunks of up to 500 recipes — because the search and the\nchips narrow it on the device: over one server page of 20 they misreported every count past the first page\n(`docs/architecture/uiOverhaulBlueprint.md` A11). The sort is the server's (`sortBy`), so it is correct across chunks;\na new sort is a new key, read under `useDeferredValue` so the cards on screen stay until the new order lands.\n\nThe container owns what outlives the boundary — the search term, the chips, the sort and the list/grid choice — and\ndecides the presentation: the container class of `<main>`, the cook's view (an account setting the page's server render\nput in the cache, so the first render is the cook's choice) and so the card variant (`cardVariantOf`). The frame sits outside the boundary,\nso a pending or failed read never unmounts the field a cook is typing in; it hides the field on a settled empty\nlibrary, read through a cache-only observer of the same key.",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -4203,7 +4191,7 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The active locale and the stored view."
+                            "text": "props - The active locale and the large title's avatar."
                         },
                         {
                             "name": "returns",
@@ -4229,18 +4217,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The active route locale, used to build locale-prefixed navigation targets.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeListContainer.tsx"
-                        },
-                        {
-                            "name": "storedViewMode",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"list\"",
-                                "\"grid\""
-                            ],
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The cook's list/grid choice, read from its cookie on the server. Absent → the width's default.",
                             "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeListContainer.tsx"
                         }
                     ],

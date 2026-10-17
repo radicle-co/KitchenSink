@@ -16,7 +16,7 @@
  * Remote state stays in TanStack Query: the view is derived from the query, never copied into local state. The work —
  * removal, visibility, pull, rename, delete, Save a copy and the picker — is `useCollectionDetail`'s, shared with the mobile
  * screen, and the settled body is `CollectionDetailBody`'s. What stays here is what is web's: the page frame, the
- * hydration-gated read boundary, the router, the stored view choice (a cookie) and the links that make a card an anchor.
+ * hydration-gated read boundary, the router, the grid/list choice (an account setting) and the links that make a card an anchor.
  *
  * Paid-feature gate (plan 2026-10-14-009 D14): the viewer's `paidFeatureStateOf` the profile — the SAME signal the recipe
  * detail container and the mobile screen read — decides whether the ⋯ menu offers the visibility item and what choosing
@@ -25,7 +25,7 @@
  * @pattern Facade — one route over the shared collection-detail session and body
  * @pattern Port — the router, as the session's navigation
  */
-import { collectionMessages, viewModeCookieFor, type ListViewMode } from '@commise/features-recipes';
+import { collectionMessages, ViewSaveFailedNotice } from '@commise/features-recipes';
 import {
     CollectionDetailBody,
     CollectionLoadError,
@@ -41,9 +41,10 @@ import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useState, type FC } from 'react';
+import type { FC } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
+import { useRecipeViewSetting } from '@/hooks/useRecipeViewSetting';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
 /** Props for {@link CollectionDetailContainer}. */
@@ -52,8 +53,6 @@ export interface CollectionDetailContainerProps {
     readonly id: string;
     /** The active route locale, used to build locale-prefixed navigation targets. */
     readonly locale: string;
-    /** The cook's stored list/grid choice (the cookie the page read), so the server renders it. */
-    readonly storedViewMode?: ListViewMode;
 }
 
 /**
@@ -62,7 +61,7 @@ export interface CollectionDetailContainerProps {
  * @param props - The collection id to load and the active locale.
  * @returns The boundary: loading, not-found or a retrying error, and the composed detail view once the read settles.
  */
-export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ id, locale, storedViewMode }) => {
+export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ id, locale }) => {
     const { detail, list } = useMessages(collectionMessages);
     const router = useRouter();
     const collectionsHref = `/${locale}/collections`;
@@ -84,12 +83,7 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
             )}
             resetKeys={[id]}
         >
-            <CollectionDetailView
-                key={id}
-                id={id}
-                locale={locale}
-                {...(storedViewMode === undefined ? {} : { storedViewMode })}
-            />
+            <CollectionDetailView key={id} id={id} locale={locale} />
         </ClientQueryBoundary>
     );
 };
@@ -102,7 +96,7 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
  * @throws {Error} For an empty collection id — a read that cannot be made fails into the boundary, as the generic
  *   failure, rather than issuing a request for `''` (B21).
  */
-const CollectionDetailView: FC<CollectionDetailContainerProps> = ({ id, locale, storedViewMode }) => {
+const CollectionDetailView: FC<CollectionDetailContainerProps> = ({ id, locale }) => {
     if (id.length === 0) {
         throw new Error('A collection detail needs a collection id.');
     }
@@ -114,7 +108,8 @@ const CollectionDetailView: FC<CollectionDetailContainerProps> = ({ id, locale, 
     // A failed refresh of the collection on screen does not throw into the boundary: it keeps the collection and is
     // reported by the header's refresh notice.
     const refreshNotice = useRefreshNotice(query);
-    const [viewChoice, setViewChoice] = useState<ListViewMode | undefined>(storedViewMode);
+    // The grid/list choice is an account setting shared with My recipes (ADR-0059); the page's server render put it in the cache.
+    const { viewChoice, chooseView, saveFailed } = useRecipeViewSetting();
 
     const listHref = `/${locale}/collections`;
     const nav: CollectionDetailNav = {
@@ -128,15 +123,13 @@ const CollectionDetailView: FC<CollectionDetailContainerProps> = ({ id, locale, 
         // Plan 2026-10-14-009 D14: private from the viewer's paid features alone (owner ruling 2026-10-13).
         paidFeatures: paidFeatureStateOf(profile),
         viewChoice,
-        onViewChoice: (mode) => {
-            setViewChoice(mode);
-            document.cookie = viewModeCookieFor(mode);
-        },
+        onViewChoice: chooseView,
         nav,
     });
 
     return (
         <section aria-label={query.data.name} className="mx-auto flex w-full max-w-page flex-col gap-6">
+            {saveFailed ? <ViewSaveFailedNotice /> : null}
             <CollectionDetailBody
                 detail={detail}
                 onBack={() => router.push(listHref as Route)}

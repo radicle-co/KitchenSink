@@ -70,7 +70,7 @@ test.describe('the keyboard-shortcuts setting', () => {
 
         await expect(page.getByRole('switch', { name: SWITCH })).toHaveAttribute('aria-checked', 'false');
         await expect.poll(() => settings.patches).toEqual([{ searchShortcut: false }]);
-        expect(settings.current()).toEqual({ searchShortcut: false });
+        expect(settings.current()).toMatchObject({ searchShortcut: false });
 
         await page.reload();
 
@@ -98,7 +98,7 @@ test.describe('the keyboard-shortcuts setting', () => {
         await page.goto(route('/profile'));
         await expect(page.getByRole('switch', { name: SWITCH })).toHaveAttribute('aria-checked', 'false');
         await page.getByRole('switch', { name: SWITCH }).click();
-        await expect.poll(() => settings.current()).toEqual({ searchShortcut: true });
+        await expect.poll(() => settings.current()).toMatchObject({ searchShortcut: true });
 
         expect(await slashFocusesSearch(page)).toBe(true);
     });
@@ -115,6 +115,6 @@ test.describe('the keyboard-shortcuts setting', () => {
             page.getByRole('alert').filter({ hasText: 'We couldn’t save that setting. Try again.' }),
         ).toBeVisible();
         await expect(page.getByRole('switch', { name: SWITCH })).toHaveAttribute('aria-checked', 'true');
-        expect(settings.current()).toEqual({ searchShortcut: true });
+        expect(settings.current()).toMatchObject({ searchShortcut: true });
     });
 });

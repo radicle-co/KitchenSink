@@ -54,6 +54,8 @@ export interface RecipeListMessages {
     readonly retry: string;
     /** The notice when refreshing the recipes already on screen fails. */
     readonly refreshError: string;
+    /** The notice when the cook's list/grid choice could not be saved; the view has already gone back to what it was. */
+    readonly viewSaveFailed: string;
     /** The Collections segment of the Recipes screen (`buildSpec.md` §4.3). */
     readonly tabCollections: string;
     /** The accessible name of the My recipes · Collections segments. */
@@ -908,6 +910,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             errorTitle: 'We couldn’t load your recipes.',
             retry: 'Try again',
             refreshError: 'We couldn’t refresh your recipes.',
+            viewSaveFailed: 'We couldn’t save your view. Try choosing it again.',
             tabCollections: 'Collections',
             segmentsLabel: 'Recipes',
             pasteIngredients: 'Paste ingredients',

@@ -40,6 +40,12 @@ vi.mock('@commise/features-recipes/hooks', async (importOriginal) => ({
     useRecipeNutritionBatches: () => () => null,
 }));
 
+// The grid/list choice is an account setting (ADR-0059). The shared hook has its own tests over a real cache
+// (`tests/hooks/useRecipeViewSetting.native.test.tsx`); here the screen is shown what each state of it draws.
+const { useRecipeViewSettingMock } = vi.hoisted(() => ({ useRecipeViewSettingMock: vi.fn() }));
+
+vi.mock('../../src/hooks/useRecipeViewSetting.js', () => ({ useRecipeViewSetting: useRecipeViewSettingMock }));
+
 /** The fake client and request cache each test renders over. */
 let client: ReturnType<typeof createFakeRecipeServiceClient>;
 let queryClient: QueryClient;
@@ -62,6 +68,7 @@ afterEach(cleanup);
 
 beforeEach(() => {
     vi.clearAllMocks();
+    useRecipeViewSettingMock.mockReturnValue({ viewChoice: undefined, chooseView: vi.fn(), saveFailed: false });
     client = createFakeRecipeServiceClient();
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
     // Unseeded, a read stays pending — the loading state.
@@ -326,5 +333,46 @@ describe('RecipeListScreen — the whole library (A11)', () => {
 
         expect(screen.getByText('121 recipes')).toBeTruthy();
         expect(screen.getByRole('checkbox', { name: 'Peruvian 1' })).toBeTruthy();
+    });
+});
+
+describe('RecipeListScreen — the list/grid choice is an account setting', () => {
+    beforeEach(() => seedLibrary([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]));
+
+    it.each(['grid', 'list'] as const)('CHOSEN: shows the %s the account holds', async (viewChoice) => {
+        useRecipeViewSettingMock.mockReturnValue({ viewChoice, chooseView: vi.fn(), saveFailed: false });
+
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
+
+        const label = viewChoice === 'grid' ? 'Grid view' : 'List view';
+
+        expect((await screen.findByRole('radio', { name: label })).getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('hands a choice to the setting', async () => {
+        const chooseView = vi.fn();
+        useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'list', chooseView, saveFailed: false });
+
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
+        fireEvent.click(await screen.findByRole('radio', { name: 'Grid view' }));
+
+        expect(chooseView).toHaveBeenCalledWith('grid');
+    });
+
+    it('FAILED: says the choice was not saved, in an alert', async () => {
+        useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'list', chooseView: vi.fn(), saveFailed: true });
+
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
+
+        expect((await screen.findByRole('alert')).textContent).toBe(
+            'We couldn’t save your view. Try choosing it again.',
+        );
+    });
+
+    it('SAVED: shows no alert', async () => {
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
+
+        await screen.findByRole('link', { name: 'Weeknight Pasta' });
+        expect(screen.queryByRole('alert')).toBeNull();
     });
 });

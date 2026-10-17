@@ -283,7 +283,7 @@ compact 320                                expanded (main ≈ 1024, content-wide
 - **Result bar:** one row. Count on the inline start (`meta`, `slate`), "12 recipes" (ICU plural, existing key).
   On the inline end a two-option **view switch** (list ☷ / grid ▦) from the mockup: a `Chip kind="choice"` pair
   with icon-only visuals, accessible names "List view" / "Grid view". Default: list at `@narrow`, grid above.
-  The choice persists per device (local storage / AsyncStorage key `recipes.viewMode`).
+  The choice is an account setting (`recipeViewMode`, ADR-0059, owner ruling 2026-10-17): saved to the server, shared by web and mobile, and kept in no cookie or device store. Until the cook chooses, the width picks.
 - **Results:** list view = row cards, `gap-within` (8) between them. Grid view = grid cards,
   `grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr))`, `gap-grid`, subgrid rows (shared §12).
 - **Scroll budget, 320 × 640:** top bar 56 + tabs 44 + 16 + search 48 + 12 + chips 44 + 12 + result bar 24 + 8

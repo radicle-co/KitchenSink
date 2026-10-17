@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 154,
-        "implementations": 262,
+        "components": 155,
+        "implementations": 264,
         "props": 1288,
-        "documentedComponents": 154,
-        "implementationsWithModuleDoc": 262,
-        "implementationsWithComponentDoc": 155,
+        "documentedComponents": 155,
+        "implementationsWithModuleDoc": 264,
+        "implementationsWithComponentDoc": 157,
         "documentedProps": 1009,
-        "classifiedComponents": 134,
+        "classifiedComponents": 135,
         "componentsWithPatternTag": 77,
-        "crossPlatformComponents": 108
+        "crossPlatformComponents": 109
     },
     "components": [
         {
@@ -19407,6 +19407,83 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/list/ViewSaveFailedNotice",
+            "name": "ViewSaveFailedNotice",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/list",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ViewSaveFailedNotice",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/list/ViewSaveFailedNotice.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/list",
+                    "moduleDoc": "@commise/features-recipes — web notice for a failed save of the library's grid/list choice (presentational).\n\nThe choice is an account setting (ADR-0059): the screen shows it at once, and when the save fails the view has already\ngone back to what it was. This says so, as an alert, so a screen reader hears it without moving focus. The host\nrenders it only while the save is failed (`useRecipeViewSetting().saveFailed`).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes — web notice for a failed save of the library's grid/list choice (presentational)."
+                        }
+                    ],
+                    "description": "Says the cook's grid/list choice was not saved; the view has already gone back to what it was. An alert, so it is\nannounced without moving focus. The host renders it only while the save is failed.",
+                    "tags": [
+                        {
+                            "name": "returns",
+                            "text": "The notice."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ViewSaveFailedNotice",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/list/ViewSaveFailedNotice.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/list",
+                    "moduleDoc": "@commise/features-recipes — native notice for a failed save of the library's grid/list choice\n(presentational). Mirrors `ViewSaveFailedNotice.tsx`: the view has already gone back to what it was, and this says so.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes — native notice for a failed save of the library's grid/list choice"
+                        }
+                    ],
+                    "description": "Says the cook's grid/list choice was not saved; the view has already gone back to what it was. An alert, so it is\nannounced without moving focus. The host renders it only while the save is failed.",
+                    "tags": [
+                        {
+                            "name": "returns",
+                            "text": "The notice."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
                         "orchestration": false
                     }
                 }

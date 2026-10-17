@@ -530,7 +530,7 @@ runs:
               DIR: ${{ inputs.directory }}
           run: |
               set -euo pipefail
-              ${DIR}/node_modules/.bin/cdk deploy "${SCHEMA_STACK}-${STAGE}" \
+              ${DIR}/node_modules/.bin/cdk deploy "${SCHEMA_STACK}-${STAGE}" --no-previous-parameters \
                   --app "${DIR}/node_modules/.bin/tsx ${DIR}/bin/app.ts" \
                   --exclusively --require-approval never
 

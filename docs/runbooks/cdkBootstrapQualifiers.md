@@ -47,7 +47,7 @@ APP="packages/infra/global/node_modules/.bin/tsx packages/infra/global/bin/accou
 # Review first: this shows the managed policies that will be created. Nothing is changed.
 $CDK diff CiExecutionPolicy -c ciPoliciesOwnerDeploy=true --app "$APP"
 
-$CDK deploy CiExecutionPolicy -c ciPoliciesOwnerDeploy=true --app "$APP" --require-approval never
+$CDK deploy CiExecutionPolicy --no-previous-parameters -c ciPoliciesOwnerDeploy=true --app "$APP" --require-approval never
 ```
 
 Check the result: 20 managed policies (3 boundaries, 7 + 7 + 3 execution policies), all with the prefix `kitchensink-ci-`.
@@ -140,7 +140,7 @@ The new roles and buckets are additive and the default bootstrap is untouched, s
     ```bash
     # Do NOT pass -c ciPoliciesOwnerDeploy here: the policy stack was step 1 and is not part of this deploy.
     $CDK diff --all --app "$APP"
-    $CDK deploy --all --app "$APP" --require-approval never
+    $CDK deploy --all --no-previous-parameters --app "$APP" --require-approval never
     ```
     Expect the CDK to warn that it could not assume `cdk-ksaccount-deploy-role-...` (it trusts only `kitchensink-gha-prod`, not your admin session) and to continue with your own credentials; the stack still runs through the `ksaccount` execution role, so confirm in the stack events that the stack's role is `cdk-ksaccount-cfn-exec-role-...`. If your CDK version refuses instead of falling back, stop and report; do not widen the deploy role's trust to get past it.
 4. Only then let a workflow deploy through the new qualifiers: sandbox first, production last.

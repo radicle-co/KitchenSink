@@ -15,7 +15,7 @@
         "format:check": "prettier --check .",
         "bundle:lambda": "node esbuild.mjs",
         "synth": "cdk synth --app 'npx tsx bin/app.ts'",
-        "deploy": "npm run bundle:lambda && cdk deploy --app 'npx tsx bin/app.ts'"
+        "deploy": "npm run bundle:lambda && cdk deploy --app 'npx tsx bin/app.ts' --no-previous-parameters"
     },
     "devDependencies": {
         "@aws-sdk/client-cloudformation": "^3.935.0",

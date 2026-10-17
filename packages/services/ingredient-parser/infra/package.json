@@ -20,7 +20,7 @@
     ],
     "scripts": {
         "build": "tsc -p tsconfig.json",
-        "deploy": "npm run bundle:lambda --prefix .. && cdk deploy --app 'npx tsx bin/app.ts'",
+        "deploy": "npm run bundle:lambda --prefix .. && cdk deploy --app 'npx tsx bin/app.ts' --no-previous-parameters",
         "synth": "npm run bundle:lambda --prefix .. && cdk synth --app 'npx tsx bin/app.ts'",
         "test": "vitest run",
         "test:integration": "vitest run --config vitest.integration.config.ts",

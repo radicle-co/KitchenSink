@@ -848,7 +848,7 @@ jobs:
             - name: CDK Deploy (global infra)
               if: steps.flags.outputs.deploy_global == 'true'
               run: |
-                  packages/infra/global/node_modules/.bin/cdk deploy --app "packages/infra/global/node_modules/.bin/tsx packages/infra/global/bin/app.ts" --all --require-approval never
+                  packages/infra/global/node_modules/.bin/cdk deploy --app "packages/infra/global/node_modules/.bin/tsx packages/infra/global/bin/app.ts" --no-previous-parameters --all --require-approval never
 
             # ⛔ `cdk deploy` exiting 0 proves the stacks CONVERGED, not that the things inside them arrived.
             # This tier is where that gap has already cost the most: the DataStack's bootstrap handler ran in
@@ -946,7 +946,7 @@ jobs:
                   IDENTITY_IMAGE_TAG: ${{ github.sha }}
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
               run: |
-                  packages/services/identity/infra/node_modules/.bin/cdk deploy "kitchensink-identity-schema-${STAGE}" \
+                  packages/services/identity/infra/node_modules/.bin/cdk deploy "kitchensink-identity-schema-${STAGE}" --no-previous-parameters \
                     --app "packages/services/identity/infra/node_modules/.bin/tsx packages/services/identity/infra/bin/app.ts" \
                     --exclusively --require-approval never
 
@@ -983,7 +983,7 @@ jobs:
                   IDENTITY_IMAGE_TAG: ${{ github.sha }}
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
               run: |
-                  packages/services/identity/infra/node_modules/.bin/cdk deploy --app "packages/services/identity/infra/node_modules/.bin/tsx packages/services/identity/infra/bin/app.ts" --all --require-approval never
+                  packages/services/identity/infra/node_modules/.bin/cdk deploy --app "packages/services/identity/infra/node_modules/.bin/tsx packages/services/identity/infra/bin/app.ts" --no-previous-parameters --all --require-approval never
 
             # The identity stack's RESOURCE check. The two smokes further down assert the ORIGIN — live,
             # current, browser-reachable — and say nothing about its Lambdas, among them the migration runner
@@ -1007,7 +1007,7 @@ jobs:
               env:
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
                   SENTRY_RELEASE: ${{ github.sha }}
-              run: packages/services/identity-webhooks/infra/node_modules/.bin/cdk deploy --app "packages/services/identity-webhooks/infra/node_modules/.bin/tsx packages/services/identity-webhooks/infra/bin/app.ts" --all --require-approval never
+              run: packages/services/identity-webhooks/infra/node_modules/.bin/cdk deploy --app "packages/services/identity-webhooks/infra/node_modules/.bin/tsx packages/services/identity-webhooks/infra/bin/app.ts" --no-previous-parameters --all --require-approval never
 
             # ⛔ THE only post-deploy signal this stack has ever had, and the one that needed it most: the
             # webhooks app serves no origin, so every check in this file was blind to it. It is five
@@ -1129,7 +1129,7 @@ jobs:
               env:
                   SENTRY_RELEASE: ${{ github.sha }}
               run: |
-                  packages/services/remote-search/infra/node_modules/.bin/cdk deploy --app "packages/services/remote-search/infra/node_modules/.bin/tsx packages/services/remote-search/infra/bin/app.ts" \
+                  packages/services/remote-search/infra/node_modules/.bin/cdk deploy --app "packages/services/remote-search/infra/node_modules/.bin/tsx packages/services/remote-search/infra/bin/app.ts" --no-previous-parameters \
                     --all --require-approval never
 
             - name: Verify the remote search deployment — every resource, handler and reference
@@ -1198,7 +1198,7 @@ jobs:
                   FOOD_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
                   FOOD_IMAGE_TAG: ${{ github.sha }}
               run: |
-                  packages/services/food-service/infra/node_modules/.bin/cdk deploy "kitchensink-food-schema-${STAGE}" \
+                  packages/services/food-service/infra/node_modules/.bin/cdk deploy "kitchensink-food-schema-${STAGE}" --no-previous-parameters \
                     --app "packages/services/food-service/infra/node_modules/.bin/tsx packages/services/food-service/infra/bin/app.ts" \
                     --exclusively --require-approval never
 
@@ -1235,7 +1235,7 @@ jobs:
                   FOOD_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
                   FOOD_IMAGE_TAG: ${{ github.sha }}
               run: |
-                  packages/services/food-service/infra/node_modules/.bin/cdk deploy --app "packages/services/food-service/infra/node_modules/.bin/tsx packages/services/food-service/infra/bin/app.ts" \
+                  packages/services/food-service/infra/node_modules/.bin/cdk deploy --app "packages/services/food-service/infra/node_modules/.bin/tsx packages/services/food-service/infra/bin/app.ts" --no-previous-parameters \
                     --all --require-approval never
 
             # The `--all` above deploys the schema stack again. In this job it ships the same `distSeed/` the seed step
@@ -1357,7 +1357,7 @@ jobs:
             - name: CDK Deploy (ingredient parser — the CRF engine parseLine invokes)
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: |
-                  packages/services/ingredient-parser/infra/node_modules/.bin/cdk deploy --app "packages/services/ingredient-parser/infra/node_modules/.bin/tsx packages/services/ingredient-parser/infra/bin/app.ts" \
+                  packages/services/ingredient-parser/infra/node_modules/.bin/cdk deploy --app "packages/services/ingredient-parser/infra/node_modules/.bin/tsx packages/services/ingredient-parser/infra/bin/app.ts" --no-previous-parameters \
                     --all --require-approval never
 
             # ⛔ HALF ONE of the proof ADR-0025's residual risk asks for. A Lambda whose code package will
@@ -1433,7 +1433,7 @@ jobs:
                   RECIPE_IMAGE_TAG: ${{ github.sha }}
                   RECIPE_FOOD_SERVICE_URL: ${{ steps.food.outputs.url }}
               run: |
-                  packages/services/recipe-service/infra/node_modules/.bin/cdk deploy "kitchensink-recipe-schema-${STAGE}" \
+                  packages/services/recipe-service/infra/node_modules/.bin/cdk deploy "kitchensink-recipe-schema-${STAGE}" --no-previous-parameters \
                     --app "packages/services/recipe-service/infra/node_modules/.bin/tsx packages/services/recipe-service/infra/bin/app.ts" \
                     --exclusively --require-approval never
 
@@ -1461,7 +1461,7 @@ jobs:
                   RECIPE_MEDIA_BUCKET: ${{ steps.recipe-infra.outputs.media_bucket }}
                   HANDLE_SYNC_TOPIC_ARN: ${{ steps.recipe-infra.outputs.handle_sync_topic_arn }}
               run: |
-                  packages/services/recipe-workers/infra/node_modules/.bin/cdk deploy --app "packages/services/recipe-workers/infra/node_modules/.bin/tsx packages/services/recipe-workers/infra/bin/app.ts" \
+                  packages/services/recipe-workers/infra/node_modules/.bin/cdk deploy --app "packages/services/recipe-workers/infra/node_modules/.bin/tsx packages/services/recipe-workers/infra/bin/app.ts" --no-previous-parameters \
                     --all --require-approval never
 
             # ⛔ THE check whose absence let the CRF outage happen, now asserted against the ACCOUNT rather
@@ -1533,7 +1533,7 @@ jobs:
                   RECIPE_IMAGE_TAG: ${{ github.sha }}
                   RECIPE_FOOD_SERVICE_URL: ${{ steps.food.outputs.url }}
               run: |
-                  packages/services/recipe-service/infra/node_modules/.bin/cdk deploy --app "packages/services/recipe-service/infra/node_modules/.bin/tsx packages/services/recipe-service/infra/bin/app.ts" \
+                  packages/services/recipe-service/infra/node_modules/.bin/cdk deploy --app "packages/services/recipe-service/infra/node_modules/.bin/tsx packages/services/recipe-service/infra/bin/app.ts" --no-previous-parameters \
                     --all --require-approval never
 
             # Resource-level. The smoke below asserts the ORIGIN — live, current, browser-reachable, wired to

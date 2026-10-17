@@ -123,7 +123,7 @@ jobs:
             # ⚠️ The package's OWN `cdk`/`tsx`, never `npx`: CDK is deliberately outside the npm workspace
             # (ADR-0013), so `npx` would resolve nothing here. `postPruneToolchain.test.ts` asserts it.
             - name: Deploy the account-scoped stacks
-              run: packages/infra/global/node_modules/.bin/cdk deploy --app "packages/infra/global/node_modules/.bin/tsx packages/infra/global/bin/account.ts" --all --require-approval never
+              run: packages/infra/global/node_modules/.bin/cdk deploy --app "packages/infra/global/node_modules/.bin/tsx packages/infra/global/bin/account.ts" --no-previous-parameters --all --require-approval never
 
             # ⛔ The SAME `--app` string, byte for byte. `deployVerificationCoverage.test.ts` asserts that
             # every app a job deploys is verified by that same job, and compares the two strings — a verifier

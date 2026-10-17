@@ -22,7 +22,7 @@
     ],
     "scripts": {
         "build": "tsc -p tsconfig.json",
-        "deploy": "npm run router:bundle --prefix .. && cdk deploy --app 'npx tsx bin/app.ts' --require-approval never",
+        "deploy": "npm run router:bundle --prefix .. && cdk deploy --app 'npx tsx bin/app.ts' --no-previous-parameters --require-approval never",
         "synth": "npm run router:bundle --prefix .. && cdk synth --app 'npx tsx bin/app.ts'",
         "test": "vitest run",
         "typecheck": "tsc --noEmit"

@@ -525,7 +525,7 @@ jobs:
 
             - name: CDK Deploy (global infra)
               if: steps.flags.outputs.deploy_global == 'true'
-              run: packages/infra/global/node_modules/.bin/cdk deploy --app "packages/infra/global/node_modules/.bin/tsx packages/infra/global/bin/app.ts" --all --require-approval never
+              run: packages/infra/global/node_modules/.bin/cdk deploy --app "packages/infra/global/node_modules/.bin/tsx packages/infra/global/bin/app.ts" --no-previous-parameters --all --require-approval never
 
             # ⛔ `cdk deploy` exiting 0 proves the stacks CONVERGED, not that the things inside them arrived.
             # Both stages ran this tier with 217-byte bootstrap STUBS that created no `food_app`/`recipe_app`
@@ -582,7 +582,7 @@ jobs:
                   IDENTITY_IMAGE_TAG: sandbox-${{ github.sha }}
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
               run: |
-                  packages/services/identity/infra/node_modules/.bin/cdk deploy "kitchensink-identity-schema-${STAGE}" \
+                  packages/services/identity/infra/node_modules/.bin/cdk deploy "kitchensink-identity-schema-${STAGE}" --no-previous-parameters \
                     --app "packages/services/identity/infra/node_modules/.bin/tsx packages/services/identity/infra/bin/app.ts" \
                     --exclusively --require-approval never
 
@@ -623,7 +623,7 @@ jobs:
                   SCHEMA_CURRENCY_MODE: ${{ vars.SCHEMA_CURRENCY_MODE }}
                   IDENTITY_IMAGE_TAG: sandbox-${{ github.sha }}
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
-              run: packages/services/identity/infra/node_modules/.bin/cdk deploy --app "packages/services/identity/infra/node_modules/.bin/tsx packages/services/identity/infra/bin/app.ts" --all --require-approval never
+              run: packages/services/identity/infra/node_modules/.bin/cdk deploy --app "packages/services/identity/infra/node_modules/.bin/tsx packages/services/identity/infra/bin/app.ts" --no-previous-parameters --all --require-approval never
 
             # The identity stack's RESOURCE check. The smoke at the end of this job asserts the ORIGIN and
             # says nothing about the stack's Lambdas — among them the migration runner the next step invokes,
@@ -647,7 +647,7 @@ jobs:
               env:
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
                   SENTRY_RELEASE: ${{ github.sha }}
-              run: packages/services/identity-webhooks/infra/node_modules/.bin/cdk deploy --app "packages/services/identity-webhooks/infra/node_modules/.bin/tsx packages/services/identity-webhooks/infra/bin/app.ts" --all --require-approval never
+              run: packages/services/identity-webhooks/infra/node_modules/.bin/cdk deploy --app "packages/services/identity-webhooks/infra/node_modules/.bin/tsx packages/services/identity-webhooks/infra/bin/app.ts" --no-previous-parameters --all --require-approval never
 
             # ⛔ THE only post-deploy signal this stack has ever had, and the one that needed it most: the
             # webhooks app serves no origin, so every check in this file was blind to it. It is five

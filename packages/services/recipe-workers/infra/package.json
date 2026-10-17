@@ -22,7 +22,7 @@
     ],
     "scripts": {
         "build": "tsc -p tsconfig.json",
-        "deploy": "cdk deploy --app 'npx tsx bin/app.ts'",
+        "deploy": "cdk deploy --app 'npx tsx bin/app.ts' --no-previous-parameters",
         "synth": "cdk synth --app 'npx tsx bin/app.ts'",
         "test": "vitest run",
         "typecheck": "tsc --noEmit"

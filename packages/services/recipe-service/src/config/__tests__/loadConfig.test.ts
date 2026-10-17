@@ -281,6 +281,32 @@ describe('loadConfig', () => {
             expect(config.MEDIA_DISTRIBUTION_ID).toBeUndefined();
         });
 
+        /**
+         * A blank value is ABSENT, as the module documents: a `.env` template with `MEDIA_DISTRIBUTION_ID=` is a common
+         * shape, and `.url()` / `.min(1)` rejected the empty string before the fallback could run.
+         */
+        it('locally, a blank MEDIA_CDN_URL and MEDIA_DISTRIBUTION_ID boot as absent', () => {
+            const env: Record<string, string> = {
+                ...validEnv(),
+                NODE_ENV: 'development',
+                S3_ENDPOINT: 'http://localhost:4566',
+                S3_BUCKET_PHOTOS: 'commise-photos',
+                MEDIA_CDN_URL: '',
+                MEDIA_DISTRIBUTION_ID: '',
+            };
+
+            const config = loadConfig(apiConfigSchema, env);
+
+            expect(config.MEDIA_CDN_URL).toBe('http://localhost:4566/commise-photos');
+            expect(config.MEDIA_DISTRIBUTION_ID).toBeUndefined();
+        });
+
+        it('when deployed, a blank MEDIA_DISTRIBUTION_ID is still refused by name', () => {
+            const env = { ...validEnv(), MEDIA_DISTRIBUTION_ID: '' };
+
+            expect(() => loadConfig(apiConfigSchema, env)).toThrow(/MEDIA_DISTRIBUTION_ID is required/u);
+        });
+
         it('locally, a configured MEDIA_CDN_URL wins over the fallback', () => {
             const env = { ...validEnv(), NODE_ENV: 'development', S3_ENDPOINT: 'http://localhost:4566' };
 

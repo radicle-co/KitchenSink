@@ -296,6 +296,14 @@ export const serviceAuthConfigMeta: Record<keyof ServiceAuthConfig, ConfigFieldM
 // S3 / Storage Config
 // ---------------------------------------------------------------------------
 
+/**
+ * An optional setting whose blank value means "not set": a `.env` template line like `NAME=` arrives as `''`, which
+ * `.url()` and `.min(1)` would otherwise reject before any fallback or deployed-task check could read it as absent.
+ */
+function blankIsAbsent<S extends z.ZodType>(schema: S) {
+    return z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
+}
+
 /** S3 and CloudFront configuration for photo storage and serving. */
 export const storageConfigSchema = z.object({
     /** S3 endpoint URL. Override for LocalStack in dev. Omit for real AWS. */
@@ -315,14 +323,14 @@ export const storageConfigSchema = z.object({
      * REQUIRED on a deployed task (`apiConfigSchema` refuses to boot without it) and read from SSM, where the global
      * app publishes it. Optional on a developer machine, where it falls back to the LocalStack bucket in path style.
      */
-    MEDIA_CDN_URL: z.string().url().optional(),
+    MEDIA_CDN_URL: blankIsAbsent(z.string().url()),
 
     /**
      * The media distribution's id, for invalidations on photo delete + GDPR erasure (HAZ-051/067/039). REQUIRED on a
      * deployed task: a delete or an erasure that cannot purge the edge leaves the photo served. Optional locally,
      * where invalidation is a logged no-op (`photos/cdnInvalidation.ts`).
      */
-    MEDIA_DISTRIBUTION_ID: z.string().min(1).optional(),
+    MEDIA_DISTRIBUTION_ID: blankIsAbsent(z.string().min(1)),
 
     /** Presigned URL expiry in seconds. Defaults to 900 (15 min). */
     PRESIGNED_URL_EXPIRY_SECONDS: z.coerce.number().int().positive().default(900),

@@ -108,6 +108,10 @@ const NAMED_RESIDUALS: Readonly<Record<string, string>> = {
     EventsBusPermissions: 'PutPermission and RemovePermission honour no resource tag; event-bus names carry the stage',
     Ec2CreateNameOnly:
         'RunInstances and CreateNetworkInterface create several resources in one request and CloudFormation tags only one of them, so asking each for the tier tag would deny the create',
+    EventsRuleTargets:
+        "CloudFormation sets a new rule's targets before it tags the rule, so the tier tag may be absent: allowed when it is this tier's or absent; another tier's tagged rule is refused by the other-tier tag Deny",
+    DynamoDbStreamTags:
+        "a table's stream takes no request tag, and a refused stream tag makes CloudFormation create the table untagged; the stream is named by its table",
     EventsCreateNameOnly:
         'CloudFormation calls PutRule with no tags and tags the rule in a second call, so a request-tag condition refuses every create; rule names carry the stage, and a truncated generated name is held by the other-tier tag Deny',
     CloudFrontCreateNameOnly:

@@ -27,7 +27,12 @@ function conditionHolds(condition: Condition | undefined, context: RequestContex
     return Object.entries(condition).every(([qualified, keys]) => {
         // A multi-valued key is given here as its one value. IAM: `ForAllValues` holds over an absent key (the empty
         // set), `ForAnyValue` does not.
-        const [setOperator, operator = ''] = qualified.includes(':') ? qualified.split(':') : [undefined, qualified];
+        const [setOperator, qualifiedOperator = ''] = qualified.includes(':')
+            ? qualified.split(':')
+            : [undefined, qualified];
+        // `…IfExists`: the condition holds when the key is absent.
+        const ifExists = qualifiedOperator.endsWith('IfExists');
+        const operator = ifExists ? qualifiedOperator.slice(0, -'IfExists'.length) : qualifiedOperator;
 
         if (
             !['StringLike', 'StringEquals', 'ArnLike'].includes(operator) ||
@@ -40,7 +45,7 @@ function conditionHolds(condition: Condition | undefined, context: RequestContex
             const actual = context[key];
 
             if (actual === undefined) {
-                return setOperator === 'ForAllValues';
+                return ifExists || setOperator === 'ForAllValues';
             }
 
             return asList(expected).some((pattern) =>

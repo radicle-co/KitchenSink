@@ -419,7 +419,12 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
         allow(
             'compute',
             'LambdaEventSourceMappings',
-            ['lambda:DeleteEventSourceMapping', 'lambda:GetEventSourceMapping', 'lambda:UpdateEventSourceMapping'],
+            [
+                'lambda:CreateEventSourceMapping',
+                'lambda:DeleteEventSourceMapping',
+                'lambda:GetEventSourceMapping',
+                'lambda:UpdateEventSourceMapping',
+            ],
             [arn('lambda', 'event-source-mapping:*')],
             ['AWS::Lambda::EventSourceMapping'],
             { ArnLike: { 'lambda:FunctionArn': [arn('lambda', `function:${KS}`)] } },
@@ -551,14 +556,23 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 'events:EnableRule',
                 'events:List*',
                 'events:PutRule',
-                'events:PutTargets',
-                'events:RemoveTargets',
                 'events:TagResource',
                 'events:UntagResource',
             ],
             [arn('events', `rule/${KS}`), arn('events', `rule/*/${KS}`), arn('events', `event-bus/${KS}`)],
             ['AWS::Events::Rule', 'AWS::Events::EventBus'],
             own,
+        ),
+        // CloudFormation sets a new rule's targets BEFORE it tags the rule, so the tier tag may be absent: allowed when
+        // it is this tier's OR absent. A generated rule name is truncated and carries no stage, so the name alone would
+        // reach the other tier's rules; `DeleteRule` stays fully tag-gated for that reason (executionPolicyScoping).
+        allow(
+            'observe',
+            'EventsRuleTargets',
+            ['events:PutTargets', 'events:RemoveTargets'],
+            [arn('events', `rule/${KS}`), arn('events', `rule/*/${KS}`)],
+            [],
+            { StringEqualsIfExists: { [RESOURCE_TIER_TAG]: tierTagValue(qualifier) } },
         ),
         // The bus policy actions honour no resource tag in the reference, so they are name-scoped (named residual).
         allow(
@@ -667,6 +681,10 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             [arn('dynamodb', `table/${KS}`)],
             ['AWS::DynamoDB::Table'],
         ),
+        // CloudFormation tags a table's stream with the table; the stream takes no request tag here, and a refusal makes
+        // CloudFormation create the TABLE untagged (Sandbox Up, 2026-10-17). The table name is the stream's scope. In the
+        // compute part because the data part is at the managed-policy size limit.
+        allow('compute', 'DynamoDbStreamTags', ['dynamodb:TagResource'], [arn('dynamodb', `table/${KS}/stream/*`)]),
         ...ownAllow(
             'data',
             'DynamoDbOwn',
@@ -890,7 +908,12 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
         allow(
             'observe',
             'CloudWatchDashboards',
-            ['cloudwatch:DeleteDashboards', 'cloudwatch:GetDashboard', 'cloudwatch:PutDashboard'],
+            [
+                'cloudwatch:DeleteDashboards',
+                'cloudwatch:GetDashboard',
+                'cloudwatch:PutDashboard',
+                'cloudwatch:TagResource',
+            ],
             [arn('cloudwatch', nonprod ? 'dashboard/pr-*-food-data' : 'dashboard/food-data', false)],
             ['AWS::CloudWatch::Dashboard'],
         ),

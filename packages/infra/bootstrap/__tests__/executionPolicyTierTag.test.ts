@@ -144,6 +144,12 @@ describe.each(stageQualifiers)('executionPolicy(%s) — tier-tag conditions are 
         expect(tagged.length).toBeGreaterThan(20);
     });
 
+    /**
+     * The one statement that may use `StringEqualsIfExists`: CloudFormation sets a new rule's targets before it tags the
+     * rule, so the tag is absent at that moment. Every other tier-tag condition is a plain `StringEquals`.
+     */
+    const IF_EXISTS_ALLOWED: ReadonlySet<string> = new Set(['EventsRuleTargets']);
+
     it("tests only the qualifier's own tier value, with StringEquals", () => {
         const wrong = tagged.filter((statement) => {
             const values = [...conditionValues(statement, RESOURCE_TAG), ...conditionValues(statement, REQUEST_TAG)];
@@ -152,7 +158,11 @@ describe.each(stageQualifiers)('executionPolicy(%s) — tier-tag conditions are 
                 .map(([operator]) => operator);
 
             return (
-                values.some((value) => value !== tierTagValue(qualifier)) || operators.some((o) => o !== 'StringEquals')
+                values.some((value) => value !== tierTagValue(qualifier)) ||
+                operators.some(
+                    (o) =>
+                        o !== 'StringEquals' && !(o === 'StringEqualsIfExists' && IF_EXISTS_ALLOWED.has(statement.Sid)),
+                )
             );
         });
 
@@ -374,5 +384,71 @@ describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod])('executionPolicy(%s) — pe
             : ['remote-search-pr-91.commise.app', 'remote-search-sandbox.commise.app', 'pr-91.sandbox.commise.app'],
     )("never writes the other tier's record %s", (name) => {
         expect(evaluates(rendered(), 'route53:ChangeResourceRecordSets', zone, records(name))).toBe(false);
+    });
+});
+
+/**
+ * The second round of per-PR creates (Sandbox Up rerun, 2026-10-17). Each acts on a resource BEFORE CloudFormation has
+ * tagged it, so a tier-tag condition cannot hold and the resource's own name is its scope:
+ * a new mapping (no grant existed), a new rule's targets (set before the rule is tagged; the tier tag may be absent), a
+ * dashboard's tags, and the tags of a table's stream (refused, so CloudFormation made the table with NO tags at all).
+ */
+describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod])('executionPolicy(%s) — acts before the tag', (qualifier) => {
+    const nonprod = qualifier === QUALIFIERS.nonprod;
+    const stage = nonprod ? 'pr-91' : 'prod';
+    const otherStage = nonprod ? 'prod' : 'pr-91';
+    const rendered = (): PolicyDocument =>
+        JSON.parse(
+            JSON.stringify({
+                Version: '2012-10-17',
+                Statement: buildExecutionPolicy(qualifier).flatMap((part) => part.document.Statement),
+            })
+                .replaceAll('<region>', 'us-east-1')
+                .replaceAll('<account>', '040663841500'),
+        ) as PolicyDocument;
+    const a = (service: string, resource: string) => `arn:aws:${service}:us-east-1:040663841500:${resource}`;
+
+    it('creates a mapping for a kitchensink function, never for another function', () => {
+        const mapping = a('lambda', 'event-source-mapping:*');
+
+        expect(
+            evaluates(rendered(), 'lambda:CreateEventSourceMapping', mapping, {
+                'lambda:FunctionArn': a('lambda', `function:kitchensink-recipe-workers-${stage}-ParseLine`),
+            }),
+        ).toBe(true);
+        expect(
+            evaluates(rendered(), 'lambda:CreateEventSourceMapping', mapping, {
+                'lambda:FunctionArn': a('lambda', 'function:armoury-api-prod'),
+            }),
+        ).toBe(false);
+    });
+
+    it.each(['events:PutTargets', 'events:RemoveTargets'])(
+        '%s on its own untagged rule, never on the other tier rule',
+        (action) => {
+            expect(evaluates(rendered(), action, a('events', `rule/kitchensink-recipe-band-drain-${stage}`))).toBe(
+                true,
+            );
+            expect(evaluates(rendered(), action, a('events', `rule/kitchensink-recipe-band-drain-${otherStage}`))).toBe(
+                false,
+            );
+        },
+    );
+
+    it("tags its own dashboard, never the other tier's", () => {
+        const own = nonprod ? 'dashboard/pr-91-food-data' : 'dashboard/food-data';
+        const other = nonprod ? 'dashboard/food-data' : 'dashboard/pr-91-food-data';
+
+        expect(evaluates(rendered(), 'cloudwatch:TagResource', `arn:aws:cloudwatch::040663841500:${own}`)).toBe(true);
+        expect(evaluates(rendered(), 'cloudwatch:TagResource', `arn:aws:cloudwatch::040663841500:${other}`)).toBe(
+            false,
+        );
+    });
+
+    it("tags its own table's stream, never the other tier's", () => {
+        const stream = (name: string) => a('dynamodb', `table/${name}/stream/2026-10-17T19:26:40.298`);
+
+        expect(evaluates(rendered(), 'dynamodb:TagResource', stream(`kitchensink-messages-${stage}`))).toBe(true);
+        expect(evaluates(rendered(), 'dynamodb:TagResource', stream(`kitchensink-messages-${otherStage}`))).toBe(false);
     });
 });

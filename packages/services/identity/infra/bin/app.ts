@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { App, Tags } from 'aws-cdk-lib';
 
 import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
+import { kitchenSinkAppProps, resolveStage } from '@kitchensink/cdk-bootstrap/appProps';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // ⛔ `quiet: true` IS LOAD-BEARING. This file's STDOUT is a machine-readable channel:
@@ -17,7 +18,12 @@ dotenvConfig({ path: join(__dirname, '../../.env'), quiet: true });
 import { IdentitySchemaStack } from '../lib/IdentitySchemaStack.js';
 import { IdentityServiceStack } from '../lib/IdentityServiceStack.js';
 
-const app = new App();
+// ⛔ The stage is read BEFORE the App exists: it selects the bootstrap qualifier and the permissions boundary
+// this whole app synthesizes with (the bootstrap-qualifier ADR). `kitchenSinkAppProps` is the only place a
+// qualifier is chosen; an app that built its own `App` would deploy through the account's DEFAULT bootstrap,
+// whose execution role is another application's `AdministratorAccess`. `cdkQualifierCoverage.test.ts` fails it.
+const stage = resolveStage(process.env) ?? 'dev';
+const app = new App(kitchenSinkAppProps(stage));
 // U9: cdk-nag AwsSolutions review, ADVISORY — reported as warnings, never fails the build, and
 // annotation-only so the synthesized template is unchanged. See @radicle-co/infra-shared/security.
 attachSecurityChecks(app);
@@ -27,7 +33,6 @@ attachSecurityChecks(app);
 // breaching the ADR-0002/ADR-0008 no-prod-diff line for a fact about the BUILD rather than about any
 // resource. See @radicle-co/infra-shared/security.
 stampCommitProvenance(app);
-const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
 
 // ⛔ ADR-0005's PRIMARY teardown selector. Identity is persistent global platform infra (the auth service every
 // preview signs in against) — it names the TIER this deploy lives in (`production` for prod, `sandbox` for every

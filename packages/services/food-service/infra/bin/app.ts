@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { App, Tags } from 'aws-cdk-lib';
 
 import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
+import { kitchenSinkAppProps, resolveStage } from '@kitchensink/cdk-bootstrap/appProps';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // ⛔ `quiet: true` IS LOAD-BEARING. This file's STDOUT is a machine-readable channel:
@@ -22,8 +23,12 @@ import { synthEnv } from '../lib/synthEnv.js';
 // `NaN`/`0` and emitted into a CloudFormation template (see lib/synthEnv.ts).
 const { desiredCount, workerDesiredCount, unresolvedTtlDays } = synthEnv();
 
-const app = new App();
-const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
+// ⛔ The stage is read BEFORE the App exists: it selects the bootstrap qualifier and the permissions boundary
+// this whole app synthesizes with (the bootstrap-qualifier ADR). `kitchenSinkAppProps` is the only place a
+// qualifier is chosen; an app that built its own `App` would deploy through the account's DEFAULT bootstrap,
+// whose execution role is another application's `AdministratorAccess`. `cdkQualifierCoverage.test.ts` fails it.
+const stage = resolveStage(process.env) ?? 'dev';
+const app = new App(kitchenSinkAppProps(stage));
 // ADR-0006: a feature deploy imports the PERSISTENT platform tier, which exists only for `prod` and
 // `sandbox`. Prod rides prod; every other stage rides the shared `sandbox` platform. `stage` still drives
 // naming/tagging/routing/DB-isolation.

@@ -1,10 +1,16 @@
 import { App, Tags } from 'aws-cdk-lib';
 
 import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
+import { kitchenSinkAppProps, resolveStage } from '@kitchensink/cdk-bootstrap/appProps';
 
 import { SandboxRouterStack } from '../lib/SandboxRouterStack.js';
 
-const app = new App();
+// ⛔ The stage is read BEFORE the App exists: it selects the bootstrap qualifier and the permissions boundary
+// this whole app synthesizes with (the bootstrap-qualifier ADR). `kitchenSinkAppProps` is the only place a
+// qualifier is chosen; an app that built its own `App` would deploy through the account's DEFAULT bootstrap,
+// whose execution role is another application's `AdministratorAccess`. `cdkQualifierCoverage.test.ts` fails it.
+const stage = resolveStage(process.env) ?? 'sandbox';
+const app = new App(kitchenSinkAppProps(stage));
 
 // U9: cdk-nag AwsSolutions review, ADVISORY — reported as warnings, never fails the build, and
 // annotation-only so the synthesized template is unchanged. See @radicle-co/infra-shared/security.
@@ -16,7 +22,6 @@ attachSecurityChecks(app);
 // resource. See @radicle-co/infra-shared/security.
 stampCommitProvenance(app);
 
-const stage = (app.node.tryGetContext('stage') as string | undefined) ?? process.env['STAGE'] ?? 'sandbox';
 const domainName = process.env['DOMAIN_NAME'];
 const account = process.env['CDK_DEFAULT_ACCOUNT'];
 

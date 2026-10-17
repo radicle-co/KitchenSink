@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { App, Tags } from 'aws-cdk-lib';
 
 import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
+import { kitchenSinkAppProps, resolveStage } from '@kitchensink/cdk-bootstrap/appProps';
 import { resolveUploadOrigins } from '@kitchensink/clerk-verify';
 
 import { EdgeStack } from '../lib/platform/EdgeStack.js';
@@ -18,7 +19,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // DISCOVERED CDK app and observes the installed library actually honouring it.
 dotenvConfig({ path: join(__dirname, '../../.env'), quiet: true });
 
-const app = new App();
+// ⛔ The stage is read BEFORE the App exists: it selects the bootstrap qualifier and the permissions boundary
+// this whole app synthesizes with (the bootstrap-qualifier ADR). `kitchenSinkAppProps` is the only place a
+// qualifier is chosen; an app that built its own `App` would deploy through the account's DEFAULT bootstrap,
+// whose execution role is another application's `AdministratorAccess`. `cdkQualifierCoverage.test.ts` fails it.
+const stage = resolveStage(process.env) ?? 'dev';
+const app = new App(kitchenSinkAppProps(stage));
 // U9: cdk-nag AwsSolutions review, ADVISORY — findings are reported as warnings, the build is not failed.
 // Annotation-only, so it does not change synthesized output (the ADR-0002/ADR-0008 no-prod-diff line);
 // `packages/infra/global/__tests__/cdkNagTemplateParity.test.ts` asserts that byte-for-byte.
@@ -29,7 +35,6 @@ attachSecurityChecks(app);
 // breaching the ADR-0002/ADR-0008 no-prod-diff line for a fact about the BUILD rather than about any
 // resource. See @radicle-co/infra-shared/security.
 stampCommitProvenance(app);
-const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
 
 // ⛔ ADR-0005's PRIMARY teardown selector. Persistent global infra (VPC, RDS, domain, shared ALB) is NEVER torn down
 // per-PR — it names the TIER this deploy lives in (`production` for prod, `sandbox` for every other stage) and NEVER

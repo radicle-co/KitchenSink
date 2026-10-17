@@ -3,17 +3,22 @@ import { fileURLToPath } from 'node:url';
 import { App, Tags } from 'aws-cdk-lib';
 
 import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
+import { kitchenSinkAppProps, resolveStage } from '@kitchensink/cdk-bootstrap/appProps';
 
 import { RemoteSearchStack } from '../lib/RemoteSearchStack.js';
 import { parseRemoteSearchStage } from '../lib/remoteSearchStage.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const app = new App();
+// ⛔ The stage is read BEFORE the App exists: it selects the bootstrap qualifier and the permissions boundary
+// this whole app synthesizes with (the bootstrap-qualifier ADR). `kitchenSinkAppProps` is the only place a
+// qualifier is chosen; an app that built its own `App` would deploy through the account's DEFAULT bootstrap,
+// whose execution role is another application's `AdministratorAccess`. `cdkQualifierCoverage.test.ts` fails it.
+const stage = parseRemoteSearchStage(resolveStage(process.env));
+const app = new App(kitchenSinkAppProps(stage));
 
 // Parsed before anything is built: the service is deployed where food is, at `prod` and per pull request, so any
 // other stage stops the synth here.
-const stage = parseRemoteSearchStage(app.node.tryGetContext('stage') ?? process.env['STAGE']);
 
 // ADR-0005's teardown selector, the same expression as food's: a preview's copy is `pr-{N}-sandbox`, which the PR-close
 // cleanup deletes by tag, and prod is `production`, which no `pr-{N}` token can claim.

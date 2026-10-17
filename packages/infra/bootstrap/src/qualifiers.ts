@@ -175,10 +175,15 @@ export const STACK_NAME_PATTERNS: Readonly<Record<QualifierName, readonly string
  * The patterns CloudFormation's `aws:cloudformation:stack-name` resource tag is judged against. A NESTED stack's
  * name is `<parent>-<LogicalId>-<hash>`, so it no longer ends in the stage token; these patterns therefore allow
  * a suffix. They are used for tag conditions only, never for the deploy role's stack ARNs.
+ *
+ * The stage token is matched as a whole hyphen-delimited word (`-prod` or `-prod-*`, never the prefix `-prod*`),
+ * so a service whose name merely contains it (`x-product-search`) is not claimed by the wrong tier. A glob cannot go
+ * further: a service named with the word `prod`, `sandbox` or `pr` as a token is ambiguous and is excluded by naming
+ * rule (`qualifiers.test.ts` states it).
  */
 export const STACK_TAG_PATTERNS: Readonly<Record<QualifierName, readonly string[]>> = {
-    ksnonprod: ['kitchensink-*-sandbox*', 'kitchensink-*-pr-*'],
-    ksprod: ['kitchensink-*-prod*'],
+    ksnonprod: ['kitchensink-*-sandbox', 'kitchensink-*-sandbox-*', 'kitchensink-*-pr-*'],
+    ksprod: ['kitchensink-*-prod', 'kitchensink-*-prod-*'],
     ksaccount: STACK_NAME_PATTERNS.ksaccount,
 };
 

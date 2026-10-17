@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { iamLike } from '../src/iamPattern.js';
+
 import {
     ASSUMABLE_ROLE_KINDS,
     BOOTSTRAP_ROLE_KINDS,
@@ -16,6 +18,7 @@ import {
     CI_TIERS,
     DEFAULT_QUALIFIER,
     QUALIFIERS,
+    STACK_TAG_PATTERNS,
     bootstrapRoleArn,
     ciRoleArn,
     isValidQualifier,
@@ -163,6 +166,83 @@ describe('BOOTSTRAP_TRUST', () => {
                 const trusted = BOOTSTRAP_TRUST[qualifier][kind].includes('prod-read');
                 expect(trusted).toBe(qualifier === QUALIFIERS.prod && kind === 'lookup');
             }
+        }
+    });
+});
+
+/**
+ * The tag patterns are looser than the deploy patterns on purpose (a nested stack's name carries a suffix), so the
+ * only proof that they keep the tiers apart is over names, and over names the tree does not hold today.
+ *
+ * The naming rule this relies on: no SERVICE token is the hyphen-delimited word `prod`, `sandbox` or `pr`. A glob
+ * cannot tell `kitchensink-svc-prod-x-pr-5` (a service called `svc-prod-x`) from a prod stack, so that case is
+ * excluded by rule, and the generated services include words that merely CONTAIN those tokens (`product`, `prune`,
+ * `sandboxed`, `pro`), which a prefix pattern such as `-prod*` would wrongly claim.
+ */
+describe('STACK_TAG_PATTERNS keep the two stage tiers disjoint over generated names', () => {
+    const SERVICES = [
+        'identity',
+        'food-service',
+        'recipe-workers',
+        'x-product-search',
+        'product',
+        'prune-jobs',
+        'x-sandboxed',
+        'sandboxer',
+        'pro',
+        'a-pre-b',
+        'prodigy',
+        'x-pr2-y',
+    ];
+    const NESTED_SUFFIXES = [
+        '',
+        '-ApiNestedStack-1A2B3C4D',
+        '-Db-ABCDEF12',
+        '-prodLike-12345678',
+        '-sandboxLike-12345678',
+    ];
+    const STAGES: readonly (readonly [string, 'ksprod' | 'ksnonprod'])[] = [
+        ['prod', 'ksprod'],
+        ['sandbox', 'ksnonprod'],
+        ['pr-1', 'ksnonprod'],
+        ['pr-4242', 'ksnonprod'],
+    ];
+    const generated = SERVICES.flatMap((service) =>
+        STAGES.flatMap(([stage, tier]) =>
+            NESTED_SUFFIXES.map((suffix) => ({ name: `kitchensink-${service}-${stage}${suffix}`, tier })),
+        ),
+    );
+    const matches = (tier: 'ksprod' | 'ksnonprod', name: string): boolean =>
+        STACK_TAG_PATTERNS[tier].some((pattern) => iamLike(pattern, name));
+
+    it('generates a real population (a vacuous pass here would hide the property)', () => {
+        expect(generated.length).toBeGreaterThan(200);
+    });
+
+    it("never lets a name of one tier match the other tier's tag patterns", () => {
+        const leaks = generated
+            .filter(({ name, tier }) => matches(tier === 'ksprod' ? 'ksnonprod' : 'ksprod', name))
+            .map(({ name }) => name);
+
+        expect(leaks).toEqual([]);
+    });
+
+    it('still matches each name against its OWN tier (the tighter pattern must not lock the tier out)', () => {
+        const orphans = generated.filter(({ name, tier }) => !matches(tier, name)).map(({ name }) => name);
+
+        expect(orphans).toEqual([]);
+    });
+
+    it('keeps the real stack names inside their own tier', () => {
+        const here = path.dirname(fileURLToPath(import.meta.url));
+
+        for (const tier of ['ksnonprod', 'ksprod'] as const) {
+            const manifest = JSON.parse(
+                readFileSync(path.join(here, `../manifests/cfnResourceTypes.${tier}.json`), 'utf8'),
+            ) as { stackNames: string[] };
+
+            expect(manifest.stackNames.length).toBeGreaterThan(0);
+            expect(manifest.stackNames.filter((name) => !matches(tier, name))).toEqual([]);
         }
     });
 });

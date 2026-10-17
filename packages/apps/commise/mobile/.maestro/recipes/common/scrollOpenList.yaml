@@ -11,7 +11,8 @@ appId: ${APP_ID}
 # ⚠️ BOTH PLATFORMS SWIPE IN THE SAME HIGH BAND. The soft keyboard stays up over the lower ~38% of the screen (its top
 # edge is at about 62% on the iOS Simulator and the Android emulator alike), so a swipe from 75% starts on a key and
 # moves nothing (run 38433716728 on iOS, run 38988891871 on Android). The band is 55% to 35%, between the field the
-# reveal lifts to the top and the keyboard's edge, and reversed for UP.
+# reveal lifts to the top and the keyboard's edge, and reversed for UP. The two directions are two `runFlow when` blocks, never one swipe with a `${}` in its coordinates:
+# Maestro parses a coordinate when it LOADS the file, so an expression there fails every caller before step one.
 #
 # ⛔ FIRST, THE DATABASE'S ANSWER. Until it lands the list is ONE line, the `Searching ingredients` loader
 # (`entryCombobox.ts`, pinned by `entryCombobox.test.ts`), so a swipe from 75% starts on the page below it and closes the
@@ -31,9 +32,21 @@ appId: ${APP_ID}
               text: ${TARGET}
       times: 10
       commands:
-          - swipe:
-                start: "50%, ${DIRECTION == 'UP' ? '35%' : '55%'}"
-                end: "50%, ${DIRECTION == 'UP' ? '55%' : '35%'}"
-                duration: 500
+          - runFlow:
+                when:
+                    true: ${DIRECTION == 'UP'}
+                commands:
+                    - swipe:
+                          start: 50%, 35%
+                          end: 50%, 55%
+                          duration: 500
+          - runFlow:
+                when:
+                    true: ${DIRECTION != 'UP'}
+                commands:
+                    - swipe:
+                          start: 50%, 55%
+                          end: 50%, 35%
+                          duration: 500
 - assertVisible:
       text: ${TARGET}

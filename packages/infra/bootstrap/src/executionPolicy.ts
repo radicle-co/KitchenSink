@@ -35,6 +35,7 @@ import { iamCatalogueSnapshot } from './iamCatalogueSnapshot.js';
 import { ACCOUNT, REGION, type Condition, type PolicyDocument, type Statement } from './policyDocument.js';
 import {
     QUALIFIERS,
+    STACK_TAG_PATTERNS,
     TIER_TAG_KEY,
     boundaryPolicyName,
     executionPolicyName,
@@ -894,6 +895,14 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                     'RunInstances',
                 ],
             },
+        }),
+        // A rollback to a template that predates the tier tag first DeleteTags the tier tag, then CreateTags the old
+        // tags; the second is refused by Ec2Own because the resource no longer carries it. EC2 tag actions address
+        // "*", so there is no request path. CloudFormation's own system tag is on every EC2 resource it creates and
+        // a user cannot set an `aws:` tag, so it is a sound second ownership signal HERE (not for the types that omit
+        // it, ADR-0065 Decision 5a). The other tier's Deny still outranks it.
+        allow('network', 'Ec2TagByStack', ['ec2:CreateTags', 'ec2:DeleteTags'], ['*'], [], {
+            StringLike: { 'aws:ResourceTag/aws:cloudformation:stack-name': [...STACK_TAG_PATTERNS[qualifier]] },
         }),
         ...ownAllow(
             'network',

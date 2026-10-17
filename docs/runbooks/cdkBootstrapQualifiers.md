@@ -185,16 +185,70 @@ exists today has no tag yet and cannot be modified until it does. Do these in or
         --query 'FailedResourcesMap' --output json --resource-arn-list
     ```
 
-    The Tagging API cannot tag every type (IAM roles and instance profiles, CloudFront distributions in `us-east-1`
-    only, some Lambda aliases). For each ARN printed in `FailedResourcesMap`, tag it with its own service call
-    (`aws iam tag-role`, `aws cloudfront tag-resource`, ...). EC2 resources are covered. Resources with no tier tag
-    after this step fail on their next modify with the action named; fix those one at a time.
+    The Tagging API cannot tag every type, and `get-resources` does NOT return some at all: IAM roles and instance
+    profiles never appear in 3a, so a role keeps no tier tag and `iam:PutRolePermissionsBoundary` is refused on it
+    (measured). For each ARN printed in `FailedResourcesMap`, tag it with its own service call
+    (`aws cloudfront tag-resource`, ...). Then do 3c and 3d, which enumerate by STACK instead of by tag.
+
+    ```bash
+    # Stack names of this tier (nested stacks included: their names start with the parent's).
+    case $tier in
+      nonprod) stack_re='^kitchensink-.+-(sandbox|pr-[0-9]+)(-.*)?$' ;;
+      prod)    stack_re='^kitchensink-.+-prod(-.*)?$' ;;
+      account) stack_re='^(kitchensink-cost-guardrails|kitchensink-github-actions-access)$' ;;
+    esac
+    aws cloudformation list-stacks --region $REGION \
+      --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE UPDATE_ROLLBACK_FAILED \
+      --query 'StackSummaries[].StackName' --output text | tr '\t' '\n' | grep -E "$stack_re" | sort > /tmp/stacks-$tier.txt
+    cat /tmp/stacks-$tier.txt     # read it: every name must be ours
+
+    # 3c. IAM roles. List by prefix, then keep ONLY roles that a stack of this tier owns. A role's owning stack is
+    # answered by CloudFormation, never guessed from the name. Prod roles are tagged only when tier=prod.
+    aws iam list-roles --query 'Roles[?starts_with(RoleName, `kitchensink-`)].RoleName' --output text \
+      | tr '\t' '\n' | while read -r role; do
+        owner=$(aws cloudformation describe-stack-resources --region $REGION --physical-resource-id "$role" \
+          --query 'StackResources[0].StackName' --output text 2>/dev/null || true)
+        if grep -qxF "$owner" /tmp/stacks-$tier.txt; then
+          echo "tag $role ($owner)"
+          aws iam tag-role --role-name "$role" --tags Key=kitchensink:tier,Value=$tier
+        fi
+      done
+
+    # 3d. EC2 resources (VPCs, subnets, security groups, route tables, gateways, instances, interfaces) and anything
+    # else 3a missed: enumerate each stack's resources and tag the EC2 ids. The tagging itself needs administrator
+    # credentials, as all of step 3 does.
+    while read -r stack; do
+      aws cloudformation list-stack-resources --region $REGION --stack-name "$stack" \
+        --query 'StackResourceSummaries[?starts_with(ResourceType, `AWS::EC2::`) && !contains(`["AWS::EC2::Route","AWS::EC2::SubnetRouteTableAssociation","AWS::EC2::VPCGatewayAttachment","AWS::EC2::SecurityGroupIngress","AWS::EC2::SecurityGroupEgress"]`, ResourceType)].PhysicalResourceId' \
+        --output text | tr '\t' '\n' | grep -E '^(vpc|subnet|sg|rtb|igw|i|eni|eipalloc)-' \
+        | xargs -r -n 20 aws ec2 create-tags --region $REGION --tags Key=kitchensink:tier,Value=$tier --resources
+    done < /tmp/stacks-$tier.txt
+    ```
+
+    Anything else that 3a, 3c and 3d miss (an SQS queue, a Lambda alias): list the stack's resources the same way and
+    use the service's own tag call. Resources with no tier tag after this step fail on their next modify with the
+    action named; fix those one at a time.
 
 4. **Deploy the apps.** Each deploy writes the tag through its stack, so the re-tag in step 3 is needed only for
    resources that are modified before their stack is next deployed (a teardown, for one).
 
 Check one resource per type afterwards, for example `aws acm list-tags-for-certificate --certificate-arn <arn>`, and
 confirm the tag value matches the tier you ran.
+
+### A deploy rolled back across the migration boundary
+
+A stack whose first update after step 1 fails rolls back to its OLD template, which has no tier tag. CloudFormation's
+tag reconciliation then removes the tier tag (allowed) and tries to re-add the old tags, which is refused because the
+resource no longer carries it. EC2 resources are covered (their tag edits are also allowed on the stack-name system tag,
+ADR-0065 Decision 5a). For any other type the stack stops in `UPDATE_ROLLBACK_FAILED`. Recover it with the logical ids
+the failed events name, then re-tag with step 3 and deploy again:
+
+```bash
+aws cloudformation continue-update-rollback --region $REGION --stack-name <stack> --resources-to-skip <LogicalId> ...
+```
+
+Once a stack has deployed once with the tier tag in its template, a rollback returns to a template that has it and keeps
+the tag. To avoid the window, run step 3 BEFORE the first app deploy of each stack.
 
 ## Changing a policy or a template
 

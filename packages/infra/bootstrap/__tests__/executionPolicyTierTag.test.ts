@@ -27,12 +27,15 @@ import { describe, expect, it } from 'vitest';
 import { buildExecutionPolicy } from '../src/executionPolicy.js';
 import { isTagAddPattern, tagKeySupport } from '../src/iamCatalogue.js';
 import type { PolicyDocument, Statement } from '../src/policyDocument.js';
-import { QUALIFIERS, TIER_TAG_KEY, tierTagValue, type QualifierName } from '../src/qualifiers.js';
+import { QUALIFIERS, STACK_TAG_PATTERNS, TIER_TAG_KEY, tierTagValue, type QualifierName } from '../src/qualifiers.js';
 import { iamCatalogue } from './iamCatalogueFixture.js';
 
 const RESOURCE_TAG = `aws:ResourceTag/${TIER_TAG_KEY}`;
 const REQUEST_TAG = `aws:RequestTag/${TIER_TAG_KEY}`;
 const STACK_NAME_TAG = 'aws:cloudformation:stack-name';
+const STACK_NAME_RESOURCE_TAG = `aws:ResourceTag/${STACK_NAME_TAG}`;
+/** The one statement that may read the system tag: EC2 tag edits, see the describe block below. */
+const EC2_STACK_TAG_SID = 'Ec2TagByStack';
 
 const allQualifiers = [QUALIFIERS.nonprod, QUALIFIERS.prod, QUALIFIERS.account] as const;
 const stageQualifiers = [QUALIFIERS.nonprod, QUALIFIERS.prod] as const;
@@ -65,13 +68,68 @@ const tagAddsOnAnyResource = (tagged: readonly Statement[]): Set<string> =>
             .filter((action) => isTagAddPattern(iamCatalogue, action)),
     );
 
-describe.each(allQualifiers)('executionPolicy(%s) — no dependence on the CloudFormation system tag', (qualifier) => {
-    it('never mentions aws:cloudformation:stack-name in any statement', () => {
+describe.each(allQualifiers)('executionPolicy(%s) — dependence on the CloudFormation system tag', (qualifier) => {
+    it('mentions aws:cloudformation:stack-name in no statement but the EC2 tag-edit fallback', () => {
         const offenders = statements(qualifier)
             .filter((statement) => JSON.stringify(statement).includes(STACK_NAME_TAG))
-            .map((statement) => statement.Sid);
+            .map((statement) => statement.Sid)
+            .filter((sid) => sid !== EC2_STACK_TAG_SID);
 
         expect(offenders).toEqual([]);
+    });
+});
+
+// Rollback across the migration boundary (ADR-0065 Decision 5a): a stack whose update failed rolls back to its OLD
+// template, which has no tier tag. CloudFormation's EC2 tag reconciliation then DeleteTags the tier tag (allowed) and
+// CreateTags the old tags, which the tier-tag statement refuses because the resource no longer carries it. EC2 tag
+// actions have no request-tag path (their resource is "*"), so the fallback keys on the tag CloudFormation itself puts
+// on every EC2 resource, which a user cannot set (the `aws:` prefix is reserved).
+describe.each(stageQualifiers)('executionPolicy(%s) — EC2 tag edits fall back to the stack-name tag', (qualifier) => {
+    const fallback = (): Statement | undefined =>
+        allows(qualifier).find((statement) => statement.Sid === EC2_STACK_TAG_SID);
+
+    it('allows exactly ec2:CreateTags and ec2:DeleteTags, on "*", under StringLike on the stack-name tag only', () => {
+        const statement = fallback();
+
+        expect(statement, 'no stack-name fallback for EC2 tag edits').toBeDefined();
+        expect([...(statement as Statement).Action].sort()).toEqual(['ec2:CreateTags', 'ec2:DeleteTags']);
+        expect((statement as Statement).Resource).toEqual(['*']);
+        expect((statement as Statement).Condition).toEqual({
+            StringLike: { [STACK_NAME_RESOURCE_TAG]: [...STACK_TAG_PATTERNS[qualifier]] },
+        });
+    });
+
+    it("uses the qualifier's own KitchenSink stack patterns, which name no other application", () => {
+        const patterns = conditionValues(fallback() as Statement, STACK_NAME_RESOURCE_TAG);
+
+        expect(patterns.length).toBeGreaterThan(0);
+        expect(patterns.every((pattern) => pattern.startsWith('kitchensink-'))).toBe(true);
+    });
+
+    it('is honoured by the actions it covers (else the grant is dead)', () => {
+        for (const action of ['ec2:CreateTags', 'ec2:DeleteTags']) {
+            expect(tagKeySupport(iamCatalogue, action, 'resourceTag').unsupported, action).toEqual([]);
+            expect(tagKeySupport(iamCatalogue, action, 'resourceTag').supported, action).not.toEqual([]);
+        }
+    });
+
+    it("keeps the cross-tier Deny, which no Allow outranks, so the fallback cannot touch another tier's resource", () => {
+        const others = Object.values(QUALIFIERS)
+            .filter((other) => other !== qualifier)
+            .map(tierTagValue)
+            .sort();
+        const deny = statements(qualifier).find(
+            (statement) => statement.Effect === 'Deny' && conditionValues(statement, RESOURCE_TAG).length > 0,
+        );
+
+        expect(deny?.Action).toEqual(['*']);
+        expect([...conditionValues(deny as Statement, RESOURCE_TAG)].sort()).toEqual(others);
+    });
+});
+
+describe('executionPolicy(ksaccount) — has no EC2 stack-name fallback', () => {
+    it('grants none, because the account tier owns no EC2 resources', () => {
+        expect(allows(QUALIFIERS.account).some((statement) => statement.Sid === EC2_STACK_TAG_SID)).toBe(false);
     });
 });
 

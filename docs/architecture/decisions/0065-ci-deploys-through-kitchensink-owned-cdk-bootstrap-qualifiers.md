@@ -123,6 +123,18 @@ match on it would admit that application's resources. The rules the execution po
   named). The second path is also what lets a stack re-tag a legacy resource on its next update. Resources addressed only
   by `*` (EC2 `CreateTags`) get no request path, because a request-added tag on `*` would let a stack claim any resource
   of the account; they take the tag at creation or from the admin re-tag below.
+  EC2 tag edits have one more path, because of rollback (next bullet): `ec2:CreateTags` and `ec2:DeleteTags` are also
+  allowed on a resource whose `aws:ResourceTag/aws:cloudformation:stack-name` matches the tier's stack patterns
+  (`STACK_TAG_PATTERNS`, `Ec2TagByStack`). EC2 is the one family where the system tag is reliable (measured on the VPC
+  and the internet gateway), a user cannot set an `aws:` tag, and the patterns name only `kitchensink-*` stacks, so the
+  other application's `Armoury-*` stacks are outside them. `DenyOtherTierTag` still outranks it.
+- **A rollback can strip the tier tag.** A stack whose forward update fails rolls back to its OLD template. Across the
+  migration boundary that template has no tier tag, so CloudFormation's tag reconciliation first removes the tier tag
+  (allowed) and then re-adds the old tags (refused for every type without a fallback, because the resource no longer
+  carries the tag). The EC2 fallback above covers EC2. For any other service the stack lands in `UPDATE_ROLLBACK_FAILED`
+  and is recovered with `aws cloudformation continue-update-rollback --resources-to-skip <logical ids>`, then re-tagged
+  by the runbook's step 3. Once a stack has deployed once with the tier tag in its template, a rollback returns to a
+  template that has it, and the tag is kept; the exposure is the migration window only.
 - `DenyOtherTierTag` refuses every action on a resource tagged with another tier's value, in the execution policy and in
   the boundary, so the request path cannot overwrite production's tag from a branch and a role a branch creates cannot
   touch a production-tagged resource. The tier-name Denies stay.
@@ -131,7 +143,8 @@ match on it would admit that application's resources. The rules the execution po
 **Migration.** Resources that exist today carry no tier tag, so nothing can modify them until they are tagged. In order:
 (1) the owner deploys the policy stack, which adds `kitchensink-ci-exec-<qualifier>-tags` and the new conditions;
 (2) the owner runs the one-shot re-tag from `docs/runbooks/cdkBootstrapQualifiers.md` over KitchenSink resources only
-(selected by the `Environment` tag AND a `kitchensink` name, never by `Environment` alone); (3) app deploys run, each of
+(selected by the `Environment` tag AND a `kitchensink` name, never by `Environment` alone; IAM roles and EC2 resources are
+enumerated per owning stack, because the Resource Groups Tagging API does not return IAM roles); (3) app deploys run, each of
 which also writes the tag through the stack. A resource missed by (2) fails loudly on its next modify with the action
 named, and the request path of `TagNew` heals the named types on that same deploy.
 

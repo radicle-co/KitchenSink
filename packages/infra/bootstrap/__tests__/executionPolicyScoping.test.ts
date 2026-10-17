@@ -108,6 +108,8 @@ const NAMED_RESIDUALS: Readonly<Record<string, string>> = {
     CloudFrontCreateNameOnly:
         'cache, origin-request and response-headers policies, access controls, key groups, public keys honour no request tag in the reference',
     ApiGatewayTags: 'the tags of an API Gateway resource are addressed by the tagged resource ARN',
+    Ec2TagByStack:
+        'rollback fallback: ec2:CreateTags and ec2:DeleteTags on a resource whose CloudFormation stack-name system tag is this tier, because the tier tag is gone after a rollback and a tag action has no request path',
 };
 
 describe.each(stageQualifiers)('executionPolicy(%s) — create versus modify', (qualifier) => {

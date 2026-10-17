@@ -244,8 +244,14 @@ const GRANTS: readonly Grant[] = [
                 'logs:GetLogEvents',
                 'logs:PutLogEvents',
             ]),
-            ksaccount: ['logs:DeleteLogGroup', 'logs:DescribeSubscriptionFilters'],
         },
+    },
+    {
+        // The account tier is a CEILING over the CI roles, which delete a preview's log groups by a pattern that
+        // carries the stage in the middle (`*kitchensink-*-pr-*`); the stage tiers' roles never delete one.
+        sid: 'LogGroupsByName',
+        resources: [arn('logs', 'log-group:*kitchensink*')],
+        actions: { ksaccount: ['logs:DeleteLogGroup'] },
     },
     { sid: 'Bedrock', resources: MODELS, actions: stage(['bedrock:InvokeModel']) },
     { sid: 'DatabaseLogin', resources: DB_USERS, actions: stage(['rds-db:connect']) },
@@ -385,6 +391,8 @@ export const STAR_RESOURCE_ACTIONS: Readonly<Record<string, string>> = {
         'WRITE: log deliveries have no resource-level form; can delete any log delivery in the account, stopping the logs of the other application',
     'logs:DescribeLogGroups':
         'READ: a list-all describe is evaluated against "*"; returns every log group name and its retention',
+    'logs:DescribeSubscriptionFilters':
+        'READ: the CI roles read the filters of any log group by a list-all form; returns the filters of every log group, including the other application',
     'logs:DescribeResourcePolicies':
         'READ: log resource policies have no resource-level form; returns every policy in the account',
     'logs:GetLogDelivery':
@@ -517,6 +525,7 @@ const STAR_ACTIONS: Readonly<Record<QualifierName, readonly string[]>> = {
         'ecs:DescribeTaskDefinition',
         'ecs:ListClusters',
         'logs:DescribeLogGroups',
+        'logs:DescribeSubscriptionFilters',
         'route53:GetChange',
         'route53:ListHostedZones',
         'route53:ListHostedZonesByName',

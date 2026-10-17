@@ -9,7 +9,9 @@
         "./executionPolicy": "./src/executionPolicy.ts",
         "./boundary": "./src/boundary.ts",
         "./policyDocument": "./src/policyDocument.ts",
-        "./customizeBootstrapTemplate": "./src/customizeBootstrapTemplate.ts"
+        "./customizeBootstrapTemplate": "./src/customizeBootstrapTemplate.ts",
+        "./iamPattern": "./src/iamPattern.ts",
+        "./iamCatalogue": "./manifests/iamCatalogue.json"
     },
     "dependencies": {
         "yaml": "^2.8.1"

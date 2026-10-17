@@ -25,6 +25,11 @@ import { fileURLToPath } from 'node:url';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { createRequire } from 'node:module';
+
+import { buildBoundary } from '@kitchensink/cdk-bootstrap/boundary';
+import { iamLike } from '@kitchensink/cdk-bootstrap/iamPattern';
+import { renderDocument, type PolicyDocument, type Statement } from '@kitchensink/cdk-bootstrap/policyDocument';
 import { boundaryPolicyName } from '@kitchensink/cdk-bootstrap/qualifiers';
 
 const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -201,6 +206,209 @@ describe('the account app deploys through ksaccount (ADR-0065)', () => {
         for (const destination of destinations) {
             expect(destination.bucketName).toContain(`cdk-${DEFAULT_QUALIFIER}-assets-`);
             expect(destination.assumeRoleArn).toBeUndefined();
+        }
+    });
+});
+
+/**
+ * The ksaccount boundary is a CEILING over what the account app's roles are granted, not a mirror of it.
+ *
+ * `puts every role under the ksaccount boundary` proves the boundary is ATTACHED. A role's permissions are the
+ * intersection of its policy and its boundary, so a boundary that does not admit a grant silently removes it: the
+ * CI roles gained the boundary and dozens of their grants (stack deletes, log-group deletes, DNS changes, ...) would
+ * have been denied, found only by simulating after the diff. This reads every Allow of every policy the synthesized
+ * app attaches to a role, expands wildcard actions against the Service Authorization Reference snapshot, and requires
+ * each (action, resource) pair to be admitted by the RENDERED boundary.
+ *
+ * Modelled as IAM does it, so far as the boundary uses it: an Allow admits a pair when the action matches, the
+ * resource is CONTAINED (the role's own wildcards count as plain characters), and the action's service is the resource's
+ * service; no Deny covers it; a stack-name tag condition is taken as satisfied, because every resource a stack makes
+ * carries the tag (the boundary's own comment states the same assumption). Pairs on the default qualifier's bootstrap
+ * roles are the one expected refusal.
+ */
+describe('the ksaccount boundary is a ceiling over the roles of the account app', () => {
+    interface CatalogueEntry {
+        readonly actions: readonly string[];
+    }
+    const catalogue = JSON.parse(
+        readFileSync(createRequire(import.meta.url).resolve('@kitchensink/cdk-bootstrap/iamCatalogue'), 'utf8'),
+    ) as { services: Record<string, CatalogueEntry> };
+
+    type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
+
+    const ARN_SERVICE_OF_PREFIX: Readonly<Record<string, string>> = {
+        'cloudfront-keyvaluestore': 'cloudfront',
+        sts: 'iam',
+    };
+
+    /** Resolves the intrinsics a synthesized ARN uses; a GetAtt (an id CloudFormation assigns) has no ARN to judge. */
+    function resolveArn(value: Json | undefined): string | undefined {
+        if (typeof value === 'string') {
+            return value;
+        }
+
+        if (value === null || value === undefined || typeof value !== 'object' || Array.isArray(value)) {
+            return undefined;
+        }
+
+        const join = value['Fn::Join'];
+
+        if (Array.isArray(join) && Array.isArray(join[1])) {
+            const parts = (join[1] as Json[]).map(resolveArn);
+
+            return parts.includes(undefined) ? undefined : parts.join(typeof join[0] === 'string' ? join[0] : '');
+        }
+
+        const names: Record<string, string> = {
+            'AWS::Partition': 'aws',
+            'AWS::Region': 'us-east-1',
+            'AWS::AccountId': ACCOUNT,
+        };
+
+        return names[typeof value['Ref'] === 'string' ? value['Ref'] : ''];
+    }
+
+    interface Grant {
+        readonly where: string;
+        readonly action: string;
+        readonly resource: string;
+    }
+
+    /** Every (action, resource) an Allow of a role-attached policy grants, wildcard actions expanded. */
+    function grantsOf(assembly: Assembly): Grant[] {
+        const grants: Grant[] = [];
+
+        const take = (where: string, document: Json | undefined): void => {
+            const raw = (document as { Statement?: Json } | undefined)?.Statement;
+            const statements = (Array.isArray(raw) ? raw : []) as Record<string, Json>[];
+
+            for (const statement of statements) {
+                if (statement['Effect'] !== 'Allow') {
+                    continue;
+                }
+
+                const actions = ([] as Json[]).concat(statement['Action'] ?? []) as string[];
+                const resources = ([] as Json[]).concat(statement['Resource'] ?? '*').map(resolveArn);
+
+                for (const action of actions) {
+                    const [service = '', name = ''] = action.split(':');
+                    const known = catalogue.services[service.toLowerCase()];
+
+                    if (/[*?]/u.test(name) && known === undefined) {
+                        throw new Error(`${where}: no catalogue entry for "${action}"; run bootstrap:catalogue`);
+                    }
+
+                    const concrete = /[*?]/u.test(name)
+                        ? (known?.actions ?? [])
+                              .filter((candidate) => iamLike(name.toLowerCase(), candidate.toLowerCase()))
+                              .map((candidate) => `${service}:${candidate}`)
+                        : [action];
+
+                    for (const resource of resources) {
+                        if (resource !== undefined) {
+                            concrete.forEach((each) => grants.push({ where, action: each, resource }));
+                        }
+                    }
+                }
+            }
+        };
+
+        for (const file of assembly.files.filter((candidate) => candidate.endsWith('.template.json'))) {
+            const resources = (
+                JSON.parse(read(assembly, file)) as {
+                    Resources?: Record<string, { Type: string; Properties?: Record<string, Json> }>;
+                }
+            ).Resources;
+
+            for (const [logicalId, resource] of Object.entries(resources ?? {})) {
+                const where = `${file}#${logicalId}`;
+                const properties = resource.Properties ?? {};
+
+                if (resource.Type === 'AWS::IAM::Policy' || resource.Type === 'AWS::IAM::ManagedPolicy') {
+                    take(where, properties['PolicyDocument']);
+                }
+
+                if (resource.Type === 'AWS::IAM::Role') {
+                    const inline = properties['Policies'];
+
+                    (Array.isArray(inline) ? (inline as Record<string, Json>[]) : []).forEach((policy) =>
+                        take(where, policy['PolicyDocument']),
+                    );
+                }
+            }
+        }
+
+        return grants;
+    }
+
+    const rendered = (): PolicyDocument =>
+        renderDocument(buildBoundary('ksaccount'), { account: ACCOUNT, region: 'us-east-1' });
+
+    const serviceMatches = (action: string, pattern: string): boolean => {
+        const prefix = action.split(':')[0]?.toLowerCase() ?? '';
+
+        return !pattern.startsWith('arn:') || pattern.split(':')[2] === (ARN_SERVICE_OF_PREFIX[prefix] ?? prefix);
+    };
+
+    function admits(boundary: PolicyDocument, grant: Grant): boolean {
+        const applies = (statement: Statement): boolean =>
+            statement.Action.some((pattern) => iamLike(pattern.toLowerCase(), grant.action.toLowerCase())) &&
+            statement.Resource.some(
+                (pattern) =>
+                    serviceMatches(grant.action, pattern) &&
+                    // A ceiling must CONTAIN the role's resource: the role's own wildcards are matched as plain characters, so
+                    // `log-group:*` is inside `log-group:*` but not inside `log-group:kitchensink-*`.
+                    iamLike(pattern, grant.resource),
+            );
+
+        return (
+            boundary.Statement.some(
+                (statement) =>
+                    statement.Effect === 'Allow' &&
+                    applies(statement) &&
+                    // A resource-tag condition is taken as satisfied; any other condition is not modelled.
+                    Object.entries(statement.Condition ?? {}).every(
+                        ([operator, keys]) =>
+                            operator === 'StringLike' && Object.keys(keys).every((key) => key.includes('ResourceTag')),
+                    ),
+            ) && !boundary.Statement.some((statement) => statement.Effect === 'Deny' && applies(statement))
+        );
+    }
+
+    const legacy = (grant: Grant): boolean => grant.resource.includes(`role/cdk-${DEFAULT_QUALIFIER}-`);
+
+    const refused = (boundary: PolicyDocument, grants: readonly Grant[]): string[] =>
+        grants
+            .filter((grant) => !legacy(grant) && !admits(boundary, grant))
+            .map((grant) => `${grant.action} on ${grant.resource}`);
+
+    it('judges a real number of grants (a vacuous pass here would hide every rule below)', () => {
+        expect(grantsOf(deployable).length).toBeGreaterThan(100);
+    });
+
+    it('admits every grant of every role of the account app', () => {
+        expect([...new Set(refused(rendered(), grantsOf(deployable)))].sort()).toEqual([]);
+    });
+
+    it('refuses assuming the default qualifier roles, which stays an explicit Deny', () => {
+        const old = grantsOf(deployable).filter(legacy);
+
+        expect(old.length).toBeGreaterThan(0);
+        expect(old.filter((grant) => admits(rendered(), grant))).toEqual([]);
+    });
+
+    it('fails when a ceiling line is dropped (the guard can see a missing grant)', () => {
+        const boundary = rendered();
+        const without = (needle: string): PolicyDocument => ({
+            ...boundary,
+            Statement: boundary.Statement.map((statement) => ({
+                ...statement,
+                Resource: statement.Resource.filter((resource) => !resource.includes(needle)),
+            })),
+        });
+
+        for (const needle of ['stack/kitchensink-', 'hostedzone/', ':repository/', 'parameter/kitchensink/']) {
+            expect(refused(without(needle), grantsOf(deployable)).length, needle).toBeGreaterThan(0);
         }
     });
 });

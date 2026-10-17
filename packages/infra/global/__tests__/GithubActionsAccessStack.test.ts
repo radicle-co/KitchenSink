@@ -11,7 +11,10 @@ import path from 'node:path';
 import { Template } from 'aws-cdk-lib/assertions';
 import { describe, expect, it } from 'vitest';
 
-import { GithubActionsAccessStack } from '../lib/platform/GithubActionsAccessStack.js';
+import {
+    GithubActionsAccessStack,
+    LEGACY_QUALIFIER_ALLOW_EXPIRES_ON,
+} from '../lib/platform/GithubActionsAccessStack.js';
 import { SHARED_TIER_DELETE_ORDER } from '../lib/sandbox-scheduler/reclaim.js';
 import { OBSERVE_SERVICE, OBSERVE_TIERS, TEARDOWN, observeCommands, type ObserveTier } from './ciAwsCommands.js';
 import { policyAdmits, policyAdmitsTagged, type PolicyStatementJson } from './iamGlob.js';
@@ -1003,5 +1006,32 @@ describe('GithubActionsAccessStack: only the production role may change image ta
 
     it.each(rows)('%s: %s on %s -> admitted=%s', (name, action, resource, expected) => {
         expect(policyAdmits(statementsOf(t, name), action, resource)).toBe(expected);
+    });
+});
+
+/**
+ * The expand state must not become permanent. Until the contract commit lands, every CI role can still assume the
+ * default-qualifier bootstrap roles, which are administrator-backed and shared with the other application in this
+ * account (ADR-0065's HIGH-1 window). This test is a TRIPWIRE: it fails once the recorded date passes, so the
+ * window is closed or consciously renewed (by changing the date in the same commit that states why).
+ */
+describe('the default-qualifier Allow is a time-boxed expand state (ADR-0065)', () => {
+    const FORMAT = /^\d{4}-\d{2}-\d{2}$/u;
+
+    it('records a well-formed ISO date', () => {
+        expect(LEGACY_QUALIFIER_ALLOW_EXPIRES_ON).toMatch(FORMAT);
+        expect(Number.isNaN(Date.parse(`${LEGACY_QUALIFIER_ALLOW_EXPIRES_ON}T00:00:00Z`))).toBe(false);
+    });
+
+    it('is still before the date the contract commit was due', () => {
+        const today = new Date().toISOString().slice(0, 10);
+
+        expect(
+            today <= LEGACY_QUALIFIER_ALLOW_EXPIRES_ON,
+            `The default-qualifier (hnb659fds) Allow on the CI roles expired on ${LEGACY_QUALIFIER_ALLOW_EXPIRES_ON}. ` +
+                'Apply the contract commit (branch `option1-d2-contract`, ADR-0065) that removes the Allow and denies ' +
+                'the default qualifier instead. Only if the owner has consciously extended the window, move the date in ' +
+                'GithubActionsAccessStack.ts and say why in the commit.',
+        ).toBe(true);
     });
 });

@@ -230,6 +230,15 @@ const ownedBootstrapRoles = (scope: Scope, tier: CiTier): readonly string[] =>
     );
 
 /**
+ * The last day the default-qualifier Allow below may still be in the tree (`YYYY-MM-DD`, UTC). It is the expand half
+ * of ADR-0065's migration, and while it exists every CI role can reach an administrator-backed role it shares with
+ * the other application in this account (the HIGH-1 finding). `GithubActionsAccessStack.test.ts` fails once this
+ * date passes, so the window cannot become permanent by neglect: apply the contract commit (branch
+ * `option1-d2-contract`) rather than moving the date, unless the owner has consciously extended it.
+ */
+export const LEGACY_QUALIFIER_ALLOW_EXPIRES_ON = '2026-10-30';
+
+/**
  * The default-qualifier bootstrap roles, shared with the other application in this account and administrator-backed.
  * Kept ONLY for the expand half of the migration, so that nothing breaks while stacks move to the owned qualifiers;
  * the contract half removes this Allow and denies the roles instead.

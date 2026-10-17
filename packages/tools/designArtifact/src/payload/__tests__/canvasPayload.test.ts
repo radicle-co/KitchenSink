@@ -71,7 +71,7 @@ describe('canvasPayload', () => {
             expect(canvas.title).toBe('Commise Screens');
             expect(canvas.order).toEqual(BOARDS.map((b) => b.file));
             expect(canvas.boards['Discover.dc.html']).toMatchObject({ x: 0, y: 1788 });
-            expect(Object.keys(canvas.notes)).toHaveLength(14);
+            expect(Object.keys(canvas.notes)).toHaveLength(21);
             expect(canvas.createdOnFiles.at).toBe('2026-10-16T12:00:00Z');
         });
 

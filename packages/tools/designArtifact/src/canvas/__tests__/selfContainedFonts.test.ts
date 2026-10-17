@@ -22,7 +22,7 @@ const authoredPages = (): readonly string[] => [
 
 describe('authored pages load fonts only from the system', () => {
     it('finds the boards and the cover, so an empty scan cannot pass', () => {
-        expect(authoredPages().length).toBe(70);
+        expect(authoredPages().length).toBe(128);
     });
 
     it.each(authoredPages())('%s fetches no webfont', (page) => {

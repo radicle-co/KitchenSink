@@ -44,6 +44,7 @@ import type { ReactElement, ReactNode } from 'react';
 
 import { webDeviceStore } from '@/components/recipes/deviceSession';
 import { FOOD_SERVICE_BASE_URL } from '@/lib/foodServiceConfig';
+import { reportErrorToSentry } from '@/lib/sentryErrorReporter';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
 
 /**
@@ -124,7 +125,12 @@ export function RecipeProviders({ children }: { readonly children: ReactNode }):
                     the page. `AppShell` mounts it at the top of `<main>`, which is inside this provider, so it still
                     reads the queue and still gets the signed-out half. The cost: a page without the shell (sign-in,
                     sign-up) shows no connectivity notice. */}
-                <SyncProvider subject={userId ?? undefined} send={send} store={webDeviceStore}>
+                <SyncProvider
+                    subject={userId ?? undefined}
+                    send={send}
+                    store={webDeviceStore}
+                    onFault={reportErrorToSentry}
+                >
                     {/* Slice 7: the outbox's recipe writes reach the cache, and the editor's device draft, whether or
                         not the editor that queued them is still open. */}
                     <RecipeWriteCacheObserver />

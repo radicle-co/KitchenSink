@@ -35,6 +35,7 @@ import { useCallback, useMemo } from 'react';
 
 import { NATIVE_JWT_TEMPLATE } from '../auth/nativeToken.js';
 import { env } from '../config/env.js';
+import { reportErrorToSentry } from '../observability/sentryErrorReporter.js';
 import { nativeDeviceStore } from '../storage/deviceSession.js';
 
 /**
@@ -92,7 +93,7 @@ export function RecipeServiceGate({ children }: { readonly children: ReactNode }
     // this position, so `AuthGate` resolving a user would unmount and REMOUNT the whole subtree — the same
     // defect that wiped the web recipe editor and failed six Playwright shards.
     return (
-        <SyncProvider subject={userId ?? undefined} send={send} store={nativeDeviceStore}>
+        <SyncProvider subject={userId ?? undefined} send={send} store={nativeDeviceStore} onFault={reportErrorToSentry}>
             {/* Slice 7: the outbox's recipe writes reach the cache, and the editor's device draft, whether or
                 not the editor that queued them is still open. */}
             <RecipeWriteCacheObserver />

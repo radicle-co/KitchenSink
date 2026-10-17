@@ -765,6 +765,79 @@ describe('SyncProvider — the editor`s exclusive submit, replies and withdrawal
         expect(send).toHaveBeenCalledTimes(2);
     });
 
+    it('⛔ reports a subscriber that throws to onFault instead of swallowing it', async () => {
+        const send = vi.fn(async (): Promise<SendResult> => ({ outcome: 'ok', serverId: 'r1' }));
+        const onFault = vi.fn();
+        const boom = new Error('listener bug');
+        const { current, Capture } = captureQueue();
+
+        render(
+            <SyncProvider subject="user_a" send={send as never} onFault={onFault}>
+                <Capture />
+            </SyncProvider>,
+        );
+
+        current().subscribe(() => {
+            throw boom;
+        });
+
+        await act(async () => {
+            await current().submitExclusive(updateOf('r1'));
+        });
+
+        await waitFor(() => expect(onFault).toHaveBeenCalledWith(boom, { source: 'syncSettlementListener' }));
+    });
+
+    it('⛔ reports a sender that throws to onFault, naming the record, and still parks it', async () => {
+        const boom = new Error('sender broke its contract');
+        const send = vi.fn(async (): Promise<SendResult> => {
+            throw boom;
+        });
+        const onFault = vi.fn();
+
+        render(
+            <SyncProvider subject="user_a" send={send as never} onFault={onFault}>
+                <SubmitButton intent={updateOf('r1')} label="save" />
+                <Probe />
+            </SyncProvider>,
+        );
+
+        await act(async () => {
+            screen.getByRole('button', { name: 'save' }).click();
+        });
+
+        await waitFor(() =>
+            expect(onFault).toHaveBeenCalledWith(boom, {
+                source: 'syncSender',
+                entity: 'recipe',
+                intentKind: 'update',
+                localId: 'r1',
+            }),
+        );
+        await waitFor(() => expect(screen.getByText('failed:1')).toBeTruthy());
+    });
+
+    it('⛔ reports a drain pass that rejects (an unreadable store) to onFault', async () => {
+        const unreadable: OutboxStore = {
+            getItem: vi.fn().mockRejectedValue(new Error('AsyncStorage unavailable')),
+            setItem: vi.fn().mockResolvedValue(undefined),
+            removeItem: vi.fn().mockResolvedValue(undefined),
+        };
+        const onFault = vi.fn();
+
+        render(
+            <SyncProvider subject="user_a" send={vi.fn()} store={unreadable} onFault={onFault}>
+                <Probe />
+            </SyncProvider>,
+        );
+
+        await waitFor(() =>
+            expect(onFault).toHaveBeenCalledWith(expect.objectContaining({ message: 'AsyncStorage unavailable' }), {
+                source: 'syncDrainPass',
+            }),
+        );
+    });
+
     it('a parked write carries its sequence number, blocks the lane, and leaves when withdrawn', async () => {
         const send = vi.fn(async (): Promise<SendResult> => ({ outcome: 'failed', status: 409 }));
         const { current, Capture } = captureQueue();

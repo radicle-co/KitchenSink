@@ -11,12 +11,12 @@
  * the record parks (`SESSION_ENDED`).
  *
  * ⛔ THIS SENDER DOES NOT THROW FOR A RECORD IT CANNOT SEND, AND THAT IS A CORRECTNESS RULE, NOT A STYLE.
- * `drain` does not wrap `await send(…)`, and `flush` calls `saveOutbox` only AFTER `drain` returns — so a
- * throw at record N discards the successful sends of records 1..N-1 and the next drain RE-SENDS them. That
- * is at-least-once delivery, which `drainer.ts`'s own header states never happens and on which the whole
- * "no client-minted id, no `ON CONFLICT` upsert, no server change" argument rests. An earlier version threw
- * on an unsupported intent kind to avoid "a silent success"; parking the record is how you refuse WITHOUT
- * re-delivering everything sent before it.
+ * `drain` catches a throwing sender and parks the record as an UNKNOWN outcome: a create is then never re-sent and the
+ * cook is asked to confirm a write that, for a record this sender refused, never left. So a refusal is a statused
+ * result. An earlier version threw on an unsupported intent kind, and before that the drain did not catch at all, so a
+ * throw at record N discarded the successful sends of records 1..N-1 and the next drain RE-SENT them — at-least-once
+ * delivery, which `drainer.ts`'s own header states never happens and on which the whole "no client-minted id, no
+ * `ON CONFLICT` upsert, no server change" argument rests.
  *
  * @pattern Adapter — it translates the domain's intent vocabulary into one service client's methods, and is
  *     the only module that knows both.
@@ -26,6 +26,7 @@ import {
     isInvalidRequestError,
     isRecipeNotFoundError,
     isRecipeServiceClientError,
+    isSourceUnavailableError,
     isVersionConflictError,
     type RecipeServiceClient,
 } from '@kitchensink/recipe-service-client';
@@ -60,6 +61,14 @@ const NOT_IMPLEMENTED: RecipeSendResult = { outcome: 'failed', status: 501 };
  * re-sends parked records.
  */
 const SESSION_ENDED: RecipeSendResult = { outcome: 'failed', status: 401 };
+
+/**
+ * The service's own statement that it did NOTHING: `502 SOURCE_UNAVAILABLE`, a route that needed the food service and
+ * could not ask it. Reported as `503`, the sync vocabulary for "not processed" (`@kitchensink/retry-after`), so the drain
+ * retries it. A gateway's code-less 502/504 keeps its own status, which `classifyFailure` reads as unknown, because only
+ * the service's code distinguishes the two.
+ */
+const NOT_PROCESSED: RecipeSendResult = { outcome: 'failed', status: 503 };
 
 /**
  * Dispatch one record to the client call its entity and kind name.
@@ -173,6 +182,10 @@ function failureFor(error: unknown): RecipeSendResult {
         return SESSION_ENDED;
     }
 
+    if (isSourceUnavailableError(error)) {
+        return NOT_PROCESSED;
+    }
+
     if (isRecipeServiceClientError(error) && typeof error.status === 'number') {
         return { outcome: 'failed', status: error.status };
     }
@@ -193,11 +206,10 @@ export function recipeSender(clientOf: ClientAccessor): Sender<SyncAnswer> {
         const client = clientOf();
 
         if (client === undefined) {
-            // ⛔ THE ONE REMAINING THROW, AND IT IS SAFE FOR A REASON WORTH STATING. `clientOf` closes over a
-            // value that does not change during a drain, so this fires on the FIRST record or not at all —
-            // there are no earlier successes to discard. It stays a throw because "we had no client for a
-            // moment" is our problem, not a decision to park in front of the cook.
-            throw new Error('recipeSender: no client available to send with');
+            // ⛔ NOTHING WAS SENT, so this is not an unknown outcome (a throw would be parked as one, and a create is
+            // never re-sent from there). It is the same fact as a session that ended: no credential for this record,
+            // re-sent when one is back.
+            return SESSION_ENDED;
         }
 
         try {

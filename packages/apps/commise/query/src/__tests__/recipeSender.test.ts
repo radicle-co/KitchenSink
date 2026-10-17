@@ -21,6 +21,8 @@ import {
     ForbiddenError,
     InvalidRequestError,
     NotFoundError,
+    RecipeServiceClientError,
+    SourceUnavailableError,
     VersionConflictError,
 } from '@kitchensink/recipe-service-client';
 import type { VersionConflictSide } from '@kitchensink/recipe-core';
@@ -230,10 +232,51 @@ describe('recipeSender', () => {
         expect(createRecipe).not.toHaveBeenCalled();
     });
 
-    it('⛔ throws when no client is available, rather than dropping the write', async () => {
+    /**
+     * REWRITTEN: the drain now catches a throwing sender and parks the record as an UNKNOWN outcome (never re-sent for a
+     * create). A missing client sent nothing, so throwing would ask the cook to confirm a write that provably never left.
+     * It answers `401` instead, the refusal the drain re-sends once a credential is back.
+     */
+    it('⛔ answers 401, not a throw, when no client is available: nothing was sent', async () => {
         const send = recipeSender(() => undefined);
 
-        await expect(send(record('update', { id: 'r1', input: {} }))).rejects.toThrow(/no client/iu);
+        expect(await send(record('create', { input: {} }))).toStrictEqual({ outcome: 'failed', status: 401 });
+        expect(classifyFailure({ entity: 'recipe', intentKind: 'create', localId: 'r1', status: 401 })).not.toBe(
+            'unknown',
+        );
+    });
+});
+
+/**
+ * ⛔ A GATEWAY'S 502 AND THE SERVICE'S OWN 502 ARE DIFFERENT FACTS. A 502/504 from the load balancer may arrive after the
+ * service committed the write (statusless in `classifyFailure`'s eyes: unknown). `502 SOURCE_UNAVAILABLE` is the
+ * service's own statement that a route could not ask the food service and DID NOTHING, so it is the not-processed
+ * answer; it is reported as `503`, the sync vocabulary for that, and the drain may re-send it.
+ */
+describe('recipeSender — a 502', () => {
+    it('reports the service’s own SOURCE_UNAVAILABLE as not processed (503)', async () => {
+        const updateRecipe = vi.fn().mockRejectedValue(new SourceUnavailableError());
+        const send = recipeSender(() => ({ updateRecipe }) as never);
+
+        const result = await send(record('update', { id: 'r1', input: {} }));
+
+        expect(result).toStrictEqual({ outcome: 'failed', status: 503 });
+        expect(classifyFailure({ entity: 'recipe', intentKind: 'update', localId: 'r1', status: 503 })).toBe(
+            'transient',
+        );
+    });
+
+    it.each([
+        ['a code-less gateway 502', 502],
+        ['a gateway 504', 504],
+    ])('⛔ keeps %s as its own status, which classifies unknown', async (_label, status) => {
+        const createRecipe = vi.fn().mockRejectedValue(new RecipeServiceClientError('Bad Gateway', status));
+        const send = recipeSender(() => ({ createRecipe }) as never);
+
+        const result = await send(record('create', { input: {} }));
+
+        expect(result).toStrictEqual({ outcome: 'failed', status });
+        expect(classifyFailure({ entity: 'recipe', intentKind: 'create', localId: 'r1', status })).toBe('unknown');
     });
 });
 

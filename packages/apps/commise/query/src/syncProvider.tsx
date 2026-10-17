@@ -21,6 +21,7 @@ import {
     appendIntent,
     applyDiscard,
     claimForSending,
+    createFanout,
     createMemoryOutboxStore,
     drain,
     drainLaneFor,
@@ -134,33 +135,28 @@ interface SettlementBus {
     readonly publish: (event: SyncSettlement) => void;
 }
 
+/** Where a failure the provider isolated is reported: the app's error reporter, with what failed as context. */
+type FaultReporter = (error: unknown, context: Record<string, unknown>) => void;
+
 /**
  * The provider's one settlement bus. Pure construction; the returned functions mutate the listener set.
  *
+ * ⛔ ONE LISTENER'S BUG MUST NOT REACH THE DRAIN OR THE OTHER LISTENERS (a throw would reject the pass mid-queue, the rest
+ * unsent), AND IT MUST BE REPORTED: a listener that throws (the write-cache or draft-answer observer) silently loses a
+ * create's server id for the editor's draft. The shared `createFanout` does the isolating; each failure goes to `report`.
+ *
+ * @param report - Receives each listener failure. Stable for the provider's life.
  * @returns A bus.
  */
-function createSettlementBus(): SettlementBus {
-    const listeners = new Set<(event: SyncSettlement) => void>();
+function createSettlementBus(report: FaultReporter): SettlementBus {
+    const fanout = createFanout<SyncSettlement>();
 
     return {
-        subscribe: (listener) => {
-            listeners.add(listener);
-
-            return () => {
-                listeners.delete(listener);
-            };
-        },
-        publish: (event) => {
-            for (const listener of [...listeners]) {
-                // ⛔ ONE LISTENER'S BUG MUST NOT REACH THE DRAIN OR THE OTHER LISTENERS: a throw here would reject the
-                // pass mid-queue (the rest unsent) and hide this settlement from every subscriber behind it.
-                try {
-                    listener(event);
-                } catch {
-                    // Isolated by design; the listener's owner has no channel back to this bus.
-                }
-            }
-        },
+        subscribe: (listener) =>
+            fanout.subscribe(listener, (error) => {
+                report(error, { source: 'syncSettlementListener' });
+            }),
+        publish: fanout.publish,
     };
 }
 
@@ -215,6 +211,12 @@ export interface SyncProviderProps {
     readonly send: Sender<SyncAnswer>;
     /** The platform storage adapter. Defaults to the volatile web one. */
     readonly store?: OutboxStore;
+    /**
+     * Receives a failure this provider isolates rather than lets through: a settlement or ledger listener that threw,
+     * a sender that broke its contract by throwing, a drain pass that rejected. The app binds its error reporter;
+     * omitted, they are isolated and unreported.
+     */
+    readonly onFault?: FaultReporter;
     readonly children: ReactNode;
 }
 
@@ -237,7 +239,7 @@ export function failuresOf(log: OutboxLog): readonly ParkedFailure[] {
 }
 
 /** Runs the queue for the signed-in user. */
-export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, children }) => {
+export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, onFault, children }) => {
     // ⛔ A PROJECTION OF WHAT THE MUTATOR WROTE, NEVER WRITTEN BACK. The store is the one authority and the
     // mutator its one writer (`@kitchensink/sync`'s `outboxMutator.ts`); this state only mirrors it for render.
     const [log, setLog] = useState<OutboxLog>(EMPTY_OUTBOX);
@@ -250,8 +252,12 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
     });
     const storeRef = useRef<OutboxStore>(store ?? createMemoryOutboxStore());
     const flushRef = useRef<() => Promise<void>>(async () => undefined);
+    // ⛔ THE REPORTER IS READ THROUGH A REF, so the bus and the drain (made once) always report to the latest `onFault`.
+    // Assigned in an effect, never in the render body (see `flushRef`).
+    const onFaultRef = useRef<FaultReporter | undefined>(onFault);
+    const [report] = useState((): FaultReporter => (error, context) => onFaultRef.current?.(error, context));
     // One bus and one session gate for the provider's life: created once by the initializer, never by a render.
-    const [bus] = useState(createSettlementBus);
+    const [bus] = useState(() => createSettlementBus(report));
     const [sessions] = useState(createSessionGate);
 
     // ⛔ DECLARED FIRST, so the cook's session is open before the mount drain below asks for a drain under it, and
@@ -279,7 +285,9 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
             }
         };
 
-        const unsubscribeLedger = ledger.subscribe(hearLedger);
+        const unsubscribeLedger = ledger.subscribe(hearLedger, (error) => {
+            report(error, { source: 'syncUnreadableLedger' });
+        });
 
         hearLedger(ledger.count());
 
@@ -293,7 +301,8 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
                 }
             },
             () => {
-                // Nothing to show yet; `submit` reports its own storage failure, and the next drain re-reads.
+                // Nothing to show yet; `submit` reports its own storage failure, and the next drain (whose own
+                // rejection is reported) re-reads.
             },
         );
 
@@ -303,7 +312,11 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
             unsubscribe();
             unsubscribeLedger();
         };
-    }, [sessions, subject]);
+    }, [report, sessions, subject]);
+
+    useEffect(() => {
+        onFaultRef.current = onFault;
+    }, [onFault]);
 
     const flush = useCallback(async (): Promise<void> => {
         // No signed-in subject means no queue to drain — and no key to read it under. A closure of a cook who has since
@@ -362,16 +375,24 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
                     return;
                 }
 
-                const report = await drain(current, send, { journal, onSettled });
+                const result = await drain(current, send, {
+                    journal,
+                    onSettled,
+                    onFault: (error, record) => {
+                        report(error, { source: 'syncSender', ...record });
+                    },
+                });
 
                 // ⛔ A STATED WAIT ENDS THIS PASS. The pause is stored with the log, so a drain started before it is over
                 // sends nothing; the timer below drains again when it is. ⛔ Only for the cook signed in NOW: the timer
                 // is the provider's one and serves them, while a drain that outlived its cook already wrote its pause into
                 // that cook's log, and their next session's first drain re-arms it.
-                if (report.retryAfterMs !== undefined && live()) {
-                    setRetryInMs(report.retryAfterMs);
+                if (result.retryAfterMs !== undefined && live()) {
+                    setRetryInMs(result.retryAfterMs);
                 }
-            } catch {
+            } catch (error) {
+                report(error, { source: 'syncDrainPass' });
+
                 // ⛔ A PASS MUST NOT REJECT, and this is a rejection handler rather than three. Every caller of `flush`
                 // invokes it as `void flush()` — the mount drain, the `onlineManager` reconnect subscription, `submit`
                 // and the retry timer.
@@ -381,12 +402,11 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
                 // `sending`, which no drain re-sends and the next process start parks as an unknown outcome. Nothing the
                 // server accepted is re-sent behind the cook's back.
                 //
-                // ⚠️ OWED: a drain that fails REPEATEDLY is invisible to the user, and a `drainOrder` cycle — a
-                // programming error, not a network one — is swallowed with everything else. Both want an error
-                // channel on the context.
+                // The failure goes to `onFault`, so a drain that fails repeatedly, or a `drainOrder` cycle (a
+                // programming error, not a network one), reaches the app's error reporter instead of vanishing.
             }
         });
-    }, [bus, send, sessions, subject]);
+    }, [bus, report, send, sessions, subject]);
 
     // ⛔ ASSIGNED IN AN EFFECT, NEVER IN THE RENDER BODY. A ref written during render is advanced by a
     // DISCARDED pass too, so the committed tree can end up holding a handle from a render that never

@@ -32,16 +32,26 @@ vi.mock('../../src/storage/outboxStore.js', async () => ({
         .createMemoryOutboxStore,
 }));
 
+// The reporter reaches the Sentry SDK, which needs the native runtime; the wiring is what this suite asserts.
+vi.mock('../../src/observability/sentryErrorReporter.js', () => ({ reportErrorToSentry: vi.fn() }));
+
+/** The `onFault` each mounted queue was handed. */
+const syncProps = vi.hoisted(() => ({ onFault: [] as unknown[] }));
+
 vi.mock('@commise/query/sync', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@commise/query/sync')>();
 
     return {
         ...actual,
-        SyncProvider: (props: Parameters<typeof actual.SyncProvider>[0]) => (
-            <div data-provider="sync">
-                <actual.SyncProvider {...props} />
-            </div>
-        ),
+        SyncProvider: (props: Parameters<typeof actual.SyncProvider>[0]) => {
+            syncProps.onFault.push(props.onFault);
+
+            return (
+                <div data-provider="sync">
+                    <actual.SyncProvider {...props} />
+                </div>
+            );
+        },
     };
 });
 
@@ -90,5 +100,21 @@ describe('RecipeServiceGate — provider order', () => {
         ).not.toBeNull();
         expect(container.querySelector('[data-provider="recipe"] [data-provider="sync"]')).toBeNull();
         expect(container.querySelector('[data-provider="food"] [data-provider="recipe"]')).toBeNull();
+    });
+
+    it('⛔ hands the queue the app’s Sentry reporter, so an isolated sync failure is reported', async () => {
+        const { reportErrorToSentry } = await import('../../src/observability/sentryErrorReporter.js');
+
+        syncProps.onFault.length = 0;
+        render(
+            <QueryClientProvider client={new QueryClient()}>
+                <RecipeServiceGate>
+                    <Text>child</Text>
+                </RecipeServiceGate>
+            </QueryClientProvider>,
+        );
+
+        expect(syncProps.onFault.length).toBeGreaterThan(0);
+        expect(new Set(syncProps.onFault)).toStrictEqual(new Set([reportErrorToSentry]));
     });
 });

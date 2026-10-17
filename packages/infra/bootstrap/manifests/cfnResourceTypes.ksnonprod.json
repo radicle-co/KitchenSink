@@ -1438,7 +1438,7 @@
                 "states:StartExecution"
             ],
             "resources": [
-                "arn:aws:states:us-east-1:123456789012:stateMachine:kitchensink-sandbox-scheduler-sandbox-ReclaimStateMachineE0C49477-GENERATED"
+                "arn:aws:states:us-east-1:123456789012:stateMachine:ReclaimStateMachineE0C49477-GENERATED"
             ]
         },
         {

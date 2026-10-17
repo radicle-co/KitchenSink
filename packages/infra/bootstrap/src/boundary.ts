@@ -63,7 +63,8 @@ const STACK = arn('cloudformation', 'stack/kitchensink-*/*');
 const DB_INSTANCE = arn('rds', 'db:kitchensink-*');
 const DB_INSTANCE_ANY = arn('rds', 'db:*');
 const DB_CLUSTER_ANY = arn('rds', 'cluster:*');
-const STATE_MACHINE = arn('states', 'stateMachine:kitchensink-*');
+/** A state machine's name is CloudFormation-generated WITHOUT the stack prefix, so only the tag can bound it. */
+const STATE_MACHINE_ANY = arn('states', 'stateMachine:*');
 const INSTANCE = arn('ec2', 'instance/*');
 const DISTRIBUTION = `arn:aws:cloudfront::${ACCOUNT}:distribution/*`;
 const KEY_VALUE_STORE = `arn:aws:cloudfront::${ACCOUNT}:key-value-store/*`;
@@ -124,6 +125,9 @@ const S3_ACTIONS = [
 const SECRET_ACTIONS = ['secretsmanager:DescribeSecret', 'secretsmanager:GetSecretValue'];
 const ECR_PULL = ['ecr:BatchCheckLayerAvailability', 'ecr:BatchGetImage', 'ecr:GetDownloadUrlForLayer'];
 
+/** The tag CloudFormation puts on every resource a stack makes. Only CloudFormation can set an `aws:` tag. */
+const RESOURCE_TAG_KEY = 'aws:ResourceTag/aws:cloudformation:stack-name';
+
 const secretTag = (qualifier: QualifierName): Condition => ({
     StringLike: { 'secretsmanager:ResourceTag/aws:cloudformation:stack-name': stackTagPatterns(qualifier) },
 });
@@ -176,17 +180,33 @@ const GRANTS: readonly Grant[] = [
         },
     },
     {
-        sid: 'Compute',
-        resources: [FUNCTION, STATE_MACHINE, ECR],
+        // A function name is truncated by CloudFormation (64 characters) and the stage token is what is cut, so the
+        // name alone cannot keep a non-production role off a production function, which would then run with its own
+        // production role. The stack-name tag is not truncated. A state machine has no stack prefix at all.
+        sid: 'TaggedCompute',
+        resources: [FUNCTION, STATE_MACHINE_ANY],
+        condition: (qualifier) => ({
+            StringLike: { [RESOURCE_TAG_KEY]: stackTagPatterns(qualifier) },
+        }),
         actions: {
-            ksnonprod: ['lambda:GetFunction', 'lambda:InvokeFunction', 'states:StartExecution', ...ECR_PULL],
-            ksprod: ['lambda:GetFunction', 'lambda:InvokeFunction', ...ECR_PULL],
+            ksnonprod: ['lambda:GetFunction', 'lambda:InvokeFunction', 'states:StartExecution'],
+            ksprod: ['lambda:GetFunction', 'lambda:InvokeFunction'],
             ksaccount: [
                 'lambda:GetFunctionConfiguration',
                 'lambda:GetFunctionUrlConfig',
                 'lambda:InvokeFunction',
                 'states:DescribeStateMachine',
                 'states:ListExecutions',
+            ],
+        },
+    },
+    {
+        sid: 'Ecr',
+        resources: [ECR],
+        actions: {
+            ksnonprod: ECR_PULL,
+            ksprod: ECR_PULL,
+            ksaccount: [
                 ...ECR_PULL,
                 'ecr:CompleteLayerUpload',
                 'ecr:CreateRepository',
@@ -324,49 +344,67 @@ const GRANTS: readonly Grant[] = [
 ];
 
 /**
- * Actions allowed on `*`, each with the reason a resource cannot bound it. Not a convenience list: every entry is a
- * metadata read, a telemetry write or a network-interface verb with NO data in it, and `boundaryResources.test.ts`
- * refuses any queue, topic, secret, parameter, object, invoke, login or log-content action here.
+ * Actions allowed on `*`, each with the reason a resource cannot bound it. Every reason starts with READ or WRITE.
+ *
+ * Not a convenience list: none is a queue, topic, secret, parameter, object, invoke, login or log-content action
+ * (`boundaryResources.test.ts` refuses those here). But a WRITE on `*` is a write on the other application's resources
+ * too, and each says what it can do to them; a READ returns names or configuration, and says what it can return.
  *
  * Reasons cite the AWS Service Authorization Reference for the service. The first sandbox deploy proves them; a scope
  * that is too narrow fails loudly and rolls the stack back.
  */
 export const STAR_RESOURCE_ACTIONS: Readonly<Record<string, string>> = {
     'cloudformation:DescribeStacks':
-        'a list-all describe is evaluated against "*"; stack metadata and outputs, no data',
-    'cloudformation:ListExports': 'ListExports has no resource-level form; export names and values of every stack',
-    'cloudformation:ListStacks': 'ListStacks has no resource-level form; stack names and status only',
-    'cloudwatch:GetMetricStatistics': 'metrics take no resource-level permission; numbers, no content',
+        'READ: a list-all describe is evaluated against "*"; returns the parameters and outputs of every stack in the account',
+    'cloudformation:ListExports': 'READ: no resource-level form; returns the export names and values of every stack',
+    'cloudformation:ListStacks': 'READ: no resource-level form; returns the names and status of every stack',
+    'cloudwatch:GetMetricStatistics': 'READ: metrics take no resource-level permission; returns numbers for any metric',
     'ec2:AssignPrivateIpAddresses':
-        'a VPC Lambda role is created with the AWS-managed VPC-access policy, which uses "*"',
-    'ec2:CreateNetworkInterface': 'the Lambda service creates the interface with the role; AWS documents "*" for it',
-    'ec2:DeleteNetworkInterface': 'the Lambda service removes the interface with the role; AWS documents "*" for it',
-    'ec2:DescribeInstances': 'Describe* has no resource-level form; instance metadata only',
-    'ec2:DescribeNetworkInterfaces': 'Describe* has no resource-level form; interface metadata only',
-    'ec2:DescribeSubnets': 'Describe* has no resource-level form; subnet metadata only',
-    'ec2:UnassignPrivateIpAddresses': 'the Lambda service releases addresses with the role; AWS documents "*" for it',
-    'ecr:GetAuthorizationToken': 'a registry token is account-wide and has no resource-level form',
-    'ecs:DescribeTaskDefinition': 'DescribeTaskDefinition takes a family the stacks do not prefix; configuration only',
-    'ecs:ListClusters': 'a list-all call has no resource-level form; cluster names only',
-    'ecs:ListServices': 'a list-all call is evaluated against "*"; service names only',
-    'ecs:ListTasks': 'a list-all call is evaluated against "*"; task ids only',
-    'events:ListRules': 'ListRules has no resource-level form; rule names only',
-    'logs:CreateLogDelivery': 'log deliveries (Step Functions logging) have no resource-level form',
-    'logs:DeleteLogDelivery': 'log deliveries (Step Functions logging) have no resource-level form',
-    'logs:DescribeLogGroups': 'a list-all describe is evaluated against "*"; group names and retention only',
-    'logs:DescribeResourcePolicies': 'log resource policies have no resource-level form',
-    'logs:GetLogDelivery': 'log deliveries (Step Functions logging) have no resource-level form',
-    'logs:ListLogDeliveries': 'log deliveries (Step Functions logging) have no resource-level form',
-    'logs:PutResourcePolicy': 'log resource policies have no resource-level form; named in ADR-0065 as a residual',
-    'logs:UpdateLogDelivery': 'log deliveries (Step Functions logging) have no resource-level form',
-    'route53:GetChange': 'GetChange takes a change id, not a zone; no resource-level form',
-    'route53:ListHostedZones': 'a list-all call has no resource-level form; zone names only',
-    'route53:ListHostedZonesByName': 'a list-all call has no resource-level form; zone names only',
-    'tag:GetResources': 'the tagging API has no resource-level form; names and tags of every tagged resource',
-    'xray:GetSamplingRules': 'X-Ray sampling calls have no resource-level form; configuration only',
-    'xray:GetSamplingTargets': 'X-Ray sampling calls have no resource-level form; configuration only',
-    'xray:PutTelemetryRecords': 'X-Ray telemetry writes have no resource-level form; write-only',
-    'xray:PutTraceSegments': 'X-Ray trace writes have no resource-level form; write-only',
+        'WRITE: the VPC-access policy of a Lambda role uses "*"; can move private addresses on any interface in the account, including the other application',
+    'ec2:CreateNetworkInterface':
+        'WRITE: the Lambda service creates interfaces with the role; AWS documents "*" for it; can create interfaces in any subnet of the account, including the other application, using up its addresses',
+    'ec2:DeleteNetworkInterface':
+        'WRITE: the Lambda service removes interfaces with the role; can delete any unattached interface in the account, including the other application',
+    'ec2:DescribeInstances': 'READ: Describe* has no resource-level form; returns the metadata of every instance',
+    'ec2:DescribeNetworkInterfaces':
+        'READ: Describe* has no resource-level form; returns the metadata of every interface',
+    'ec2:DescribeSubnets': 'READ: Describe* has no resource-level form; returns the metadata of every subnet',
+    'ec2:UnassignPrivateIpAddresses':
+        'WRITE: the VPC-access policy of a Lambda role uses "*"; can release private addresses on any interface in the account, including the other application',
+    'ecr:GetAuthorizationToken':
+        'READ: a registry token is account-wide and has no resource-level form; it carries only the ECR permissions the boundary already bounds to kitchensink repositories',
+    'ecs:DescribeTaskDefinition':
+        'READ: takes a family the stacks do not prefix; returns the configuration of any task definition',
+    'ecs:ListClusters': 'READ: a list-all call has no resource-level form; returns every cluster name',
+    'ecs:ListServices': 'READ: a list-all call is evaluated against "*"; returns service names',
+    'ecs:ListTasks': 'READ: a list-all call is evaluated against "*"; returns task ids',
+    'events:ListRules': 'READ: no resource-level form; returns the rule names of the default bus',
+    'logs:CreateLogDelivery':
+        'WRITE: log deliveries have no resource-level form; creates a delivery from any source in the account, including the other application',
+    'logs:DeleteLogDelivery':
+        'WRITE: log deliveries have no resource-level form; can delete any log delivery in the account, stopping the logs of the other application',
+    'logs:DescribeLogGroups':
+        'READ: a list-all describe is evaluated against "*"; returns every log group name and its retention',
+    'logs:DescribeResourcePolicies':
+        'READ: log resource policies have no resource-level form; returns every policy in the account',
+    'logs:GetLogDelivery':
+        'READ: log deliveries have no resource-level form; returns the configuration of any delivery',
+    'logs:ListLogDeliveries': 'READ: log deliveries have no resource-level form; returns every delivery in the account',
+    'logs:PutResourcePolicy':
+        'WRITE: log resource policies have no resource-level form; can replace any policy in the account, which can grant a service write access to the log groups of the other application or remove its access',
+    'logs:UpdateLogDelivery':
+        'WRITE: log deliveries have no resource-level form; can change any log delivery in the account, redirecting the logs of the other application',
+    'route53:GetChange': 'READ: takes a change id, not a zone; returns the status of any change',
+    'route53:ListHostedZones': 'READ: a list-all call has no resource-level form; returns every zone name',
+    'route53:ListHostedZonesByName': 'READ: a list-all call has no resource-level form; returns every zone name',
+    'tag:GetResources':
+        'READ: the tagging API has no resource-level form; returns the ARNs and tags of every tagged resource in the account',
+    'xray:GetSamplingRules': 'READ: X-Ray sampling calls have no resource-level form; returns configuration',
+    'xray:GetSamplingTargets': 'READ: X-Ray sampling calls have no resource-level form; returns configuration',
+    'xray:PutTelemetryRecords':
+        "WRITE: X-Ray telemetry has no resource-level form; adds records to the account's traces only",
+    'xray:PutTraceSegments':
+        "WRITE: X-Ray traces have no resource-level form; adds segments to the account's traces only",
 };
 
 /**

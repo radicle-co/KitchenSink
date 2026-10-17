@@ -88,9 +88,21 @@ describe.each(allQualifiers)('buildBoundary(%s) — no data-plane action on a ba
         expect(used.size).toBeGreaterThan(0);
     });
 
-    it('gives every named residual a reason', () => {
-        for (const reason of [...Object.values(STAR_RESOURCE_ACTIONS), ...Object.values(OTHER_APPLICATION_REACH)]) {
+    it('gives every named residual a reason, and says whether it READS or WRITES and what the write can reach', () => {
+        for (const reason of Object.values(STAR_RESOURCE_ACTIONS)) {
+            expect(reason).toMatch(/^(READ|WRITE): .{25,}/u);
+        }
+
+        for (const reason of Object.values(OTHER_APPLICATION_REACH)) {
             expect(reason.length).toBeGreaterThan(20);
+        }
+    });
+
+    it('describes every write residual by what it can do to the other application', () => {
+        for (const [action, reason] of Object.entries(STAR_RESOURCE_ACTIONS)) {
+            if (reason.startsWith('WRITE: ') && !action.startsWith('xray:')) {
+                expect(reason, action).toMatch(/other application|any |every |account/u);
+            }
         }
     });
 });
@@ -102,20 +114,28 @@ describe.each(allQualifiers)('buildBoundary(%s) — no data-plane action on a ba
  */
 const ARMOURY = (r = REGION_NAME, a = ACCOUNT_ID): ReadonlyArray<{ resource: string; context: RequestContext }> => {
     const tag = 'secretsmanager:ResourceTag/aws:cloudformation:stack-name';
-    const instanceTag = 'aws:ResourceTag/aws:cloudformation:stack-name';
     const ec2Tag = 'ec2:ResourceTag/aws:cloudformation:stack-name';
+    const resourceTag = 'aws:ResourceTag/aws:cloudformation:stack-name';
 
     return [
         { resource: `arn:aws:secretsmanager:${r}:${a}:secret:armoury/prod/db-AbCdEf`, context: {} },
         { resource: `arn:aws:secretsmanager:${r}:${a}:secret:DatabaseCredentialsSecret7483BC14-AbCdEf`, context: {} },
         {
             resource: `arn:aws:secretsmanager:${r}:${a}:secret:DatabaseCredentialsSecret7483BC14-AbCdEf`,
-            context: { [tag]: 'armoury-data-prod', [instanceTag]: 'armoury-data-prod', [ec2Tag]: 'armoury-data-prod' },
+            context: {
+                [tag]: 'armoury-data-prod',
+                [ec2Tag]: 'armoury-data-prod',
+                [resourceTag]: 'armoury-data-prod',
+            },
         },
         { resource: 'arn:aws:s3:::armoury-uploads-prod', context: {} },
         { resource: 'arn:aws:s3:::armoury-uploads-prod/users/1/photo.png', context: {} },
         { resource: `arn:aws:ssm:${r}:${a}:parameter/armoury/prod/db-password`, context: {} },
         { resource: `arn:aws:lambda:${r}:${a}:function:armoury-api-prod`, context: {} },
+        {
+            resource: `arn:aws:lambda:${r}:${a}:function:armoury-api-prod`,
+            context: { [resourceTag]: 'armoury-api-prod' },
+        },
         { resource: `arn:aws:lambda:${r}:${a}:function:armoury-api-prod:7`, context: {} },
         { resource: `arn:aws:dynamodb:${r}:${a}:table/armoury-sessions`, context: {} },
         { resource: `arn:aws:sqs:${r}:${a}:armoury-jobs`, context: {} },
@@ -140,6 +160,10 @@ const ARMOURY = (r = REGION_NAME, a = ACCOUNT_ID): ReadonlyArray<{ resource: str
             context: { [ec2Tag]: 'armoury-network-prod' },
         },
         { resource: `arn:aws:states:${r}:${a}:stateMachine:armoury-flow`, context: {} },
+        {
+            resource: `arn:aws:states:${r}:${a}:stateMachine:ArmouryFlow-AbCdEf`,
+            context: { [resourceTag]: 'armoury-flow-prod' },
+        },
         { resource: `arn:aws:bedrock:${r}::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0`, context: {} },
         { resource: `arn:aws:iam::${a}:role/armoury-task-role`, context: {} },
         { resource: `arn:aws:iam::${a}:role/cdk-hnb659fds-deploy-role-${a}-${r}`, context: {} },
@@ -215,6 +239,42 @@ describe.each(allQualifiers)('buildBoundary(%s) — the other application is out
     });
 });
 
+describe('buildBoundary — a truncated generated name does not carry its stage token', () => {
+    // CloudFormation truncates a generated name to 64 characters and the stage token is the part cut, so this production
+    // function's name matches neither the production Deny nor `-prod`. Only its stack-name TAG says whose it is.
+    const truncated = `arn:aws:lambda:${REGION_NAME}:${ACCOUNT_ID}:function:kitchensink-identity-webhooks-p-ErasureReconciliationFu-AbC123`;
+    const tag = 'aws:ResourceTag/aws:cloudformation:stack-name';
+
+    it('keeps the non-production boundary from invoking it', () => {
+        expect(
+            allows(rendered(QUALIFIERS.nonprod), 'lambda:InvokeFunction', truncated, {
+                [tag]: 'kitchensink-identity-webhooks-prod',
+            }),
+        ).toBe(false);
+    });
+
+    it('lets the production boundary invoke it, and the non-production one invoke its own', () => {
+        expect(
+            allows(rendered(QUALIFIERS.prod), 'lambda:InvokeFunction', truncated, {
+                [tag]: 'kitchensink-identity-webhooks-prod',
+            }),
+        ).toBe(true);
+        expect(
+            allows(rendered(QUALIFIERS.nonprod), 'lambda:InvokeFunction', truncated, {
+                [tag]: 'kitchensink-identity-webhooks-sandbox',
+            }),
+        ).toBe(true);
+    });
+
+    it('keeps the production boundary from invoking a non-production function whose name lost its token', () => {
+        expect(
+            allows(rendered(QUALIFIERS.prod), 'lambda:InvokeFunction', truncated, {
+                [tag]: 'kitchensink-identity-webhooks-pr-91',
+            }),
+        ).toBe(false);
+    });
+});
+
 describe.each(allQualifiers)('buildBoundary(%s) — admits every role statement the apps synthesize', (qualifier) => {
     const document = rendered(qualifier);
     const statements = manifest(qualifier).roleStatements;
@@ -232,6 +292,7 @@ describe.each(allQualifiers)('buildBoundary(%s) — admits every role statement 
         return {
             'secretsmanager:ResourceTag/aws:cloudformation:stack-name': tag,
             'ec2:ResourceTag/aws:cloudformation:stack-name': tag,
+            'aws:ResourceTag/aws:cloudformation:stack-name': tag,
             'ecs:cluster': `arn:aws:ecs:${REGION_NAME}:${ACCOUNT_ID}:cluster/kitchensink-x`,
         };
     }

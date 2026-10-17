@@ -149,6 +149,19 @@ describe('renderRoleStatements', () => {
         ]);
     });
 
+    it('names a generated state machine by its logical id alone, with no stack prefix', () => {
+        const template = {
+            Resources: {
+                ...policy({ Ref: 'Flow' }, 'states:StartExecution').Resources,
+                Flow: { Type: 'AWS::StepFunctions::StateMachine' },
+            },
+        };
+
+        expect(render([stack('kitchensink-sched-sandbox', template)])[0]?.resources).toEqual([
+            `arn:aws:states:${REGION_NAME}:${ACCOUNT_ID}:stateMachine:Flow-GENERATED`,
+        ]);
+    });
+
     it('lower-cases a generated bucket name', () => {
         const template = {
             Resources: {

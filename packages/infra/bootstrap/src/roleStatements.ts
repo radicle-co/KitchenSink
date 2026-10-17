@@ -107,7 +107,7 @@ const KINDS: Readonly<Record<string, Kind>> = {
     },
     'AWS::StepFunctions::StateMachine': {
         nameProperty: 'StateMachineName',
-        generated: 'stack',
+        generated: 'logical',
         arn: (n) => arnIn('states', `stateMachine:${n}`),
         refIsArn: true,
     },

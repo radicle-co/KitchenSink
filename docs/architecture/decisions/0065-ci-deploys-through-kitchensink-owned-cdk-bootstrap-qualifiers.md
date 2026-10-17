@@ -77,12 +77,16 @@ every role a stack creates, and it bounds resources as well as actions. Each act
 allowed only on KitchenSink names: `kitchensink-*` queues, topics, tables, functions, buckets and repositories, the
 `/kitchensink/*` parameters, the log groups that carry `kitchensink`, the Nova models, and the registry's database
 logins. A role whose own policy says `secretsmanager:GetSecretValue` on `*` can therefore still read only KitchenSink's
-secrets, not the other application's. Two kinds of resource cannot be matched by name. CloudFormation names a generated
-secret with no stack prefix, and an EC2 instance has an id, so those two are allowed on `*` only under a condition on the
-`aws:cloudformation:stack-name` tag, pinned to the tier's stack patterns; a resource of the other application is untagged
-or tagged with a stack that is not ours, and the condition fails closed. `ecs:RunTask` names a task definition whose
-family is generated, so it is bounded by the cluster it runs in. Actions with no resource-level form stay on `*` as a
-short named list with a reason each, and none of them touches data. The boundary also carries an explicit Deny on assuming
+secrets, not the other application's. Some resources cannot be matched by name. CloudFormation names a generated secret
+or a state machine with no stack prefix, an EC2 instance has an id, and it truncates a generated function name to 64
+characters, which can drop the stage token and leave a production function matching `kitchensink-*` but not the production
+Deny. Those four are allowed only under a condition on the `aws:cloudformation:stack-name` tag, pinned to the tier's stack
+patterns; a resource of the other application is untagged or tagged with a stack that is not ours, and the condition fails
+closed. Only CloudFormation can set an `aws:` tag, so the condition is exactly as strong as the execution policy's
+stack-name scoping, which alone lets a tier create a stack with a name matching its pattern. `ecs:RunTask` names a task
+definition whose family is generated, so it is bounded by the cluster it runs in. Actions with no resource-level form stay
+on `*` as a named list that says, for each, whether it reads or writes and what a write can do to the other application.
+The boundary also carries an explicit Deny on assuming
 bootstrap roles and, for non-production, on production names, so a role created by a branch cannot read production
 independently of the execution policy. The allowed resource types and the (action, resource) pairs that roles really use
 are derived by synthesizing every app at several stages and committed as a manifest; a new resource type or a new
@@ -139,18 +143,24 @@ after step 4.
       scoped by name pattern only, and the structural guard lists each as a named residual.
     - `ecs:RegisterTaskDefinition` can add a revision to any task family in the account.
     - Actions without resource-level permissions stay on `*` in the execution policy (several `ec2:Describe*` and some
-      `Create*` actions). In the permissions boundary the same applies to a short named list: list-all calls of
-      CloudFormation, ECS, EventBridge, CloudWatch Logs and Route 53, the network-interface verbs a VPC Lambda needs,
-      the ECR registry token, X-Ray telemetry, the tagging API and CloudWatch metrics. They read names or write
-      telemetry only. `PutResourcePolicy` on CloudWatch Logs is the one write among them.
+      `Create*` actions). In the permissions boundary the same applies to a named list, each entry marked READ or WRITE.
+      The reads return names, tags, stack parameters and outputs, export values, or configuration for the whole account.
+      The writes reach the other application too: a VPC Lambda's network-interface verbs can delete an unattached
+      interface, move addresses or use up the addresses of any subnet, the CloudWatch Logs delivery calls can redirect or
+      stop any log delivery, and `PutResourcePolicy` can replace any log resource policy. None is a data-plane action.
     - The boundary admits a few actions on the other application's resources because the resource id carries no name:
       invalidating a CloudFront distribution, the CloudFront key-value store calls and the Route 53 record calls of the
       account tier, and the `Describe` calls of RDS. The test that judges the boundary against a table of the other
       application's ARNs lists exactly these and fails if the list grows or if an entry admits nothing.
-    - A CloudFormation-generated secret or instance is bounded by the stack-name tag, not by name. A role under the
-      boundary cannot change the tag, because the boundary allows no tagging action on secrets or instances. The
-      execution role can tag at creation, so a malicious template can still make its OWN secret look like ours; that
-      grants nothing over the other application's secrets, which it did not create.
+    - Name-only separation of production from non-production is best effort for the types whose generated names
+      CloudFormation truncates and where no tag condition is available: S3 buckets, SQS queues, EventBridge rules and
+      IAM roles. A truncated production name that lost its stage token matches `kitchensink-*` and not the production
+      Deny. Functions and state machines are covered by the tag; for the rest the execution policy's stack-name scoping
+      is what keeps a branch from creating or changing a production resource, and the explicit production names the
+      stacks use today carry the token.
+    - Whether Lambda and Step Functions evaluate `aws:ResourceTag` on invoke and start is taken from the Service
+      Authorization Reference and is not proven by a deploy. If it does not hold, the first invocation under a bounded
+      role fails closed.
     - `rds-db:connect` is bounded to the registry's login prefixes, but the database resource id in front of the login is
       opaque, so IAM cannot separate production from non-production database access.
     - Log groups are matched by the word `kitchensink` anywhere in the name, which covers every group the stacks make.

@@ -85,11 +85,24 @@ $CDK bootstrap aws://$ACCOUNT/$REGION \
     ```bash
     aws iam list-attached-role-policies --role-name cdk-ksnonprod-cfn-exec-role-$ACCOUNT-$REGION
     ```
-3. The first sandbox deploy proves the one thing that cannot be checked offline: that CloudFormation's service trust of the execution role accepts the `aws:SourceAccount` condition. A deploy that fails with `Role ... is invalid or cannot be assumed` means it does not; stop and report.
+3. **Probe the execution-role trust before any real deploy.** One thing cannot be checked offline: that CloudFormation's service trust of the execution role accepts the `aws:SourceAccount` condition the template puts on it (`narrowExecutionRole` in `customizeBootstrapTemplate.ts`). Probe it with a one-topic stack that CloudFormation creates THROUGH the execution role, from your admin session. The name matches the `ksnonprod` stack pattern and the topic name matches its SNS grant, so a healthy role creates it:
+    ```bash
+    cat > /tmp/trustProbe.json <<'JSON'
+    {"Resources":{"Topic":{"Type":"AWS::SNS::Topic","Properties":{"TopicName":"kitchensink-trustprobe-sandbox"}}}}
+    JSON
+    aws cloudformation create-stack --stack-name kitchensink-trustprobe-sandbox \
+      --template-body file:///tmp/trustProbe.json \
+      --role-arn arn:aws:iam::$ACCOUNT:role/cdk-ksnonprod-cfn-exec-role-$ACCOUNT-$REGION
+    aws cloudformation wait stack-create-complete --stack-name kitchensink-trustprobe-sandbox
+    aws cloudformation delete-stack --stack-name kitchensink-trustprobe-sandbox   # also runs through the role
+    ```
+    - **Pass:** `stack-create-complete`, then the delete completes.
+    - **The condition is wrong when** `create-stack` fails at once with `ValidationError: Role arn:aws:iam::<account>:role/cdk-ksnonprod-cfn-exec-role-... is invalid or cannot be assumed`, or the stack events show `... is not authorized to perform: sts:AssumeRole` / `not authorized to assume`. A missing permission looks different: the stack is created and a resource event reads `AccessDenied ... is not authorized to perform: <action>`. That is item 4, not this one.
+    - **Rollback (nothing is deployed through the qualifier yet, so it is cheap):** delete any failed probe stack (`aws cloudformation delete-stack --stack-name kitchensink-trustprobe-sandbox`; if it is stuck in `DELETE_FAILED`, delete the topic by hand: `aws sns delete-topic --topic-arn arn:aws:sns:$REGION:$ACCOUNT:kitchensink-trustprobe-sandbox`). Remove the `Condition` from `narrowExecutionRole`, run `npm run bootstrap:golden`, fix the golden-pinning tests to match, commit, and re-run the step 2 `cdk bootstrap` for `ksnonprod`. Do NOT continue to `ksprod` or `ksaccount`: they carry the same condition.
 4. Deploy one sandbox stack under `ksnonprod` and run its post-deploy verifier (`verifyDeployment.sh`). An `AccessDenied` in the stack events names the action the execution policy is missing; add it to `packages/infra/bootstrap/src/executionPolicy.ts`, then follow "Changing a policy" below. After a clean deploy, IAM Access Analyzer policy generation over CloudTrail for the execution role is the authoring aid for tightening.
 5. Negative probes, as the nonprod CI role (a sandbox workflow run, not your admin session): assuming `cdk-hnb659fds-deploy-role-...` and `cdk-ksprod-deploy-role-...` must both fail with `AccessDenied`.
 
-Do not continue to `ksprod` until 3 and 4 pass.
+Do not continue to `ksprod` until 3 and 4 pass. Run the item 3 probe again, with `ksprod` / `kitchensink-trustprobe-prod` / `kitchensink-trustprobe-prod`, after bootstrapping `ksprod`, and with `ksaccount` after bootstrapping it (the account tier's name pattern is exact, so probe it by looking at the role's trust and at its first real deploy in step 4 below).
 
 ## 3. Bootstrap `ksprod`, then `ksaccount`
 
@@ -109,9 +122,22 @@ $CDK bootstrap aws://$ACCOUNT/$REGION \
 
 The `ksaccount` deploy role trusts only `kitchensink-gha-prod`, which GitHub issues only to a job bound to the `Production` environment on `main`. Repeat the verification of step 2 for each (role names `cdk-ksprod-...`, `cdk-ksaccount-...`).
 
-## Sequencing with the CI roles
+## 4. Sequencing with the CI roles (the sandbox order)
 
-Running steps 1 to 3 changes nothing a workflow uses today: the new roles and buckets are additive, and the default bootstrap is untouched. What must NOT happen early is cutting the CI roles' old path (and deploying the first `ksaccount` change to the CI roles themselves) before the stage stacks have moved to the new qualifiers. That order is owned by the access-stack migration in ADR-0065; follow it there rather than from this runbook.
+The new roles and buckets are additive and the default bootstrap is untouched, so steps 1 to 3 change nothing a workflow uses today. What must NOT happen early is any CI deploy that uses the new qualifiers, and cutting the CI roles' old path, before the owner has done all of this, in this order, on the sandbox:
+
+1. **Deploy the owner-only policy stack** (step 1).
+2. **Bootstrap `ksnonprod`, `ksprod` and `ksaccount`** (steps 2 and 3), each with its item 3 probe.
+3. **Deploy the account app by hand, with admin credentials, BEFORE any CI deploy uses the new qualifiers.** The account app (`bin/account.ts`) now synthesizes against `ksaccount`, so its first deploy has to be the owner's, after `ksaccount` exists. It carries the CI-role changes (the assume rights for the new qualifiers, ADR-0065 D1) that every later workflow depends on, and `accountDeploy.yml` cannot deploy them: the `ksaccount` deploy role trusts only the production CI role, which does not yet hold those rights.
+    ```bash
+    # Do NOT pass -c ciPoliciesOwnerDeploy here: the policy stack was step 1 and is not part of this deploy.
+    $CDK diff --all --app "$APP"
+    $CDK deploy --all --app "$APP" --require-approval never
+    ```
+    Expect the CDK to warn that it could not assume `cdk-ksaccount-deploy-role-...` (it trusts only `kitchensink-gha-prod`, not your admin session) and to continue with your own credentials; the stack still runs through the `ksaccount` execution role, so confirm in the stack events that the stack's role is `cdk-ksaccount-cfn-exec-role-...`. If your CDK version refuses instead of falling back, stop and report; do not widen the deploy role's trust to get past it.
+4. Only then let a workflow deploy through the new qualifiers: sandbox first, production last.
+
+The remaining order (moving the stage stacks onto the new qualifiers and removing the old path) is owned by the access-stack migration in ADR-0065; follow it there.
 
 ## Changing a policy or a template
 

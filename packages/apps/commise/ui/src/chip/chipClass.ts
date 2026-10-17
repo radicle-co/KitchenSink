@@ -45,8 +45,11 @@ export function chipClass(selected: boolean): string {
     return `${CHIP_BASE} ${selected ? CHIP_SELECTED : CHIP_REST}`;
 }
 
-/** The negative margin that cancels a scrolling line's coarse-pointer padding; it belongs to the box around the scroller. */
-export const SCROLL_BOX_CLASS = 'pointer-coarse:-my-1.5';
+/**
+ * The box around the scroller: `min-w-0` so a flex or grid parent can shrink it below its chips, and the negative margin
+ * that cancels a scrolling line's coarse-pointer padding.
+ */
+export const SCROLL_BOX_CLASS = 'min-w-0 pointer-coarse:-my-1.5';
 
 /** Each overflow's row layout. */
 const ROW: Readonly<Record<ChipRowOverflow, string>> = {

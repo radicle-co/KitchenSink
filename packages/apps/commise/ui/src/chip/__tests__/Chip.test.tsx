@@ -332,6 +332,30 @@ describe('ChipRow (web) — filter and input', () => {
         expect(scroller.nextElementSibling?.getAttribute('aria-hidden')).toBe('true');
     });
 
+    // A flex or grid item cannot shrink below its content unless its minimum width is 0 (or it is itself the scroller).
+    // A wrapper without `min-w-0` between the parent row and the scroller let the whole chip strip widen the page: at
+    // 320 px the search Sheet's applied-filter row scrolled the PAGE sideways (search.spec.ts, "at six ingredients on a
+    // phone"). jsdom computes no layout, so this pins the class on every box in that chain; Playwright proves the page.
+    it('lets every box from the row down to its scroller shrink, so the chips never widen the page', () => {
+        const { container } = render(
+            <ChipRow mode="input" label="Applied filters" overflow="scroll">
+                <Chip kind="input" label="Vegan" removeLabel="Remove Vegan" onRemove={vi.fn()} />
+            </ChipRow>,
+        );
+
+        const scroller = screen
+            .getByRole('group', { name: 'Applied filters' })
+            .closest('[class*="overflow-x-auto"]') as HTMLElement;
+        const chain: HTMLElement[] = [];
+
+        for (let box = scroller.parentElement; box !== null && box !== container; box = box.parentElement) {
+            chain.push(box);
+        }
+
+        expect(chain.length).toBeGreaterThan(0);
+        expect(chain.filter((box) => !tokensOf(box).includes('min-w-0'))).toEqual([]);
+    });
+
     it('draws the same scroller around a choice row that scrolls', () => {
         render(
             <ChipRow

@@ -111,7 +111,9 @@ export const HorizontalScroller: FC<HorizontalScrollerProps> = ({
     const named = regionLabel !== undefined;
 
     return (
-        <div className="relative">
+        // `min-w-0`: as a flex or grid item the box may shrink below its `w-max` content, so the content scrolls inside
+        // it instead of widening the row and the page.
+        <div className="relative min-w-0">
             <div
                 ref={setScroller}
                 {...(named ? { role: 'region', 'aria-label': regionLabel, tabIndex: 0, onKeyDown: stepOnArrow } : {})}

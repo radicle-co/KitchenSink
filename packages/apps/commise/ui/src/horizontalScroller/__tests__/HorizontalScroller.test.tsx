@@ -228,6 +228,18 @@ describe('HorizontalScroller (web) — the scrollbar', () => {
     });
 });
 
+describe('HorizontalScroller (web) — its box in the page', () => {
+    // The scroller's content is `w-max`. A flex or grid item cannot shrink below its content unless its minimum width
+    // is 0, so without `min-w-0` on the outer box the whole strip widened its row, and at 320 px the PAGE scrolled
+    // sideways (search.spec.ts, "at six ingredients on a phone"). jsdom computes no layout, so this pins the class the
+    // browser needs; the Playwright spec proves the page does not scroll.
+    it('lets a flex or grid parent shrink it, so its content never widens the page', () => {
+        const { scroller } = mount({ scrollWidth: 640, clientWidth: 300, scrollLeft: 0 });
+
+        expect(scroller.parentElement?.className.split(' ')).toContain('min-w-0');
+    });
+});
+
 describe('HorizontalScroller (web) — position and ref', () => {
     it('reports its extent on mount, and again only when a boundary flips', () => {
         const onPosition = vi.fn<(extent: ScrollExtent) => void>();

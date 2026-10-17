@@ -28,7 +28,7 @@ npm run test --workspace=@kitchensink/cdk-bootstrap
 export CDK=packages/infra/global/node_modules/.bin/cdk
 
 # Validate every policy document with IAM Access Analyzer BEFORE the policy-stack deploy. Read-only: ValidatePolicy takes
-# a document and creates nothing. It renders all 20 documents (account and region filled in) and fails on any ERROR or
+# a document and creates nothing. It renders all 22 documents (account and region filled in) and fails on any ERROR or
 # SECURITY_WARNING. The offline guards catch the classes we know (invented actions, ARN grammar, size); this catches the
 # rest, and CloudFormation's CreatePolicy would otherwise reject them only at the end of the deploy.
 npm run bootstrap:validate --workspace=@kitchensink/cdk-bootstrap -- "$ACCOUNT" "$REGION"
@@ -50,7 +50,7 @@ $CDK diff CiExecutionPolicy -c ciPoliciesOwnerDeploy=true --app "$APP"
 $CDK deploy CiExecutionPolicy --no-previous-parameters -c ciPoliciesOwnerDeploy=true --app "$APP" --require-approval never
 ```
 
-Check the result: 20 managed policies (3 boundaries, 7 + 7 + 3 execution policies), all with the prefix `kitchensink-ci-`.
+Check the result: 22 managed policies (3 boundaries, 8 + 8 + 3 execution policies), all with the prefix `kitchensink-ci-`.
 
 ```bash
 aws iam list-policies --scope Local --path-prefix / \
@@ -149,13 +149,60 @@ The remaining order (moving the stage stacks onto the new qualifiers and removin
 
 **The order of the account deploy is kept by people, and no check enforces it.** The `ksaccount` boundary denies the default bootstrap roles and is attached to the CI roles, so deploying the CI-role stack under `ksaccount` removes their old deploy path at once. `accountDeploy.yml` cannot see whether the stage stacks have moved (its preflight asks only whether `ksaccount` exists), so the `Production` environment's required reviewer is the whole control: do not approve a run of that workflow, and do not dispatch it, until you have confirmed that every stage stack deploys through its new qualifier (ADR-0065, Decision 11). `packages/tools/repoGuards/__tests__/accountDeployGate.test.ts` holds the gate itself, not the order.
 
+## Migrating to the tier tag (`kitchensink:tier`)
+
+The execution role authorizes every modify and delete by the `kitchensink:tier` tag (ADR-0065, Decision 5a), not by
+CloudFormation's stack-name tag, which CloudFormation omits on ACM certificates, ECS, DynamoDB, CloudFront and some SQS
+queues. Every CDK app now puts the tag on its whole tree, so a resource gets it on its next deploy. A resource that
+exists today has no tag yet and cannot be modified until it does. Do these in order, per tier, sandbox first:
+
+1. **Deploy the policy stack** (step 1). It adds the part `kitchensink-ci-exec-<qualifier>-tags` and changes the others.
+2. **Re-run `cdk bootstrap` for that qualifier** (step 2 or 3, with the new `exec_arns`). The execution role lists its
+   policies by ARN, and the new `tags` part is not on it until you do. Until both are done the tier's deploys fail with an
+   AccessDenied that names the action.
+3. **Re-tag the existing resources, KitchenSink's only.** Selection needs BOTH the tier's `Environment` value AND a
+   `kitchensink` name in the ARN. Never select by `Environment` alone: the other application in this account sets
+   `Environment=sandbox` and `Environment=production` too, and tagging one of its resources would hand it to this deploy.
+
+    ```bash
+    tier=nonprod            # nonprod | prod | account
+    case $tier in
+      nonprod) env_re='^(sandbox|pr-[0-9]+-sandbox)$' ;;
+      prod)    env_re='^production$' ;;
+      account) env_re='^global$' ;;
+    esac
+
+    # 3a. List what would be tagged. Read-only. Read the list: every ARN must be ours.
+    aws resourcegroupstaggingapi get-resources --region $REGION --tag-filters Key=Environment \
+      --query 'ResourceTagMappingList[].{a:ResourceARN,e:Tags[?Key==`Environment`]|[0].Value}' --output json \
+      | jq -r --arg re "$env_re" '.[] | select(.e | test($re)) | select(.a | test("kitchensink")) | .a' \
+      | sort > /tmp/retag-$tier.txt
+    wc -l /tmp/retag-$tier.txt; grep -vi armoury /tmp/retag-$tier.txt | head -50
+
+    # 3b. Tag them, 20 ARNs per call (the API's limit). Prints the ARNs that could not be tagged.
+    xargs -n 20 < /tmp/retag-$tier.txt \
+      aws resourcegroupstaggingapi tag-resources --region $REGION --tags kitchensink:tier=$tier \
+        --query 'FailedResourcesMap' --output json --resource-arn-list
+    ```
+
+    The Tagging API cannot tag every type (IAM roles and instance profiles, CloudFront distributions in `us-east-1`
+    only, some Lambda aliases). For each ARN printed in `FailedResourcesMap`, tag it with its own service call
+    (`aws iam tag-role`, `aws cloudfront tag-resource`, ...). EC2 resources are covered. Resources with no tier tag
+    after this step fail on their next modify with the action named; fix those one at a time.
+
+4. **Deploy the apps.** Each deploy writes the tag through its stack, so the re-tag in step 3 is needed only for
+   resources that are modified before their stack is next deployed (a teardown, for one).
+
+Check one resource per type afterwards, for example `aws acm list-tags-for-certificate --certificate-arn <arn>`, and
+confirm the tag value matches the tier you ran.
+
 ## Changing a policy or a template
 
-| Change                                                                               | Run                                                                                                                                                                                                   |
-| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Edit an action list or the boundary (`executionPolicy.ts`, `boundary.ts`)            | Step 1 only (`cdk deploy CiExecutionPolicy ...`). The attached ARNs do not change.                                                                                                                    |
-| Add or remove a policy PART (a new `PART_NAMES` entry, or a part becomes empty)      | Step 1, then re-run that qualifier's `cdk bootstrap` (step 2 or 3) so its execution role's list matches `exec_arns`.                                                                                  |
-| Edit the bootstrap template transform, the CI role trust, or the stack-name patterns | `npm run bootstrap:golden`, commit the golden, then re-run that qualifier's `cdk bootstrap`. Also re-run it after a CDK upgrade that raises the stock `BootstrapVersion` (`npm run bootstrap:stock`). |
+| Change                                                                                                  | Run                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Edit an action list or the boundary (`executionPolicy.ts`, `boundary.ts`)                               | Step 1 only (`cdk deploy CiExecutionPolicy ...`). The attached ARNs do not change.                                                                                                                    |
+| Add or remove a policy PART (a new `PART_NAMES` entry, or a part becomes empty)                         | Step 1, then re-run that qualifier's `cdk bootstrap` (step 2 or 3) so its execution role's list matches `exec_arns`.                                                                                  |
+| Edit the bootstrap template transform, the CI role trust, or the stack-name patterns of the deploy role | `npm run bootstrap:golden`, commit the golden, then re-run that qualifier's `cdk bootstrap`. Also re-run it after a CDK upgrade that raises the stock `BootstrapVersion` (`npm run bootstrap:stock`). |
 
 Deploy `ksnonprod` first and verify on the sandbox each time. A too-narrow policy fails loudly (an `AccessDenied` in the stack events, with the action named). A too-wide one cannot, which is what the content guards in `packages/infra/bootstrap/__tests__` are for.
 

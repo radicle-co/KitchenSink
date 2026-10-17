@@ -37,6 +37,7 @@ import { fileURLToPath } from 'node:url';
 import { App, Tags } from 'aws-cdk-lib';
 
 import { accountAppProps } from '@kitchensink/cdk-bootstrap/appProps';
+import { TIER_TAG_KEY, accountTierTagValue } from '@kitchensink/cdk-bootstrap/qualifiers';
 import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
 
 import { CI_POLICIES_CONTEXT_FLAG, CiExecutionPolicyStack } from '../lib/platform/CiExecutionPolicyStack.js';
@@ -55,6 +56,10 @@ dotenvConfig({ path: join(__dirname, '../../.env'), quiet: true });
 // `accountAppQualifier.integration.test.ts` holds what it synthesizes. The owner-only policy stack below keeps its own
 // CliCredentialsStackSynthesizer, so it still deploys with the owner's admin session and no bootstrap role.
 const app = new App(accountAppProps());
+// ADR-0065: the CloudFormation execution role authorizes every modify and delete by THIS tag, because
+// CloudFormation's own stack-name tag is missing from ACM certificates, ECS, DynamoDB, CloudFront and some SQS
+// queues. This app has no stage: its value is always `account`. `tierTagCoverage.test.ts` holds it.
+Tags.of(app).add(TIER_TAG_KEY, accountTierTagValue());
 // cdk-nag AwsSolutions review, ADVISORY — annotation-only, so the synthesized template is unchanged.
 attachSecurityChecks(app);
 // The COMMIT this deploy was built from, as a stack tag, so `scripts/deploymentDrift.mjs` can answer

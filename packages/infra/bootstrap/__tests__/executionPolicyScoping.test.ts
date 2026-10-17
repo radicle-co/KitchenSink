@@ -11,7 +11,7 @@
  *   pattern cannot reach them and an unconditioned Allow on them reaches the other application too.
  *
  * So CREATE actions are scoped by name, and every MODIFY, DELETE or READ-OF-CONFIGURATION action carries the
- * `aws:cloudformation:stack-name` tag condition: a resource without the tag matches nothing, so the grant fails
+ * `kitchensink:tier` tag condition: a resource without the tag matches nothing, so the grant fails
  * CLOSED. This file holds that rule three ways: by fixture (names the tree does not hold today), by structure (every
  * mutating statement is classified, and an unclassified one fails), and by the residuals being NAMED so no guard implies
  * they are scoped.
@@ -21,10 +21,10 @@ import { describe, expect, it } from 'vitest';
 import { buildExecutionPolicy } from '../src/executionPolicy.js';
 import { ACCOUNT, REGION, type PolicyDocument, type Statement } from '../src/policyDocument.js';
 import { unconditionalAllow, unconditionalDeny } from '../src/policyEval.js';
-import { QUALIFIERS, STACK_TAG_PATTERNS, type QualifierName } from '../src/qualifiers.js';
+import { QUALIFIERS, TIER_TAG_KEY, tierTagValue, type QualifierName } from '../src/qualifiers.js';
 
 const stageQualifiers = [QUALIFIERS.nonprod, QUALIFIERS.prod] as const;
-const TAG_KEY = 'aws:ResourceTag/aws:cloudformation:stack-name';
+const TAG_KEY = `aws:ResourceTag/${TIER_TAG_KEY}`;
 
 const documents = (qualifier: QualifierName): readonly PolicyDocument[] =>
     buildExecutionPolicy(qualifier).map((part) => part.document);
@@ -41,11 +41,8 @@ const READ_ONLY = /^[a-z0-9-]+:(Get|List|Describe|BatchGet|View|GET$)/u;
 
 const isMutating = (statement: Statement): boolean => statement.Action.some((action) => !READ_ONLY.test(action));
 
-const carriesOwnStackTag = (statement: Statement, qualifier: QualifierName): boolean => {
-    const like = statement.Condition?.['StringLike']?.[TAG_KEY];
-
-    return JSON.stringify(like) === JSON.stringify(STACK_TAG_PATTERNS[qualifier]);
-};
+const carriesOwnTierTag = (statement: Statement, qualifier: QualifierName): boolean =>
+    statement.Condition?.['StringEquals']?.[TAG_KEY] === tierTagValue(qualifier);
 
 /**
  * Mutating statements that are scoped by a CREATE-time name, or by a condition on the REQUEST rather than on the
@@ -66,9 +63,11 @@ const CREATE_OR_REQUEST_SCOPED: Readonly<Record<string, string>> = {
     SecretsCreate: 'CreateSecret and GetRandomPassword take no resource',
     ElbCreate: 'creates a load balancer or target group; has no name to scope',
     ElbTagOnCreate: 'elasticloadbalancing:AddTags only while creating (elasticloadbalancing:CreateAction)',
-    Ec2Create: 'creates network resources; has no name to scope, tagged at creation by CloudFormation',
+    Ec2Create: 'creates network resources; has no name to scope, the request must carry the tier tag',
     Ec2TagOnCreate: 'ec2:CreateTags only while creating (ec2:CreateAction)',
-    CloudFrontCreate: 'creates distributions and policies; has no name to scope',
+    CloudFrontCreate:
+        'creates distributions, functions and stores; has no name to scope, the request must carry the tier tag',
+    TagNew: 'adds a tag only when the request carries the tier tag, to NAMED resources (the other path is the resource tag)',
     AcmRequest: 'requests a certificate for this tier domain only (acm:DomainNames)',
     ApiGatewayCreate: 'creates a REST API or domain name; has no name to scope',
     StatesCreate: 'creates a state machine; the generated name carries no prefix',
@@ -101,7 +100,13 @@ const NAMED_RESIDUALS: Readonly<Record<string, string>> = {
     LambdaEventSourceMappings:
         'an event source mapping is addressed by uuid; limited to kitchensink functions by lambda:FunctionArn',
     SecretsOwn: 'explicit secret names carry the stage as a path segment',
-    EcsTagTaskDefinitions: 'a task definition is addressed by family and revision, and a new one has no tag yet',
+    EcsDeregisterTaskDefinition:
+        'DeregisterTaskDefinition has no resource type in the reference, so it authorizes on "*" and no tag or name can narrow it',
+    EventsBusPermissions: 'PutPermission and RemovePermission honour no resource tag; event-bus names carry the stage',
+    Ec2CreateNameOnly:
+        'RunInstances and CreateNetworkInterface create several resources in one request and CloudFormation tags only one of them, so asking each for the tier tag would deny the create',
+    CloudFrontCreateNameOnly:
+        'cache, origin-request and response-headers policies, access controls, key groups, public keys honour no request tag in the reference',
     ApiGatewayTags: 'the tags of an API Gateway resource are addressed by the tagged resource ARN',
 };
 
@@ -112,7 +117,7 @@ describe.each(stageQualifiers)('executionPolicy(%s) — create versus modify', (
         const unclassified = mutating
             .filter(
                 (statement) =>
-                    !carriesOwnStackTag(statement, qualifier) &&
+                    !carriesOwnTierTag(statement, qualifier) &&
                     CREATE_OR_REQUEST_SCOPED[statement.Sid] === undefined &&
                     NAMED_RESIDUALS[statement.Sid] === undefined,
             )
@@ -133,7 +138,7 @@ describe.each(stageQualifiers)('executionPolicy(%s) — create versus modify', (
     it('never lets a stack-tag statement and a create statement be the same statement', () => {
         const both = mutating.filter(
             (statement) =>
-                carriesOwnStackTag(statement, qualifier) && CREATE_OR_REQUEST_SCOPED[statement.Sid] !== undefined,
+                carriesOwnTierTag(statement, qualifier) && CREATE_OR_REQUEST_SCOPED[statement.Sid] !== undefined,
         );
 
         expect(both.map((statement) => statement.Sid)).toEqual([]);
@@ -193,7 +198,6 @@ const OTHER_APPLICATION: ReadonlyArray<readonly [string, string]> = [
     ['apigateway:PATCH', `arn:aws:apigateway:${REGION}::/restapis/abc123`],
     ['apigateway:DELETE', `arn:aws:apigateway:${REGION}::/restapis/abc123/stages/live`],
     ['apigateway:PUT', `arn:aws:apigateway:${REGION}::/domainnames/api.armoury.example`],
-    ['ecs:DeregisterTaskDefinition', `arn:aws:ecs:${REGION}:${ACCOUNT}:task-definition/armoury-api:3`],
     ['ecs:UpdateService', `arn:aws:ecs:${REGION}:${ACCOUNT}:service/armoury-cluster/api`],
     [
         'elasticloadbalancing:CreateRule',
@@ -219,7 +223,25 @@ const OTHER_APPLICATION: ReadonlyArray<readonly [string, string]> = [
     ['rds:DeleteDBInstance', `arn:aws:rds:${REGION}:${ACCOUNT}:db:armoury-db`],
 ];
 
-describe('executionPolicy — a modify is unreachable without the stack-name tag', () => {
+/**
+ * Things the other application owns that the execution role CAN reach, by name in `NAMED_RESIDUALS`. Listed so the
+ * residual is a recorded fact and a test that flips when it is closed, not a silence: deregistering marks a revision
+ * INACTIVE, which stops NEW tasks from starting from it.
+ */
+const REACHABLE_RESIDUALS: ReadonlyArray<readonly [string, string]> = [
+    ['ecs:DeregisterTaskDefinition', `arn:aws:ecs:${REGION}:${ACCOUNT}:task-definition/armoury-api:3`],
+];
+
+describe('executionPolicy — named residuals that are reachable (recorded, not hidden)', () => {
+    it.each(stageQualifiers.flatMap((qualifier) => REACHABLE_RESIDUALS.map(([a, r]) => [qualifier, a, r] as const)))(
+        '%s can %s on %s: no tag or name narrows it',
+        (qualifier, action, resource) => {
+            expect(reachable(qualifier, action, resource)).toBe(true);
+        },
+    );
+});
+
+describe('executionPolicy — a modify is unreachable without the tier tag', () => {
     it.each(TRUNCATED_NAMES('identity'))(
         'ksnonprod cannot %s on a truncated production name %s',
         (action, resource) => {

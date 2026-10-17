@@ -1,8 +1,8 @@
 /**
- * No read-only action may sit under the stack-name tag condition of the execution role.
+ * No read-only action may sit under the tier-tag condition of the execution role.
  *
  * CloudFormation's resource handlers READ before they create: an existence or attribute check on a resource that does
- * not exist yet has no tag to match, so a read gated on `aws:ResourceTag/aws:cloudformation:stack-name` is denied at
+ * not exist yet has no tag to match, so a read gated on `aws:ResourceTag/kitchensink:tier` is denied at
  * create time ("SNS:GetTopicAttributes ... because no identity-based policy allows", first sandbox probe). The
  * mutating and deleting actions keep the tag; reads are scoped by NAME only (a read changes nothing, and a name that
  * is not ours is refused by the same name patterns and tier Denies).
@@ -15,10 +15,10 @@ import { describe, expect, it } from 'vitest';
 import { buildExecutionPolicy } from '../src/executionPolicy.js';
 import { iamLike } from '../src/iamPattern.js';
 import { isReadOnlyPattern, readOnlyActionsMatching } from '../src/iamCatalogue.js';
-import { QUALIFIERS } from '../src/qualifiers.js';
+import { QUALIFIERS, TIER_TAG_KEY } from '../src/qualifiers.js';
 import { iamCatalogue } from './iamCatalogueFixture.js';
 
-const TAG_KEY = 'aws:ResourceTag/aws:cloudformation:stack-name';
+const TAG_KEY = `aws:ResourceTag/${TIER_TAG_KEY}`;
 
 describe('readOnlyActionsMatching', () => {
     it.each([
@@ -59,7 +59,7 @@ describe('isReadOnlyPattern: a pattern is a read only when EVERY action it match
 });
 
 describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod, QUALIFIERS.account])('executionPolicy(%s)', (qualifier) => {
-    it('grants no read-only action under the stack-name tag condition', () => {
+    it('grants no read-only action under the tier-tag condition', () => {
         const leaks = buildExecutionPolicy(qualifier).flatMap((part) =>
             part.document.Statement.filter(
                 (statement) =>

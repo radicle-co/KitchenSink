@@ -5,6 +5,7 @@ import { App, Tags } from 'aws-cdk-lib';
 
 import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
 import { kitchenSinkAppProps, resolveStage } from '@kitchensink/cdk-bootstrap/appProps';
+import { TIER_TAG_KEY, tierTagValueForStage } from '@kitchensink/cdk-bootstrap/qualifiers';
 import { resolveUploadOrigins } from '@kitchensink/clerk-verify';
 
 import { EdgeStack } from '../lib/platform/EdgeStack.js';
@@ -25,6 +26,10 @@ dotenvConfig({ path: join(__dirname, '../../.env'), quiet: true });
 // whose execution role is another application's `AdministratorAccess`. `cdkQualifierCoverage.test.ts` fails it.
 const stage = resolveStage(process.env) ?? 'dev';
 const app = new App(kitchenSinkAppProps(stage));
+// ADR-0065: the CloudFormation execution role authorizes every modify and delete by THIS tag, because
+// CloudFormation's own stack-name tag is missing from ACM certificates, ECS, DynamoDB, CloudFront and some SQS
+// queues. The value follows the stage exactly as the bootstrap qualifier does. `tierTagCoverage.test.ts` holds it.
+Tags.of(app).add(TIER_TAG_KEY, tierTagValueForStage(stage));
 // U9: cdk-nag AwsSolutions review, ADVISORY — findings are reported as warnings, the build is not failed.
 // Annotation-only, so it does not change synthesized output (the ADR-0002/ADR-0008 no-prod-diff line);
 // `packages/infra/global/__tests__/cdkNagTemplateParity.test.ts` asserts that byte-for-byte.

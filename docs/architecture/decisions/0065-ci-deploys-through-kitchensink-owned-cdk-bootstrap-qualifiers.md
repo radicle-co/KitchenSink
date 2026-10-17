@@ -68,7 +68,7 @@ resources stay in the template, to keep the diff from stock small, and nobody is
 
 **5. Each execution role is a scoped policy plus a permissions boundary.** The policy is generated from tables, split into
 managed policies under the size limit, never assembled by hand. A resource that CloudFormation names is created under a
-name pattern, and every modify and delete requires the `aws:cloudformation:stack-name` tag to match, because truncated
+name pattern, and every modify and delete requires the `kitchensink:tier` tag to match (Decision 5a), because truncated
 names defeat a name-only rule. READS are the exception: a read-only action (the Service Authorization Reference's access
 level Read or List, carried in the committed catalogue, not guessed from the verb) is granted by name alone, in a
 `<Sid>Reads` statement beside the gated one. CloudFormation's resource handlers read before they create, a read of a
@@ -84,10 +84,8 @@ logins. A role whose own policy says `secretsmanager:GetSecretValue` on `*` can 
 secrets, not the other application's. Some resources cannot be matched by name. CloudFormation names a generated secret
 or a state machine with no stack prefix, an EC2 instance has an id, and it truncates a generated function name to 64
 characters, which can drop the stage token and leave a production function matching `kitchensink-*` but not the production
-Deny. Those four are allowed only under a condition on the `aws:cloudformation:stack-name` tag, pinned to the tier's stack
-patterns; a resource of the other application is untagged or tagged with a stack that is not ours, and the condition fails
-closed. Only CloudFormation can set an `aws:` tag, so the condition is exactly as strong as the execution policy's
-stack-name scoping, which alone lets a tier create a stack with a name matching its pattern. Each execution role may also
+Deny. Those four are allowed only under a condition on the `kitchensink:tier` tag (Decision 5a); a resource of the other
+application is untagged, and the condition fails closed. Each execution role may also
 read the SSM parameters its stacks declare as template parameters, because CloudFormation resolves an SSM-typed
 parameter with the stack's execution role before the change set exists: the qualifier's own bootstrap-version parameter
 and, for the stage tiers, the public AMI parameter family. `ecs:RunTask` names a task
@@ -98,6 +96,44 @@ bootstrap roles and, for non-production, on production names, so a role created 
 independently of the execution policy. The allowed resource types and the (action, resource) pairs that roles really use
 are derived by synthesizing every app at several stages and committed as a manifest; a new resource type or a new
 resource fails a test until someone scopes it.
+
+**5a. Ownership is the `kitchensink:tier` tag, not CloudFormation's `aws:cloudformation:stack-name`.** The first
+`ksnonprod` deploy failed with `cdk-ksnonprod-cfn-exec-role ... not authorized to perform: acm:AddTagsToCertificate`.
+Measured cause: CloudFormation does not put its system tags on ACM certificates, ECS task definitions and services,
+DynamoDB tables, CloudFront distributions and some older SQS queues, so a condition on the system tag matched nothing for
+those types and failed closed on the very first modify. App-level user tags DO reach those resources (they already carry
+`Environment` and `CommitSha`), so `@kitchensink/cdk-bootstrap` owns a tag, `kitchensink:tier` = `nonprod` | `prod` |
+`account`, and every CDK entrypoint applies it to its whole tree (`Tags.of(app).add(TIER_TAG_KEY, ...)`, the value from
+`tierTagValueForStage(stage)` by the same rule as the qualifier, `account` for the stage-less app).
+`tierTagCoverage.test.ts` discovers every entrypoint and holds the call, the key and the value per stage.
+`Environment` is never used to authorize: the other application in this account sets `Environment=sandbox` too, so a
+match on it would admit that application's resources. The rules the execution policy is built to:
+
+- A **modify, delete or configuration read** requires `aws:ResourceTag/kitchensink:tier` to equal the qualifier's value.
+  Reads of existing resources stay name-scoped (Decision 5).
+- A **create** requires `aws:RequestTag/kitchensink:tier` to equal the value, but only for actions the Service
+  Authorization Reference says honour that key (the committed catalogue now carries, per action, whether it honours
+  `aws:RequestTag` and `aws:ResourceTag`). A key an action does not honour is absent from the request, so asking for it
+  would deny every create, and `executionPolicyTierTag.test.ts` refuses that offline. An action that honours only the
+  resource tag and acts on a resource this deploy just made (`iam:PutRolePolicy` after `iam:CreateRole`) is gated by the
+  resource tag in `<Sid>Existing`. `ec2:RunInstances` and `ec2:CreateNetworkInterface` are exempt on purpose: one request
+  creates several resources and CloudFormation tags only one of them.
+- A **tag-adding action** cannot require the tag it adds, so it is allowed on two paths: the resource already carries the
+  tier tag, or the request adds it (`TagNew`, one statement over the NAMED resources the grants it replaces already
+  named). The second path is also what lets a stack re-tag a legacy resource on its next update. Resources addressed only
+  by `*` (EC2 `CreateTags`) get no request path, because a request-added tag on `*` would let a stack claim any resource
+  of the account; they take the tag at creation or from the admin re-tag below.
+- `DenyOtherTierTag` refuses every action on a resource tagged with another tier's value, in the execution policy and in
+  the boundary, so the request path cannot overwrite production's tag from a branch and a role a branch creates cannot
+  touch a production-tagged resource. The tier-name Denies stay.
+- `iam:PassRole` requires the role to carry this tier's tag.
+
+**Migration.** Resources that exist today carry no tier tag, so nothing can modify them until they are tagged. In order:
+(1) the owner deploys the policy stack, which adds `kitchensink-ci-exec-<qualifier>-tags` and the new conditions;
+(2) the owner runs the one-shot re-tag from `docs/runbooks/cdkBootstrapQualifiers.md` over KitchenSink resources only
+(selected by the `Environment` tag AND a `kitchensink` name, never by `Environment` alone); (3) app deploys run, each of
+which also writes the tag through the stack. A resource missed by (2) fails loudly on its next modify with the action
+named, and the request path of `TagNew` heals the named types on that same deploy.
 
 **6. The policy documents and the bootstrap itself are deployed only by the owner.** The managed policies and boundary
 must exist before the bootstrap, and a role that could change them could widen its own limits. So the policy stack, the
@@ -165,10 +201,29 @@ that order: the reviewer and the runbook are the ordering control.
   the default bootstrap roles. The `Production` environment's required reviewer remains the control for the production and
   account qualifiers.
 - **Named residuals, stated rather than hidden.**
-    - Some resource kinds cannot be tied to a stack by tag at the point of modification: S3 buckets, EventBridge Scheduler,
-      SSM and Secrets Manager names, alarms and dashboards, instance profiles, CloudFront policies and functions, Application
-      Auto Scaling, the API Gateway account settings and tags, log deliveries and Lambda event-source mappings. They are
-      scoped by name pattern only, and the structural guard lists each as a named residual.
+    - Some resource kinds cannot be tied to a tier by tag at the point of modification: S3 buckets (CloudFormation tags a
+      bucket after creating it), EventBridge Scheduler (untaggable), SSM and Secrets Manager names, alarms and dashboards,
+      instance profiles (untaggable), CloudFront cache, origin-request and response-headers policies, access controls, key
+      groups and public keys (none honours a request tag in the reference), Application Auto Scaling, the API Gateway
+      account settings and tags, log deliveries, Lambda event-source mappings, EventBridge bus permissions
+      (`events:PutPermission`, `events:RemovePermission`) and `ecs:DeregisterTaskDefinition`. They are scoped by name
+      pattern only, and the structural guard lists each as a named residual.
+    - `ecs:DeregisterTaskDefinition` has no resource type in the reference, so it authorizes on `*`: the execution role can
+      deregister (mark INACTIVE, which stops NEW tasks starting from it) a revision of the other application. Under the
+      old stack-name condition this grant never matched anything, so a task definition replacement could not complete;
+      it is allowed now because a stack must be able to replace its own, and `executionPolicyScoping.test.ts` records
+      that it is reachable.
+    - `ec2:RunInstances` and `ec2:CreateNetworkInterface` are not asked for a request tag (Decision 5a), so an instance can
+      be launched without the tier tag; it then cannot be modified or terminated, which fails loudly rather than open.
+    - A tag-adding action on a resource addressed by `*` (EC2) has no request path (Decision 5a). A resource of an
+      untagged legacy stack in that class needs the admin re-tag.
+    - The request path of `TagNew` lets a stack add the tier tag to an UNTAGGED resource. For named types the name
+      (`kitchensink-*`) bounds it, and that is a convention. For types addressed by an id pattern (ACM certificates,
+      CloudFront distributions, functions and key-value stores, ECS task definitions, generated Secrets Manager names) it
+      does not: the grant could tag a resource of the other application, and the tier-tag Allows would then let a stack
+      modify or delete it. Only CloudFormation makes these calls, on resources a stack declares, so the way in is a
+      resource IMPORT of a foreign resource into a stack. Whether the deploy roles can run import change sets is not
+      restricted by this change and is the control to review next.
     - `ecs:RegisterTaskDefinition` can add a revision to any task family in the account.
     - Actions without resource-level permissions stay on `*` in the execution policy (several `ec2:Describe*` and some
       `Create*` actions). In the permissions boundary the same applies to a named list, each entry marked READ or WRITE.
@@ -194,7 +249,7 @@ that order: the reviewer and the runbook are the ordering control.
     - Name-only separation of production from non-production is best effort for the types whose generated names
       CloudFormation truncates and where no tag condition is available: S3 buckets, SQS queues, EventBridge rules and
       IAM roles. A truncated production name that lost its stage token matches `kitchensink-*` and not the production
-      Deny. Functions and state machines are covered by the tag; for the rest the execution policy's stack-name scoping
+      Deny. Functions and state machines are covered by the tag; for the rest the execution policy's tier-tag scoping
       is what keeps a branch from creating or changing a production resource, and the explicit production names the
       stacks use today carry the token.
     - Whether Lambda and Step Functions evaluate `aws:ResourceTag` on invoke and start is taken from the Service
@@ -226,6 +281,11 @@ that order: the reviewer and the runbook are the ordering control.
 
 ## Alternatives considered
 
+- **Authorize by CloudFormation's `aws:cloudformation:stack-name` tag.** Tried first and rejected by measurement: it is
+  absent from ACM certificates, ECS task definitions and services, DynamoDB tables, CloudFront distributions and some SQS
+  queues, so the first deploy failed on a tag action. It also needs the stack-name patterns kept in step with the tag.
+- **Authorize by the `Environment` tag.** Rejected: the other application in the account sets `Environment=sandbox` and
+  `Environment=production` too, so a match on it admits that application's resources.
 - **One qualifier for both stage tiers, separated by a stack-name condition on the deploy role.** Rejected: the execution role
   is what a template acts as, and one execution role would hold production and sandbox names alike.
 - **The stock bootstrap with `--cloudformation-execution-policies` and a custom boundary only.** Rejected: it leaves the

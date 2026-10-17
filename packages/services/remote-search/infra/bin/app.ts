@@ -4,6 +4,7 @@ import { App, Tags } from 'aws-cdk-lib';
 
 import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
 import { kitchenSinkAppProps, resolveStage } from '@kitchensink/cdk-bootstrap/appProps';
+import { TIER_TAG_KEY, tierTagValueForStage } from '@kitchensink/cdk-bootstrap/qualifiers';
 
 import { RemoteSearchStack } from '../lib/RemoteSearchStack.js';
 import { parseRemoteSearchStage } from '../lib/remoteSearchStage.js';
@@ -16,6 +17,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // whose execution role is another application's `AdministratorAccess`. `cdkQualifierCoverage.test.ts` fails it.
 const stage = parseRemoteSearchStage(resolveStage(process.env));
 const app = new App(kitchenSinkAppProps(stage));
+// ADR-0065: the CloudFormation execution role authorizes every modify and delete by THIS tag, because
+// CloudFormation's own stack-name tag is missing from ACM certificates, ECS, DynamoDB, CloudFront and some SQS
+// queues. The value follows the stage exactly as the bootstrap qualifier does. `tierTagCoverage.test.ts` holds it.
+Tags.of(app).add(TIER_TAG_KEY, tierTagValueForStage(stage));
 
 // Parsed before anything is built: the service is deployed where food is, at `prod` and per pull request, so any
 // other stage stops the synth here.

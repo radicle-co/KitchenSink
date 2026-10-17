@@ -37,7 +37,7 @@
  * @pattern Specification / policy module — a capability cap judged by a superset guard and an escalation guard
  */
 import { ACCOUNT, REGION, type Condition, type PolicyDocument, type Statement } from './policyDocument.js';
-import { QUALIFIERS, STACK_TAG_PATTERNS, type QualifierName } from './qualifiers.js';
+import { QUALIFIERS, STACK_TAG_PATTERNS, TIER_TAG_KEY, tierTagValue, type QualifierName } from './qualifiers.js';
 import { resourceTypesOf, tierNameResources } from './tierNames.js';
 
 /** An ARN in any region of this account. */
@@ -567,6 +567,27 @@ const statement = (
 ): Statement => ({ Sid, Effect, Action, Resource, ...(Condition === undefined ? {} : { Condition }) });
 
 /**
+ * The Deny that keeps one stage tier out of resources tagged for another tier (ADR-0065). The names catch the types
+ * that have a name; the tier tag also reaches the types CloudFormation names by id.
+ */
+function tierTagDeny(qualifier: QualifierName): Statement[] {
+    if (qualifier === QUALIFIERS.account) {
+        return [];
+    }
+
+    const others = Object.values(QUALIFIERS)
+        .filter((other) => other !== qualifier)
+        .map(tierTagValue)
+        .sort();
+
+    return [
+        statement('DenyOtherTierTag', 'Deny', ['*'], ['*'], {
+            StringEquals: { [`aws:ResourceTag/${TIER_TAG_KEY}`]: others },
+        }),
+    ];
+}
+
+/**
  * The Deny that keeps one stage tier out of the other's names: one ARN per resource TYPE the boundary's own Allows
  * name (IAM refuses a wildcard where the type belongs), in the compact stage-token form so the boundary stays ONE
  * managed policy under IAM's 6,144-character limit.
@@ -664,6 +685,7 @@ export function buildBoundary(qualifier: QualifierName): PolicyDocument {
                   ),
               ]),
         ...tierNameDeny(qualifier, allows),
+        ...tierTagDeny(qualifier),
     ];
 
     return { Version: '2012-10-17', Statement: statements };

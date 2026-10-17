@@ -187,6 +187,50 @@ export const STACK_TAG_PATTERNS: Readonly<Record<QualifierName, readonly string[
     ksaccount: STACK_NAME_PATTERNS.ksaccount,
 };
 
+/**
+ * The tag every KitchenSink resource carries and the execution role authorizes by (ADR-0065).
+ *
+ * It replaces CloudFormation's `aws:cloudformation:stack-name`, which CloudFormation does not put on ACM
+ * certificates, ECS task definitions and services, DynamoDB tables, CloudFront distributions and some older SQS
+ * queues. App-level user tags DO reach those resources, so an app-level tag is the one ownership signal that holds
+ * for every type. ⛔ `Environment` is never used to authorize: the other application in the account sets it too.
+ */
+export const TIER_TAG_KEY = 'kitchensink:tier';
+
+/** The value the tier tag takes, one per qualifier. */
+export type TierTagValue = 'nonprod' | 'prod' | 'account';
+
+const TIER_TAG_VALUES: Readonly<Record<QualifierName, TierTagValue>> = {
+    ksnonprod: 'nonprod',
+    ksprod: 'prod',
+    ksaccount: 'account',
+};
+
+/**
+ * The tier tag value of a qualifier.
+ *
+ * @returns `nonprod`, `prod` or `account`. Pure.
+ */
+export function tierTagValue(qualifier: QualifierName): TierTagValue {
+    return TIER_TAG_VALUES[qualifier];
+}
+
+/**
+ * The tier tag value a CDK app applies for its stage, by the same rule as {@link qualifierForStage}: only the exact
+ * token `prod` is `prod`, so a typo fails closed onto the tier whose execution role cannot touch production.
+ *
+ * @throws When the stage is empty.
+ * @returns The value for `Tags.of(app).add(TIER_TAG_KEY, ...)`. Pure.
+ */
+export function tierTagValueForStage(stage: string): TierTagValue {
+    return tierTagValue(qualifierForStage(stage));
+}
+
+/** The tier tag value of the stage-less account app (`bin/account.ts`). */
+export function accountTierTagValue(): TierTagValue {
+    return tierTagValue(QUALIFIERS.account);
+}
+
 /** The name of one customer-managed policy that makes up a qualifier's execution role. */
 export const executionPolicyName = (qualifier: QualifierName, part: string): string =>
     `kitchensink-ci-exec-${qualifier}-${part}`;

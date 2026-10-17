@@ -18,7 +18,7 @@ import { AWS_MANAGED_POLICY_ACTIONS, buildBoundary } from '../src/boundary.js';
 import { iamLike } from '../src/iamPattern.js';
 import { ACCOUNT, MANAGED_POLICY_LIMIT, REGION, managedPolicySize, renderDocument } from '../src/policyDocument.js';
 import { unconditionalDeny } from '../src/policyEval.js';
-import { QUALIFIERS, type QualifierName } from '../src/qualifiers.js';
+import { QUALIFIERS, TIER_TAG_KEY, tierTagValue, type QualifierName } from '../src/qualifiers.js';
 import { allows, type RequestContext } from './boundaryEval.js';
 import { NONPROD_NAMES, PRODUCTION_NAMES } from './nameFixtures.js';
 
@@ -247,5 +247,24 @@ describe('buildBoundary — account tier', () => {
                 `arn:aws:iam::${ACCOUNT}:role/cdk-hnb659fds-cfn-exec-role-${ACCOUNT}-${REGION}`,
             ),
         ).toBe(true);
+    });
+});
+
+/**
+ * A role a stack creates must not act on a resource that is tagged for another tier, whatever name the resource has.
+ * The names catch the named types; the tier tag is what also reaches the types CloudFormation names by id.
+ */
+describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod])('buildBoundary(%s) - the tag of another tier', (qualifier) => {
+    it('denies every action on a resource tagged with another tier', () => {
+        const others = Object.values(QUALIFIERS)
+            .filter((other) => other !== qualifier)
+            .map(tierTagValue)
+            .sort();
+        const deny = buildBoundary(qualifier).Statement.find((statement) => statement.Sid === 'DenyOtherTierTag');
+
+        expect(deny?.Effect).toBe('Deny');
+        expect(deny?.Action).toEqual(['*']);
+        expect(deny?.Resource).toEqual(['*']);
+        expect(deny?.Condition).toEqual({ StringEquals: { [`aws:ResourceTag/${TIER_TAG_KEY}`]: others } });
     });
 });

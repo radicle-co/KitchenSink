@@ -5,6 +5,7 @@ import { App, Tags } from 'aws-cdk-lib';
 
 import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
 import { kitchenSinkAppProps, resolveStage } from '@kitchensink/cdk-bootstrap/appProps';
+import { TIER_TAG_KEY, tierTagValueForStage } from '@kitchensink/cdk-bootstrap/qualifiers';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // ⛔ `quiet: true` IS LOAD-BEARING. This file's STDOUT is a machine-readable channel:
@@ -24,6 +25,10 @@ import { IdentityServiceStack } from '../lib/IdentityServiceStack.js';
 // whose execution role is another application's `AdministratorAccess`. `cdkQualifierCoverage.test.ts` fails it.
 const stage = resolveStage(process.env) ?? 'dev';
 const app = new App(kitchenSinkAppProps(stage));
+// ADR-0065: the CloudFormation execution role authorizes every modify and delete by THIS tag, because
+// CloudFormation's own stack-name tag is missing from ACM certificates, ECS, DynamoDB, CloudFront and some SQS
+// queues. The value follows the stage exactly as the bootstrap qualifier does. `tierTagCoverage.test.ts` holds it.
+Tags.of(app).add(TIER_TAG_KEY, tierTagValueForStage(stage));
 // U9: cdk-nag AwsSolutions review, ADVISORY — reported as warnings, never fails the build, and
 // annotation-only so the synthesized template is unchanged. See @radicle-co/infra-shared/security.
 attachSecurityChecks(app);

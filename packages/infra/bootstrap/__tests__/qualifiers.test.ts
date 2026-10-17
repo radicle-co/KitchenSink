@@ -19,10 +19,13 @@ import {
     DEFAULT_QUALIFIER,
     QUALIFIERS,
     STACK_TAG_PATTERNS,
+    TIER_TAG_KEY,
     bootstrapRoleArn,
     ciRoleArn,
     isValidQualifier,
     qualifierForStage,
+    tierTagValue,
+    tierTagValueForStage,
     toolkitStackName,
 } from '../src/qualifiers.js';
 
@@ -244,5 +247,39 @@ describe('STACK_TAG_PATTERNS keep the two stage tiers disjoint over generated na
             expect(manifest.stackNames.length).toBeGreaterThan(0);
             expect(manifest.stackNames.filter((name) => !matches(tier, name))).toEqual([]);
         }
+    });
+});
+
+/**
+ * The execution role authorizes by a tag KitchenSink owns (ADR-0065), because CloudFormation's own
+ * `aws:cloudformation:stack-name` tag is missing from several resource types. The key and the three values are a
+ * one-way door for the same reason the qualifiers are: every resource carries them, and the execution policy matches
+ * them, so a rename needs a re-tag of the whole account.
+ */
+describe('the tier tag', () => {
+    it('pins the key and the three values', () => {
+        expect(TIER_TAG_KEY).toBe('kitchensink:tier');
+        expect(Object.values(QUALIFIERS).map(tierTagValue)).toEqual(['nonprod', 'prod', 'account']);
+    });
+
+    it('is neither the tag CloudFormation owns nor Environment, which the other app in the account sets too', () => {
+        expect(TIER_TAG_KEY.startsWith('aws:')).toBe(false);
+        expect(TIER_TAG_KEY).not.toBe('Environment');
+    });
+
+    it.each([
+        ['prod', 'prod'],
+        ['sandbox', 'nonprod'],
+        ['pr-91', 'nonprod'],
+        ['dev', 'nonprod'],
+        ['production', 'nonprod'],
+        ['Prod', 'nonprod'],
+    ])('stage %s is tier %s, by the same fail-closed rule as the qualifier', (stage, tier) => {
+        expect(tierTagValueForStage(stage)).toBe(tier);
+        expect(tierTagValueForStage(stage)).toBe(tierTagValue(qualifierForStage(stage)));
+    });
+
+    it('refuses an empty stage like qualifierForStage does', () => {
+        expect(() => tierTagValueForStage('')).toThrow(/non-empty/u);
     });
 });

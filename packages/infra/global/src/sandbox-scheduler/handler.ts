@@ -1,7 +1,7 @@
 /**
  * Lambda adapter for the sandbox scheduler (ADR-0007, ADR-0060, ADR-0061).
  *
- * This is a thin, mechanical adapter: it constructs the AWS SDK v3 clients (RDS/ECS/EC2/SSM/EventBridge/Step
+ * This is a thin, mechanical adapter: it constructs the AWS SDK v3 clients (RDS/ECS/EC2/SSM/EventBridge/CloudFormation/Step
  * Functions, loaded lazily — provided by the Node 22 Lambda runtime, so they are marked `external` at bundle time and are NOT package
  * dependencies), adapts them to the injected client interfaces in `lib/sandbox-scheduler/scheduler` through
  * `./awsAdapters`, and reports a failed nightly stop. ALL the sandbox-only selection + stop/start decision logic lives
@@ -14,6 +14,7 @@
  * @sideEffect Stops/starts sandbox RDS, ECS services and the NAT EC2 instance, enables/disables scheduled rules, starts
  *   the midnight reclaim loop, and reports a failed stop to Sentry.
  */
+import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
 import { EC2Client } from '@aws-sdk/client-ec2';
 import { ECSClient } from '@aws-sdk/client-ecs';
 import { EventBridgeClient } from '@aws-sdk/client-eventbridge';
@@ -36,6 +37,7 @@ const rdsClient = new RDSClient({});
 const ecsClient = new ECSClient({});
 const ec2Client = new EC2Client({});
 const ssmClient = new SSMClient({});
+const cloudFormationClient = new CloudFormationClient({});
 // ⚠️ Adaptive retry, because every parallel deploy in Sandbox Up runs `sync` at once and each reads one tag set per
 // rule: EventBridge's control plane throttles that burst, and the default three attempts failed a deploy on it.
 const eventBridgeClient = new EventBridgeClient({ retryMode: 'adaptive', maxAttempts: 10 });
@@ -54,7 +56,7 @@ function buildClients(): SchedulerClients {
         ecs: createEcsApi(ecsClient),
         ec2: createEc2Api(ec2Client),
         ssm: createSsmApi(ssmClient),
-        events: createEventsApi(eventBridgeClient),
+        events: createEventsApi(eventBridgeClient, cloudFormationClient),
         reclaim: createReclaimStarter(process.env['RECLAIM_STATE_MACHINE_ARN']),
     };
 }

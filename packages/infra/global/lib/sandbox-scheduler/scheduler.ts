@@ -146,12 +146,14 @@ export interface ScheduledRuleSummary {
 /** EventBridge operations the scheduler needs. */
 export interface EventsApi {
     /**
-     * List every SCHEDULED rule in the account's `kitchensink-*` namespace, with its tags.
+     * List every SCHEDULED rule owned by a stack `inStackScope` admits, with its tags.
      *
-     * ⛔ `inScope` is applied to each rule NAME before `ListTagsForResource` is called on it (a per-resource call the
-     * permissions boundary refuses on a production-named rule). `ListRules` itself takes no resource.
+     * ⛔ `inStackScope` judges a STACK name, never a rule name: CloudFormation truncates a generated rule name, so a
+     * production rule carries no `-prod` and is indistinguishable by name from a sandbox one. A rule's tags (a
+     * per-resource call the permissions boundary refuses on a production resource) are read only for rules an admitted
+     * stack owns.
      */
-    listScheduledRules(inScope: (ruleName: string) => boolean): Promise<ScheduledRuleSummary[]>;
+    listScheduledRules(inStackScope: (stackName: string) => boolean): Promise<ScheduledRuleSummary[]>;
     /** Enable a rule by name. */
     enableRule(name: string): Promise<void>;
     /** Disable a rule by name. */

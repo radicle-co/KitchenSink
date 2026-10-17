@@ -290,7 +290,7 @@ const GRANTS: readonly Grant[] = [
         sid: 'Stacks',
         resources: [STACK],
         actions: {
-            ksnonprod: ['cloudformation:DeleteStack'],
+            ksnonprod: ['cloudformation:DeleteStack', 'cloudformation:ListStackResources'],
             ksaccount: [
                 'cloudformation:DeleteStack',
                 'cloudformation:DescribeStackEvents',

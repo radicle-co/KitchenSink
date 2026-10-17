@@ -13,6 +13,11 @@
  * predicate that mirrors the boundary. A fake account holds a production-named, an other-application and an in-scope
  * resource of each kind, and every command each adapter sends is inspected.
  */
+import {
+    ListStackResourcesCommand,
+    ListStacksCommand,
+    type CloudFormationClient,
+} from '@aws-sdk/client-cloudformation';
 import { DescribeClustersCommand, ListClustersCommand, type ECSClient } from '@aws-sdk/client-ecs';
 import { ListRulesCommand, ListTagsForResourceCommand, type EventBridgeClient } from '@aws-sdk/client-eventbridge';
 import { describe, expect, it, vi } from 'vitest';
@@ -155,47 +160,126 @@ describe('the ECS adapters describe only the clusters the scheduler admits', () 
     });
 });
 
-describe('the EventBridge adapter reads tags only of rules the scheduler admits', () => {
-    it('a prod-named rule is never passed to ListTagsForResource', async () => {
-        const rule = (name: string) => ({
-            Name: name,
-            Arn: `arn:aws:events:us-east-1:1:rule/${name}`,
-            ScheduleExpression: 'rate(1 day)',
-        });
-        const { client, commands } = fakeClient<EventBridgeClient>((command) => {
+/**
+ * The real names, read from the account 2026-10-17. CloudFormation TRUNCATES a generated rule name, so the rule of a
+ * PRODUCTION stack starts `kitchensink-identity-webh-…` and carries no `-prod`: a predicate on the RULE name cannot
+ * tell it from its sandbox twin. The STACK name is never truncated.
+ */
+const PROD_STACK = 'kitchensink-identity-webhooks-prod';
+const SANDBOX_STACK = 'kitchensink-identity-webhooks-sandbox';
+const FOOD_PROD_STACK = 'kitchensink-food-service-prod';
+const PROD_RULE = 'kitchensink-identity-webh-ReconciliationScheduleAC1-ZT61PUKdNJV9';
+const SANDBOX_RULE = 'kitchensink-identity-webh-ReconciliationScheduleAC1-ynaOAukW661u';
+const FOOD_PROD_RULE = 'kitchensink-food-service--IngestionScheduled495FB8C-TDL4xhEXcOBu';
+
+const ruleArn = (name: string): string => `arn:aws:events:us-east-1:123456789012:rule/${name}`;
+
+describe('the scheduler finds its rules through the stacks that own them, never by a rule name', () => {
+    it('isStageScopedName cannot tell a truncated production rule name from a sandbox one (why the stack is judged)', () => {
+        expect(isStageScopedName(PROD_RULE)).toBe(true);
+        expect(isStageScopedName(FOOD_PROD_RULE)).toBe(true);
+        expect(isStageScopedName(PROD_STACK)).toBe(false);
+        expect(isStageScopedName(FOOD_PROD_STACK)).toBe(false);
+        expect(isStageScopedName(SANDBOX_STACK)).toBe(true);
+    });
+
+    /**
+     * An account where the prod rules are tagged `kitchensink:tier=prod` (the first prod deploy after merge does this),
+     * so the boundary's DenyOtherTierTag refuses ANY per-resource call on them and on a prod stack.
+     */
+    function account() {
+        const prodRules = new Set([PROD_RULE, FOOD_PROD_RULE]);
+        const eventsAccount = fakeClient<EventBridgeClient>((command) => {
             if (command.name === ListRulesCommand.name) {
                 return {
-                    Rules: [
-                        rule('kitchensink-identity-webhooks-prod-ReconcileRule-A'),
-                        rule('kitchensink-recipe-workers-sandbox-SweepRule-B'),
-                        rule('kitchensink-recipe-workers-pr-7-SweepRule-C'),
-                    ],
+                    Rules: [PROD_RULE, SANDBOX_RULE, FOOD_PROD_RULE].map((name) => ({
+                        Name: name,
+                        Arn: ruleArn(name),
+                        ScheduleExpression: 'rate(1 day)',
+                    })),
                 };
             }
 
             const resource = String(command.input['ResourceARN']);
 
-            if (!isStageScopedName(resource.split('/').pop() ?? '')) {
-                throw new Error(`AccessDenied: events:ListTagsForResource on ${resource} (permissions boundary)`);
+            if (prodRules.has(resource.split('/').pop() ?? '')) {
+                throw new Error(`AccessDenied: events:ListTagsForResource on ${resource} (DenyOtherTierTag)`);
             }
 
-            return { Tags: [{ Key: 'Environment', Value: 'sandbox' }] };
+            return {
+                Tags: [
+                    { Key: 'SandboxStage', Value: 'sandbox' },
+                    { Key: 'kitchensink:tier', Value: 'nonprod' },
+                ],
+            };
+        });
+        const ruleOf = new Map([
+            [PROD_STACK, PROD_RULE],
+            [SANDBOX_STACK, SANDBOX_RULE],
+            [FOOD_PROD_STACK, FOOD_PROD_RULE],
+        ]);
+        const cloudFormationAccount = fakeClient<CloudFormationClient>((command) => {
+            if (command.name === ListStacksCommand.name) {
+                // Two pages, so an adapter that stops at the first page loses the third stack.
+                return command.input['NextToken'] === undefined
+                    ? { StackSummaries: [{ StackName: PROD_STACK }, { StackName: SANDBOX_STACK }], NextToken: 'p2' }
+                    : { StackSummaries: [{ StackName: FOOD_PROD_STACK }] };
+            }
+
+            const stackName = String(command.input['StackName']);
+
+            if (!isStageScopedName(stackName)) {
+                throw new Error(`AccessDenied: cloudformation:ListStackResources on ${stackName} (DenyOtherTierTag)`);
+            }
+
+            return {
+                StackResourceSummaries: [
+                    { ResourceType: 'AWS::Events::Rule', PhysicalResourceId: ruleOf.get(stackName) },
+                ],
+            };
         });
 
-        const rules = await createEventsApi(client).listScheduledRules(isStageScopedName);
+        return { eventsAccount, cloudFormationAccount };
+    }
 
-        expect(rules.map((entry) => entry.name)).toEqual([
-            'kitchensink-recipe-workers-sandbox-SweepRule-B',
-            'kitchensink-recipe-workers-pr-7-SweepRule-C',
-        ]);
+    it('a truncated production rule is never passed to ListTagsForResource, and its stack is never listed', async () => {
+        const { eventsAccount, cloudFormationAccount } = account();
+
+        const rules = await createEventsApi(eventsAccount.client, cloudFormationAccount.client).listScheduledRules(
+            isStageScopedName,
+        );
+
+        expect(rules).toEqual([{ name: SANDBOX_RULE, stageTag: 'sandbox', environmentTag: undefined }]);
         expect(
-            commands
+            eventsAccount.commands
                 .filter((command) => command.name === ListTagsForResourceCommand.name)
                 .map((command) => command.input['ResourceARN']),
-        ).toEqual([
-            'arn:aws:events:us-east-1:1:rule/kitchensink-recipe-workers-sandbox-SweepRule-B',
-            'arn:aws:events:us-east-1:1:rule/kitchensink-recipe-workers-pr-7-SweepRule-C',
-        ]);
+        ).toEqual([ruleArn(SANDBOX_RULE)]);
+        expect(
+            cloudFormationAccount.commands
+                .filter((command) => command.name === ListStackResourcesCommand.name)
+                .map((command) => command.input['StackName']),
+        ).toEqual([SANDBOX_STACK]);
+    });
+
+    it('the adapter DECIDES NOTHING: it applies the stack predicate it is given', async () => {
+        const { eventsAccount, cloudFormationAccount } = account();
+
+        const rules = await createEventsApi(eventsAccount.client, cloudFormationAccount.client).listScheduledRules(
+            (stackName) => stackName === SANDBOX_STACK,
+        );
+
+        expect(rules.map((rule) => rule.name)).toEqual([SANDBOX_RULE]);
+    });
+
+    it('makes no tag call when no stack is in scope', async () => {
+        const { eventsAccount, cloudFormationAccount } = account();
+
+        await expect(
+            createEventsApi(eventsAccount.client, cloudFormationAccount.client).listScheduledRules(() => false),
+        ).resolves.toEqual([]);
+
+        expect(eventsAccount.commands.map((command) => command.name)).not.toContain(ListTagsForResourceCommand.name);
     });
 });
 

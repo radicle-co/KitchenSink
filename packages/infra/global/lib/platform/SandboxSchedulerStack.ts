@@ -316,8 +316,28 @@ export class SandboxSchedulerStack extends Stack {
             }),
         );
 
+        // ⛔ Rules are found through the STACKS that own them, because CloudFormation TRUNCATES a generated rule name:
+        // a production rule carries no `-prod`, so no rule-name test can keep the per-resource calls off it, while a
+        // stack name is never truncated. `ListStacks` has no resource-level form; `ListStackResources` is bounded to
+        // this repository's stacks (the code calls it only on a non-production one, which the boundary also requires).
+        schedulerFn.addToRolePolicy(
+            new iam.PolicyStatement({
+                sid: 'SandboxSchedulerStackDiscovery',
+                actions: ['cloudformation:ListStacks'],
+                resources: ['*'],
+            }),
+        );
+
+        schedulerFn.addToRolePolicy(
+            new iam.PolicyStatement({
+                sid: 'SandboxSchedulerStackResources',
+                actions: ['cloudformation:ListStackResources'],
+                resources: [`arn:aws:cloudformation:${this.region}:${this.account}:stack/kitchensink-*/*`],
+            }),
+        );
+
         // `kitchensink-` is the start of every rule this repository deploys (CloudFormation truncates a generated name
-        // but keeps the stack name it begins with), and the account also hosts another application.
+        // but keeps the start it begins with), and the account also hosts another application.
         const repositoryRules = `arn:aws:events:${this.region}:${this.account}:rule/kitchensink-*`;
 
         schedulerFn.addToRolePolicy(

@@ -22,12 +22,15 @@ import {
 } from '../lib/sandbox-scheduler/scheduler.js';
 import { isInvalidSchedulerRequestError } from '../lib/sandbox-scheduler/invalidSchedulerRequestError.js';
 
-const { runSchedulerAction, announceSilentNoOp, eventBridgeSend, eventBridgeConfigs } = vi.hoisted(() => ({
-    runSchedulerAction: vi.fn(),
-    announceSilentNoOp: vi.fn(),
-    eventBridgeSend: vi.fn(),
-    eventBridgeConfigs: [] as unknown[],
-}));
+const { runSchedulerAction, announceSilentNoOp, eventBridgeSend, eventBridgeConfigs, cloudFormationSend } = vi.hoisted(
+    () => ({
+        runSchedulerAction: vi.fn(),
+        announceSilentNoOp: vi.fn(),
+        eventBridgeSend: vi.fn(),
+        eventBridgeConfigs: [] as unknown[],
+        cloudFormationSend: vi.fn(),
+    }),
+);
 
 vi.mock('../lib/sandbox-scheduler/scheduler.js', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../lib/sandbox-scheduler/scheduler.js')>()),
@@ -54,6 +57,17 @@ vi.mock('@aws-sdk/client-eventbridge', async (importOriginal) => {
     };
 });
 
+vi.mock('@aws-sdk/client-cloudformation', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@aws-sdk/client-cloudformation')>();
+
+    return {
+        ...actual,
+        CloudFormationClient: class {
+            public send = cloudFormationSend;
+        },
+    };
+});
+
 const { handler } = await import('../src/sandbox-scheduler/handler.js');
 
 const summary = (errors: string[], action: SchedulerSummary['action'] = 'start'): SchedulerSummary => ({
@@ -72,6 +86,7 @@ beforeEach(() => {
     announceSilentNoOp.mockReset();
     announceSilentNoOp.mockResolvedValue(true);
     eventBridgeSend.mockReset();
+    cloudFormationSend.mockReset();
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
 });
 
@@ -264,6 +279,17 @@ describe('the EventBridge adapter', () => {
     }
 
     it('lists the kitchensink- rules across EVERY page, keeps only scheduled ones, and reads their tags', async () => {
+        // The stack owns both scheduled rules; `kitchensink-unowned` is in the listing but in no admitted stack.
+        cloudFormationSend.mockImplementation(async (command: { constructor: { name: string } }) =>
+            command.constructor.name === 'ListStacksCommand'
+                ? { StackSummaries: [{ StackName: 'kitchensink-sweep-stack' }] }
+                : {
+                      StackResourceSummaries: [
+                          { ResourceType: 'AWS::Events::Rule', PhysicalResourceId: 'kitchensink-q' },
+                          { ResourceType: 'AWS::Events::Rule', PhysicalResourceId: 'kitchensink-sweep-pr-7' },
+                      ],
+                  },
+        );
         eventBridgeSend.mockImplementation(
             async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
                 switch (command.constructor.name) {
@@ -275,6 +301,11 @@ describe('the EventBridge adapter', () => {
                                           Name: 'kitchensink-q',
                                           Arn: 'arn:aws:events:us-east-1:1:rule/kitchensink-q',
                                           ScheduleExpression: 'rate(15 minutes)',
+                                      },
+                                      {
+                                          Name: 'kitchensink-unowned',
+                                          Arn: 'arn:aws:events:us-east-1:1:rule/kitchensink-unowned',
+                                          ScheduleExpression: 'rate(1 day)',
                                       },
                                       {
                                           Name: 'kitchensink-pattern',
@@ -322,7 +353,7 @@ describe('the EventBridge adapter', () => {
             { NamePrefix: 'kitchensink-', NextToken: undefined },
             { NamePrefix: 'kitchensink-', NextToken: 'page-2' },
         ]);
-        // The event-pattern rule's tags are never even read: it is not the scheduler's.
+        // The event-pattern rule's and the unowned rule's tags are never even read: neither is the scheduler's.
         expect(sent().filter((call) => call.command === 'ListTagsForResourceCommand')).toHaveLength(2);
     });
 

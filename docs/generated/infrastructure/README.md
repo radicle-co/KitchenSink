@@ -106,6 +106,16 @@ Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aw
 
 Entrypoint: `packages/infra/global/bin/account.ts`
 
+### `kitchensink-ci-policies`
+
+Construct `CiExecutionPolicyStack` — `packages/infra/global/lib/platform/CiExecutionPolicyStack.ts`
+
+⚠️ Declared only when `String(app.node.tryGetContext(CI_POLICIES_CONTEXT_FLAG)) === 'true'`.
+
+_No Lambda, queue, topic, alarm, ECS service or SSM parameter is declared in this stack._
+
+Not summarised here (out of this manifest's scope): `aws-cdk-lib.CliCredentialsStackSynthesizer`, `aws-cdk-lib/aws-iam.ManagedPolicy`.
+
 ### `kitchensink-cost-guardrails`
 
 Construct `CostGuardrailsStack` — `packages/infra/global/lib/platform/CostGuardrailsStack.ts`

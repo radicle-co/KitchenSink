@@ -39,6 +39,19 @@
             "packageName": "@kitchensink/infra-global",
             "stacks": [
                 {
+                    "className": "CiExecutionPolicyStack",
+                    "source": "packages/infra/global/lib/platform/CiExecutionPolicyStack.ts",
+                    "stackNameTemplate": "kitchensink-ci-policies",
+                    "condition": "String(app.node.tryGetContext(CI_POLICIES_CONTEXT_FLAG)) === 'true'",
+                    "resources": [],
+                    "importedExports": [],
+                    "unclassifiedConstructs": [
+                        "aws-cdk-lib.CliCredentialsStackSynthesizer",
+                        "aws-cdk-lib/aws-iam.ManagedPolicy"
+                    ],
+                    "unfollowedConstructs": []
+                },
+                {
                     "className": "CostGuardrailsStack",
                     "source": "packages/infra/global/lib/platform/CostGuardrailsStack.ts",
                     "stackNameTemplate": "kitchensink-cost-guardrails",

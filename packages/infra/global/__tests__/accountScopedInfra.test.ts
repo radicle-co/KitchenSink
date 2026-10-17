@@ -21,6 +21,7 @@ const constructed = [...code.matchAll(/new (\w+Stack)\(\s*app,\s*'[^']+',\s*\{([
 describe('bin/account.ts: the account-scoped app', () => {
     it('constructs the stacks it is supposed to (a vacuous pass here would hide every rule below)', () => {
         expect(constructed.map((stack) => stack.name).sort()).toEqual([
+            'CiExecutionPolicyStack',
             'CostGuardrailsStack',
             'GithubActionsAccessStack',
         ]);

@@ -38,6 +38,7 @@ import { App, Tags } from 'aws-cdk-lib';
 
 import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
 
+import { CI_POLICIES_CONTEXT_FLAG, CiExecutionPolicyStack } from '../lib/platform/CiExecutionPolicyStack.js';
 import { CostGuardrailsStack } from '../lib/platform/CostGuardrailsStack.js';
 import { GithubActionsAccessStack } from '../lib/platform/GithubActionsAccessStack.js';
 
@@ -78,5 +79,17 @@ new GithubActionsAccessStack(app, 'GithubActionsAccess', {
     env: { account, region },
     stackName: 'kitchensink-github-actions-access',
 });
+
+// ADR-0064: the permissions boundaries and CloudFormation execution policies of KitchenSink's CDK bootstrap
+// qualifiers. ⛔ OWNER-ONLY. A role that could deploy this stack could widen the policy that bounds it, so it is
+// built only when the owner passes `-c ciPoliciesOwnerDeploy=true` from an admin session; no workflow does, and
+// `accountDeploy.yml`'s `cdk deploy --all` therefore never sees it. `ciPolicyStackOwnerOnly.test.ts` holds this.
+// See docs/runbooks/cdkBootstrapQualifiers.md.
+if (String(app.node.tryGetContext(CI_POLICIES_CONTEXT_FLAG)) === 'true') {
+    new CiExecutionPolicyStack(app, 'CiExecutionPolicy', {
+        env: { account, region },
+        stackName: 'kitchensink-ci-policies',
+    });
+}
 
 app.synth();

@@ -65,6 +65,14 @@ folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
 - **D22, display name.** The identity service keeps filling in a new user's display name from their account. The cook
   can change it in Profile (owner, 2026-10-10).
 - **D16, sandbox alarms.** Sandbox alarms stay off. A failed morning start is reported by the Sentry cron monitor.
+- **D23, recent searches stay on the device, per user.** Discover's recent searches are kept on the device, on web and on
+  mobile, keyed to the signed-in user and never to their email (the opaque identity-provider id the editor's device keys
+  already use). They end with the session: our one sign-out command, account close and account erase remove them (and on
+  web so does any other end of the session the app sees, as for D7 and D18). One user never sees another user's entries on
+  the same device, and signed-out use keeps nothing on the device. The earlier unscoped list is not read again. On web they
+  stay in `localStorage`, not `sessionStorage`; this is a narrow exception to the ruling of 2026-09-17 that the browser
+  keeps no durable app data, alongside D7 and D18, and it covers the search history only (owner, 2026-10-17). Where it
+  lives in code: `recentSearchesKeyFor` and `endDeviceSession` in `@commise/features-recipes`.
 
 ## Adopted from the joint recommendations
 
@@ -132,15 +140,6 @@ These come after the UI walk-through. Where an earlier line in this file or in `
     `docs/plans/2026-10-15-010-feat-username-byline-plan.md` D12 (the "web Account-group row").
 
 ## Owner decision of 2026-10-17
-
-- **D23, recent searches stay on the device, per user.** Discover's recent searches are kept on the device, on web and on
-  mobile, keyed to the signed-in user and never to their email (the opaque identity-provider id the editor's device keys
-  already use). They end with the session: our one sign-out command, account close and account erase remove them (and on
-  web so does any other end of the session the app sees, as for D7 and D18). One user never sees another user's entries on
-  the same device, and signed-out use keeps nothing on the device. The earlier unscoped list is not read again. On web they
-  stay in `localStorage`, not `sessionStorage`; this is a narrow exception to the ruling of 2026-09-17 that the browser
-  keeps no durable app data, alongside D7 and D18, and it covers the search history only (owner, 2026-10-17). Where it
-  lives in code: `recentSearchesKeyFor` and `endDeviceSession` in `@commise/features-recipes`.
 
 14. **Photo tiles get one ⋯ menu each, on both platforms.** One 44 pt (iOS and web) or 48 dp (Android) ⋯ button per
     tile opens a menu of Set as cover, Move earlier, Move later, Replace and, after a divider, Remove. This is

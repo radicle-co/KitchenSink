@@ -92,7 +92,9 @@ const NAMED_RESIDUALS: Readonly<Record<string, string>> = {
     CloudWatchDashboards: 'dashboards cannot be tagged; the tier is in the name pattern',
     IamInstanceProfiles: 'instance profiles cannot be tagged',
     CloudFrontPolicies:
-        'cache, origin-request, response-headers policies, access controls, key groups, public keys, key-value stores and functions are addressed by id and cannot be tagged',
+        'cache, origin-request, response-headers policies, access controls, key-value stores and functions are addressed by id and cannot be tagged',
+    CloudFrontKeyMaterial:
+        'key groups and public keys have no resource type in the Service Authorization Reference, so their actions authorize on "*" only',
     AppAutoScaling: 'Application Auto Scaling takes no resource-level scope; limited to ECS service desired count',
     ApiGatewayAccount: 'the account-level API Gateway settings are a singleton',
     LogDeliveries: 'log deliveries take no resource-level scope',

@@ -37,6 +37,7 @@ import {
     executionPolicyName,
     type QualifierName,
 } from './qualifiers.js';
+import { TIER_SERVICES, tierNameResources } from './tierNames.js';
 
 /** The services a created role may be passed to. A superset of any tier; each tier lists its own subset. */
 export const PASS_ROLE_SERVICES: readonly string[] = [
@@ -57,6 +58,13 @@ export const ATTACHABLE_AWS_POLICIES: readonly string[] = [
     'service-role/AmazonAPIGatewayPushToCloudWatchLogs',
     'service-role/AmazonECSTaskExecutionRolePolicy',
 ];
+
+/**
+ * The services the execution role's tier Denies cover: every service whose ARNs can carry a name. The execution role
+ * is one union of all its parts, and its guard part has the room, so this is the full set rather than a subset
+ * derived per part; `tierNames.test.ts` holds that no service an Allow reaches is missing.
+ */
+const EXECUTION_TIER_SERVICES = TIER_SERVICES;
 
 const PART_NAMES = ['compute', 'data', 'observe', 'network', 'edge', 'iam', 'guard'] as const;
 
@@ -589,7 +597,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
         allow(
             'observe',
             'LogDeliveries',
-            ['logs:AllowVendedLogDeliveryForResource', 'logs:*Delivery*', 'logs:DescribeLogGroups'],
+            ['logs:*Delivery*', 'logs:DescribeLogGroups'],
             ['*'],
             ['AWS::Logs::Delivery', 'AWS::Logs::DeliveryDestination', 'AWS::Logs::DeliverySource'],
         ),
@@ -614,7 +622,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             'observe',
             'CloudWatchDashboards',
             ['cloudwatch:DeleteDashboards', 'cloudwatch:GetDashboard', 'cloudwatch:PutDashboard'],
-            [arn('cloudwatch', nonprod ? 'dashboard/pr-*-food-data' : 'dashboard/food-data')],
+            [arn('cloudwatch', nonprod ? 'dashboard/pr-*-food-data' : 'dashboard/food-data', false)],
             ['AWS::CloudWatch::Dashboard'],
         ),
         // ---- network ------------------------------------------------------------------------------------------
@@ -734,7 +742,6 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             [
                 'cloudfront:CreateCachePolicy',
                 'cloudfront:CreateDistribution',
-                'cloudfront:CreateDistributionWithTags',
                 'cloudfront:CreateFunction',
                 'cloudfront:CreateKeyGroup',
                 'cloudfront:CreateKeyValueStore',
@@ -761,6 +768,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             'edge',
             'CloudFrontOwnDistributions',
             [
+                'cloudfront:AllowVendedLogDeliveryForResource',
                 'cloudfront:AssociateAlias',
                 'cloudfront:CreateInvalidation',
                 'cloudfront:Delete*',
@@ -790,11 +798,29 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 arn('cloudfront', 'origin-access-control/*', false),
                 arn('cloudfront', 'origin-request-policy/*', false),
                 arn('cloudfront', 'response-headers-policy/*', false),
-                arn('cloudfront', 'key-group/*', false),
-                arn('cloudfront', 'public-key/*', false),
                 arn('cloudfront', 'key-value-store/*', false),
                 ...routerFunctions,
             ],
+        ),
+        // Key groups and public keys have NO resource type in the Service Authorization Reference: their actions
+        // authorize only on `*`, so a `key-group/*` ARN would never match and a delete or update would be denied.
+        allow(
+            'edge',
+            'CloudFrontKeyMaterial',
+            [
+                'cloudfront:DeleteKeyGroup',
+                'cloudfront:DeletePublicKey',
+                'cloudfront:GetKeyGroup',
+                'cloudfront:GetKeyGroupConfig',
+                'cloudfront:GetPublicKey',
+                'cloudfront:GetPublicKeyConfig',
+                'cloudfront:ListKeyGroups',
+                'cloudfront:ListPublicKeys',
+                'cloudfront:UpdateKeyGroup',
+                'cloudfront:UpdatePublicKey',
+            ],
+            ['*'],
+            ['AWS::CloudFront::KeyGroup', 'AWS::CloudFront::PublicKey'],
         ),
         allow('edge', 'AcmRequest', ['acm:RequestCertificate'], ['*'], ['AWS::CertificateManager::Certificate'], {
             'ForAllValues:StringLike': { 'acm:DomainNames': nonprod ? ['*sandbox.commise.app'] : ['*commise.app'] },
@@ -995,10 +1021,8 @@ function tierDenies(qualifier: QualifierName): Grant[] {
                 'DenyProductionNames',
                 ['*'],
                 [
-                    'arn:aws:*:*:*:*kitchensink-*-prod*',
-                    'arn:aws:*:*:*:*kitchensink/*prod/*',
-                    'arn:aws:*:*:*:*kitchensink/*prod',
-                    'arn:aws:*:*:*:dashboard/food-data',
+                    ...tierNameResources('production', EXECUTION_TIER_SERVICES),
+                    'arn:aws:cloudwatch::*:dashboard/food-data',
                     'arn:aws:cloudfront::*:function/*prod*',
                 ],
             ),
@@ -1015,13 +1039,8 @@ function tierDenies(qualifier: QualifierName): Grant[] {
                 'DenyNonProductionNames',
                 ['*'],
                 [
-                    'arn:aws:*:*:*:*kitchensink-*-sandbox*',
-                    'arn:aws:*:*:*:*kitchensink-*-pr-*',
-                    'arn:aws:*:*:*:*kitchensink/sandbox*',
-                    'arn:aws:*:*:*:*kitchensink/*/sandbox*',
-                    'arn:aws:*:*:*:*kitchensink/pr-*',
-                    'arn:aws:*:*:*:*kitchensink/*/pr-*',
-                    'arn:aws:*:*:*:dashboard/pr-*',
+                    ...tierNameResources('nonproduction', EXECUTION_TIER_SERVICES),
+                    'arn:aws:cloudwatch::*:dashboard/pr-*',
                 ],
             ),
             deny('guard', 'DenySandboxDns', ['route53:ChangeResourceRecordSets'], ['*'], {

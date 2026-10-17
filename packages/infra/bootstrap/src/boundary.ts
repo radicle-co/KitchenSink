@@ -38,6 +38,7 @@
  */
 import { ACCOUNT, REGION, type Condition, type PolicyDocument, type Statement } from './policyDocument.js';
 import { QUALIFIERS, STACK_TAG_PATTERNS, type QualifierName } from './qualifiers.js';
+import { tierNameResources, type TierService } from './tierNames.js';
 
 /** An ARN in any region of this account. */
 const arn = (service: string, resource: string): string => `arn:aws:${service}:*:${ACCOUNT}:${resource}`;
@@ -110,12 +111,10 @@ const SQS_ACTIONS = [
 ];
 const S3_ACTIONS = [
     's3:Abort*',
-    's3:DeleteObject',
     's3:DeleteObject*',
     's3:GetBucket*',
     's3:GetObject*',
     's3:List*',
-    's3:ListBucket',
     's3:PutObject',
     's3:PutObjectLegalHold',
     's3:PutObjectRetention',
@@ -182,14 +181,22 @@ const GRANTS: readonly Grant[] = [
     {
         // A function name is truncated by CloudFormation (64 characters) and the stage token is what is cut, so the
         // name alone cannot keep a non-production role off a production function, which would then run with its own
-        // production role. The stack-name tag is not truncated. A state machine has no stack prefix at all.
+        // production role. The stack-name tag is not truncated. A state machine has no stack prefix at all, and an EC2
+        // instance is addressed by id. An action only ever meets a resource of its own service, so the three share
+        // one statement (and one copy of the condition) instead of three.
         sid: 'TaggedCompute',
-        resources: [FUNCTION, STATE_MACHINE_ANY],
+        resources: [FUNCTION, STATE_MACHINE_ANY, INSTANCE],
         condition: (qualifier) => ({
             StringLike: { [RESOURCE_TAG_KEY]: stackTagPatterns(qualifier) },
         }),
         actions: {
-            ksnonprod: ['lambda:GetFunction', 'lambda:InvokeFunction', 'states:StartExecution'],
+            ksnonprod: [
+                'ec2:StartInstances',
+                'ec2:StopInstances',
+                'lambda:GetFunction',
+                'lambda:InvokeFunction',
+                'states:StartExecution',
+            ],
             ksprod: ['lambda:GetFunction', 'lambda:InvokeFunction'],
             ksaccount: [
                 'lambda:GetFunctionConfiguration',
@@ -286,14 +293,6 @@ const GRANTS: readonly Grant[] = [
                 'cloudformation:ListStackResources',
             ],
         },
-    },
-    {
-        sid: 'Instances',
-        resources: [INSTANCE],
-        condition: (qualifier) => ({
-            StringLike: { 'ec2:ResourceTag/aws:cloudformation:stack-name': stackTagPatterns(qualifier) },
-        }),
-        actions: { ksnonprod: ['ec2:StartInstances', 'ec2:StopInstances'] },
     },
     {
         sid: 'DatabaseInstances',
@@ -523,7 +522,10 @@ const STAR_ACTIONS: Readonly<Record<QualifierName, readonly string[]>> = {
 
 const iamArn = (resource: string): string => `arn:aws:iam::${ACCOUNT}:${resource}`;
 
-/** Every IAM verb that changes anything. Reads (`Get*`, `List*`) and `iam:PassRole` stay out of it. */
+/**
+ * Every IAM verb that changes anything. Reads (`Get*`, `List*`) and `iam:PassRole` stay out of it. Denied together with
+ * `organizations:*` and `account:*` in ONE statement: the boundary must fit one managed policy.
+ */
 const IAM_MUTATIONS: readonly string[] = [
     'iam:Add*',
     'iam:Attach*',
@@ -551,6 +553,33 @@ const statement = (
     Condition?: Condition,
 ): Statement => ({ Sid, Effect, Action, Resource, ...(Condition === undefined ? {} : { Condition }) });
 
+/**
+ * The services each stage boundary's tier Deny names: every service that boundary allows on a NAME. `lambda` and
+ * `states` are absent on purpose: they are allowed only under the stack-name tag condition (`TaggedCompute`), which
+ * a resource of the other tier does not satisfy, and the boundary has no room for a second line of defence on them
+ * (it must stay ONE managed policy, under IAM's 6,144-character limit). `ec2` is absent because its ARNs carry ids,
+ * never names. The production boundary also lacks `cloudformation` and `rds`: it allows no action on them.
+ * `tierNames.test.ts` holds each list equal to what the boundary allows, in both directions.
+ */
+export const BOUNDARY_TIER_SERVICES: Readonly<Record<'ksnonprod' | 'ksprod', readonly TierService[]>> = {
+    ksnonprod: [
+        'cloudformation',
+        'dynamodb',
+        'ecr',
+        'ecs',
+        'events',
+        'iam',
+        'logs',
+        'rds',
+        's3',
+        'secretsmanager',
+        'sns',
+        'sqs',
+        'ssm',
+    ],
+    ksprod: ['dynamodb', 'ecr', 'ecs', 'events', 'iam', 'logs', 's3', 'secretsmanager', 'sns', 'sqs', 'ssm'],
+};
+
 /** The Deny that keeps one stage tier out of the other's names. */
 function tierNameDeny(qualifier: QualifierName): Statement[] {
     if (qualifier === QUALIFIERS.nonprod) {
@@ -559,11 +588,7 @@ function tierNameDeny(qualifier: QualifierName): Statement[] {
                 'DenyProductionNames',
                 'Deny',
                 ['*'],
-                [
-                    'arn:aws:*:*:*:*kitchensink-*-prod*',
-                    'arn:aws:*:*:*:*kitchensink/*prod/*',
-                    'arn:aws:*:*:*:*kitchensink/*prod',
-                ],
+                tierNameResources('production', BOUNDARY_TIER_SERVICES.ksnonprod, 'compact'),
             ),
         ];
     }
@@ -574,14 +599,7 @@ function tierNameDeny(qualifier: QualifierName): Statement[] {
                 'DenyNonProductionNames',
                 'Deny',
                 ['*'],
-                [
-                    'arn:aws:*:*:*:*kitchensink-*-sandbox*',
-                    'arn:aws:*:*:*:*kitchensink-*-pr-*',
-                    'arn:aws:*:*:*:*kitchensink/sandbox*',
-                    'arn:aws:*:*:*:*kitchensink/*/sandbox*',
-                    'arn:aws:*:*:*:*kitchensink/pr-*',
-                    'arn:aws:*:*:*:*kitchensink/*/pr-*',
-                ],
+                tierNameResources('nonproduction', BOUNDARY_TIER_SERVICES.ksprod, 'compact'),
             ),
         ];
     }
@@ -627,11 +645,9 @@ export function buildBoundary(qualifier: QualifierName): PolicyDocument {
                   ),
               ]
             : [statement('AllowPassKitchenSinkRoles', 'Allow', ['iam:PassRole'], [iamArn('role/kitchensink-*')])]),
-        statement('DenyIamMutation', 'Deny', IAM_MUTATIONS, ['*']),
-        statement('DenyOrganizationsAndAccount', 'Deny', ['organizations:*', 'account:*'], ['*']),
-        statement('DenyDefaultQualifierRoles', 'Deny', ['sts:AssumeRole'], [iamArn('role/cdk-hnb659fds-*')]),
+        statement('DenyEscalation', 'Deny', [...IAM_MUTATIONS, 'organizations:*', 'account:*'], ['*']),
         ...(account
-            ? []
+            ? [statement('DenyDefaultQualifierRoles', 'Deny', ['sts:AssumeRole'], [iamArn('role/cdk-hnb659fds-*')])]
             : [
                   statement(
                       'DenyBootstrapAndCiRoles',

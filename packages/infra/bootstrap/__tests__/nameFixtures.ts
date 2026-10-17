@@ -7,6 +7,7 @@
  * templates alone.
  */
 import { ACCOUNT, REGION } from '../src/policyDocument.js';
+import type { TierService } from '../src/tierNames.js';
 
 export const NAME_PREFIX = `arn:aws:lambda:${REGION}:${ACCOUNT}`;
 
@@ -49,3 +50,55 @@ export const NONPROD_NAMES: ReadonlyArray<readonly [string, string]> = [
         `arn:aws:cloudformation:${REGION}:${ACCOUNT}:stack/kitchensink-data-sandbox/0000-1111`,
     ],
 ];
+
+/** Which tier a sample name belongs to. */
+export type SampleKind = 'production' | 'sandbox' | 'preview';
+
+/**
+ * One concrete resource name per tier for every service the tier Denies cover, in the shapes CloudFormation and the
+ * services really produce (a queue, a bucket, a path-named parameter, a generated log group). The Denies are judged
+ * against these in BOTH directions: the other tier's name is refused, the policy's own tier's names (sandbox AND
+ * preview, or production) are not. Path-named services carry a second, slash-separated shape.
+ */
+export const TIER_NAME_SAMPLES: ReadonlyArray<{ service: TierService; kind: SampleKind; arn: string }> = (() => {
+    const regional = (service: string, resource: string): string =>
+        `arn:aws:${service}:${REGION}:${ACCOUNT}:${resource}`;
+    const tokens: ReadonlyArray<readonly [SampleKind, string]> = [
+        ['production', 'prod'],
+        ['sandbox', 'sandbox'],
+        ['preview', 'pr-91'],
+    ];
+    const flat: ReadonlyArray<readonly [TierService, (token: string) => string]> = [
+        ['cloudformation', (t) => regional('cloudformation', `stack/kitchensink-data-${t}/0000-1111`)],
+        ['cloudwatch', (t) => regional('cloudwatch', `alarm:kitchensink-deletion-dlq-depth-${t}`)],
+        ['dynamodb', (t) => regional('dynamodb', `table/kitchensink-messages-${t}`)],
+        ['ecr', (t) => regional('ecr', `repository/kitchensink-food-service-${t}`)],
+        ['ecs', (t) => regional('ecs', `service/kitchensink-network-${t}-Cluster-ABC/svc`)],
+        ['elasticloadbalancing', (t) => regional('elasticloadbalancing', `targetgroup/kitchensink-food-${t}/abc123`)],
+        ['events', (t) => regional('events', `rule/kitchensink-recipe-archive-sweep-${t}`)],
+        ['iam', (t) => `arn:aws:iam::${ACCOUNT}:role/kitchensink-identity-service-${t}-TaskRole-ABC`],
+        ['kms', (t) => regional('kms', `alias/kitchensink-data-${t}`)],
+        ['lambda', (t) => regional('lambda', `function:kitchensink-identity-webhooks-${t}-Fn-ABC123`)],
+        ['logs', (t) => regional('logs', `log-group:/aws/lambda/kitchensink-recipe-workers-${t}:*`)],
+        ['rds', (t) => regional('rds', `db:kitchensink-data-${t}-database-abc`)],
+        ['s3', (t) => `arn:aws:s3:::kitchensink-data-${t}-mediabucket-abc123`],
+        ['scheduler', (t) => regional('scheduler', `schedule/default/kitchensink-sweep-${t}`)],
+        ['secretsmanager', (t) => regional('secretsmanager', `secret:kitchensink-edge-${t}-AbCdEf`)],
+        ['sns', (t) => regional('sns', `kitchensink-handle-sync-${t}`)],
+        ['sqs', (t) => regional('sqs', `kitchensink-recipe-account-erasure-${t}`)],
+        ['ssm', (t) => regional('ssm', `parameter/kitchensink-flag-${t}`)],
+        ['states', (t) => regional('states', `stateMachine:kitchensink-sched-${t}-SM-ABC`)],
+    ];
+    const paths: ReadonlyArray<readonly [TierService, (token: string) => string]> = [
+        ['logs', (t) => regional('logs', `log-group:/kitchensink/${t}/edge:*`)],
+        ['secretsmanager', (t) => regional('secretsmanager', `secret:kitchensink/${t}/edge/origin-header-AbCdEf`)],
+        ['secretsmanager', (t) => regional('secretsmanager', `secret:kitchensink/identity/${t}/webhooks-AbCdEf`)],
+        ['ssm', (t) => regional('ssm', `parameter/kitchensink/${t}/domain/hosted-zone-id`)],
+        ['ssm', (t) => regional('ssm', `parameter/kitchensink/identity/${t}/webhooks/api/url`)],
+        ['ssm', (t) => regional('ssm', `parameter/kitchensink/identity/${t}`)],
+    ];
+
+    return [...flat, ...paths].flatMap(([service, build]) =>
+        tokens.map(([kind, token]) => ({ service, kind, arn: build(token) })),
+    );
+})();

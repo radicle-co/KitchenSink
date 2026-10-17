@@ -19,6 +19,7 @@ import { iamLike } from '../src/iamPattern.js';
 import { ACCOUNT, MANAGED_POLICY_LIMIT, REGION, managedPolicySize, renderDocument } from '../src/policyDocument.js';
 import { unconditionalDeny } from '../src/policyEval.js';
 import { QUALIFIERS, type QualifierName } from '../src/qualifiers.js';
+import { allows, type RequestContext } from './boundaryEval.js';
 import { NONPROD_NAMES, PRODUCTION_NAMES } from './nameFixtures.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -182,12 +183,31 @@ describe('buildBoundary — stage tiers', () => {
         },
     );
 
+    // The boundary is an allow-list with a Deny for the services it allows on a NAME. Another tier's name is therefore
+    // refused one of two ways, and each fixture must be refused by one of them: an explicit Deny (the services in
+    // BOUNDARY_TIER_SERVICES), or no Allow that the resource's own stack tag satisfies (lambda and states, which are
+    // allowed only under the stack-name condition, and every action the boundary does not allow at all).
+    const tagged = (tag: string): RequestContext => ({
+        'secretsmanager:ResourceTag/aws:cloudformation:stack-name': tag,
+        'aws:ResourceTag/aws:cloudformation:stack-name': tag,
+    });
+
     it.each(PRODUCTION_NAMES)('ksnonprod boundary refuses %s on %s', (action, resource) => {
-        expect(unconditionalDeny([buildBoundary(QUALIFIERS.nonprod)], action, resource)).toBe(true);
+        const document = buildBoundary(QUALIFIERS.nonprod);
+
+        expect(
+            unconditionalDeny([document], action, resource) ||
+                !allows(document, action, resource, tagged('kitchensink-x-prod')),
+        ).toBe(true);
     });
 
     it.each(NONPROD_NAMES)('ksprod boundary refuses %s on %s', (action, resource) => {
-        expect(unconditionalDeny([buildBoundary(QUALIFIERS.prod)], action, resource)).toBe(true);
+        const document = buildBoundary(QUALIFIERS.prod);
+
+        expect(
+            unconditionalDeny([document], action, resource) ||
+                !allows(document, action, resource, tagged('kitchensink-x-sandbox')),
+        ).toBe(true);
     });
 
     it('lets a role call its own tier: no tier Deny matches the other tier fixture', () => {

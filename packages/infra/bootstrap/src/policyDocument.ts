@@ -40,12 +40,33 @@ export const REGION = '<region>';
 export const MANAGED_POLICY_LIMIT = 6144;
 
 /**
- * The size IAM measures: the document's characters excluding whitespace.
+ * A statement field as IAM receives it: a one-element list is sent as the bare string, as `aws-cdk-lib`'s
+ * `PolicyStatement` emits it. The tables keep lists so guards read every field the same way.
+ */
+const asSent = (values: readonly string[]): string | readonly string[] =>
+    values.length === 1 ? (values[0] ?? '') : values;
+
+/**
+ * The size IAM measures: the document AS SENT, characters excluding whitespace.
+ *
+ * The document that reaches IAM is the one `aws-cdk-lib` synthesizes, which sends a one-element `Action` or `Resource`
+ * list as a bare string; counting the list form would overstate a document by four characters per such statement.
+ * `CiExecutionPolicyStack.test.ts` measures the SYNTHESIZED documents too, so a difference between this model and the
+ * real wire form shows up there.
  *
  * @returns The count. Pure.
  */
 export function managedPolicySize(document: PolicyDocument): number {
-    return JSON.stringify(document).replace(/\s/gu, '').length;
+    const sent = {
+        ...document,
+        Statement: document.Statement.map((statement) => ({
+            ...statement,
+            Action: asSent(statement.Action),
+            Resource: asSent(statement.Resource),
+        })),
+    };
+
+    return JSON.stringify(sent).replace(/\s/gu, '').length;
 }
 
 const substitute = (text: string, context: RenderContext): string =>

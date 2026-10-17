@@ -8,7 +8,7 @@ KitchenSink bootstraps CDK three times, under qualifiers of its own, so that no 
 | ----------- | ----------------------------------------- | --------------------------------- | ------------------ |
 | `ksnonprod` | sandbox and every `pr-{N}` preview        | `kitchensink-bootstrap-ksnonprod` | 7                  |
 | `ksprod`    | production stages                         | `kitchensink-bootstrap-ksprod`    | 7                  |
-| `ksaccount` | the stage-less account app (`account.ts`) | `kitchensink-bootstrap-ksaccount` | 6                  |
+| `ksaccount` | the stage-less account app (`account.ts`) | `kitchensink-bootstrap-ksaccount` | 3                  |
 
 ⛔ Never run `cdk bootstrap` without `--qualifier` and `--toolkit-stack-name`. A bare `cdk bootstrap` rewrites `CDKToolkit`, which the other application owns. Never use qualifier `hnb659fds` or the stack name `CDKToolkit`.
 
@@ -26,7 +26,15 @@ aws sts get-caller-identity                             # confirm it is YOUR adm
 # From the repository root. The bootstrap package's tests pin each committed golden template to a fresh render.
 npm run test --workspace=@kitchensink/cdk-bootstrap
 export CDK=packages/infra/global/node_modules/.bin/cdk
+
+# Validate every policy document with IAM Access Analyzer BEFORE the policy-stack deploy. Read-only: ValidatePolicy takes
+# a document and creates nothing. It renders all 20 documents (account and region filled in) and fails on any ERROR or
+# SECURITY_WARNING. The offline guards catch the classes we know (invented actions, ARN grammar, size); this catches the
+# rest, and CloudFormation's CreatePolicy would otherwise reject them only at the end of the deploy.
+npm run bootstrap:validate --workspace=@kitchensink/cdk-bootstrap -- "$ACCOUNT" "$REGION"
 ```
+
+Do not continue to step 1 unless it ends with `All policies validate.`
 
 ## 1. Deploy the owner-only policy stack
 
@@ -42,7 +50,7 @@ $CDK diff CiExecutionPolicy -c ciPoliciesOwnerDeploy=true --app "$APP"
 $CDK deploy CiExecutionPolicy -c ciPoliciesOwnerDeploy=true --app "$APP" --require-approval never
 ```
 
-Check the result: 23 managed policies (3 boundaries, 7 + 7 + 6 execution policies), all with the prefix `kitchensink-ci-`.
+Check the result: 20 managed policies (3 boundaries, 7 + 7 + 3 execution policies), all with the prefix `kitchensink-ci-`.
 
 ```bash
 aws iam list-policies --scope Local --path-prefix / \

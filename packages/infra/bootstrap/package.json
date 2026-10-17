@@ -23,7 +23,9 @@
         "format:check": "prettier --check .",
         "bootstrap:golden": "tsx scripts/emitGolden.ts",
         "bootstrap:stock": "tsx scripts/refreshStockTemplate.ts",
-        "bootstrap:derive": "tsx scripts/deriveResourceTypes.ts"
+        "bootstrap:derive": "tsx scripts/deriveResourceTypes.ts",
+        "bootstrap:catalogue": "tsx scripts/refreshIamCatalogue.ts",
+        "bootstrap:validate": "tsx scripts/validatePolicies.ts"
     },
     "devDependencies": {
         "@kitchensink/db-schema-guard": "*",

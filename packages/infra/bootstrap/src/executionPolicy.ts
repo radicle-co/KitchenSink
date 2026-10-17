@@ -729,6 +729,17 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             own,
         ),
         allow('data', 'SecretsValueByTier', TAG_GATED_READS, [arn('secretsmanager', 'secret:*')], [], own),
+        // A secret made by hand carries no tier tag, only a name that says its stage: the name is its scope, as for
+        // every other named resource. `kitchensink/pr-*` cannot match `kitchensink/prod/`, which has no hyphen after `pr`.
+        // In the compute part because the data part is at the managed-policy size limit.
+        allow(
+            'compute',
+            'SecretsValueByStageName',
+            TAG_GATED_READS,
+            (nonprod ? ['kitchensink/sandbox/*', 'kitchensink/pr-*'] : ['kitchensink/prod/*']).map((name) =>
+                arn('secretsmanager', `secret:${name}`),
+            ),
+        ),
         allow('data', 'SecretsCreate', ['secretsmanager:CreateSecret', 'secretsmanager:GetRandomPassword'], ['*']),
         allow(
             'data',

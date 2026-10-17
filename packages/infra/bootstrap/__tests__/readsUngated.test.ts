@@ -16,6 +16,8 @@ import { buildExecutionPolicy, TAG_GATED_READS } from '../src/executionPolicy.js
 import { iamLike } from '../src/iamPattern.js';
 import { isReadOnlyPattern, readOnlyActionsMatching } from '../src/iamCatalogue.js';
 import { QUALIFIERS, TIER_TAG_KEY } from '../src/qualifiers.js';
+import type { PolicyDocument } from '../src/policyDocument.js';
+import { allows } from './boundaryEval.js';
 import { iamCatalogue } from './iamCatalogueFixture.js';
 
 const TAG_KEY = `aws:ResourceTag/${TIER_TAG_KEY}`;
@@ -98,10 +100,48 @@ describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod])('executionPolicy(%s) — se
         expect(valueGrants.length).toBeGreaterThan(0);
     });
 
-    it("grants it only under the qualifier's own tier tag", () => {
+    it("grants it only under the qualifier's own tier tag, or on a secret NAMED for the qualifier's own stage", () => {
+        const ownNames =
+            qualifier === QUALIFIERS.nonprod ? ['kitchensink/sandbox/', 'kitchensink/pr-'] : ['kitchensink/prod/'];
+
         for (const statement of valueGrants) {
-            expect(JSON.stringify(statement.Condition ?? {}), statement.Sid).toContain(TAG_KEY);
+            const tagged = JSON.stringify(statement.Condition ?? {}).includes(TAG_KEY);
+            const named = statement.Resource.every((resource) =>
+                ownNames.some((prefix) => resource.includes(`:secret:${prefix}`)),
+            );
+
+            expect(tagged || named, statement.Sid).toBe(true);
         }
+    });
+
+    /**
+     * The secrets made by hand carry no tier tag, only a name that says the stage (first sandbox deploy of
+     * `kitchensink-identity-webhooks-sandbox`: "not authorized to perform: secretsmanager:GetSecretValue on resource:
+     * kitchensink/sandbox/identity/keys"). The name is their scope, as it is for every other named resource.
+     */
+    const SECRET = (name: string) => `arn:aws:secretsmanager:us-east-1:040663841500:secret:${name}-AbCdEf`;
+    const OWN_SECRETS = {
+        ksnonprod: ['kitchensink/sandbox/identity/keys', 'kitchensink/sandbox/erasure/keys', 'kitchensink/pr-91/x'],
+        ksprod: ['kitchensink/prod/identity/keys', 'kitchensink/prod/erasure/keys'],
+    } as const;
+    const ownSecrets = OWN_SECRETS[qualifier as keyof typeof OWN_SECRETS];
+    const otherSecrets = OWN_SECRETS[qualifier === QUALIFIERS.nonprod ? 'ksprod' : 'ksnonprod'];
+    // The rendered document: the policy carries `<region>` and `<account>` until the stack fills them in.
+    const document = JSON.parse(
+        JSON.stringify({
+            Version: '2012-10-17',
+            Statement: buildExecutionPolicy(qualifier).flatMap((part) => part.document.Statement),
+        })
+            .replaceAll('<region>', 'us-east-1')
+            .replaceAll('<account>', '040663841500'),
+    ) as PolicyDocument;
+
+    it.each(ownSecrets)("reads its own stage's untagged named secret %s", (name) => {
+        expect(allows(document, 'secretsmanager:GetSecretValue', SECRET(name))).toBe(true);
+    });
+
+    it.each(otherSecrets)("never reads the other stage's untagged named secret %s", (name) => {
+        expect(allows(document, 'secretsmanager:GetSecretValue', SECRET(name))).toBe(false);
     });
 
     it('names exactly the reads that stay tag-gated, and every one is a real read', () => {

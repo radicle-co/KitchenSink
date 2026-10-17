@@ -36,6 +36,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { App, Tags } from 'aws-cdk-lib';
 
+import { accountAppProps } from '@kitchensink/cdk-bootstrap/appProps';
 import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
 
 import { CI_POLICIES_CONTEXT_FLAG, CiExecutionPolicyStack } from '../lib/platform/CiExecutionPolicyStack.js';
@@ -48,7 +49,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // nothing at all. Asserted for every discovered app by `cdkAppStdoutPurity.test.ts`.
 dotenvConfig({ path: join(__dirname, '../../.env'), quiet: true });
 
-const app = new App();
+// ADR-0065: the account app deploys through the `ksaccount` bootstrap qualifier and every role it creates sits under
+// that qualifier's permissions boundary. ⛔ A bare `new App()` would use the account's DEFAULT bootstrap, whose
+// execution role is another application's AdministratorAccess. `cdkQualifierCoverage.test.ts` holds this wiring and
+// `accountAppQualifier.test.ts` holds what it synthesizes. The owner-only policy stack below keeps its own
+// CliCredentialsStackSynthesizer, so it still deploys with the owner's admin session and no bootstrap role.
+const app = new App(accountAppProps());
 // cdk-nag AwsSolutions review, ADVISORY — annotation-only, so the synthesized template is unchanged.
 attachSecurityChecks(app);
 // The COMMIT this deploy was built from, as a stack tag, so `scripts/deploymentDrift.mjs` can answer

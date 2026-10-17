@@ -24,7 +24,7 @@
  * @pattern Factory — one function builds the app props every entrypoint shares
  * @pattern Strategy by stage — the qualifier and boundary follow `qualifierForStage`
  */
-import { boundaryPolicyName, qualifierForStage } from './qualifiers.js';
+import { QUALIFIERS, boundaryPolicyName, qualifierForStage } from './qualifiers.js';
 
 /** The CDK context key the default synthesizer reads its qualifier from (`BOOTSTRAP_QUALIFIER_CONTEXT`). */
 const BOOTSTRAP_QUALIFIER_CONTEXT = '@aws-cdk/core:bootstrapQualifier';
@@ -54,6 +54,24 @@ export function kitchenSinkAppProps(stage: string): KitchenSinkAppProps {
         postCliContext: {
             [BOOTSTRAP_QUALIFIER_CONTEXT]: qualifier,
             [PERMISSIONS_BOUNDARY_CONTEXT]: { name: boundaryPolicyName(qualifier) },
+        },
+    };
+}
+
+/**
+ * The `App` props of the stage-less ACCOUNT app (`bin/account.ts`): the `ksaccount` qualifier and its boundary.
+ *
+ * It takes no argument on purpose. The account app has no stage, so nothing can pick another tier for it; a bare
+ * `new App()` would instead deploy it through the account's DEFAULT bootstrap, whose execution role is another
+ * application's `AdministratorAccess`, which is the path ADR-0065 closes.
+ *
+ * @returns Props to pass to `new App(...)`. Pure.
+ */
+export function accountAppProps(): KitchenSinkAppProps {
+    return {
+        postCliContext: {
+            [BOOTSTRAP_QUALIFIER_CONTEXT]: QUALIFIERS.account,
+            [PERMISSIONS_BOUNDARY_CONTEXT]: { name: boundaryPolicyName(QUALIFIERS.account) },
         },
     };
 }

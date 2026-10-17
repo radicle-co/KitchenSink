@@ -10,7 +10,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { kitchenSinkAppProps, resolveStage } from '../src/appProps.js';
+import { accountAppProps, kitchenSinkAppProps, resolveStage } from '../src/appProps.js';
 import { boundaryPolicyName } from '../src/qualifiers.js';
 
 const QUALIFIER_KEY = '@aws-cdk/core:bootstrapQualifier';
@@ -53,6 +53,23 @@ describe('kitchenSinkAppProps', () => {
 
     it('refuses an empty stage rather than choosing a qualifier for it', () => {
         expect(() => kitchenSinkAppProps('')).toThrow(/non-empty/u);
+    });
+});
+
+describe('accountAppProps', () => {
+    it('puts the stage-less account app on the ksaccount qualifier and its boundary', () => {
+        const props = accountAppProps();
+
+        expect(props.postCliContext[QUALIFIER_KEY]).toBe('ksaccount');
+        expect(props.postCliContext[BOUNDARY_KEY]).toEqual({ name: boundaryPolicyName('ksaccount') });
+    });
+
+    it('takes no stage, so no stage can redirect the account app to another tier', () => {
+        expect(accountAppProps).toHaveLength(0);
+    });
+
+    it('sets context AFTER the CLI and cdk.json, as the stage helper does', () => {
+        expect(Object.keys(accountAppProps())).toEqual(['postCliContext']);
     });
 });
 

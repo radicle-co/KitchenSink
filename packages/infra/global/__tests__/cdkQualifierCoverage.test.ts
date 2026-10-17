@@ -7,7 +7,7 @@
  * | Each stage app constructs `new App(kitchenSinkAppProps(<stage>))`              | 'builds its App from kitchenSinkAppProps'          |
  * | …with a stage read through `resolveStage`, the same sources the apps always used | 'reads the stage it passes through resolveStage' |
  * | No stage app names a qualifier or a synthesizer of its own                    | 'carries no qualifier literal of its own'          |
- * | The account app is the ONE named exception and does not use the helper         | 'the account app stays off the stage helper'       |
+ * | The account app builds its App from `accountAppProps()`, never a bare `new App()` | 'the account app builds its App from accountAppProps()' |
  * | The predicate can fail                                                        | negative-control fixtures                          |
  *
  * WHY. The default `new App()` deploys through the account's DEFAULT bootstrap, whose execution role is another
@@ -30,7 +30,7 @@ import { describe, expect, it } from 'vitest';
 import { cdkApps } from './cdkApps.js';
 import { parse, repoRoot, visit } from './serviceSources.js';
 
-/** The ONE entrypoint exempt from the helper: stage-less, deployed through its own qualifier (slice B). */
+/** The ONE stage-less entrypoint: it builds its App from `accountAppProps()` and not from the stage helper. */
 const ACCOUNT_APP = 'packages/infra/global/bin/account.ts';
 
 const HELPER_MODULE = '@kitchensink/cdk-bootstrap/appProps';
@@ -130,7 +130,8 @@ function qualifierViolations(file: string, contents: string): readonly string[] 
         }
     });
 
-    const resolvesStage = appStageArguments.length > 0 && appStageArguments.every((name) => resolveStageTargets.has(name));
+    const resolvesStage =
+        appStageArguments.length > 0 && appStageArguments.every((name) => resolveStageTargets.has(name));
 
     if (appConstructions === 0) {
         violations.push('constructs no App at all');
@@ -144,6 +145,69 @@ function qualifierViolations(file: string, contents: string): readonly string[] 
 
     if (appStageArguments.length > 0 && !resolvesStage) {
         violations.push('passes a stage that is not read through resolveStage(process.env)');
+    }
+
+    return violations;
+}
+
+/**
+ * Every way the stage-less account app departs from `new App(accountAppProps())`: a bare `new App()` deploys it
+ * through the account's DEFAULT bootstrap (another application's AdministratorAccess).
+ *
+ * @returns One message per violation; empty when wired correctly. Pure.
+ */
+function accountAppViolations(file: string, contents: string): readonly string[] {
+    const source = parse({ file, contents });
+    const violations: string[] = [];
+    let importsHelper = false;
+    let appConstructions = 0;
+    let wiredConstructions = 0;
+
+    visit(source, (node) => {
+        if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+            const bindings = node.importClause?.namedBindings;
+
+            if (
+                node.moduleSpecifier.text === HELPER_MODULE &&
+                bindings !== undefined &&
+                ts.isNamedImports(bindings) &&
+                bindings.elements.some((element) => element.name.text === 'accountAppProps')
+            ) {
+                importsHelper = true;
+            }
+        }
+
+        if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'App') {
+            appConstructions += 1;
+            const [argument, ...rest] = node.arguments ?? [];
+
+            if (
+                argument !== undefined &&
+                rest.length === 0 &&
+                ts.isCallExpression(argument) &&
+                ts.isIdentifier(argument.expression) &&
+                argument.expression.text === 'accountAppProps' &&
+                argument.arguments.length === 0
+            ) {
+                wiredConstructions += 1;
+            }
+        }
+
+        if (ts.isStringLiteralLike(node) && (QUALIFIER_LITERALS.test(node.text) || QUALIFIER_KEYS.test(node.text))) {
+            violations.push(`names the qualifier/synthesizer '${node.text}' itself`);
+        }
+
+        if (ts.isIdentifier(node) && node.text === 'DefaultStackSynthesizer') {
+            violations.push('uses DefaultStackSynthesizer directly');
+        }
+    });
+
+    if (appConstructions !== 1 || wiredConstructions !== 1) {
+        violations.push('does not construct exactly one App, as `new App(accountAppProps())`');
+    }
+
+    if (!importsHelper) {
+        violations.push(`does not import accountAppProps from ${HELPER_MODULE}`);
     }
 
     return violations;
@@ -165,10 +229,55 @@ describe('every stage CDK app is built from kitchenSinkAppProps', () => {
         expect(qualifierViolations(app, read(app))).toEqual([]);
     });
 
-    it('the account app stays off the stage helper: it has no stage to choose a qualifier from', () => {
-        // Its qualifier is `ksaccount`, wired by its own bootstrap-aware code. Giving it `kitchenSinkAppProps` would
-        // need a stage, and `accountScopedInfra.test.ts` forbids it one.
-        expect(read(ACCOUNT_APP)).not.toContain(HELPER_MODULE);
+    it('the account app builds its App from accountAppProps(), never from a bare new App()', () => {
+        // It has no stage, so it cannot use `kitchenSinkAppProps(stage)`; a bare `new App()` would deploy it through
+        // the account's default bootstrap, whose execution role is another application's AdministratorAccess.
+        expect(accountAppViolations(ACCOUNT_APP, read(ACCOUNT_APP))).toEqual([]);
+        expect(read(ACCOUNT_APP)).not.toContain('kitchenSinkAppProps');
+    });
+});
+
+describe('accountAppViolations (negative controls: the guard can fail)', () => {
+    const GOOD = `
+        import { App } from 'aws-cdk-lib';
+        import { accountAppProps } from '@kitchensink/cdk-bootstrap/appProps';
+        const app = new App(accountAppProps());
+    `;
+
+    it('accepts the wiring the account app uses', () => {
+        expect(accountAppViolations('good.ts', GOOD)).toEqual([]);
+    });
+
+    it('rejects a bare new App()', () => {
+        expect(
+            accountAppViolations('bad.ts', GOOD.replace('new App(accountAppProps())', 'new App()')).join('\n'),
+        ).toMatch(/exactly one App/u);
+    });
+
+    it('rejects the helper only mentioned in a comment', () => {
+        const source = `
+            import { App } from 'aws-cdk-lib';
+            // import { accountAppProps } from '@kitchensink/cdk-bootstrap/appProps';
+            // const app = new App(accountAppProps());
+            const app = new App();
+        `;
+
+        expect(accountAppViolations('bad.ts', source).length).toBeGreaterThan(1);
+    });
+
+    it('rejects a second, unwired App', () => {
+        expect(accountAppViolations('bad.ts', `${GOOD}\nconst other = new App();`).length).toBeGreaterThan(0);
+    });
+
+    it('rejects an App given props of its own alongside the helper', () => {
+        expect(
+            accountAppViolations('bad.ts', GOOD.replace('accountAppProps()', '{ ...accountAppProps(), context: {} }'))
+                .length,
+        ).toBeGreaterThan(0);
+    });
+
+    it('rejects a qualifier literal in the app', () => {
+        expect(accountAppViolations('bad.ts', `${GOOD}\nconst q = 'hnb659fds';`).join('\n')).toMatch(/hnb659fds/u);
     });
 });
 

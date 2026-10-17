@@ -1474,19 +1474,42 @@ jobs:
 
                       # Inline policies AND attached managed policies. Reading only the inline set would miss
                       # exactly the out-of-band attachment this step exists to catch.
-                      actions=$(
-                          {
-                              for policy in ${inline}; do
-                                  aws iam get-role-policy --role-name "${role}" --policy-name "${policy}" \
-                                      --query 'PolicyDocument.Statement[].Action' --output json
-                              done
-                              for arn in ${attached}; do
-                                  version=$(aws iam get-policy --policy-arn "${arn}" --query 'Policy.DefaultVersionId' --output text)
-                                  aws iam get-policy-version --policy-arn "${arn}" --version-id "${version}" \
-                                      --query 'PolicyVersion.Document.Statement[].Action' --output json
-                              done
-                          } | jq -r '.. | strings | select(startswith("sqs:"))' | sort -u
-                      )
+                      #
+                      # ⛔ EVERY READ IS CHECKED ON ITS OWN. Inside `$( { … } | jq )` a failed `get-policy` is invisible:
+                      # a command substitution does not inherit `errexit` and the brace group's status is its LAST
+                      # command's, so a denied policy that is not last would silently contribute no actions and the
+                      # step would pass. The CI roles may read only AWS-managed policies (`arn:aws:iam::aws:policy/*`),
+                      # so an attached policy of any other kind is not read at all: it is itself the finding.
+                      docs=$(mktemp)
+                      read_failed=0
+                      for policy in ${inline}; do
+                          aws iam get-role-policy --role-name "${role}" --policy-name "${policy}" \
+                              --query 'PolicyDocument.Statement[].Action' --output json >>"${docs}" || read_failed=1
+                      done
+                      for arn in ${attached}; do
+                          case "${arn}" in
+                              arn:aws:iam::aws:policy/*) ;;
+                              *)
+                                  echo "::error::${role} has the non-AWS-managed policy ${arn} attached — the backstop's policies are CDK-owned inline ones plus AWS-managed ones, so this was attached out of band"
+                                  read_failed=1
+                                  continue
+                                  ;;
+                          esac
+                          version=$(aws iam get-policy --policy-arn "${arn}" --query 'Policy.DefaultVersionId' --output text) || {
+                              read_failed=1
+                              continue
+                          }
+                          aws iam get-policy-version --policy-arn "${arn}" --version-id "${version}" \
+                              --query 'PolicyVersion.Document.Statement[].Action' --output json >>"${docs}" || read_failed=1
+                      done
+                      if [ "${read_failed}" -ne 0 ]; then
+                          echo "::error::could not read every policy on ${role} — this is an ACCESS failure or an out-of-band attachment, not a pass"
+                          failures=$((failures + 1))
+                          rm -f "${docs}"
+                          continue
+                      fi
+                      actions=$(jq -r '.. | strings | select(startswith("sqs:"))' "${docs}" | sort -u)
+                      rm -f "${docs}"
 
                       echo "${role} sqs actions: ${actions:-none}"
 

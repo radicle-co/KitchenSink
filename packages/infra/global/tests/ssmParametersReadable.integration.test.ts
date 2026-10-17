@@ -53,8 +53,16 @@ const environment = (stage: string, outdir: string): NodeJS.ProcessEnv => ({
 
 const scratch: string[] = [];
 
-/** Runs one entrypoint at one stage and returns the default of every SSM-typed parameter of every stack it made. */
-function ssmParameterDefaults(entrypoint: string, stage: string): string[] {
+/** What one synthesized entrypoint declares as template parameters. */
+interface Parameters {
+    /** The default of every SSM-typed parameter. */
+    readonly defaults: string[];
+    /** Every parameter that is NOT an SSM-typed parameter with a default (`file: Name (Type, default ...)`). */
+    readonly offenders: string[];
+}
+
+/** Runs one entrypoint at one stage and reads the parameters of every stack it made. */
+function templateParameters(entrypoint: string, stage: string): Parameters {
     const outdir = mkdtempSync(path.join(tmpdir(), 'ssmReadable-'));
 
     scratch.push(outdir);
@@ -71,20 +79,25 @@ function ssmParameterDefaults(entrypoint: string, stage: string): string[] {
     }
 
     const defaults = new Set<string>();
+    const offenders: string[] = [];
 
     for (const file of readdirSync(outdir).filter((candidate) => candidate.endsWith('.template.json'))) {
         const template = JSON.parse(readFileSync(path.join(outdir, file), 'utf8')) as {
             Parameters?: Record<string, { Type?: string; Default?: string }>;
         };
 
-        for (const parameter of Object.values(template.Parameters ?? {})) {
+        for (const [name, parameter] of Object.entries(template.Parameters ?? {})) {
             if (parameter.Type?.startsWith('AWS::SSM::Parameter::Value') === true && parameter.Default !== undefined) {
                 defaults.add(parameter.Default);
+            } else {
+                offenders.push(
+                    `${file}: ${name} (${parameter.Type ?? 'no type'}, default ${parameter.Default ?? 'none'})`,
+                );
             }
         }
     }
 
-    return [...defaults].sort();
+    return { defaults: [...defaults].sort(), offenders };
 }
 
 /** The ARN IAM evaluates for `ssm:GetParameters` on a parameter path. A public (`/aws/service/...`) one has no account. */
@@ -118,7 +131,7 @@ const targets: ReadonlyArray<{ entrypoint: string; stage: string; qualifier: Qua
     { entrypoint: 'bin/app.ts', stage: 'prod', qualifier: 'ksprod' },
 ];
 
-const found: Record<string, string[]> = {};
+const found: Record<string, Parameters> = {};
 
 beforeAll(() => {
     // The production edge stack refuses to synthesize without the bundle built with the same Clerk key.
@@ -134,7 +147,7 @@ beforeAll(() => {
     }
 
     for (const target of targets) {
-        found[`${target.entrypoint}@${target.stage}`] = ssmParameterDefaults(target.entrypoint, target.stage);
+        found[`${target.entrypoint}@${target.stage}`] = templateParameters(target.entrypoint, target.stage);
     }
 }, 600_000);
 
@@ -146,17 +159,29 @@ afterAll(() => {
 
 describe.each(targets)('$entrypoint @ $stage ($qualifier)', ({ entrypoint, stage, qualifier }) => {
     it('has SSM-typed parameters to judge, among them its own bootstrap version', () => {
-        const defaults = found[`${entrypoint}@${stage}`] ?? [];
+        const defaults = found[`${entrypoint}@${stage}`]?.defaults ?? [];
 
         expect(defaults).toContain(`/cdk-bootstrap/${qualifier}/version`);
     });
 
     it("lets the qualifier's execution role read every one of them", () => {
-        const unreadable = (found[`${entrypoint}@${stage}`] ?? []).filter(
+        const unreadable = (found[`${entrypoint}@${stage}`]?.defaults ?? []).filter(
             (parameterPath) => !readable(rendered(qualifier), parameterPath),
         );
 
         expect(unreadable).toEqual([]);
+    });
+});
+
+describe('every template parameter is an SSM path whose default is its value', () => {
+    // `cdk deploy --no-previous-parameters` (ADR-0065, Decision 9; `deployFreshParameters.test.ts`) takes the TEMPLATE's
+    // default for every parameter. That is safe only while none needs a value a person or an earlier deploy supplied:
+    // a parameter without a default, or of another type, would fail mid-deploy or silently take a stale value.
+    it.each(targets)('$entrypoint @ $stage declares no other kind of parameter', ({ entrypoint, stage }) => {
+        const parameters = found[`${entrypoint}@${stage}`];
+
+        expect(parameters?.defaults.length).toBeGreaterThan(0);
+        expect(parameters?.offenders).toEqual([]);
     });
 });
 

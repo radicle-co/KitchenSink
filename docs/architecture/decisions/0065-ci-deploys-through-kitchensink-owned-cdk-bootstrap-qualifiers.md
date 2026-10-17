@@ -148,10 +148,14 @@ role before the boundary carries it is ignored by IAM's intersection, with no er
 5. The contract commit removes the default-qualifier Allow and adds the Deny. Reverting that one commit is its rollback.
 
 The account qualifier's boundary denies the default bootstrap roles, so the first deployment of the CI role stack under
-`ksaccount` would cut the old path for the CI roles before the stage stacks have moved. The owner therefore deploys the
-expand change to the CI role stack with administrator credentials, and the stack is first deployed under `ksaccount` only
-after step 4. The account deploy is a workflow run on `main` approved by the `Production` reviewer, and nothing in the
-workflow checks that order: the reviewer and the runbook are the ordering control.
+`ksaccount` cuts the old path for the CI roles. The owner deploys that stack by hand, with administrator credentials, as
+soon as `ksaccount` exists and before any workflow deploys through the new qualifiers, because only that deploy gives the
+CI roles the right to assume the new deploy roles (`docs/runbooks/cdkBootstrapQualifiers.md`, section 4). This is safe
+because every CDK entrypoint on the branch already synthesizes against the new qualifiers, so no deploy from it needs the
+old path. The cost is that older code, such as `main` before this change merges, can no longer deploy: its stacks name the
+default qualifier, and the CI roles are refused the default deploy roles. That is accepted while production is not live.
+Later account deploys are workflow runs on `main` approved by the `Production` reviewer, and nothing in the workflow checks
+that order: the reviewer and the runbook are the ordering control.
 
 ## Consequences
 

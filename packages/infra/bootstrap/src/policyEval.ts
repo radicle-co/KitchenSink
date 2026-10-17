@@ -32,6 +32,24 @@ export function unconditionalDeny(documents: readonly PolicyDocument[], action: 
     );
 }
 
+/**
+ * Whether an Allow with NO condition covers the pair, i.e. a grant that holds whatever the request looks like.
+ *
+ * This is the question "can this principal change that resource". A conditional Allow (a stack-name tag, a
+ * permissions boundary) is not credited, because the guard cannot evaluate the condition, and a guard that credited
+ * it would pass on a policy that only reads as scoped.
+ */
+export function unconditionalAllow(documents: readonly PolicyDocument[], action: string, resource: string): boolean {
+    return documents.some((document) =>
+        document.Statement.some(
+            (statement) =>
+                statement.Effect === 'Allow' &&
+                statement.Condition === undefined &&
+                covers(statement, action, resource),
+        ),
+    );
+}
+
 /** Whether any Allow (condition ignored) covers the pair. */
 export function anyAllow(documents: readonly PolicyDocument[], action: string, resource: string): boolean {
     return documents.some((document) =>

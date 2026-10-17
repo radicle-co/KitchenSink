@@ -62,3 +62,10 @@ docs/generated/infrastructure
 # packages/tools/docs-site/src/content/contentSource.ts). Byte copies of guarded output, gitignored,
 # refilled on every build — the same argument as the entries above, one directory over.
 packages/tools/docs-site/content/mirrored
+
+# The CDK bootstrap goldens, the vendored stock template and the derived manifests are BYTE-PINNED by
+# packages/infra/bootstrap tests: a formatter that reflows them (it re-quotes the policy version and re-wraps
+# YAML) makes the golden test fail on the next run.
+packages/infra/bootstrap/golden
+packages/infra/bootstrap/manifests
+packages/infra/bootstrap/src/stockTemplate.yaml

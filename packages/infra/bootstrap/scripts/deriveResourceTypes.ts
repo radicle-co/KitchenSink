@@ -318,7 +318,7 @@ function main(): void {
     try {
         buildGlobalBundles();
         const stageApps = discoverStageApps(REPO_ROOT);
-        const manifests: Partial<Record<QualifierName, Derived>> = {};
+        const manifests = new Map<QualifierName, Derived>();
         const synthesizedAnywhere = new Map<string, boolean>();
 
         for (const qualifier of ['ksnonprod', 'ksprod'] as const) {
@@ -334,7 +334,7 @@ function main(): void {
                 synthesizedAnywhere.set(app, (synthesizedAnywhere.get(app) ?? false) || synthesized.some(Boolean));
             }
 
-            manifests[qualifier] = derived;
+            manifests.set(qualifier, derived);
         }
 
         for (const [app, ok] of synthesizedAnywhere) {
@@ -345,12 +345,12 @@ function main(): void {
 
         const account = emptyDerived();
         synthesize(ACCOUNT_APP, 'account', account, scratch);
-        manifests[QUALIFIERS.account] = account;
+        manifests.set(QUALIFIERS.account, account);
 
         mkdirSync(path.join(BOOTSTRAP_ROOT, 'manifests'), { recursive: true });
         let drift = false;
 
-        for (const [qualifier, derived] of Object.entries(manifests) as [QualifierName, Derived][]) {
+        for (const [qualifier, derived] of manifests) {
             const target = path.join(BOOTSTRAP_ROOT, 'manifests', `cfnResourceTypes.${qualifier}.json`);
             const text = `${JSON.stringify(toManifest(qualifier, derived), null, 4)}\n`;
 

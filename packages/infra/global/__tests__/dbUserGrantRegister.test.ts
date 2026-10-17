@@ -17,7 +17,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { productionSources, readSource, withoutTsComments } from './roleSplitSources.js';
+import { IAM_POLICY_DATA, productionSources, readSource, withoutTsComments } from './roleSplitSources.js';
 
 /**
  * Which stack logs in as which role. Schema stacks migrate (`migrator`); service, worker and webhook stacks serve
@@ -97,9 +97,9 @@ describe('rds-db:connect grants', () => {
     });
 
     it('are never hand-built: no production file writes an rds-db ARN itself', () => {
-        const handBuilt = productionSources().filter((path) =>
-            /['"`]rds-db(?::connect)?['"`]|:dbuser[:/]/u.test(withoutTsComments(readSource(path))),
-        );
+        const handBuilt = productionSources()
+            .filter((path) => !IAM_POLICY_DATA.test(path))
+            .filter((path) => /['"`]rds-db(?::connect)?['"`]|:dbuser[:/]/u.test(withoutTsComments(readSource(path))));
 
         expect(handBuilt).toEqual([]);
     });

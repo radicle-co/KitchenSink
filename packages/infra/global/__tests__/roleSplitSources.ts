@@ -19,6 +19,16 @@ const NOT_PRODUCTION =
     /(^|\/)(__tests__|__fixtures__|tests|dist|dist-lambda|cdk\.out|node_modules)\/|\.test\.ts$|\.d\.ts$/u;
 
 /**
+ * IAM policy DATA: the CDK bootstrap package's tables name actions (`sqs:SendMessage`, `rds-db:connect`) to cap or to
+ * grant to a role CloudFormation creates. They confer no queue, topic or database authority on any stack, which is
+ * what the two guards that exclude them (`queueProducerRegister`, `dbUserGrantRegister`) register, so they judge
+ * the stacks that CONSTRUCT grants and not the ceiling those grants must fit under.
+ *
+ * ⚠️ Narrowly the `src/` of that one package: a stack added there would still be read by every other guard.
+ */
+export const IAM_POLICY_DATA = /^packages\/infra\/bootstrap\/src\//u;
+
+/**
  * Every production `.ts` file under `packages/` and `shared/` in the WORKING TREE, repo-relative and sorted: tracked
  * or new-but-not-ignored, minus anything deleted — so the guards judge the tree being committed, not the last commit.
  */

@@ -129,20 +129,56 @@ const deny = (
     },
 });
 
-/** What both stage tiers share. Names are `kitchensink-*`; the Deny statements separate the tiers. */
+/**
+ * What both stage tiers share.
+ *
+ * ## Create versus modify
+ *
+ * A name pattern plus a Deny on the other tier's names is NOT a boundary: CloudFormation truncates a generated name
+ * (`<stack>-<LogicalId>-<hash>`, 64 characters for Lambda and IAM roles) and the stage token is what is cut, and
+ * some resources are addressed by an id with no name at all. So:
+ *
+ * - **Create** actions are scoped by NAME (`*Create`/`*Register` statements): the resource does not exist yet, so a
+ *   resource tag cannot be asked for, and a colliding name fails with "already exists".
+ * - **Modify, delete and configuration-read** actions carry the `aws:cloudformation:stack-name` tag condition
+ *   (`*Own` statements): a resource without the tag matches nothing, so the grant fails CLOSED.
+ * - **Residuals** are the resource types that can be neither tagged nor named by tier. They are listed by Sid in
+ *   `executionPolicyScoping.test.ts` with the reason, and stated here so that no reader mistakes them for scoped:
+ *   S3 buckets (tagged after creation), EventBridge Scheduler schedules, SSM parameters and Secrets Manager secrets
+ *   (explicit names carry the stage), CloudWatch alarms and dashboards, IAM instance profiles, CloudFront policies,
+ *   key groups, public keys, key-value stores and functions (id-addressed), Application Auto Scaling (any ECS
+ *   service's desired count), the API Gateway account settings and tags, log deliveries, and Lambda event source mappings.
+ *   `RegisterTaskDefinition` takes no resource at all: it can add a NEW revision to any family.
+ */
 function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
     const own = ownStack(qualifier);
     const nonprod = qualifier === QUALIFIERS.nonprod;
     const assetsBucket = `cdk-${qualifier}-assets-${ACCOUNT}-${REGION}`;
-    const passServices = PASS_ROLE_SERVICES.filter(
-        (service) => nonprod === false || service !== 'edgelambda.amazonaws.com',
-    );
+    const passServices = PASS_ROLE_SERVICES.filter((service) => !nonprod || service !== 'edgelambda.amazonaws.com');
+    const tagKey = 'aws:ResourceTag/aws:cloudformation:stack-name';
+    // CloudFront Functions are named by CloudFormation from the CONSTRUCT path, so the stage is inside the name but
+    // not at its end (`us-east-1SandboxRouterprodRouterFunction...`). The tier Allow is therefore positive, and the
+    // other tier's Deny below is what separates `...Routerpr1...` from `...Routerprod...`.
+    const routerFunctions = nonprod
+        ? [
+              arn('cloudfront', 'function/*SandboxRouterpr*', false),
+              arn('cloudfront', 'function/*SandboxRoutersandbox*', false),
+              arn('cloudfront', 'function/kitchensink-sandox*', false),
+          ]
+        : [arn('cloudfront', 'function/*SandboxRouterprod*', false)];
 
     return [
         // ---- compute ------------------------------------------------------------------------------------------
         allow(
             'compute',
-            'LambdaOwnFunctions',
+            'LambdaCreate',
+            ['lambda:CreateFunction', 'lambda:TagResource'],
+            [arn('lambda', `function:${KS}`)],
+            ['AWS::Lambda::Function'],
+        ),
+        allow(
+            'compute',
+            'LambdaOwn',
             [
                 'lambda:Add*',
                 'lambda:Create*',
@@ -158,27 +194,37 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 'lambda:Untag*',
                 'lambda:Update*',
             ],
-            [
-                arn('lambda', `function:${KS}`),
-                arn('lambda', `function:${KS}:*`),
-                arn('lambda', 'event-source-mapping:*'),
-            ],
+            [arn('lambda', `function:${KS}`), arn('lambda', `function:${KS}:*`)],
             [
                 'AWS::Lambda::Function',
                 'AWS::Lambda::Permission',
                 'AWS::Lambda::Version',
                 'AWS::Lambda::Url',
                 'AWS::Lambda::EventInvokeConfig',
-                'AWS::Lambda::EventSourceMapping',
                 'AWS::CloudFormation::CustomResource',
                 'Custom::*',
             ],
+            own,
         ),
         allow(
             'compute',
-            'EcsClustersAndServices',
+            'LambdaEventSourceMappings',
+            ['lambda:DeleteEventSourceMapping', 'lambda:GetEventSourceMapping', 'lambda:UpdateEventSourceMapping'],
+            [arn('lambda', 'event-source-mapping:*')],
+            ['AWS::Lambda::EventSourceMapping'],
+            { ArnLike: { 'lambda:FunctionArn': [arn('lambda', `function:${KS}`)] } },
+        ),
+        allow(
+            'compute',
+            'EcsCreate',
+            ['ecs:CreateCluster', 'ecs:CreateService', 'ecs:TagResource'],
+            [arn('ecs', `cluster/${KS}`), arn('ecs', `service/${KS}/*`)],
+            ['AWS::ECS::Cluster', 'AWS::ECS::Service'],
+        ),
+        allow(
+            'compute',
+            'EcsOwn',
             [
-                'ecs:Create*',
                 'ecs:Delete*',
                 'ecs:Describe*',
                 'ecs:List*',
@@ -189,22 +235,35 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ],
             [arn('ecs', `cluster/${KS}`), arn('ecs', `service/${KS}/*`), arn('ecs', `task/${KS}/*`)],
             ['AWS::ECS::Cluster', 'AWS::ECS::ClusterCapacityProviderAssociations', 'AWS::ECS::Service'],
+            own,
         ),
         allow(
             'compute',
-            'EcsTaskDefinitions',
+            'EcsRegisterTaskDefinition',
+            ['ecs:RegisterTaskDefinition'],
+            ['*'],
+            ['AWS::ECS::TaskDefinition'],
+        ),
+        allow(
+            'compute',
+            'EcsTagTaskDefinitions',
+            ['ecs:TagResource'],
+            [arn('ecs', 'task-definition/*:*')],
+            ['AWS::ECS::TaskDefinition'],
+        ),
+        allow(
+            'compute',
+            'EcsTaskDefinitionsOwn',
             [
                 'ecs:DeleteTaskDefinitions',
                 'ecs:DeregisterTaskDefinition',
                 'ecs:DescribeTaskDefinition',
                 'ecs:ListTagsForResource',
-                'ecs:ListTaskDefinitions',
-                'ecs:RegisterTaskDefinition',
-                'ecs:TagResource',
                 'ecs:UntagResource',
             ],
-            ['*'],
+            [arn('ecs', 'task-definition/*:*')],
             ['AWS::ECS::TaskDefinition'],
+            own,
         ),
         allow(
             'compute',
@@ -220,27 +279,41 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ],
             ['*'],
             ['AWS::ApplicationAutoScaling::ScalableTarget', 'AWS::ApplicationAutoScaling::ScalingPolicy'],
+            { StringEquals: { 'application-autoscaling:service-namespace': 'ecs' } },
         ),
         allow(
             'compute',
             'StatesCreate',
-            ['states:CreateStateMachine', 'states:ListTagsForResource', 'states:TagResource'],
+            ['states:CreateStateMachine', 'states:TagResource'],
             [arn('states', 'stateMachine:*')],
             ['AWS::StepFunctions::StateMachine'],
         ),
         allow(
             'compute',
             'StatesOwnMachines',
-            ['states:Delete*', 'states:Describe*', 'states:TagResource', 'states:UntagResource', 'states:Update*'],
+            [
+                'states:Delete*',
+                'states:Describe*',
+                'states:ListTagsForResource',
+                'states:TagResource',
+                'states:UntagResource',
+                'states:Update*',
+            ],
             [arn('states', 'stateMachine:*')],
             [],
             own,
         ),
         allow(
             'compute',
-            'EventsRulesAndBuses',
+            'EventsCreate',
+            ['events:CreateEventBus', 'events:PutRule', 'events:TagResource'],
+            [arn('events', `rule/${KS}`), arn('events', `rule/*/${KS}`), arn('events', `event-bus/${KS}`)],
+            ['AWS::Events::Rule', 'AWS::Events::EventBus'],
+        ),
+        allow(
+            'compute',
+            'EventsOwn',
             [
-                'events:CreateEventBus',
                 'events:DeleteEventBus',
                 'events:DeleteRule',
                 'events:Describe*',
@@ -248,7 +321,6 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 'events:EnableRule',
                 'events:List*',
                 'events:PutPermission',
-                'events:PutRule',
                 'events:PutTargets',
                 'events:RemovePermission',
                 'events:RemoveTargets',
@@ -257,6 +329,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ],
             [arn('events', `rule/${KS}`), arn('events', `rule/*/${KS}`), arn('events', `event-bus/${KS}`)],
             ['AWS::Events::Rule', 'AWS::Events::EventBus'],
+            own,
         ),
         allow(
             'compute',
@@ -271,12 +344,12 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ['AWS::Scheduler::Schedule'],
         ),
         // ---- data ---------------------------------------------------------------------------------------------
+        allow('data', 'SqsCreate', ['sqs:CreateQueue', 'sqs:TagQueue'], [arn('sqs', KS)], ['AWS::SQS::Queue']),
         allow(
             'data',
-            'SqsQueues',
+            'SqsOwn',
             [
                 'sqs:AddPermission',
-                'sqs:Create*',
                 'sqs:Delete*',
                 'sqs:Get*',
                 'sqs:List*',
@@ -287,13 +360,14 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ],
             [arn('sqs', KS)],
             ['AWS::SQS::Queue', 'AWS::SQS::QueuePolicy'],
+            own,
         ),
+        allow('data', 'SnsCreate', ['sns:CreateTopic', 'sns:TagResource'], [arn('sns', KS)], ['AWS::SNS::Topic']),
         allow(
             'data',
-            'SnsTopics',
+            'SnsOwn',
             [
                 'sns:AddPermission',
-                'sns:CreateTopic',
                 'sns:DeleteTopic',
                 'sns:Get*',
                 'sns:List*',
@@ -306,6 +380,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ],
             [arn('sns', KS)],
             ['AWS::SNS::Topic', 'AWS::SNS::Subscription', 'AWS::SNS::TopicPolicy'],
+            own,
         ),
         allow(
             'data',
@@ -335,9 +410,15 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
         ),
         allow(
             'data',
-            'DynamoDbTables',
+            'DynamoDbCreate',
+            ['dynamodb:CreateTable', 'dynamodb:TagResource'],
+            [arn('dynamodb', `table/${KS}`)],
+            ['AWS::DynamoDB::Table'],
+        ),
+        allow(
+            'data',
+            'DynamoDbOwn',
             [
-                'dynamodb:Create*',
                 'dynamodb:Delete*',
                 'dynamodb:Describe*',
                 'dynamodb:ListTagsOfResource',
@@ -347,19 +428,12 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ],
             [arn('dynamodb', `table/${KS}`)],
             ['AWS::DynamoDB::Table'],
+            own,
         ),
         allow(
             'data',
-            'RdsInstances',
-            [
-                'rds:AddTagsToResource',
-                'rds:CreateDB*',
-                'rds:DeleteDB*',
-                'rds:ListTagsForResource',
-                'rds:ModifyDB*',
-                'rds:RebootDBInstance',
-                'rds:RemoveTagsFromResource',
-            ],
+            'RdsCreate',
+            ['rds:AddTagsToResource', 'rds:CreateDBInstance', 'rds:CreateDBSubnetGroup'],
             [
                 arn('rds', `db:${KS}`),
                 arn('rds', `subgrp:${KS}`),
@@ -369,6 +443,21 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ],
             ['AWS::RDS::DBInstance', 'AWS::RDS::DBSubnetGroup'],
         ),
+        allow(
+            'data',
+            'RdsOwn',
+            [
+                'rds:DeleteDB*',
+                'rds:ListTagsForResource',
+                'rds:ModifyDB*',
+                'rds:RebootDBInstance',
+                'rds:RemoveTagsFromResource',
+            ],
+            [arn('rds', `db:${KS}`), arn('rds', `subgrp:${KS}`)],
+            ['AWS::RDS::DBInstance', 'AWS::RDS::DBSubnetGroup'],
+            own,
+        ),
+        allow('data', 'RdsDescribe', ['rds:Describe*'], ['*']),
         allow(
             'data',
             'SecretsOwn',
@@ -402,7 +491,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             [],
             own,
         ),
-        allow('data', 'SecretsCreate', ['secretsmanager:CreateSecret', 'secretsmanager:GetRandomPassword'], ['*'], []),
+        allow('data', 'SecretsCreate', ['secretsmanager:CreateSecret', 'secretsmanager:GetRandomPassword'], ['*']),
         allow(
             'data',
             'SsmParameters',
@@ -422,11 +511,59 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ['AWS::SSM::Parameter'],
         ),
         allow('data', 'SsmDescribe', ['ssm:DescribeParameters'], ['*']),
+        // CloudFormation resolves every stack's `BootstrapVersion` parameter (an SSM-typed parameter) with this role.
+        allow(
+            'data',
+            'SsmBootstrapVersion',
+            ['ssm:GetParameters'],
+            [arn('ssm', `parameter/cdk-bootstrap/${qualifier}/version`)],
+        ),
+        allow(
+            'data',
+            'KmsThroughServices',
+            [
+                'kms:CreateGrant',
+                'kms:Decrypt',
+                'kms:DescribeKey',
+                'kms:Encrypt',
+                'kms:GenerateDataKey*',
+                'kms:ReEncrypt*',
+            ],
+            ['*'],
+            [],
+            {
+                StringEquals: {
+                    'kms:CallerAccount': ACCOUNT,
+                    'kms:ViaService': [
+                        `dynamodb.${REGION}.amazonaws.com`,
+                        `lambda.${REGION}.amazonaws.com`,
+                        `logs.${REGION}.amazonaws.com`,
+                        `rds.${REGION}.amazonaws.com`,
+                        `s3.${REGION}.amazonaws.com`,
+                        `secretsmanager.${REGION}.amazonaws.com`,
+                        `sns.${REGION}.amazonaws.com`,
+                        `sqs.${REGION}.amazonaws.com`,
+                        `ssm.${REGION}.amazonaws.com`,
+                    ],
+                },
+            },
+        ),
+        // ---- observe ------------------------------------------------------------------------------------------
         allow(
             'observe',
-            'LogGroups',
+            'LogGroupsCreate',
+            ['logs:CreateLogGroup', 'logs:TagLogGroup', 'logs:TagResource'],
             [
-                'logs:CreateLogGroup',
+                arn('logs', 'log-group:/aws/lambda/kitchensink-*'),
+                arn('logs', 'log-group:kitchensink-*'),
+                arn('logs', 'log-group:/kitchensink/*'),
+            ],
+            ['AWS::Logs::LogGroup'],
+        ),
+        allow(
+            'observe',
+            'LogGroupsOwn',
+            [
                 'logs:DeleteLogGroup',
                 'logs:DeleteRetentionPolicy',
                 'logs:DeleteSubscriptionFilter',
@@ -435,8 +572,6 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 'logs:ListTagsLogGroup',
                 'logs:PutRetentionPolicy',
                 'logs:PutSubscriptionFilter',
-                'logs:TagLogGroup',
-                'logs:TagResource',
                 'logs:UntagLogGroup',
                 'logs:UntagResource',
             ],
@@ -449,6 +584,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 arn('logs', 'log-group:/kitchensink/*:*'),
             ],
             ['AWS::Logs::LogGroup', 'AWS::Logs::SubscriptionFilter'],
+            own,
         ),
         allow(
             'observe',
@@ -480,36 +616,6 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ['cloudwatch:DeleteDashboards', 'cloudwatch:GetDashboard', 'cloudwatch:PutDashboard'],
             [arn('cloudwatch', nonprod ? 'dashboard/pr-*-food-data' : 'dashboard/food-data')],
             ['AWS::CloudWatch::Dashboard'],
-        ),
-        allow(
-            'data',
-            'KmsThroughServices',
-            [
-                'kms:CreateGrant',
-                'kms:Decrypt',
-                'kms:DescribeKey',
-                'kms:Encrypt',
-                'kms:GenerateDataKey*',
-                'kms:ReEncrypt*',
-            ],
-            ['*'],
-            [],
-            {
-                StringEquals: {
-                    'kms:CallerAccount': ACCOUNT,
-                    'kms:ViaService': [
-                        `dynamodb.${REGION}.amazonaws.com`,
-                        `lambda.${REGION}.amazonaws.com`,
-                        `logs.${REGION}.amazonaws.com`,
-                        `rds.${REGION}.amazonaws.com`,
-                        `s3.${REGION}.amazonaws.com`,
-                        `secretsmanager.${REGION}.amazonaws.com`,
-                        `sns.${REGION}.amazonaws.com`,
-                        `sqs.${REGION}.amazonaws.com`,
-                        `ssm.${REGION}.amazonaws.com`,
-                    ],
-                },
-            },
         ),
         // ---- network ------------------------------------------------------------------------------------------
         allow('network', 'Ec2Describe', ['ec2:Describe*'], ['*']),
@@ -550,7 +656,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
         }),
         allow(
             'network',
-            'Ec2OwnResources',
+            'Ec2Own',
             [
                 'ec2:Associate*',
                 'ec2:AuthorizeSecurityGroup*',
@@ -579,23 +685,31 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ],
             own,
         ),
+        allow('network', 'ElbDescribe', ['elasticloadbalancing:Describe*'], ['*']),
         allow(
             'network',
-            'ElbCreateAndRead',
-            ['elasticloadbalancing:Create*', 'elasticloadbalancing:Describe*'],
+            'ElbCreate',
+            ['elasticloadbalancing:CreateLoadBalancer', 'elasticloadbalancing:CreateTargetGroup'],
             ['*'],
-            [
-                'AWS::ElasticLoadBalancingV2::Listener',
-                'AWS::ElasticLoadBalancingV2::ListenerRule',
-                'AWS::ElasticLoadBalancingV2::LoadBalancer',
-                'AWS::ElasticLoadBalancingV2::TargetGroup',
-            ],
+            ['AWS::ElasticLoadBalancingV2::LoadBalancer', 'AWS::ElasticLoadBalancingV2::TargetGroup'],
         ),
+        allow('network', 'ElbTagOnCreate', ['elasticloadbalancing:AddTags'], ['*'], [], {
+            StringEquals: {
+                'elasticloadbalancing:CreateAction': [
+                    'CreateListener',
+                    'CreateLoadBalancer',
+                    'CreateRule',
+                    'CreateTargetGroup',
+                ],
+            },
+        }),
         allow(
             'network',
-            'ElbOwnResources',
+            'ElbOwn',
             [
                 'elasticloadbalancing:Add*',
+                'elasticloadbalancing:CreateListener',
+                'elasticloadbalancing:CreateRule',
                 'elasticloadbalancing:Delete*',
                 'elasticloadbalancing:Deregister*',
                 'elasticloadbalancing:Modify*',
@@ -604,7 +718,13 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 'elasticloadbalancing:Set*',
             ],
             ['*'],
-            ['AWS::ElasticLoadBalancingV2::ListenerCertificate'],
+            [
+                'AWS::ElasticLoadBalancingV2::Listener',
+                'AWS::ElasticLoadBalancingV2::ListenerCertificate',
+                'AWS::ElasticLoadBalancingV2::ListenerRule',
+                'AWS::ElasticLoadBalancingV2::LoadBalancer',
+                'AWS::ElasticLoadBalancingV2::TargetGroup',
+            ],
             own,
         ),
         // ---- edge ---------------------------------------------------------------------------------------------
@@ -612,11 +732,17 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             'edge',
             'CloudFrontCreate',
             [
-                'cloudfront:Create*',
-                'cloudfront:Describe*',
-                'cloudfront:Get*',
-                'cloudfront:List*',
-                'cloudfront:Publish*',
+                'cloudfront:CreateCachePolicy',
+                'cloudfront:CreateDistribution',
+                'cloudfront:CreateDistributionWithTags',
+                'cloudfront:CreateFunction',
+                'cloudfront:CreateKeyGroup',
+                'cloudfront:CreateKeyValueStore',
+                'cloudfront:CreateOriginAccessControl',
+                'cloudfront:CreateOriginRequestPolicy',
+                'cloudfront:CreatePublicKey',
+                'cloudfront:CreateResponseHeadersPolicy',
+                'cloudfront:TagResource',
             ],
             ['*'],
             [
@@ -638,6 +764,8 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 'cloudfront:AssociateAlias',
                 'cloudfront:CreateInvalidation',
                 'cloudfront:Delete*',
+                'cloudfront:Get*',
+                'cloudfront:ListTagsForResource',
                 'cloudfront:TagResource',
                 'cloudfront:UntagResource',
                 'cloudfront:Update*',
@@ -649,7 +777,14 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
         allow(
             'edge',
             'CloudFrontPolicies',
-            ['cloudfront:Delete*', 'cloudfront:TagResource', 'cloudfront:UntagResource', 'cloudfront:Update*'],
+            [
+                'cloudfront:Delete*',
+                'cloudfront:Describe*',
+                'cloudfront:Get*',
+                'cloudfront:List*',
+                'cloudfront:Publish*',
+                'cloudfront:Update*',
+            ],
             [
                 arn('cloudfront', 'cache-policy/*', false),
                 arn('cloudfront', 'origin-access-control/*', false),
@@ -658,37 +793,24 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 arn('cloudfront', 'key-group/*', false),
                 arn('cloudfront', 'public-key/*', false),
                 arn('cloudfront', 'key-value-store/*', false),
-                arn('cloudfront', 'function/*SandboxRouter*', false),
+                ...routerFunctions,
             ],
         ),
+        allow('edge', 'AcmRequest', ['acm:RequestCertificate'], ['*'], ['AWS::CertificateManager::Certificate'], {
+            'ForAllValues:StringLike': { 'acm:DomainNames': nonprod ? ['*sandbox.commise.app'] : ['*commise.app'] },
+        }),
         allow(
             'edge',
-            'AcmRequest',
-            [
-                'acm:AddTagsToCertificate',
-                'acm:DescribeCertificate',
-                'acm:ListTagsForCertificate',
-                'acm:RequestCertificate',
-            ],
-            ['*'],
-            ['AWS::CertificateManager::Certificate'],
-            {
-                'ForAllValues:StringLike': {
-                    'acm:DomainNames': nonprod ? ['*sandbox.commise.app'] : ['*commise.app'],
-                },
-            },
-        ),
-        allow(
-            'edge',
-            'AcmOwnCertificates',
+            'AcmOwn',
             [
                 'acm:AddTagsToCertificate',
                 'acm:DeleteCertificate',
                 'acm:DescribeCertificate',
+                'acm:ListTagsForCertificate',
                 'acm:RemoveTagsFromCertificate',
             ],
             [arn('acm', 'certificate/*')],
-            [],
+            ['AWS::CertificateManager::Certificate'],
             own,
         ),
         allow(
@@ -718,18 +840,17 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
         ),
         allow(
             'edge',
+            'ApiGatewayCreate',
+            ['apigateway:POST'],
+            [`arn:aws:apigateway:${REGION}::/restapis`, `arn:aws:apigateway:${REGION}::/domainnames`],
+            ['AWS::ApiGateway::DomainName', 'AWS::ApiGateway::RestApi'],
+        ),
+        allow(
+            'edge',
             'ApiGatewayOwn',
             ['apigateway:DELETE', 'apigateway:GET', 'apigateway:PATCH', 'apigateway:POST', 'apigateway:PUT'],
+            [`arn:aws:apigateway:${REGION}::/restapis/*`, `arn:aws:apigateway:${REGION}::/domainnames/*`],
             [
-                `arn:aws:apigateway:${REGION}::/account`,
-                `arn:aws:apigateway:${REGION}::/restapis`,
-                `arn:aws:apigateway:${REGION}::/restapis/*`,
-                `arn:aws:apigateway:${REGION}::/domainnames`,
-                `arn:aws:apigateway:${REGION}::/domainnames/*`,
-                `arn:aws:apigateway:${REGION}::/tags/*`,
-            ],
-            [
-                'AWS::ApiGateway::Account',
                 'AWS::ApiGateway::Deployment',
                 'AWS::ApiGateway::DomainName',
                 'AWS::ApiGateway::GatewayResponse',
@@ -739,6 +860,20 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 'AWS::ApiGateway::Stage',
                 'AWS::ApiGatewayV2::ApiMapping',
             ],
+            own,
+        ),
+        allow(
+            'edge',
+            'ApiGatewayAccount',
+            ['apigateway:GET', 'apigateway:PATCH'],
+            [`arn:aws:apigateway:${REGION}::/account`],
+            ['AWS::ApiGateway::Account'],
+        ),
+        allow(
+            'edge',
+            'ApiGatewayTags',
+            ['apigateway:DELETE', 'apigateway:GET', 'apigateway:PUT'],
+            [`arn:aws:apigateway:${REGION}::/tags/*`],
         ),
         // ---- iam ----------------------------------------------------------------------------------------------
         allow(
@@ -775,6 +910,8 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 'iam:UpdateRoleDescription',
             ],
             [iamArn(`role/${KS}`)],
+            [],
+            own,
         ),
         allow(
             'iam',
@@ -793,6 +930,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
         ),
         allow('iam', 'IamPassRole', ['iam:PassRole'], [iamArn(`role/${KS}`)], [], {
             StringEquals: { 'iam:PassedToService': passServices },
+            StringLike: { [tagKey]: STACK_TAG_PATTERNS[qualifier] },
         }),
         allow(
             'iam',
@@ -863,6 +1001,7 @@ function tierDenies(qualifier: QualifierName): Grant[] {
                     'arn:aws:*:*:*:*kitchensink/*prod/*',
                     'arn:aws:*:*:*:*kitchensink/*prod',
                     'arn:aws:*:*:*:dashboard/food-data',
+                    'arn:aws:cloudfront::*:function/*prod*',
                 ],
             ),
             deny('guard', 'DenyProductionResourceTag', ['*'], ['*'], {

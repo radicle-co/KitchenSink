@@ -620,6 +620,39 @@ describe('Publish', () => {
         expect(result.current.publishAttempted).toBe(true);
     });
 
+    it('never gives a field an error the last refused press did not record, however the draft changes', async () => {
+        const { result } = mount();
+
+        typeTitle(result);
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+        expect(result.current.errors.title).toBeUndefined();
+
+        act(() => {
+            result.current.setField('title', '');
+        });
+
+        expect(result.current.errors.title).toBeUndefined();
+    });
+
+    it('shows the reason a refused field fails NOW, not the reason it failed at the press', async () => {
+        const { result } = mount();
+
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+        expect(result.current.errors.title).toBe('titleRequired');
+
+        act(() => {
+            result.current.setField('title', 'x'.repeat(121));
+        });
+
+        expect(result.current.errors.title).toBe('titleTooLong');
+    });
+
     it('creates a complete new recipe as published, waits for the answer, then hands off as a first publish', async () => {
         const recipe = makeRecipeDetail({ id: 'rec_x', currentVersion: 1, status: RecipeStatus.PUBLISHED });
         const { result, port, drafts, onExit } = mount();

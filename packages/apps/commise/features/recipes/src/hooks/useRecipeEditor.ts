@@ -681,26 +681,29 @@ function runCheckpoint(ctx: EditorContext, trigger: CheckpointTrigger, options: 
 }
 
 /**
- * The errors a refused Publish recorded that the draft still has. A field the cook has since fixed loses its error; one
- * that was never refused never gains one before the next press (the section badges read the draft live and need no help).
+ * The fields a refused Publish recorded that the draft still fails, each with the reason it fails now. A field the cook
+ * has since fixed loses its error; one that was never refused never gains one before the next press (the section badges
+ * read the draft live and need no help).
  *
  * @param recorded - The errors the last refused Publish or Save changes recorded.
  * @param draft - The draft as it is now.
  * @param entryText - The ingredient entry text the press had.
- * @returns `recorded`, without the codes the draft no longer fails. Pure.
+ * @returns The recorded fields still failing, with their live codes. Pure.
  */
 function errorsStillHolding(recorded: RecipeFormErrors, draft: RecipeFormValues, entryText: string): RecipeFormErrors {
     if (Object.keys(recorded).length === 0) {
         return recorded;
     }
 
-    const stillFailing = new Set(
-        Object.entries(validateRecipeForm(draft, entryText))
-            .filter(([, code]) => code !== undefined)
-            .map(([field]) => field),
-    );
+    const live = new Map(Object.entries(validateRecipeForm(draft, entryText)).filter(([, code]) => code !== undefined));
 
-    return Object.fromEntries(Object.entries(recorded).filter(([field]) => stillFailing.has(field)));
+    return Object.fromEntries(
+        Object.keys(recorded).flatMap((field) => {
+            const code = live.get(field);
+
+            return code === undefined ? [] : [[field, code]];
+        }),
+    );
 }
 
 /**

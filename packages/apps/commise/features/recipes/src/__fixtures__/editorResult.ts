@@ -17,7 +17,7 @@ export function makeEditorResult(over: Partial<UseRecipeEditorResult> = {}): Use
     return {
         state: { status: 'editing' },
         values: defaultRecipeFormValues(),
-        errors: {},
+        refusedFields: new Set(),
         publishAttempted: false,
         lifecycle: 'unsaved',
         recipeId: undefined,

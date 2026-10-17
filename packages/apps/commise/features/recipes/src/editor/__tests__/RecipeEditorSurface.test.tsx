@@ -25,6 +25,7 @@ import type { PaidFeatureState } from '@commise/features-account';
 
 import { makeFakeEditorWritePort } from '../../__fixtures__/editorWritePort.js';
 import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
+import { recipeFormMessages } from '../../form/messages.js';
 import type { EditorSeed } from '../../hooks/useRecipeEditor.js';
 import type { DraftStore } from '../draftStore.js';
 import { RecipeEditorSurface } from '../RecipeEditorSurface.js';
@@ -186,5 +187,31 @@ describe('RecipeEditorSurface — hand-offs', () => {
         await userEvent.click(screen.getByRole('button', { name: /^close/i }));
 
         expect(props.onClose).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * ⛔ A REFUSED PUBLISH'S "YOU HAVE TEXT YOU HAVEN'T ADDED" GOES WHEN THE TEXT DOES. The editor hears the ingredient entry
+ * only at the press, so the error was read from the press's text and stayed on screen after the cook cleared the entry,
+ * until the next press. The surface reads the entry as it is now.
+ */
+describe('RecipeEditorSurface — an error about the ingredient entry', () => {
+    const pending = recipeFormMessages.en.errors.ingredientsPendingText;
+
+    it('shows ingredientsPendingText after a refused Publish, and drops it when the entry is cleared', async () => {
+        const user = userEvent.setup();
+
+        mount();
+
+        const entry = screen.getByRole('combobox', { name: 'Add an ingredient' });
+
+        await user.type(entry, 'flour');
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
+
+        expect(screen.getAllByText(pending).length).toBeGreaterThan(0);
+
+        await user.clear(entry);
+
+        expect(screen.queryByText(pending)).toBeNull();
     });
 });

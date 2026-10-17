@@ -42,6 +42,7 @@ import { IngredientStatusPoller } from './IngredientStatusPoller.js';
 import { editorMessages } from './messages.js';
 import { RecipeEditorView } from './RecipeEditorView.js';
 import { RecipePreviewSheet } from './RecipePreviewSheet.js';
+import { errorsStillHolding } from './gate.js';
 import type { EditorSectionId } from './sections.js';
 import type { RecipeEditorSession } from './useRecipeEditorSession.js';
 
@@ -89,6 +90,8 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     onOpenMyRecipes,
 }) => {
     const { editor, paste } = session;
+    // ⛔ READ FROM THE ENTRY AS IT IS NOW: the editor learns the entry's text only at a press (`errorsStillHolding`).
+    const errors = errorsStillHolding(editor.refusedFields, editor.values, session.rowEditor.entry.pendingEntryText);
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
     // E1 + plan 2026-10-14-009 D14: Private from the viewer's paid features alone — applied when granted, the Premium sheet
     // under upsell, the plain statement when hidden or still loading. "Saved" is what the server held when the editor
@@ -105,7 +108,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
         details: (
             <RecipeBasicsFields
                 values={editor.values}
-                errors={editor.errors}
+                errors={errors}
                 onChange={editor.setValues}
                 onFieldBlur={session.blur}
             />
@@ -117,7 +120,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                 ))}
                 <RecipeIngredientsFields
                     values={editor.values}
-                    errors={editor.errors}
+                    errors={errors}
                     onChange={editor.setValues}
                     nutrition={session.nutrition}
                     lookupRetry={session.lookupRetry}
@@ -130,7 +133,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
         steps: (
             <RecipeInstructionsFields
                 values={editor.values}
-                errors={editor.errors}
+                errors={errors}
                 onChange={editor.setValues}
                 onFieldBlur={session.blur}
             />

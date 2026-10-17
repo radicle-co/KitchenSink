@@ -31,6 +31,7 @@ const makeRecipeDetail = (...[overrides]: Parameters<typeof makeBaseRecipeDetail
     makeBaseRecipeDetail({ cuisine: 'Italian', ...overrides });
 
 import { DEVICE_SAVE_IDLE_MS, SERVER_CHECKPOINT_IDLE_MS } from '../../editor/checkpointPolicy.js';
+import { errorsStillHolding } from '../../editor/gate.js';
 import { createPasteHold, type PasteHold } from '../../editor/pasteHold.js';
 import type { DraftMemento, DraftStore } from '../../editor/draftStore.js';
 import type { IngredientLineKey } from '../../form/lineKey.js';
@@ -115,6 +116,11 @@ function mount(seed: EditorSeed = {}, pasteHold?: PasteHold, port = fakePort()) 
 }
 
 /** Type a title (the draft floor's one requirement). */
+/** The errors a view draws: the refused fields, read from the draft as it is now (`errorsStillHolding`). */
+function errorsOf(result: { readonly current: UseRecipeEditorResult }, pendingEntryText = '') {
+    return errorsStillHolding(result.current.refusedFields, result.current.values, pendingEntryText);
+}
+
 function typeTitle(result: { readonly current: UseRecipeEditorResult }, title = 'Soup'): void {
     act(() => {
         result.current.setField('title', title);
@@ -587,7 +593,7 @@ describe('Publish', () => {
 
         // A title alone: the cuisine is missing too (owner 2026-10-13), and Details comes first in page order.
         expect(outcome).toMatchObject({ kind: 'refused', section: 'details' });
-        expect(result.current.errors).toMatchObject({
+        expect(errorsOf(result)).toMatchObject({
             cuisine: 'cuisineRequired',
             ingredients: 'ingredientsEmpty',
             steps: 'stepsRequired',
@@ -609,14 +615,14 @@ describe('Publish', () => {
             result.current.publish('');
         });
         await settle();
-        expect(result.current.errors.cuisine).toBe('cuisineRequired');
+        expect(errorsOf(result).cuisine).toBe('cuisineRequired');
 
         act(() => {
             result.current.setField('cuisine', 'Nyonya');
         });
 
-        expect(result.current.errors.cuisine).toBeUndefined();
-        expect(result.current.errors).toMatchObject({ ingredients: 'ingredientsEmpty', steps: 'stepsRequired' });
+        expect(errorsOf(result).cuisine).toBeUndefined();
+        expect(errorsOf(result)).toMatchObject({ ingredients: 'ingredientsEmpty', steps: 'stepsRequired' });
         expect(result.current.publishAttempted).toBe(true);
     });
 
@@ -628,13 +634,13 @@ describe('Publish', () => {
             result.current.publish('');
         });
         await settle();
-        expect(result.current.errors.title).toBeUndefined();
+        expect(errorsOf(result).title).toBeUndefined();
 
         act(() => {
             result.current.setField('title', '');
         });
 
-        expect(result.current.errors.title).toBeUndefined();
+        expect(errorsOf(result).title).toBeUndefined();
     });
 
     it('shows the reason a refused field fails NOW, not the reason it failed at the press', async () => {
@@ -644,13 +650,13 @@ describe('Publish', () => {
             result.current.publish('');
         });
         await settle();
-        expect(result.current.errors.title).toBe('titleRequired');
+        expect(errorsOf(result).title).toBe('titleRequired');
 
         act(() => {
             result.current.setField('title', 'x'.repeat(121));
         });
 
-        expect(result.current.errors.title).toBe('titleTooLong');
+        expect(errorsOf(result).title).toBe('titleTooLong');
     });
 
     it('creates a complete new recipe as published, waits for the answer, then hands off as a first publish', async () => {
@@ -1645,7 +1651,7 @@ describe('Publish while a checkpoint is on the wire', () => {
         await settle();
 
         expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create']);
-        expect(result.current.errors).toMatchObject({ steps: 'stepsRequired' });
+        expect(errorsOf(result)).toMatchObject({ steps: 'stepsRequired' });
         expect(result.current.publishAttempted).toBe(true);
         expect(result.current.state.status).toBe('editing');
     });

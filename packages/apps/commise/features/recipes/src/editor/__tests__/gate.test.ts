@@ -12,7 +12,7 @@ import {
     stepFieldId,
     titleFieldId,
 } from '../../form/fieldIds.js';
-import { firstInvalidFieldOf, gateOutcomeOf } from '../gate.js';
+import { errorsStillHolding, firstInvalidFieldOf, gateOutcomeOf, refusedFieldsOf } from '../gate.js';
 
 describe('gateOutcomeOf', () => {
     it('sends when nothing refused', () => {
@@ -98,5 +98,61 @@ describe('firstInvalidFieldOf', () => {
         expect(firstInvalidFieldOf({ servings: 'servingsPositive', steps: 'stepsRequired' }, values)).toBe(
             stepFieldId(1),
         );
+    });
+});
+
+/**
+ * A refused Publish records WHICH fields it refused; what each says is read from the draft and the entry as they are
+ * now. A field the cook has fixed loses its error; one never refused never gains one before the next press.
+ */
+describe('refusedFieldsOf', () => {
+    it('names the fields holding a code, and only those', () => {
+        expect(refusedFieldsOf({ title: 'titleRequired', steps: undefined, cuisine: 'cuisineRequired' })).toEqual(
+            new Set(['title', 'cuisine']),
+        );
+    });
+
+    it('is empty for a form that passed', () => {
+        expect(refusedFieldsOf({})).toEqual(new Set());
+    });
+});
+
+describe('errorsStillHolding', () => {
+    const complete = makeRecipeFormValues({ title: 'Nasi lemak', cuisine: 'Malaysian' });
+
+    it('is empty when nothing was refused, however bad the draft is', () => {
+        expect(errorsStillHolding(new Set(), makeRecipeFormValues({ title: '' }), '')).toEqual({});
+    });
+
+    it('drops a refused field the draft no longer fails', () => {
+        const draft = makeRecipeFormValues({ title: 'Nasi lemak', cuisine: '' });
+
+        expect(errorsStillHolding(new Set(['title', 'cuisine']), draft, '')).toMatchObject({
+            cuisine: 'cuisineRequired',
+        });
+        expect(errorsStillHolding(new Set(['title', 'cuisine']), draft, '').title).toBeUndefined();
+    });
+
+    it('never gives a field an error the last refused press did not record', () => {
+        expect(errorsStillHolding(new Set(['cuisine']), makeRecipeFormValues({ title: '' }), '').title).toBeUndefined();
+    });
+
+    it('states the reason the field fails NOW, not the one it failed with at the press', () => {
+        const draft = makeRecipeFormValues({ title: 'x'.repeat(121) });
+
+        expect(errorsStillHolding(new Set(['title']), draft, '').title).toBe('titleTooLong');
+    });
+
+    /**
+     * ⛔ THE ENTRY TEXT IS READ LIVE. The press had text in the ingredient entry and was refused with
+     * `ingredientsPendingText`; once the cook clears the entry the error must go, and when it is committed the draft's
+     * own ingredients decide. Reading the press-time text kept the error until the next press.
+     */
+    it('clears ingredientsPendingText once the entry is empty, and reports what the draft says instead', () => {
+        const refused = new Set<'ingredients'>(['ingredients']);
+
+        expect(errorsStillHolding(refused, complete, 'flour').ingredients).toBe('ingredientsPendingText');
+        expect(errorsStillHolding(refused, { ...complete, ingredients: [] }, '').ingredients).toBe('ingredientsEmpty');
+        expect(errorsStillHolding(refused, complete, '   ').ingredients).not.toBe('ingredientsPendingText');
     });
 });

@@ -119,13 +119,13 @@ import {
     liveRecipeOf,
     outstandingOf,
 } from '../editor/editorView.js';
-import { gateOutcomeOf, type GateOutcome } from '../editor/gate.js';
+import { gateOutcomeOf, refusedFieldsOf, type GateOutcome, type RefusedField } from '../editor/gate.js';
 import type { PasteHold } from '../editor/pasteHold.js';
 import type { DraftKeep, MementoWrite, SaveStatus } from '../editor/saveStatus.js';
 import { createLaneStore, type LaneStore, type OutstandingWrite } from '../editor/writeLane.js';
 import type { DraftAction } from '../form/draftAction.js';
 import { isStoredLine, persistedLineKeysOf, type IngredientLineKey } from '../form/lineKey.js';
-import { draftFloorErrors, validateRecipeForm, type RecipeFormErrors } from '../form/validate.js';
+import { draftFloorErrors, validateRecipeForm } from '../form/validate.js';
 import { defaultRecipeFormValues, recipeFormValuesEqual, type RecipeFormValues } from '../form/values.js';
 import { toRecipeFormValues } from '../form/wire.js';
 import { recipeMessages, type IngredientLineNameMessages } from '../messages.js';
@@ -269,8 +269,11 @@ export type ReportedTrigger = Extract<CheckpointTrigger, 'fieldBlur' | 'sectionC
 export interface UseRecipeEditorResult {
     readonly state: EditorState;
     readonly values: RecipeFormValues;
-    /** Field errors from the last refused Publish or Save changes (empty until then). */
-    readonly errors: RecipeFormErrors;
+    /**
+     * The fields the last refused Publish or Save changes named (empty until then). The errors a view draws are read from
+     * them with the draft and the entry as they are NOW (`errorsStillHolding`); the editor never learns the entry live.
+     */
+    readonly refusedFields: ReadonlySet<RefusedField>;
     /** Whether Publish (or Save changes) has been refused in this editor: the section index then shows "Fix". */
     readonly publishAttempted: boolean;
     readonly lifecycle: RecipeLifecycle;
@@ -356,9 +359,9 @@ type LineCommandAnswer =
     | { readonly kind: 'overtaken' }
     | { readonly kind: 'failed' };
 
-/** What the last Publish or Save changes left: its errors, whether one was refused, and the entry text it had. */
+/** What the last Publish or Save changes left: the fields it refused, whether one was refused, and the entry text it had. */
 interface GateState {
-    readonly errors: RecipeFormErrors;
+    readonly refused: ReadonlySet<RefusedField>;
     readonly attempted: boolean;
     /** What the ingredient entry held when Publish or Save changes was pressed: a deferred one is validated with it. */
     readonly entryText: string;
@@ -681,28 +684,6 @@ function runCheckpoint(ctx: EditorContext, trigger: CheckpointTrigger, options: 
 }
 
 /**
- * The fields a refused Publish recorded that the draft still fails, each with the reason it fails now. A field the cook
- * has since fixed loses its error; one that was never refused never gains one before the next press (the section badges
- * read the draft live and need no help).
- *
- * @param recorded - The errors the last refused Publish or Save changes recorded.
- * @param draft - The draft as it is now.
- * @param entryText - The ingredient entry text the press had.
- * @returns The recorded fields still failing, with their live codes. Pure.
- */
-function errorsStillHolding(recorded: RecipeFormErrors, draft: RecipeFormValues, entryText: string): RecipeFormErrors {
-    if (Object.keys(recorded).length === 0) {
-        return recorded;
-    }
-
-    return Object.fromEntries(
-        Object.entries(validateRecipeForm(draft, entryText)).filter(
-            ([field, code]) => code !== undefined && field in recorded,
-        ),
-    );
-}
-
-/**
  * Validate the draft for a Publish or Save changes, recording the errors (and the refusal) for the form.
  *
  * @returns The gate's outcome. @sideEffect Sets the gate's state.
@@ -711,7 +692,11 @@ function checkGate(ctx: EditorContext, entryText: string): Exclude<GateOutcome, 
     const found = validateRecipeForm(ctx.core.get().draft, entryText);
     const outcome = gateOutcomeOf(found);
 
-    ctx.setGate((gate) => ({ errors: found, attempted: gate.attempted || outcome.kind === 'refused', entryText }));
+    ctx.setGate((gate) => ({
+        refused: refusedFieldsOf(found),
+        attempted: gate.attempted || outcome.kind === 'refused',
+        entryText,
+    }));
 
     return outcome;
 }
@@ -1715,7 +1700,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
     const lane = useSyncExternalStore(stores.lane.subscribe, stores.lane.get, stores.lane.get);
     const [resume, setResume] = useState<ResumeNotice | undefined>(stores.resume);
     const [memento, setMemento] = useState<MementoWrite>(stores.resume === undefined ? 'none' : 'written');
-    const [gate, setGate] = useState<GateState>({ errors: {}, attempted: false, entryText: '' });
+    const [gate, setGate] = useState<GateState>({ refused: new Set(), attempted: false, entryText: '' });
     const ctx: EditorContext = {
         core: stores.core,
         lane: stores.lane,
@@ -1769,15 +1754,10 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         [stores],
     );
 
-    const errors = useMemo(
-        () => errorsStillHolding(gate.errors, core.draft, gate.entryText),
-        [gate.errors, core.draft, gate.entryText],
-    );
-
     return {
         state: editorStateOf(view.status, core),
         values: core.draft,
-        errors,
+        refusedFields: gate.refused,
         publishAttempted: gate.attempted,
         lifecycle: view.lifecycle,
         recipeId: view.serverId,

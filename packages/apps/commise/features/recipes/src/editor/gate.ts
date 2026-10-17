@@ -14,7 +14,7 @@ import {
     stepFieldId,
     titleFieldId,
 } from '../form/fieldIds.js';
-import type { RecipeFormErrors } from '../form/validate.js';
+import { validateRecipeForm, type RecipeFormErrors } from '../form/validate.js';
 import type { RecipeFormValues } from '../form/values.js';
 import { firstSectionWithErrors, type EditorSectionId } from './sections.js';
 
@@ -38,6 +38,50 @@ export function gateOutcomeOf(errors: RecipeFormErrors): Exclude<GateOutcome, { 
     const refused = Object.values(errors).some((code) => code !== undefined);
 
     return refused ? { kind: 'refused', errors, section: firstSectionWithErrors(errors) } : { kind: 'send' };
+}
+
+/** A field of the form a refused Publish can name. */
+export type RefusedField = keyof RecipeFormErrors;
+
+/**
+ * Which fields a refused Publish named. A SET of fields and not the errors: the code a field fails with is a fact about
+ * the draft as it is NOW ({@link errorsStillHolding}), so storing the press's codes stored a second, stale copy of it.
+ *
+ * @param errors - What the gate's validator found at the press.
+ * @returns The fields holding a code. Pure.
+ */
+export function refusedFieldsOf(errors: RecipeFormErrors): ReadonlySet<RefusedField> {
+    return new Set((Object.keys(errors) as RefusedField[]).filter((field) => errors[field] !== undefined));
+}
+
+/**
+ * The fields a refused Publish named that the draft still fails, each with the reason it fails now. A field the cook has
+ * since fixed loses its error; one that was never refused never gains one before the next press (the section badges read
+ * the draft live and need no help).
+ *
+ * ⛔ THE ENTRY TEXT IS THE ENTRY'S AS IT IS NOW, passed in by the view that owns the entry. The editor hears it only at a
+ * press, so a code read from the press's text kept `ingredientsPendingText` on screen after the cook cleared or
+ * committed the entry.
+ *
+ * @param refused - The fields the last refused Publish or Save changes named.
+ * @param draft - The draft as it is now.
+ * @param pendingEntryText - The text the ingredient entry holds uncommitted now; `''` when none does.
+ * @returns The refused fields still failing, with their live codes. Pure.
+ */
+export function errorsStillHolding(
+    refused: ReadonlySet<RefusedField>,
+    draft: RecipeFormValues,
+    pendingEntryText: string,
+): RecipeFormErrors {
+    if (refused.size === 0) {
+        return {};
+    }
+
+    const live = validateRecipeForm(draft, pendingEntryText);
+
+    return Object.fromEntries(
+        Object.entries(live).filter(([field, code]) => code !== undefined && refused.has(field as RefusedField)),
+    );
 }
 
 /**

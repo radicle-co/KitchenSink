@@ -27,7 +27,9 @@
  * a string literal is not a comment, so the fixture is invisible to the check it proves. That is asserted, not
  * assumed: `the fixture cannot be reported` pins it, and non-vacuity is asserted BEFORE the invariant.
  */
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -204,22 +206,27 @@ describe('subject discovery', () => {
      * very next run — after its first commit — on a dangling link that had been there the whole time. The
      * gate reported green precisely during the window when the author was still able to fix it cheaply.
      *
-     * The probe carries a link that RESOLVES, so its presence cannot change any verdict; the assertion is
-     * about coverage, not about the link. It is removed in `finally` so a failure cannot leave it behind.
+     * The probe lives in a THROWAWAY git repository, never in the real tree. It used to be written into
+     * `packages/tools/repoGuards/__tests__/`, where any other guard that enumerates the tree with `presentFiles`
+     * (they run in parallel workers) could list it and then hit ENOENT reading it after this test removed it: a
+     * cross-file race that failed `noCommentStripRegex` in CI. It is removed in `finally` so a failure cannot
+     * leave it behind.
      */
     it('covers a link-bearing source that is present but not yet committed', () => {
-        const relative = 'packages/tools/repoGuards/__tests__/untrackedProbe.generated.ts';
-        const probe = path.join(repoRoot, relative);
-
-        writeFileSync(
-            probe,
-            '/** Sentinel for the discovery guard: {@link probeTarget}. */\nexport function probeTarget(): void {}\n',
-        );
+        const root = mkdtempSync(path.join(tmpdir(), 'docLinkProbe-'));
+        const relative = 'src/untrackedProbe.generated.ts';
 
         try {
-            expect(discoverDocLinkUnits().flatMap((unit) => unit.files)).toContain(relative);
+            execFileSync('git', ['init', '--quiet'], { cwd: root });
+            mkdirSync(path.join(root, 'src'));
+            writeFileSync(
+                path.join(root, relative),
+                '/** Sentinel for the discovery guard: {@link probeTarget}. */\nexport function probeTarget(): void {}\n',
+            );
+
+            expect(discoverDocLinkUnits(root).flatMap((unit) => unit.files)).toContain(relative);
         } finally {
-            rmSync(probe, { force: true });
+            rmSync(root, { recursive: true, force: true });
         }
     }, 600_000);
 });

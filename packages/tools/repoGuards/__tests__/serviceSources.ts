@@ -107,12 +107,13 @@ export function trackedFiles(relativeDir: string): readonly string[] {
  * genuinely the subject.
  *
  * @param pathspecs - Git pathspecs to list.
+ * @param root - The repository to list; the real tree unless a test supplies a throwaway one.
  * @returns Repo-relative paths of files present on disk, `node_modules` excluded, each once.
  * @sideEffect Shells out to git and stats the working tree.
  */
-export function presentFiles(pathspecs: readonly string[]): readonly string[] {
+export function presentFiles(pathspecs: readonly string[], root: string = repoRoot): readonly string[] {
     const listed = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', ...pathspecs], {
-        cwd: repoRoot,
+        cwd: root,
         encoding: 'utf8',
         maxBuffer: 1 << 28,
     }).split('\n');
@@ -120,7 +121,7 @@ export function presentFiles(pathspecs: readonly string[]): readonly string[] {
     return [
         ...new Set(
             listed.filter(
-                (file) => file.length > 0 && !file.includes('node_modules/') && existsSync(path.join(repoRoot, file)),
+                (file) => file.length > 0 && !file.includes('node_modules/') && existsSync(path.join(root, file)),
             ),
         ),
     ];

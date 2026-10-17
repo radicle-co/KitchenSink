@@ -126,18 +126,19 @@ export interface DocLinkUnit {
 /**
  * Group every link-bearing TypeScript source under the tsconfig that owns it.
  *
+ * @param root - The repository to scan; the real tree unless a test supplies a throwaway one.
  * @returns One unit per owning tsconfig that has at least one link-bearing file.
  * @sideEffect Shells out to git and reads every candidate source.
  */
-export function discoverDocLinkUnits(): readonly DocLinkUnit[] {
-    const configs = ['tsconfig.json', ...presentFiles(['*/tsconfig.json'])];
+export function discoverDocLinkUnits(root: string = repoRoot): readonly DocLinkUnit[] {
+    const configs = ['tsconfig.json', ...presentFiles(['*/tsconfig.json'], root)];
     const owners = configs
         .map((config) => ({ config, dir: path.posix.dirname(config) === '.' ? '' : path.posix.dirname(config) }))
         .sort((left, right) => right.dir.length - left.dir.length);
     const units = new Map<string, string[]>(configs.map((config) => [config, []]));
 
-    for (const file of presentFiles(SUBJECT_PATHSPECS)) {
-        if (!readFileSync(path.join(repoRoot, file), 'utf8').includes(LINK_OPENER)) {
+    for (const file of presentFiles(SUBJECT_PATHSPECS, root)) {
+        if (!readFileSync(path.join(root, file), 'utf8').includes(LINK_OPENER)) {
             continue;
         }
 

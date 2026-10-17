@@ -52,7 +52,7 @@ dotenvConfig({ path: join(__dirname, '../../.env'), quiet: true });
 // ADR-0065: the account app deploys through the `ksaccount` bootstrap qualifier and every role it creates sits under
 // that qualifier's permissions boundary. ⛔ A bare `new App()` would use the account's DEFAULT bootstrap, whose
 // execution role is another application's AdministratorAccess. `cdkQualifierCoverage.test.ts` holds this wiring and
-// `accountAppQualifier.test.ts` holds what it synthesizes. The owner-only policy stack below keeps its own
+// `accountAppQualifier.integration.test.ts` holds what it synthesizes. The owner-only policy stack below keeps its own
 // CliCredentialsStackSynthesizer, so it still deploys with the owner's admin session and no bootstrap role.
 const app = new App(accountAppProps());
 // cdk-nag AwsSolutions review, ADVISORY — annotation-only, so the synthesized template is unchanged.

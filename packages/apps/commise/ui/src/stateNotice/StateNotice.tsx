@@ -6,7 +6,8 @@
  *
  * Presentational: props → JSX.
  *
- * @pattern Strategy — a link or a button, chosen per action by whether it has somewhere to go (the `RouteAction` rule)
+ * @pattern Template — one alert layout (heading, body, up to two actions); whether an action is a link or a button is
+ *   `RouteAction`'s Strategy, not this component's
  */
 import type { FC } from 'react';
 

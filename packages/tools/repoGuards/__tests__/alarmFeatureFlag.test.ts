@@ -427,7 +427,7 @@ describe('the alarm feature flag — discovery is not vacuous', () => {
         expect(APPS.every(({ stacks }) => stacks.length > 0)).toBe(true);
     });
 
-    it('finds the eight alarm-owning stacks and all forty alarms', () => {
+    it('finds the eight alarm-owning stacks and every alarm', () => {
         // Pinned as a FLOOR, not an equality: a new alarm must inherit the rule, never trip this count. The
         // floor is what makes every gate below non-vacuous — a discovery that silently found nothing would
         // otherwise report a perfectly gated tree.
@@ -441,22 +441,8 @@ describe('the alarm feature flag — discovery is not vacuous', () => {
             'packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts',
             'packages/services/remote-search/infra/lib/RemoteSearchStack.ts',
         ]);
-        // EXACTLY thirty-one, not a floor: a floor cannot tell "an alarm was added" from "the walk counted
-        // the gated branch twice", and the double-count is a real defect this assertion caught in its own
-        // first draft. A new alarm changes this number ON PURPOSE, in the same commit that adds it — thirty
-        // became thirty-one when `DeletionDlqDepthAlarm` gave the identity deletion DLQ the alarm two
-        // comments in `deletionWorker.ts` had been promising, and thirty-two when `LogForwarderFailureAlarm`
-        // gave the log drain's own failure metric — emitted on both of its failure paths since it shipped —
-        // something that reads it. A drain that stops is an ABSENCE of logs, which is what a healthy quiet
-        // system looks like, so nothing else could have reported it. Thirty-two became THIRTY-FIVE with the
-        // three detectors the September 2026 outage review added: food's healthy-host alarm (the service
-        // had none — every other food alarm reads a series a dead task cannot publish), and the parse
-        // pipeline's landing-discard rate and job-stall gauge. Thirty-seven with the remote search function's errors
-        // and throttles alarms (ADR-0055), and thirty-eight with food's remote-search unavailable-rate alarm, which
-        // sees what CloudFront refuses before the function runs. Thirty-nine with the sandbox scheduler's
-        // failed-run alarm: the 09:00 start was refused for capacity on two mornings in October 2026 and the run
-        // reported success. Forty with the alarm relay's failure-queue depth alarm (ADR-0062): an alarm that could
-        // not be delivered to Sentry is parked in that queue, and nothing else can say so.
+        // An exact count, not a floor: a floor cannot tell "an alarm was added" from "the walk counted the gated
+        // branch twice". A new alarm changes this number on purpose, in the commit that adds it.
         expect(ALARM_SOURCES.flatMap(discoverAlarms).length).toBe(40);
         expect(ALARM_SOURCES.flatMap(discoverAlarms).map((alarm) => alarm.id)).toHaveLength(
             new Set(ALARM_SOURCES.flatMap(discoverAlarms).map((alarm) => `${alarm.file}#${alarm.id}`)).size,

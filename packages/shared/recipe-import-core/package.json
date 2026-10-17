@@ -29,6 +29,7 @@
     "devDependencies": {
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
+        "@kitchensink/repo-guards": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
         "@types/sanitize-html": "^2.16.0",

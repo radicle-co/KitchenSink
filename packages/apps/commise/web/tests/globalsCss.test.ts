@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import { withoutCssComments } from '@kitchensink/repo-guards/sourceComments';
 
 /**
  * Shape guard for the app's global stylesheet.
@@ -13,9 +14,8 @@ import { describe, expect, it } from 'vitest';
  * every heading fell back from Playfair Display to Georgia and every body string from Inter to system-ui,
  * gracefully enough that no test and no reviewer noticed.
  */
-const globalsCss = readFileSync(resolve(import.meta.dirname, '../src/app/globals.css'), 'utf8')
-    // Comments can contain anything, including the literal '@import' in prose like this file's own header.
-    .replace(/\/\*[\s\S]*?\*\//g, '');
+// Comments can contain anything, including the literal '@import' in prose like this file's own header.
+const globalsCss = withoutCssComments(readFileSync(resolve(import.meta.dirname, '../src/app/globals.css'), 'utf8'));
 
 /** The offset of the earliest at-rule that makes any later `@import` invalid, or `Infinity` if none. */
 function firstNonPreambleRuleOffset(css: string): number {

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { parseDsn } from '../src/observability/sentryEnvelope.js';
+import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
 import {
     announceSilentNoOp,
     buildSilentNoOpEnvelope,
@@ -340,12 +341,7 @@ describe('the call-site API', () => {
      * failure `testPoolWorkflowWiring.test.ts` and `RecipeWorkersStack.test.ts` each record — the second
      * having read a dependency's JSDoc `@example` block as a live import.
      */
-    const codeOf = (file: string): string =>
-        readFileSync(file, 'utf8')
-            .replace(/\/\*[\s\S]*?\*\//gu, '')
-            .split('\n')
-            .filter((line) => !line.trimStart().startsWith('//'))
-            .join('\n');
+    const codeOf = (file: string): string => withoutTsComments(readFileSync(file, 'utf8'), file);
 
     it('⛔ no handler imports the non-announcing reporter', () => {
         const handlers = [...globSync(`${SRC}/**/*[hH]andler.ts`)];

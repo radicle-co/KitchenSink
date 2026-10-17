@@ -13,6 +13,7 @@
         "./roleSplitSources": "./__tests__/roleSplitSources.ts",
         "./scheduledRuleOwners": "./__tests__/scheduledRuleOwners.ts",
         "./serviceSources": "./__tests__/serviceSources.ts",
+        "./sourceComments": "./__tests__/sourceComments.ts",
         "./throwawayServer": "./tests/common/throwawayServer.ts",
         "./workflowExpression": "./__tests__/workflowExpression.ts",
         "./workflowScalar": "./__tests__/workflowScalar.ts",

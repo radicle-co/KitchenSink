@@ -22,7 +22,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { withoutTsComments } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 import { repoRoot, trackedFiles } from './serviceSources.js';
 
 interface Consumer {
@@ -43,7 +43,7 @@ const CONSUMERS: readonly Consumer[] = [
     { file: 'packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts', leaves: ['distribution-id'] },
 ];
 
-const read = (file: string): string => withoutTsComments(readFileSync(path.join(repoRoot, file), 'utf8'));
+const read = (file: string): string => withoutTsComments(readFileSync(path.join(repoRoot, file), 'utf8'), file);
 
 /** A CDN host spelled in code: a CloudFront domain, or a `recipe-cdn` / `media.` host built from a template. */
 const SPELLED_HOST = /cloudfront\.net|recipe-cdn|https:\/\/media[.-]|`https?:\/\/[^`]*(?:cdn|media)[^`]*`/iu;

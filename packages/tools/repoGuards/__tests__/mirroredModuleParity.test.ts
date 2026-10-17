@@ -38,7 +38,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { productionSources, readSource, withoutTsComments } from './roleSplitSources.js';
+import { productionSources, readSource } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 /** One rule, implemented once per service. */
 interface MirrorGroup {
@@ -117,7 +118,7 @@ const MIRROR_GROUPS: readonly MirrorGroup[] = [
 
 /** A file's code, with comments gone and every domain noun collapsed to one token. Pure. */
 function comparable(path: string): string {
-    return withoutTsComments(readSource(path)).replace(DOMAIN_TOKENS, '').replace(/\s+/gu, ' ').trim();
+    return withoutTsComments(readSource(path), path).replace(DOMAIN_TOKENS, '').replace(/\s+/gu, ' ').trim();
 }
 
 describe('mirrored service modules', () => {

@@ -29,13 +29,10 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { withoutTsComments } from './sourceComments.js';
+
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const WORKFLOW = join(REPO_ROOT, '.github/workflows/_ci-heavy.yml');
-
-/** Source with block and line comments removed, so prose about a symbol is not read as a use of it. */
-function withoutComments(source: string): string {
-    return source.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/^\s*\/\/.*$/gmu, '');
-}
 
 /**
  * The steps of the deployed-load job that present a BEARER.
@@ -73,8 +70,9 @@ describe('the deployed k6 tier is handed what it needs to stay authenticated', (
     it('never re-mints by signing in again', () => {
         // Sign-in is the per-IP limited half of Clerk's FAPI — the whole reason a pool is provisioned up
         // front. The refresher may only use the session-token endpoint.
-        const refresher = withoutComments(
+        const refresher = withoutTsComments(
             readFileSync(join(REPO_ROOT, 'packages/tools/loadtest/k6/session.js'), 'utf8'),
+            'session.js',
         );
 
         expect(refresher).toMatch(/client\/sessions\/\$\{handle\.sessionId\}\/tokens/u);

@@ -33,6 +33,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { EXPECTED_TABLES } from './roleDb.js';
+import { withoutTsComments, withoutSqlComments } from '@kitchensink/repo-guards/sourceComments';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -50,7 +51,7 @@ const ROOTS = [path.join(here, '..', '..', 'src'), here] as const;
  * @returns The table names it reaches. Pure.
  */
 function tablesReachedIn(source: string): readonly string[] {
-    const stripped = source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+    const stripped = withoutTsComments(source, 'source.ts');
 
     return [
         ...new Set(
@@ -101,9 +102,7 @@ function tablesInSchema(): readonly string[] {
     const live = new Set<string>();
 
     for (const file of readdirSync(dir).sort()) {
-        const sql = readFileSync(path.join(dir, file), 'utf8')
-            .replace(/\/\*[\s\S]*?\*\//g, ' ')
-            .replace(/--[^\n]*/g, ' ');
+        const sql = withoutSqlComments(readFileSync(path.join(dir, file), 'utf8'));
 
         // ⛔ DROPS BEFORE CREATES, WITHIN A FILE — the same ordering `trackedColumnsAfter` uses and for the
         // same reason: `0051_ingredient_grain.sql` DROPs `ingredients` and CREATEs a different table under

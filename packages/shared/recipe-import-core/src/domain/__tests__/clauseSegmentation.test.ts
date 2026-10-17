@@ -23,6 +23,7 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 import { dropTrailingInstruction, segmentClause, type ClauseSegment } from '../clauseSegmentation.js';
+import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
 
 /**
  * Narrow to an ingredient segment, failing with the actual kind rather than an opaque undefined.
@@ -560,7 +561,7 @@ describe('clause segmentation — ReDoS guard', () => {
         // ⚠️ COMMENTS STRIPPED FIRST. The module's own docstring QUOTES the forbidden pattern to explain
         // why it went — so matching raw source fails on the documentation rather than on the code, which
         // is how the first version of this guard failed.
-        const code = source.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/\/\/.*/gu, '');
+        const code = withoutTsComments(source, 'clauseSegmentation.ts');
 
         expect(code).not.toMatch(/\/\\s\+of\\s\+\//);
         expect(code).not.toMatch(/search\(PARTITIVE_OF\)/);

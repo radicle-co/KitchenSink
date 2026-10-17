@@ -46,6 +46,7 @@ import { describe, expect, it } from 'vitest';
 import { repoRoot } from './serviceSources.js';
 import { evaluateCondition, type Truth } from './workflowExpression.js';
 import { scalarText } from './workflowScalar.js';
+import { withoutTsComments } from './sourceComments.js';
 
 const HEAVY = '.github/workflows/_ci-heavy.yml';
 
@@ -219,10 +220,7 @@ function closure(script: string): readonly string[] {
 }
 
 /** Source with line and block comments blanked, so prose about a public write is not read as one. */
-const code = (file: string): string =>
-    read(file)
-        .replace(/\/\*[\s\S]*?\*\//gu, (block) => block.replace(/[^\n]/gu, ' '))
-        .replace(/(^|[^:'"`])\/\/.*$/gmu, '$1');
+const code = (file: string): string => withoutTsComments(read(file), file);
 
 /**
  * Clone sites whose SOURCE the scenario created itself, under the same identity, with the reason. Set-equality

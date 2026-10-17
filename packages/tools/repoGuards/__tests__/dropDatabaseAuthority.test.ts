@@ -17,7 +17,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { productionScripts, readSource, withoutComments } from './roleSplitSources.js';
+import { productionScripts, readSource } from './roleSplitSources.js';
+import { withoutComments } from './sourceComments.js';
 
 /** The production files that may drop a database. */
 const DROP_AUTHORITY: readonly string[] = [

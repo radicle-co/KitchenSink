@@ -8,7 +8,8 @@
  *
  * DESIGN PATTERN: Repository — one read-only view of the source tree, shared by the specifications that judge it.
  */
-import { productionSources, readSource, withoutTsComments } from './roleSplitSources.js';
+import { productionSources, readSource } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 /**
  * A construct call that makes a rule run on a CLOCK: the L2 `Schedule.rate/cron/expression(` or the L1

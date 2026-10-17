@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
+import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
 
 import {
     EDGE_AUTHORIZED_PARTIES_GLOBAL,
@@ -95,7 +96,7 @@ describe('the build-time key contract cannot be spelled apart', () => {
         );
         // Comments are stripped first: the docblock EXPLAINS why `process.env` cannot be used here, so a
         // naive substring check fires on its own rationale.
-        const code = handler.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/\/\/.*$/gmu, '');
+        const code = withoutTsComments(handler, 'handler.ts');
 
         expect(handler).toContain(`declare const ${EDGE_JWT_KEY_GLOBAL}: string;`);
         expect(handler).toContain(`declare const ${EDGE_AUTHORIZED_PARTIES_GLOBAL}: string;`);

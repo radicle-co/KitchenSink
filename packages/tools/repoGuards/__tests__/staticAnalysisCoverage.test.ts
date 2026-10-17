@@ -84,6 +84,8 @@ import { minimatch } from 'minimatch';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
+import { withoutTsComments } from './sourceComments.js';
+
 /** This file sits at `packages/tools/repoGuards/__tests__`, so the repo root is four levels up. */
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
@@ -591,9 +593,7 @@ describe('static-analysis coverage', () => {
                 // ⚠️ Comments are stripped first. Four of these configs discuss `infra/__tests__` in prose
                 // explaining a synth timeout, and a comment collects no tests — matching raw text reported
                 // all four as defects and would have taught the next reader to delete the explanation.
-                const configuration = readFileSync(ownerConfig, 'utf8')
-                    .replace(/\/\*[\s\S]*?\*\//gu, '')
-                    .replace(/\/\/[^\n]*/gu, '');
+                const configuration = withoutTsComments(readFileSync(ownerConfig, 'utf8'), ownerConfig);
 
                 expect(
                     configuration,

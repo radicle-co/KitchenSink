@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest';
 
 import { CI_POLICIES_CONTEXT_FLAG, CI_POLICIES_STACK_NAME } from '../lib/platform/CiExecutionPolicyStack.js';
 import { repoRoot, trackedFiles } from '@kitchensink/repo-guards/serviceSources';
+import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
 
 const read = (relative: string): string => readFileSync(path.join(repoRoot, relative), 'utf8');
 
@@ -58,9 +59,7 @@ describe('the CI policy stack is owner-only', () => {
     });
 
     it('bin/account.ts constructs the stack only inside the owner-only context gate', () => {
-        const code = read('packages/infra/global/bin/account.ts')
-            .replace(/\/\*[\s\S]*?\*\//gu, '')
-            .replace(/\/\/[^\n]*/gu, '');
+        const code = withoutTsComments(read('packages/infra/global/bin/account.ts'), 'account.ts');
         const construction = code.indexOf('new CiExecutionPolicyStack(');
 
         expect(construction).toBeGreaterThan(-1);

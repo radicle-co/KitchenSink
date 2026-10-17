@@ -30,7 +30,8 @@ import { LOG_DRAIN_SOURCES } from '../../../services/identity-webhooks/src/commo
 import { GlobalStack } from '../lib/platform/GlobalStack.js';
 import { TEST_UPLOAD_ORIGINS } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
-import { productionSources, readSource, withoutTsComments, REPO_ROOT } from '@kitchensink/repo-guards/roleSplitSources';
+import { productionSources, readSource, REPO_ROOT } from '@kitchensink/repo-guards/roleSplitSources';
+import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -104,7 +105,7 @@ function declaredGroupsIn(text: string): DeclaredGroups {
 
 /** The log groups one infra source declares. */
 function declaredGroups(source: string): DeclaredGroups {
-    return declaredGroupsIn(withoutTsComments(readSource(source)));
+    return declaredGroupsIn(withoutTsComments(readSource(source), source));
 }
 
 /**
@@ -118,7 +119,7 @@ function declaredGroups(source: string): DeclaredGroups {
  * @returns The number of filters declared. Pure.
  */
 function filterCount(source: string): number {
-    return [...withoutTsComments(readSource(source)).matchAll(/new logs\.SubscriptionFilter\(/gu)].length;
+    return [...withoutTsComments(readSource(source), source).matchAll(/new logs\.SubscriptionFilter\(/gu)].length;
 }
 
 describe('reading a source for its log groups', () => {
@@ -224,7 +225,7 @@ describe('the log-drain register (ADR-0042)', () => {
      */
     it('⛔ no stack imports the forwarder ARN as a CloudFormation export — that is the deadlock', () => {
         const importers = infraSources().filter((source) =>
-            /Fn\.importValue\([^)]*LogForwarderArn/u.test(withoutTsComments(readSource(source))),
+            /Fn\.importValue\([^)]*LogForwarderArn/u.test(withoutTsComments(readSource(source), source)),
         );
 
         expect(importers, importers.join('\n')).toEqual([]);
@@ -275,7 +276,7 @@ describe('the log-drain register (ADR-0042)', () => {
         const defects: string[] = [];
 
         for (const source of infraSources()) {
-            const text = withoutTsComments(readSource(source));
+            const text = withoutTsComments(readSource(source), source);
 
             if (filterCount(source) === 0 || text.includes("new CfnOutput(this, 'LogForwarderArn'")) {
                 continue;
@@ -402,7 +403,9 @@ describe('the log-drain register (ADR-0042)', () => {
 
     /** Infra sources whose stacks guard a filter on `props.logForwarderArn`. */
     const conditionalStacks = memoize((): readonly string[] =>
-        infraSources().filter((source) => /props\.logForwarderArn/u.test(withoutTsComments(readSource(source)))),
+        infraSources().filter((source) =>
+            /props\.logForwarderArn/u.test(withoutTsComments(readSource(source), source)),
+        ),
     );
 
     /**
@@ -439,7 +442,7 @@ describe('the log-drain register (ADR-0042)', () => {
                 return false;
             }
 
-            const text = withoutTsComments(readSource(source));
+            const text = withoutTsComments(readSource(source), source);
 
             return guardedClasses().some((className) => text.includes(`new ${className}(`));
         }),
@@ -477,7 +480,7 @@ describe('the log-drain register (ADR-0042)', () => {
             /\.\.\.\(process\.env\['LOG_FORWARDER_ARN'\] === undefined \|\|\s*process\.env\['LOG_FORWARDER_ARN'\] === ''/gu;
 
         for (const source of conditionalEntries()) {
-            const text = withoutTsComments(readSource(source));
+            const text = withoutTsComments(readSource(source), source);
             const readings = [...text.matchAll(GUARDED_READING)].length;
             const constructions = guardedClasses().reduce(
                 (total, className) => total + [...text.matchAll(new RegExp(`new ${className}\\(`, 'gu'))].length,

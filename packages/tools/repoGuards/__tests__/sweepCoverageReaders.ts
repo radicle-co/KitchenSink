@@ -25,6 +25,7 @@ import path from 'node:path';
 import ts from 'typescript';
 
 import { parse, presentFiles, repoRoot, visit, type SourceFile } from './serviceSources.js';
+import { withoutSqlComments } from './sourceComments.js';
 
 /**
  * The column names that make a row attributable to a person in this repository.
@@ -48,16 +49,6 @@ export const OWNER_COLUMNS = [
     // the private-food binding step of each recipe sweep reaches it.
     'food_owner_id',
 ] as const;
-
-/**
- * Strip SQL comments so prose about a column is never read as a column.
- *
- * @param sql - Raw migration text.
- * @returns The same text with `--` lines and `/* *\/` blocks blanked. Pure.
- */
-export function stripSqlComments(sql: string): string {
-    return sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ');
-}
 
 /**
  * The clause text of every `ALTER TABLE <table>` statement in one source, up to its `;`.
@@ -269,7 +260,7 @@ export function notNullColumnsOf(migrations: readonly SourceFile[], table: strin
     const byTable = new Map<string, Set<string>>();
 
     for (const source of migrations) {
-        for (const statement of stripSqlComments(source.contents).split(';')) {
+        for (const statement of withoutSqlComments(source.contents).split(';')) {
             const create = /^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?\s*\(/i.exec(statement);
             const drop = /^\s*DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(.+)$/is.exec(statement);
 
@@ -344,7 +335,7 @@ export function notNullColumnsOf(migrations: readonly SourceFile[], table: strin
  *
  * ⚠️ Recipe's `0051_ingredient_grain.sql` is the FIRST REAL `DROP TABLE` in a folded migration directory,
  * the precise mirror of "0033 is the first drop" that the column arm records. Every earlier occurrence in a
- * folded directory (recipe's 0021, 0022 and 0029) is inside a COMMENT, blanked by {@link stripSqlComments}
+ * folded directory (recipe's 0021, 0022 and 0029) is inside a COMMENT, blanked by {@link withoutSqlComments}
  * before this runs — which is why nothing needed this arm until now, and why it is not speculative.
  *
  * ⛔ TWO SHAPES IT MUST PARSE OR IT REINTRODUCES THE CLASS IT CLOSES: `IF EXISTS`, and the MULTI-NAME form
@@ -373,7 +364,7 @@ export function columnEffectsIn(
     readonly dropped: readonly string[];
     readonly renamed: readonly (readonly [string, string])[];
 } {
-    const sql = stripSqlComments(source.contents);
+    const sql = withoutSqlComments(source.contents);
     const gained: [string, string][] = [];
     const lost: [string, string][] = [];
     const dropped: string[] = [];

@@ -64,6 +64,7 @@
         "@kitchensink/prettier": "*",
         "@kitchensink/recipe-service-client": "*",
         "@kitchensink/recipe-workers": "*",
+        "@kitchensink/repo-guards": "*",
         "@kitchensink/service-test-harness": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",

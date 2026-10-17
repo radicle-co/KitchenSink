@@ -21,6 +21,7 @@ import { describe, expect, it } from 'vitest';
 
 import { FOOD_CATALOG_REGISTRY } from '../../../../db/schema/catalog.js';
 import { CHECK_SQL, PREPARE_SQL, REFUSALS_SQL } from '../verifierSql.js';
+import { withoutSqlCommentsAndLiterals } from '@kitchensink/repo-guards/sourceComments';
 
 const SQL_DIR = join(import.meta.dirname, '../sql');
 
@@ -41,7 +42,7 @@ const CATALOG_NAMES: readonly string[] = [
  * @returns The text with every comment and quoted literal replaced by a space.
  */
 function codeOf(sql: string): string {
-    return sql.replace(/--[^\n]*|\/\*[\s\S]*?\*\/|'(?:[^']|'')*'/gu, ' ');
+    return withoutSqlCommentsAndLiterals(sql);
 }
 
 /**

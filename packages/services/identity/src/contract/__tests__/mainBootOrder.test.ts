@@ -17,6 +17,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
 
 /** `main.ts`'s source text. `import.meta.dirname` is `src/contract/__tests__`, so `src` is two levels up. */
 const source = await readFile(join(import.meta.dirname, '../../main.ts'), 'utf8');
@@ -26,7 +27,7 @@ const source = await readFile(join(import.meta.dirname, '../../main.ts'), 'utf8'
  * that is meant to be about code. The doc comment above `main.ts`'s dynamic import explains the static form
  * it replaced, which is exactly the text a naive scan mistakes for the thing it forbids.
  */
-const codeOnly = source.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/^[ \t]*\/\/.*$/gmu, '');
+const codeOnly = withoutTsComments(source, 'main.ts');
 
 describe('main.ts boot order', () => {
     // Non-vacuity: the negative assertion below is satisfied by a file that does not mention the app module at

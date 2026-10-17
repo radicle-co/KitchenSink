@@ -30,6 +30,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { isUnitTestFile, repoRoot } from './serviceSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 /** The modules that DEFINE the sign-in functions — their own references are not callers. */
 const DEFINITIONS: ReadonlySet<string> = new Set([
@@ -54,10 +55,8 @@ function callers(): readonly { readonly file: string; readonly source: string }[
 }
 
 /** Call sites of `establishSession(` in source, excluding comments. */
-function callSites(source: string): readonly { readonly index: number; readonly line: string }[] {
-    const code = source
-        .replace(/\/\*[\s\S]*?\*\//gu, (block) => ' '.repeat(block.length))
-        .replace(/\/\/.*$/gmu, (line) => ' '.repeat(line.length));
+function callSites(source: string, file: string): readonly { readonly index: number; readonly line: string }[] {
+    const code = withoutTsComments(source, file);
 
     return [...code.matchAll(SIGN_IN_CALL)].map((match) => ({
         index: match.index,
@@ -82,7 +81,7 @@ describe('callers of establishSession sign in one at a time', () => {
 
     it('awaits every call directly', () => {
         const unawaited = found.flatMap(({ file, source }) =>
-            callSites(source)
+            callSites(source, file)
                 .filter(({ index }) => !/await\s+$/u.test(source.slice(Math.max(0, index - 20), index)))
                 .map(({ line }) => `${file}: ${line.trim()}`),
         );
@@ -98,7 +97,7 @@ describe('callers of establishSession sign in one at a time', () => {
                 offences.push(`${file}: uses a Promise combinator alongside a sign-in`);
             }
 
-            for (const { index, line } of callSites(source)) {
+            for (const { index, line } of callSites(source, file)) {
                 // An async iterator callback opened shortly before the call. Indirection through a helper is not
                 // followed — the function's own queue is what keeps that case correct.
                 const before = source.slice(Math.max(0, index - 300), index);

@@ -23,7 +23,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { SCHEDULED_RULE_STAGE_TAG } from '../lib/sandbox-scheduler/scheduler.js';
-import { productionSources, readSource, REPO_ROOT, withoutTsComments } from '@kitchensink/repo-guards/roleSplitSources';
+import { productionSources, readSource, REPO_ROOT } from '@kitchensink/repo-guards/roleSplitSources';
+import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
 import {
     constructsScheduledRule,
     SHARED_CONSTRUCTS,
@@ -73,7 +74,7 @@ describe('every stack owning a scheduled rule holds it for the sandbox scheduler
     it('⛔ each owning stack applies the gate to itself, with its own stage', () => {
         const ungated = owners
             .filter(({ file }) => {
-                const code = withoutTsComments(readSource(file));
+                const code = withoutTsComments(readSource(file), file);
 
                 return !(GATE_CALL.test(code) && GATE_IMPORT.test(code));
             })

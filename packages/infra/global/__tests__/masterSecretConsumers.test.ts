@@ -21,7 +21,8 @@ import { describe, expect, it } from 'vitest';
 
 import { DataStack } from '../lib/platform/DataStack.js';
 import { NetworkStack } from '../lib/platform/NetworkStack.js';
-import { productionSources, readSource, withoutTsComments } from '@kitchensink/repo-guards/roleSplitSources';
+import { productionSources, readSource } from '@kitchensink/repo-guards/roleSplitSources';
+import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
 import { mediaDeliveryProps } from './mediaDeliveryProps.js';
 import { testApp } from './testApp.js';
 
@@ -70,7 +71,7 @@ describe('who may read the RDS master credential', () => {
     it('no stack outside DataStack imports the master secret export', () => {
         const importers = productionSources()
             .filter((path) => path !== 'packages/infra/global/lib/platform/DataStack.ts')
-            .filter((path) => /:DatabaseSecretArn\b/u.test(withoutTsComments(readSource(path))));
+            .filter((path) => /:DatabaseSecretArn\b/u.test(withoutTsComments(readSource(path), path)));
 
         expect(importers).toEqual([]);
     });
@@ -78,7 +79,7 @@ describe('who may read the RDS master credential', () => {
     it('no production file outside the global infra handlers reads DB_SECRET_ARN', () => {
         const readers = productionSources()
             .filter((path) => !path.startsWith('packages/infra/global/'))
-            .filter((path) => /\bDB_SECRET_ARN\b/u.test(withoutTsComments(readSource(path))));
+            .filter((path) => /\bDB_SECRET_ARN\b/u.test(withoutTsComments(readSource(path), path)));
 
         expect(readers).toEqual([]);
     });

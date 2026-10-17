@@ -156,6 +156,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { repoRoot, type SourceFile } from './serviceSources.js';
+import { withoutSqlComments } from './sourceComments.js';
 import {
     OWNER_COLUMNS,
     alterClausesIn,
@@ -165,7 +166,6 @@ import {
     readSource,
     renameTargetsIn,
     statementTextsIn,
-    stripSqlComments,
     sweptTablesIn,
     isOwnerColumn,
     notNullColumnsOf,
@@ -584,7 +584,7 @@ function checkExpressionsFor(sources: readonly SourceFile[], table: string): rea
     };
 
     for (const source of sources) {
-        const sql = stripSqlComments(source.contents);
+        const sql = withoutSqlComments(source.contents);
         const create = new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?"?${table}"?\\s*\\(`, 'i').exec(sql);
 
         if (create !== null) {
@@ -646,7 +646,7 @@ function currentColumnsOf(migrations: readonly SourceFile[], table: string): rea
     const columns = new Set<string>();
 
     for (const source of migrations) {
-        const sql = stripSqlComments(source.contents);
+        const sql = withoutSqlComments(source.contents);
         const create = new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?"?${table}"?\\s*\\(`, 'i').exec(sql);
 
         if (create !== null) {

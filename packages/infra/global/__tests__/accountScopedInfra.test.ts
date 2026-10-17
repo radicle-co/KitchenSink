@@ -7,11 +7,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
+import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
 
 const source = (relative: string): string => readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8');
 
 const appSource = source('../bin/account.ts');
-const code = appSource.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/\/\/[^\n]*/gu, '');
+const code = withoutTsComments(appSource, 'account.ts');
 
 const constructed = [...code.matchAll(/new (\w+Stack)\(\s*app,\s*'[^']+',\s*\{([\s\S]*?)\}\s*\);/gu)].map((match) => ({
     name: match[1] ?? '',

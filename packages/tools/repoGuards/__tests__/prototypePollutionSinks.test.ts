@@ -30,7 +30,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { readSource, sinkScanSources, withoutTsComments } from './roleSplitSources.js';
+import { readSource, sinkScanSources } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 let scannedCache: readonly string[] | undefined;
 const rawCache = new Map<string, string>();
@@ -71,7 +72,7 @@ const ASSIGN_WRITE = String.raw`Object\.assign\(`;
  * match by being stripped.
  *
  * ⚠️ And it costs nothing: 491 of the 1,983 swept files match it against 523 for the old `{}` token, so the
- * strip — the expensive per-character pass — is still paid on roughly a quarter of the corpus.
+ * strip — the expensive parse — is still paid on roughly a quarter of the corpus.
  */
 const DATA_KEY_WRITE = new RegExp(`${INDEXED_WRITE}|${ASSIGN_WRITE}`, 'u');
 
@@ -106,7 +107,7 @@ function rawSource(path: string): string {
  *
  * ⛔ CACHED, and that is a CI requirement rather than a tuning choice. Widening the sweep to `.tsx` and
  * `.mjs` added 693 files, and the two assertions below walk the set independently — so every file was read
- * and scanned twice, `withoutTsComments` being a per-character scanner. It TIMED OUT on CI's 2-core runner
+ * and scanned twice, `withoutTsComments` being a full TypeScript parse of each file. It TIMED OUT on CI's 2-core runner
  * and failed `infra — global` in both lanes on the first push. A guard that cannot finish is a guard that
  * is switched off.
  *
@@ -123,7 +124,7 @@ function strippedSource(path: string): string {
     let text = strippedCache.get(path);
 
     if (text === undefined) {
-        text = withoutTsComments(rawSource(path));
+        text = withoutTsComments(rawSource(path), path);
         strippedCache.set(path, text);
     }
 

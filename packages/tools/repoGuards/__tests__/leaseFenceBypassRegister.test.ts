@@ -26,7 +26,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { productionSources, readSource, withoutTsComments } from './roleSplitSources.js';
+import { productionSources, readSource } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 /** The literal a settle presents when it holds no claim (`foods/dao/leaseFence.ts`). */
 const BYPASS = "'out-of-band'";
@@ -76,7 +77,7 @@ const MECHANISM: readonly string[] = [
 
 /** Repo-relative production files that mention the bypass literal outside a comment. */
 function filesUsingBypass(): readonly string[] {
-    return productionSources().filter((path) => withoutTsComments(readSource(path)).includes(BYPASS));
+    return productionSources().filter((path) => withoutTsComments(readSource(path), path).includes(BYPASS));
 }
 
 describe('the lease-fence bypass is a register, not a convention (R16)', () => {
@@ -85,7 +86,7 @@ describe('the lease-fence bypass is a register, not a convention (R16)', () => {
     });
 
     it('the files excused as MECHANISM really are the fence itself, not call sites', () => {
-        const [dao, fence] = MECHANISM.map((path) => withoutTsComments(readSource(path)));
+        const [dao, fence] = MECHANISM.map((path) => withoutTsComments(readSource(path), path));
 
         // The union member is declared in one place...
         expect(fence).toMatch(/SettleAuthority = LeaseFence \| 'out-of-band'/u);

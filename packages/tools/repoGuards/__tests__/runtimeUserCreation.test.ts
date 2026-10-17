@@ -36,6 +36,7 @@ import { describe, expect, it } from 'vitest';
 import { WORKFLOWS_DIR } from './cdkApps.js';
 import { isUnitTestFile, repoRoot, trackedFiles } from './serviceSources.js';
 import { scalarText } from './workflowScalar.js';
+import { withoutComments } from './sourceComments.js';
 
 /** The files permitted to create a Clerk user, each with the reason. */
 const CREATORS: Readonly<Record<string, string>> = {
@@ -62,11 +63,8 @@ const CREATION: readonly { readonly name: string; readonly pattern: RegExp }[] =
 const SELF = 'packages/tools/repoGuards/__tests__/runtimeUserCreation.test.ts';
 
 /** Source with block and line comments blanked (URLs inside strings survive: `//` after `:` is kept). */
-function code(source: string): string {
-    return source
-        .replace(/\/\*[\s\S]*?\*\//gu, (block) => block.replace(/[^\n]/gu, ' '))
-        .replace(/(^|[^:'"`])\/\/.*$/gmu, '$1')
-        .replace(/^\s*#.*$/gmu, '');
+function code(source: string, file = 'sample.ts'): string {
+    return withoutComments(file, source);
 }
 
 /** Every tracked, non-unit-test source file and the creation shapes it matches. */
@@ -86,7 +84,7 @@ function creators(): ReadonlyMap<string, readonly string[]> {
         let source: string;
 
         try {
-            source = code(readFileSync(path.join(repoRoot, file), 'utf8'));
+            source = code(readFileSync(path.join(repoRoot, file), 'utf8'), file);
         } catch {
             // Staged for deletion but still in the index: nothing on disk can create anything.
             continue;
@@ -144,6 +142,26 @@ describe('no test run creates a Clerk user', () => {
 
         expect(CREATION.some(({ pattern }) => pattern.test(code('// clerk.users.createUser({})')))).toBe(false);
         expect(CREATION.some(({ pattern }) => pattern.test("await backend('/users?email_address=x');"))).toBe(false);
+    });
+
+    /**
+     * ⛔ THE DEFECT THE COMMENT READER USED TO HAVE. It stripped from any `//` to the end of the line unless a quote or a
+     * colon came right before it, so a `//` inside a string literal — a template that joins two path segments, a note
+     * with a slash pair in it — erased the REST of the line, creation call included, and the guard passed over it.
+     * Neither sample is a comment: the creation after each is code.
+     */
+    it('⛔ still finds a creation on the same line as a // inside a string', () => {
+        const hidden = [
+            'const url = `${origin}//v1`; await clerk.users.createUser({ emailAddress: [email] });',
+            "const note = 'a // b'; await clerk.users.createUser({ emailAddress: [email] });",
+        ];
+
+        for (const sample of hidden) {
+            expect(
+                CREATION.some(({ pattern }) => pattern.test(code(sample))),
+                sample,
+            ).toBe(true);
+        }
     });
 });
 

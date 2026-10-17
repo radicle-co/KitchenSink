@@ -61,6 +61,7 @@
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/recipe-core": "*",
+        "@kitchensink/repo-guards": "*",
         "@kitchensink/schema-food": "*",
         "@kitchensink/service-test-harness": "*",
         "@kitchensink/typescript": "*",

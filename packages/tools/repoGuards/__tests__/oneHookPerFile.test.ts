@@ -31,6 +31,8 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { withoutTsComments } from './sourceComments.js';
+
 /** The repo root — this file sits at `packages/tools/repoGuards/__tests__/`. */
 const REPO_ROOT = join(import.meta.dirname, '../../../..');
 
@@ -62,12 +64,13 @@ function frontEndSources(): readonly string[] {
  * Every hook a file DECLARES locally — `export … from` re-exports excluded.
  *
  * @param text - The file's source.
+ * @param path - Its path, which tells the comment reader whether JSX is on.
  * @returns The hook names, in source order. Pure.
  */
-function declaredHooks(text: string): readonly string[] {
-    const withoutComments = text.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/\/\/.*$/gmu, '');
+export function declaredHooks(text: string, path: string): readonly string[] {
+    const code = withoutTsComments(text, path);
 
-    return [...withoutComments.matchAll(/^export (?:async )?(?:function|const) (use[A-Z][A-Za-z0-9_]*)/gmu)].map(
+    return [...code.matchAll(/^export (?:async )?(?:function|const) (use[A-Z][A-Za-z0-9_]*)/gmu)].map(
         (match) => match[1] as string,
     );
 }
@@ -157,11 +160,27 @@ describe('one hook per file', () => {
         // export style — satisfies the rule perfectly while proving nothing. This repo has many hooks; if the
         // count collapses, that is the detector failing, not the tree improving.
         const total = frontEndSources().reduce(
-            (count, path) => count + declaredHooks(readFileSync(join(REPO_ROOT, path), 'utf8')).length,
+            (count, path) => count + declaredHooks(readFileSync(join(REPO_ROOT, path), 'utf8'), path).length,
             0,
         );
 
         expect(total).toBeGreaterThan(40);
+    });
+
+    /**
+     * ⛔ THE DEFECT THE COMMENT READER USED TO HAVE. A string holding a `/*` pair (a glob such as `src/**`) opened a
+     * "block comment" that ran to the next `*\/` — the close of the NEXT hook's docblock — so the hook between them
+     * vanished and a file with two hooks counted as one. The strings below are code; both hooks are real.
+     */
+    it('⛔ counts a hook that follows a string holding a block-comment opener', () => {
+        const source = [
+            "export const GLOB = 'src/**';",
+            'export function useFirst() {}',
+            '/** The second hook. */',
+            'export function useSecond() {}',
+        ].join('\n');
+
+        expect(declaredHooks(source, 'hooks.ts')).toEqual(['useFirst', 'useSecond']);
     });
 
     it('every exemption is a ruling — a reason, substantive, about a file that breaks the rule', () => {
@@ -172,7 +191,7 @@ describe('one hook per file', () => {
         const ruled = new Map(HOOK_EXEMPTIONS.map((exemption) => [exemption.file, exemption.hooks]));
 
         const offenders = frontEndSources()
-            .map((path) => [path, declaredHooks(readFileSync(join(REPO_ROOT, path), 'utf8'))] as const)
+            .map((path) => [path, declaredHooks(readFileSync(join(REPO_ROOT, path), 'utf8'), path)] as const)
             .filter(([path, hooks]) => hooks.length > 1 && ruled.get(path) !== hooks.length)
             .map(([path, hooks]) =>
                 ruled.has(path)

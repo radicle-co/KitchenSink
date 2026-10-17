@@ -36,6 +36,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { isUnitTestFile, repoRoot } from './serviceSources.js';
+import { withoutComments } from './sourceComments.js';
 
 /** The pool provisioner: every grant and the test-principal marker. */
 const POOL_WRITER = 'packages/tools/e2e-fixtures/src/poolAdmin.ts';
@@ -61,11 +62,8 @@ const WRITES: readonly { readonly name: string; readonly pattern: RegExp }[] = [
     },
 ];
 
-function code(source: string): string {
-    return source
-        .replace(/\/\*[\s\S]*?\*\//gu, (block) => block.replace(/[^\n]/gu, ' '))
-        .replace(/(^|[^:'"`])\/\/.*$/gmu, '$1')
-        .replace(/^\s*#.*$/gmu, '');
+function code(source: string, file = 'sample.ts'): string {
+    return withoutComments(file, source);
 }
 
 function writers(): ReadonlyMap<string, readonly string[]> {
@@ -84,7 +82,7 @@ function writers(): ReadonlyMap<string, readonly string[]> {
         let source: string;
 
         try {
-            source = code(readFileSync(path.join(repoRoot, file), 'utf8'));
+            source = code(readFileSync(path.join(repoRoot, file), 'utf8'), file);
         } catch {
             continue;
         }
@@ -120,7 +118,7 @@ describe('Clerk public_metadata has a single writer', () => {
     });
 
     it('⛔ the sign-up role writer only MERGES, and only the `roles` key', () => {
-        const source = code(readFileSync(path.join(repoRoot, ROLE_WRITER), 'utf8'));
+        const source = code(readFileSync(path.join(repoRoot, ROLE_WRITER), 'utf8'), ROLE_WRITER);
 
         expect(found.get(ROLE_WRITER)).toStrictEqual(['SDK metadata update']);
         expect(source.match(/\.(?:update|replace)UserMetadata\(/gu)).toStrictEqual(['.updateUserMetadata(']);
@@ -140,6 +138,20 @@ describe('Clerk public_metadata has a single writer', () => {
         ];
 
         for (const sample of writes) {
+            expect(
+                WRITES.some(({ pattern }) => pattern.test(code(sample))),
+                sample,
+            ).toBe(true);
+        }
+
+        // ⛔ A `//` inside a string literal is not a comment: the old reader erased the rest of the line from it, so a
+        // metadata write sharing that line was invisible to this guard.
+        const hiddenBehindString = [
+            'const url = `${origin}//v1`; await clerk.users.updateUserMetadata(id, { publicMetadata: {} });',
+            "const note = 'a // b'; await clerk.users.updateUserMetadata(id, { publicMetadata: {} });",
+        ];
+
+        for (const sample of hiddenBehindString) {
             expect(
                 WRITES.some(({ pattern }) => pattern.test(code(sample))),
                 sample,

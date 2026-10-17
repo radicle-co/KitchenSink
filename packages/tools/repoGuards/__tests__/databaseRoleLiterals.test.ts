@@ -19,7 +19,8 @@ import { describe, expect, it } from 'vitest';
 
 import { DATABASE_ROLES, RDS_MASTER_USERNAME } from '@kitchensink/db-schema-guard';
 
-import { productionSources, readSource, withoutTsComments } from './roleSplitSources.js';
+import { productionSources, readSource } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 /** The one file allowed to spell the names out. */
 const REGISTRY = 'packages/shared/db-schema-guard/src/roles/databaseRoles.ts';
@@ -40,7 +41,7 @@ describe('database role names live only in the registry', () => {
         const offenders = productionSources()
             .filter((path) => path !== REGISTRY)
             .flatMap((path) =>
-                [...withoutTsComments(readSource(path)).matchAll(LITERAL)].map((match) => `${path}: ${match[0]}`),
+                [...withoutTsComments(readSource(path), path).matchAll(LITERAL)].map((match) => `${path}: ${match[0]}`),
             );
 
         expect(offenders).toEqual([]);

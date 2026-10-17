@@ -21,7 +21,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { readSource, withoutTsComments } from './roleSplitSources.js';
+import { readSource } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 import { isTestFile, presentFiles } from './serviceSources.js';
 import { findPgTables } from './specDeclarations.js';
 

@@ -66,7 +66,8 @@ import {
     workflowJobs,
 } from './cdkApps.js';
 import { repoRoot } from './serviceSources.js';
-import { productionSources, readSource, withoutTsComments } from './roleSplitSources.js';
+import { productionSources, readSource } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 /** The verifier every deploy job must run. Named once; the assertions below derive everything else. */
 const VERIFIER = 'verifyDeployment.sh';
@@ -509,7 +510,7 @@ describe('every verified app is also swept for log drains (ADR-0042)', () => {
         productionSources()
             .filter((path) => /infra\/lib\/.*\.ts$/u.test(path) || path.includes('/lib/platform/'))
             .filter((path) => {
-                const text = withoutTsComments(readSource(path));
+                const text = withoutTsComments(readSource(path), path);
 
                 // ⚠️ EITHER declares a filter OR carries the ARN prop, because a drain can live one level
                 // below the entry: `bin/app.ts` builds `GlobalStack`, which declares no filter itself and
@@ -532,7 +533,7 @@ describe('every verified app is also swept for log drains (ADR-0042)', () => {
             return false;
         }
 
-        const text = withoutTsComments(readFileSync(path, 'utf8'));
+        const text = withoutTsComments(readFileSync(path, 'utf8'), path);
 
         return filterOwningClasses().some((className) => text.includes(`new ${className}(`));
     };

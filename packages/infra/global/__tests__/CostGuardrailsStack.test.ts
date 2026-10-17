@@ -13,6 +13,7 @@ import { describe, it, expect } from 'vitest';
 
 import { CostGuardrailsStack } from '../lib/platform/CostGuardrailsStack.js';
 import { testApp } from './testApp.js';
+import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
 
 const env = { account: '123456789012', region: 'us-east-1' };
 const ALERT_EMAIL = 'alerts@example.com';
@@ -162,7 +163,7 @@ describe('CostGuardrailsStack is created once, by an app with no stage (bin/acco
         // account-scoped distinction, so it says the word "stage" repeatedly and legitimately — an
         // assertion that counted those would be unsatisfiable, and an unsatisfiable guard gets deleted
         // rather than obeyed.
-        const code = appSource.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/\/\/[^\n]*/gu, '');
+        const code = withoutTsComments(appSource, 'account.ts');
 
         expect(code).not.toMatch(/\bstage\b/u);
         expect(code).not.toMatch(/STAGE/u);

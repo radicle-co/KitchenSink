@@ -25,7 +25,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { IAM_POLICY_DATA, productionSources, readSource, withoutTsComments } from './roleSplitSources.js';
+import { IAM_POLICY_DATA, productionSources, readSource } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 /**
  * Who may do what, per infra file. Each entry is `<subject>.<authority>(<grantee>)` exactly as the source
@@ -148,7 +149,7 @@ function discovered(): Record<string, readonly string[]> {
     const authorities: Record<string, readonly string[]> = {};
 
     for (const path of productionSources().filter((candidate) => !IAM_POLICY_DATA.test(candidate))) {
-        const found = queueAuthorities(withoutTsComments(readSource(path)));
+        const found = queueAuthorities(withoutTsComments(readSource(path), path));
 
         if (found.length > 0) {
             authorities[path] = found;

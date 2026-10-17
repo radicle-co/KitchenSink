@@ -41,7 +41,7 @@
  * `SET EXPRESSION` constraint in a comment that QUOTES the DDL, and a textual gate that reports its own
  * rationale as a violation is a gate that gets deleted.
  *
- * DESIGN PATTERN: Specification module over pure predicates — {@link stripSqlComments} and
+ * DESIGN PATTERN: Specification module over pure predicates — {@link withoutSqlComments} and
  * {@link generatedColumnFaults} are pure functions over one file's text, fired at deliberately-violating
  * fakes below as well as at every tracked migration.
  */
@@ -51,6 +51,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { presentFiles, repoRoot } from './serviceSources.js';
+import { withoutSqlComments } from './sourceComments.js';
 
 /** Every SQL file in the tree, discovered rather than enumerated, so a new service's migrations are covered. */
 const SUBJECT_PATHSPECS = ['*.sql'];
@@ -84,9 +85,6 @@ function endOfQuoted(sql: string, start: number, quote: string): number {
 
     return sql.length;
 }
-
-/** A dollar-quote opening tag (`$$`, `$fn$`) anchored at the scan position. */
-const DOLLAR_TAG = /\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$/y;
 
 /**
  * The index just past the balanced parenthesis group opening at `start`, or `undefined` when unbalanced.
@@ -125,85 +123,6 @@ function endOfParens(sql: string, start: number): number | undefined {
     return undefined;
 }
 
-/**
- * The same SQL with every comment blanked out.
- *
- * Comments become spaces rather than being deleted, and newlines are preserved, so every byte offset — and
- * therefore every reported line number — still refers to the original file. Quoted text and dollar-quoted
- * bodies are skipped intact: a `--` inside a string literal is not a comment.
- *
- * @param sql - The file's text.
- * @returns The text with comments replaced by spaces, same length. Pure.
- */
-export function stripSqlComments(sql: string): string {
-    const out = [...sql];
-    let index = 0;
-
-    const blank = (from: number, to: number): void => {
-        for (let cursor = from; cursor < to; cursor += 1) {
-            if (out[cursor] !== '\n') {
-                out[cursor] = ' ';
-            }
-        }
-    };
-
-    while (index < sql.length) {
-        const char = sql[index];
-
-        if (char === "'" || char === '"') {
-            index = endOfQuoted(sql, index, char);
-            continue;
-        }
-
-        if (char === '$') {
-            DOLLAR_TAG.lastIndex = index;
-            const tag = DOLLAR_TAG.exec(sql)?.[0];
-
-            if (tag !== undefined) {
-                const close = sql.indexOf(tag, index + tag.length);
-
-                index = close === -1 ? sql.length : close + tag.length;
-                continue;
-            }
-        }
-
-        if (char === '-' && sql[index + 1] === '-') {
-            const newline = sql.indexOf('\n', index);
-            const stop = newline === -1 ? sql.length : newline;
-
-            blank(index, stop);
-            index = stop;
-            continue;
-        }
-
-        if (char === '/' && sql[index + 1] === '*') {
-            // PostgreSQL block comments NEST, unlike C's — `/* a /* b */ c */` is one comment, not two.
-            let depth = 1;
-            let cursor = index + 2;
-
-            while (cursor < sql.length && depth > 0) {
-                if (sql.startsWith('/*', cursor)) {
-                    depth += 1;
-                    cursor += 2;
-                } else if (sql.startsWith('*/', cursor)) {
-                    depth -= 1;
-                    cursor += 2;
-                } else {
-                    cursor += 1;
-                }
-            }
-
-            blank(index, cursor);
-            index = cursor;
-            continue;
-        }
-
-        index += 1;
-    }
-
-    return out.join('');
-}
-
 /** `GENERATED ALWAYS AS`, the only spelling that introduces a generation expression. */
 const GENERATED_ALWAYS_AS = /GENERATED\s+ALWAYS\s+AS\b/giu;
 
@@ -215,7 +134,7 @@ const GENERATED_ALWAYS_AS = /GENERATED\s+ALWAYS\s+AS\b/giu;
  * @returns One sentence per fault, empty when the file is correct. Pure.
  */
 export function generatedColumnFaults(file: string, sql: string): readonly string[] {
-    const code = stripSqlComments(sql);
+    const code = withoutSqlComments(sql);
     const faults: string[] = [];
 
     for (const match of code.matchAll(GENERATED_ALWAYS_AS)) {
@@ -350,13 +269,20 @@ describe('the generated-column verdict detects the absence of what it asserts', 
         );
     });
 
-    it('reads a generated column inside a dollar-quoted function body as code, not as a comment', () => {
-        expect(stripSqlComments('CREATE FUNCTION f() AS $fn$ -- kept\n$fn$;')).toContain('-- kept');
+    it('reads a generated column inside a dollar-quoted function body as code, and still blanks a comment there', () => {
+        // Rewritten with the move to `sourceComments.ts`: the old stripper skipped a dollar-quoted body whole, so a
+        // comment inside it survived. The shared reader scans the body as SQL — its code stays visible to this
+        // gate, and a comment in it is a comment, as it is to PostgreSQL.
+        const stripped = withoutSqlComments('CREATE FUNCTION f() AS $fn$ SELECT 1; -- note\n$fn$;');
+
+        expect(stripped).toContain('SELECT 1;');
+        expect(stripped).toContain('$fn$;');
+        expect(stripped).not.toContain('note');
     });
 
     it('blanks a line comment while preserving every byte offset, so line numbers stay true', () => {
         const source = 'SELECT 1; -- note\nSELECT 2;';
-        const stripped = stripSqlComments(source);
+        const stripped = withoutSqlComments(source);
 
         expect(stripped).toHaveLength(source.length);
         expect(stripped).not.toContain('note');
@@ -366,7 +292,7 @@ describe('the generated-column verdict detects the absence of what it asserts', 
 
     it('blanks a NESTED block comment as ONE comment, not two', () => {
         const source = 'a /* x /* y */ z */ b';
-        const stripped = stripSqlComments(source);
+        const stripped = withoutSqlComments(source);
 
         // The naive non-nesting reading stops at the FIRST `*/` and leaves `z */ b` as code.
         expect(stripped).toHaveLength(source.length);

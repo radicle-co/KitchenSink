@@ -28,7 +28,8 @@ import { join } from 'node:path';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
-import { productionSources, readSource, withoutTsComments } from './roleSplitSources.js';
+import { productionSources, readSource } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 const REPO_ROOT = join(__dirname, '..', '..', '..', '..');
 const PROD_DEPLOY = join(REPO_ROOT, '.github', 'workflows', 'prod-deploy.yml');
@@ -64,7 +65,7 @@ const NO_RELEASE_OWED: Readonly<Record<string, string>> = {
 function stacksWiringADsn(): readonly string[] {
     return productionSources()
         .filter((path) => /infra\/lib\/.*Stack\.ts$/u.test(path) || /lib\/platform\/.*Stack\.ts$/u.test(path))
-        .filter((path) => withoutTsComments(readSource(path)).includes('SENTRY_DSN'))
+        .filter((path) => withoutTsComments(readSource(path), path).includes('SENTRY_DSN'))
         .map((path) => (path.split('/').pop() ?? '').replace(/\.ts$/u, ''))
         .sort();
 }

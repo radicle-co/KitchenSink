@@ -19,11 +19,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
+import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
 
 const mainSource = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../main.ts'), 'utf8');
 
 /** `main.ts` with comments stripped, so a specifier mentioned in prose is not mistaken for an import. */
-const codeOnly = mainSource.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/\/\/[^\n]*/gu, '');
+const codeOnly = withoutTsComments(mainSource, 'main.ts');
 
 describe('src/main.ts boot order', () => {
     it('is not vacuous — the file really does reference the app module and the assertion', () => {

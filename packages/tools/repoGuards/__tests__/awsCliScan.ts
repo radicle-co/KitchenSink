@@ -23,7 +23,7 @@
  *
  * Everything here is pure.
  */
-import { withoutTsComments } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 /** One AWS CLI call found in a file. */
 export interface AwsInvocation {

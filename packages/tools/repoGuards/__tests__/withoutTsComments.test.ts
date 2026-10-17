@@ -14,7 +14,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { readSource, sinkScanSources, withoutTsComments } from './roleSplitSources.js';
+import { readSource, sinkScanSources } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 describe('withoutTsComments', () => {
     it('removes a line comment', () => {
@@ -136,7 +137,7 @@ describe('withoutTsComments', () => {
 
                 for (const path of sinkScanSources()) {
                     const raw = readSource(path);
-                    const stripped = withoutTsComments(raw);
+                    const stripped = withoutTsComments(raw, path);
 
                     if (stripped !== raw) {
                         changed += 1;

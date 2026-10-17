@@ -28,6 +28,7 @@ import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
 
 import { repoRoot } from './serviceSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 const SELECTORS = ['CLERK_AUTHORIZED_PARTIES', 'CLERK_AZP_PATTERN', 'CLERK_AZP_PREVIEW_MODE'] as const;
 const GLOBAL_APP = /infra\/global\/bin\/app\.ts/u;
@@ -98,7 +99,7 @@ describe('every workflow that synthesizes the global app exports the Clerk azp s
     });
 
     it('turbo keeps all three for the synth task, so they are neither stripped nor missing from the cache key', () => {
-        const source = readFileSync(path.join(repoRoot, 'turbo.json'), 'utf8').replace(/^\s*\/\/.*$/gmu, '');
+        const source = withoutTsComments(readFileSync(path.join(repoRoot, 'turbo.json'), 'utf8'), 'turbo.json');
         const turbo = JSON.parse(source) as { tasks: Record<string, { env?: readonly string[] }> };
 
         for (const variable of SELECTORS) {

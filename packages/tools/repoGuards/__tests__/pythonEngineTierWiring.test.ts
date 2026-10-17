@@ -45,7 +45,8 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { type Reader, readTree, relativeImports } from './realDependencyReach.js';
-import { configReach, tierConfigs, withoutTsComments } from './roleSplitSources.js';
+import { configReach, tierConfigs } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 import { repoRoot } from './serviceSources.js';
 
 const CI_WORKFLOW = fileURLToPath(new URL('../../../../.github/workflows/_ci.yml', import.meta.url));

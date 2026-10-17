@@ -17,6 +17,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
 
 /** `main.ts`'s source text. `import.meta.dirname` is `src/contract/__tests__`, so `src` is two levels up. */
 const source = await readFile(join(import.meta.dirname, '../../main.ts'), 'utf8');
@@ -27,7 +28,7 @@ const source = await readFile(join(import.meta.dirname, '../../main.ts'), 'utf8'
  * Stripping first is what lets the negative assertion below be permissive about SPELLING without becoming a false
  * positive on the `// ⚠️` comment that explains why the static form is forbidden.
  */
-const codeOnly = source.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/\/\/[^\n]*/gu, '');
+const codeOnly = withoutTsComments(source, 'main.ts');
 
 describe('main.ts boot order', () => {
     // Non-vacuity: the negative assertion below is satisfied by a file that does not mention the app module at

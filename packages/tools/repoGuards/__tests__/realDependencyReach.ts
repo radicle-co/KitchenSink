@@ -21,14 +21,8 @@
  */
 import ts from 'typescript';
 
-import {
-    isTestModule,
-    parseSource,
-    readSource,
-    relativeSpecifiers,
-    resolveRelative,
-    withoutTsComments,
-} from './roleSplitSources.js';
+import { isTestModule, parseSource, readSource, relativeSpecifiers, resolveRelative } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 /** The kinds of door a suite can open. */
 export type DoorKind = 'database' | 'localstack' | 'awsClient' | 'browser';
@@ -475,7 +469,7 @@ function launchesBrowser(path: string, text: string): boolean {
  * @returns The kinds of door it opens.
  */
 export function doorsOpened(path: string, text: string, doorNames: readonly string[]): ReadonlySet<DoorKind> {
-    const code = withoutTsComments(text);
+    const code = withoutTsComments(text, path);
     const opened = new Set<DoorKind>();
 
     if (

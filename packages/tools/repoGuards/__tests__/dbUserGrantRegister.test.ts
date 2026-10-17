@@ -17,7 +17,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { IAM_POLICY_DATA, productionSources, readSource, withoutTsComments } from './roleSplitSources.js';
+import { IAM_POLICY_DATA, productionSources, readSource } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 /**
  * Which stack logs in as which role. Schema stacks migrate (`migrator`); service, worker and webhook stacks serve
@@ -60,7 +61,7 @@ function discoveredGrants(): Record<string, readonly string[]> {
     const grants: Record<string, readonly string[]> = {};
 
     for (const path of productionSources()) {
-        const users = grantUsers(withoutTsComments(readSource(path)));
+        const users = grantUsers(withoutTsComments(readSource(path), path));
 
         if (users.length > 0) {
             grants[path] = [...new Set(users)].sort();
@@ -99,7 +100,9 @@ describe('rds-db:connect grants', () => {
     it('are never hand-built: no production file writes an rds-db ARN itself', () => {
         const handBuilt = productionSources()
             .filter((path) => !IAM_POLICY_DATA.test(path))
-            .filter((path) => /['"`]rds-db(?::connect)?['"`]|:dbuser[:/]/u.test(withoutTsComments(readSource(path))));
+            .filter((path) =>
+                /['"`]rds-db(?::connect)?['"`]|:dbuser[:/]/u.test(withoutTsComments(readSource(path), path)),
+            );
 
         expect(handBuilt).toEqual([]);
     });

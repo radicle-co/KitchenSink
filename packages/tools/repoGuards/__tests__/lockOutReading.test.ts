@@ -13,7 +13,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { productionSources, readSource, withoutTsComments } from './roleSplitSources.js';
+import { productionSources, readSource } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 /** The production files allowed to name the relaxed reading. */
 const ALLOWED: readonly string[] = [
@@ -26,7 +27,7 @@ const ALLOWED: readonly string[] = [
 describe('the relaxed lock-out reading', () => {
     it('is named only by its definition and the vanilla-PostgreSQL harness', () => {
         const users = productionSources().filter((path) =>
-            /['"`]inherit-or-set['"`]/u.test(withoutTsComments(readSource(path))),
+            /['"`]inherit-or-set['"`]/u.test(withoutTsComments(readSource(path), path)),
         );
 
         expect(users).toEqual([...ALLOWED].sort());

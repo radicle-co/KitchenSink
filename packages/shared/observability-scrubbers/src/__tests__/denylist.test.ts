@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { DENYLIST_KEYS, ID_KEYS, isDeniedKey, isIdKey, looksLikeBearerToken } from '../denylist.js';
+import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
 
 /**
  * ⛔ THIS ENTRY MUST STAY PURE, OR THE SPLIT HAS BOUGHT NOTHING.
@@ -28,11 +29,7 @@ describe('the denylist entry is importable from a runtime with no Node built-ins
     const code = (): string => {
         const source = readFileSync(new URL('../denylist.ts', import.meta.url), 'utf8');
 
-        return source
-            .replace(/\/\*[\s\S]*?\*\//gu, '')
-            .split('\n')
-            .filter((line) => !line.trimStart().startsWith('//'))
-            .join('\n');
+        return withoutTsComments(source, 'denylist.ts');
     };
 
     it('⛔ imports nothing at all', () => {

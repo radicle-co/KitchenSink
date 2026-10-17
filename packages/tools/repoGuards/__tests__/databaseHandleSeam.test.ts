@@ -40,6 +40,8 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { withoutTsComments } from './sourceComments.js';
+
 /** The repo root — this file sits at `packages/tools/repoGuards/__tests__/`. */
 const REPO_ROOT = join(import.meta.dirname, '../../../..');
 
@@ -69,11 +71,6 @@ function productionTypeScript(): readonly string[] {
         );
 }
 
-/** A file's code with comments removed, so a docstring explaining the rule cannot violate it. Pure. */
-function withoutComments(text: string): string {
-    return text.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/\/\/.*$/gmu, '');
-}
-
 /**
  * A cast whose target is a drizzle database handle.
  *
@@ -95,7 +92,7 @@ describe('a database handle crosses a seam as a true type', () => {
 
     it('⛔ is never reached by an `as unknown as` cast in production code', () => {
         const offenders = productionTypeScript().filter((path) =>
-            HANDLE_CAST.test(withoutComments(readFileSync(join(REPO_ROOT, path), 'utf8'))),
+            HANDLE_CAST.test(withoutTsComments(readFileSync(join(REPO_ROOT, path), 'utf8'), path)),
         );
 
         expect(offenders).toEqual([]);

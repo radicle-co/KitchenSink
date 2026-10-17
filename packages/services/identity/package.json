@@ -65,6 +65,7 @@
         "@kitchensink/contract-gen": "*",
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
+        "@kitchensink/repo-guards": "*",
         "@kitchensink/service-test-harness": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",

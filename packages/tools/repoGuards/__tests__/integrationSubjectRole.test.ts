@@ -33,7 +33,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { integrationTierSources, readSource, withoutTsComments } from './roleSplitSources.js';
+import { integrationTierSources, readSource } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 /**
  * The connection variables a suite must not name — bracket form, dot form, or DESTRUCTURED out of
@@ -111,7 +112,7 @@ describe('service integration tiers', () => {
 
     it('⛔ never read DATABASE_URL / TEST_DATABASE_URL / DATABASE_ADMIN_URL themselves', () => {
         const offenders = integrationTierSources().filter((path) =>
-            CONNECTION_VARIABLES.test(withoutTsComments(readSource(path))),
+            CONNECTION_VARIABLES.test(withoutTsComments(readSource(path), path)),
         );
 
         expect(offenders).toEqual([]);
@@ -119,7 +120,7 @@ describe('service integration tiers', () => {
 
     it('⛔ carry no superuser credential literal', () => {
         const offenders = integrationTierSources().filter((path) =>
-            SUPERUSER_LITERAL.test(withoutTsComments(readSource(path))),
+            SUPERUSER_LITERAL.test(withoutTsComments(readSource(path), path)),
         );
 
         expect(offenders).toEqual([]);
@@ -127,7 +128,7 @@ describe('service integration tiers', () => {
 
     it('reach the stand-in master from exactly the files whose subject is a database-level operation', () => {
         const consumers = integrationTierSources().filter((path) =>
-            MASTER_SURFACE.test(withoutTsComments(readSource(path))),
+            MASTER_SURFACE.test(withoutTsComments(readSource(path), path)),
         );
 
         expect(consumers).toEqual([...MASTER_CONSUMERS].sort());
@@ -136,7 +137,7 @@ describe('service integration tiers', () => {
     it('connect as the seeder from exactly the files whose subject is the seed or the seeder’s own rights', () => {
         // Both doors to a seeder connection: the role database's `seederUrl`, and `urlFor` named with the seeder role.
         const subjects = integrationTierSources().filter((path) =>
-            /\bseederUrl\b|\burlFor\(\s*DATABASE_ROLES\.\w+\.seeder\b/u.test(withoutTsComments(readSource(path))),
+            /\bseederUrl\b|\burlFor\(\s*DATABASE_ROLES\.\w+\.seeder\b/u.test(withoutTsComments(readSource(path), path)),
         );
 
         expect(subjects).toEqual([...SEEDER_SUBJECTS].sort());

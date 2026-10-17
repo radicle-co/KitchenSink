@@ -23,6 +23,7 @@ import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
 
 import { repoRoot } from './serviceSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 const VARIABLE = 'COST_ALERT_EMAIL';
 const GLOBAL_APP = /infra\/global\/bin\/app\.ts/u;
@@ -71,7 +72,7 @@ describe('every workflow that deploys the global app passes COST_ALERT_EMAIL', (
     });
 
     it('turbo keeps it for the synth task, so it is neither stripped nor missing from the cache key', () => {
-        const source = readFileSync(path.join(repoRoot, 'turbo.json'), 'utf8').replace(/^\s*\/\/.*$/gmu, '');
+        const source = withoutTsComments(readFileSync(path.join(repoRoot, 'turbo.json'), 'utf8'), 'turbo.json');
         const turbo = JSON.parse(source) as { tasks: Record<string, { env?: readonly string[] }> };
 
         expect(turbo.tasks['synth']?.env).toContain(VARIABLE);

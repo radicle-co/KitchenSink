@@ -34,7 +34,7 @@ import { fileURLToPath } from 'node:url';
 import { globSync } from 'glob';
 import { describe, expect, it } from 'vitest';
 
-import { withoutTsComments } from './roleSplitSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
 
@@ -68,7 +68,7 @@ const discoverQueryOptionFiles = (): ReadonlyMap<string, string> =>
             .sort()
             .map((file) => [file, readFileSync(path.join(REPO_ROOT, file), 'utf8')] as const)
             .filter(([, text]) => text.includes(TANSTACK_IMPORT))
-            .map(([file, text]) => [file, withoutTsComments(text)] as const)
+            .map(([file, text]) => [file, withoutTsComments(text, file)] as const)
             .filter(([, code]) => buildsQueryOptions(code)),
     );
 

@@ -1,4 +1,4 @@
-appId: io.commise.mobile
+appId: ${APP_ID}
 ---
 # Dismisses the iOS keyboard's one-time "Speed up your typing by sliding your finger across the letters to compose a
 # word." card (Continue) when it is up; a no-op everywhere else (Android has no such card). iOS raises it over the

@@ -3,14 +3,12 @@
 # recipe page's ⋯ menu and in the editor's "Who can see it". The mobile twin of the Q5 block in
 # `web/tests/e2e/paidFeatureGate.spec.ts`.
 #
-# ⛔ PRECONDITION NO RUN PROVIDES, which is why this flow is in `KNOWN_UNRUN_FLOWS`: it signs in as the pool's DOWNGRADED
-# OWNER (`roles/roledowngraded`), a cook who owns a PRIVATE recipe and a PRIVATE collection while holding no entitled role.
-# The recipe service refuses to make anything private for such a cook, so that world can only be written while the lane is
-# premium and the lane downgraded after. The owner does it once, in this order (`poolAdmin.ts` states it):
-#   1. poolAdmin --apply                          2. npm run seed-downgraded --workspace=packages/tools/e2e-seed
-#   3. poolAdmin --apply --settle-downgraded
-# Then plan this flow in `FLOW_PLAN` and delete its `KNOWN_UNRUN_FLOWS` entry (`maestroFlowSelection.test.ts` fails until
-# both are done together). The names are the fixed `DOWNGRADED_OWNER_WORLD`, delivered through the manifest.
+# ⛔ ITS WORLD IS WRITTEN ONCE, BY HAND: it signs in as the pool's DOWNGRADED OWNER (`roles/roledowngraded`), a cook who
+# owns a PRIVATE recipe and a PRIVATE collection while holding no entitled role. The recipe service refuses to make anything
+# private for such a cook, so that world is written while the lane is premium and the lane downgraded after, in the order
+# `poolAdmin.ts` states: `poolAdmin --apply`, `npm run seed-downgraded --workspace=packages/tools/e2e-seed`, then
+# `poolAdmin --apply --settle-downgraded`. A sandbox whose Clerk tenant or recipe database is rebuilt needs those three
+# steps again. The names are the fixed `DOWNGRADED_OWNER_WORLD`, delivered through the manifest.
 #
 # READ-ONLY by construction (the `roles` tier's rule, `POOL_TIERS`): every confirm is answered Keep private, so the world
 # stays private for every later run and no restore is owed. The Make public leg is pinned by the component suites and the

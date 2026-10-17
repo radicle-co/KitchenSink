@@ -233,6 +233,7 @@ recipes:recipes/edit
 recipes:recipes/versions
 recipes:recipes/visibility
 recipes:recipes/paidFeaturesByRole
+recipes:recipes/makePublicConfirm
 discovery:recipes/discoverBrowse
 discovery:recipes/discoverRecentSearches
 discovery:recipes/discoverIngredientCap

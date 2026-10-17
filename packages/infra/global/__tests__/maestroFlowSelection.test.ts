@@ -276,15 +276,6 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // co-author's pool lane has no password sign-in (`POOL_ROSTER` in `@kitchensink/e2e-fixtures`), so the flow cannot
     // sign in as them until the owner gives that lane one (`poolAdmin --apply`). Promote it to FLOW_PLAN then.
     'sessionHandoff',
-    // The make-public confirm (plan 2026-10-14-009 Q5, T1, T2): it signs in as the pool's downgraded owner
-    // (`roles/roledowngraded`), a cook who owns a PRIVATE recipe and a PRIVATE collection while holding no entitled role.
-    // The recipe service refuses to create that state, so the lane is made premium, seeded, then downgraded, in the order
-    // `poolAdmin.ts` states: `poolAdmin --apply`, `npm run seed-downgraded --workspace=packages/tools/e2e-seed`, then
-    // `poolAdmin --apply --settle-downgraded`. The roster, the seeder, the manifest keys and the flow are all written and
-    // tested; no run has performed those three steps, so planning the flow now would turn the next Maestro run red. When the
-    // owner has, add the flow to `FLOW_PLAN` and delete this entry in the same commit. Its states are pinned meanwhile by the
-    // component suites and `paidFeatureGate.spec.ts`.
-    'recipes/makePublicConfirm',
     'homeRecentRecipeTap',
     // Slice 3: the iOS edge swipe needs the iOS Simulator, which does not run on Linux (blueprint Q4); it runs by name on
     // a Mac until an iOS lane exists.
@@ -620,7 +611,7 @@ describe('the plan — ordering invariants the flows depend on', () => {
  * the device a sign-in goes through `LoginScreen`: email, password, then a new-device email code — one
  * verification. The credential block in `auth/signinHome.yaml` runs only when the login form is showing, and
  * the app's session persists in `expo-secure-store` between flows (the runner reinstalls the DRIVER, never the
- * app, and `e2e-seed reset` resets the database), so the form shows only after `clearState`. Three planned flows
+ * app, and `e2e-seed reset` resets the database), so the form shows only after `clearState`. Four planned flows
  * clear it, and each is a UI sign-in on purpose:
  *
  *   - `auth/loginFlow` — the spine, and the mobile sign-in UI test itself (one);
@@ -628,7 +619,10 @@ describe('the plan — ordering invariants the flows depend on', () => {
  *   - `recipes/paidFeaturesByRole` — the paid features by ROLE (plan 2026-10-14-009 D12): it must sign in as the `roles`
  *     tier's default, premium, vip and superuser users (four), and its `onFlowComplete` clears the device so the next
  *     flow signs back in as the shard's signer (one more). It runs on both platforms, for the reason
- *     `runMaestroFlows.sh` gives beside `FLOW_PLAN`.
+ *     `runMaestroFlows.sh` gives beside `FLOW_PLAN`;
+ *   - `recipes/makePublicConfirm` — the make-public confirm (plan 2026-10-14-009 Q5): it must sign in as the `roles`
+ *     tier's downgraded owner, the one cook who holds private work without an entitled role (one), and the next flow
+ *     signs back in as the shard's signer (one more).
  *
  * ⚠️ Replacing `accountErasure`'s UI sign-in with `e2e-seed`'s stored session is NOT available: that handle
  * belongs to the runner's Clerk client (a dev-browser JWT on the host), and nothing lets `@clerk/expo` on the
@@ -647,7 +641,7 @@ describe('the Clerk email-code budget — only the flows that test sign-in clear
     const planned = (): readonly { readonly flow: string; readonly body: string }[] =>
         ALL_FLOWS.map((flow) => ({ flow, body: readFileSync(join(MAESTRO_DIR, `${flow}.yaml`), 'utf8') }));
 
-    it('clears app state only in the sign-in UI test, the erasure flow and the paid-features-by-role flow', () => {
+    it('clears app state only in the sign-in UI test, the erasure flow and the two role flows', () => {
         const clearing = planned()
             .filter(({ body }) => /^\s*clearState:\s*true\b/mu.test(body))
             .map(({ flow }) => flow);
@@ -655,7 +649,7 @@ describe('the Clerk email-code budget — only the flows that test sign-in clear
         expect(
             clearing.sort(),
             'a flow that clears state forces a UI sign-in, which spends a shared Clerk email-code verification',
-        ).toEqual(['accountErasure', 'auth/loginFlow', 'recipes/paidFeaturesByRole']);
+        ).toEqual(['accountErasure', 'auth/loginFlow', 'recipes/makePublicConfirm', 'recipes/paidFeaturesByRole']);
     });
 
     it('types the fixed email code only in the guarded credential sub-flow — and the unplanned sign-up', () => {

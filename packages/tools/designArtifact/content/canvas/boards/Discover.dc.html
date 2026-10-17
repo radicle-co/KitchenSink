@@ -7,6 +7,15 @@
         <link rel="stylesheet" href="ds/commise/tokens.css" />
         <link rel="stylesheet" href="ds/commise/bundle.css" />
         <script src="ds/commise/bundle.js"></script>
+        <!-- PROPOSAL (owner comment on the canvas, 2026-10-17): on web, the profile sits at the top right of the screen,
+             as on mobile, and the sidebar no longer has a profile row. The product still draws it in the sidebar from
+             840 px, where LargeTitleHeader hides its avatar; this rule shows that avatar instead. -->
+        <style>
+            .col-start-3.row-start-1.justify-self-end.nav\:hidden {
+                display: block;
+                align-self: flex-start;
+            }
+        </style>
     </head>
     <body>
         <x-dc
@@ -359,33 +368,6 @@
                                     ><span>Discover</span></a
                                 >
                             </nav>
-                            <div style="margin: 12px; border-top: 1px solid var(--line-divider)"></div>
-                            <a
-                                href="/en/profile"
-                                aria-label="Profile, Eliza Ramirez"
-                                style="
-                                    display: flex;
-                                    min-height: 44px;
-                                    align-items: center;
-                                    gap: 12px;
-                                    border-radius: 12px;
-                                    padding: 0 12px;
-                                    font: 600 14px/1.2 var(--font-body);
-                                    text-decoration: none;
-                                    position: relative;
-                                    margin: 0 12px;
-                                    color: var(--ink);
-                                "
-                                ><x-import
-                                    component-from-global-scope="Commise.AvatarDisc"
-                                    status="ready"
-                                    initials="ER"
-                                ></x-import
-                                ><span
-                                    style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
-                                    >Eliza Ramirez</span
-                                ></a
-                            >
                             <div style="margin-top: auto">
                                 <button
                                     type="button"

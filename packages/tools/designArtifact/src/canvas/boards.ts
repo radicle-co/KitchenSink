@@ -39,11 +39,11 @@ export const BOARD_WIDTH: Readonly<Record<BoardPlatform, number>> = { web: 1280,
 
 /** Every board, in canvas order. */
 export const BOARDS: readonly BoardSpec[] = [
-    { file: 'Home.dc.html', title: 'Home (web)', row: 'Home', platform: 'web', height: 962 },
+    { file: 'Home.dc.html', title: 'Home, proposal (web)', row: 'Home', platform: 'web', height: 962 },
     { file: 'HomeMobile.dc.html', title: 'Home (mobile)', row: 'Home', platform: 'native', height: 1388 },
-    { file: 'Discover.dc.html', title: 'Discover (web)', row: 'Discover', platform: 'web', height: 1694 },
+    { file: 'Discover.dc.html', title: 'Discover, proposal (web)', row: 'Discover', platform: 'web', height: 1694 },
     { file: 'DiscoverMobile.dc.html', title: 'Discover (mobile)', row: 'Discover', platform: 'native', height: 1949 },
-    { file: 'Recipes.dc.html', title: 'My recipes (web)', row: 'My recipes', platform: 'web', height: 1620 },
+    { file: 'Recipes.dc.html', title: 'My recipes, proposal (web)', row: 'My recipes', platform: 'web', height: 1620 },
     {
         file: 'RecipesMobile.dc.html',
         title: 'My recipes (mobile)',
@@ -51,7 +51,13 @@ export const BOARDS: readonly BoardSpec[] = [
         platform: 'native',
         height: 1439,
     },
-    { file: 'Collections.dc.html', title: 'Collections (web)', row: 'Collections', platform: 'web', height: 1074 },
+    {
+        file: 'Collections.dc.html',
+        title: 'Collections, proposal (web)',
+        row: 'Collections',
+        platform: 'web',
+        height: 1074,
+    },
     {
         file: 'CollectionsMobile.dc.html',
         title: 'Collections (mobile)',
@@ -61,7 +67,7 @@ export const BOARDS: readonly BoardSpec[] = [
     },
     {
         file: 'CollectionDetail.dc.html',
-        title: 'Collection detail (web)',
+        title: 'Collection detail, proposal (web)',
         row: 'Collection detail',
         platform: 'web',
         height: 1125,
@@ -73,7 +79,13 @@ export const BOARDS: readonly BoardSpec[] = [
         platform: 'native',
         height: 1172,
     },
-    { file: 'RecipeDetail.dc.html', title: 'Recipe detail (web)', row: 'Recipe detail', platform: 'web', height: 1923 },
+    {
+        file: 'RecipeDetail.dc.html',
+        title: 'Recipe detail, proposal (web)',
+        row: 'Recipe detail',
+        platform: 'web',
+        height: 1923,
+    },
     {
         file: 'RecipeDetailMobile.dc.html',
         title: 'Recipe detail (mobile)',
@@ -83,7 +95,7 @@ export const BOARDS: readonly BoardSpec[] = [
     },
     {
         file: 'RecipeVersions.dc.html',
-        title: 'Recipe versions (web)',
+        title: 'Recipe versions, proposal (web)',
         row: 'Recipe versions',
         platform: 'web',
         height: 844,
@@ -97,7 +109,7 @@ export const BOARDS: readonly BoardSpec[] = [
     },
     {
         file: 'RecipeVersionsEmpty.dc.html',
-        title: 'Recipe versions, empty (web)',
+        title: 'Recipe versions, empty, proposal (web)',
         row: 'Recipe versions',
         platform: 'web',
         height: 844,
@@ -109,7 +121,13 @@ export const BOARDS: readonly BoardSpec[] = [
         platform: 'native',
         height: 844,
     },
-    { file: 'RecipeEditor.dc.html', title: 'Recipe editor (web)', row: 'Recipe editor', platform: 'web', height: 3966 },
+    {
+        file: 'RecipeEditor.dc.html',
+        title: 'Recipe editor, proposal (web)',
+        row: 'Recipe editor',
+        platform: 'web',
+        height: 3966,
+    },
     {
         file: 'RecipeEditorMobile.dc.html',
         title: 'Recipe editor (mobile)',
@@ -119,7 +137,7 @@ export const BOARDS: readonly BoardSpec[] = [
     },
     {
         file: 'RecipeEditorSheet.dc.html',
-        title: 'Recipe editor, Paste a list sheet (web)',
+        title: 'Recipe editor, Paste a list sheet, proposal (web)',
         row: 'Recipe editor',
         platform: 'web',
         height: 900,
@@ -131,11 +149,17 @@ export const BOARDS: readonly BoardSpec[] = [
         platform: 'native',
         height: 844,
     },
-    { file: 'Profile.dc.html', title: 'Profile (web)', row: 'Profile', platform: 'web', height: 874 },
+    { file: 'Profile.dc.html', title: 'Profile, proposal (web)', row: 'Profile', platform: 'web', height: 874 },
     { file: 'ProfileMobile.dc.html', title: 'Profile (mobile)', row: 'Profile', platform: 'native', height: 844 },
     { file: 'SignIn.dc.html', title: 'Sign in (web)', row: 'Sign in', platform: 'web', height: 844 },
     { file: 'SignInMobile.dc.html', title: 'Sign in (mobile)', row: 'Sign in', platform: 'native', height: 844 },
     { file: 'SignUp.dc.html', title: 'Sign up (web)', row: 'Sign up', platform: 'web', height: 844 },
     { file: 'SignUpMobile.dc.html', title: 'Sign up (mobile)', row: 'Sign up', platform: 'native', height: 967 },
-    { file: 'LegalSources.dc.html', title: 'Data sources (web)', row: 'Data sources', platform: 'web', height: 844 },
+    {
+        file: 'LegalSources.dc.html',
+        title: 'Data sources, proposal (web)',
+        row: 'Data sources',
+        platform: 'web',
+        height: 844,
+    },
 ];

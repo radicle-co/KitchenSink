@@ -228,11 +228,23 @@ function adaptHost(instance: WebTextInputInstance | null): void {
 }
 
 /**
- * The web TextInput with the device's behaviour: a multiline field reports its text height, and every field offers
- * `setSelection`.
+ * The web TextInput with the device's behaviour: a multiline field reports its text height, every field offers
+ * `setSelection`, and every field shrinks in a flex row as a device's does.
  */
 export const TextInput = forwardRef<WebTextInputInstance, TextInputProps>(function TextInput(props, forwarded) {
-    return createElement(WebTextInput, { ...props, ref: useComposedRefs(forwarded, adaptHost) });
+    return createElement(WebTextInput, {
+        ...props,
+        style: [DEVICE_FLEX_ITEM, props.style],
+        ref: useComposedRefs(forwarded, adaptHost),
+    });
 });
+
+/**
+ * A device's layout engine (Yoga) gives every flex item a minimum size of 0, and react-native-web's View does the same,
+ * but its TextInput renders a bare `<input>`, whose CSS minimum is its intrinsic width. A field set to `flex: 1` beside
+ * a button then refuses to shrink and pushes the button out of its row, which a device never does. The caller's own
+ * `style` comes after this, so an explicit minimum still wins.
+ */
+const DEVICE_FLEX_ITEM = { minWidth: 0 } as const;
 
 type WebTextInputInstance = InstanceType<typeof WebTextInput>;

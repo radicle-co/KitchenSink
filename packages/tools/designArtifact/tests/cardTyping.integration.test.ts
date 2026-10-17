@@ -139,3 +139,149 @@ describe('the card API rejects what the real components reject', () => {
         expect(diagnose(bad)).not.toEqual([]);
     });
 });
+
+describe('the components no package exports are typed against their sources too', () => {
+    /** Both columns state the same props: the native header is checked on its own (renderNative is required for it). */
+    const header = (props: string): string =>
+        `export default defineCard({ group: 'G', height: 100, platforms: 'both', uses: ['EditorHeader'],
+            render: ({ EditorHeader }) => <EditorHeader ${props} />,
+            renderNative: ({ EditorHeader }) => <EditorHeader ${props} /> });`;
+    const goodHeader = `title="New recipe" status={undefined} closeLabel="Close" onClose={() => undefined}`;
+
+    it('accepts the editor header with its real props (control)', () => {
+        expect(diagnose(header(goodHeader))).toEqual([]);
+    });
+
+    it('rejects a prop the editor header does not take, in each column', () => {
+        const diagnostics = diagnose(header(`${goodHeader} bogus="1"`));
+
+        expect(diagnostics).toHaveLength(2);
+        expect(diagnostics.join('\n')).toMatch(/bogus/u);
+    });
+
+    it('checks the native column against the native header: the web header’s placeRef is refused there only', () => {
+        const source = `export default defineCard({ group: 'G', height: 100, platforms: 'both', uses: ['EditorHeader'],
+            render: ({ EditorHeader }) => <EditorHeader ${goodHeader} placeRef={() => undefined} />,
+            renderNative: ({ EditorHeader }) => <EditorHeader ${goodHeader} placeRef={() => undefined} /> });`;
+        const diagnostics = diagnose(source);
+
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics.join('\n')).toMatch(/placeRef/u);
+    });
+
+    it('rejects a prop of the wrong type on the editor header, and only that', () => {
+        const diagnostics = diagnose(
+            header(`title={3} status={undefined} closeLabel="Close" onClose={() => undefined}`),
+        );
+
+        expect(diagnostics).toEqual(Array(2).fill("TS2322: Type 'number' is not assignable to type 'string'."));
+    });
+
+    it('rejects an editor header missing a required prop', () => {
+        expect(diagnose(header(`title="New recipe" status={undefined}`)).join('\n')).toMatch(/closeLabel|onClose/u);
+    });
+
+    const webOnly = `platforms: 'web', reason: 'desktop only',`;
+    const sheetProps = `title="T" titleId="t" closeLabel="Close" keyboardOpen={false} onClose={() => undefined}`;
+
+    it('accepts a sheet panel with its real props (control), and rejects one the panel does not take', () => {
+        const sheet = (extra: string): string =>
+            card(`({ SheetPanel }) => <SheetPanel ${sheetProps} ${extra}>x</SheetPanel>`, webOnly, `['SheetPanel']`);
+
+        expect(diagnose(sheet(''))).toEqual([]);
+
+        const diagnostics = diagnose(sheet('nope'));
+
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics.join('\n')).toMatch(/'nope'/u);
+    });
+
+    it('rejects a spinner class that is not a string, and a spinner with none', () => {
+        const spinner = (props: string): string =>
+            card(`({ Spinner }) => <Spinner ${props} />`, webOnly, `['Spinner']`);
+
+        expect(diagnose(spinner('className="spin"'))).toEqual([]);
+        expect(diagnose(spinner('className={3}'))).toEqual([
+            "TS2322: Type 'number' is not assignable to type 'string'.",
+        ]);
+        expect(diagnose(spinner('')).join('\n')).toMatch(/className/u);
+    });
+
+    const tabBar = (render: string, renderNative: string): string =>
+        `export default defineCard({ group: 'G', height: 100, platforms: 'both', uses: ['HomeTabBar'],
+            render: ${render}, renderNative: ${renderNative} });`;
+    const chrome = `{ destinations: { home: 'Home', recipes: 'Recipes', discover: 'Discover', 'meal-plan': 'Plan', grocery: 'Shop' }, profileButton: 'Profile, {name}', profileButtonNoName: 'Profile', tabNavLabel: 'Tabs' }`;
+    const webBar = `<HomeTabBar chrome={${chrome}} locale="en" liveCapabilities={[]} activeId="recipes" />`;
+    const nativeBar = `<HomeTabBar chrome={${chrome}} liveCapabilities={[]} activeId="recipes" onPress={() => undefined} bottomInset={0} compact={false} leftInset={0} rightInset={0} />`;
+
+    it('requires renderNative from a two-platform card that mounts a component whose native leaf differs', () => {
+        const without = card(
+            `({ EditorHeader }) => <EditorHeader ${goodHeader} />`,
+            `platforms: 'both',`,
+            `['EditorHeader']`,
+        );
+        const withNative = `export default defineCard({ group: 'G', height: 100, platforms: 'both', uses: ['EditorHeader'],
+            render: ({ EditorHeader }) => <EditorHeader ${goodHeader} />,
+            renderNative: ({ EditorHeader }) => <EditorHeader ${goodHeader} /> });`;
+
+        expect(diagnose(without).join('\n')).toMatch(/renderNative/u);
+        expect(diagnose(withNative)).toEqual([]);
+    });
+
+    it('does not ask renderNative of a card whose components are the same on both platforms', () => {
+        expect(diagnose(card(`({ Button }) => <Button variant="ghost">Go</Button>`))).toEqual([]);
+    });
+
+    it('types the home tab bar per platform: the web bar in render, the mobile bar in renderNative', () => {
+        expect(diagnose(tabBar(`({ HomeTabBar }) => ${webBar}`, `({ HomeTabBar }) => ${nativeBar}`))).toEqual([]);
+    });
+
+    it('rejects the mobile bar props in the web column, and only there', () => {
+        const diagnostics = diagnose(tabBar(`({ HomeTabBar }) => ${nativeBar}`, `({ HomeTabBar }) => ${nativeBar}`));
+
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics.join('\n')).toMatch(/onPress|bottomInset|locale/u);
+    });
+
+    it('rejects the web bar props in the native column, and only there', () => {
+        const diagnostics = diagnose(tabBar(`({ HomeTabBar }) => ${webBar}`, `({ HomeTabBar }) => ${webBar}`));
+
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics.join('\n')).toMatch(/locale|onPress|bottomInset/u);
+    });
+
+    it('types a native-only card’s render against the NATIVE leaves (it draws only that column)', () => {
+        const source = (bar: string): string =>
+            `export default defineCard({ group: 'G', height: 100, platforms: 'native', reason: 'phone only',
+                uses: ['HomeTabBar'], render: ({ HomeTabBar }) => ${bar} });`;
+
+        expect(diagnose(source(nativeBar))).toEqual([]);
+        expect(diagnose(source(webBar)).join('\n')).toMatch(/locale|onPress|bottomInset/u);
+    });
+
+    it('does not let a native-only card give a renderNative of its own (its render is already native)', () => {
+        const source = `export default defineCard({ group: 'G', height: 100, platforms: 'native', reason: 'phone only',
+            uses: ['HomeTabBar'], render: () => null, renderNative: () => null });`;
+
+        expect(diagnose(source)).not.toEqual([]);
+    });
+
+    it('does not let a web-only card give a renderNative (no native column draws it)', () => {
+        const source = `export default defineCard({ group: 'G', height: 100, platforms: 'web', reason: 'desktop only',
+            uses: ['Button'], render: () => null, renderNative: () => null });`;
+
+        expect(diagnose(source)).not.toEqual([]);
+    });
+
+    it('types the product copy a card reads: a real key passes, an invented one fails', () => {
+        const source = (key: string): string =>
+            card(
+                `({ recipeFormMessages }) => <p>{recipeFormMessages.en.${key}}</p>`,
+                `platforms: 'both',`,
+                `['recipeFormMessages']`,
+            );
+
+        expect(diagnose(source('basicsHeading'))).toEqual([]);
+        expect(diagnose(source('noSuchMessage')).join('\n')).toMatch(/noSuchMessage/u);
+    });
+});

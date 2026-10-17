@@ -28,12 +28,12 @@
 export const enterTransitionClassName = 'motion-safe:animate-section-enter';
 
 /**
- * Enter-motion duration in milliseconds. Matches the web `--animate-section-enter` keyframe so the two
- * platforms' enter reads at the same pace.
+ * Enter-motion duration in milliseconds. The web `--animate-section-enter` token is emitted from this value
+ * (`tokens/motion.ts`), so the enter runs at the same pace on both platforms.
  */
 export const ENTER_DURATION_MS = 400;
 
-/** Distance in px a section rises as it enters (the web keyframe's `translateY(0.5rem)`). */
+/** Distance in px a section rises as it enters; the web keyframes' `translateY` is emitted from it. */
 export const ENTER_RISE_PX = 8;
 
 /**

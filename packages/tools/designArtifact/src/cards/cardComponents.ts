@@ -1,14 +1,19 @@
 /**
  * @module cards/cardComponents — the typed registry of components a card may mount. A card's `render` receives
- * the namespace narrowed to the names it declared in `uses`, and each member is the REAL public component type, so
- * a wrong prop fails `tsc` in the card file.
+ * the namespace narrowed to the names it declared in `uses`, and each member is the REAL component type (a package
+ * export, or for an internal its source file, below), so a wrong prop fails `tsc` in the card file. Every card is
+ * checked by its props.
  *
- * One registry serves both namespaces: the web and native leaves implement the same props contract
- * (`docs/CODING_STANDARDS.md` §14), and the package export is the platform-neutral module that types it.
+ * One registry serves both namespaces where the web and native leaves implement the same props contract
+ * (`docs/CODING_STANDARDS.md` §14): the entry is then the platform-neutral type. A component that exists on one
+ * platform only is typed from that platform's leaf, and its card shows that platform only.
  *
  * ⚠️ A component no package exports (an internal part such as the editor's header, or the app chrome, whose web and
- * mobile apps export nothing) is typed {@link NameOnly}: its card is checked by name against the discovered surface,
- * not by props. Exporting such a component from its package is what upgrades its card to a typed one.
+ * mobile apps export nothing) is typed from its SOURCE FILE, through the type-only `#commise/*` alias in this
+ * package's `tsconfig.json`. That is deliberate: a package export is a public contract, and these are internals, so
+ * the alternative (exporting them, or depending on `@commise/web` / `@commise/mobile`, whose build is the whole Next /
+ * Expo build) costs more than a path. The alias is held to `import type` by `__tests__/commiseTypeOnlyImports.test.ts`,
+ * and it points at the files `surface/productSurface.ts` registers, so the type and the bundled file are one fact.
  *
  * The native column is typed by {@link NativeCardComponents}: the same table, with the entries whose native props
  * differ from the web ones replaced. A card that mounts such a component gives `renderNative` (see `cardSpec.ts`)
@@ -19,7 +24,14 @@
 import type { ComponentType, Ref } from 'react';
 
 import type { ProfileGroup, ProfileRow } from '@commise/features-account/profile';
-import type { RecentRecipeGrid, RecipeCard, RecipeDiscoveryCard } from '@commise/features-recipes';
+import type { offlineNoticeMessages } from '@commise/features-core/offline';
+import type {
+    RecentRecipeGrid,
+    RecipeCard,
+    RecipeDiscoveryCard,
+    recipeFormMessages,
+    recipeMessages,
+} from '@commise/features-recipes';
 import type { ActionMenu } from '@commise/ui/action-menu';
 import type { Avatar, AvatarDisc } from '@commise/ui/avatar';
 import type { BackToTop } from '@commise/ui/back-to-top';
@@ -71,10 +83,32 @@ import type { TextInput } from '@commise/ui/text-input';
 import type { Tooltip } from '@commise/ui/tooltip';
 import type { VariantPartsLine } from '@commise/ui/variant-parts-line';
 
-/** A component with no package export: mountable, checked by name only. */
-export type NameOnly = ComponentType<Record<string, unknown>>;
+// The internals no package exports, by source path (see the module doc). Web leaves are the plain `.tsx` file; the
+// `*Native` names are the `.native.tsx` leaf where its props differ from the web one.
+import type { NutritionFigure } from '#commise/features/recipes/src/detail/NutritionFigure';
+import type { RecipeHero } from '#commise/features/recipes/src/detail/RecipeHero';
+import type { EditorActionBar } from '#commise/features/recipes/src/editor/EditorActionBar';
+import type { EditorActionBar as EditorActionBarNative } from '#commise/features/recipes/src/editor/EditorActionBar.native';
+import type { EditorHeader } from '#commise/features/recipes/src/editor/EditorHeader';
+import type { EditorHeader as EditorHeaderNative } from '#commise/features/recipes/src/editor/EditorHeader.native';
+import type { EditorSection } from '#commise/features/recipes/src/editor/EditorSection';
+import type { PublishLine } from '#commise/features/recipes/src/editor/PublishLine';
+import type { IngredientRow } from '#commise/features/recipes/src/form/IngredientRow';
+import type { IngredientRow as IngredientRowNative } from '#commise/features/recipes/src/form/IngredientRow.native';
+import type { seedLineKey } from '#commise/features/recipes/src/form/lineKey';
+import type { HomeSidebar } from '#commise/web/src/components/home/chrome/HomeSidebar';
+import type { HomeTabBar } from '#commise/web/src/components/home/chrome/HomeTabBar';
+import type { HomeTabBar as HomeTabBarNative } from '#commise/mobile/src/components/home/chrome/HomeTabBar';
+import type { FabFace } from '#commise/ui/src/createFab/FabFace';
+import type { BottomSheetPanel } from '#commise/ui/src/sheet/BottomSheetPanel.native';
+import type { SheetPanel } from '#commise/ui/src/sheet/SheetPanel';
+import type { Spinner } from '#commise/ui/src/spinner/Spinner';
 
-/** Component name to its real component type. */
+/**
+ * Name to the real component type, plus the product values a card may read (the message sets and `seedLineKey`): the
+ * surface bundles them (`surface/productSurface.ts` `SURFACE_VALUES`) because a card may not import
+ * product values itself.
+ */
 export interface CardComponents {
     readonly ActionMenu: typeof ActionMenu;
     readonly Avatar: typeof Avatar;
@@ -82,7 +116,7 @@ export interface CardComponents {
     readonly BackToTop: typeof BackToTop;
     readonly BottomChromeFrame: typeof BottomChromeFrame;
     readonly BottomEdgeProvider: typeof BottomEdgeProvider;
-    readonly BottomSheetPanel: NameOnly;
+    readonly BottomSheetPanel: typeof BottomSheetPanel;
     readonly Button: typeof Button;
     readonly CheckBoxGlyph: typeof CheckBoxGlyph;
     readonly Chip: typeof Chip;
@@ -95,19 +129,19 @@ export interface CardComponents {
     readonly DialogFrame: typeof DialogFrame;
     readonly DifficultyBadge: typeof DifficultyBadge;
     readonly DurationField: typeof DurationField;
-    readonly EditorActionBar: NameOnly;
-    readonly EditorHeader: NameOnly;
-    readonly EditorSection: NameOnly;
+    readonly EditorActionBar: typeof EditorActionBar;
+    readonly EditorHeader: typeof EditorHeader;
+    readonly EditorSection: typeof EditorSection;
     readonly EnterTransition: typeof EnterTransition;
-    readonly FabFace: NameOnly;
+    readonly FabFace: typeof FabFace;
     readonly FieldLabel: typeof FieldLabel;
     readonly FullScreenSheet: typeof FullScreenSheet;
     readonly GradientSurface: typeof GradientSurface;
     readonly HeroButton: typeof HeroButton;
-    readonly HomeSidebar: NameOnly;
-    readonly HomeTabBar: NameOnly;
+    readonly HomeSidebar: typeof HomeSidebar;
+    readonly HomeTabBar: typeof HomeTabBar;
     readonly Icon: typeof Icon;
-    readonly IngredientRow: NameOnly;
+    readonly IngredientRow: typeof IngredientRow;
     readonly Input: typeof Input;
     readonly KeepAwakeToggle: typeof KeepAwakeToggle;
     readonly KeyboardAvoider: typeof KeyboardAvoider;
@@ -116,7 +150,7 @@ export interface CardComponents {
     readonly LoadMoreControl: typeof LoadMoreControl;
     readonly LoadingNotice: typeof LoadingNotice;
     readonly Modal: typeof Modal;
-    readonly NutritionFigure: NameOnly;
+    readonly NutritionFigure: typeof NutritionFigure;
     readonly OfflineReadSlot: typeof OfflineReadSlot;
     readonly PendingBar: typeof PendingBar;
     readonly PhotoControl: typeof PhotoControl;
@@ -124,12 +158,16 @@ export interface CardComponents {
     readonly PressScale: typeof PressScale;
     readonly ProfileGroup: typeof ProfileGroup;
     readonly ProfileRow: typeof ProfileRow;
-    readonly PublishLine: NameOnly;
+    readonly PublishLine: typeof PublishLine;
     readonly RecentRecipeGrid: typeof RecentRecipeGrid;
     readonly RecipeCard: typeof RecipeCard;
     readonly RecipeCover: typeof RecipeCover;
     readonly RecipeDiscoveryCard: typeof RecipeDiscoveryCard;
-    readonly RecipeHero: NameOnly;
+    readonly RecipeHero: typeof RecipeHero;
+    readonly offlineNoticeMessages: typeof offlineNoticeMessages;
+    readonly recipeFormMessages: typeof recipeFormMessages;
+    readonly recipeMessages: typeof recipeMessages;
+    readonly seedLineKey: typeof seedLineKey;
     readonly RefreshNotice: typeof RefreshNotice;
     readonly RevealSpacer: typeof RevealSpacer;
     readonly RouteAction: typeof RouteAction;
@@ -139,9 +177,9 @@ export interface CardComponents {
     readonly SectionSwitch: typeof SectionSwitch;
     readonly SegmentedControl: typeof SegmentedControl;
     readonly Sheet: typeof Sheet;
-    readonly SheetPanel: NameOnly;
+    readonly SheetPanel: typeof SheetPanel;
     readonly SnackbarHost: typeof SnackbarHost;
-    readonly Spinner: NameOnly;
+    readonly Spinner: typeof Spinner;
     readonly StandIn: typeof StandIn;
     readonly StateNotice: typeof StateNotice;
     readonly StatusBadge: typeof StatusBadge;
@@ -169,16 +207,21 @@ export type CardUi<Used extends CardComponentName> = Pick<CardComponents, Used>;
  *
  * - `HeroButton` takes `ref` as a plain prop (`HeroButtonNativeProps`, in `HeroButton.native.tsx`, not re-exported by
  *   `@commise/ui/hero-button`), so it is the shared {@link HeroButtonProps} plus that one prop.
- * - `EditorHeader`, `EditorActionBar` and `IngredientRow` are in no package export, so they stay {@link NameOnly}: a
- *   native card is checked by name only. Exporting their native props (`EditorHeaderProps`, `EditorActionBarProps` in
- *   `editor/frameProps.ts`, `IngredientRowProps` in `IngredientRow.native.tsx`) from the package entry is what upgrades
- *   them, and the entry here is then the one line to change.
+ * - `EditorHeader`, `EditorActionBar` and `IngredientRow` take their own native contracts from the `.native.tsx` leaf
+ *   (the web header and bar also take the `placeRef` the page measures them by, and the web bar `pinned`; the native
+ *   row has `amountColumn`, `onLayout`, `m` and `speak`).
+ * - `HomeTabBar` is a different component on each platform: the web bar is a router-driven `nav` of links, the mobile
+ *   bar takes `onPress`, the insets and `compact`.
+ *
+ * `BottomSheetPanel` exists only as a native leaf, so {@link CardComponents} types it from that leaf; its card is a
+ * native-only one.
  */
 export interface NativeDivergentComponents {
     readonly HeroButton: ComponentType<HeroButtonProps & { readonly ref?: Ref<unknown> }>;
-    readonly EditorHeader: NameOnly;
-    readonly EditorActionBar: NameOnly;
-    readonly IngredientRow: NameOnly;
+    readonly EditorHeader: typeof EditorHeaderNative;
+    readonly EditorActionBar: typeof EditorActionBarNative;
+    readonly IngredientRow: typeof IngredientRowNative;
+    readonly HomeTabBar: typeof HomeTabBarNative;
 }
 
 /** Component name to its component type as the NATIVE column mounts it. */

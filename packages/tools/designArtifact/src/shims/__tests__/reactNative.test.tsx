@@ -250,3 +250,20 @@ describe('TextInput setSelection', () => {
         expect('setSelection' in HTMLTextAreaElement.prototype).toBe(false);
     });
 });
+
+describe('TextInput flex sizing', () => {
+    it.each<[string, boolean]>([
+        ['a single-line field', false],
+        ['a multiline field', true],
+    ])('gives %s the zero minimum width a device gives every flex item', (_case, multiline) => {
+        render(<shim.TextInput multiline={multiline} accessibilityLabel="Search" />);
+
+        expect(screen.getByRole('textbox', { name: 'Search' }).style.minWidth).toBe('0px');
+    });
+
+    it('lets the caller set its own minimum width', () => {
+        render(<shim.TextInput accessibilityLabel="Search" style={{ minWidth: 120 }} />);
+
+        expect(screen.getByRole('textbox', { name: 'Search' }).style.minWidth).toBe('120px');
+    });
+});

@@ -16,6 +16,7 @@
     },
     "dependencies": {
         "@commise/features-account": "*",
+        "@commise/features-core": "*",
         "@commise/features-recipes": "*",
         "@commise/ui": "*",
         "@expo-google-fonts/inter": "^0.4.2",

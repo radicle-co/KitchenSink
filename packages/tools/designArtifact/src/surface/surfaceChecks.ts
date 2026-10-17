@@ -23,6 +23,7 @@ import type { CardPageSpec } from '../cards/cardPage.js';
 import { DesignArtifactError } from '../errors.js';
 
 import type { Surface } from './discoverSurface.js';
+import type { SurfaceKind } from './surfaceEntry.js';
 
 /** What a card says about itself, with the folder it lives in. */
 export interface CardClaim {
@@ -61,6 +62,8 @@ type Exported = Readonly<Record<Platform, ReadonlySet<string>>>;
 /** What the rules read, prepared once. */
 interface Facts extends SurfaceCheckInput {
     readonly exported: Exported;
+    /** What a card may name in `uses`: the components, and the product values it reads. A hook is neither. */
+    readonly usable: Exported;
     readonly cardNames: ReadonlySet<string>;
     readonly discovered: ReadonlySet<string>;
 }
@@ -69,27 +72,35 @@ function drawn(platforms: CardClaim['platforms']): readonly Platform[] {
     return platforms === 'both' ? PLATFORMS : [platforms];
 }
 
-function componentNames(surface: Surface, platform: Platform): ReadonlySet<string> {
-    return new Set(surface[platform].filter(({ kind }) => kind === 'component').map(({ name }) => name));
+function namesOfKinds(surface: Surface, platform: Platform, kinds: readonly SurfaceKind[]): ReadonlySet<string> {
+    return new Set(surface[platform].filter(({ kind }) => kinds.includes(kind)).map(({ name }) => name));
 }
 
 function factsOf(input: SurfaceCheckInput): Facts {
-    const exported = { web: componentNames(input.surface, 'web'), native: componentNames(input.surface, 'native') };
+    const exported = {
+        web: namesOfKinds(input.surface, 'web', ['component']),
+        native: namesOfKinds(input.surface, 'native', ['component']),
+    };
+    const usable = {
+        web: namesOfKinds(input.surface, 'web', ['component', 'value']),
+        native: namesOfKinds(input.surface, 'native', ['component', 'value']),
+    };
 
     return {
         ...input,
         exported,
+        usable,
         cardNames: new Set(input.cards.map(({ name }) => name)),
         discovered: new Set([...exported.web, ...exported.native]),
     };
 }
 
 /** Rule 1: a card's `uses` against the surface, on each platform the card draws. */
-function cardUsesProblems({ cards, exported }: Facts): readonly string[] {
+function cardUsesProblems({ cards, usable }: Facts): readonly string[] {
     return cards.flatMap(({ name, uses, platforms }) =>
         uses.flatMap((used) =>
             drawn(platforms)
-                .filter((platform) => !exported[platform].has(used))
+                .filter((platform) => !usable[platform].has(used))
                 .map((platform) => `${name} uses ${used}, which the ${platform} surface does not export`),
         ),
     );

@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { COMMISE_ROOT, PACKAGE_ROOT } from '../../config.js';
-import { CHROME_SURFACE, PRODUCT_SURFACE, SHIM_SURFACE, SURFACE_HOOKS } from '../productSurface.js';
+import { CHROME_SURFACE, PRODUCT_SURFACE, SHIM_SURFACE, SURFACE_VALUES, SURFACE_HOOKS } from '../productSurface.js';
 
 const PRODUCT_NAMES = [
     'RecipeCard',
@@ -49,6 +49,15 @@ describe('productSurface registry', () => {
         ]);
     });
 
+    it('registers the product values a card reads: the recipe and offline message sets and the line-key factory', () => {
+        expect(SURFACE_VALUES).toEqual([
+            { name: 'offlineNoticeMessages', file: expect.stringMatching(/\/core\/src\/offline\/messages\.ts$/u) },
+            { name: 'recipeFormMessages', file: expect.stringMatching(/\/recipes\/src\/form\/messages\.ts$/u) },
+            { name: 'recipeMessages', file: expect.stringMatching(/\/recipes\/src\/messages\.ts$/u) },
+            { name: 'seedLineKey', file: expect.stringMatching(/\/recipes\/src\/form\/lineKey\.ts$/u) },
+        ]);
+    });
+
     it('registers the two artifact-only native components the canvas boards mount, from the shims', () => {
         expect(SHIM_SURFACE.web).toEqual([]);
         expect(SHIM_SURFACE.native).toEqual([
@@ -64,6 +73,7 @@ describe('productSurface registry', () => {
             ...CHROME_SURFACE.web,
             ...CHROME_SURFACE.native,
             ...SURFACE_HOOKS,
+            ...SURFACE_VALUES,
         ];
 
         for (const { file } of all) {

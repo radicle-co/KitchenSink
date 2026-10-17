@@ -92,4 +92,26 @@ describe('RecipeDiscoveryCard (native)', () => {
 
         expect(screen.getByText('From Serious Eats')).toBeTruthy();
     });
+
+    it.each(['grid', 'compact'] as const)(
+        'keeps a long source on ONE clipped line in the %s card, with the whole text still its accessible text',
+        (variant) => {
+            const source = 'The Book of Household Management';
+
+            renderCard({ variant, authorUsername: undefined, authorDisplayName: undefined, sourceAttribution: source });
+
+            const line = screen.getByText(`From ${source}`);
+            const style = getComputedStyle(line);
+
+            // jsdom has no layout, so this reads the style react-native-web wrote for `numberOfLines={1}`: it is what lets
+            // the line give way to the Save control. The real proof that Save stays inside a 256 px rail card is the
+            // design-artifact browser tier (`renderArtifact.e2e.test.ts`, the RecipeDiscoveryCard card).
+            expect(style.whiteSpace).toBe('nowrap');
+            expect(style.overflowX).toBe('hidden');
+            expect(style.textOverflow).toBe('ellipsis');
+            // Clipped on screen, never cut from the tree: the full attribution is what a screen reader reads.
+            expect(line.textContent).toBe(`From ${source}`);
+            expect(screen.getByRole('button', { name: 'Save a copy of Lamb Shoulder' })).toBeTruthy();
+        },
+    );
 });

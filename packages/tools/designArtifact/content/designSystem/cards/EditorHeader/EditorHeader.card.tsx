@@ -3,7 +3,8 @@
  * no status, the first two with the overflow menu, on both platforms.
  *
  * The leaves' props differ only by the web header's optional `placeRef` (the handle the page's popups read its edge by),
- * which this card never passes, so one `render` states exactly what both receive and no `renderNative` is needed.
+ * which this card never passes, so both columns state the same props. Each column still has its own render, because the
+ * native one is checked against the native leaf: a prop the native header drops would fail there and not in the web one.
  */
 import { defineCard } from '../../../../src/cards/defineCard.js';
 
@@ -16,6 +17,11 @@ const MENU = {
     onDiscard: noop,
 };
 
+const headerProps = {
+    closeLabel: 'Close editor',
+    onClose: noop,
+};
+
 export default defineCard({
     group: 'Editor',
     height: 260,
@@ -23,15 +29,16 @@ export default defineCard({
     uses: ['EditorHeader'],
     render: ({ EditorHeader }) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <EditorHeader
-                title="New recipe"
-                status="Saved just now"
-                closeLabel="Close editor"
-                onClose={noop}
-                menu={MENU}
-            />
-            <EditorHeader title="Edit recipe" status="Saving…" closeLabel="Close editor" onClose={noop} menu={MENU} />
-            <EditorHeader title="New recipe" status={undefined} closeLabel="Close editor" onClose={noop} />
+            <EditorHeader title="New recipe" status="Saved just now" menu={MENU} {...headerProps} />
+            <EditorHeader title="Edit recipe" status="Saving…" menu={MENU} {...headerProps} />
+            <EditorHeader title="New recipe" status={undefined} {...headerProps} />
+        </div>
+    ),
+    renderNative: ({ EditorHeader }) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <EditorHeader title="New recipe" status="Saved just now" menu={MENU} {...headerProps} />
+            <EditorHeader title="Edit recipe" status="Saving…" menu={MENU} {...headerProps} />
+            <EditorHeader title="New recipe" status={undefined} {...headerProps} />
         </div>
     ),
 });

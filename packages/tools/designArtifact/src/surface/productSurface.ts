@@ -69,6 +69,19 @@ export const SURFACE_HOOKS: readonly RegisteredFile[] = [
 ];
 
 /**
+ * Product values a card reads. A typed card must give a component its real props, and the ingredient row takes three
+ * product message sets (hundreds of sentences that a card must not copy, or they drift) and a branded line key that
+ * only the product's own factory can mint. A card cannot import product values (`compileCard` refuses it), so they
+ * are bundled once, on both surfaces, beside the components. These files hold no platform code.
+ */
+export const SURFACE_VALUES: readonly RegisteredFile[] = [
+    { name: 'offlineNoticeMessages', file: join(FEATURES, 'core/src/offline/messages.ts') },
+    { name: 'recipeFormMessages', file: join(FEATURES, 'recipes/src/form/messages.ts') },
+    { name: 'recipeMessages', file: join(FEATURES, 'recipes/src/messages.ts') },
+    { name: 'seedLineKey', file: join(FEATURES, 'recipes/src/form/lineKey.ts') },
+];
+
+/**
  * Components that exist only in the artifact. The canvas boards mount them on the native surface: a safe-area
  * provider to place a screen inside an iPhone's insets, and a scroll host whose children are plain markup (a board
  * cannot pass a render-prop child). Each is exported by name from its shim, so no other export of the shim file

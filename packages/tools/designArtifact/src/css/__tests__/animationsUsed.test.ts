@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import { animationsUsed, undefinedAnimations } from '../animationsUsed.js';
-import { MOTION_THEME_CSS } from '../motionTheme.js';
 
 describe('animationsUsed', () => {
     it.each([
@@ -17,13 +16,18 @@ describe('animationsUsed', () => {
     });
 });
 
+/** A stylesheet shaped like the theme's animation tokens, for the pure comparison below. */
+const THEME_CSS = `@theme {
+    --animate-section-enter: section-enter 400ms ease-out both;
+}`;
+
 describe('undefinedAnimations', () => {
     it('is empty when the stylesheet defines every animation used', () => {
-        expect(undefinedAnimations(['section-enter', 'home-hero-enter'], MOTION_THEME_CSS)).toEqual([]);
+        expect(undefinedAnimations(['section-enter'], THEME_CSS)).toEqual([]);
     });
 
     it('names an animation a source uses and the motion theme lacks', () => {
-        expect(undefinedAnimations(['section-enter', 'wiggle'], MOTION_THEME_CSS)).toEqual(['wiggle']);
+        expect(undefinedAnimations(['section-enter', 'wiggle'], THEME_CSS)).toEqual(['wiggle']);
     });
 
     it('does not take a keyframes rule for the Tailwind token', () => {

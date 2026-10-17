@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
@@ -7,7 +8,6 @@ import { bundleComponents } from '../src/bundle/bundleComponents.js';
 import { EsbuildBundler } from '../src/bundle/esbuildBundler.js';
 import { animationsUsed, undefinedAnimations } from '../src/css/animationsUsed.js';
 import { CONTENT_SOURCE_ROOTS } from '../src/css/artifactCssEntry.js';
-import { MOTION_THEME_CSS } from '../src/css/motionTheme.js';
 import { discoverSurface } from '../src/surface/discoverSurface.js';
 
 const SOURCE_FILE = /\.(?:[cm]?[jt]sx?|html)$/u;
@@ -26,14 +26,15 @@ function sourcesUnder(directory: string): readonly string[] {
     });
 }
 
-describe('the motion theme against the real bundle', () => {
+describe('the @commise/ui theme against the real bundle', () => {
     it('defines every custom animate-* utility the bundled sources and the previews use', async () => {
+        const themeCss = readFileSync(fileURLToPath(import.meta.resolve('@commise/ui/theme.css')), 'utf8');
         const { sourceRoots } = await bundleComponents(discoverSurface(), new EsbuildBundler());
         const used = [...sourceRoots, ...CONTENT_SOURCE_ROOTS]
             .flatMap((root) => sourcesUnder(root))
             .flatMap((file) => animationsUsed(readFileSync(file, 'utf8')));
 
         expect(used.length, 'the scan found the product’s own animations').toBeGreaterThan(0);
-        expect(undefinedAnimations([...new Set(used)], MOTION_THEME_CSS)).toEqual([]);
+        expect(undefinedAnimations([...new Set(used)], themeCss)).toEqual([]);
     });
 });

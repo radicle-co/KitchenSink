@@ -25,7 +25,7 @@ export default defineCard({
             >
                 <div style={box}>2 cups all-purpose flour</div>
             </EditorSection>
-            <EditorSection id="method" title="Method" current={false}>
+            <EditorSection id="steps" title="Steps" current={false}>
                 <div style={box}>Whisk the eggs, then fold in the flour.</div>
             </EditorSection>
         </div>

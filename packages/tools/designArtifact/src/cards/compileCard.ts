@@ -6,14 +6,12 @@
  * and any that survives (a value import) is refused here, so the card can never carry a second copy of the
  * component code: it renders whatever `window.Commise` holds, which is the real bundle.
  *
- * A relative or absolute import that reaches into the product tree (`packages/apps/commise`) is refused just as a
- * package import is: it would bundle a second copy of the component code into the card, one that is not the copy in
- * `window.Commise`.
+ * A file that loads from inside the product tree (`packages/apps/commise`), by whatever route (a relative or absolute
+ * path, or a `paths` alias), is refused just as a package import is: it would bundle a second copy of the component
+ * code into the card, one that is not the copy in `window.Commise`.
  *
  * @pattern Adapter — esbuild behind a one-function interface; the plugin is a guard (fail closed).
  */
-import { isAbsolute, resolve } from 'node:path';
-
 import { build } from 'esbuild';
 import type { Plugin } from 'esbuild';
 
@@ -25,11 +23,11 @@ import { DesignArtifactError } from '../errors.js';
 /** The global the card module is assigned to; `cardRuntime` reads `__card.default`. */
 export const CARD_GLOBAL = '__card';
 
-/** Product code a card may name only as a type. */
+/**
+ * A package of ours a card may name only as a type. Packages outside the product tree (`@kitchensink/*`) are refused
+ * here by name; everything INSIDE the tree is refused by where it lives ({@link typeOnlyProductImports}).
+ */
 const PRODUCT_SPECIFIER = /^@(?:commise|kitchensink)\//; // Go regular expression: esbuild rejects the JS `u` flag.
-
-/** A path import: relative (`./x`, `../x`) or absolute. */
-const PATH_SPECIFIER = /^(?:\.{1,2}\/|\/)/; // Go regular expression: esbuild rejects the JS `u` flag.
 
 const SECOND_COPY =
     'A card renders window.Commise and may import product code only with "import type"; a value import would bundle a second copy of product code.';
@@ -39,7 +37,13 @@ function insideProductTree(file: string): boolean {
     return file === COMMISE_ROOT || file.startsWith(`${COMMISE_ROOT}/`);
 }
 
-/** Refuses a surviving (value) import of product code, by package name or by path. */
+/**
+ * Refuses a surviving (value) import of product code.
+ *
+ * Two rules, and no list of specifiers: a package of ours by name, and ANY file that loads from inside the product
+ * tree, whatever route reached it (a package, a relative or absolute path, or a `paths` alias such as `#commise/*`,
+ * which this package's tsconfig defines for types only). Refusing by where the file lives is one rule for every way in.
+ */
 function typeOnlyProductImports(): Plugin {
     return {
         name: 'typeOnlyProductImports',
@@ -47,13 +51,11 @@ function typeOnlyProductImports(): Plugin {
             build.onResolve({ filter: PRODUCT_SPECIFIER }, (args) => ({
                 errors: [{ text: `"${args.path}" is imported as a value. ${SECOND_COPY}` }],
             }));
-            build.onResolve({ filter: PATH_SPECIFIER }, (args) => {
-                const target = isAbsolute(args.path) ? args.path : resolve(args.resolveDir, args.path);
-
-                return insideProductTree(target)
-                    ? { errors: [{ text: `"${args.path}" reaches into the product tree. ${SECOND_COPY}` }] }
-                    : undefined;
-            });
+            build.onLoad({ filter: /.*/ }, (args) =>
+                insideProductTree(args.path)
+                    ? { errors: [{ text: `"${args.path}" is product code, reached as a value. ${SECOND_COPY}` }] }
+                    : undefined,
+            );
         },
     };
 }

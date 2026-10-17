@@ -57,6 +57,7 @@ const PROBES = [
     'text-sm',
     'bg-hero',
     'animate-pending-bar-reveal',
+    'motion-safe:animate-section-enter',
     '-top-3.5',
     'nav:hidden',
     'medium:px-6',
@@ -270,6 +271,29 @@ describe('the pending-bar reveal (compiled)', () => {
 
         expect(keyframes).toBe('from{opacity:0}to{opacity:1}');
     });
+});
+
+/**
+ * The enter gesture (`animate-section-enter` on every discovery section) has its token and keyframes in
+ * `@commise/ui/theme.css`, not in `globals.css`. A token that failed to
+ * arrive would compile the utility to nothing and the section would simply not animate, with every jsdom test green.
+ */
+describe('the enter animations (compiled)', () => {
+    const cssPromise = compileAppCss();
+
+    it.each(['section-enter'])(
+        'compiles %s to a 400ms ease-out animation behind motion-safe, with its keyframes',
+        async (name) => {
+            const css = await cssPromise;
+            const flat = css.replace(/\s+/g, '').replace(/;\}/g, '}');
+
+            expect(css.replace(/\s+/g, ' ')).toMatch(new RegExp(`--animate-${name}: ${name} 400ms ease-out both`));
+            expect(flat).toContain(`.motion-safe\\:animate-${name}`);
+            expect(flat).toContain(
+                `@keyframes${name}{from{opacity:0;transform:translateY(0.5rem)}to{opacity:1;transform:none}}`,
+            );
+        },
+    );
 });
 
 /**

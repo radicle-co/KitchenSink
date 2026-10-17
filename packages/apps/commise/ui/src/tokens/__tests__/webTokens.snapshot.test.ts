@@ -307,6 +307,30 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-difficulty-hard-fill: rgba(232, 145, 122, 0.15);
               --color-difficulty-hard-ink: #2D3436;
               --color-bar: rgba(255, 255, 255, 0.92);
+              --animate-section-enter: section-enter 400ms ease-out both;
+              --animate-pending-bar-reveal: pending-bar-reveal 0s linear both;
+          }
+
+          @keyframes section-enter {
+              from {
+                  opacity: 0;
+                  transform: translateY(0.5rem);
+              }
+
+              to {
+                  opacity: 1;
+                  transform: none;
+              }
+          }
+
+          @keyframes pending-bar-reveal {
+              from {
+                  opacity: 0;
+              }
+
+              to {
+                  opacity: 1;
+              }
           }
 
           @media (prefers-color-scheme: dark) {

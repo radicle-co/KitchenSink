@@ -8,7 +8,7 @@
  * @pattern Adapter — projects the `@commise/ui` token modules onto the artifact's `tokens.json` grammar
  */
 import { palette, role, roleDark } from '@commise/ui/colors';
-import { fontFamily, fontWeight, radius, spacing } from '@commise/ui/scale';
+import { fontFamily, fontSize, fontWeight, lineHeightRatio, radius, spacing } from '@commise/ui/scale';
 import { barMaterial } from '@commise/ui/tokens/barMaterial';
 import { coverTint, coverTintDark } from '@commise/ui/tokens/covers';
 import { kebab } from '@commise/ui/tokens/emit';
@@ -127,6 +127,29 @@ function typeGroups(): readonly ArtifactTypeGroup[] {
     });
 }
 
+/** Which `fontSize` steps belong to the display ramp: `scale.ts` keeps them as sizes, not styles. */
+const SIZE_SCALE_STEP = /^(display|heading)/u;
+
+/**
+ * The display ramp as a size scale. These steps are real (the mobile font ramp and several web headings use them),
+ * but `@commise/ui` gives them no weight: each call site picks one. So they are published with their size and the
+ * heading line height the mobile ramp pairs them with, and no weight is invented.
+ */
+function sizeScaleGroup(): ArtifactTypeGroup {
+    return {
+        name: 'Size scale',
+        family: 'display',
+        styles: entriesOf(fontSize)
+            .filter(([step]) => SIZE_SCALE_STEP.test(step))
+            .map(([step, size]) => ({
+                name: kebab(step),
+                fontSize: `${size}px`,
+                lineHeight: `${lineHeightRatio.heading}`,
+                usage: "A display size step. The weight is the caller's; prefer a type role where one fits.",
+            })),
+    };
+}
+
 function fonts(): readonly ArtifactFont[] {
     return fontFaces().map((face) => ({
         family: face.family,
@@ -170,7 +193,7 @@ export function buildTokens(): ArtifactTokens {
             note: 'Roles name what a colour is FOR. Screens use roles, never brand tones. Dark values follow the system colour scheme.',
             tokens: colourTokens(),
         },
-        type: { fonts: fonts(), families: fontFamily, groups: typeGroups() },
+        type: { fonts: fonts(), families: fontFamily, groups: [...typeGroups(), sizeScaleGroup()] },
         spacing: {
             note: '4px base. Web emits rem, native uses the number.',
             tokens: scaleTokens('space', px(spacing), SPACING_USAGE),

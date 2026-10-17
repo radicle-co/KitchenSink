@@ -56,7 +56,7 @@ describe('compileCss with the real Tailwind compiler', () => {
         }
     });
 
-    it('generates the motion utilities that need the copied animation tokens', () => {
+    it('generates the motion utilities, whose tokens come from the ui theme', () => {
         expect(css).toContain('.animate-pending-bar-reveal');
         expect(css).toContain('@keyframes pending-bar-reveal');
     });

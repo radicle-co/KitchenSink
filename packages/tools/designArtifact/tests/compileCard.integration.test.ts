@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 
@@ -90,6 +90,33 @@ describe('compileCard over the real esbuild', () => {
             code: 'bundle-failed',
             message: expect.stringContaining('second copy of product code'),
         });
+    });
+
+    it.each([
+        // `Spinner` imports nothing relative, so only the alias itself can be what refuses it.
+        ['the `#commise/` alias', '#commise/ui/src/spinner/Spinner'],
+        ['an exact `@/` alias into the web app', '@/i18n/messages'],
+    ])('fails closed when a card imports product code as a value through %s', async (_name, specifier) => {
+        // Inside the package, so esbuild finds this package's tsconfig and its `paths`, which is where the aliases live.
+        const parent = join(PACKAGE_ROOT, 'dist');
+
+        await mkdir(parent, { recursive: true });
+
+        const dir = await mkdtemp(join(parent, 'aliasProbe-'));
+        const file = join(dir, 'Probe.card.tsx');
+
+        try {
+            await writeFile(file, `import * as probe from ${JSON.stringify(specifier)};\nexport default { probe };`);
+
+            const failure = await compileCard(file).catch((error: unknown) => error);
+
+            expect(failure).toMatchObject({
+                code: 'bundle-failed',
+                message: expect.stringContaining('second copy of product code'),
+            });
+        } finally {
+            await rm(dir, { recursive: true, force: true });
+        }
     });
 
     it('still allows a relative import inside the package (the card helpers)', async () => {

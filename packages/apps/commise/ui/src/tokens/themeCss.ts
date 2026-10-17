@@ -40,6 +40,7 @@ import { kebab, pxToRemUnit } from './emit.js';
 import { barMaterial } from './barMaterial.js';
 import { gradient, gradientCss, heroDark } from './gradients.js';
 import { containerThreshold, contentWidth, viewportThreshold } from './layout.js';
+import { motionKeyframes, motionThemeDeclarations } from './motion.js';
 import { radius } from './radius.js';
 import { shadows } from './shadows.js';
 import { fonts, fontSizes, fontWeights, lineHeights, webTypeRoles } from './typography.js';
@@ -199,7 +200,11 @@ export function themeCss(): string {
         ...difficultyDeclarations(difficultyTone),
         // The level-2 bar material (slice 3), appended last for the same reason.
         `    --color-bar: ${barMaterial.light};`,
+        // The animation tokens (`tokens/motion.ts`), appended last for the same reason.
+        ...motionThemeDeclarations(),
         '}',
+        '',
+        ...motionKeyframes(),
         ...darkThemeLines(),
     ];
 

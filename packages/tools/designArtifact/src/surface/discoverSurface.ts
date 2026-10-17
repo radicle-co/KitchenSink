@@ -4,7 +4,7 @@
  * Two sources compose, so there is one list and no second copy to drift:
  *   - DISCOVERED: every PascalCase component export of the `@commise/ui` leaves (web `.tsx`, native `.native.tsx`),
  *     found with the same file discovery and "is this file a component" test the docs generator uses.
- *   - REGISTERED: the product components, app chrome and hooks in `productSurface`.
+ *   - REGISTERED: the product components, app chrome, hooks and values in `productSurface`.
  *
  * @pattern Union of sources — discovery and the registry both yield {@link SurfaceEntry}; the surface is their union,
  * with a name collision treated as an error rather than resolved by order.
@@ -14,7 +14,7 @@ import { componentExportsOf, discoverComponentFiles, exportsAComponentName } fro
 import { UI_SRC } from '../config.js';
 import { DesignArtifactError } from '../errors.js';
 
-import { CHROME_SURFACE, PRODUCT_SURFACE, SHIM_SURFACE, SURFACE_HOOKS } from './productSurface.js';
+import { CHROME_SURFACE, PRODUCT_SURFACE, SHIM_SURFACE, SURFACE_VALUES, SURFACE_HOOKS } from './productSurface.js';
 import type { PlatformFiles, RegisteredFile } from './productSurface.js';
 import type { SurfaceEntry } from './surfaceEntry.js';
 
@@ -161,6 +161,7 @@ function platformSurface(
         [
             ...shimmed.map((entry): SurfaceEntry => ({ ...entry, kind: 'component' })),
             ...SURFACE_HOOKS.map((entry): SurfaceEntry => ({ ...entry, kind: 'hook' })),
+            ...SURFACE_VALUES.map((entry): SurfaceEntry => ({ ...entry, kind: 'value' })),
         ],
         platform,
     );

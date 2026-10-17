@@ -94,7 +94,7 @@ export default defineCard({
                             onSave={noop}
                             variant="grid"
                             recipe={SOUP}
-                            sourceAttribution="Mrs. Beeton, 1861"
+                            sourceAttribution="The Book of Household Management"
                             saveCopy={{ kind: 'saved', copyId: 'c-1' }}
                         />
                     </div>

@@ -68,62 +68,8 @@
     }
 }
 
-/* U8 — the Home gradient hero's subtle enter (a short rise + fade on mount). Registered as a theme
-   `--animate-*` token so it surfaces as the `animate-home-hero-enter` utility, applied ONLY behind the
-   `motion-safe:` variant: under `prefers-reduced-motion: reduce` the utility is never emitted, so there is
-   no transform/opacity animation at all (a clean gate, not an override fight). */
-@theme {
-    --animate-home-hero-enter: home-hero-enter 400ms ease-out both;
-}
-
-@keyframes home-hero-enter {
-    from {
-        opacity: 0;
-        transform: translateY(0.5rem);
-    }
-
-    to {
-        opacity: 1;
-        transform: none;
-    }
-}
-
-/* U8 motion pass — the same rise + fade, generalized for any SECTION that enters (the discovery browse
-   rails). Owned by the `@commise/ui/motion` `EnterTransition` primitive, which emits it only behind
-   `motion-safe:`; `both` keeps the from-state through an `animation-delay` so a run of sections can stagger.
-   Pure CSS by design: the gesture must not depend on hydration, or a no-JS viewer would see nothing. Values
-   are single-sourced with the native leaf's `ENTER_DURATION_MS` / `ENTER_RISE_PX`. */
-@theme {
-    --animate-section-enter: section-enter 400ms ease-out both;
-}
-
-@keyframes section-enter {
-    from {
-        opacity: 0;
-        transform: translateY(0.5rem);
-    }
-
-    to {
-        opacity: 1;
-        transform: none;
-    }
-}
-
-/* The `@commise/ui/pending-bar` reveal: a ZERO-length opacity animation whose `both` fill holds the bar invisible
-   through the `animation-delay` the component sets inline from `PENDING_BAR_DELAY_MS` (single-sourced there, not
-   here). It is a delay, not motion, so it is applied WITHOUT `motion-safe:` — a reduce-motion viewer needs the same
-   signal. Without this token the utility compiles to nothing and the bar paints on the first frame of every search
-   (asserted in `tailwindTheme.integration.test.ts`). */
-@theme {
-    --animate-pending-bar-reveal: pending-bar-reveal 0s linear both;
-}
-
-@keyframes pending-bar-reveal {
-    from {
-        opacity: 0;
-    }
-
-    to {
-        opacity: 1;
-    }
-}
+/* The two animation tokens and their `@keyframes` (a section's enter and the pending-bar reveal) come from
+   `@commise/ui/theme.css` (`tokens/motion.ts`), derived from the constants native reads. They are not restated here,
+   and their utility class names are not spelled in this file: Tailwind scans source as text, so a class named in a
+   comment is emitted. `tests/__integration__/tailwindTheme.integration.test.ts` compiles this file and asserts they
+   survive. */

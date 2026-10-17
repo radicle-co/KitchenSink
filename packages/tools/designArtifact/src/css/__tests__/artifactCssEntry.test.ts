@@ -40,11 +40,9 @@ describe('artifactCssEntry', () => {
         expect(entry).not.toContain('--text-');
     });
 
-    it('brings in the three motion tokens the components use', () => {
-        for (const name of ['home-hero-enter', 'section-enter', 'pending-bar-reveal']) {
-            expect(entry).toContain(`--animate-${name}:`);
-            expect(entry).toContain(`@keyframes ${name}`);
-        }
+    it('carries no copy of the motion tokens either: @commise/ui/theme.css owns them', () => {
+        expect(entry).not.toContain('--animate-');
+        expect(entry).not.toContain('@keyframes');
     });
 
     it('rejects a root that would break out of the quoted path', () => {

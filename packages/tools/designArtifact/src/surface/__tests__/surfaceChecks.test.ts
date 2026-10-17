@@ -30,6 +30,53 @@ function input(overrides: Partial<SurfaceCheckInput> = {}): SurfaceCheckInput {
     };
 }
 
+describe('surfaceProblems and values', () => {
+    const value = { name: 'someMessages', file: '/recipes/messages.ts', kind: 'value' as const };
+    const withValue: Surface = { web: [...surface.web, value], native: [...surface.native, value] };
+
+    it('lets a card use a value entry, and asks no card of it (a value is data, not a component)', () => {
+        const problems = surfaceProblems(
+            input({
+                surface: withValue,
+                cards: [
+                    { name: 'Button', uses: ['Button', 'someMessages'], platforms: 'both' },
+                    { name: 'Chip', uses: ['Chip'], platforms: 'both' },
+                ],
+            }),
+        );
+
+        expect(problems).toEqual([]);
+    });
+
+    it('still refuses a card that uses a hook (a hook is not something a card mounts)', () => {
+        const problems = surfaceProblems(
+            input({
+                cards: [
+                    { name: 'Button', uses: ['Button', 'useThing'], platforms: 'web' },
+                    { name: 'Chip', uses: ['Chip'], platforms: 'both' },
+                ],
+            }),
+        );
+
+        expect(problems).toEqual(['Button uses useThing, which the web surface does not export']);
+    });
+
+    it('does not take a value for a component: a card named for it is an orphan, and a board cannot mount it', () => {
+        const problems = surfaceProblems(
+            input({
+                surface: withValue,
+                cards: [
+                    { name: 'Button', uses: ['Button'], platforms: 'both' },
+                    { name: 'Chip', uses: ['Chip'], platforms: 'both' },
+                    { name: 'someMessages', uses: [], platforms: 'web' },
+                ],
+            }),
+        );
+
+        expect(problems).toEqual(['someMessages is a card for a component the web surface does not export']);
+    });
+});
+
 describe('surfaceProblems', () => {
     it('is empty when cards, boards and the uncarded table all agree with the surface', () => {
         expect(surfaceProblems(input())).toEqual([]);

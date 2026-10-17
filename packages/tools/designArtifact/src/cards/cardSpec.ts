@@ -8,7 +8,7 @@
  */
 import type { ReactNode } from 'react';
 
-import type { CardComponentName, CardUi, NativeCardUi } from './cardComponents.js';
+import type { CardComponentName, CardUi, NativeCardUi, NativeDivergentComponents } from './cardComponents.js';
 
 /** Which columns a card shows. */
 export type CardPlatforms = 'both' | 'web' | 'native';
@@ -72,30 +72,49 @@ export type CardScope =
     | { readonly platforms: 'both'; readonly reason?: undefined }
     | { readonly platforms: 'web' | 'native'; readonly reason: string };
 
+/** The render function for the web column (and for the native one unless {@link CardSpec.renderNative} is given). */
+type RenderWeb<Used extends CardComponentName> = (ui: CardUi<Used>, context: CardContext) => ReactNode;
+
+/** The render function typed against the native leaves. */
+type RenderNative<Used extends CardComponentName> = (ui: NativeCardUi<Used>, context: CardContext) => ReactNode;
+
+/** `renderNative` is optional, unless the card mounts a component whose native leaf takes other props. */
+type NativeRenderOf<Used extends CardComponentName> = [Extract<Used, keyof NativeDivergentComponents>] extends [never]
+    ? { readonly renderNative?: RenderNative<Used> }
+    : { readonly renderNative: RenderNative<Used> };
+
+/**
+ * Which render functions a card gives, by the columns it shows: the column a function draws decides which components
+ * it is typed against, so a card can never be checked against leaves it does not mount.
+ *
+ * - `both`: `render` draws the web column, and the native one too unless `renderNative` is given. `renderNative` is for
+ *   a card whose components take different props on the two platforms (the native leaf has a prop the web one lacks,
+ *   or the reverse). Typed against the native leaves, so a prop only the web takes fails `tsc` there. It is REQUIRED
+ *   when the card mounts one of {@link NativeDivergentComponents}: without it the native column would be drawn by the
+ *   web render and never checked against the native leaf.
+ * - `web`: `render` draws the only column.
+ * - `native`: `render` draws the only column, so it is typed against the NATIVE leaves; a second `renderNative` would
+ *   have nothing to draw and is refused.
+ */
+type CardRendering<Used extends CardComponentName> =
+    | ({ readonly platforms: 'both'; readonly render: RenderWeb<Used> } & NativeRenderOf<Used>)
+    | { readonly platforms: 'web'; readonly render: RenderWeb<Used>; readonly renderNative?: undefined }
+    | { readonly platforms: 'native'; readonly render: RenderNative<Used>; readonly renderNative?: undefined };
+
 /**
  * A component card.
  *
  * @typeParam Used - The component names the card mounts; `render` may only touch those.
  */
 export type CardSpec<Used extends CardComponentName = CardComponentName> = CardMeta &
-    CardScope & {
+    CardScope &
+    CardRendering<Used> & {
         /**
          * The components the card mounts. The build checks each against the surface discovered for the card's
          * platforms and fails the build when one is missing (`surface/surfaceChecks.ts`), so a card can never name a
          * component its column cannot mount.
          */
         readonly uses: readonly Used[];
-        /**
-         * Called once per shown column, with that platform's namespace. It serves the native column too unless
-         * {@link CardSpec.renderNative} is given.
-         */
-        readonly render: (ui: CardUi<Used>, context: CardContext) => ReactNode;
-        /**
-         * The native column, for a card whose components take different props on the two platforms (the native leaf
-         * has a prop the web one lacks, or the reverse). Typed against the native leaves, so a prop only the web
-         * takes fails `tsc` here. When given, `render` draws the web column only.
-         */
-        readonly renderNative?: (ui: NativeCardUi<Used>, context: CardContext) => ReactNode;
         /**
          * Runs in the browser after the columns are rendered, for a state that needs the DOM (focus a trigger,
          * scroll a host). The page is not flagged ready (`data-card-ready`) until the returned promise settles, so an

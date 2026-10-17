@@ -108,4 +108,24 @@ describe('RecipeDiscoveryCard (web)', () => {
         );
         expect(within(card).getByRole('button', { name: 'Save a copy of Lamb Shoulder' })).toBeTruthy();
     });
+
+    it.each(['grid', 'compact'] as const)(
+        'keeps a long source on ONE truncating line in the %s card, with the whole text still its accessible text',
+        (variant) => {
+            const source = 'The Book of Household Management';
+
+            renderCard({ variant, authorUsername: undefined, authorDisplayName: undefined, sourceAttribution: source });
+
+            const line = screen.getByText(`From ${source}`);
+
+            // jsdom has no layout, so this pins the structure that LETS the line give way: `truncate` clips it to one line
+            // with an ellipsis and `min-w-0` lets the flex row shrink it below its text, so Save keeps its 44 px. The real
+            // proof that it does is the design-artifact browser tier (`renderArtifact.e2e.test.ts`, the
+            // RecipeDiscoveryCard card): every card is measured in Chromium and none may spill sideways.
+            expect(line.className.split(/\s+/u)).toEqual(expect.arrayContaining(['truncate', 'min-w-0', 'flex-1']));
+            // Clipped on screen, never cut from the tree: the full attribution is what a screen reader reads.
+            expect(line.textContent).toBe(`From ${source}`);
+            expect(screen.getByRole('button', { name: 'Save a copy of Lamb Shoulder' })).toBeTruthy();
+        },
+    );
 });

@@ -13,8 +13,6 @@ import { join } from 'node:path';
 
 import { CONTENT_DIR } from '../config.js';
 
-import { MOTION_THEME_CSS } from './motionTheme.js';
-
 /**
  * The authored previews: cards and boards write utility classes of their own, and only the stylesheet can supply
  * them, because they are not part of the component bundle the `@source` roots are derived from.
@@ -46,8 +44,6 @@ export function artifactCssEntry(sourceRoots: readonly string[]): string {
         '@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));',
         '',
         ...sourceRoots.map((root) => `@source "${root}";`),
-        '',
-        MOTION_THEME_CSS,
         '',
     ].join('\n');
 }

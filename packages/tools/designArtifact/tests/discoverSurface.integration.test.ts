@@ -41,6 +41,19 @@ describe('discoverSurface over the real source tree', () => {
         expect(surface.web.map((entry) => entry.name)).not.toContain('ScrollFrame');
     });
 
+    it('publishes the product values a card reads on both surfaces, as values rather than components', () => {
+        for (const entries of [surface.web, surface.native]) {
+            const values = entries.filter((entry) => entry.kind === 'value');
+
+            expect(values.map((entry) => entry.name)).toEqual([
+                'offlineNoticeMessages',
+                'recipeFormMessages',
+                'recipeMessages',
+                'seedLineKey',
+            ]);
+        }
+    });
+
     it('never publishes the same name twice on one surface', () => {
         for (const entries of [surface.web, surface.native]) {
             const names = entries.map((entry) => entry.name);

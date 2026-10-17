@@ -1,5 +1,5 @@
 import { palette, role, roleDark } from '@commise/ui/colors';
-import { fontFamily, fontWeight, radius, spacing } from '@commise/ui/scale';
+import { fontFamily, fontSize, fontWeight, lineHeightRatio, radius, spacing } from '@commise/ui/scale';
 import { barMaterial } from '@commise/ui/tokens/barMaterial';
 import { coverTint, coverTintDark } from '@commise/ui/tokens/covers';
 import { kebab } from '@commise/ui/tokens/emit';
@@ -13,6 +13,9 @@ import type { ArtifactColorToken } from '../artifactTokens.js';
 import { buildTokens } from '../buildTokens.js';
 
 const tokens = buildTokens();
+
+/** The group that publishes the display ramp's sizes, which carry no weight of their own. */
+const SIZE_SCALE = 'Size scale';
 
 /** The colour token of a name, or a failure naming it. */
 function colour(name: string): ArtifactColorToken {
@@ -103,7 +106,7 @@ describe('buildTokens', () => {
     });
 
     describe('type', () => {
-        const styles = tokens.type.groups.flatMap((group) => group.styles);
+        const styles = tokens.type.groups.filter((group) => group.name !== SIZE_SCALE).flatMap((group) => group.styles);
 
         it('carries the font stacks from the scale', () => {
             expect(tokens.type.families).toEqual(fontFamily);
@@ -137,6 +140,33 @@ describe('buildTokens', () => {
             const largeTitle = tokens.type.groups.find((group) => group.styles.some((s) => s.name === 'large-title'));
 
             expect(largeTitle?.family).toBe('display');
+        });
+
+        describe('the size scale', () => {
+            const RAMP = Object.entries(fontSize).filter(([step]) => /^(display|heading)/u.test(step));
+            const group = tokens.type.groups.find((candidate) => candidate.name === SIZE_SCALE);
+
+            it('is the display face, one step per display and heading size of the scale', () => {
+                expect(group?.family).toBe('display');
+                expect(group?.styles.map((style) => style.name)).toEqual(RAMP.map(([step]) => kebab(step)));
+            });
+
+            it.each(RAMP)('states %s from the scale, with the heading line height', (step, size) => {
+                const style = group?.styles.find((candidate) => candidate.name === kebab(step));
+
+                expect(style?.fontSize).toBe(`${size}px`);
+                expect(style?.lineHeight).toBe(`${lineHeightRatio.heading}`);
+            });
+
+            it('takes no body or caption size, which the type roles already publish', () => {
+                expect(RAMP.map(([step]) => step)).toContain('displayXl');
+                expect(group?.styles.map((style) => style.name)).not.toContain('body-md');
+                expect(group?.styles.map((style) => style.name)).not.toContain('caption');
+            });
+
+            it('invents no weight: each call site picks its own', () => {
+                expect(group?.styles.every((style) => style.fontWeight === undefined)).toBe(true);
+            });
         });
 
         it('lists every font registration with its published file', () => {

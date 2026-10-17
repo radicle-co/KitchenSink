@@ -25,7 +25,7 @@ describe('bundleComponents with the real esbuild bundler over the real sources',
         expect(sourceRoots.filter((root) => root.includes('/node_modules/'))).toEqual([]);
     });
 
-    it('opens with a header listing every web component and no hook', () => {
+    it('opens with a header listing every web component, and no hook or product value', () => {
         const header = JSON.parse(/^\/\* @ds-bundle: (.*) \*\/\n/u.exec(script)?.[1] ?? 'null') as {
             format: number;
             components: { name: string }[];
@@ -35,7 +35,9 @@ describe('bundleComponents with the real esbuild bundler over the real sources',
         expect(header.format).toBe(4);
         expect(listed).toEqual(expect.arrayContaining(['Button', 'RecipeCard', 'HomeSidebar']));
         expect(listed).not.toContain('useSnackbar');
-        expect(listed).toHaveLength(surface.web.length - 1);
+        expect(listed).not.toContain('recipeFormMessages');
+        expect(listed).not.toContain('seedLineKey');
+        expect(listed).toEqual(surface.web.filter(({ kind }) => kind === 'component').map(({ name }) => name));
     });
 
     it('defines the bridge, both bundles and the single Commise global, in that order', () => {

@@ -40,7 +40,8 @@ export interface ArtifactTypeStyle {
     readonly name: string;
     readonly fontSize: string;
     readonly lineHeight: string;
-    readonly fontWeight: number;
+    /** Absent for a size step, whose weight each call site chooses. */
+    readonly fontWeight?: number;
     readonly usage: string;
 }
 

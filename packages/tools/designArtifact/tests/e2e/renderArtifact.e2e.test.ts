@@ -11,6 +11,10 @@
  * readiness flag (`data-card-ready`), the canvas runtime's render (no `<x-import>` left) and `document.fonts.ready`
  * are awaited.
  *
+ * Every card is also held to one general rule: no in-flow child sticks out of its parent sideways unless the parent
+ * clips on purpose. That is how a long label that cannot truncate (it widens its card past the width the card sets and
+ * pushes a control out) fails here, by card name, whichever component it is in.
+ *
  * Heights are measured at a 960 px wide window for cards and at the board's own width for boards, with the window as
  * tall as the declared height: the document is then taller than the window exactly when the content does not fit.
  */
@@ -84,6 +88,65 @@ async function waitReady(page: Page, problems: readonly string[], what: string, 
     });
 }
 
+/**
+ * The boxes in a card column with an in-flow child that sticks out of them sideways with nothing clipping it: that is
+ * content spilled out (a long label that cannot shrink, a child that widened its parent past the width the card sets,
+ * a control pushed out of its row). It is measured from the boxes the browser drew, not from `scrollWidth`, which also
+ * counts what cannot be seen: an invisible measuring twin, or a spinner's rotated corner mid-turn.
+ *
+ * - A box that clips (`overflow-x` other than visible) may hold wider content: it is how a long label is cut.
+ * - An inline box has no box to stick out of, so it is not measured.
+ * - A child that is invisible, out of flow (absolute or fixed) or takes no box is not content in the flow.
+ * - Animations are cancelled first, so the answer does not depend on the moment it was asked.
+ */
+async function sidewaysSpills(page: Page): Promise<string[]> {
+    return page.evaluate(() => {
+        for (const animation of document.getAnimations()) {
+            animation.cancel();
+        }
+
+        // The first classes only: a utility-class list can run to hundreds of characters.
+        const describe = (element: Element): string =>
+            `<${element.tagName.toLowerCase()} class="${(element.getAttribute('class') ?? '').slice(0, 48)}">`;
+
+        return ['w', 'n'].flatMap((id) => {
+            const column = document.getElementById(id);
+
+            if (column === null) {
+                return [];
+            }
+
+            return [column, ...Array.from(column.getElementsByTagName('*'))].flatMap((element) => {
+                // An inline box draws no box of its own (`clientWidth` 0): its children flow in the box around it.
+                if (getComputedStyle(element).overflowX !== 'visible' || element.clientWidth === 0) {
+                    return [];
+                }
+
+                const box = element.getBoundingClientRect();
+                const right = box.left + element.clientLeft + element.clientWidth;
+
+                return Array.from(element.children).flatMap((child) => {
+                    const style = getComputedStyle(child);
+                    const drawn = child.getBoundingClientRect();
+                    const inFlow =
+                        style.visibility === 'visible' &&
+                        style.display !== 'none' &&
+                        style.position !== 'absolute' &&
+                        style.position !== 'fixed' &&
+                        drawn.width > 0;
+                    const spill = drawn.right - right;
+
+                    return inFlow && spill > 1
+                        ? [
+                              `${element === column ? `column #${id}` : describe(element)} in #${id}: ${describe(child)} ends ${spill.toFixed(1)}px past its right edge`,
+                          ]
+                        : [];
+                });
+            });
+        });
+    });
+}
+
 const CARD_NAMES = readdirSync(CARDS_DIR).sort();
 
 describe('component cards', () => {
@@ -149,6 +212,7 @@ describe('component cards', () => {
 
                 expect(measured.interCheck).toBe(true);
                 expect(measured.interLoaded, 'no Inter face was loaded').toBe(true);
+                expect(await sidewaysSpills(page), 'content spills out of its box sideways').toEqual([]);
 
                 if (scrolls) {
                     expect(measured.contentHeight, 'a scrolling card must be taller than its height').toBeGreaterThan(

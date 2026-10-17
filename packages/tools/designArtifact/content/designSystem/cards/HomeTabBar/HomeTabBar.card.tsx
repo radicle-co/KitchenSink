@@ -42,40 +42,42 @@ export default defineCard({
     height: 400,
     platforms: 'both',
     uses: ['HomeTabBar', 'ScrollHost'],
-    render: ({ HomeTabBar, ScrollHost }, { platform }) => (
+    // The two bars are different components (the web bar is a router-driven `nav` of links, the mobile bar takes
+    // `onPress` and the insets), so each column states its own props.
+    render: ({ HomeTabBar, ScrollHost }) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <style>{'nav[data-tab-bar]{display:flex!important}'}</style>
-            {platform === 'web' ? (
-                <ScrollHost>
-                    {screen(<HomeTabBar chrome={chrome} locale="en" liveCapabilities={[]} activeId="recipes" />)}
-                </ScrollHost>
-            ) : (
-                <>
-                    {screen(
-                        <HomeTabBar
-                            chrome={chrome}
-                            liveCapabilities={[]}
-                            activeId="recipes"
-                            onPress={noop}
-                            bottomInset={34}
-                            compact={false}
-                            leftInset={0}
-                            rightInset={0}
-                        />,
-                    )}
-                    {screen(
-                        <HomeTabBar
-                            chrome={chrome}
-                            liveCapabilities={[]}
-                            activeId="discover"
-                            onPress={noop}
-                            bottomInset={34}
-                            compact
-                            leftInset={0}
-                            rightInset={0}
-                        />,
-                    )}
-                </>
+            <ScrollHost>
+                {screen(<HomeTabBar chrome={chrome} locale="en" liveCapabilities={[]} activeId="recipes" />)}
+            </ScrollHost>
+        </div>
+    ),
+    renderNative: ({ HomeTabBar }) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <style>{'nav[data-tab-bar]{display:flex!important}'}</style>
+            {screen(
+                <HomeTabBar
+                    chrome={chrome}
+                    liveCapabilities={[]}
+                    activeId="recipes"
+                    onPress={noop}
+                    bottomInset={34}
+                    compact={false}
+                    leftInset={0}
+                    rightInset={0}
+                />,
+            )}
+            {screen(
+                <HomeTabBar
+                    chrome={chrome}
+                    liveCapabilities={[]}
+                    activeId="discover"
+                    onPress={noop}
+                    bottomInset={34}
+                    compact
+                    leftInset={0}
+                    rightInset={0}
+                />,
             )}
         </div>
     ),

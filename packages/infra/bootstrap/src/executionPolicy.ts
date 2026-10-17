@@ -1,5 +1,5 @@
 /**
- * @module executionPolicy — what CloudFormation may do when it deploys for one qualifier (ADR-0064).
+ * @module executionPolicy — what CloudFormation may do when it deploys for one qualifier (ADR-0065).
  *
  * The bootstrap's execution role was `AdministratorAccess`, so whoever could make CloudFormation deploy a template
  * was an account administrator. This module is the replacement: a DATA TABLE of grants, rendered into several

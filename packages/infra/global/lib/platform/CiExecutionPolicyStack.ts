@@ -1,5 +1,5 @@
 /**
- * The managed policies that cap what CI can do through KitchenSink's own CDK bootstrap qualifiers (ADR-0064).
+ * The managed policies that cap what CI can do through KitchenSink's own CDK bootstrap qualifiers (ADR-0065).
  *
  * ## What it holds
  *
@@ -80,14 +80,14 @@ export class CiExecutionPolicyStack extends Stack {
         for (const qualifier of QUALIFIER_LIST) {
             new iam.ManagedPolicy(this, `Boundary-${qualifier}`, {
                 managedPolicyName: boundaryPolicyName(qualifier),
-                description: `Permissions boundary for every role a ${qualifier} stack creates (ADR-0064).`,
+                description: `Permissions boundary for every role a ${qualifier} stack creates (ADR-0065).`,
                 document: render(buildBoundary(qualifier)),
             });
 
             for (const part of buildExecutionPolicy(qualifier)) {
                 new iam.ManagedPolicy(this, `Exec-${qualifier}-${part.name}`, {
                     managedPolicyName: part.policyName,
-                    description: `CloudFormation execution policy (${part.name}) for the ${qualifier} bootstrap (ADR-0064).`,
+                    description: `CloudFormation execution policy (${part.name}) for the ${qualifier} bootstrap (ADR-0065).`,
                     document: render(part.document),
                 });
             }

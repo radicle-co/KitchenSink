@@ -49,7 +49,7 @@ Parameters:
     Type: String
   BootstrapVariant:
     Type: String
-    Default: "KitchenSink: scoped bootstrap (ADR-0064)"
+    Default: "KitchenSink: scoped bootstrap (ADR-0065)"
     Description: Describe the provenance of the resources in this bootstrap stack. Change this when you customize the template. To prevent accidents, the CDK CLI will not overwrite bootstrap stacks with a different variant.
   DenyExternalId:
     Type: String

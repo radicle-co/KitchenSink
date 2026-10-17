@@ -1,5 +1,5 @@
 /**
- * The qualifier module is the ONE authority for the three bootstrap qualifiers (ADR-0064). Renaming a qualifier
+ * The qualifier module is the ONE authority for the three bootstrap qualifiers (ADR-0065). Renaming a qualifier
  * means re-bootstrapping every stage, so what is pinned here is the one-way-door surface: the names, the charset
  * rule CloudFormation enforces on them, and the role ARNs every other module derives from them.
  */

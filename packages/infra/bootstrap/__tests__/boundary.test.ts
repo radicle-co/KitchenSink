@@ -1,5 +1,5 @@
 /**
- * The permissions boundary caps every role a qualifier's stacks create (ADR-0064), independent of the execution
+ * The permissions boundary caps every role a qualifier's stacks create (ADR-0065), independent of the execution
  * policy: even if a stack were deployed with a template that grants a role `iam:*`, the role cannot exceed the
  * boundary. Two properties carry the weight, and each has a test that reads the document as structure:
  *

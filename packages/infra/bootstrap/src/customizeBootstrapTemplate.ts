@@ -1,5 +1,5 @@
 /**
- * @module customizeBootstrapTemplate — the stock CDK bootstrap template, narrowed for KitchenSink (ADR-0064).
+ * @module customizeBootstrapTemplate — the stock CDK bootstrap template, narrowed for KitchenSink (ADR-0065).
  *
  * The stock template (`cdk bootstrap --show-template`, vendored verbatim as `stockTemplate.yaml`) cannot express
  * what closes the shared-account finding, so this pure transform makes four edits and nothing else:
@@ -227,7 +227,7 @@ function stampIdentity(template: JsonObject, qualifier: QualifierName): void {
     const parameters = asObject(template['Parameters'], 'Parameters');
     asObject(parameters['Qualifier'], 'Parameters.Qualifier')['Default'] = qualifier;
     asObject(parameters['BootstrapVariant'], 'Parameters.BootstrapVariant')['Default'] =
-        'KitchenSink: scoped bootstrap (ADR-0064)';
+        'KitchenSink: scoped bootstrap (ADR-0065)';
 }
 
 /**

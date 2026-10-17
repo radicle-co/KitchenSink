@@ -337,9 +337,9 @@ const PACKAGE_INTERNALS_PATTERN = {
         // `retry-after`'s `bearer-replay`: the replay of a refused bearer every service client shares, an entry of its
         // own beside the package's `Retry-After` parser.
         '!@kitchensink/*/bearer-replay',
-        // `cdk-bootstrap` (ADR-0065) is a set of PURE policy/qualifier modules, each a declared export: the CDK apps, the
-        // access stack and the guards import `qualifiers` without the template transform's `yaml` dependency, so there
-        // is no barrel to funnel them through. Allowed per-package, like the tooling packages below.
+        // `cdk-bootstrap` (ADR-0065) has NO barrel: its declared subpaths ARE its API (`appProps` for every CDK app,
+        // `qualifiers`, `boundary`, `executionPolicy`, `customizeBootstrapTemplate`), so a consumer takes one module
+        // without the template transform's `yaml` dependency. Allowed per-package, like the tooling packages below.
         '!@kitchensink/cdk-bootstrap/*',
         // The four shared TOOLING packages, allowed per-package rather than
         // per-name: each declares a wildcard `"./*"` export, so subpath import IS
@@ -347,11 +347,6 @@ const PACKAGE_INTERNALS_PATTERN = {
         // `@kitchensink/esbuild/library`, `@kitchensink/vitest/base`,
         // `@kitchensink/typescript/fixDeclarationPaths`). There is no "internal"
         // to protect, and naming each subpath would rebuild the copy above.
-        // `cdk-bootstrap` is allowed per-package for the same reason, and for a stronger one: it has NO barrel
-        // (the barrel rule forbids one, and a `.` entry would have to import every module, `appProps` included,
-        // into a consumer that wants one). Its subpaths ARE its API: `appProps` (every CDK app), `qualifiers`,
-        // `boundary`, `executionPolicy` and `customizeBootstrapTemplate`.
-        '!@kitchensink/cdk-bootstrap/*',
         '!@kitchensink/esbuild/*',
         '!@kitchensink/eslint/*',
         '!@kitchensink/typescript/*',

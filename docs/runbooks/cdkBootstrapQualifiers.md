@@ -1,6 +1,6 @@
 # CDK bootstrap qualifiers (owner runbook)
 
-Decision record: ADR-0064. This runbook is the only place the bootstrap and the policy stack are run from. **No workflow runs any step here.** Every command is run by the owner, from an admin session, in the shared AWS account.
+Decision record: ADR-0065. This runbook is the only place the bootstrap and the policy stack are run from. **No workflow runs any step here.** Every command is run by the owner, from an admin session, in the shared AWS account.
 
 KitchenSink bootstraps CDK three times, under qualifiers of its own, so that no CI role can reach the account-wide `AdministratorAccess` execution role of the default bootstrap (`hnb659fds`, shared with another application).
 
@@ -111,7 +111,7 @@ The `ksaccount` deploy role trusts only `kitchensink-gha-prod`, which GitHub iss
 
 ## Sequencing with the CI roles
 
-Running steps 1 to 3 changes nothing a workflow uses today: the new roles and buckets are additive, and the default bootstrap is untouched. What must NOT happen early is cutting the CI roles' old path (and deploying the first `ksaccount` change to the CI roles themselves) before the stage stacks have moved to the new qualifiers. That order is owned by the access-stack migration in ADR-0064; follow it there rather than from this runbook.
+Running steps 1 to 3 changes nothing a workflow uses today: the new roles and buckets are additive, and the default bootstrap is untouched. What must NOT happen early is cutting the CI roles' old path (and deploying the first `ksaccount` change to the CI roles themselves) before the stage stacks have moved to the new qualifiers. That order is owned by the access-stack migration in ADR-0065; follow it there rather than from this runbook.
 
 ## Changing a policy or a template
 

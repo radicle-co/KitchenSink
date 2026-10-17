@@ -1,5 +1,5 @@
 /**
- * The execution policy is the privilege (ADR-0064): it is what CloudFormation uses to create every resource, so
+ * The execution policy is the privilege (ADR-0065): it is what CloudFormation uses to create every resource, so
  * these guards read it as STRUCTURE and fail on the properties that turn a deploy role into an administrator.
  *
  * Mutation lens, applied by hand before this file was committed: widening any one statement (adding `iam:*`, an

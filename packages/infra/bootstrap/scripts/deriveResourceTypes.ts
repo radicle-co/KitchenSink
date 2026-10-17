@@ -4,7 +4,7 @@
  *
  * ## Why this exists
  *
- * The execution policy is the privilege (ADR-0064): it is what CloudFormation uses to create every resource.
+ * The execution policy is the privilege (ADR-0065): it is what CloudFormation uses to create every resource.
  * Writing its service list by hand drifts the day a construct adds a resource type. So the list is DERIVED from
  * the templates the apps really synthesize, committed, and compared in both directions by
  * `__tests__/manifestCoverage.test.ts`.

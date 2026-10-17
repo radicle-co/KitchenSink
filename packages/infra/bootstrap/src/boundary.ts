@@ -1,5 +1,5 @@
 /**
- * @module boundary — the permissions boundary applied to every role a qualifier's stacks create (ADR-0064).
+ * @module boundary — the permissions boundary applied to every role a qualifier's stacks create (ADR-0065).
  *
  * The execution policy decides what CloudFormation may BUILD; the boundary decides what anything it built may DO,
  * whatever that thing's own policy says. A branch deploy that writes a role with `iam:*` still gets a role that

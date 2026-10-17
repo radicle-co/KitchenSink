@@ -80,7 +80,7 @@ new GithubActionsAccessStack(app, 'GithubActionsAccess', {
     stackName: 'kitchensink-github-actions-access',
 });
 
-// ADR-0064: the permissions boundaries and CloudFormation execution policies of KitchenSink's CDK bootstrap
+// ADR-0065: the permissions boundaries and CloudFormation execution policies of KitchenSink's CDK bootstrap
 // qualifiers. ⛔ OWNER-ONLY. A role that could deploy this stack could widen the policy that bounds it, so it is
 // built only when the owner passes `-c ciPoliciesOwnerDeploy=true` from an admin session; no workflow does, and
 // `accountDeploy.yml`'s `cdk deploy --all` therefore never sees it. `ciPolicyStackOwnerOnly.test.ts` holds this.

@@ -1,5 +1,5 @@
 /**
- * Create-versus-modify scoping (ADR-0064): the guard that name scoping alone is NOT the boundary.
+ * Create-versus-modify scoping (ADR-0065): the guard that name scoping alone is NOT the boundary.
  *
  * A name pattern (`kitchensink-*`) plus a Deny on `*-prod*` looks tight and is not, for two measured reasons:
  *

@@ -1,5 +1,5 @@
 /**
- * @module qualifiers — the ONE authority for KitchenSink's CDK bootstrap qualifiers (ADR-0064).
+ * @module qualifiers — the ONE authority for KitchenSink's CDK bootstrap qualifiers (ADR-0065).
  *
  * The AWS account also hosts an unrelated application that bootstrapped CDK under the default qualifier
  * (`hnb659fds`) with an `AdministratorAccess` execution role. KitchenSink therefore bootstraps under qualifiers of
@@ -168,7 +168,7 @@ export const BOOTSTRAP_TRUST: Readonly<Record<QualifierName, Readonly<Record<Ass
 export const STACK_NAME_PATTERNS: Readonly<Record<QualifierName, readonly string[]>> = {
     ksnonprod: ['kitchensink-*-sandbox', 'kitchensink-*-pr-*'],
     ksprod: ['kitchensink-*-prod'],
-    ksaccount: ['kitchensink-cost-guardrails', 'kitchensink-github-actions-access', 'kitchensink-ci-execution-policy'],
+    ksaccount: ['kitchensink-cost-guardrails', 'kitchensink-github-actions-access'],
 };
 
 /**

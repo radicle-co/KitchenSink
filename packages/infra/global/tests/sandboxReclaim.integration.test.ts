@@ -181,13 +181,25 @@ class World {
                                     InstanceId: 'i-sbx',
                                     State: { Name: this.natState },
                                     SourceDestCheck: false,
-                                    Tags: [{ Key: 'Name', Value: 'kitchensink-network-sandbox/Nat' }],
+                                    Tags: [
+                                        {
+                                            Key: 'Name',
+                                            Value: 'Global-sandbox/Network-sandbox/Vpc/publicSubnet1/NatInstance',
+                                        },
+                                        { Key: 'aws:cloudformation:stack-name', Value: 'kitchensink-network-sandbox' },
+                                    ],
                                 },
                                 {
                                     InstanceId: 'i-prod',
                                     State: { Name: 'running' },
                                     SourceDestCheck: false,
-                                    Tags: [{ Key: 'Name', Value: 'kitchensink-network-prod/Nat' }],
+                                    Tags: [
+                                        {
+                                            Key: 'Name',
+                                            Value: 'Global-prod/Network-prod/Vpc/publicSubnet1/NatInstance',
+                                        },
+                                        { Key: 'aws:cloudformation:stack-name', Value: 'kitchensink-network-prod' },
+                                    ],
                                 },
                             ],
                         },

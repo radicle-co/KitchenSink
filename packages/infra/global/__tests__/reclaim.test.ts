@@ -50,7 +50,8 @@ const RDS_STOPPED = { identifier: 'kitchensink-data-sandbox', status: 'stopped' 
 const NAT_STOPPED = {
     instanceId: 'i-0abc',
     state: 'stopped',
-    nameTag: 'kitchensink-network-sandbox/NatInstance',
+    nameTag: 'Global-sandbox/Network-sandbox/Vpc/publicSubnet1/NatInstance',
+    stackNameTag: 'kitchensink-network-sandbox',
     sourceDestCheck: false,
 } as const;
 
@@ -228,7 +229,15 @@ describe('the tier must be quiescent before anything is deleted', () => {
         ['an instance that is not a NAT', { natInstances: [{ ...NAT_STOPPED, sourceDestCheck: true }] }],
         [
             'a NAT that is not the sandbox one',
-            { natInstances: [{ ...NAT_STOPPED, nameTag: 'kitchensink-network-prod/Nat' }] },
+            {
+                natInstances: [
+                    {
+                        ...NAT_STOPPED,
+                        nameTag: 'Global-prod/Network-prod/Vpc/publicSubnet1/NatInstance',
+                        stackNameTag: 'kitchensink-network-prod',
+                    },
+                ],
+            },
         ],
     ])('THROWS when it can find %s: an unobservable tier is an error, never a quiet success', (_label, rest) => {
         let thrown: unknown;

@@ -210,20 +210,30 @@ describe('Start/Stop selection never names an out-of-scope resource', () => {
         expect(selectRdsTargets(instances, 'stop')).toEqual(['kitchensink-data-sandbox-databaseb269d8bb-x']);
     });
 
-    it('EC2: a sandbox NAT named for this repository, never a prod NAT or another application sandbox NAT', () => {
-        const nat = (instanceId: string, nameTag: string) => ({
+    /**
+     * The tags are the ones AWS holds (read 2026-10-17): the CDK path `Name` carries no repository prefix, so the stack
+     * that owns the instance is what says it is ours.
+     */
+    it('EC2: the sandbox NAT is the one a kitchensink sandbox stack owns, never prod or another application', () => {
+        const nat = (instanceId: string, nameTag: string, stackNameTag: string | undefined) => ({
             instanceId,
             state: 'running',
             nameTag,
+            stackNameTag,
             sourceDestCheck: false,
         });
 
         expect(
             selectSandboxNatInstances(
                 [
-                    nat('i-prod', 'kitchensink-network-prod/Vpc'),
-                    nat('i-armoury', 'armoury-sandbox-nat'),
-                    nat('i-sbx', 'kitchensink-network-sandbox/Vpc'),
+                    nat('i-prod', 'Global-prod/Network-prod/Vpc/publicSubnet1/NatInstance', 'kitchensink-network-prod'),
+                    nat('i-armoury', 'armoury-sandbox-nat', 'armoury-network-sandbox'),
+                    nat('i-untagged', 'sandbox-nat', undefined),
+                    nat(
+                        'i-sbx',
+                        'Global-sandbox/Network-sandbox/Vpc/publicSubnet1/NatInstance',
+                        'kitchensink-network-sandbox',
+                    ),
                 ],
                 'stop',
             ),
@@ -266,7 +276,8 @@ describe('the scheduler and the reclaim hand the adapters the one scope predicat
                     {
                         instanceId: 'i-1',
                         state: 'stopped',
-                        nameTag: 'kitchensink-network-sandbox/Vpc',
+                        nameTag: 'Global-sandbox/Network-sandbox/Vpc/publicSubnet1/NatInstance',
+                        stackNameTag: 'kitchensink-network-sandbox',
                         sourceDestCheck: false,
                     },
                 ],

@@ -43,7 +43,8 @@ const { stops, ports } = vi.hoisted(() => {
                     {
                         instanceId: 'i-nat',
                         state: 'running',
-                        nameTag: 'kitchensink-network-sandbox/Nat',
+                        nameTag: 'Global-sandbox/Network-sandbox/Vpc/publicSubnet1/NatInstance',
+                        stackNameTag: 'kitchensink-network-sandbox',
                         sourceDestCheck: false,
                     },
                 ],

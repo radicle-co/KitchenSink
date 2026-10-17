@@ -78,6 +78,8 @@ export interface Ec2InstanceSummary {
     readonly state: string;
     /** The instance `Name` tag, if any. */
     readonly nameTag: string | undefined;
+    /** The `aws:cloudformation:stack-name` tag: the stack that owns the instance, if any. */
+    readonly stackNameTag: string | undefined;
     /** Whether the source/destination check is enabled — a NAT instance has it DISABLED (`false`). */
     readonly sourceDestCheck: boolean | undefined;
 }
@@ -381,20 +383,25 @@ export function isScheduledCluster(cluster: EcsClusterSummary): boolean {
 }
 
 /**
- * Whether an instance is THIS repository's sandbox NAT: a DISABLED source/destination check, and a `Name` tag in stage
- * scope that carries the `sandbox` marker.
+ * Whether an instance is THIS repository's sandbox NAT: a DISABLED source/destination check, owned by a stage-scoped
+ * `sandbox` stack, with the `sandbox` marker in its `Name` tag.
  *
- * ⛔ The `kitchensink-` prefix is part of the answer. `ec2:StopInstances` is bounded by the stack-name tag, so a
- * `sandbox`-named instance of the other application in this account would be selected and then REFUSED, failing the
- * whole stop; the prefix keeps it out of the selection.
+ * ⛔ The OWNING STACK is what says the instance is ours: the `Name` tag is the CDK construct path
+ * (`Global-sandbox/Network-sandbox/Vpc/publicSubnet1/NatInstance`), which carries no repository prefix, so a name rule
+ * cannot tell it from the other application's. The `Name` marker stays because `ec2:StopInstances` is granted on it.
  *
  * @param instance - The instance.
  * @returns `true` for the sandbox NAT. Pure.
  */
-function isSandboxNatInstance(instance: Ec2InstanceSummary): boolean {
-    const name = instance.nameTag ?? '';
+export function isSandboxNatInstance(instance: Ec2InstanceSummary): boolean {
+    const stack = instance.stackNameTag ?? '';
 
-    return instance.sourceDestCheck === false && isStageScopedName(name) && name.toLowerCase().includes(SANDBOX_MARKER);
+    return (
+        instance.sourceDestCheck === false &&
+        isStageScopedName(stack) &&
+        stack.includes(`-${SANDBOX_MARKER}`) &&
+        (instance.nameTag ?? '').toLowerCase().includes(SANDBOX_MARKER)
+    );
 }
 
 /**

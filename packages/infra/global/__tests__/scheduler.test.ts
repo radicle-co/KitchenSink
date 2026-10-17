@@ -192,7 +192,8 @@ const UP_RDS: RdsInstanceSummary = { identifier: 'kitchensink-data-sandbox', sta
 const UP_NAT: Ec2InstanceSummary = {
     instanceId: 'i-sbx-nat',
     state: 'running',
-    nameTag: 'kitchensink-network-sandbox/Vpc',
+    nameTag: 'Global-sandbox/Network-sandbox/Vpc/publicSubnet1/NatInstance',
+    stackNameTag: 'kitchensink-network-sandbox',
     sourceDestCheck: false,
 };
 
@@ -301,10 +302,17 @@ describe('resource selectors (sandbox-only)', () => {
             {
                 instanceId: 'i-prod-nat',
                 state: 'running',
-                nameTag: 'kitchensink-network-prod/Vpc',
+                nameTag: 'Global-prod/Network-prod/Vpc/publicSubnet1/NatInstance',
+                stackNameTag: 'kitchensink-network-prod',
                 sourceDestCheck: false,
             },
-            { instanceId: 'i-sbx-app', state: 'running', nameTag: 'sandbox-app', sourceDestCheck: true },
+            {
+                instanceId: 'i-sbx-app',
+                state: 'running',
+                nameTag: 'sandbox-app',
+                stackNameTag: undefined,
+                sourceDestCheck: true,
+            },
         ];
 
         expect(selectSandboxNatInstances(instances, 'stop')).toEqual(['i-sbx-nat']);
@@ -616,7 +624,8 @@ describe('runSchedulerAction — stop', () => {
                 {
                     instanceId: 'i-sbx-nat',
                     state: 'running',
-                    nameTag: 'kitchensink-network-sandbox/Vpc',
+                    nameTag: 'Global-sandbox/Network-sandbox/Vpc/publicSubnet1/NatInstance',
+                    stackNameTag: 'kitchensink-network-sandbox',
                     sourceDestCheck: false,
                 },
             ],

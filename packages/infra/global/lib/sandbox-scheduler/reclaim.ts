@@ -42,6 +42,7 @@ import { InvalidReclaimRequestError } from './invalidReclaimRequestError.js';
 import { ReclaimTierUnobservableError } from './reclaimTierUnobservableError.js';
 import {
     isCandidateClusterArn,
+    isSandboxNatInstance,
     isSandboxRdsInstance,
     previewTokenOf,
     type Ec2InstanceSummary,
@@ -220,9 +221,7 @@ function isDownOrGoingDown(state: string): boolean {
  */
 function readTier(observation: ReclaimObservation): { readonly quiescent: boolean } {
     const databases = observation.rdsInstances.filter((instance) => isSandboxRdsInstance(instance.identifier));
-    const nats = observation.natInstances.filter(
-        (instance) => instance.sourceDestCheck === false && (instance.nameTag ?? '').toLowerCase().includes('sandbox'),
-    );
+    const nats = observation.natInstances.filter(isSandboxNatInstance);
     const missing: ('database' | 'nat')[] = [
         ...(databases.length === 0 ? (['database'] as const) : []),
         ...(nats.length === 0 ? (['nat'] as const) : []),

@@ -233,6 +233,9 @@ export function createEc2Api(client: EC2Client): Ec2Api {
                             instanceId: instance.InstanceId ?? '',
                             state: instance.State?.Name ?? '',
                             nameTag: (instance.Tags ?? []).find((tag) => tag.Key === 'Name')?.Value,
+                            stackNameTag: (instance.Tags ?? []).find(
+                                (tag) => tag.Key === 'aws:cloudformation:stack-name',
+                            )?.Value,
                             sourceDestCheck: instance.SourceDestCheck ?? undefined,
                         });
                     }

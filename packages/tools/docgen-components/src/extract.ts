@@ -327,12 +327,6 @@ interface ModuleExports {
 }
 
 /**
- * Every top-level declaration of `source`, and the names it exports under each of the three spellings. Pure.
- *
- * @param source - The parsed source file.
- * @returns The locals and the exports.
- */
-/**
  * Each exported local's kind, read off the exported-name map: a local exported as `default` is a default export,
  * any other is named. Both maps are written in statement order, and the later export of a local wins, exactly as a
  * second map written beside it did.
@@ -350,6 +344,12 @@ function exportKindsOf(exportNames: ReadonlyMap<string, string>): Map<string, 'n
     return kinds;
 }
 
+/**
+ * Every top-level declaration of `source`, and the names it exports under each of the three spellings. Pure.
+ *
+ * @param source - The parsed source file.
+ * @returns The locals and the exports.
+ */
 function moduleExportsOf(source: ts.SourceFile): ModuleExports {
     const locals = new Map<string, LocalDeclaration>();
     const exportNames = new Map<string, string>();

@@ -35,6 +35,14 @@
                     body {
                         margin: 0;
                     }
+                    /* A phone shows a scroll indicator only while it scrolls, so the frame and the text areas show no
+                       scrollbar. A classic scrollbar would also take width from the 390 px screen and cover its right edge. */
+                    * {
+                        scrollbar-width: none;
+                    }
+                    *::-webkit-scrollbar {
+                        display: none;
+                    }
                     *,
                     *::before,
                     *::after {

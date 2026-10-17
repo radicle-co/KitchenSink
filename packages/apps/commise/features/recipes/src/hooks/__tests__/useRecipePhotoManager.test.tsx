@@ -37,6 +37,7 @@ import { useRecipePhotoManager } from '../useRecipePhotoManager.js';
 const OVER_CAP_FOR_TWO = 'That’s more photos than this recipe can hold — you can add 2 more.';
 const REPLACE_AT_CAP = 'Remove a photo first — replacing needs room for the new one.';
 const REMOVE_FAILED = 'We couldn’t remove this photo. Please try again.';
+const SET_COVER_FAILED = 'We couldn’t make that photo the cover. Please try again.';
 
 const photosOf = (count: number): readonly RecipePhoto[] =>
     Array.from({ length: count }, (_unused, index) => ({
@@ -244,7 +245,25 @@ describe('useRecipePhotoManager — set cover', () => {
 
         act(() => result.current.setCover('ph_3'));
 
-        expect(reorderMutate).toHaveBeenCalledWith({ id: 'rec_1', photoIds: ['ph_3', 'ph_1', 'ph_2'] });
+        expect(reorderMutate).toHaveBeenCalledWith(
+            { id: 'rec_1', photoIds: ['ph_3', 'ph_1', 'ph_2'] },
+            expect.any(Object),
+        );
+    });
+
+    it('says so when the reorder FAILS — on every platform — and clears the sentence on the next try', () => {
+        photosQueryMock.mockReturnValue({ data: photosOf(3) });
+        const { result } = renderHook(() => useRecipePhotoManager({ recipeId: 'rec_1' }));
+
+        act(() => result.current.setCover('ph_3'));
+        const options = reorderMutate.mock.calls[0]?.[1] as { onError: () => void };
+        act(() => options.onError());
+
+        expect(result.current.errorMessage).toBe(SET_COVER_FAILED);
+
+        act(() => result.current.setCover('ph_2'));
+
+        expect(result.current.errorMessage).toBeUndefined();
     });
 });
 

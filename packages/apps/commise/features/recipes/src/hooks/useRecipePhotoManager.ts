@@ -167,7 +167,8 @@ export function useRecipePhotoManager({
         }
 
         const photoIds = [photoId, ...photos.filter((photo) => photo.id !== photoId).map((photo) => photo.id)];
-        reorderPhotos.mutate({ id: recipeId, photoIds });
+        setErrorMessage(undefined);
+        reorderPhotos.mutate({ id: recipeId, photoIds }, { onError: () => setErrorMessage(copy.setCoverError) });
     };
 
     return {

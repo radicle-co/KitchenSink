@@ -75,6 +75,8 @@ export interface PhotoMessages {
     readonly uploadError: string;
     /** Shown when deleting a confirmed photo fails. */
     readonly removeError: string;
+    /** Shown when making a photo the cover fails (the reorder is refused or does not reach the server). */
+    readonly setCoverError: string;
     /** Shown when a picked file is over the size limit (REQ-011); contains `{maxMb}`, derived from the shared
      *  `MAX_RECIPE_PHOTO_UPLOAD_BYTES` constant — never a second literal. */
     readonly tooLargeError: string;
@@ -120,6 +122,7 @@ export const photoMessages: LocalizedMessages<PhotoMessages> = {
         cameraDenied: 'Camera access is off. Turn it on in your phone’s settings, or choose a photo from your library.',
         uploadError: 'We couldn’t upload that photo. Please try again.',
         removeError: 'We couldn’t remove this photo. Please try again.',
+        setCoverError: 'We couldn’t make that photo the cover. Please try again.',
         tooLargeError: 'That photo is larger than {maxMb} MB. Choose a smaller file.',
         unsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
         replaceAtCapError: 'Remove a photo first — replacing needs room for the new one.',

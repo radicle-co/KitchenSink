@@ -60,13 +60,14 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         });
 
         // Busy affordance: visible for the duration of the mocked presign → S3 PUT → confirm sequence (the
-        // mock delays the presign response so this is reliably observable, not a same-tick flash).
-        await expect(page.getByRole('status', { name: 'Uploading photo' })).toBeVisible();
+        // mock delays the presign response so this is reliably observable, not a same-tick flash). The polite live
+        // region has no accessible name of its own, so it is found by what it says.
+        await expect(page.getByRole('status').filter({ hasText: 'Uploading photo' })).toBeVisible();
 
         // The confirmed photo renders (its accessible alt text carries its 1-based display order) and the
         // busy affordance clears once the sequence completes.
         await expect(page.getByRole('img', { name: 'Recipe photo 1' })).toBeVisible();
-        await expect(page.getByRole('status', { name: 'Uploading photo' })).toHaveCount(0);
+        await expect(page.getByRole('status').filter({ hasText: 'Uploading photo' })).toHaveCount(0);
     });
 
     /**
@@ -194,7 +195,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
 
         // …and nothing was transmitted: no upload ever went in flight, and no photo was ever confirmed (the
         // confirmed grid cells are the ones with an indexed "Recipe photo N" image).
-        await expect(page.getByRole('status', { name: 'Uploading photo' })).toHaveCount(0);
+        await expect(page.getByRole('status').filter({ hasText: 'Uploading photo' })).toHaveCount(0);
         await expect(photosRegion.getByRole('img', { name: /Recipe photo/ })).toHaveCount(0);
     });
 
@@ -218,7 +219,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         await expect(page.getByText('That file type isn’t supported. Use a JPEG, PNG, or WebP photo.')).toBeVisible();
         await expect(photosRegion.getByRole('button', { name: 'Remove clip.gif' })).toBeVisible();
 
-        await expect(page.getByRole('status', { name: 'Uploading photo' })).toHaveCount(0);
+        await expect(page.getByRole('status').filter({ hasText: 'Uploading photo' })).toHaveCount(0);
         await expect(photosRegion.getByRole('img', { name: /Recipe photo/ })).toHaveCount(0);
     });
 });

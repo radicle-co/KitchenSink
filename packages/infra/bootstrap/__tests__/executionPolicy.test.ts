@@ -64,8 +64,23 @@ const ESCALATION_ACTIONS: readonly string[] = [
 const allQualifiers = Object.values(QUALIFIERS);
 const stageQualifiers = [QUALIFIERS.nonprod, QUALIFIERS.prod] as const;
 
-const parts = (qualifier: QualifierName): readonly PolicyDocument[] =>
-    buildExecutionPolicy(qualifier).map((part) => part.document);
+// Built once per qualifier: the name-separation cases judge every stack name against every part, and rebuilding the whole
+// policy set per check pushed two of them past the 5 s timeout on a loaded CI runner (run 39029142484).
+const builtParts = new Map<QualifierName, readonly PolicyDocument[]>();
+
+const parts = (qualifier: QualifierName): readonly PolicyDocument[] => {
+    const known = builtParts.get(qualifier);
+
+    if (known !== undefined) {
+        return known;
+    }
+
+    const built = buildExecutionPolicy(qualifier).map((part) => part.document);
+
+    builtParts.set(qualifier, built);
+
+    return built;
+};
 
 const allStatements = (qualifier: QualifierName): readonly Statement[] =>
     parts(qualifier).flatMap((document) => [...document.Statement]);

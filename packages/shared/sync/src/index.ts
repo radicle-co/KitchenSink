@@ -31,6 +31,7 @@ export {
     claimForSending,
     discardEntity,
     drainOrder,
+    entityInFlight,
     markSending,
     recoverInterrupted,
     settle,

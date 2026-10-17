@@ -1019,6 +1019,56 @@ describe('SyncProvider — discard', () => {
         expect(send).toHaveBeenCalledTimes(1);
     });
 
+    /**
+     * Owner ruling 2026-10-17, "Don't allow users to delete while saving": the queue tells a control whether the recipe
+     * is on the wire (`entityInFlight`, the SAME predicate `applyDiscard` refuses by), and the Discard is refused.
+     */
+    it('⛔ a create on the wire: entityInFlight is true, the Discard is REFUSED, and a lost answer re-enables it', async () => {
+        let answer: (result: SendResult) => void = () => undefined;
+        const send = vi.fn(
+            (): Promise<SendResult> =>
+                new Promise((resolve) => {
+                    answer = resolve;
+                }),
+        );
+        const { current, Capture } = captureQueue();
+
+        render(
+            <SyncProvider subject="user_a" send={send as never}>
+                <Capture />
+            </SyncProvider>,
+        );
+        expect(current().entityInFlight('recipe', [REF])).toBe(false);
+
+        await act(async () => {
+            await current().submitExclusive({
+                entity: 'recipe',
+                intentKind: 'create',
+                localId: REF,
+                produces: REF,
+                dependsOn: [],
+                payload: {},
+            });
+        });
+        await waitFor(() => expect(current().entityInFlight('recipe', [REF])).toBe(true));
+
+        await act(async () => {
+            await expect(current().discard({ kind: 'entity', intent: deleteOf(REF, [REF]) })).resolves.toStrictEqual({
+                kind: 'refused',
+                reason: 'writeInFlight',
+            });
+        });
+        // Nothing was queued behind the create.
+        expect(screen.getByText('pending:1')).toBeTruthy();
+
+        // The reply is lost: an UNKNOWN outcome. The control must not stay disabled for ever.
+        await act(async () => {
+            answer({ outcome: 'failed' });
+        });
+        await waitFor(() => expect(current().entityInFlight('recipe', [REF])).toBe(false));
+        expect(screen.getByText('failed:1')).toBeTruthy();
+    });
+
     it('rejects with no signed-in subject, like the other writes', async () => {
         const { current, Capture } = captureQueue();
 
@@ -1077,7 +1127,12 @@ describe('SyncProvider — discard', () => {
         expect((await loadOutbox(store, 'user_a')).records).toStrictEqual([]);
     });
 
-    it('⛔ leaves a write a drain claimed before the mutation, says it may stand, and does not reject', async () => {
+    /**
+     * Rewritten for the owner ruling 2026-10-17 ("Don't allow users to delete while saving"): a write a drain claimed
+     * before the mutation is on the wire, so the Discard is REFUSED (it used to answer `mayStand` and the editor finished
+     * the Discard anyway). It still changes nothing and does not reject.
+     */
+    it('⛔ refuses a Discard of a write a drain claimed before the mutation, changes nothing, and does not reject', async () => {
         const { store, current } = await mountWithParked(401);
 
         // The drain's claim lands in storage first, through the same serialized writer; the projection still says parked.
@@ -1086,7 +1141,8 @@ describe('SyncProvider — discard', () => {
 
         await act(async () => {
             await expect(current().discard({ kind: 'parkedWrite', seq: 1 })).resolves.toStrictEqual({
-                kind: 'mayStand',
+                kind: 'refused',
+                reason: 'writeInFlight',
             });
         });
 

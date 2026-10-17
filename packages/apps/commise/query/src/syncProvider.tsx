@@ -25,6 +25,7 @@ import {
     createMemoryOutboxStore,
     drain,
     drainLaneFor,
+    entityInFlight as logEntityInFlight,
     outboxMutatorFor,
     settle,
     supersede,
@@ -39,6 +40,7 @@ import {
     type OutboxStore,
     type Sender,
     type SettlementEvent,
+    type SyncEntity,
     type SyncFailure,
 } from '@kitchensink/sync';
 import { onlineManager } from '@tanstack/react-query';
@@ -99,6 +101,14 @@ export interface SyncQueue {
      * listener learns only what settles while it is subscribed, and the durable facts live in the stores.
      */
     readonly subscribe: (listener: (event: SyncSettlement) => void) => () => void;
+    /**
+     * Whether a write about the entity is on the wire right now (`entityInFlight`): the answer a control disables itself
+     * by ("Don't allow users to delete while saving", owner ruling 2026-10-17). It is the SAME predicate `discard` refuses
+     * by, so a control can never be enabled while the outbox would refuse, or the reverse. Re-rendered with the log. A
+     * queued write is not on the wire and a parked one is not either, so it clears when the write settles or parks.
+     * @param ids - The names the caller knows the entity by: its local ref and its server id, whichever it has.
+     */
+    readonly entityInFlight: (entity: SyncEntity, ids: readonly string[]) => boolean;
     /** The server id a local ref resolved to, once its create synced. */
     readonly resolutionOf: (ref: LocalRef) => string | undefined;
     /** How many writes have not reached the server yet — the figure the notice reports. */
@@ -122,6 +132,7 @@ const NOT_MOUNTED: SyncQueue = {
     submitExclusive: refuseUnmounted,
     withdraw: refuseUnmounted,
     discard: refuseUnmounted,
+    entityInFlight: () => false,
     subscribe: () => () => undefined,
     resolutionOf: () => undefined,
     pendingCount: 0,
@@ -552,6 +563,7 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, onFa
             withdraw,
             discard,
             subscribe: bus.subscribe,
+            entityInFlight: (entity, ids) => logEntityInFlight(log, entity, ids),
             resolutionOf: (ref) => log.resolutions[ref],
             pendingCount: log.records.length,
             failures: failuresOf(log),

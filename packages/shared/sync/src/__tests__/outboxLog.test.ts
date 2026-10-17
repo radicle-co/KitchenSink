@@ -27,6 +27,7 @@ import {
     claimForSending,
     discardEntity,
     drainOrder,
+    entityInFlight,
     markSending,
     recoverInterrupted,
     settle,
@@ -1043,13 +1044,17 @@ describe('applyDiscard — one parked write, decided from the log as it is', () 
         expect(outcome).toStrictEqual({ kind: mayStand ? 'mayStand' : 'settled' });
     });
 
-    it('⛔ a record a drain claimed meanwhile is left on the wire, and its changes may stand; it does not throw', () => {
+    /**
+     * Rewritten for the owner ruling 2026-10-17 ("Don't allow users to delete while saving"): a record on the wire used
+     * to answer `mayStand` and the editor finished the Discard anyway. The domain now REFUSES, and changes nothing.
+     */
+    it('⛔ a record a drain claimed meanwhile is on the wire: the Discard is REFUSED, the log untouched, no throw', () => {
         const claimed = claimForSending(parkedWith(401), 1)!;
 
         const { log, outcome } = applyDiscard(claimed, { kind: 'parkedWrite', seq: 1 });
 
         expect(log).toBe(claimed);
-        expect(outcome).toStrictEqual({ kind: 'mayStand' });
+        expect(outcome).toStrictEqual({ kind: 'refused', reason: 'writeInFlight' });
     });
 
     it('⛔ a record put back to pending by a deferral is left to the drain, and its changes may stand', () => {
@@ -1180,15 +1185,122 @@ describe('applyDiscard — the entity path reports a withdrawn create that may s
         expect(applyDiscard(log, { kind: 'entity', intent: remove }).outcome).toStrictEqual({ kind: 'settled' });
     });
 
-    it('a create on the wire is left, the delete queues behind it, and nothing is withdrawn', () => {
+    /**
+     * Rewritten for the owner ruling 2026-10-17: this test pinned `settled` for a create on the wire, with the delete
+     * queued behind it. If that create's answer was then lost, `withdrawMoot` removed both records and the recipe could
+     * stand with nothing recording it. The Discard is now refused while the create is on the wire.
+     */
+    it('⛔ a create on the wire REFUSES the Discard: nothing is queued, nothing is withdrawn, the log is untouched', () => {
         const sending = markSending(appendIntent(EMPTY, create), 1);
 
         const { log, outcome } = applyDiscard(sending, { kind: 'entity', intent: remove });
 
-        expect(log.records.map((record) => [record.intentKind, record.state])).toStrictEqual([
-            ['create', 'sending'],
-            ['delete', 'pending'],
-        ]);
+        expect(log).toBe(sending);
+        expect(outcome).toStrictEqual({ kind: 'refused', reason: 'writeInFlight' });
+    });
+});
+
+/**
+ * Owner ruling 2026-10-17: "Don't allow users to delete while saving." ONE predicate answers it for the domain
+ * (`applyDiscard` refuses) and for the controls (they are disabled), so the two cannot disagree.
+ */
+describe('entityInFlight — a record of the entity is on the wire', () => {
+    const REF = 'local:recipe:r1';
+    const create = intent({ entity: 'recipe', intentKind: 'create', localId: REF, produces: REF });
+    const update = intent({ entity: 'recipe', intentKind: 'update', localId: 'srv_1' });
+
+    it('is true only while a record is sending', () => {
+        const queued = appendIntent(EMPTY, create);
+
+        expect(entityInFlight(queued, 'recipe', [REF])).toBe(false);
+        expect(entityInFlight(markSending(queued, 1), 'recipe', [REF])).toBe(true);
+    });
+
+    it.each([
+        ['a parked record (a refusal)', 409],
+        ['a parked record (an unknown outcome)', undefined],
+    ])('⛔ is false once the write settles as %s: the control cannot stay disabled forever', (_label, status) => {
+        const sending = markSending(appendIntent(EMPTY, create), 1);
+        const parked = settle(sending, { seq: 1, outcome: 'parked', ...(status === undefined ? {} : { status }) });
+
+        expect(entityInFlight(parked, 'recipe', [REF])).toBe(false);
+    });
+
+    it('⛔ is false after a relaunch: a record a dead process left sending is parked, not on the wire', () => {
+        const sending = markSending(appendIntent(EMPTY, create), 1);
+
+        expect(entityInFlight(recoverInterrupted(sending), 'recipe', [REF])).toBe(false);
+    });
+
+    it('is false for another entity, and for another recipe under a different id', () => {
+        const sending = markSending(appendIntent(EMPTY, create), 1);
+
+        expect(entityInFlight(sending, 'ingredient', [REF])).toBe(false);
+        expect(entityInFlight(sending, 'recipe', ['local:recipe:r2'])).toBe(false);
+        expect(entityInFlight(sending, 'recipe', [])).toBe(false);
+    });
+
+    it('⛔ matches the recipe by its server id or by the ref a drain resolved to it', () => {
+        const sending = markSending(appendIntent({ ...EMPTY, resolutions: { [REF]: 'srv_1' } }, update), 1);
+
+        expect(entityInFlight(sending, 'recipe', ['srv_1'])).toBe(true);
+        expect(entityInFlight(sending, 'recipe', [REF])).toBe(true);
+    });
+
+    it('matches a write that is ABOUT the entity (a membership add concerns the recipe)', () => {
+        const add = intent({
+            entity: 'collection',
+            intentKind: 'addMember',
+            localId: 'col_1',
+            concerns: ['recipe:srv_1'],
+        });
+        const sending = markSending(appendIntent(EMPTY, add), 1);
+
+        expect(entityInFlight(sending, 'recipe', ['srv_1'])).toBe(true);
+    });
+});
+
+describe('applyDiscard — refused while the entity is saving, enabled again once it settles', () => {
+    const REF = 'local:recipe:r1';
+    const create = intent({ entity: 'recipe', intentKind: 'create', localId: REF, produces: REF });
+    const removeByRef = intent({ entity: 'recipe', intentKind: 'delete', localId: REF, dependsOn: [REF] });
+    const update = intent({ entity: 'recipe', intentKind: 'update', localId: 'srv_1' });
+    const removeById = intent({ entity: 'recipe', intentKind: 'delete', localId: 'srv_1' });
+    const REFUSED = { kind: 'refused', reason: 'writeInFlight' };
+
+    it('⛔ refuses a delete of a recipe whose UPDATE is on the wire', () => {
+        const sending = markSending(appendIntent(EMPTY, update), 1);
+
+        const { log, outcome } = applyDiscard(sending, { kind: 'entity', intent: removeById });
+
+        expect(log).toBe(sending);
+        expect(outcome).toStrictEqual(REFUSED);
+    });
+
+    it('a QUEUED create is not on the wire: the Discard still removes it (supersede), and nothing stands', () => {
+        const { log, outcome } = applyDiscard(appendIntent(EMPTY, create), { kind: 'entity', intent: removeByRef });
+
+        expect(log.records).toStrictEqual([]);
+        expect(outcome).toStrictEqual({ kind: 'settled' });
+    });
+
+    it('⛔ a create whose answer was LOST (unknown outcome) is withdrawn on Discard, and the copy that may exist is told', () => {
+        const parked = settle(markSending(appendIntent(EMPTY, create), 1), { seq: 1, outcome: 'parked' });
+
+        const { log, outcome } = applyDiscard(parked, { kind: 'entity', intent: removeByRef });
+
+        // The create carries no client id (ADR-0057), so nothing can name a copy the server may hold: no delete is
+        // possible or queued. The cook is told, not lied to.
+        expect(log.records).toStrictEqual([]);
+        expect(outcome).toStrictEqual({ kind: 'mayStand' });
+    });
+
+    it('⛔ an update whose answer was LOST is deleted by the recipe`s server id after the Discard', () => {
+        const parked = settle(markSending(appendIntent(EMPTY, update), 1), { seq: 1, outcome: 'parked' });
+
+        const { log, outcome } = applyDiscard(parked, { kind: 'entity', intent: removeById });
+
+        expect(log.records.map((record) => [record.intentKind, record.state])).toStrictEqual([['delete', 'pending']]);
         expect(outcome).toStrictEqual({ kind: 'settled' });
     });
 });

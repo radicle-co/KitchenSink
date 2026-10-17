@@ -13,7 +13,7 @@
  */
 import { classifyFailure } from './itemStatus.js';
 import { LOCAL_REF_PREFIX, resolveRef, type ResolutionMap } from './references.js';
-import type { Intent, IntentKind, LocalRef, OutboxRecord } from './record.js';
+import type { Intent, IntentKind, LocalRef, OutboxRecord, SyncEntity } from './record.js';
 
 /** A user's outbox: the queued intents in append order, the record counter, and the ids drains have resolved. */
 export interface OutboxLog {
@@ -389,8 +389,9 @@ function isMootByDelete(record: OutboxRecord, deleted: OutboxRecord, serverId: s
  * rest. Unlike {@link supersede} it never throws on a parked record, because the Discard IS the consent that
  * `supersede` refuses to assume. It knows nothing of the UI.
  *
- * A create on the wire is left and the delete queues behind it (`supersede`); {@link withdrawMoot} settles that pair
- * if the create then parks.
+ * An entity with a write on the wire never gets here: {@link applyDiscard} refuses first
+ * ({@link entityInFlight}), so no delete is queued behind a create on the wire by a Discard. (`supersede` still queues one
+ * for another caller's delete, and {@link withdrawMoot} settles that pair if the create then parks.)
  *
  * @param log - The current log.
  * @param incoming - The delete intent the cook consented to.
@@ -415,11 +416,63 @@ export type DiscardRequest =
     /** Drop ONE parked write, the one the confirm described (a published recipe's earlier Save changes). */
     | { readonly kind: 'parkedWrite'; readonly seq: number };
 
-/** What a Discard did: nothing it covered can reach the server, or a write it covered may have landed or still may. */
-export type DiscardOutcome = { readonly kind: 'settled' } | { readonly kind: 'mayStand' };
+/**
+ * What a Discard did: nothing it covered can reach the server, a write it covered may have landed, or — `refused` — it
+ * did nothing at all because the entity is being saved right now (owner ruling 2026-10-17, "Don't allow users to delete
+ * while saving"). A refusal changes no record; the caller keeps the draft and asks again once the write settles.
+ */
+export type DiscardOutcome =
+    | { readonly kind: 'settled' }
+    | { readonly kind: 'mayStand' }
+    | { readonly kind: 'refused'; readonly reason: 'writeInFlight' };
 
 const SETTLED: DiscardOutcome = { kind: 'settled' };
 const MAY_STAND: DiscardOutcome = { kind: 'mayStand' };
+const REFUSED_IN_FLIGHT: DiscardOutcome = { kind: 'refused', reason: 'writeInFlight' };
+
+/**
+ * Every name the log knows an entity by: the ids given, the server id a drain resolved a given ref to, and the ref a
+ * given server id was resolved from. A create is recorded under its local ref and an update under the server id, so a
+ * question asked with either must see both. Pure.
+ */
+function namesOf(log: OutboxLog, ids: readonly string[]): ReadonlySet<string> {
+    const names = new Set(ids);
+
+    for (const [ref, serverId] of Object.entries(log.resolutions)) {
+        if (names.has(ref) || names.has(serverId)) {
+            names.add(ref);
+            names.add(serverId);
+        }
+    }
+
+    return names;
+}
+
+/**
+ * Whether a write about the entity is on the wire right now: a record the drain marked `sending` whose outcome nobody
+ * knows yet. The ONE answer to "is this recipe being saved?", used by {@link applyDiscard} to refuse and by the
+ * controls to disable themselves, so the two cannot disagree (owner ruling 2026-10-17).
+ *
+ * ⛔ ONLY `sending`. A queued record is not on the wire: a Discard removes it atomically (`supersede`), and offline is a
+ * pause that must not lock the control. A parked record is not either: its outcome is settled for the cook to decide,
+ * which is what re-enables a control after an UNKNOWN outcome. A record a dead process left `sending` is parked on the
+ * next read (`recoverInterrupted`), so a relaunch never leaves a control disabled.
+ *
+ * @param log - The log as stored now.
+ * @param entity - The entity kind.
+ * @param ids - The names the caller knows the entity by (its local ref and its server id, whichever it has).
+ * @returns Whether any record about it is being sent. Pure.
+ */
+export function entityInFlight(log: OutboxLog, entity: SyncEntity, ids: readonly string[]): boolean {
+    const names = namesOf(log, ids);
+
+    return log.records.some(
+        (record) =>
+            record.state === 'sending' &&
+            ((record.entity === entity && names.has(record.localId)) ||
+                (record.concerns ?? []).some((concern) => [...names].some((id) => concern === `${entity}:${id}`))),
+    );
+}
 
 /**
  * The cook's confirmed Discard, decided from the log AS IT IS when the mutation runs, never from a caller's earlier
@@ -430,8 +483,11 @@ const MAY_STAND: DiscardOutcome = { kind: 'mayStand' };
  * the save landed while the confirm said the recipe stays as it was. Here a record found on its way (pending or on the
  * wire) is left to the drain and reported as `mayStand`; one already gone settled meanwhile and may have synced, so it
  * is `mayStand` too; one still parked is withdrawn, and may stand only if its outcome is unknown. An entity Discard
- * answers for the create it WITHDRAWS ({@link entityMayStand}), and only that: a create still on the wire is not
- * withdrawn, so the answer is `settled` even though its outcome is not yet known. It never throws.
+ * answers for the create it WITHDRAWS ({@link entityMayStand}), and only that.
+ *
+ * ⛔ A WRITE ON THE WIRE REFUSES THE DISCARD (`refused`, log untouched), for an entity and for one parked write alike
+ * ({@link entityInFlight}). Its outcome is not known yet, so nothing honest can be promised: not `settled`, and not
+ * `mayStand`, which would let the caller finish a Discard it cannot stand behind. It never throws.
  *
  * @param log - The log as stored now.
  * @param request - What the cook confirmed.
@@ -442,10 +498,21 @@ export function applyDiscard(
     request: DiscardRequest,
 ): { readonly log: OutboxLog; readonly outcome: DiscardOutcome } {
     if (request.kind === 'entity') {
+        // ⛔ REFUSED BEFORE ANYTHING IS CHANGED. A delete queued behind a create on the wire answered `settled`; if that
+        // create's answer was then lost, `withdrawMoot` removed both records and the recipe could stand with nothing
+        // recording it (review M3).
+        if (entityInFlight(log, request.intent.entity, [request.intent.localId])) {
+            return { log, outcome: REFUSED_IN_FLIGHT };
+        }
+
         return { log: discardEntity(log, request.intent), outcome: entityMayStand(log, request.intent) };
     }
 
     const record = log.records.find((candidate) => candidate.seq === request.seq);
+
+    if (record?.state === 'sending') {
+        return { log, outcome: REFUSED_IN_FLIGHT };
+    }
 
     if (record?.state !== 'parked') {
         return { log, outcome: MAY_STAND };
@@ -464,15 +531,10 @@ function outcomeIsUnknown(record: OutboxRecord): boolean {
 
 /**
  * Whether an entity Discard leaves the recipe standing on the server, among the records it withdraws. Only the CREATE
- * can: a withdrawn create whose
- * outcome is unknown may exist, and with no record left to produce its id the delete cannot name it (`supersede` drops
- * it). Any other parked record of the entity is covered by the delete, which names the server's id. A create whose ref a
- * drain resolved is deleted by that id, so it cannot stand.
- *
- * ⚠️ NOT THE SAME QUESTION AS THE PARKED-WRITE PATH FOR A CREATE ON THE WIRE. A `sending` create is left alone and the
- * delete queues behind it, so this answers `settled`; if that create's answer is then lost, `withdrawMoot` removes both
- * records and the recipe may stand with nothing recording it. ADR-0057 accepts that residual copy as the cook's to
- * delete from My recipes. Pure.
+ * can: a withdrawn create whose outcome is unknown may exist, and with no record left to produce its id the delete
+ * cannot name it (`supersede` drops it; a create carries no client id, ADR-0057). Any other parked record of the entity
+ * is covered by the delete, which names the server's id. A create whose ref a drain resolved is deleted by that id, so
+ * it cannot stand. A create on the wire never reaches this: the Discard was refused ({@link entityInFlight}). Pure.
  */
 function entityMayStand(log: OutboxLog, incoming: Intent): DiscardOutcome {
     const stands = log.records.some(

@@ -68,8 +68,12 @@ resources stay in the template, to keep the diff from stock small, and nobody is
 
 **5. Each execution role is a scoped policy plus a permissions boundary.** The policy is generated from tables, split into
 managed policies under the size limit, never assembled by hand. A resource that CloudFormation names is created under a
-name pattern, and every modify, delete and configuration read requires the `aws:cloudformation:stack-name` tag to match,
-because truncated names defeat a name-only rule. Role creation, role policy writes and boundary attachment are allowed only
+name pattern, and every modify and delete requires the `aws:cloudformation:stack-name` tag to match, because truncated
+names defeat a name-only rule. READS are the exception: a read-only action (the Service Authorization Reference's access
+level Read or List, carried in the committed catalogue, not guessed from the verb) is granted by name alone, in a
+`<Sid>Reads` statement beside the gated one. CloudFormation's resource handlers read before they create, a read of a
+resource that does not exist yet has no tag to match, and a read gated on the tag is denied at create time. A read
+changes nothing, and the name patterns and tier Denies still refuse the other tier's names. Role creation, role policy writes and boundary attachment are allowed only
 with the qualifier's boundary attached, and removing a boundary is denied. `iam:PassRole` is limited to this repository's
 roles and a list of services. No user, access key, login profile, organization or account action is granted, and the
 bootstrap roles and the policies themselves cannot be edited by what they govern. The boundary is the capability cap on
@@ -83,7 +87,10 @@ characters, which can drop the stage token and leave a production function match
 Deny. Those four are allowed only under a condition on the `aws:cloudformation:stack-name` tag, pinned to the tier's stack
 patterns; a resource of the other application is untagged or tagged with a stack that is not ours, and the condition fails
 closed. Only CloudFormation can set an `aws:` tag, so the condition is exactly as strong as the execution policy's
-stack-name scoping, which alone lets a tier create a stack with a name matching its pattern. `ecs:RunTask` names a task
+stack-name scoping, which alone lets a tier create a stack with a name matching its pattern. Each execution role may also
+read the SSM parameters its stacks declare as template parameters, because CloudFormation resolves an SSM-typed
+parameter with the stack's execution role before the change set exists: the qualifier's own bootstrap-version parameter
+and, for the stage tiers, the public AMI parameter family. `ecs:RunTask` names a task
 definition whose family is generated, so it is bounded by the cluster it runs in. Actions with no resource-level form stay
 on `*` as a named list that says, for each, whether it reads or writes and what a write can do to the other application.
 The boundary also carries an explicit Deny on assuming
@@ -114,7 +121,23 @@ from the synthesizer, so no stack changes identity. Only the bootstrap version p
 boundary property differ in the templates, and a parity test normalizes exactly those three and requires the rest to be
 identical.
 
-**9. Migration is expand, then contract, in two commits that can be deployed apart.**
+**9. Every `cdk deploy` runs with `--no-previous-parameters`.** The CDK CLI reuses a stack's previous value for every
+parameter its template still has. A stack first deployed through the default bootstrap would keep
+`BootstrapVersion=/cdk-bootstrap/hnb659fds/version` for ever, and a deploy through a KitchenSink qualifier would resolve
+the other application's parameter with a role that may not read it, or silently check the wrong bootstrap. The flag takes
+the template's defaults instead. It is safe only while every parameter a stack carries is an SSM-path parameter whose
+default is the value it needs, and a guard asserts that premise over the synthesized templates. The flag stays after the
+migration: it costs nothing and keeps a parameter from freezing at a stale value.
+
+**10. The `ksaccount` boundary is also a ceiling over the three GitHub CI roles.** The account app creates those roles
+with the `ksaccount` boundary attached, so what they may do is the intersection of their own policies and that boundary.
+Every Allow of every CI role policy must therefore be contained in the rendered boundary, and
+`accountAppQualifier.integration.test.ts` holds that containment. Two consequences follow. The boundary is the union of
+what the non-production, production and production-read roles need. A change to a CI role's permissions is two changes:
+the boundary policy, which only the owner deploys (Decision 6), first, and the role stack after it. An Allow added to a
+role before the boundary carries it is ignored by IAM's intersection, with no error from the deploy.
+
+**11. Migration is expand, then contract, in two commits that can be deployed apart.**
 
 1. The owner bootstraps `ksnonprod`, `ksprod` and `ksaccount` and deploys the policy stack.
 2. The expand commit lets each CI role assume its new roles and keeps the default-qualifier Allow, so the repository is
@@ -127,7 +150,8 @@ identical.
 The account qualifier's boundary denies the default bootstrap roles, so the first deployment of the CI role stack under
 `ksaccount` would cut the old path for the CI roles before the stage stacks have moved. The owner therefore deploys the
 expand change to the CI role stack with administrator credentials, and the stack is first deployed under `ksaccount` only
-after step 4.
+after step 4. The account deploy is a workflow run on `main` approved by the `Production` reviewer, and nothing in the
+workflow checks that order: the reviewer and the runbook are the ordering control.
 
 ## Consequences
 
@@ -152,6 +176,17 @@ after step 4.
       invalidating a CloudFront distribution, the CloudFront key-value store calls and the Route 53 record calls of the
       account tier, and the `Describe` calls of RDS. The test that judges the boundary against a table of the other
       application's ARNs lists exactly these and fails if the list grows or if an entry admits nothing.
+    - Reads are scoped by name, not by tag (Decision 5). Where CloudFormation truncated a generated name and dropped the
+      stage token, a non-production execution role can read a production resource whose name still matches
+      `kitchensink-*`: a function's configuration and so its environment variables, a secret's metadata and resource
+      policy, an SSM parameter's value. A template author cannot make that call, since CloudFormation makes it, but a
+      stack that reads a resource it created under a truncated name would see the other tier's.
+    - The execution roles may read the SSM parameters that their stacks take as template parameters (Decision 5), the
+      public AMI family among them.
+    - The `ksaccount` boundary is the ceiling of all three CI roles (Decision 10), so it is wider than the account app
+      alone needs, and a role-permission change that is not mirrored in it is ineffective without a deploy error.
+    - `--no-previous-parameters` (Decision 9) discards any parameter value set by hand on a stack; a stack that needs one
+      must carry it as a template default.
     - Name-only separation of production from non-production is best effort for the types whose generated names
       CloudFormation truncates and where no tag condition is available: S3 buckets, SQS queues, EventBridge rules and
       IAM roles. A truncated production name that lost its stage token matches `kitchensink-*` and not the production

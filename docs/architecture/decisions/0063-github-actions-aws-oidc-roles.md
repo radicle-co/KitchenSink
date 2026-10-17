@@ -74,7 +74,7 @@ the builder runs its own output through that judge.
 **4. Direct permissions are scoped by name, never by the `Environment` tag alone.** Every pattern starts `kitchensink-` or
 sits under `/kitchensink/`. Anything that creates or changes infrastructure goes through KitchenSink's own CDK bootstrap
 roles (ADR-0065), so each role's own policy covers only what a job does itself: publish images, invoke and describe functions, read its stage's
-parameters and secrets, read stacks. Each action set the non-prod and prod roles share is named once in the stack.
+parameters and secrets, read stacks. The `ksaccount` boundary (ADR-0065, Decision 10) is also the ceiling of all three roles. Each action set the non-prod and prod roles share is named once in the stack.
 
 The non-prod role's stack, service and task deletes are not written in its own stack. They come from `teardownGrants`
 (`lib/sandbox-scheduler/teardownGrants.ts`), the same function the midnight reclaim role is built from

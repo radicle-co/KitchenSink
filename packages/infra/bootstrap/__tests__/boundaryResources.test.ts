@@ -319,7 +319,7 @@ describe.each(allQualifiers)('buildBoundary(%s) — admits every role statement 
         }
 
         // The one deliberate refusal: the CI roles still hold an Allow on the DEFAULT qualifier's bootstrap roles during
-        // the expand phase of the migration (ADR-0065 §9), and the account boundary denies exactly those. Deploying
+        // the expand phase of the migration (ADR-0065 Decision 11), and the account boundary denies exactly those. Deploying
         // the CI-role stack under this qualifier is the owner step that cuts the old path; nothing else is refused.
         const expandPhase = refused.filter(
             (pair) => pair.startsWith('sts:AssumeRole ') && pair.includes(':role/cdk-hnb659fds-'),

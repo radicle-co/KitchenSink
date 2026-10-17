@@ -1222,8 +1222,14 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             [iamArn(`instance-profile/${KS}`)],
             ['AWS::IAM::InstanceProfile'],
         ),
+        // `iam:ResourceTag`, NOT `aws:ResourceTag`: a real PassRole is refused under `aws:ResourceTag` even when the role
+        // carries the tag (the policy simulator allows it, so only a deploy shows it; the first scheduler-stack deploy
+        // through ksnonprod, and `passProbe` reproduced it). IAM's own key is the one PassRole is authorized by.
         allow('iam', 'IamPassRole', ['iam:PassRole'], [iamArn(`role/${KS}`)], [], {
-            StringEquals: { 'iam:PassedToService': passServices, [RESOURCE_TIER_TAG]: tierTagValue(qualifier) },
+            StringEquals: {
+                'iam:PassedToService': passServices,
+                [`iam:ResourceTag/${TIER_TAG_KEY}`]: tierTagValue(qualifier),
+            },
         }),
         allow(
             'iam',

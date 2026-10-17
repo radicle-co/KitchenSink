@@ -252,9 +252,39 @@ describe.each(stageQualifiers)('executionPolicy(%s) — tier-tag conditions are 
         expect(viaResource.map((statement) => statement.Sid)).not.toEqual([]);
     });
 
+    // REWRITTEN: PassRole is gated by `iam:ResourceTag`, not `aws:ResourceTag` (see the PassRole block below).
     it('lets a created role be passed only when it carries this tier', () => {
         const passRole = allows(qualifier).find((statement) => statement.Action.includes('iam:PassRole'));
 
-        expect(conditionValues(passRole as Statement, RESOURCE_TAG)).toEqual([tierTagValue(qualifier)]);
+        expect(conditionValues(passRole as Statement, `iam:ResourceTag/${TIER_TAG_KEY}`)).toEqual([
+            tierTagValue(qualifier),
+        ]);
+    });
+});
+
+/**
+ * `iam:PassRole` is authorized by IAM's own `iam:ResourceTag`, never `aws:ResourceTag`. Under `aws:ResourceTag` a real
+ * PassRole of a correctly tagged role was refused ("no identity-based policy allows the iam:PassRole action") while
+ * the policy simulator allowed it, so no offline check could see it: the first scheduler-stack deploy through
+ * ksnonprod failed on it, and a probe stack (a tagged role passed to a state machine) reproduced and then cleared it.
+ */
+describe.each(stageQualifiers)('executionPolicy(%s) — PassRole is gated by iam:ResourceTag', (qualifier) => {
+    const passRole = buildExecutionPolicy(qualifier)
+        .flatMap((part) => part.document.Statement)
+        .filter((statement) => statement.Effect === 'Allow' && statement.Action.includes('iam:PassRole'));
+
+    it('has a PassRole grant (a vacuous pass would hide a deleted one)', () => {
+        expect(passRole.length).toBeGreaterThan(0);
+    });
+
+    it("tests the qualifier's tier with iam:ResourceTag and never aws:ResourceTag", () => {
+        for (const statement of passRole) {
+            const condition = JSON.stringify(statement.Condition ?? {});
+
+            expect(condition, statement.Sid).toContain(
+                `"iam:ResourceTag/${TIER_TAG_KEY}":"${tierTagValue(qualifier)}"`,
+            );
+            expect(condition, statement.Sid).not.toContain('aws:ResourceTag');
+        }
     });
 });

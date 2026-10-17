@@ -41,8 +41,11 @@ const READ_ONLY = /^[a-z0-9-]+:(Get|List|Describe|BatchGet|View|GET$)/u;
 
 const isMutating = (statement: Statement): boolean => statement.Action.some((action) => !READ_ONLY.test(action));
 
+// IAM's own `iam:ResourceTag` counts too: it is the key `iam:PassRole` is authorized by (see executionPolicyTierTag).
 const carriesOwnTierTag = (statement: Statement, qualifier: QualifierName): boolean =>
-    statement.Condition?.['StringEquals']?.[TAG_KEY] === tierTagValue(qualifier);
+    [TAG_KEY, TAG_KEY.replace(/^aws:/u, 'iam:')].some(
+        (key) => statement.Condition?.['StringEquals']?.[key] === tierTagValue(qualifier),
+    );
 
 /**
  * Mutating statements that are scoped by a CREATE-time name, or by a condition on the REQUEST rather than on the

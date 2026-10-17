@@ -147,6 +147,8 @@ The new roles and buckets are additive and the default bootstrap is untouched, s
 
 The remaining order (moving the stage stacks onto the new qualifiers and removing the old path) is owned by the access-stack migration in ADR-0065; follow it there.
 
+**The order of the account deploy is kept by people, and no check enforces it.** The `ksaccount` boundary denies the default bootstrap roles and is attached to the CI roles, so deploying the CI-role stack under `ksaccount` removes their old deploy path at once. `accountDeploy.yml` cannot see whether the stage stacks have moved (its preflight asks only whether `ksaccount` exists), so the `Production` environment's required reviewer is the whole control: do not approve a run of that workflow, and do not dispatch it, until you have confirmed that every stage stack deploys through its new qualifier (ADR-0065, Decision 11). `packages/tools/repoGuards/__tests__/accountDeployGate.test.ts` holds the gate itself, not the order.
+
 ## Changing a policy or a template
 
 | Change                                                                               | Run                                                                                                                                                                                                   |

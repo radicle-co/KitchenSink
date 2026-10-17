@@ -73,6 +73,14 @@ jobs:
         # that environment carries the required-reviewer rule. ⚠️ NOT a reclamation job — nothing here
         # deletes anything, so gating it is safe (`reclamationNeverGated.test.ts` only forbids the binding on
         # jobs that tear down).
+        #
+        # ⛔ THE ORDER OF THE ACCOUNT DEPLOY IS KEPT BY THE REVIEWER, NOT BY THIS WORKFLOW (ADR-0065, Decision 11). The
+        # CI-role stack is first deployed under `ksaccount` by the owner with administrator credentials
+        # (`docs/runbooks/cdkBootstrapQualifiers.md`, section 4), and this workflow is safe to approve only after the
+        # production stacks have moved onto `ksprod`: the `ksaccount` boundary denies the default bootstrap roles, so a
+        # run before that cuts the old deploy path out from under them. No step below can see that; the preflight only
+        # asks whether `ksaccount` exists. `accountDeployGate.test.ts` holds the gate itself (this binding, the `prod`
+        # tier, main-or-dispatch), so it cannot be removed without a test saying why it mattered.
         environment: Production
         env:
             COST_ALERT_EMAIL: ${{ vars.COST_ALERT_EMAIL }}

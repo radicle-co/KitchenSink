@@ -14,6 +14,8 @@
  * - `resourceTypes` — every `Resources.*.Type`.
  * - `roleActions` — every IAM action written into a role's inline policy, a standalone `AWS::IAM::Policy` or a
  *   `AWS::IAM::ManagedPolicy` (the boundary must allow the union).
+ * - `roleStatements` — every Allow of every role policy as (actions, resources) with the resources RENDERED to ARNs
+ *   (intrinsics, cross-stack imports and SSM references followed), so the boundary can be judged on RESOURCES too.
  * - `rolePassedToServices` — every service principal a created role trusts (what `iam:PassRole` must admit).
  * - `awsManagedPolicies` — AWS-managed policy ARNs attached to roles (their actions are not in the template).
  * - `stackNames` — every stack name, so the deploy role's stack patterns can be checked against reality.
@@ -39,6 +41,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { QUALIFIERS, type QualifierName } from '../src/qualifiers.js';
+import {
+    buildWorld,
+    renderRoleStatements,
+    type RoleStatement,
+    type StackTemplate,
+    type Template as RenderableTemplate,
+} from '../src/roleStatements.js';
 
 /** The stages that stand for each stage-bearing qualifier. `pr-1` stands for every `pr-{N}`. */
 const STAGES_BY_QUALIFIER: Readonly<Record<'ksnonprod' | 'ksprod', readonly string[]>> = {
@@ -147,6 +156,9 @@ export interface Derived {
     readonly awsManagedPolicies: Set<string>;
     readonly rolePassedToServices: Set<string>;
     readonly stackNames: Set<string>;
+    /** Every parsed template, kept so resources can be rendered across stacks once all apps are folded. */
+    readonly stacks: StackTemplate[];
+    readonly roleStatements: RoleStatement[];
     dockerImageAssets: boolean;
 }
 
@@ -156,6 +168,8 @@ export const emptyDerived = (): Derived => ({
     awsManagedPolicies: new Set(),
     rolePassedToServices: new Set(),
     stackNames: new Set(),
+    stacks: [],
+    roleStatements: [],
     dockerImageAssets: false,
 });
 
@@ -200,16 +214,20 @@ function collectTrustServices(document: unknown, into: Set<string>): void {
 /** Folds one synthesized `cdk.out` directory into `into`. Pure of anything but the directory it reads. */
 export function foldCloudAssembly(outdir: string, into: Derived): void {
     const assembly = JSON.parse(readFileSync(path.join(outdir, 'manifest.json'), 'utf8')) as {
-        artifacts?: Record<string, { type: string; properties?: { stackName?: string } }>;
+        artifacts?: Record<string, { type: string; properties?: { stackName?: string; templateFile?: string } }>;
     };
 
     // The CloudFormation stack name is the artifact's `stackName`, or its id when none is set. The template file
     // name is the construct id, which is NOT the stack name (`IdentityService-sandbox` deploys as
     // `kitchensink-identity-service-sandbox`), so the manifest is the only honest source. Nested stacks have no
     // artifact of their own and are not top-level deploy targets.
+    const stackNameByTemplate = new Map<string, string>();
+
     for (const [id, artifact] of Object.entries(assembly.artifacts ?? {})) {
         if (artifact.type === 'aws:cloudformation:stack') {
-            into.stackNames.add(artifact.properties?.stackName ?? id);
+            const stackName = artifact.properties?.stackName ?? id;
+            into.stackNames.add(stackName);
+            stackNameByTemplate.set(artifact.properties?.templateFile ?? `${id}.template.json`, stackName);
         }
     }
 
@@ -231,6 +249,12 @@ export function foldCloudAssembly(outdir: string, into: Derived): void {
         }
 
         const template = JSON.parse(readFileSync(full, 'utf8')) as Template;
+
+        // A nested stack has no artifact of its own; it is named after its file so its statements are still rendered.
+        into.stacks.push({
+            stackName: stackNameByTemplate.get(file) ?? `kitchensink-nested-${file.replace('.template.json', '')}`,
+            template: template as RenderableTemplate,
+        });
 
         for (const resource of Object.values(template.Resources ?? {})) {
             into.resourceTypes.add(resource.Type);
@@ -293,6 +317,23 @@ function synthesize(app: string, stage: string, into: Derived, scratch: string):
     return true;
 }
 
+/**
+ * Renders every Allow of every folded stack against the whole world of folded stacks (an import or SSM reference
+ * follows into the stack that writes it), and records them. Call once, after every app of a qualifier is folded.
+ */
+export function finalizeRoleStatements(derived: Derived): void {
+    const world = buildWorld(derived.stacks);
+    const unique = new Map<string, RoleStatement>();
+
+    for (const stack of derived.stacks) {
+        for (const statement of renderRoleStatements(world, stack)) {
+            unique.set(JSON.stringify(statement), statement);
+        }
+    }
+
+    derived.roleStatements.splice(0, derived.roleStatements.length, ...unique.values());
+}
+
 /** The serialisable manifest: sorted so a regeneration is byte-stable. */
 export function toManifest(qualifier: QualifierName, derived: Derived): Record<string, unknown> {
     const sorted = (set: Set<string>): string[] => [...set].sort();
@@ -301,6 +342,7 @@ export function toManifest(qualifier: QualifierName, derived: Derived): Record<s
         qualifier,
         resourceTypes: sorted(derived.resourceTypes),
         roleActions: sorted(derived.roleActions),
+        roleStatements: [...derived.roleStatements].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
         rolePassedToServices: sorted(derived.rolePassedToServices),
         awsManagedPolicies: sorted(derived.awsManagedPolicies),
         stackNames: sorted(derived.stackNames),
@@ -334,6 +376,7 @@ function main(): void {
                 synthesizedAnywhere.set(app, (synthesizedAnywhere.get(app) ?? false) || synthesized.some(Boolean));
             }
 
+            finalizeRoleStatements(derived);
             manifests.set(qualifier, derived);
         }
 
@@ -345,6 +388,7 @@ function main(): void {
 
         const account = emptyDerived();
         synthesize(ACCOUNT_APP, 'account', account, scratch);
+        finalizeRoleStatements(account);
         manifests.set(QUALIFIERS.account, account);
 
         mkdirSync(path.join(BOOTSTRAP_ROOT, 'manifests'), { recursive: true });

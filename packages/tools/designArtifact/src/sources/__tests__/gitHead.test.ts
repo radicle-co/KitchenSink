@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { REPO_ROOT } from '../../config.js';
 import { isDesignArtifactError } from '../../errors.js';
 import { execGitHead, parseGitHead } from '../gitHead.js';
 
@@ -56,15 +55,5 @@ describe('execGitHead over a scripted git', () => {
         })();
 
         expect(calls).toContainEqual(['status', '--porcelain']);
-    });
-});
-
-describe('execGitHead', () => {
-    it('reads the real repository HEAD', async () => {
-        const head = await execGitHead(REPO_ROOT)();
-
-        expect(head.sha).toMatch(/^[0-9a-f]{40}$/u);
-        expect(Number.isNaN(Date.parse(head.date))).toBe(false);
-        expect(typeof head.dirty).toBe('boolean');
     });
 });

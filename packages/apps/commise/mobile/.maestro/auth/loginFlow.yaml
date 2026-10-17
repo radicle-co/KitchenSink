@@ -25,6 +25,8 @@ appId: ${APP_ID}
 ---
 - launchApp:
       clearState: true
+# On iOS the clear leaves the Keychain session, so the app would open signed in; sign out through the app first.
+- runFlow: signOutIfSignedIn.yaml
 
 # Cleared state opens on the SIGN-IN FORM ITSELF — no landing screen, no tap required. The email placeholder is
 # the landmark unique to that form (its 'Sign in' submit alone would also match the sign-up screen's return
@@ -105,7 +107,7 @@ appId: ${APP_ID}
 - assertVisible: 'Password'
 
 # Sign in with the shared test user (email + password + new-device email code) via the reusable sub-flow.
-# clearState above guarantees the guarded credential block runs (no persisted session to skip it).
+# clearState plus the sign-out above guarantee the guarded credential block runs (no persisted session to skip it).
 - runFlow: signin.yaml
 
 # A completed sign-in renders the authenticated surface: the RecipesScreen "Recipes" list heading.

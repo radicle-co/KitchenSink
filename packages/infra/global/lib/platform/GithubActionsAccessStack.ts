@@ -231,8 +231,10 @@ const ownedBootstrapRoles = (scope: Scope, tier: CiTier): readonly string[] =>
 
 /**
  * The last day the default-qualifier Allow below may still be in the tree (`YYYY-MM-DD`, UTC). It is the expand half
- * of ADR-0065's migration, and while it exists every CI role can reach an administrator-backed role it shares with
- * the other application in this account (the HIGH-1 finding). `GithubActionsAccessStack.test.ts` fails once this
+ * of ADR-0065's migration. ⚠️ It is already INERT once the `ksaccount` boundary is on these roles (the account app
+ * applies it to every role, the CI roles included): that boundary denies `sts:AssumeRole` on `role/cdk-hnb659fds-*`,
+ * and a Deny beats this Allow. So the administrator-backed path it names is closed from the first account deploy, not
+ * from this date; the date only bounds how long the dead Allow may stay in the tree (the HIGH-1 finding). `GithubActionsAccessStack.test.ts` fails once this
  * date passes, so the window cannot become permanent by neglect: apply the contract commit (branch
  * `option1-d2-contract`) rather than moving the date, unless the owner has consciously extended it.
  */
@@ -301,8 +303,11 @@ const permissionsNonprod = (role: iam.Role, scope: Scope): void => {
 
     allow(role, ['ecr:GetAuthorizationToken'], ['*']);
     // The repositories production pulls from are written here too: every preview pushes into them, and
-    // `ecrEnsureRepo.sh` (re)applies their retention policy on every run. Their release tags are immutable, so a
-    // preview push can write only the preview prefixes; this role cannot change that setting (the prod role can).
+    // `ecrEnsureRepo.sh` (re)applies their retention policy on every run. Their release tags are immutable, which
+    // stops this role OVERWRITING a release tag but NOT writing a NEW one (ECR has no IAM condition on the tag). So a
+    // tag's existence proves nothing to production: it skips a build only for a digest in its own release ledger
+    // under `/kitchensink/prod/`, which this role cannot write (`ecrPushVerdict.sh`, `ecrRecordRelease.sh`). This role
+    // cannot change the immutability setting either (the prod role can).
     allow(role, IMAGE_REPOSITORY_ACTIONS, [`arn:aws:ecr:${region}:${account}:repository/kitchensink-*`]);
     // `teardownSandboxPr.sh` deletes what a PR left behind, by the same per-PR names `teardownGrants` uses.
     allow(role, ['ecr:DeleteRepository'], [`arn:aws:ecr:${region}:${account}:repository/${PER_PR_NAME_PATTERN}`]);

@@ -33,6 +33,10 @@
 # cannot disagree. ⚠️ A release push to an existing immutable tag fails, so a rerun of a production commit must skip
 # its build: `ecrPushVerdict.sh` answers push or skip, and the workflows ask it first.
 #
+# ⛔ Immutability stops an OVERWRITE, not a first write: the non-prod role can still push a NEW release-shaped tag. So
+# production skips a build only for a digest it recorded itself (`ecrRecordRelease.sh`, a ledger only the production
+# role can write), never for a tag merely being there.
+#
 # Only the production role may CHANGE a repository's mutability (the non-prod role would otherwise be able to switch
 # the protection off). A preview run that finds a repository not yet immutable warns and carries on; the next
 # production deploy fixes it. A repository this script CREATES is immutable from the start.

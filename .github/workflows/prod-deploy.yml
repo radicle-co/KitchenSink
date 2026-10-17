@@ -788,6 +788,8 @@ jobs:
                   verdict=$(bash .github/scripts/ecrPushVerdict.sh kitchensink-identity "${IMAGE_TAG}")
                   if [ "${verdict}" = push ]; then
                       docker buildx build --platform linux/amd64 -f packages/services/identity/Dockerfile -t ${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG} --push .
+                      # The ledger is what lets a rerun skip this build; only a recorded digest is trusted (ecrRecordRelease.sh).
+                      bash .github/scripts/ecrRecordRelease.sh kitchensink-identity "${IMAGE_TAG}"
                   fi
 
             # ⛔ NO `cdk bootstrap`, ever, from any workflow. The default qualifier (`CDKToolkit`, `hnb659fds`) is SHARED
@@ -1172,6 +1174,8 @@ jobs:
                   if [ "${verdict}" = push ]; then
                       docker buildx build --platform linux/amd64 -f packages/services/food-service/Dockerfile \
                         -t ${ECR_REGISTRY}/kitchensink-food:${IMAGE_TAG} --push .
+                      # The ledger is what lets a rerun skip this build; only a recorded digest is trusted (ecrRecordRelease.sh).
+                      bash .github/scripts/ecrRecordRelease.sh kitchensink-food "${IMAGE_TAG}"
                   fi
 
             # ⛔ THE SCHEMA FIRST, IN ITS OWN STACK, AND UNGATED — the same argument as identity's above.
@@ -1331,6 +1335,8 @@ jobs:
                   if [ "${verdict}" = push ]; then
                       docker buildx build --platform linux/amd64 -f packages/services/recipe-service/Dockerfile \
                         -t ${ECR_REGISTRY}/kitchensink-recipes:${IMAGE_TAG} --push .
+                      # The ledger is what lets a rerun skip this build; only a recorded digest is trusted (ecrRecordRelease.sh).
+                      bash .github/scripts/ecrRecordRelease.sh kitchensink-recipes "${IMAGE_TAG}"
                   fi
 
             # Pass 0 — the CRF ENGINE, before the worker that invokes it. No CloudFormation edge orders the

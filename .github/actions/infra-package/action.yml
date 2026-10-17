@@ -493,6 +493,9 @@ runs:
               if [ "${verdict}" = push ]; then
                   docker buildx build --platform linux/amd64 -f "${DOCKERFILE}" \
                       -t "${ECR_REGISTRY}/${REPO}:${IMAGE_TAG}" --push .
+                  # A release tag's digest goes in the production ledger, the only proof a later rerun may skip on;
+                  # a preview tag is a no-op (ecrRecordRelease.sh).
+                  bash .github/scripts/ecrRecordRelease.sh "${REPO}" "${IMAGE_TAG}"
               fi
 
         # ⛔ ADR-0035: deploy-schema → migrate → deploy-everything-else, and the schema stack goes

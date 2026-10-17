@@ -28,6 +28,7 @@ import { repoRoot } from './serviceSources.js';
 const SCRIPTS = path.join(repoRoot, '.github/scripts');
 const ENSURE = path.join(SCRIPTS, 'ecrEnsureRepo.sh');
 const VERDICT = path.join(SCRIPTS, 'ecrPushVerdict.sh');
+const RECORD = path.join(SCRIPTS, 'ecrRecordRelease.sh');
 const POLICY = JSON.parse(readFileSync(path.join(SCRIPTS, 'ecrLifecyclePolicy.json'), 'utf8')) as {
     rules: { selection: { tagPrefixList?: string[] } }[];
 };
@@ -45,6 +46,13 @@ interface Scenario {
     readonly image?: 'present' | 'absent' | 'denied';
     /** `put-image-tag-mutability` is refused (the non-prod role does not hold it). */
     readonly putMutabilityDenied?: boolean;
+    /**
+     * The production-only release ledger (`/kitchensink/prod/releaseImages/<repo>/<tag>` = the digest production
+     * pushed). `matches` holds the digest `describe-images` returns, `other` a different one.
+     */
+    readonly ledger?: 'absent' | 'matches' | 'other' | 'denied';
+    /** `put-parameter` into the ledger: accepted, refused because the name exists, or refused outright. */
+    readonly ledgerWrite?: 'ok' | 'exists' | 'denied';
 }
 
 interface Run {
@@ -67,6 +75,21 @@ case "$1 $2" in
             present) echo '{"imageDetails":[{"imageDigest":"sha256:abc"}]}' ;;
             absent) echo 'An error occurred (ImageNotFoundException) when calling the DescribeImages operation' >&2; exit 254 ;;
             *) echo 'An error occurred (AccessDeniedException) when calling the DescribeImages operation' >&2; exit 254 ;;
+        esac
+        ;;
+    "ssm get-parameter")
+        case "\${FAKE_LEDGER:-absent}" in
+            matches) echo 'sha256:abc' ;;
+            other) echo 'sha256:planted' ;;
+            absent) echo 'An error occurred (ParameterNotFound) when calling the GetParameter operation' >&2; exit 254 ;;
+            *) echo 'An error occurred (AccessDeniedException) when calling the GetParameter operation' >&2; exit 254 ;;
+        esac
+        ;;
+    "ssm put-parameter")
+        case "\${FAKE_LEDGER_WRITE:-ok}" in
+            ok) ;;
+            exists) echo 'An error occurred (ParameterAlreadyExists) when calling the PutParameter operation' >&2; exit 254 ;;
+            *) echo 'An error occurred (AccessDeniedException) when calling the PutParameter operation' >&2; exit 254 ;;
         esac
         ;;
     "ecr put-image-tag-mutability")
@@ -108,6 +131,8 @@ const run = (script: string, args: readonly string[], scenario: Scenario): Run =
                           ],
                       }),
             FAKE_IMAGE: scenario.image ?? 'absent',
+            FAKE_LEDGER: scenario.ledger ?? 'absent',
+            FAKE_LEDGER_WRITE: scenario.ledgerWrite ?? 'ok',
             FAKE_PUT_MUTABILITY_DENIED: scenario.putMutabilityDenied === true ? '1' : '',
         },
     });
@@ -201,7 +226,7 @@ describe('ecrPushVerdict.sh: a release tag already in the repository is not push
     ];
 
     it.each(rows)('%s -> %s', (_label, tag, image, expected) => {
-        const r = verdict(tag, { image });
+        const r = verdict(tag, { image, ledger: 'matches' });
 
         expect(r.status).toBe(0);
         expect(r.stdout.trim()).toBe(expected);
@@ -225,5 +250,97 @@ describe('ecrPushVerdict.sh: a release tag already in the repository is not push
         const r = run(VERDICT, ['kitchensink-food'], {});
 
         expect(r.status).toBe(2);
+    });
+});
+
+/**
+ * CI roles security review, HIGH-1: a skip trusts the tag, and the non-prod role (any branch) can push a NEW release-shaped
+ * tag into the repository production pulls from, so "the tag exists" is not "production built it". ECR has no IAM
+ * condition on the image tag, so the proof is a LEDGER only the production role can write: the digest it pushed.
+ * A skip needs the existing image to be the recorded one; anything else fails closed and never deploys.
+ */
+describe('ecrPushVerdict.sh: production never trusts a release tag it did not build', () => {
+    const verdict = (scenario: Scenario): Run => run(VERDICT, ['kitchensink-food', SHA], scenario);
+
+    it('skips only when the image under the tag is the digest the ledger recorded', () => {
+        const r = verdict({ image: 'present', ledger: 'matches' });
+
+        expect(r.status).toBe(0);
+        expect(r.stdout.trim()).toBe('skip');
+        expect(r.calls.some((call) => call.includes(`/kitchensink/prod/releaseImages/kitchensink-food/${SHA}`))).toBe(
+            true,
+        );
+    });
+
+    it.each([
+        ['no ledger entry (planted, or never recorded)', 'absent'],
+        ['a ledger digest that is not the image digest (replaced)', 'other'],
+        ['a ledger that cannot be read', 'denied'],
+    ] as const)('refuses, answering nothing, with %s', (_label, ledger) => {
+        const r = verdict({ image: 'present', ledger });
+
+        expect(r.status).not.toBe(0);
+        expect(r.stdout.trim()).toBe('');
+        expect(r.stderr).toContain('::error::');
+    });
+
+    it('does not consult the ledger when the tag is absent (a first push) or a preview', () => {
+        expect(verdict({ image: 'absent' }).calls.filter((call) => call.startsWith('ssm '))).toEqual([]);
+        expect(run(VERDICT, ['kitchensink-food', `pr-91-${SHA}`], { image: 'present' }).calls).toEqual([]);
+    });
+});
+
+describe('ecrRecordRelease.sh: production records the digest it pushed', () => {
+    const record = (scenario: Scenario, tag = SHA): Run => run(RECORD, ['kitchensink-food', tag], scenario);
+    const writes = (r: Run): readonly string[] => r.calls.filter((call) => call.startsWith('ssm put-parameter'));
+
+    it('writes the pushed digest under the ledger name, never overwriting', () => {
+        const r = record({ image: 'present' });
+
+        expect(r.status).toBe(0);
+        expect(writes(r)).toHaveLength(1);
+        expect(writes(r)[0]).toContain(`--name /kitchensink/prod/releaseImages/kitchensink-food/${SHA}`);
+        expect(writes(r)[0]).toContain('--value sha256:abc');
+        expect(writes(r)[0]).toContain('--no-overwrite');
+    });
+
+    it('accepts an entry that already holds the same digest (a rerun)', () => {
+        expect(record({ image: 'present', ledgerWrite: 'exists', ledger: 'matches' }).status).toBe(0);
+    });
+
+    it('fails when the existing entry holds a different digest', () => {
+        const r = record({ image: 'present', ledgerWrite: 'exists', ledger: 'other' });
+
+        expect(r.status).not.toBe(0);
+        expect(r.stderr).toContain('::error::');
+    });
+
+    it('fails when the ledger cannot be written', () => {
+        expect(record({ image: 'present', ledgerWrite: 'denied' }).status).not.toBe(0);
+    });
+
+    it('fails when the image it should record is not there', () => {
+        expect(record({ image: 'absent' }).status).not.toBe(0);
+    });
+
+    it('does nothing for a preview tag', () => {
+        const r = record({ image: 'present' }, `sandbox-${SHA}`);
+
+        expect(r.status).toBe(0);
+        expect(r.calls).toEqual([]);
+    });
+});
+
+describe('every caller of ecrPushVerdict.sh also records what it pushes', () => {
+    // A skip trusts the ledger, so a push that never writes it turns the next rerun of that commit into a hard stop.
+    const callers = ['.github/workflows/prod-deploy.yml', '.github/actions/infra-package/action.yml'];
+
+    it.each(callers)('%s records once per verdict it asks for', (file) => {
+        const text = readFileSync(path.join(repoRoot, file), 'utf8');
+        const asks = (text.match(/bash \.github\/scripts\/ecrPushVerdict\.sh/g) ?? []).length;
+        const records = (text.match(/bash \.github\/scripts\/ecrRecordRelease\.sh/g) ?? []).length;
+
+        expect(asks).toBeGreaterThan(0);
+        expect(records).toBe(asks);
     });
 });

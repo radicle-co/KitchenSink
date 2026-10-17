@@ -601,6 +601,29 @@ describe('drain — a sender that throws', () => {
             localId: 'r1',
         });
     });
+
+    it('⛔ keeps draining when the fault reporter itself throws', async () => {
+        const sent: string[] = [];
+        const sender: Sender = vi.fn(async (record): Promise<SendResult> => {
+            sent.push(record.localId);
+
+            if (record.localId === 'r1') {
+                throw new Error('storage exploded');
+            }
+
+            return { outcome: 'ok', serverId: 's2' };
+        });
+        const onFault = vi.fn(() => {
+            throw new Error('reporter down');
+        });
+        const log = appendIntent(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: 'r1' })),
+            intent({ entity: 'recipe', intentKind: 'create', localId: 'r2' }),
+        );
+
+        await expect(drain(log, sender, { ...noSleep, onFault })).resolves.toBeDefined();
+        expect(sent).toEqual(['r1', 'r2']);
+    });
 });
 
 /**

@@ -305,11 +305,15 @@ export async function drain<A = unknown>(
             try {
                 result = await send({ ...queued, payload });
             } catch (error) {
-                options.onFault?.(error, {
-                    entity: queued.entity,
-                    intentKind: queued.intentKind,
-                    localId: queued.localId,
-                });
+                try {
+                    options.onFault?.(error, {
+                        entity: queued.entity,
+                        intentKind: queued.intentKind,
+                        localId: queued.localId,
+                    });
+                } catch {
+                    // A reporter that throws has nowhere further to report, as in `fanout.ts`; the queue still drains.
+                }
 
                 // ⛔ A THROWING SENDER BREAKS ITS CONTRACT, AND THE REQUEST MAY HAVE LEFT: an unknown outcome, so the
                 // record parks with no status (re-sent only if it is a delete — `resendsWhenParked`) and the cook is

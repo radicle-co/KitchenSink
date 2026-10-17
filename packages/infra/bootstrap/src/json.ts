@@ -23,5 +23,10 @@ export const isRecord = (value: unknown): value is JsonObject =>
  *
  * @returns The list. Pure.
  */
-export const toList = (value: Json | undefined): Json[] =>
-    Array.isArray(value) ? value : value === undefined ? [] : [value];
+export const toList = (value: Json | undefined): Json[] => {
+    if (Array.isArray(value)) {
+        return value;
+    }
+
+    return value === undefined ? [] : [value];
+};

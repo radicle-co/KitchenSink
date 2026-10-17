@@ -27,6 +27,13 @@ import { z } from 'zod';
 export const userSettingsSchema = z.object({
     /** Whether the web "/" key focuses search. */
     searchShortcut: z.boolean(),
+    /**
+     * How the recipe library is laid out. `grid` and `list` are the cook's choice. `auto` is what a cook who never
+     * chose gets: the client picks by the width it has (a list on a phone, a grid on a wide screen), because no one
+     * default fits both and a stored per-device default would pin a phone's pick onto a later wide screen. `auto` is
+     * only ever answered, never stored or sent.
+     */
+    recipeViewMode: z.enum(['auto', 'grid', 'list']),
 });
 
 /** A user's settings, fully resolved. */
@@ -36,7 +43,10 @@ export type UserSettings = z.infer<typeof userSettingsSchema>;
  * What a user who never chose a setting gets. The ONE definition: the service resolves `NULL` to it and a client
  * uses it as its placeholder.
  */
-export const SETTINGS_DEFAULTS = Object.freeze({ searchShortcut: true }) satisfies UserSettings;
+export const SETTINGS_DEFAULTS = Object.freeze({
+    searchShortcut: true,
+    recipeViewMode: 'auto',
+}) satisfies UserSettings;
 
 /**
  * Request body for `PATCH /api/v1/users/me/settings`.
@@ -49,6 +59,8 @@ export const SETTINGS_DEFAULTS = Object.freeze({ searchShortcut: true }) satisfi
 export const patchUserSettingsRequestSchema = z.strictObject({
     /** Whether the web "/" key focuses search. */
     searchShortcut: z.boolean().optional(),
+    /** The cook's choice of library layout. `auto` is not a choice, so it is not accepted. */
+    recipeViewMode: z.enum(['grid', 'list']).optional(),
 });
 
 /** Request body for `PATCH /api/v1/users/me/settings`. */

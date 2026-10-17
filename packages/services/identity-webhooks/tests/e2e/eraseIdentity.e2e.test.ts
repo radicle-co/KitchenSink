@@ -136,8 +136,8 @@ describe('eraseIdentityRow (integration — real Postgres)', () => {
         const bystanderId = await seedCompleteUser();
 
         await db.insert(settings).values([
-            { userId: targetId, searchShortcut: false },
-            { userId: bystanderId, searchShortcut: false },
+            { userId: targetId, searchShortcut: false, recipeViewMode: 'list' },
+            { userId: bystanderId, searchShortcut: false, recipeViewMode: 'list' },
         ]);
 
         await eraseIdentityRow(

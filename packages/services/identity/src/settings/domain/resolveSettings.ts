@@ -13,8 +13,9 @@ import { SETTINGS_DEFAULTS, type UserSettings } from '../settings.schema.js';
  * @param row - The user's row, or `undefined` when they have none.
  * @returns The fully resolved settings, as a fresh object.
  */
-export function resolveSettings(row: Pick<SettingsRow, 'searchShortcut'> | undefined): UserSettings {
+export function resolveSettings(row: Pick<SettingsRow, 'searchShortcut' | 'recipeViewMode'> | undefined): UserSettings {
     return {
         searchShortcut: row?.searchShortcut ?? SETTINGS_DEFAULTS.searchShortcut,
+        recipeViewMode: row?.recipeViewMode ?? SETTINGS_DEFAULTS.recipeViewMode,
     };
 }

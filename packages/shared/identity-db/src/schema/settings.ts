@@ -3,6 +3,9 @@ import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import { users } from './users.js';
 import type { UserId } from '../ulid.js';
 
+/** The library layouts a cook can choose. `NULL` in the column is "never chosen", which the service answers as `auto`. */
+export type RecipeViewMode = 'grid' | 'list';
+
 /**
  * One row per user, one typed nullable column per setting (ADR-0059).
  *
@@ -16,6 +19,8 @@ export const settings = pgTable('settings', {
         .references(() => users.id, { onDelete: 'cascade' }),
     /** Whether the web "/" key focuses search. `NULL` is "never chosen". */
     searchShortcut: boolean('search_shortcut'),
+    /** How the recipe library is laid out. `NULL` is "never chosen"; a CHECK admits only `grid` and `list`. */
+    recipeViewMode: text('recipe_view_mode').$type<RecipeViewMode>(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

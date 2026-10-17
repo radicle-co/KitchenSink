@@ -605,13 +605,25 @@ components:
       properties:
         searchShortcut:
           type: boolean
+        recipeViewMode:
+          type: string
+          enum:
+            - auto
+            - grid
+            - list
       required:
         - searchShortcut
+        - recipeViewMode
     PatchUserSettingsRequest:
       type: object
       properties:
         searchShortcut:
           type: boolean
+        recipeViewMode:
+          type: string
+          enum:
+            - grid
+            - list
       additionalProperties: false
     AvatarPresignResponse:
       type: object

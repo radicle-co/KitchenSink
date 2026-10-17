@@ -513,10 +513,10 @@ describe('ProfileServiceClient — settings (ADR-0059)', () => {
     });
 
     it('getSettings() sends GET with the bearer and returns the parsed, resolved settings', async () => {
-        const fetchMock = stubFetch({ status: 200, body: { searchShortcut: false } });
+        const fetchMock = stubFetch({ status: 200, body: { searchShortcut: false, recipeViewMode: 'list' } });
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
 
-        await expect(client.getSettings()).resolves.toEqual({ searchShortcut: false });
+        await expect(client.getSettings()).resolves.toEqual({ searchShortcut: false, recipeViewMode: 'list' });
 
         const [url, init] = apiCall(fetchMock);
         expect(url).toBe(`${BASE}/api/v1/users/me/settings`);
@@ -525,10 +525,13 @@ describe('ProfileServiceClient — settings (ADR-0059)', () => {
     });
 
     it('patchSettings() PATCHes only the keys given, as JSON, and returns the resolved settings', async () => {
-        const fetchMock = stubFetch({ status: 200, body: { searchShortcut: false } });
+        const fetchMock = stubFetch({ status: 200, body: { searchShortcut: false, recipeViewMode: 'auto' } });
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
 
-        await expect(client.patchSettings({ searchShortcut: false })).resolves.toEqual({ searchShortcut: false });
+        await expect(client.patchSettings({ searchShortcut: false })).resolves.toEqual({
+            searchShortcut: false,
+            recipeViewMode: 'auto',
+        });
 
         const [url, init] = apiCall(fetchMock);
         expect(url).toBe(`${BASE}/api/v1/users/me/settings`);
@@ -537,8 +540,24 @@ describe('ProfileServiceClient — settings (ADR-0059)', () => {
         expect(init.headers['content-type']).toBe('application/json');
     });
 
+    it('patchSettings() sends a view choice, and refuses "auto" with NO request: it is not a choice', async () => {
+        const fetchMock = stubFetch({ status: 200, body: { searchShortcut: true, recipeViewMode: 'list' } });
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
+
+        await client.patchSettings({ recipeViewMode: 'list' });
+        expect(apiCall(fetchMock)[1].body).toBe(JSON.stringify({ recipeViewMode: 'list' }));
+
+        fetchMock.mockClear();
+        const error = await client
+            .patchSettings({ recipeViewMode: 'auto' } as never)
+            .catch((caught: unknown) => caught);
+
+        expect(isInvalidRequestError(error)).toBe(true);
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
     it('patchSettings() fails at the call site, with NO request, for a key the contract does not have', async () => {
-        const fetchMock = stubFetch({ status: 200, body: { searchShortcut: true } });
+        const fetchMock = stubFetch({ status: 200, body: { searchShortcut: true, recipeViewMode: 'auto' } });
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
 
         const error = await client

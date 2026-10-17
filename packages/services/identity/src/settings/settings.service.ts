@@ -1,5 +1,5 @@
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
-import { SettingsDAO } from '@kitchensink/identity-db';
+import { SettingsDAO, type SettingsPatch } from '@kitchensink/identity-db';
 
 import type { AuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
 import { resolveSettings } from './domain/resolveSettings.js';
@@ -41,11 +41,17 @@ export class SettingsService {
      * @sideEffect Inserts or updates the viewer's `settings` row.
      */
     async patchSettings(ctx: AuthorizerContext, body: PatchUserSettingsRequest): Promise<UserSettings> {
-        if (body.searchShortcut === undefined) {
+        // Only the keys the body names reach the store, so a setting left out is left as it is.
+        const patch: SettingsPatch = {
+            ...(body.searchShortcut === undefined ? {} : { searchShortcut: body.searchShortcut }),
+            ...(body.recipeViewMode === undefined ? {} : { recipeViewMode: body.recipeViewMode }),
+        };
+
+        if (Object.keys(patch).length === 0) {
             return this.getSettings(ctx);
         }
 
-        const row = await this.store.upsertForActiveUser(ctx.userId, { searchShortcut: body.searchShortcut });
+        const row = await this.store.upsertForActiveUser(ctx.userId, patch);
 
         if (row === undefined) {
             throw new ForbiddenException('Account is closed');

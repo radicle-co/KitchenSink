@@ -28,15 +28,12 @@ export interface MockedSettingsApi {
  * `mockRecipeApi` owns the whole `/api/v1/` space.
  *
  * @param page - The page to intercept.
- * @param initial - What the fake server holds before the first request.
+ * @param initial - The settings the fake server holds before the first request; any left out are the published defaults.
  * @returns A handle to observe and steer it.
  * @sideEffect Registers a route on the page.
  */
-export async function mockSettingsApi(
-    page: Page,
-    initial: UserSettings = SETTINGS_DEFAULTS,
-): Promise<MockedSettingsApi> {
-    let held: UserSettings = { ...initial };
+export async function mockSettingsApi(page: Page, initial: Partial<UserSettings> = {}): Promise<MockedSettingsApi> {
+    let held: UserSettings = { ...SETTINGS_DEFAULTS, ...initial };
     let failingWith: number | undefined;
     const patches: unknown[] = [];
 

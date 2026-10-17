@@ -7,7 +7,12 @@ import { SETTINGS_DEFAULTS } from '../settings.schema.js';
 import { SettingsService, type SettingsStore } from '../settings.service.js';
 
 const ctx = { userId: '01HZZSETTINGSUSER000000000' as UserId } as AuthorizerContext;
-const stored = (searchShortcut: boolean | null) => ({ userId: ctx.userId, searchShortcut, updatedAt: new Date(0) });
+const stored = (searchShortcut: boolean | null, recipeViewMode: 'grid' | 'list' | null = null) => ({
+    userId: ctx.userId,
+    searchShortcut,
+    recipeViewMode,
+    updatedAt: new Date(0),
+});
 
 function build(
     options: { found?: ReturnType<typeof stored> | undefined; written?: ReturnType<typeof stored> | undefined } = {},
@@ -32,7 +37,13 @@ describe('SettingsService.getSettings', () => {
     it('returns the stored choice, resolved', async () => {
         const { service } = build({ found: stored(false) });
 
-        await expect(service.getSettings(ctx)).resolves.toEqual({ searchShortcut: false });
+        await expect(service.getSettings(ctx)).resolves.toEqual({ searchShortcut: false, recipeViewMode: 'auto' });
+    });
+
+    it('returns the stored view', async () => {
+        const { service } = build({ found: stored(null, 'list') });
+
+        await expect(service.getSettings(ctx)).resolves.toEqual({ searchShortcut: true, recipeViewMode: 'list' });
     });
 });
 
@@ -42,6 +53,7 @@ describe('SettingsService.patchSettings', () => {
 
         await expect(service.patchSettings(ctx, { searchShortcut: false })).resolves.toEqual({
             searchShortcut: false,
+            recipeViewMode: 'auto',
         });
         expect(dao.upsertForActiveUser).toHaveBeenCalledWith(ctx.userId, { searchShortcut: false });
     });
@@ -58,8 +70,38 @@ describe('SettingsService.patchSettings', () => {
     it('writes NOTHING for an empty body and returns the current settings', async () => {
         const { dao, service } = build({ found: stored(false) });
 
-        await expect(service.patchSettings(ctx, {})).resolves.toEqual({ searchShortcut: false });
+        await expect(service.patchSettings(ctx, {})).resolves.toEqual({
+            searchShortcut: false,
+            recipeViewMode: 'auto',
+        });
         expect(dao.upsertForActiveUser).not.toHaveBeenCalled();
+    });
+
+    it('writes ONLY the view when only the view is sent, so the other setting is not touched', async () => {
+        const { dao, service } = build({ written: stored(null, 'list') });
+
+        await expect(service.patchSettings(ctx, { recipeViewMode: 'list' })).resolves.toEqual({
+            searchShortcut: true,
+            recipeViewMode: 'list',
+        });
+        expect(dao.upsertForActiveUser).toHaveBeenCalledWith(ctx.userId, { recipeViewMode: 'list' });
+    });
+
+    it('writes both when both are sent', async () => {
+        const { dao, service } = build({ written: stored(false, 'grid') });
+
+        await service.patchSettings(ctx, { searchShortcut: false, recipeViewMode: 'grid' });
+
+        expect(dao.upsertForActiveUser).toHaveBeenCalledWith(ctx.userId, {
+            searchShortcut: false,
+            recipeViewMode: 'grid',
+        });
+    });
+
+    it('answers 403 when a view write finds the account closed', async () => {
+        const { service } = build({ written: undefined });
+
+        await expect(service.patchSettings(ctx, { recipeViewMode: 'list' })).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('does not mistake an explicit false for "not supplied"', async () => {

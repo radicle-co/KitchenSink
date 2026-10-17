@@ -2,7 +2,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { IdentityWriter } from '../identityWriter.js';
 
 import { settings } from '../schema/settings.js';
-import type { SettingsRow } from '../schema/settings.js';
+import type { RecipeViewMode, SettingsRow } from '../schema/settings.js';
 import { users } from '../schema/users.js';
 import type { UserId } from '../ulid.js';
 
@@ -15,6 +15,8 @@ import type { UserId } from '../ulid.js';
 export interface SettingsPatch {
     /** Whether the web "/" key focuses search. */
     readonly searchShortcut?: boolean;
+    /** How the recipe library is laid out. */
+    readonly recipeViewMode?: RecipeViewMode;
 }
 
 /**
@@ -61,7 +63,7 @@ export class SettingsDAO {
             // under this package's strictness. The statement lists every table column in table order, which is
             // what drizzle emits as the INSERT column list.
             .select(
-                sql`SELECT ${users.id}, ${patch.searchShortcut ?? null}::boolean, now() FROM ${users} WHERE ${and(
+                sql`SELECT ${users.id}, ${patch.searchShortcut ?? null}::boolean, ${patch.recipeViewMode ?? null}::text, now() FROM ${users} WHERE ${and(
                     eq(users.id, userId),
                     eq(users.status, 'active'),
                 )}`,
@@ -70,6 +72,7 @@ export class SettingsDAO {
                 target: settings.userId,
                 set: {
                     ...(patch.searchShortcut === undefined ? {} : { searchShortcut: patch.searchShortcut }),
+                    ...(patch.recipeViewMode === undefined ? {} : { recipeViewMode: patch.recipeViewMode }),
                     updatedAt: sql`now()`,
                 },
             })

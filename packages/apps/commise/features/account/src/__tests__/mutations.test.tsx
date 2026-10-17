@@ -70,30 +70,60 @@ describe('profileMutations(client).patchSettings()', () => {
     const cached = (queryClient: QueryClient) => queryClient.getQueryData<UserSettings>(profileServiceKeys.settings);
 
     it('updates the cache BEFORE the server answers (optimistic), and sends only what it was given', async () => {
-        const { client, queryClient, patchSettings, wrapper } = arrangeSettings({ cached: { searchShortcut: true } });
+        const { client, queryClient, patchSettings, wrapper } = arrangeSettings({
+            cached: { ...SETTINGS_DEFAULTS, searchShortcut: true },
+        });
         let release: (value: UserSettings) => void = () => undefined;
         patchSettings.mockReturnValue(new Promise<UserSettings>((resolve) => (release = resolve)));
         const { result } = renderHook(() => useMutation(profileMutations(client).patchSettings()), { wrapper });
 
         result.current.mutate({ searchShortcut: false });
 
-        await waitFor(() => expect(cached(queryClient)).toEqual({ searchShortcut: false }));
+        await waitFor(() => expect(cached(queryClient)).toEqual({ ...SETTINGS_DEFAULTS, searchShortcut: false }));
         expect(result.current.isPending).toBe(true);
         expect(patchSettings).toHaveBeenCalledWith({ searchShortcut: false });
 
-        release({ searchShortcut: false });
+        release({ ...SETTINGS_DEFAULTS, searchShortcut: false });
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
     });
 
+    it('merges a view choice over the cache and leaves the other setting as it was', async () => {
+        const { client, queryClient, patchSettings, wrapper } = arrangeSettings({
+            cached: { searchShortcut: false, recipeViewMode: 'auto' },
+        });
+        patchSettings.mockReturnValue(new Promise<UserSettings>(() => undefined));
+        const { result } = renderHook(() => useMutation(profileMutations(client).patchSettings()), { wrapper });
+
+        result.current.mutate({ recipeViewMode: 'list' });
+
+        await waitFor(() => expect(cached(queryClient)).toEqual({ searchShortcut: false, recipeViewMode: 'list' }));
+        expect(patchSettings).toHaveBeenCalledWith({ recipeViewMode: 'list' });
+    });
+
+    it('rolls a failed view choice back to the choice before it', async () => {
+        const { client, queryClient, patchSettings, wrapper } = arrangeSettings({
+            cached: { searchShortcut: true, recipeViewMode: 'grid' },
+        });
+        patchSettings.mockRejectedValue(new Error('503'));
+        const { result } = renderHook(() => useMutation(profileMutations(client).patchSettings()), { wrapper });
+
+        result.current.mutate({ recipeViewMode: 'list' });
+
+        await waitFor(() => expect(result.current.isError).toBe(true));
+        expect(cached(queryClient)).toEqual({ searchShortcut: true, recipeViewMode: 'grid' });
+    });
+
     it('rolls the cache BACK to the snapshot when the write fails', async () => {
-        const { client, queryClient, patchSettings, wrapper } = arrangeSettings({ cached: { searchShortcut: true } });
+        const { client, queryClient, patchSettings, wrapper } = arrangeSettings({
+            cached: { ...SETTINGS_DEFAULTS, searchShortcut: true },
+        });
         patchSettings.mockRejectedValue(new Error('503'));
         const { result } = renderHook(() => useMutation(profileMutations(client).patchSettings()), { wrapper });
 
         result.current.mutate({ searchShortcut: false });
 
         await waitFor(() => expect(result.current.isError).toBe(true));
-        expect(cached(queryClient)).toEqual({ searchShortcut: true });
+        expect(cached(queryClient)).toEqual({ ...SETTINGS_DEFAULTS, searchShortcut: true });
     });
 
     it('rolls back to the DEFAULTS when nothing was cached before the write', async () => {
@@ -108,8 +138,12 @@ describe('profileMutations(client).patchSettings()', () => {
     });
 
     it('refetches settings when it settles, on success AND on failure', async () => {
-        const { client, patchSettings, invalidate, wrapper } = arrangeSettings({ cached: { searchShortcut: true } });
-        patchSettings.mockResolvedValueOnce({ searchShortcut: false }).mockRejectedValueOnce(new Error('503'));
+        const { client, patchSettings, invalidate, wrapper } = arrangeSettings({
+            cached: { ...SETTINGS_DEFAULTS, searchShortcut: true },
+        });
+        patchSettings
+            .mockResolvedValueOnce({ ...SETTINGS_DEFAULTS, searchShortcut: false })
+            .mockRejectedValueOnce(new Error('503'));
         const { result } = renderHook(() => useMutation(profileMutations(client).patchSettings()), { wrapper });
 
         result.current.mutate({ searchShortcut: false });
@@ -123,8 +157,10 @@ describe('profileMutations(client).patchSettings()', () => {
     });
 
     it('does not refresh the profile read — a setting is not part of the profile', async () => {
-        const { client, patchSettings, invalidate, wrapper } = arrangeSettings({ cached: { searchShortcut: true } });
-        patchSettings.mockResolvedValue({ searchShortcut: false });
+        const { client, patchSettings, invalidate, wrapper } = arrangeSettings({
+            cached: { ...SETTINGS_DEFAULTS, searchShortcut: true },
+        });
+        patchSettings.mockResolvedValue({ ...SETTINGS_DEFAULTS, searchShortcut: false });
         const { result } = renderHook(() => useMutation(profileMutations(client).patchSettings()), { wrapper });
 
         result.current.mutate({ searchShortcut: false });

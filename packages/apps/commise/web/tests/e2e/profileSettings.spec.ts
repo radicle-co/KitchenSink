@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import type { UserSettings } from '@kitchensink/schema-identity';
 
 import { route } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
@@ -21,7 +22,7 @@ import { gotoAfterSettingsRead, mockSettingsApi } from './utils/settingsApi';
 const SWITCH = 'Keyboard shortcuts';
 
 /** Sign in, mock the library and the settings endpoint, and return the handle to the fake settings server. */
-async function arrange(page: Page, initial: { readonly searchShortcut: boolean }) {
+async function arrange(page: Page, initial: Partial<UserSettings>) {
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
 

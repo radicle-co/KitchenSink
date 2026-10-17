@@ -62,12 +62,14 @@ describe('profileQueries(client).settings()', () => {
 
     it('queryFn reads through client.getSettings()', async () => {
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123' });
-        const getSettings = vi.spyOn(client, 'getSettings').mockResolvedValue({ searchShortcut: false });
+        const getSettings = vi
+            .spyOn(client, 'getSettings')
+            .mockResolvedValue({ ...SETTINGS_DEFAULTS, searchShortcut: false });
 
         const options = profileQueries(client).settings();
         const result = await options.queryFn?.({} as Parameters<NonNullable<typeof options.queryFn>>[0]);
 
         expect(getSettings).toHaveBeenCalledTimes(1);
-        expect(result).toEqual({ searchShortcut: false });
+        expect(result).toEqual({ ...SETTINGS_DEFAULTS, searchShortcut: false });
     });
 });

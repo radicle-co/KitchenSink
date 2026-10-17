@@ -51,7 +51,12 @@ import { SettingsService } from '../src/settings/settings.service.js';
 import { bootIdentityApp } from './support/identityApp.js';
 
 const USER_ID = newUserId();
-const row = (searchShortcut: boolean | null) => ({ userId: USER_ID, searchShortcut, updatedAt: new Date(0) });
+const row = (searchShortcut: boolean | null, recipeViewMode: 'grid' | 'list' | null = null) => ({
+    userId: USER_ID,
+    searchShortcut,
+    recipeViewMode,
+    updatedAt: new Date(0),
+});
 
 describe('settings routes (controller + service + pipe, DAO stubbed)', () => {
     let app: INestApplication;
@@ -104,7 +109,7 @@ describe('settings routes (controller + service + pipe, DAO stubbed)', () => {
         const res = await fetch(`${baseUrl}/api/v1/users/me/settings`);
 
         expect(res.status).toBe(200);
-        expect(userSettingsSchema.parse(await res.json())).toEqual({ searchShortcut: true });
+        expect(userSettingsSchema.parse(await res.json())).toEqual({ searchShortcut: true, recipeViewMode: 'auto' });
         expect(dao.upsertForActiveUser).not.toHaveBeenCalled();
     });
 
@@ -113,7 +118,25 @@ describe('settings routes (controller + service + pipe, DAO stubbed)', () => {
 
         const res = await fetch(`${baseUrl}/api/v1/users/me/settings`);
 
-        expect(userSettingsSchema.parse(await res.json())).toEqual({ searchShortcut: false });
+        expect(userSettingsSchema.parse(await res.json())).toEqual({ searchShortcut: false, recipeViewMode: 'auto' });
+    });
+
+    it('GET answers the stored view', async () => {
+        dao.findByUserId.mockResolvedValueOnce(row(null, 'list'));
+
+        const res = await fetch(`${baseUrl}/api/v1/users/me/settings`);
+
+        expect(userSettingsSchema.parse(await res.json())).toEqual({ searchShortcut: true, recipeViewMode: 'list' });
+    });
+
+    it('PATCH of the view answers 200 with the resolved settings and writes only the view', async () => {
+        dao.upsertForActiveUser.mockResolvedValueOnce(row(null, 'grid'));
+
+        const res = await patch(JSON.stringify({ recipeViewMode: 'grid' }));
+
+        expect(res.status).toBe(200);
+        expect(userSettingsSchema.parse(await res.json())).toEqual({ searchShortcut: true, recipeViewMode: 'grid' });
+        expect(dao.upsertForActiveUser).toHaveBeenLastCalledWith(USER_ID, { recipeViewMode: 'grid' });
     });
 
     it('PATCH answers 200 with the resolved settings and writes only what was sent', async () => {
@@ -122,7 +145,7 @@ describe('settings routes (controller + service + pipe, DAO stubbed)', () => {
         const res = await patch(JSON.stringify({ searchShortcut: false }));
 
         expect(res.status).toBe(200);
-        expect(userSettingsSchema.parse(await res.json())).toEqual({ searchShortcut: false });
+        expect(userSettingsSchema.parse(await res.json())).toEqual({ searchShortcut: false, recipeViewMode: 'auto' });
         expect(dao.upsertForActiveUser).toHaveBeenCalledWith(USER_ID, { searchShortcut: false });
     });
 
@@ -133,7 +156,7 @@ describe('settings routes (controller + service + pipe, DAO stubbed)', () => {
         const res = await patch('{}');
 
         expect(res.status).toBe(200);
-        expect(await res.json()).toEqual({ searchShortcut: false });
+        expect(await res.json()).toEqual({ searchShortcut: false, recipeViewMode: 'auto' });
         expect(dao.upsertForActiveUser).not.toHaveBeenCalled();
     });
 
@@ -141,6 +164,8 @@ describe('settings routes (controller + service + pipe, DAO stubbed)', () => {
         ['an unknown key', { searchShortcut: true, theme: 'dark' }],
         ['a non-boolean value', { searchShortcut: 'yes' }],
         ['null', { searchShortcut: null }],
+        ['recipeViewMode "auto" (the absence of a choice is not a choice)', { recipeViewMode: 'auto' }],
+        ['an unknown recipeViewMode word', { recipeViewMode: 'compact' }],
     ])('PATCH with %s is a 400 and writes nothing', async (_label, body) => {
         dao.upsertForActiveUser.mockClear();
 

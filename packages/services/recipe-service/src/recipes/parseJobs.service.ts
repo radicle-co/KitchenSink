@@ -422,7 +422,10 @@ export class ParseJobsService {
     /**
      * Re-drive the `failed_retryable` lines (the plan's partial-outage scenario) and the ORPHANED ones: pending, never
      * claimed, in a paste quiet past the stall threshold — what a process death between the job's commit and its
-     * enqueue leaves. A duplicate of an orphan is absorbed by the worker's claim (status + digest).
+     * enqueue leaves. A duplicate of an orphan is absorbed by the worker's claim (status + digest) MOST of the time. A
+     * line that is only queued behind another cook's paste (non-prod drains one line at a time) also reads `stalled`, so
+     * it is re-sent too; the duplicate is lost to the claim except when the first claim's lease ends with the line still
+     * `pending`, and then it runs the engines a second time (extra spend, one more delivery attempt). That is accepted.
      *
      * @throws `PARSE_JOB_NOT_FOUND` / `PARSE_JOB_EXPIRED`. @sideEffect Writes line statuses, enqueues.
      */

@@ -133,9 +133,10 @@ const ULID_SHAPE = /^[0-9A-Z]{26}$/;
  * owner is erased (CR-002 / U3b — author-handle residue).
  *
  * On erasure the owner's cleartext display handle is destroyed everywhere: the `author_handles` read
- * model row is deleted, and every KEPT recipe's denormalized `recipes.author_handle` (a name-ish string)
- * is scrubbed to THIS token. The recipe's author is thereafter rendered from that denormalized column, so
- * the token must be:
+ * model row is TOMBSTONED (kept, `erased_at` set, its name the same pseudonym, `username` NULL; deleting it would
+ * let a late handle-sync snapshot write the real name back, migration 0056), and every KEPT recipe's denormalized
+ * `recipes.author_handle` (a name-ish string) is scrubbed to THIS token. The recipe's author is thereafter rendered
+ * from that denormalized column, so the token must be:
  *
  *  - **deterministic** — the same owner always maps to the same handle, so every one of their kept recipes
  *    renders a CONSISTENT author;

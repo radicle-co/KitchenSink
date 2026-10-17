@@ -308,7 +308,7 @@ describe('the EventBridge adapter', () => {
             },
         );
 
-        const rules = await (await adapter()).listScheduledRules();
+        const rules = await (await adapter()).listScheduledRules(() => true);
 
         expect(rules).toEqual([
             { name: 'kitchensink-q', stageTag: undefined, environmentTag: 'production' },

@@ -77,7 +77,7 @@ export function createReclaimCloudFormationApi(client: CloudFormationClient): Re
  */
 export function createReclaimEcsApi(client: ECSClient): ReclaimEcsApi {
     return {
-        listClusters: () => listClusterSummaries(client),
+        listClusters: (inScope) => listClusterSummaries(client, inScope),
         async listServices(clusterArn: string): Promise<ReclaimServiceSummary[]> {
             return (await describeAllServices(client, clusterArn)).map((service) => ({
                 clusterArn,

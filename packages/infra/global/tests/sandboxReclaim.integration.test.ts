@@ -204,6 +204,19 @@ class World {
             case ListClustersCommand.name:
                 return { clusterArns: [...this.clusters.keys()] };
             case DescribeClustersCommand.name:
+                // The permissions boundary (ADR-0065) refuses a per-resource call on a production name, and allows only
+                // `kitchensink-*`: a describe that names anything else is a violation and fails the whole call.
+                for (const arn of input['clusters'] as string[]) {
+                    const name = arn.split('/').pop() ?? '';
+
+                    if (!name.startsWith('kitchensink-') || name.includes('-prod')) {
+                        this.violations.push(`DescribeClusters reached the out-of-scope cluster ${arn}`);
+                        throw Object.assign(new Error(`AccessDenied: ecs:DescribeClusters on ${arn}`), {
+                            name: 'AccessDenied',
+                        });
+                    }
+                }
+
                 return {
                     clusters: (input['clusters'] as string[]).map((arn) => {
                         const tag = this.clusters.get(arn);
@@ -383,6 +396,8 @@ function aStandardNight(): World {
     w.addStack('kitchensink-data-prod', 'production');
     w.addStack('kitchensink-food-service-prod', 'production');
     w.addStack('armoury-api-production', undefined);
+    // A production cluster the account lists and the boundary would refuse to describe.
+    w.clusters.set(clusterArn('kitchensink-food-service-prod-FoodServiceCluster-X'), 'production');
     // Another application's `-pr-` cluster and stack, tagged exactly like ours: nothing about it may be touched.
     w.addForeignApplication();
 

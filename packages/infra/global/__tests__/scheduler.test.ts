@@ -99,7 +99,8 @@ function makeClients(state: FakeState): SchedulerClients {
             },
         },
         ecs: {
-            listClusters: async () => state.clusters.map((arn) => ({ arn, environmentTag: state.clusterTags[arn] })),
+            listClusters: async (inScope) =>
+                state.clusters.filter(inScope).map((arn) => ({ arn, environmentTag: state.clusterTags[arn] })),
             listServices: async (clusterArn) => state.services.filter((s) => s.clusterArn === clusterArn),
             updateDesiredCount: async (_clusterArn, serviceArn, desiredCount) => {
                 state.calls.ecsUpdate.push({ service: serviceArn, desiredCount });
@@ -611,7 +612,14 @@ describe('runSchedulerAction — stop', () => {
                     desiredCount: 2,
                 },
             ],
-            ec2: [{ instanceId: 'i-sbx-nat', state: 'running', nameTag: 'net-sandbox', sourceDestCheck: false }],
+            ec2: [
+                {
+                    instanceId: 'i-sbx-nat',
+                    state: 'running',
+                    nameTag: 'kitchensink-network-sandbox/Vpc',
+                    sourceDestCheck: false,
+                },
+            ],
         });
         const summary = await runSchedulerAction({ action: 'stop' }, makeClients(state));
 

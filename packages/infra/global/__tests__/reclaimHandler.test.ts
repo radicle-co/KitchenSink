@@ -131,7 +131,7 @@ describe('the ECS adapter', () => {
                 })),
             };
         });
-        const clusters = await createReclaimEcsApi(client).listClusters();
+        const clusters = await createReclaimEcsApi(client).listClusters(() => true);
         const describes = commands.filter((entry) => entry.name === DescribeClustersCommand.name);
 
         expect(clusters).toHaveLength(160);

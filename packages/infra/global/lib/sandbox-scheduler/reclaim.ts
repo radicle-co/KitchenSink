@@ -41,6 +41,7 @@
 import { InvalidReclaimRequestError } from './invalidReclaimRequestError.js';
 import { ReclaimTierUnobservableError } from './reclaimTierUnobservableError.js';
 import {
+    isCandidateClusterArn,
     isSandboxRdsInstance,
     previewTokenOf,
     type Ec2InstanceSummary,
@@ -471,8 +472,8 @@ export interface ReclaimCloudFormationApi {
 
 /** ECS operations the reclaim needs, beyond the scheduler's. */
 export interface ReclaimEcsApi {
-    /** Every cluster with its `Environment` tag. */
-    listClusters(): Promise<EcsClusterSummary[]>;
+    /** Every cluster `inScope` admits, with its `Environment` tag; no other cluster is described. */
+    listClusters(inScope: (clusterArn: string) => boolean): Promise<EcsClusterSummary[]>;
     /** The services in a cluster, with their status. */
     listServices(clusterArn: string): Promise<ReclaimServiceSummary[]>;
     /** The tasks in a cluster, for both desired statuses. */
@@ -544,7 +545,7 @@ async function observeReclaim(ports: ReclaimPorts): Promise<ReclaimObservation> 
         ports.rds.listInstances(),
         ports.ec2.listInstances(),
         ports.cloudFormation.listStacks(),
-        ports.ecs.listClusters(),
+        ports.ecs.listClusters(isCandidateClusterArn),
     ]);
     const clusters: ObservedCluster[] = [];
 

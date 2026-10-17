@@ -69,22 +69,30 @@ const DESCRIBE_CLUSTERS_BATCH = 100;
 const DESCRIBE_SERVICES_BATCH = 10;
 
 /**
- * Every cluster in the account with its `Environment` tag.
+ * Every cluster `inScope` admits, with its `Environment` tag.
+ *
+ * ⛔ `ListClusters` takes no resource, so it lists the account; `DescribeClusters` is per resource and is refused by the
+ * permissions boundary on a production-named cluster and on the other application's, so only the ARNs `inScope`
+ * admits are ever passed to it.
  *
  * ⚠️ TAGS are opt-in: without `include: ['TAGS']` the response carries none and every per-PR cluster reads as
  * untagged, which is exactly the invisible state the per-PR selector exists to remove.
  *
  * @param client - The ECS client.
+ * @param inScope - Which cluster ARNs may be described; the scheduler's predicate, never decided here.
  * @returns The clusters. Pages through all of them.
  * @sideEffect Calls ECS `ListClusters` and `DescribeClusters`.
  */
-export async function listClusterSummaries(client: ECSClient): Promise<EcsClusterSummary[]> {
+export async function listClusterSummaries(
+    client: ECSClient,
+    inScope: (clusterArn: string) => boolean,
+): Promise<EcsClusterSummary[]> {
     const arns: string[] = [];
     let nextToken: string | undefined;
 
     do {
         const response = await client.send(new ListClustersCommand({ nextToken }));
-        arns.push(...(response.clusterArns ?? []));
+        arns.push(...(response.clusterArns ?? []).filter(inScope));
         nextToken = response.nextToken;
     } while (nextToken);
 
@@ -189,7 +197,7 @@ export function createRdsApi(client: RDSClient): RdsApi {
  */
 export function createEcsApi(client: ECSClient): EcsApi {
     return {
-        listClusters: () => listClusterSummaries(client),
+        listClusters: (inScope) => listClusterSummaries(client, inScope),
         async listServices(clusterArn: string): Promise<EcsServiceSummary[]> {
             return (await describeAllServices(client, clusterArn)).map((service) => ({
                 clusterArn,
@@ -283,7 +291,7 @@ export function createSsmApi(client: SSMClient): SsmApi {
  */
 export function createEventsApi(client: EventBridgeClient): EventsApi {
     return {
-        async listScheduledRules(): Promise<ScheduledRuleSummary[]> {
+        async listScheduledRules(inScope: (ruleName: string) => boolean): Promise<ScheduledRuleSummary[]> {
             const rules: ScheduledRuleSummary[] = [];
             let nextToken: string | undefined;
 
@@ -295,6 +303,11 @@ export function createEventsApi(client: EventBridgeClient): EventsApi {
                 for (const rule of page.Rules ?? []) {
                     // An event-pattern rule is not the scheduler's: the CDK gate leaves it untouched, so this does.
                     if (rule.Name === undefined || rule.Arn === undefined || rule.ScheduleExpression === undefined) {
+                        continue;
+                    }
+
+                    // ⛔ Before the per-resource call: the boundary refuses ListTagsForResource on a production name.
+                    if (!inScope(rule.Name)) {
                         continue;
                     }
 

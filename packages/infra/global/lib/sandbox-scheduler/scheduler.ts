@@ -100,8 +100,13 @@ export interface EcsApi {
      * ⚠️ The tag is REQUIRED here, not a convenience: a per-PR cluster is indistinguishable from any other
      * by ARN alone under the rule `ecsQuiesce.sh` sets, so a port that returned only ARNs made the
      * per-PR half unselectable no matter what the selector said.
+     *
+     * ⛔ `inScope` is applied to each cluster ARN BEFORE `DescribeClusters` is called on it. `ListClusters` takes no
+     * resource and is fine; `DescribeClusters` is a per-resource call, and the permissions boundary (ADR-0065) refuses
+     * it, as an explicit deny that fails the whole run, on a production-named cluster and on every cluster of the other
+     * application in the account. The adapter applies the predicate and decides nothing itself.
      */
-    listClusters(): Promise<EcsClusterSummary[]>;
+    listClusters(inScope: (clusterArn: string) => boolean): Promise<EcsClusterSummary[]>;
     /** List the services in a cluster. */
     listServices(clusterArn: string): Promise<EcsServiceSummary[]>;
     /** Set a service's desired count. */
@@ -138,8 +143,13 @@ export interface ScheduledRuleSummary {
 
 /** EventBridge operations the scheduler needs. */
 export interface EventsApi {
-    /** List every SCHEDULED rule in the account's `kitchensink-*` namespace, with its tags. */
-    listScheduledRules(): Promise<ScheduledRuleSummary[]>;
+    /**
+     * List every SCHEDULED rule in the account's `kitchensink-*` namespace, with its tags.
+     *
+     * ⛔ `inScope` is applied to each rule NAME before `ListTagsForResource` is called on it (a per-resource call the
+     * permissions boundary refuses on a production-named rule). `ListRules` itself takes no resource.
+     */
+    listScheduledRules(inScope: (ruleName: string) => boolean): Promise<ScheduledRuleSummary[]>;
     /** Enable a rule by name. */
     enableRule(name: string): Promise<void>;
     /** Disable a rule by name. */
@@ -227,7 +237,7 @@ export function isSandboxRdsInstance(identifier: string): boolean {
     // ⛔ The repository prefix too (ADR-0061 review). Another application in this account can own a `-sandbox` instance,
     // and the reclaim decides "the tier is down" from these instances: a running foreign one would hold it up for ever,
     // and silently. The real identifier is `kitchensink-data-sandbox-databaseb269d8bb-…`.
-    return identifier.startsWith(REPOSITORY_PREFIX) && identifier.includes(`-${SANDBOX_MARKER}`);
+    return isStageScopedName(identifier) && identifier.includes(`-${SANDBOX_MARKER}`);
 }
 
 /**
@@ -296,6 +306,32 @@ function isRepositoryClusterArn(clusterArn: string): boolean {
     return (clusterArn.split('/').pop() ?? '').startsWith(REPOSITORY_PREFIX);
 }
 
+/**
+ * Whether a resource NAME is one a non-production role may touch at all: this repository's (`kitchensink-…`) and not
+ * production's (`-prod`).
+ *
+ * This is the line the permissions boundary draws (ADR-0065: Allow only `kitchensink-*`, Deny `*-prod*`), drawn in code
+ * so that a per-resource call is never MADE on a name the boundary would refuse. It is a precondition, not a selector:
+ * every selector below still decides what to act on. The `-prod` test is case-sensitive on purpose, as the IAM pattern
+ * is, so a CloudFormation logical id such as `…Producer…` is not mistaken for production.
+ *
+ * @param name - A resource name (cluster, rule, DB instance, instance `Name` tag).
+ * @returns `true` when the scheduler may make a per-resource call on it. Pure.
+ */
+export function isStageScopedName(name: string): boolean {
+    return name.startsWith(REPOSITORY_PREFIX) && !name.includes('-prod');
+}
+
+/**
+ * Whether a cluster ARN may be DESCRIBED: its name is in stage scope and not production's.
+ *
+ * @param clusterArn - The cluster ARN.
+ * @returns `true` when `DescribeClusters` may be called on it. Pure.
+ */
+export function isCandidateClusterArn(clusterArn: string): boolean {
+    return isStageScopedName(clusterArn.split('/').pop() ?? '') && !isProdClusterArn(clusterArn);
+}
+
 /** A cluster as the selector sees it: its ARN, and its `Environment` tag when it carries one. */
 export interface EcsClusterSummary {
     /** The cluster ARN. */
@@ -339,9 +375,26 @@ export function isScheduledCluster(cluster: EcsClusterSummary): boolean {
     }
 
     return (
-        isSandboxClusterArn(cluster.arn) ||
-        (isRepositoryClusterArn(cluster.arn) && PER_PR_ENVIRONMENT.test(cluster.environmentTag ?? ''))
+        isRepositoryClusterArn(cluster.arn) &&
+        (isSandboxClusterArn(cluster.arn) || PER_PR_ENVIRONMENT.test(cluster.environmentTag ?? ''))
     );
+}
+
+/**
+ * Whether an instance is THIS repository's sandbox NAT: a DISABLED source/destination check, and a `Name` tag in stage
+ * scope that carries the `sandbox` marker.
+ *
+ * ⛔ The `kitchensink-` prefix is part of the answer. `ec2:StopInstances` is bounded by the stack-name tag, so a
+ * `sandbox`-named instance of the other application in this account would be selected and then REFUSED, failing the
+ * whole stop; the prefix keeps it out of the selection.
+ *
+ * @param instance - The instance.
+ * @returns `true` for the sandbox NAT. Pure.
+ */
+function isSandboxNatInstance(instance: Ec2InstanceSummary): boolean {
+    const name = instance.nameTag ?? '';
+
+    return instance.sourceDestCheck === false && isStageScopedName(name) && name.toLowerCase().includes(SANDBOX_MARKER);
 }
 
 /**
@@ -357,12 +410,7 @@ export function selectSandboxNatInstances(instances: Ec2InstanceSummary[], actio
     const requiredState = action === 'stop' ? 'running' : 'stopped';
 
     return instances
-        .filter(
-            (instance) =>
-                instance.sourceDestCheck === false &&
-                (instance.nameTag ?? '').toLowerCase().includes(SANDBOX_MARKER) &&
-                instance.state === requiredState,
-        )
+        .filter((instance) => isSandboxNatInstance(instance) && instance.state === requiredState)
         .map((instance) => instance.instanceId);
 }
 
@@ -422,7 +470,9 @@ async function listServicesIn(
     ecs: EcsApi,
     select: (cluster: EcsClusterSummary) => boolean,
 ): Promise<{ readonly cluster: EcsClusterSummary; readonly service: EcsServiceSummary }[]> {
-    const clusters = (await ecs.listClusters()).filter((cluster) => isScheduledCluster(cluster) && select(cluster));
+    const clusters = (await ecs.listClusters(isCandidateClusterArn)).filter(
+        (cluster) => isScheduledCluster(cluster) && select(cluster),
+    );
     const services: { cluster: EcsClusterSummary; service: EcsServiceSummary }[] = [];
 
     for (const cluster of clusters) {
@@ -527,10 +577,7 @@ async function observeTier(clients: SchedulerClients): Promise<TierState> {
     const sandboxDatabases = (await clients.rds.listInstances()).filter((instance) =>
         isSandboxRdsInstance(instance.identifier),
     );
-    const sandboxNats = (await clients.ec2.listInstances()).filter(
-        (instance) =>
-            instance.sourceDestCheck === false && (instance.nameTag ?? '').toLowerCase().includes(SANDBOX_MARKER),
-    );
+    const sandboxNats = (await clients.ec2.listInstances()).filter(isSandboxNatInstance);
     const upStages = new Set<string>();
 
     for (const { cluster, service } of await listServicesIn(
@@ -575,7 +622,7 @@ interface RuleReport {
  */
 async function writeRuleStates(clients: SchedulerClients, tier: TierState, report: RuleReport): Promise<void> {
     const { tally, errors, warnings } = report;
-    const rules = await clients.events.listScheduledRules();
+    const rules = await clients.events.listScheduledRules(isStageScopedName);
     const owned = new Set(rules.flatMap((rule) => (rule.stageTag === undefined ? [] : [rule.stageTag])));
     const servingStages = tier.upStages.size > 0 ? [...tier.upStages, SANDBOX_MARKER] : [];
 

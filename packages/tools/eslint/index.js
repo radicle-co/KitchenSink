@@ -346,6 +346,11 @@ const PACKAGE_INTERNALS_PATTERN = {
         // `@kitchensink/esbuild/library`, `@kitchensink/vitest/base`,
         // `@kitchensink/typescript/fixDeclarationPaths`). There is no "internal"
         // to protect, and naming each subpath would rebuild the copy above.
+        // `cdk-bootstrap` is allowed per-package for the same reason, and for a stronger one: it has NO barrel
+        // (the barrel rule forbids one, and a `.` entry would have to import every module, `appProps` included,
+        // into a consumer that wants one). Its subpaths ARE its API: `appProps` (every CDK app), `qualifiers`,
+        // `boundary`, `executionPolicy` and `customizeBootstrapTemplate`.
+        '!@kitchensink/cdk-bootstrap/*',
         '!@kitchensink/esbuild/*',
         '!@kitchensink/eslint/*',
         '!@kitchensink/typescript/*',

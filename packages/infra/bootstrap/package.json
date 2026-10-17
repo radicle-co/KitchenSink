@@ -4,6 +4,7 @@
     "private": true,
     "type": "module",
     "exports": {
+        "./appProps": "./src/appProps.ts",
         "./qualifiers": "./src/qualifiers.ts",
         "./executionPolicy": "./src/executionPolicy.ts",
         "./boundary": "./src/boundary.ts",

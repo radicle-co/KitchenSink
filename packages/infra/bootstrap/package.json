@@ -1,0 +1,41 @@
+{
+    "name": "@kitchensink/cdk-bootstrap",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "exports": {
+        "./qualifiers": "./src/qualifiers.ts",
+        "./executionPolicy": "./src/executionPolicy.ts",
+        "./boundary": "./src/boundary.ts",
+        "./customizeBootstrapTemplate": "./src/customizeBootstrapTemplate.ts"
+    },
+    "dependencies": {
+        "yaml": "^2.8.1"
+    },
+    "scripts": {
+        "build": "tsc --noEmit",
+        "test": "vitest run",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "bootstrap:golden": "tsx scripts/emitGolden.ts",
+        "bootstrap:stock": "tsx scripts/refreshStockTemplate.ts",
+        "bootstrap:derive": "tsx scripts/deriveResourceTypes.ts"
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@types/node": "^24.13.3",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "tsx": "^4.23.12",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

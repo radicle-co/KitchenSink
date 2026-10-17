@@ -1,0 +1,1065 @@
+/**
+ * @module executionPolicy — what CloudFormation may do when it deploys for one qualifier (ADR-0064).
+ *
+ * The bootstrap's execution role was `AdministratorAccess`, so whoever could make CloudFormation deploy a template
+ * was an account administrator. This module is the replacement: a DATA TABLE of grants, rendered into several
+ * managed policies (each under IAM's 6144-character limit). Nothing is assembled from strings.
+ *
+ * ## The rules the table is built to
+ *
+ * - **Names are the boundary.** Every Allow is scoped to `kitchensink-*` names (or `/kitchensink/…`), or to the
+ *   `aws:cloudformation:stack-name` tag for resources CloudFormation names by id (EC2, ELB, CloudFront, API Gateway
+ *   parents). A resource without the tag matches nothing, so the grant fails CLOSED.
+ * - **The other tier is denied by name.** The nonprod policy denies every `*-prod*` name and the prod policy denies
+ *   every sandbox/preview name, so a branch deploy cannot reach production even if a stack pattern were widened.
+ * - **No verb is wider than the service needs.** Verb wildcards (`lambda:Update*`) are used on name-scoped
+ *   resources; `<service>:*` never appears in an Allow, and IAM actions are listed one by one.
+ * - **Roles it creates are capped.** `iam:CreateRole`, `PutRolePolicy`, `AttachRolePolicy` and
+ *   `PutRolePermissionsBoundary` require the qualifier's permissions boundary, and the boundary and these policies
+ *   are immutable to the role they bind.
+ * - **It cannot rejoin the deploy chain.** `sts:AssumeRole` on `cdk-*` roles, the toolkit stacks, the CI roles and
+ *   the bootstrap policies are explicit Denies.
+ *
+ * ⚠️ The action lists are reviewed against the AWS Service Authorization Reference, not proven by a deploy. A list
+ * that is too narrow fails LOUDLY (an AccessDenied in the stack events, with the action named); a list that is too
+ * wide cannot, which is why the guards in `executionPolicy.test.ts` read the table for the escalation shapes
+ * instead. The authoring loop after a sandbox deploy is IAM Access Analyzer policy generation over CloudTrail.
+ *
+ * @pattern Specification / policy module — the privilege is a table of grants judged by guards
+ * @pattern Registry — `covers` ties every grant to the CloudFormation resource types it serves, so a new type in
+ *   the committed manifest fails a test until someone scopes it
+ */
+import { ACCOUNT, REGION, type Condition, type PolicyDocument, type Statement } from './policyDocument.js';
+import {
+    QUALIFIERS,
+    STACK_TAG_PATTERNS,
+    boundaryPolicyName,
+    executionPolicyName,
+    type QualifierName,
+} from './qualifiers.js';
+
+/** The services a created role may be passed to. A superset of any tier; each tier lists its own subset. */
+export const PASS_ROLE_SERVICES: readonly string[] = [
+    'apigateway.amazonaws.com',
+    'ec2.amazonaws.com',
+    'ecs-tasks.amazonaws.com',
+    'edgelambda.amazonaws.com',
+    'events.amazonaws.com',
+    'lambda.amazonaws.com',
+    'scheduler.amazonaws.com',
+    'states.amazonaws.com',
+];
+
+/** The AWS-managed policies the stacks attach to roles (the committed manifest holds the same four). */
+export const ATTACHABLE_AWS_POLICIES: readonly string[] = [
+    'service-role/AWSLambdaBasicExecutionRole',
+    'service-role/AWSLambdaVPCAccessExecutionRole',
+    'service-role/AmazonAPIGatewayPushToCloudWatchLogs',
+    'service-role/AmazonECSTaskExecutionRolePolicy',
+];
+
+const PART_NAMES = ['compute', 'data', 'observe', 'network', 'edge', 'iam', 'guard'] as const;
+
+/** One of the managed policies an execution role is built from. */
+type PartName = (typeof PART_NAMES)[number];
+
+/** One managed policy of a qualifier's execution role. */
+export interface ExecutionPolicyPart {
+    /** The part's short name (`compute`, `data`, ...). */
+    readonly name: PartName;
+    /** The managed policy's name in the account (`kitchensink-ci-exec-<qualifier>-<part>`). */
+    readonly policyName: string;
+    readonly document: PolicyDocument;
+    /** The CloudFormation resource types the part's grants serve. */
+    readonly covers: readonly string[];
+}
+
+interface Grant {
+    readonly part: PartName;
+    readonly covers?: readonly string[];
+    readonly statement: Statement;
+}
+
+const arn = (service: string, resource: string, regional = true): string =>
+    regional ? `arn:aws:${service}:${REGION}:${ACCOUNT}:${resource}` : `arn:aws:${service}::${ACCOUNT}:${resource}`;
+
+const KS = 'kitchensink-*';
+const iamArn = (resource: string): string => `arn:aws:iam::${ACCOUNT}:${resource}`;
+
+/** The tag a resource CloudFormation named by id must carry for a modify/delete to apply. */
+const ownStack = (qualifier: QualifierName): Condition => ({
+    StringLike: { 'aws:ResourceTag/aws:cloudformation:stack-name': STACK_TAG_PATTERNS[qualifier] },
+});
+
+const boundaryArn = (qualifier: QualifierName): string => iamArn(`policy/${boundaryPolicyName(qualifier)}`);
+
+const allow = (
+    part: PartName,
+    sid: string,
+    action: readonly string[],
+    resource: readonly string[],
+    covers: readonly string[] = [],
+    condition?: Condition,
+): Grant => ({
+    part,
+    covers,
+    statement: {
+        Sid: sid,
+        Effect: 'Allow',
+        Action: action,
+        Resource: resource,
+        ...(condition === undefined ? {} : { Condition: condition }),
+    },
+});
+
+const deny = (
+    part: PartName,
+    sid: string,
+    action: readonly string[],
+    resource: readonly string[],
+    condition?: Condition,
+): Grant => ({
+    part,
+    statement: {
+        Sid: sid,
+        Effect: 'Deny',
+        Action: action,
+        Resource: resource,
+        ...(condition === undefined ? {} : { Condition: condition }),
+    },
+});
+
+/** What both stage tiers share. Names are `kitchensink-*`; the Deny statements separate the tiers. */
+function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
+    const own = ownStack(qualifier);
+    const nonprod = qualifier === QUALIFIERS.nonprod;
+    const assetsBucket = `cdk-${qualifier}-assets-${ACCOUNT}-${REGION}`;
+    const passServices = PASS_ROLE_SERVICES.filter(
+        (service) => nonprod === false || service !== 'edgelambda.amazonaws.com',
+    );
+
+    return [
+        // ---- compute ------------------------------------------------------------------------------------------
+        allow(
+            'compute',
+            'LambdaOwnFunctions',
+            [
+                'lambda:Add*',
+                'lambda:Create*',
+                'lambda:Delete*',
+                'lambda:EnableReplication*',
+                'lambda:Get*',
+                'lambda:Invoke*',
+                'lambda:List*',
+                'lambda:Publish*',
+                'lambda:Put*',
+                'lambda:Remove*',
+                'lambda:Tag*',
+                'lambda:Untag*',
+                'lambda:Update*',
+            ],
+            [
+                arn('lambda', `function:${KS}`),
+                arn('lambda', `function:${KS}:*`),
+                arn('lambda', 'event-source-mapping:*'),
+            ],
+            [
+                'AWS::Lambda::Function',
+                'AWS::Lambda::Permission',
+                'AWS::Lambda::Version',
+                'AWS::Lambda::Url',
+                'AWS::Lambda::EventInvokeConfig',
+                'AWS::Lambda::EventSourceMapping',
+                'AWS::CloudFormation::CustomResource',
+                'Custom::*',
+            ],
+        ),
+        allow(
+            'compute',
+            'EcsClustersAndServices',
+            [
+                'ecs:Create*',
+                'ecs:Delete*',
+                'ecs:Describe*',
+                'ecs:List*',
+                'ecs:Put*',
+                'ecs:TagResource',
+                'ecs:UntagResource',
+                'ecs:Update*',
+            ],
+            [arn('ecs', `cluster/${KS}`), arn('ecs', `service/${KS}/*`), arn('ecs', `task/${KS}/*`)],
+            ['AWS::ECS::Cluster', 'AWS::ECS::ClusterCapacityProviderAssociations', 'AWS::ECS::Service'],
+        ),
+        allow(
+            'compute',
+            'EcsTaskDefinitions',
+            [
+                'ecs:DeleteTaskDefinitions',
+                'ecs:DeregisterTaskDefinition',
+                'ecs:DescribeTaskDefinition',
+                'ecs:ListTagsForResource',
+                'ecs:ListTaskDefinitions',
+                'ecs:RegisterTaskDefinition',
+                'ecs:TagResource',
+                'ecs:UntagResource',
+            ],
+            ['*'],
+            ['AWS::ECS::TaskDefinition'],
+        ),
+        allow(
+            'compute',
+            'AppAutoScaling',
+            [
+                'application-autoscaling:Delete*',
+                'application-autoscaling:Deregister*',
+                'application-autoscaling:Describe*',
+                'application-autoscaling:Put*',
+                'application-autoscaling:Register*',
+                'application-autoscaling:TagResource',
+                'application-autoscaling:UntagResource',
+            ],
+            ['*'],
+            ['AWS::ApplicationAutoScaling::ScalableTarget', 'AWS::ApplicationAutoScaling::ScalingPolicy'],
+        ),
+        allow(
+            'compute',
+            'StatesCreate',
+            ['states:CreateStateMachine', 'states:ListTagsForResource', 'states:TagResource'],
+            [arn('states', 'stateMachine:*')],
+            ['AWS::StepFunctions::StateMachine'],
+        ),
+        allow(
+            'compute',
+            'StatesOwnMachines',
+            ['states:Delete*', 'states:Describe*', 'states:TagResource', 'states:UntagResource', 'states:Update*'],
+            [arn('states', 'stateMachine:*')],
+            [],
+            own,
+        ),
+        allow(
+            'compute',
+            'EventsRulesAndBuses',
+            [
+                'events:CreateEventBus',
+                'events:DeleteEventBus',
+                'events:DeleteRule',
+                'events:Describe*',
+                'events:DisableRule',
+                'events:EnableRule',
+                'events:List*',
+                'events:PutPermission',
+                'events:PutRule',
+                'events:PutTargets',
+                'events:RemovePermission',
+                'events:RemoveTargets',
+                'events:TagResource',
+                'events:UntagResource',
+            ],
+            [arn('events', `rule/${KS}`), arn('events', `rule/*/${KS}`), arn('events', `event-bus/${KS}`)],
+            ['AWS::Events::Rule', 'AWS::Events::EventBus'],
+        ),
+        allow(
+            'compute',
+            'SchedulerSchedules',
+            [
+                'scheduler:CreateSchedule',
+                'scheduler:DeleteSchedule',
+                'scheduler:GetSchedule',
+                'scheduler:UpdateSchedule',
+            ],
+            [arn('scheduler', `schedule/*/${KS}`)],
+            ['AWS::Scheduler::Schedule'],
+        ),
+        // ---- data ---------------------------------------------------------------------------------------------
+        allow(
+            'data',
+            'SqsQueues',
+            [
+                'sqs:AddPermission',
+                'sqs:Create*',
+                'sqs:Delete*',
+                'sqs:Get*',
+                'sqs:List*',
+                'sqs:RemovePermission',
+                'sqs:Set*',
+                'sqs:TagQueue',
+                'sqs:UntagQueue',
+            ],
+            [arn('sqs', KS)],
+            ['AWS::SQS::Queue', 'AWS::SQS::QueuePolicy'],
+        ),
+        allow(
+            'data',
+            'SnsTopics',
+            [
+                'sns:AddPermission',
+                'sns:CreateTopic',
+                'sns:DeleteTopic',
+                'sns:Get*',
+                'sns:List*',
+                'sns:RemovePermission',
+                'sns:Set*',
+                'sns:Subscribe',
+                'sns:TagResource',
+                'sns:Unsubscribe',
+                'sns:UntagResource',
+            ],
+            [arn('sns', KS)],
+            ['AWS::SNS::Topic', 'AWS::SNS::Subscription', 'AWS::SNS::TopicPolicy'],
+        ),
+        allow(
+            'data',
+            'S3OwnBuckets',
+            [
+                's3:CreateBucket',
+                's3:DeleteBucket',
+                's3:DeleteBucket*',
+                's3:GetAccelerateConfiguration',
+                's3:GetBucket*',
+                's3:GetEncryptionConfiguration',
+                's3:GetLifecycleConfiguration',
+                's3:ListBucket',
+                's3:PutAccelerateConfiguration',
+                's3:PutBucket*',
+                's3:PutEncryptionConfiguration',
+                's3:PutLifecycleConfiguration',
+            ],
+            [`arn:aws:s3:::${KS}`],
+            ['AWS::S3::Bucket', 'AWS::S3::BucketPolicy'],
+        ),
+        allow(
+            'data',
+            'S3ReadCdkAssets',
+            ['s3:GetBucket*', 's3:GetObject*', 's3:List*'],
+            [`arn:aws:s3:::${assetsBucket}`, `arn:aws:s3:::${assetsBucket}/*`],
+        ),
+        allow(
+            'data',
+            'DynamoDbTables',
+            [
+                'dynamodb:Create*',
+                'dynamodb:Delete*',
+                'dynamodb:Describe*',
+                'dynamodb:ListTagsOfResource',
+                'dynamodb:TagResource',
+                'dynamodb:UntagResource',
+                'dynamodb:Update*',
+            ],
+            [arn('dynamodb', `table/${KS}`)],
+            ['AWS::DynamoDB::Table'],
+        ),
+        allow(
+            'data',
+            'RdsInstances',
+            [
+                'rds:AddTagsToResource',
+                'rds:CreateDB*',
+                'rds:DeleteDB*',
+                'rds:ListTagsForResource',
+                'rds:ModifyDB*',
+                'rds:RebootDBInstance',
+                'rds:RemoveTagsFromResource',
+            ],
+            [
+                arn('rds', `db:${KS}`),
+                arn('rds', `subgrp:${KS}`),
+                arn('rds', 'pg:default.*'),
+                arn('rds', 'og:default:*'),
+                arn('rds', 'secgrp:*'),
+            ],
+            ['AWS::RDS::DBInstance', 'AWS::RDS::DBSubnetGroup'],
+        ),
+        allow(
+            'data',
+            'SecretsOwn',
+            [
+                'secretsmanager:DeleteResourcePolicy',
+                'secretsmanager:DeleteSecret',
+                'secretsmanager:DescribeSecret',
+                'secretsmanager:GetResourcePolicy',
+                'secretsmanager:PutResourcePolicy',
+                'secretsmanager:PutSecretValue',
+                'secretsmanager:RestoreSecret',
+                'secretsmanager:TagResource',
+                'secretsmanager:UntagResource',
+                'secretsmanager:UpdateSecret',
+            ],
+            [arn('secretsmanager', 'secret:kitchensink*')],
+            ['AWS::SecretsManager::Secret', 'AWS::SecretsManager::SecretTargetAttachment'],
+        ),
+        allow(
+            'data',
+            'SecretsByStackTag',
+            [
+                'secretsmanager:DeleteSecret',
+                'secretsmanager:DescribeSecret',
+                'secretsmanager:PutSecretValue',
+                'secretsmanager:TagResource',
+                'secretsmanager:UntagResource',
+                'secretsmanager:UpdateSecret',
+            ],
+            [arn('secretsmanager', 'secret:*')],
+            [],
+            own,
+        ),
+        allow('data', 'SecretsCreate', ['secretsmanager:CreateSecret', 'secretsmanager:GetRandomPassword'], ['*'], []),
+        allow(
+            'data',
+            'SsmParameters',
+            [
+                'ssm:AddTagsToResource',
+                'ssm:DeleteParameter',
+                'ssm:DeleteParameters',
+                'ssm:GetParameter',
+                'ssm:GetParameters',
+                'ssm:GetParametersByPath',
+                'ssm:LabelParameterVersion',
+                'ssm:ListTagsForResource',
+                'ssm:PutParameter',
+                'ssm:RemoveTagsFromResource',
+            ],
+            [arn('ssm', 'parameter/kitchensink/*')],
+            ['AWS::SSM::Parameter'],
+        ),
+        allow('data', 'SsmDescribe', ['ssm:DescribeParameters'], ['*']),
+        allow(
+            'observe',
+            'LogGroups',
+            [
+                'logs:CreateLogGroup',
+                'logs:DeleteLogGroup',
+                'logs:DeleteRetentionPolicy',
+                'logs:DeleteSubscriptionFilter',
+                'logs:DescribeSubscriptionFilters',
+                'logs:ListTagsForResource',
+                'logs:ListTagsLogGroup',
+                'logs:PutRetentionPolicy',
+                'logs:PutSubscriptionFilter',
+                'logs:TagLogGroup',
+                'logs:TagResource',
+                'logs:UntagLogGroup',
+                'logs:UntagResource',
+            ],
+            [
+                arn('logs', 'log-group:/aws/lambda/kitchensink-*'),
+                arn('logs', 'log-group:/aws/lambda/kitchensink-*:*'),
+                arn('logs', 'log-group:kitchensink-*'),
+                arn('logs', 'log-group:kitchensink-*:*'),
+                arn('logs', 'log-group:/kitchensink/*'),
+                arn('logs', 'log-group:/kitchensink/*:*'),
+            ],
+            ['AWS::Logs::LogGroup', 'AWS::Logs::SubscriptionFilter'],
+        ),
+        allow(
+            'observe',
+            'LogDeliveries',
+            ['logs:AllowVendedLogDeliveryForResource', 'logs:*Delivery*', 'logs:DescribeLogGroups'],
+            ['*'],
+            ['AWS::Logs::Delivery', 'AWS::Logs::DeliveryDestination', 'AWS::Logs::DeliverySource'],
+        ),
+        allow(
+            'observe',
+            'CloudWatchAlarms',
+            [
+                'cloudwatch:DeleteAlarms',
+                'cloudwatch:DescribeAlarms',
+                'cloudwatch:DisableAlarmActions',
+                'cloudwatch:EnableAlarmActions',
+                'cloudwatch:ListTagsForResource',
+                'cloudwatch:PutCompositeAlarm',
+                'cloudwatch:PutMetricAlarm',
+                'cloudwatch:TagResource',
+                'cloudwatch:UntagResource',
+            ],
+            [arn('cloudwatch', `alarm:${KS}`)],
+            ['AWS::CloudWatch::Alarm'],
+        ),
+        allow(
+            'observe',
+            'CloudWatchDashboards',
+            ['cloudwatch:DeleteDashboards', 'cloudwatch:GetDashboard', 'cloudwatch:PutDashboard'],
+            [arn('cloudwatch', nonprod ? 'dashboard/pr-*-food-data' : 'dashboard/food-data')],
+            ['AWS::CloudWatch::Dashboard'],
+        ),
+        allow(
+            'data',
+            'KmsThroughServices',
+            [
+                'kms:CreateGrant',
+                'kms:Decrypt',
+                'kms:DescribeKey',
+                'kms:Encrypt',
+                'kms:GenerateDataKey*',
+                'kms:ReEncrypt*',
+            ],
+            ['*'],
+            [],
+            {
+                StringEquals: {
+                    'kms:CallerAccount': ACCOUNT,
+                    'kms:ViaService': [
+                        `dynamodb.${REGION}.amazonaws.com`,
+                        `lambda.${REGION}.amazonaws.com`,
+                        `logs.${REGION}.amazonaws.com`,
+                        `rds.${REGION}.amazonaws.com`,
+                        `s3.${REGION}.amazonaws.com`,
+                        `secretsmanager.${REGION}.amazonaws.com`,
+                        `sns.${REGION}.amazonaws.com`,
+                        `sqs.${REGION}.amazonaws.com`,
+                        `ssm.${REGION}.amazonaws.com`,
+                    ],
+                },
+            },
+        ),
+        // ---- network ------------------------------------------------------------------------------------------
+        allow('network', 'Ec2Describe', ['ec2:Describe*'], ['*']),
+        allow(
+            'network',
+            'Ec2Create',
+            [
+                'ec2:CreateInternetGateway',
+                'ec2:CreateNetworkInterface',
+                'ec2:CreateRouteTable',
+                'ec2:CreateSecurityGroup',
+                'ec2:CreateSubnet',
+                'ec2:CreateVpc',
+                'ec2:RunInstances',
+            ],
+            ['*'],
+            [
+                'AWS::EC2::Instance',
+                'AWS::EC2::InternetGateway',
+                'AWS::EC2::RouteTable',
+                'AWS::EC2::SecurityGroup',
+                'AWS::EC2::Subnet',
+                'AWS::EC2::VPC',
+            ],
+        ),
+        allow('network', 'Ec2TagOnCreate', ['ec2:CreateTags'], ['*'], [], {
+            StringEquals: {
+                'ec2:CreateAction': [
+                    'CreateInternetGateway',
+                    'CreateNetworkInterface',
+                    'CreateRouteTable',
+                    'CreateSecurityGroup',
+                    'CreateSubnet',
+                    'CreateVpc',
+                    'RunInstances',
+                ],
+            },
+        }),
+        allow(
+            'network',
+            'Ec2OwnResources',
+            [
+                'ec2:Associate*',
+                'ec2:AuthorizeSecurityGroup*',
+                'ec2:Attach*',
+                'ec2:CreateRoute',
+                'ec2:CreateTags',
+                'ec2:Delete*',
+                'ec2:DeleteTags',
+                'ec2:Detach*',
+                'ec2:Disassociate*',
+                'ec2:Modify*',
+                'ec2:ReplaceRoute',
+                'ec2:RevokeSecurityGroup*',
+                'ec2:StartInstances',
+                'ec2:StopInstances',
+                'ec2:TerminateInstances',
+                'ec2:UpdateSecurityGroupRuleDescriptions*',
+            ],
+            ['*'],
+            [
+                'AWS::EC2::Route',
+                'AWS::EC2::SecurityGroupEgress',
+                'AWS::EC2::SecurityGroupIngress',
+                'AWS::EC2::SubnetRouteTableAssociation',
+                'AWS::EC2::VPCGatewayAttachment',
+            ],
+            own,
+        ),
+        allow(
+            'network',
+            'ElbCreateAndRead',
+            ['elasticloadbalancing:Create*', 'elasticloadbalancing:Describe*'],
+            ['*'],
+            [
+                'AWS::ElasticLoadBalancingV2::Listener',
+                'AWS::ElasticLoadBalancingV2::ListenerRule',
+                'AWS::ElasticLoadBalancingV2::LoadBalancer',
+                'AWS::ElasticLoadBalancingV2::TargetGroup',
+            ],
+        ),
+        allow(
+            'network',
+            'ElbOwnResources',
+            [
+                'elasticloadbalancing:Add*',
+                'elasticloadbalancing:Delete*',
+                'elasticloadbalancing:Deregister*',
+                'elasticloadbalancing:Modify*',
+                'elasticloadbalancing:Register*',
+                'elasticloadbalancing:Remove*',
+                'elasticloadbalancing:Set*',
+            ],
+            ['*'],
+            ['AWS::ElasticLoadBalancingV2::ListenerCertificate'],
+            own,
+        ),
+        // ---- edge ---------------------------------------------------------------------------------------------
+        allow(
+            'edge',
+            'CloudFrontCreate',
+            [
+                'cloudfront:Create*',
+                'cloudfront:Describe*',
+                'cloudfront:Get*',
+                'cloudfront:List*',
+                'cloudfront:Publish*',
+            ],
+            ['*'],
+            [
+                'AWS::CloudFront::CachePolicy',
+                'AWS::CloudFront::Distribution',
+                'AWS::CloudFront::Function',
+                'AWS::CloudFront::KeyGroup',
+                'AWS::CloudFront::KeyValueStore',
+                'AWS::CloudFront::OriginAccessControl',
+                'AWS::CloudFront::OriginRequestPolicy',
+                'AWS::CloudFront::PublicKey',
+                'AWS::CloudFront::ResponseHeadersPolicy',
+            ],
+        ),
+        allow(
+            'edge',
+            'CloudFrontOwnDistributions',
+            [
+                'cloudfront:AssociateAlias',
+                'cloudfront:CreateInvalidation',
+                'cloudfront:Delete*',
+                'cloudfront:TagResource',
+                'cloudfront:UntagResource',
+                'cloudfront:Update*',
+            ],
+            [arn('cloudfront', 'distribution/*', false)],
+            [],
+            own,
+        ),
+        allow(
+            'edge',
+            'CloudFrontPolicies',
+            ['cloudfront:Delete*', 'cloudfront:TagResource', 'cloudfront:UntagResource', 'cloudfront:Update*'],
+            [
+                arn('cloudfront', 'cache-policy/*', false),
+                arn('cloudfront', 'origin-access-control/*', false),
+                arn('cloudfront', 'origin-request-policy/*', false),
+                arn('cloudfront', 'response-headers-policy/*', false),
+                arn('cloudfront', 'key-group/*', false),
+                arn('cloudfront', 'public-key/*', false),
+                arn('cloudfront', 'key-value-store/*', false),
+                arn('cloudfront', 'function/*SandboxRouter*', false),
+            ],
+        ),
+        allow(
+            'edge',
+            'AcmRequest',
+            [
+                'acm:AddTagsToCertificate',
+                'acm:DescribeCertificate',
+                'acm:ListTagsForCertificate',
+                'acm:RequestCertificate',
+            ],
+            ['*'],
+            ['AWS::CertificateManager::Certificate'],
+            {
+                'ForAllValues:StringLike': {
+                    'acm:DomainNames': nonprod ? ['*sandbox.commise.app'] : ['*commise.app'],
+                },
+            },
+        ),
+        allow(
+            'edge',
+            'AcmOwnCertificates',
+            [
+                'acm:AddTagsToCertificate',
+                'acm:DeleteCertificate',
+                'acm:DescribeCertificate',
+                'acm:RemoveTagsFromCertificate',
+            ],
+            [arn('acm', 'certificate/*')],
+            [],
+            own,
+        ),
+        allow(
+            'edge',
+            'Route53Records',
+            ['route53:ChangeResourceRecordSets'],
+            ['arn:aws:route53:::hostedzone/*'],
+            ['AWS::Route53::RecordSet'],
+            {
+                'ForAllValues:StringLike': {
+                    'route53:ChangeResourceRecordSetsNormalizedRecordNames': nonprod
+                        ? ['sandbox.commise.app*', '*.sandbox.commise.app*']
+                        : ['commise.app*', '*.commise.app*', '_*.commise.app*'],
+                },
+            },
+        ),
+        allow(
+            'edge',
+            'Route53Read',
+            [
+                'route53:GetChange',
+                'route53:GetHostedZone',
+                'route53:ListHostedZones*',
+                'route53:ListResourceRecordSets',
+            ],
+            ['*'],
+        ),
+        allow(
+            'edge',
+            'ApiGatewayOwn',
+            ['apigateway:DELETE', 'apigateway:GET', 'apigateway:PATCH', 'apigateway:POST', 'apigateway:PUT'],
+            [
+                `arn:aws:apigateway:${REGION}::/account`,
+                `arn:aws:apigateway:${REGION}::/restapis`,
+                `arn:aws:apigateway:${REGION}::/restapis/*`,
+                `arn:aws:apigateway:${REGION}::/domainnames`,
+                `arn:aws:apigateway:${REGION}::/domainnames/*`,
+                `arn:aws:apigateway:${REGION}::/tags/*`,
+            ],
+            [
+                'AWS::ApiGateway::Account',
+                'AWS::ApiGateway::Deployment',
+                'AWS::ApiGateway::DomainName',
+                'AWS::ApiGateway::GatewayResponse',
+                'AWS::ApiGateway::Method',
+                'AWS::ApiGateway::Resource',
+                'AWS::ApiGateway::RestApi',
+                'AWS::ApiGateway::Stage',
+                'AWS::ApiGatewayV2::ApiMapping',
+            ],
+        ),
+        // ---- iam ----------------------------------------------------------------------------------------------
+        allow(
+            'iam',
+            'IamCreateCappedRoles',
+            ['iam:CreateRole', 'iam:PutRolePermissionsBoundary', 'iam:PutRolePolicy'],
+            [iamArn(`role/${KS}`)],
+            ['AWS::IAM::Role', 'AWS::IAM::Policy'],
+            { StringEquals: { 'iam:PermissionsBoundary': boundaryArn(qualifier) } },
+        ),
+        allow('iam', 'IamAttachAwsPolicies', ['iam:AttachRolePolicy'], [iamArn(`role/${KS}`)], [], {
+            StringEquals: { 'iam:PermissionsBoundary': boundaryArn(qualifier) },
+            ArnEquals: {
+                'iam:PolicyARN': ATTACHABLE_AWS_POLICIES.map((policy) => `arn:aws:iam::aws:policy/${policy}`),
+            },
+        }),
+        allow(
+            'iam',
+            'IamOwnRoles',
+            [
+                'iam:DeleteRole',
+                'iam:DeleteRolePolicy',
+                'iam:DetachRolePolicy',
+                'iam:GetRole',
+                'iam:GetRolePolicy',
+                'iam:ListAttachedRolePolicies',
+                'iam:ListInstanceProfilesForRole',
+                'iam:ListRolePolicies',
+                'iam:ListRoleTags',
+                'iam:TagRole',
+                'iam:UntagRole',
+                'iam:UpdateAssumeRolePolicy',
+                'iam:UpdateRole',
+                'iam:UpdateRoleDescription',
+            ],
+            [iamArn(`role/${KS}`)],
+        ),
+        allow(
+            'iam',
+            'IamInstanceProfiles',
+            [
+                'iam:AddRoleToInstanceProfile',
+                'iam:CreateInstanceProfile',
+                'iam:DeleteInstanceProfile',
+                'iam:GetInstanceProfile',
+                'iam:RemoveRoleFromInstanceProfile',
+                'iam:TagInstanceProfile',
+                'iam:UntagInstanceProfile',
+            ],
+            [iamArn(`instance-profile/${KS}`)],
+            ['AWS::IAM::InstanceProfile'],
+        ),
+        allow('iam', 'IamPassRole', ['iam:PassRole'], [iamArn(`role/${KS}`)], [], {
+            StringEquals: { 'iam:PassedToService': passServices },
+        }),
+        allow(
+            'iam',
+            'IamServiceLinkedRoles',
+            ['iam:CreateServiceLinkedRole'],
+            [iamArn('role/aws-service-role/*')],
+            [],
+            {
+                StringEquals: {
+                    'iam:AWSServiceName': [
+                        'delivery.logs.amazonaws.com',
+                        'ecs.amazonaws.com',
+                        'ecs.application-autoscaling.amazonaws.com',
+                        'elasticloadbalancing.amazonaws.com',
+                        'logger.cloudfront.amazonaws.com',
+                        'rds.amazonaws.com',
+                        'replicator.lambda.amazonaws.com',
+                    ],
+                },
+            },
+        ),
+        // ---- guard (explicit Denies) --------------------------------------------------------------------------
+        ...commonDenies(qualifier),
+        ...tierDenies(qualifier),
+    ];
+}
+
+/** Denies every tier carries: the deploy chain, the CI roles and the bootstrap policies stay out of reach. */
+function commonDenies(qualifier: QualifierName): Grant[] {
+    return [
+        deny('guard', 'DenyBoundaryRemoval', ['iam:DeleteRolePermissionsBoundary'], ['*']),
+        deny(
+            'guard',
+            'DenyBootstrapPolicyTamper',
+            ['iam:CreatePolicyVersion', 'iam:DeletePolicy', 'iam:DeletePolicyVersion', 'iam:SetDefaultPolicyVersion'],
+            qualifier === QUALIFIERS.account
+                ? [iamArn(`policy/kitchensink-ci-*-${QUALIFIERS.account}*`)]
+                : [iamArn('policy/kitchensink-ci-*')],
+        ),
+        deny(
+            'guard',
+            'DenyCiAndBootstrapRoles',
+            ['iam:*'],
+            qualifier === QUALIFIERS.account
+                ? [iamArn('role/cdk-*')]
+                : [iamArn('role/kitchensink-gha-*'), iamArn('role/cdk-*')],
+        ),
+        deny('guard', 'DenyAssumingBootstrapRoles', ['sts:AssumeRole'], [iamArn('role/cdk-*')]),
+        deny(
+            'guard',
+            'DenyToolkitStacks',
+            ['cloudformation:*'],
+            [arn('cloudformation', 'stack/CDKToolkit/*'), arn('cloudformation', 'stack/kitchensink-bootstrap-*/*')],
+        ),
+    ];
+}
+
+/** Denies that separate the two stage tiers by name. The account tier has none: its names are exact. */
+function tierDenies(qualifier: QualifierName): Grant[] {
+    if (qualifier === QUALIFIERS.nonprod) {
+        return [
+            deny(
+                'guard',
+                'DenyProductionNames',
+                ['*'],
+                [
+                    'arn:aws:*:*:*:*kitchensink-*-prod*',
+                    'arn:aws:*:*:*:*kitchensink/*prod/*',
+                    'arn:aws:*:*:*:*kitchensink/*prod',
+                    'arn:aws:*:*:*:dashboard/food-data',
+                ],
+            ),
+            deny('guard', 'DenyProductionResourceTag', ['*'], ['*'], {
+                StringEquals: { 'aws:ResourceTag/Environment': 'production' },
+            }),
+        ];
+    }
+
+    if (qualifier === QUALIFIERS.prod) {
+        return [
+            deny(
+                'guard',
+                'DenyNonProductionNames',
+                ['*'],
+                [
+                    'arn:aws:*:*:*:*kitchensink-*-sandbox*',
+                    'arn:aws:*:*:*:*kitchensink-*-pr-*',
+                    'arn:aws:*:*:*:*kitchensink/sandbox*',
+                    'arn:aws:*:*:*:*kitchensink/*/sandbox*',
+                    'arn:aws:*:*:*:*kitchensink/pr-*',
+                    'arn:aws:*:*:*:*kitchensink/*/pr-*',
+                    'arn:aws:*:*:*:dashboard/pr-*',
+                ],
+            ),
+            deny('guard', 'DenySandboxDns', ['route53:ChangeResourceRecordSets'], ['*'], {
+                'ForAnyValue:StringLike': {
+                    'route53:ChangeResourceRecordSetsNormalizedRecordNames': ['*sandbox.commise.app*'],
+                },
+            }),
+        ];
+    }
+
+    return [];
+}
+
+/** Grants of the account qualifier: the CI roles, the bootstrap policies, the budget and the cost monitor. */
+function accountGrants(): Grant[] {
+    const q = QUALIFIERS.account;
+    const assetsBucket = `cdk-${q}-assets-${ACCOUNT}-${REGION}`;
+    const ciOidcProvider = iamArn('oidc-provider/token.actions.githubusercontent.com');
+    const stagePolicies = [QUALIFIERS.nonprod, QUALIFIERS.prod].flatMap((tier) => [
+        iamArn(`policy/${boundaryPolicyName(tier)}`),
+        iamArn(`policy/${executionPolicyName(tier, '*')}`),
+    ]);
+
+    return [
+        allow(
+            'iam',
+            'IamCreateCiRoles',
+            ['iam:CreateRole', 'iam:PutRolePermissionsBoundary', 'iam:PutRolePolicy'],
+            [iamArn('role/kitchensink-gha-*')],
+            ['AWS::IAM::Role', 'AWS::IAM::Policy'],
+            { StringEquals: { 'iam:PermissionsBoundary': boundaryArn(q) } },
+        ),
+        allow('iam', 'IamAttachCiPolicies', ['iam:AttachRolePolicy'], [iamArn('role/kitchensink-gha-*')], [], {
+            StringEquals: { 'iam:PermissionsBoundary': boundaryArn(q) },
+            ArnEquals: { 'iam:PolicyARN': stagePolicies },
+        }),
+        allow(
+            'iam',
+            'IamOwnCiRoles',
+            [
+                'iam:DeleteRole',
+                'iam:DeleteRolePolicy',
+                'iam:DetachRolePolicy',
+                'iam:GetRole',
+                'iam:GetRolePolicy',
+                'iam:ListAttachedRolePolicies',
+                'iam:ListRolePolicies',
+                'iam:ListRoleTags',
+                'iam:TagRole',
+                'iam:UntagRole',
+                'iam:UpdateAssumeRolePolicy',
+                'iam:UpdateRole',
+                'iam:UpdateRoleDescription',
+            ],
+            [iamArn('role/kitchensink-gha-*')],
+        ),
+        allow(
+            'iam',
+            'IamGithubOidcProvider',
+            [
+                'iam:AddClientIDToOpenIDConnectProvider',
+                'iam:CreateOpenIDConnectProvider',
+                'iam:DeleteOpenIDConnectProvider',
+                'iam:GetOpenIDConnectProvider',
+                'iam:RemoveClientIDFromOpenIDConnectProvider',
+                'iam:TagOpenIDConnectProvider',
+                'iam:UntagOpenIDConnectProvider',
+                'iam:UpdateOpenIDConnectProviderThumbprint',
+            ],
+            [ciOidcProvider],
+            ['AWS::IAM::OIDCProvider'],
+        ),
+        allow(
+            'iam',
+            'IamStageBootstrapPolicies',
+            [
+                'iam:CreatePolicy',
+                'iam:CreatePolicyVersion',
+                'iam:DeletePolicy',
+                'iam:DeletePolicyVersion',
+                'iam:GetPolicy',
+                'iam:GetPolicyVersion',
+                'iam:ListPolicyVersions',
+                'iam:SetDefaultPolicyVersion',
+                'iam:TagPolicy',
+                'iam:UntagPolicy',
+            ],
+            stagePolicies,
+            ['AWS::IAM::ManagedPolicy'],
+        ),
+        allow(
+            'data',
+            'BudgetsAndCostMonitor',
+            [
+                'budgets:*Budget*',
+                'budgets:ListTagsForResource',
+                'budgets:TagResource',
+                'budgets:UntagResource',
+                'ce:CreateAnomalyMonitor',
+                'ce:CreateAnomalySubscription',
+                'ce:DeleteAnomalyMonitor',
+                'ce:DeleteAnomalySubscription',
+                'ce:GetAnomalyMonitors',
+                'ce:GetAnomalySubscriptions',
+                'ce:ListTagsForResource',
+                'ce:TagResource',
+                'ce:UntagResource',
+                'ce:UpdateAnomalyMonitor',
+                'ce:UpdateAnomalySubscription',
+            ],
+            [
+                arn('budgets', 'budget/*', false),
+                'arn:aws:ce::' + ACCOUNT + ':anomalymonitor/*',
+                'arn:aws:ce::' + ACCOUNT + ':anomalysubscription/*',
+            ],
+            ['AWS::Budgets::Budget', 'AWS::CE::AnomalyMonitor', 'AWS::CE::AnomalySubscription'],
+        ),
+        allow(
+            'data',
+            'SnsCostTopic',
+            [
+                'sns:AddPermission',
+                'sns:CreateTopic',
+                'sns:DeleteTopic',
+                'sns:Get*',
+                'sns:List*',
+                'sns:RemovePermission',
+                'sns:Set*',
+                'sns:Subscribe',
+                'sns:TagResource',
+                'sns:Unsubscribe',
+                'sns:UntagResource',
+            ],
+            [arn('sns', KS)],
+            ['AWS::SNS::Topic', 'AWS::SNS::Subscription', 'AWS::SNS::TopicPolicy'],
+        ),
+        allow(
+            'data',
+            'S3ReadCdkAssets',
+            ['s3:GetBucket*', 's3:GetObject*', 's3:List*'],
+            [`arn:aws:s3:::${assetsBucket}`, `arn:aws:s3:::${assetsBucket}/*`],
+        ),
+        ...commonDenies(q),
+    ];
+}
+
+/** The grants of one qualifier. */
+function grantsFor(qualifier: QualifierName): Grant[] {
+    return qualifier === QUALIFIERS.account ? accountGrants() : stageGrants(qualifier);
+}
+
+/**
+ * The managed policies that make up one qualifier's CloudFormation execution role.
+ *
+ * @param qualifier - The bootstrap qualifier.
+ * @returns The parts, each a policy document under IAM's size limit, with `<account>` and `<region>` placeholders
+ *   still in the resource ARNs (fill them with `renderDocument`). Pure.
+ */
+export function buildExecutionPolicy(qualifier: QualifierName): readonly ExecutionPolicyPart[] {
+    const grants = grantsFor(qualifier);
+
+    return PART_NAMES.flatMap((name) => {
+        const mine = grants.filter((grant) => grant.part === name);
+
+        if (mine.length === 0) {
+            return [];
+        }
+
+        return [
+            {
+                name,
+                policyName: executionPolicyName(qualifier, name),
+                document: { Version: '2012-10-17', Statement: mine.map((grant) => grant.statement) } as PolicyDocument,
+                covers: [...new Set(mine.flatMap((grant) => [...(grant.covers ?? [])]))],
+            },
+        ];
+    });
+}

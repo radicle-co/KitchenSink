@@ -20,6 +20,7 @@
         "packages/services/*",
         "packages/shared/*",
         "packages/utils/*",
+        "packages/infra/bootstrap",
         "packages/apps/commise/web",
         "packages/apps/commise/mobile",
         "packages/apps/commise/ui",

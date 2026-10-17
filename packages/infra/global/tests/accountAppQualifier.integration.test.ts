@@ -378,9 +378,7 @@ describe('the ksaccount boundary is a ceiling over the roles of the account app'
     const legacy = (grant: Grant): boolean => grant.resource.includes(`role/cdk-${DEFAULT_QUALIFIER}-`);
 
     const refused = (boundary: PolicyDocument, grants: readonly Grant[]): string[] =>
-        grants
-            .filter((grant) => !legacy(grant) && !admits(boundary, grant))
-            .map((grant) => `${grant.action} on ${grant.resource}`);
+        grants.filter((grant) => !admits(boundary, grant)).map((grant) => `${grant.action} on ${grant.resource}`);
 
     it('judges a real number of grants (a vacuous pass here would hide every rule below)', () => {
         expect(grantsOf(deployable).length).toBeGreaterThan(100);
@@ -390,11 +388,30 @@ describe('the ksaccount boundary is a ceiling over the roles of the account app'
         expect([...new Set(refused(rendered(), grantsOf(deployable)))].sort()).toEqual([]);
     });
 
-    it('refuses assuming the default qualifier roles, which stays an explicit Deny', () => {
-        const old = grantsOf(deployable).filter(legacy);
+    // REWRITTEN for ADR-0065's contract half. Before it, CI roles still held an Allow on the default qualifier's roles
+    // and this test proved the boundary refused it. The contract removed that Allow, so the claim is now two-sided: no
+    // role of the account app holds one, and the boundary still refuses one, judged on a probe grant because there is
+    // no real grant left to judge.
+    it('grants no role an Allow on the default qualifier roles, and the boundary still refuses one', () => {
+        const probe: Grant = {
+            where: 'probe',
+            action: 'sts:AssumeRole',
+            resource: `arn:aws:iam::${ACCOUNT}:role/cdk-${DEFAULT_QUALIFIER}-deploy-role-probe`,
+        };
 
-        expect(old.length).toBeGreaterThan(0);
-        expect(old.filter((grant) => admits(rendered(), grant))).toEqual([]);
+        expect(grantsOf(deployable).filter(legacy)).toEqual([]);
+        expect(legacy(probe)).toBe(true);
+        expect(admits(rendered(), probe)).toBe(false);
+        // The ceiling alone would refuse the probe, since it grants no Allow on these roles; the EXPLICIT Deny is what
+        // keeps refusing it if an Allow is ever added, so it is asserted on its own.
+        const denies = rendered().Statement.some(
+            (statement) =>
+                statement.Effect === 'Deny' &&
+                statement.Action.includes('sts:AssumeRole') &&
+                statement.Resource.some((resource) => iamLike(resource, probe.resource)),
+        );
+
+        expect(denies, 'the boundary carries no explicit Deny on the default qualifier roles').toBe(true);
     });
 
     it('fails when a ceiling line is dropped (the guard can see a missing grant)', () => {

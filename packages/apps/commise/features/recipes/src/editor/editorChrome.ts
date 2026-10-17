@@ -44,7 +44,19 @@ export interface EditorChrome {
         readonly busy: boolean;
     };
     /** The ⋯ menu's one destructive item and its confirm's title and body, when there is something to discard. */
-    readonly discard: { readonly menuLabel: string; readonly title: string; readonly body: string } | undefined;
+    readonly discard:
+        | {
+              readonly menuLabel: string;
+              readonly title: string;
+              readonly body: string;
+              /**
+               * Why Discard cannot be used now: a write of the recipe is on the wire (owner ruling 2026-10-17, "Don't allow
+               * users to delete while saving"). Absent when it can. The menu item, the open confirm and the resume notice
+               * all carry it.
+               */
+              readonly unavailable?: string;
+          }
+        | undefined;
     /** The alert for a write the cook must decide on, when there is one. */
     readonly failure: { readonly body: string; readonly actions: readonly FailureActionKind[] } | undefined;
     /** "Fix {n} things to publish", after a refused Publish while anything still needs fixing. */
@@ -102,9 +114,12 @@ export function editorChromeOf(input: EditorChromeInput): EditorChrome {
  * says that instead, in either case: nothing was removed (`discardFailed`). Pure.
  */
 function discardOf(editor: UseRecipeEditorResult, keep: DraftKeep, m: EditorMessages): EditorChrome['discard'] {
+    const unavailable = editor.writeInFlight ? { unavailable: m.discard.saving } : {};
+
     if (editor.lifecycle === 'published') {
         return editor.hasUnsavedChanges
             ? {
+                  ...unavailable,
                   menuLabel: m.discard.menuChanges,
                   title: m.discard.changesTitle,
                   body: editor.discardFailed
@@ -121,6 +136,7 @@ function discardOf(editor: UseRecipeEditorResult, keep: DraftKeep, m: EditorMess
 
     return exists
         ? {
+              ...unavailable,
               menuLabel: m.discard.menuDraft,
               title: m.discard.draftTitle,
               body: editor.discardFailed

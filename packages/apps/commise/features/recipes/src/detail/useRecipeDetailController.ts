@@ -81,6 +81,12 @@ export interface RecipeDetailControllerInput {
     /** Called once the BODY has mounted with a claim waiting, never while the skeleton shows. */
     readonly onFinishRefusalSeen?: () => void;
     readonly nav: RecipeDetailNav;
+    /**
+     * A write of this recipe is on the wire (the host's `SyncQueue.entityInFlight`): Delete is unavailable until it
+     * settles (owner ruling 2026-10-17, "Don't allow users to delete while saving"). REQUIRED, so a host cannot forget it.
+     * The host reads it; this package does not depend on `@commise/query`.
+     */
+    readonly saving: boolean;
 }
 
 /** What the controller hands the shells. */
@@ -111,7 +117,8 @@ export interface RecipeDetailController {
  *     service hooks.
  */
 export function useRecipeDetailController(input: RecipeDetailControllerInput): RecipeDetailController {
-    const { id, recipe, sessionClaims, profile, finishRefused, refusalArrived, onFinishRefusalSeen, nav } = input;
+    const { id, recipe, sessionClaims, profile, finishRefused, refusalArrived, onFinishRefusalSeen, nav, saving } =
+        input;
     const { detailActions, moreMenu, visibility: visibilityCopy } = useMessages(recipeActionMessages);
     const deleteRecipe = useDeleteRecipe();
     const setVisibility = useSetRecipeVisibility();
@@ -230,7 +237,12 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
                                 id: 'delete',
                                 label: detailActions.deleteRecipe,
                                 icon: 'trash',
-                                onSelect: () => setDeleteOpen(true),
+                                onSelect: () => {
+                                    if (!saving) {
+                                        setDeleteOpen(true);
+                                    }
+                                },
+                                ...(saving ? { unavailable: detailActions.saving } : {}),
                             },
                         }),
               }
@@ -257,8 +269,14 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
                 deleting: deleteRecipe.isPending,
                 // B17 — a failed delete left the dialog open with no explanation; surface an honest reason inside it.
                 error: deleteRecipe.error !== null,
-                onConfirm: () => deleteRecipe.mutate(id, { onSuccess: () => nav.onDeleted() }),
+                // ⛔ The dialog may already be open when a write starts: its confirm is unavailable, and so is this.
+                onConfirm: () => {
+                    if (!saving) {
+                        deleteRecipe.mutate(id, { onSuccess: () => nav.onDeleted() });
+                    }
+                },
                 onCancel: () => setDeleteOpen(false),
+                ...(saving ? { unavailable: detailActions.saving } : {}),
             },
         },
     };

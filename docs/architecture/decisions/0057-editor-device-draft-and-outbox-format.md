@@ -202,9 +202,10 @@ The rules on top of the format:
   that delete: anything else waiting on the ref is the cook's work, and the editor's Retry resubmits a withdrawn create
   under the same ref. A delete whose ref no record still produces and no drain resolved is never queued at all
   (`supersede`): it names an entity the server never held.
-- **The outbox settles a record it can prove pointless, in the same mutation that proves it.** The delete a Discard
-  queued behind a create is the cook's consent (a Tombstone). When that create parks, whatever its status, no id will
-  ever exist for the entity, so the pair leaves together (`withdrawMoot`, applied by `settle` and by
+- **The outbox settles a record it can prove pointless, in the same mutation that proves it.** A delete
+  queued behind a create is the cook's consent (a Tombstone); the editor's Discard no longer queues one, because it is
+  refused while the create is on the wire (below), but the log keeps the rule for any other caller. When that create
+  parks, whatever its status, no id will ever exist for the entity, so the pair leaves together (`withdrawMoot`, applied by `settle` and by
   `recoverInterrupted`). When a delete settles, every parked record of its entity leaves with it: the update, the
   visibility change and the membership add that named it. A synced update or create withdraws nothing. The editor that
   could have withdrawn these may be gone by then, and without this a parked record outlived its Discard as "Syncing 1"
@@ -218,22 +219,33 @@ The rules on top of the format:
   decision and the act can orphan itself or throw, which the earlier withdraw-then-submit and withdraw-by-number chains
   allowed (the editor swallowed the throw). It rejects only when storage refuses the write; the editor then keeps the
   draft, reports the refusal through the app's error reporter (Sentry on both platforms) and shows it in the confirm,
-  which offers the Discard again. The device draft goes only after the outbox has taken the change, or once the
-  Discard's wait reaches its bound (`DEFAULT_REQUEST_TIMEOUT_MS`, below) with the outbox still silent: the editor then
-  finishes the Discard as the cook asked, and a refusal that arrives later is only reported, with the draft already
-  gone. Keeping the draft past the bound would let the confirm say "nothing was removed" about a write that may still
-  land.
-- **Discard waits for a create on the wire.** The editor is `withdraw`'s only caller, so a create that parked after its
-  editor had closed had no surface to be withdrawn from. A Discard of a recipe only a create can have made therefore
-  submits its delete exclusively: the outbox removes a create still queued, reports a parked one for the editor to
-  withdraw, and reports one on the wire while queueing nothing. The editor then waits for that create's answer, the
-  confirm busy and the editor mounted: synced, it deletes the recipe by its id; parked, it withdraws it. The wait is
-  bounded by the recipe client's request timeout (`DEFAULT_REQUEST_TIMEOUT_MS`), and an editor that unmounts during it
-  finishes the same way. A single attempt that never answers parks at that same per-attempt timeout, which started
-  before the press, so it is withdrawn before the bound; only transient retries or a `401` replay can stretch a send
-  past it. Past the bound the delete is queued behind the create, as before, so a create that still syncs is deleted;
-  one that parks after the bound leaves with its delete (the rule above). Keep, while the confirm is busy, takes the
-  Discard back: nothing has been queued or dropped by then.
+  which offers the Discard again. The device draft goes only after the outbox has taken the change.
+- **Discard is refused while the recipe is being saved, and the control is unavailable meanwhile (owner ruling
+  2026-10-17: "Don't allow users to delete while saving").** One predicate, `entityInFlight` (`@kitchensink/sync`), is
+  true while a record of the entity is `sending`, matched by the local ref, the server id a drain resolved it to, and
+  the `concerns` list. Both `applyDiscard` and the controls ask it. `applyDiscard` answers `refused` and changes
+  nothing, for an entity Discard and for one parked write alike, so the domain refuses and not only the button. The
+  controls (the editor's ⋯ item, its open confirm, the resume notice's Discard, and the recipe page's Delete item and
+  confirm) stay in place, read as unavailable, and say why in words a screen reader is given ("Saving…", as the item's
+  description on web and its hint on native, and as visible text); they work again when the write settles. The earlier
+  design waited for the create's answer behind a busy confirm and, past a bound, queued the delete behind the create. If
+  that create's reply was then lost, the outbox settled the pair (`withdrawMoot`) and the recipe could stand on the
+  server with nothing recording it while the cook had been told it was gone. The wait, its bound and the delete queued
+  behind a create are deleted. Only `sending` counts. A queued record is not on the wire, so offline never locks the
+  control and a queued create is still removed in one step; a parked record is not either, and a record a dead process
+  left `sending` is parked on the next read (`recoverInterrupted`), so no path leaves the control disabled for ever.
+  **When the write ends with an unknown outcome** it parks, the control comes back, and Discard follows the parked
+  paths above. A create cannot become a delete by id: it carries no client id, so there is no id to delete by, and a
+  delete naming its local ref would wait for ever (`supersede` drops it). The create is withdrawn and the confirm says
+  the recipe may already be saved (`discardMayLeaveServerCopy`). An update that parked unknown names a server id, so a
+  Discard deletes it by that id, and a second delete meets `404 RECIPE_NOT_FOUND` read as done (above). The editor
+  declines a Discard the outbox refused without reporting an error: the control was right to be enabled when it was
+  drawn, and the outbox is the only guard (the editor does not pre-check, because its render snapshot of the log can be
+  stale in either direction). A refusal that arrives after the cook has left leaves the draft on the device, where the
+  resume notice offers it again. Two limits are accepted. The recipe page's Delete is a direct request, not an outbox
+  intent, so there the disabled control and the re-check on confirm are the only enforcement. And `submitExclusive`'s
+  slot check stays narrower than `entityInFlight` on purpose: it answers "is another write of THIS entity on the wire"
+  (same entity and id), because matching `concerns` there would make the editor adopt a membership add as its own write.
 - **The session-end clear is one more change in the same queue.** `clear()` runs behind every change asked for before
   it, and a change that leaves no records is never written over an absent key, so a drain's answer that lands after the
   clear cannot bring the old cook's journal back.
@@ -380,7 +392,7 @@ subject)` (`@commise/features-recipes`, both apps bind it to their store) clears
   `outboxMutator.test.ts` (the copy probe on the first read, the queued `clear`, no key brought back after it).
 - `outboxLog.test.ts` (a create of a resolved ref refused; a delete decided against a create queued, on the wire,
   parked, synced or never made), `useRecipeEditor.test.tsx` (a second editor of a recipe whose create the first
-  queued; Discard waiting for a create on the wire, each answer, the bound, Keep and an unmount) and, over the real
+  queued; Discard unavailable while a create is on the wire, refused by the outbox when it races the claim, and back after each answer) and, over the real
   outbox, `editorReopenedOnItsCreate.integration.test.tsx` and `editorDiscard.integration.test.tsx`.
 - The cook switch: `web/tests/components/recipes/RecipeEditorContainer.test.tsx` and
   `mobile/tests/screens/RecipeEditorScreen.native.test.tsx` (the first cook's exit checkpoint in their own outbox).

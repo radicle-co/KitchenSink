@@ -182,6 +182,9 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                                       closeLabel: m.discard.keep,
                                       discardLabel: chrome.discard.menuLabel,
                                       onDiscard: page.askToDiscard,
+                                      ...(chrome.discard.unavailable === undefined
+                                          ? {}
+                                          : { discardUnavailable: chrome.discard.unavailable }),
                                   },
                               })}
                     />
@@ -213,6 +216,9 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                                             discardLabel={m.resume.discard}
                                             onSave={page.finish}
                                             onDiscard={page.askToDiscard}
+                                            {...(chrome.discard?.unavailable === undefined
+                                                ? {}
+                                                : { discardUnavailable: chrome.discard.unavailable })}
                                         />
                                     </View>
                                 )}
@@ -260,6 +266,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                     onKeep={page.keepEditing}
                     busy={page.discarding}
                     busyLabel={m.discard.discarding}
+                    {...(chrome.discard.unavailable === undefined ? {} : { unavailable: chrome.discard.unavailable })}
                 />
             )}
         </KeyboardAvoider>

@@ -23,6 +23,8 @@ export interface RecipeDeleteDialogProps {
     readonly deleting?: boolean;
     /** When true, a localized "couldn't delete" alert is shown in the dialog — the last delete failed (B17). */
     readonly error?: boolean;
+    /** Why Delete cannot be used now ("Saving…"): the confirm is disabled and the reason is said (owner ruling 2026-10-17). */
+    readonly unavailable?: string;
     /** Invoked when the user confirms the deletion. */
     readonly onConfirm: () => void;
     /** Invoked when the user dismisses the dialog without deleting. */

@@ -124,6 +124,9 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                                   closeLabel: m.discard.keep,
                                   discardLabel: chrome.discard.menuLabel,
                                   onDiscard: page.askToDiscard,
+                                  ...(chrome.discard.unavailable === undefined
+                                      ? {}
+                                      : { discardUnavailable: chrome.discard.unavailable }),
                               },
                           })}
                 />
@@ -154,6 +157,9 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                                 discardLabel={m.resume.discard}
                                 onSave={page.finish}
                                 onDiscard={page.askToDiscard}
+                                {...(chrome.discard?.unavailable === undefined
+                                    ? {}
+                                    : { discardUnavailable: chrome.discard.unavailable })}
                             />
                         )}
                         {EDITOR_SECTIONS.map((section) => (
@@ -215,6 +221,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                     onKeep={page.keepEditing}
                     busy={page.discarding}
                     busyLabel={m.discard.discarding}
+                    {...(chrome.discard.unavailable === undefined ? {} : { unavailable: chrome.discard.unavailable })}
                 />
             )}
         </PopupInsetsContext>

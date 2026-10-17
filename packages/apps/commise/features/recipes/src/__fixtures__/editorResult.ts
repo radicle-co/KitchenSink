@@ -28,6 +28,7 @@ export function makeEditorResult(over: Partial<UseRecipeEditorResult> = {}): Use
         pasteAvailable: true,
         pasteKeepsSource: true,
         discardMayLeaveServerCopy: false,
+        writeInFlight: false,
         discardSavedChangesMayStand: false,
         discarding: false,
         discardFailed: false,

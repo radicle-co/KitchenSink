@@ -47,6 +47,7 @@ import {
 import { RecipeDetailDialogs, RecipeDetailRating, useRecipeDetailController } from '@commise/features-recipes/detail';
 import { useMessages } from '@commise/i18n/react';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
+import { useSyncQueue } from '@commise/query/sync';
 import { ActionMenu } from '@commise/ui/action-menu';
 import { Button, buttonSurfaceClass, GHOST_EDGE_CLASS } from '@commise/ui/button';
 import { HeroButton } from '@commise/ui/hero-button';
@@ -180,6 +181,9 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     );
 
     const recipe = query.data;
+    // A write of this recipe on the wire (the editor left with a checkpoint in flight) makes Delete unavailable until it
+    // settles (owner ruling 2026-10-17, "Don't allow users to delete while saving").
+    const saving = useSyncQueue().entityInFlight('recipe', [id]);
     const versionsHref = `/${locale}/recipes/${id}/versions`;
     // Everything the page decides, once for both apps: the viewer (the session claim, else the profile), the Private
     // gate, the visibility notice, the primary, the ⋯ menu, the rating block and the owner dialogs. This shell draws it.
@@ -189,6 +193,7 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
         sessionClaims,
         profile,
         finishRefused: finishRefusalFor === id,
+        saving,
         nav: {
             onVersions: () => router.push(versionsHref as Route),
             // A copy needs a real edit before it can be published (FR-005b), so it opens in the editor.

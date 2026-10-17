@@ -66,6 +66,18 @@ describe('RecipeDeleteDialog (native)', () => {
         expect(screen.getByText(/Asparagus with Green Sauce/)).toBeTruthy();
     });
 
+    // Owner ruling 2026-10-17, "Don't allow users to delete while saving".
+    it('⛔ passes an unavailable reason to the confirm: said, and the confirm fires nothing', () => {
+        const onConfirm = vi.fn();
+        renderDialog({ unavailable: 'Saving…', onConfirm });
+
+        expect(screen.getByText('Saving…')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Delete recipe' }));
+
+        expect(onConfirm).not.toHaveBeenCalled();
+    });
+
     it('reports confirm requests upward', () => {
         const onConfirm = vi.fn();
         renderDialog({ onConfirm });

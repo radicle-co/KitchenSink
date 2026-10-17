@@ -138,9 +138,11 @@ describe('createLaneStore — an answer before the record`s number', () => {
 });
 
 /**
- * The lane across editors of one recipe and through a waiting Discard (findings 1 and 2 of the 2026-10-10 review).
+ * The lane across editors of one recipe (finding 1 of the 2026-10-10 review) and through a Discard. REWRITTEN for the
+ * owner ruling 2026-10-17: a Discard no longer WAITS for a create on the wire (the `waiting` phase is gone), it is
+ * declined (`discardRefused`).
  */
-describe('laneReducer — a record another editor queued, and a Discard that waits', () => {
+describe('laneReducer — a record another editor queued, and a Discard', () => {
     it('tracks a record it does not hold, with no body of its own', () => {
         expect(laneReducer(EMPTY_LANE, { type: 'tracked', seq: 7, kind: 'create' })).toStrictEqual({
             outstanding: { seq: 7, kind: 'create', sent: undefined, finishing: false, parked: false },
@@ -170,22 +172,28 @@ describe('laneReducer — a record another editor queued, and a Discard that wai
         expect(handed).toEqual(['answer for 7']);
     });
 
-    it('a Discard can be taken back only while it waits for a create, not while the outbox is being asked', () => {
-        const asking = laneReducer(queued(1), { type: 'discarding', phase: 'asking' });
-        const waiting = laneReducer(asking, { type: 'discarding', phase: 'waiting' });
+    it('Keep does not take back a Discard the outbox is being asked: nothing says it has not acted yet', () => {
+        const asking = laneReducer(queued(1), { type: 'discarding' });
 
         expect(laneReducer(asking, { type: 'discardCancelled' })).toBe(asking);
-        expect(laneReducer(waiting, { type: 'discardCancelled' }).discarding).toBeUndefined();
+    });
+
+    it('⛔ a refused Discard (a write is on the wire) stops discarding and keeps everything else, the write included', () => {
+        const asking = laneReducer(queued(1), { type: 'discarding' });
+        const declined = laneReducer(asking, { type: 'discardRefused' });
+
+        expect(declined.discarding).toBeUndefined();
+        expect(declined.outstanding).toBe(asking.outstanding);
+        expect(declined.discardFailed).toBeUndefined();
+        expect(laneReducer(declined, { type: 'discardRefused' })).toBe(declined);
     });
 
     it('closing ends a Discard, and a closed lane starts none', () => {
-        const closed = laneReducer(laneReducer(queued(1), { type: 'discarding', phase: 'waiting' }), {
-            type: 'closed',
-        });
+        const closed = laneReducer(laneReducer(queued(1), { type: 'discarding' }), { type: 'closed' });
 
         expect(closed.discarding).toBeUndefined();
         expect(closed.closed).toBe(true);
-        expect(laneReducer(closed, { type: 'discarding', phase: 'asking' })).toBe(closed);
+        expect(laneReducer(closed, { type: 'discarding' })).toBe(closed);
     });
 
     it('records a leave, and takes it back when the editor turns out to be on screen (StrictMode replay)', () => {
@@ -209,7 +217,7 @@ describe('laneReducer — a record another editor queued, and a Discard that wai
  * discarding and holds the failure until the cook tries again or keeps editing.
  */
 describe('laneReducer — a Discard storage refused', () => {
-    const asking = laneReducer(EMPTY_LANE, { type: 'discarding', phase: 'asking' });
+    const asking = laneReducer(EMPTY_LANE, { type: 'discarding' });
     const failed = laneReducer(asking, { type: 'discardFailed' });
 
     it('stops discarding and holds the failure', () => {
@@ -217,11 +225,11 @@ describe('laneReducer — a Discard storage refused', () => {
     });
 
     it('trying again clears it, and Keep editing clears it', () => {
-        expect(laneReducer(failed, { type: 'discarding', phase: 'asking' })).toStrictEqual({ discarding: 'asking' });
+        expect(laneReducer(failed, { type: 'discarding' })).toStrictEqual({ discarding: true });
         expect(laneReducer(failed, { type: 'discardCancelled' })).toStrictEqual({});
     });
 
-    it('a lane already closed (the bound finished the Discard) records no failure', () => {
+    it('a lane already closed (the Discard finished meanwhile) records no failure', () => {
         const closed = laneReducer(asking, { type: 'closed' });
 
         expect(laneReducer(closed, { type: 'discardFailed' })).toBe(closed);

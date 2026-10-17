@@ -27,6 +27,7 @@ export const RecipeDeleteDialog: FC<RecipeDeleteDialogProps> = ({
     open,
     deleting = false,
     error = false,
+    unavailable,
     onConfirm,
     onCancel,
 }) => {
@@ -42,6 +43,7 @@ export const RecipeDeleteDialog: FC<RecipeDeleteDialogProps> = ({
             busy={deleting}
             busyLabel={deleteDialog.deletingLabel}
             {...(error ? { error: deleteDialog.error } : {})}
+            {...(unavailable === undefined ? {} : { unavailable })}
             onConfirm={onConfirm}
             onKeep={onCancel}
         />

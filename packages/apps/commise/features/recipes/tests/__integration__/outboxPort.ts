@@ -9,11 +9,13 @@
  * next submit. `setOnline(false)` holds every drain, as the provider does offline, until `setOnline(true)`.
  */
 import {
+    EMPTY_OUTBOX,
     appendExclusive,
     applyDiscard,
     claimForSending,
     createMemoryOutboxStore,
     drain,
+    entityInFlight,
     outboxMutatorFor,
     settle,
     supersede,
@@ -103,9 +105,12 @@ export function makeOutboxPort(client: RecipeServiceClient): {
     let draining: Promise<void> = Promise.resolve();
     let failures: EditorWritePort['failures'] = [];
     let online = true;
+    // The log as last written, for the in-flight question (the app's provider mirrors the log the same way).
+    let latest: OutboxLog = EMPTY_OUTBOX;
 
     /** The failures are a projection of the stored log, as the app's provider makes them (`failuresOf`). */
     const project = (log: OutboxLog): void => {
+        latest = log;
         failures = log.records
             .filter((record) => record.state === 'parked')
             .map((record) => ({
@@ -130,7 +135,7 @@ export function makeOutboxPort(client: RecipeServiceClient): {
                     claim: async (seq) => {
                         let claimed = false;
 
-                        await mutator.mutate((current) => {
+                        latest = await mutator.mutate((current) => {
                             const next = claimForSending(current, seq);
 
                             claimed = next !== undefined;
@@ -157,6 +162,7 @@ export function makeOutboxPort(client: RecipeServiceClient): {
         get failures() {
             return failures;
         },
+        entityInFlight: (entity, ids) => entityInFlight(latest, entity, ids),
         submit: async (intent) => {
             await mutator.mutate((current) => supersede(current, intent));
             flush();

@@ -11,6 +11,14 @@ appId: ${APP_ID}
 # The menu item exists once the draft holds anything (`editorChrome.ts` `discardOf`), which every caller has typed.
 # It ENDS on the editor being gone, so a caller that has to assert where it landed does so after the runFlow.
 - tapOn: 'More editor actions'
+# Owner ruling 2026-10-17, "Don't allow users to delete while saving": a flow that typed just before calling this may have
+# its create on the wire, and then the item is disabled and reads "Saving…". Wait for it to come back before tapping,
+# rather than tapping a dead control (a tap on a disabled row does nothing, so the next assertion would time out).
+- extendedWaitUntil:
+      visible:
+          text: 'Discard draft'
+          enabled: true
+      timeout: 30000
 - tapOn: 'Discard draft'
 - assertVisible: 'Discard this draft?'
 - tapOn: 'Discard'

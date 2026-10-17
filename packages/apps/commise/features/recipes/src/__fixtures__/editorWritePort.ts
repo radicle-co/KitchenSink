@@ -22,6 +22,7 @@ import {
     appendIntent,
     applyDiscard,
     claimForSending,
+    entityInFlight,
     settle,
     supersede,
     withdraw as withdrawRecord,
@@ -29,6 +30,7 @@ import {
     type Intent,
     type OutboxLog,
     type SettlementEvent,
+    type SyncEntity,
 } from '@kitchensink/sync';
 import { vi } from 'vitest';
 
@@ -113,6 +115,9 @@ export function makeFakeEditorWritePort() {
 
             return applied.outcome;
         }),
+        // The real predicate over the real log: what a control disables itself by is what `applyDiscard` refuses by. A
+        // test re-renders the hook after `claim` or `park`, the way the app's context re-renders it with the log.
+        entityInFlight: (entity: SyncEntity, ids: readonly string[]) => entityInFlight(log, entity, ids),
         subscribe: (listener: (event: Settlement) => void) => {
             listeners.add(listener);
 

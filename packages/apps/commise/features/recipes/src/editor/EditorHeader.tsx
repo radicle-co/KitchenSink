@@ -49,7 +49,12 @@ export const EditorHeader: FC<WebEditorHeaderProps> = ({ title, status, closeLab
                 title={title}
                 closeLabel={menu.closeLabel}
                 items={[]}
-                destructiveItem={{ id: 'discard', label: menu.discardLabel, onSelect: menu.onDiscard }}
+                destructiveItem={{
+                    id: 'discard',
+                    label: menu.discardLabel,
+                    onSelect: menu.onDiscard,
+                    ...(menu.discardUnavailable === undefined ? {} : { unavailable: menu.discardUnavailable }),
+                }}
             />
         )}
     </header>

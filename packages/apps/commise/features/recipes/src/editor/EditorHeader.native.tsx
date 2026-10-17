@@ -42,7 +42,12 @@ export const EditorHeader: FC<EditorHeaderProps> = ({ title, status, closeLabel,
                     title={title}
                     closeLabel={menu.closeLabel}
                     items={[]}
-                    destructiveItem={{ id: 'discard', label: menu.discardLabel, onSelect: menu.onDiscard }}
+                    destructiveItem={{
+                        id: 'discard',
+                        label: menu.discardLabel,
+                        onSelect: menu.onDiscard,
+                        ...(menu.discardUnavailable === undefined ? {} : { unavailable: menu.discardUnavailable }),
+                    }}
                 />
             )}
         </View>

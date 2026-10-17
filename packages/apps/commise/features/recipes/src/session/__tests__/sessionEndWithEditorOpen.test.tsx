@@ -45,6 +45,7 @@ function offlinePort(store: OutboxStore, subject: string): EditorWritePort {
 
     return {
         failures: [],
+        entityInFlight: () => false,
         submit: async (intent) => {
             await mutator.mutate((log) => appendIntent(log, intent));
 

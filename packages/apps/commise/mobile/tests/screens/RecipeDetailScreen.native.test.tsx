@@ -62,6 +62,18 @@ vi.mock('@kitchensink/recipe-service-client/hooks', async (importOriginal) => ({
     useDeleteRecipeRating: vi.fn(),
 }));
 
+/** Whether the outbox has a write of the recipe on the wire (`SyncQueue.entityInFlight`), as a test sets it. */
+const syncState = vi.hoisted(() => ({ saving: false }));
+
+vi.mock('@commise/query/sync', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@commise/query/sync')>();
+
+    return {
+        ...actual,
+        useSyncQueue: () => ({ ...actual.useSyncQueue(), entityInFlight: () => syncState.saving }),
+    };
+});
+
 vi.mock('../../src/hooks/useUserProfile.js', () => ({
     useUserProfile: vi.fn(),
 }));
@@ -618,6 +630,33 @@ describe('RecipeDetailScreen — owner actions', () => {
         // Owner 2026-10-13: say so on the screen the cook lands on. The snackbar host is above the navigator, so a message
         // raised here outlives this screen.
         expect(screen.getByText('Recipe deleted')).toBeTruthy();
+    });
+
+    /**
+     * Owner ruling 2026-10-17, "Don't allow users to delete while saving": the editor can be left with a checkpoint on the
+     * wire. Delete is unavailable until the outbox settles it, and says why in words a screen reader reads.
+     */
+    it('⛔ shows Delete as unavailable ("Saving…") while a write of the recipe is on the wire, and deletes nothing', () => {
+        syncState.saving = true;
+
+        try {
+            const mutate = vi.fn();
+            useDeleteRecipeMock.mockReturnValue(
+                mutation<ReturnType<typeof useDeleteRecipe>>({ mutate: mutate as never }),
+            );
+
+            render(<RecipeDetailScreen recipeId="rec_1" onDeleted={vi.fn()} />);
+            fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+
+            expect(screen.getByRole('menuitem', { name: 'Delete recipe' }).textContent).toContain('Saving…');
+
+            fireEvent.click(screen.getByRole('menuitem', { name: 'Delete recipe' }));
+
+            expect(screen.queryByRole('alert')).toBeNull();
+            expect(mutate).not.toHaveBeenCalled();
+        } finally {
+            syncState.saving = false;
+        }
     });
 
     it('says nothing about a delete that did not succeed', () => {

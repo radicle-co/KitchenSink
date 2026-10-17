@@ -841,11 +841,93 @@ describe('the unload prompt (web, D7)', () => {
 });
 
 /**
- * A confirmed Discard that waits for the recipe's create to answer (finding 2 of the 2026-10-10 review): the confirm
- * stays open and busy, saying so in words, and Keep editing takes the discard back.
+ * Owner ruling 2026-10-17, "Don't allow users to delete while saving". While a write of the recipe is on the wire the ⋯
+ * Discard item, the open confirm's Discard and the resume notice's Discard are all unavailable, each saying why in words a
+ * screen reader reads; they work again once the write settles.
  */
-describe('a Discard that waits for its create', () => {
-    it('keeps the confirm open, busy, saying "Discarding…"; Keep editing takes it back', () => {
+describe('Discard while the recipe is saving (owner ruling 2026-10-17)', () => {
+    const saving = (over: Parameters<typeof makeEditorResult>[0] = {}) =>
+        makeEditorResult({ lifecycle: 'neverPublished', recipeId: 'rec_1', writeInFlight: true, ...over });
+
+    it('⛔ the ⋯ item is unavailable, described by "Saving…", and choosing it opens no confirm', async () => {
+        const discard = vi.fn();
+        render(view(saving({ discard }), { mode: 'edit' }));
+        const user = userEvent.setup();
+
+        await user.click(screen.getByRole('button', { name: 'More editor actions' }));
+        const item = await screen.findByRole('menuitem', { name: 'Discard draft' });
+        const describedBy = item.getAttribute('aria-describedby');
+
+        expect(item.getAttribute('aria-disabled')).toBe('true');
+        expect(describedBy === null ? undefined : document.getElementById(describedBy)?.textContent).toBe('Saving…');
+
+        await user.click(item);
+
+        expect(screen.queryByRole('alertdialog')).toBeNull();
+        expect(discard).not.toHaveBeenCalled();
+    });
+
+    it('⛔ the item works again after the write settles', async () => {
+        const { rerender } = render(view(saving(), { mode: 'edit' }));
+        const user = userEvent.setup();
+
+        rerender(view(saving({ writeInFlight: false }), { mode: 'edit' }));
+        await user.click(screen.getByRole('button', { name: 'More editor actions' }));
+        const item = await screen.findByRole('menuitem', { name: 'Discard draft' });
+
+        expect(item.getAttribute('aria-disabled')).toBeNull();
+
+        await user.click(item);
+
+        expect(await screen.findByRole('alertdialog', { name: 'Discard this draft?' })).toBeTruthy();
+    });
+
+    it('⛔ a confirm that is already open when the write starts disables its Discard and says why', async () => {
+        const discard = vi.fn();
+        const { rerender } = render(view(saving({ writeInFlight: false, discard }), { mode: 'edit' }));
+        const user = userEvent.setup();
+
+        await user.click(screen.getByRole('button', { name: 'More editor actions' }));
+        await user.click(await screen.findByRole('menuitem', { name: 'Discard draft' }));
+        rerender(view(saving({ discard }), { mode: 'edit' }));
+
+        const dialog = await screen.findByRole('alertdialog', { name: 'Discard this draft?' });
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Discard' }));
+
+        expect(within(dialog).getByRole('status').textContent).toBe('Saving…');
+        expect(discard).not.toHaveBeenCalled();
+    });
+
+    it('⛔ the resume notice`s Discard is unavailable too, and opens no confirm', () => {
+        render(
+            view(
+                makeEditorResult({
+                    lifecycle: 'published',
+                    hasUnsavedChanges: true,
+                    resume: { savedAt: '2026-10-08T09:00:00.000Z' },
+                    writeInFlight: true,
+                }),
+                { mode: 'edit' },
+            ),
+        );
+        const notice = screen.getByRole('region', { name: /You have changes from/ });
+        const discard = within(notice).getByRole('button', { name: 'Discard' });
+
+        fireEvent.click(discard);
+
+        expect(screen.queryByRole('alertdialog')).toBeNull();
+        expect(within(notice).getByText('Saving…')).toBeTruthy();
+        expect((discard as HTMLButtonElement).disabled || discard.getAttribute('aria-disabled') === 'true').toBe(true);
+    });
+});
+
+/**
+ * A confirmed Discard the outbox is being asked to take: the confirm stays open and busy, saying so in words. (REWRITTEN
+ * from "a Discard that waits for its create": the wait is gone, owner ruling 2026-10-17; the busy confirm remains for the
+ * moment the outbox is asked.)
+ */
+describe('a Discard the outbox is being asked to take', () => {
+    it('keeps the confirm open, busy, saying "Discarding…"; Keep editing is offered', () => {
         const cancelDiscard = vi.fn();
         const discard = vi.fn();
         render(

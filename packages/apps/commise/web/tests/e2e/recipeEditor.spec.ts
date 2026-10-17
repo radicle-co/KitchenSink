@@ -644,7 +644,13 @@ test.describe('Discard leaves nothing syncing', () => {
             .click();
     }
 
-    test('⛔ a create held past the Discard wait, then dropped: no sync notice, no second POST, no DELETE', async ({
+    /**
+     * REWRITTEN for the owner ruling 2026-10-17, "Don't allow users to delete while saving". This test held the create
+     * past a Discard WAIT (a busy confirm, then a delete queued behind the create). That wait is gone: while the create is
+     * on the wire the Discard item is unavailable and says why; when the reply is lost the create parks with an unknown
+     * outcome, the item comes back, and Discard withdraws the create and warns that the recipe may already be saved.
+     */
+    test('⛔ a create on the wire: Discard is unavailable ("Saving…"), comes back when the reply is lost, and leaves nothing syncing', async ({
         page,
     }) => {
         test.setTimeout(90_000);
@@ -657,7 +663,7 @@ test.describe('Discard leaves nothing syncing', () => {
                 deletes.push(request.url());
             }
         });
-        // The create never answers until the test drops it: it is on the wire through the whole Discard wait.
+        // The create never answers until the test drops it: it is on the wire for as long as the test says.
         let held: Route | undefined;
         await page.route('**/api/v1/recipes', async (interception) => {
             if (interception.request().method() === 'POST') {
@@ -674,14 +680,24 @@ test.describe('Discard leaves nothing syncing', () => {
         await jumpTo(page, 'Ingredients');
         await expect.poll(() => writes.map((write) => write.method)).toEqual(['POST']);
 
+        // On the wire: the item stays in the menu, reads as unavailable, and says why to a screen reader.
+        await page.getByRole('button', { name: 'More editor actions' }).click();
+        const discardItem = page.getByRole('menuitem', { name: 'Discard draft' });
+
+        await expect(discardItem).toHaveAttribute('aria-disabled', 'true');
+        await expect(discardItem).toHaveAccessibleDescription('Saving…');
+        await page.keyboard.press('Escape');
+
+        // The reply is lost: the create parks with an unknown outcome, and the item comes back.
+        await held?.abort('failed');
+        await page.getByRole('button', { name: 'More editor actions' }).click();
+        await expect(discardItem).not.toHaveAttribute('aria-disabled', 'true');
+        await page.keyboard.press('Escape');
+
         await confirmDiscard(page, 'Discard draft', 'Discard this draft?');
 
-        // The editor waits for the create's answer, then (past the bound) leaves with its delete queued behind the create.
         await expect(page).not.toHaveURL(/\/recipes\/new/u, { timeout: 30_000 });
-        // The page's own request timeout may have dropped it first; either way the create parks with no answer.
-        await held?.abort('failed').catch(() => undefined);
-
-        // The create parks with an unknown outcome and the outbox settles the pair itself: nothing is left syncing.
+        // The create parked and Discard withdrew it: nothing is left syncing, and no delete was ever sent.
         await expect(page.getByText(/Syncing \d+ change/u)).toHaveCount(0);
         await page.waitForFunction(() =>
             Object.keys(window.sessionStorage)

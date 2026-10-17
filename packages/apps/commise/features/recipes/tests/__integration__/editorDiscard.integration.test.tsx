@@ -9,7 +9,7 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { RecipeStatus } from '@kitchensink/recipe-core';
 import { makeRecipeDetail as makeBaseRecipeDetail } from '@kitchensink/recipe-core/testing';
-import { DEFAULT_REQUEST_TIMEOUT_MS, RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DraftStore } from '../../src/editor/draftStore.js';
@@ -129,26 +129,25 @@ describe('Discard while the create is parked (real outbox)', () => {
 });
 
 /**
- * Discard while the create is ON THE WIRE (finding 2 of the 2026-10-10 review). Discard used to queue a delete behind
- * the create and close; when the create then parked, nothing withdrew it, and the parked create and its delete stayed
- * in the journal. Discard now waits for the create's answer. The create's response is held until the test releases it
- * with the answer it chooses.
+ * Discard while the create is ON THE WIRE. REWRITTEN for the owner ruling 2026-10-17, "Don't allow users to delete while
+ * saving". The editor used to WAIT for the create's answer (a busy confirm, a bound, then a delete queued behind the
+ * create); a create whose reply was lost then left a recipe standing that the cook had been told was gone (review M3).
+ * Now the control is unavailable while the create is on the wire and the outbox refuses a Discard that gets through; it
+ * comes back when the create is answered or parks, an unknown outcome included. The create's response is held until the
+ * test releases it with the answer it chooses. Coverage moved: the create-answers cases are below; the bound, the
+ * delete-behind-the-create and the unmount-mid-wait cases have no successor because that state no longer exists.
  */
 describe('Discard while the create is on the wire (real outbox)', () => {
     const RECIPE_ID = '00000000-0000-4000-8000-00000000c001';
 
-    /**
-     * A client whose first create waits for `answer`, and which answers a delete with 204. `timeoutMs` is the client's
-     * per-attempt timeout, raised above the Discard's bound by the test of that bound so the bound fires first.
-     */
-    function heldCreate(timeoutMs?: number) {
+    /** A client whose first create waits for `answer`, and which answers a delete with 204. */
+    function heldCreate() {
         const requests: string[] = [];
         let answer: (response: Response | Error) => void = () => undefined;
         const held = new Promise<Response | Error>((resolve) => (answer = resolve));
         const client = new RecipeServiceClient({
             baseUrl: 'https://recipes.test',
             token: 'tok',
-            ...(timeoutMs === undefined ? {} : { timeoutMs }),
             fetch: async (input, init) => {
                 const request = new Request(input, init);
                 const path = new URL(request.url).pathname;
@@ -176,7 +175,8 @@ describe('Discard while the create is on the wire (real outbox)', () => {
         return { client, requests, answer: (response: Response | Error) => answer(response) };
     }
 
-    async function discardOnTheWire(service: ReturnType<typeof heldCreate>) {
+    /** The editor with its create on the wire, and the hook re-rendered the way the app's context re-renders it. */
+    async function createOnTheWire(service: ReturnType<typeof heldCreate>) {
         const view = mountEditor(service.client);
         act(() => {
             view.result.current.setField('title', 'Soup');
@@ -185,26 +185,79 @@ describe('Discard while the create is on the wire (real outbox)', () => {
             view.result.current.checkpoint('sectionChange');
         });
         await waitFor(() => expect(service.requests).toEqual(['POST /api/v1/recipes']));
-
-        act(() => {
-            view.result.current.discard();
+        await waitFor(() => {
+            view.rerender();
+            expect(view.result.current.writeInFlight).toBe(true);
         });
-        await waitFor(() => expect(view.result.current.discarding).toBe(true));
 
         return view;
     }
 
     const ours = (requests: readonly string[]) => requests.filter((request) => request.includes('/api/v1/recipes'));
 
-    it('⛔ the create syncs: the recipe is deleted by its id, and the journal is left empty', async () => {
+    it('⛔ while the create is on the wire, Discard does nothing: no delete is queued or sent, and the editor stays', async () => {
         const service = heldCreate();
-        const view = await discardOnTheWire(service);
+        const view = await createOnTheWire(service);
+
+        act(() => {
+            view.result.current.discard();
+        });
+        // Not `idle()`: that waits for the held create, which only the test answers.
+        await act(async () => {
+            await Promise.resolve();
+        });
+
+        expect(view.result.current.discarding).toBe(false);
+        expect(view.onExit).not.toHaveBeenCalled();
+        expect((await view.records()).map((record) => [record.intentKind, record.state])).toEqual([
+            ['create', 'sending'],
+        ]);
+        expect(ours(service.requests)).toEqual(['POST /api/v1/recipes']);
+    });
+
+    /**
+     * ⛔ THE DOMAIN REFUSES, NOT ONLY THE BUTTON. A Discard that reaches the outbox while the create is on the wire (a press
+     * that raced the drain's claim) is answered `refused`, and the journal is exactly as it was: no delete waits behind
+     * the create to be swallowed with it when its reply is lost.
+     */
+    it('⛔ the real outbox refuses a Discard asked of it while the create is on the wire, and changes nothing', async () => {
+        const service = heldCreate();
+        const view = await createOnTheWire(service);
+        const before = await view.records();
+        const ref = before[0]?.localId ?? '';
+
+        const outcome = await view.port.discard({
+            kind: 'entity',
+            intent: {
+                entity: 'recipe',
+                intentKind: 'delete',
+                localId: ref,
+                dependsOn: [ref],
+                payload: { id: ref },
+            },
+        });
+
+        expect(outcome).toEqual({ kind: 'refused', reason: 'writeInFlight' });
+        expect(await view.records()).toEqual(before);
+    });
+
+    it('⛔ the create syncs: the control comes back, and Discard deletes the recipe by its id', async () => {
+        const service = heldCreate();
+        const view = await createOnTheWire(service);
 
         service.answer(
             Response.json(makeRecipeDetail({ id: RECIPE_ID, title: 'Soup', status: RecipeStatus.DRAFT }), {
                 status: 201,
             }),
         );
+        await waitFor(() => {
+            view.rerender();
+            expect(view.result.current.writeInFlight).toBe(false);
+        });
+
+        act(() => {
+            view.result.current.discard();
+        });
 
         await waitFor(() => expect(view.onExit).toHaveBeenCalledWith({ kind: 'discarded' }));
         await waitFor(() =>
@@ -216,109 +269,54 @@ describe('Discard while the create is on the wire (real outbox)', () => {
         expect(await view.records()).toEqual([]);
     });
 
-    it.each([
-        ['a dropped connection (unknown outcome)', () => new TypeError('Failed to fetch')],
-        ['a refusal', () => Response.json({ error: { code: 'VALIDATION' } }, { status: 400 })],
-    ])(
-        '⛔ the create parks after %s: it is withdrawn, no delete is sent, and the journal is left empty',
-        async (_case, make) => {
-            const service = heldCreate();
-            const view = await discardOnTheWire(service);
-
-            service.answer(make());
-
-            await waitFor(() => expect(view.onExit).toHaveBeenCalledWith({ kind: 'discarded' }));
-            await waitFor(async () => expect(await view.records()).toEqual([]));
-            expect(ours(service.requests)).toEqual(['POST /api/v1/recipes']);
-        },
-    );
-
     /**
-     * The bound. A send that never answers parks at the client's own per-attempt timeout, which started before the
-     * press, so the bound is reached only when retries stretch a send past it; this client's timeout is raised to stand
-     * for that. Past the bound the delete waits behind the create, so a create that still syncs is deleted.
+     * ⛔ THE UNKNOWN OUTCOME (the review's M3, and the ruling's own question). The reply is lost and the create parks with no
+     * status. The control must come back, and a Discard then withdraws the create. It cannot become a delete by the
+     * record's id: a create carries no client id (ADR-0057), so there is no id to delete by, and a delete naming the
+     * local ref would wait for ever. The cook is told the recipe may already be saved (`discardMayLeaveServerCopy`).
      */
-    it('past the bound: the editor closes, and a create that syncs later is still deleted by its id', async () => {
-        vi.useFakeTimers({ shouldAdvanceTime: true });
-
-        try {
-            const service = heldCreate(10 * DEFAULT_REQUEST_TIMEOUT_MS);
-            const view = await discardOnTheWire(service);
-
-            await act(async () => {
-                vi.advanceTimersByTime(DEFAULT_REQUEST_TIMEOUT_MS);
-            });
-            await waitFor(() => expect(view.onExit).toHaveBeenCalledWith({ kind: 'discarded' }));
-            expect(ours(service.requests)).toEqual(['POST /api/v1/recipes']);
-
-            service.answer(
-                Response.json(makeRecipeDetail({ id: RECIPE_ID, title: 'Soup', status: RecipeStatus.DRAFT }), {
-                    status: 201,
-                }),
-            );
-
-            await waitFor(() =>
-                expect(ours(service.requests)).toEqual(['POST /api/v1/recipes', `DELETE /api/v1/recipes/${RECIPE_ID}`]),
-            );
-            await waitFor(async () => expect(await view.records()).toEqual([]));
-        } finally {
-            vi.useRealTimers();
-        }
-    });
-
-    /**
-     * ⛔ THE STUCK "SYNCING 1". The wait ran out, the editor closed with a delete queued behind the create, and the create
-     * then parked with an unknown outcome — after which no editor existed to withdraw it. The outbox now settles the
-     * pair itself, so the journal ends empty and nothing is sent again.
-     */
-    it('⛔ the wait runs out, then the create parks (unknown outcome): the journal ends empty, with no second POST', async () => {
-        vi.useFakeTimers({ shouldAdvanceTime: true });
-
-        try {
-            const service = heldCreate(10 * DEFAULT_REQUEST_TIMEOUT_MS);
-            const view = await discardOnTheWire(service);
-
-            await act(async () => {
-                vi.advanceTimersByTime(DEFAULT_REQUEST_TIMEOUT_MS);
-            });
-            await waitFor(() => expect(view.onExit).toHaveBeenCalledWith({ kind: 'discarded' }));
-
-            service.answer(new TypeError('Failed to fetch'));
-
-            await waitFor(async () => expect(await view.records()).toEqual([]));
-            expect(ours(service.requests)).toEqual(['POST /api/v1/recipes']);
-        } finally {
-            vi.useRealTimers();
-        }
-    });
-
-    it('⛔ the same with the editor unmounted mid-wait: the create parks, and the journal ends empty', async () => {
+    it('⛔ the create parks after a dropped connection (unknown): the control comes back; Discard withdraws it and warns', async () => {
         const service = heldCreate();
-        const view = await discardOnTheWire(service);
+        const view = await createOnTheWire(service);
 
-        view.unmount();
         service.answer(new TypeError('Failed to fetch'));
+        await waitFor(() => {
+            view.rerender();
+            expect(view.result.current.writeInFlight).toBe(false);
+            expect(view.result.current.parked).toEqual({ failure: 'unknown', kind: 'create' });
+        });
 
+        expect(view.result.current.discardMayLeaveServerCopy).toBe(true);
+
+        act(() => {
+            view.result.current.discard();
+        });
+
+        await waitFor(() => expect(view.onExit).toHaveBeenCalledWith({ kind: 'discarded' }));
         await waitFor(async () => expect(await view.records()).toEqual([]));
         expect(ours(service.requests)).toEqual(['POST /api/v1/recipes']);
     });
 
-    it('the editor is left while it waits: no hand-off, and a create that syncs later is still deleted', async () => {
+    it('⛔ the create parks after a refusal: the control comes back; Discard withdraws it, with no warning owed', async () => {
         const service = heldCreate();
-        const view = await discardOnTheWire(service);
+        const view = await createOnTheWire(service);
 
-        view.unmount();
-        service.answer(
-            Response.json(makeRecipeDetail({ id: RECIPE_ID, title: 'Soup', status: RecipeStatus.DRAFT }), {
-                status: 201,
-            }),
-        );
+        service.answer(Response.json({ error: { code: 'VALIDATION' } }, { status: 400 }));
+        await waitFor(() => {
+            view.rerender();
+            expect(view.result.current.writeInFlight).toBe(false);
+            expect(view.result.current.parked).toEqual({ failure: 'terminal', kind: 'create' });
+        });
 
-        await waitFor(() =>
-            expect(ours(service.requests)).toEqual(['POST /api/v1/recipes', `DELETE /api/v1/recipes/${RECIPE_ID}`]),
-        );
+        expect(view.result.current.discardMayLeaveServerCopy).toBe(false);
+
+        act(() => {
+            view.result.current.discard();
+        });
+
+        await waitFor(() => expect(view.onExit).toHaveBeenCalledWith({ kind: 'discarded' }));
         await waitFor(async () => expect(await view.records()).toEqual([]));
-        expect(view.onExit).not.toHaveBeenCalled();
+        expect(ours(service.requests)).toEqual(['POST /api/v1/recipes']);
     });
 
     it('a create still queued (offline): both go at once, and nothing is ever sent', async () => {

@@ -516,11 +516,79 @@ describe('section presence', () => {
 });
 
 /**
- * A confirmed Discard that waits for the recipe's create to answer (finding 2 of the 2026-10-10 review): the confirm
- * stays open and busy, saying so in words, and Keep editing takes the discard back.
+ * Owner ruling 2026-10-17, "Don't allow users to delete while saving". While a write of the recipe is on the wire the ⋯
+ * Discard item, the open confirm's Discard and the resume notice's Discard are all unavailable, each saying why in words a
+ * screen reader reads; they work again once the write settles.
  */
-describe('a Discard that waits for its create', () => {
-    it('keeps the confirm open, busy, saying "Discarding…"; Keep editing takes it back', () => {
+describe('Discard while the recipe is saving (owner ruling 2026-10-17)', () => {
+    const saving = (over: Parameters<typeof makeEditorResult>[0] = {}) =>
+        makeEditorResult({ lifecycle: 'neverPublished', recipeId: 'rec_1', writeInFlight: true, ...over });
+
+    it('⛔ the ⋯ item shows "Saving…" and choosing it opens no confirm', () => {
+        const discard = vi.fn();
+        render(view(saving({ discard }), { mode: 'edit' }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'More editor actions' }));
+        expect(screen.getByRole('menuitem', { name: 'Discard draft' }).textContent).toContain('Saving…');
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Discard draft' }));
+
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(discard).not.toHaveBeenCalled();
+    });
+
+    it('⛔ the item works again after the write settles', () => {
+        const { rerender } = render(view(saving(), { mode: 'edit' }));
+
+        rerender(view(saving({ writeInFlight: false }), { mode: 'edit' }));
+        fireEvent.click(screen.getByRole('button', { name: 'More editor actions' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Discard draft' }));
+
+        expect(screen.getByRole('alert')).toBeTruthy();
+    });
+
+    it('⛔ a confirm that is already open when the write starts disables its Discard and says why', () => {
+        const discard = vi.fn();
+        const { rerender } = render(view(saving({ writeInFlight: false, discard }), { mode: 'edit' }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'More editor actions' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Discard draft' }));
+        rerender(view(saving({ discard }), { mode: 'edit' }));
+
+        const dialog = screen.getByRole('alert');
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Discard' }));
+
+        expect(within(dialog).getByText('Saving…')).toBeTruthy();
+        expect(discard).not.toHaveBeenCalled();
+    });
+
+    it('⛔ the resume notice`s Discard is unavailable too, and opens no confirm', () => {
+        render(
+            view(
+                makeEditorResult({
+                    lifecycle: 'published',
+                    hasUnsavedChanges: true,
+                    resume: { savedAt: '2026-10-08T09:00:00.000Z' },
+                    writeInFlight: true,
+                }),
+                { mode: 'edit' },
+            ),
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(screen.getByText('Saving…')).toBeTruthy();
+    });
+});
+
+/**
+ * A confirmed Discard the outbox is being asked to take: the confirm stays open and busy, saying so in words. (REWRITTEN
+ * from "a Discard that waits for its create": the wait is gone, owner ruling 2026-10-17; the busy confirm remains for the
+ * moment the outbox is asked.)
+ */
+describe('a Discard the outbox is being asked to take', () => {
+    it('keeps the confirm open, busy, saying "Discarding…"; Keep editing is offered', () => {
         const cancelDiscard = vi.fn();
         const discard = vi.fn();
         render(

@@ -27,6 +27,8 @@ export interface EditorHeaderProps {
         readonly closeLabel: string;
         readonly discardLabel: string;
         readonly onDiscard: () => void;
+        /** Why Discard cannot be used now ("Saving…"); the item stays, reads as unavailable, and runs nothing. */
+        readonly discardUnavailable?: string;
     };
 }
 
@@ -94,6 +96,8 @@ export interface ResumeNoticeProps {
     readonly discardLabel: string;
     readonly onSave: () => void;
     readonly onDiscard: () => void;
+    /** Why Discard cannot be used now ("Saving…"): the button is disabled and the reason is said beside it. */
+    readonly discardUnavailable?: string;
 }
 
 /** One control of the parked-write alert. */

@@ -47,6 +47,7 @@ import {
 import { useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
+import { useSyncQueue } from '@commise/query/sync';
 import { ActionMenu } from '@commise/ui/action-menu';
 import { Button } from '@commise/ui/button';
 import { HeroButton } from '@commise/ui/hero-button';
@@ -210,6 +211,9 @@ function SettledRecipeDetail({
     const recipe = query.data;
     const sessionClaims = useSessionClaims();
     const profile = useUserProfile();
+    // A write of this recipe on the wire (the editor left with a checkpoint in flight) makes Delete unavailable until it
+    // settles (owner ruling 2026-10-17, "Don't allow users to delete while saving").
+    const saving = useSyncQueue().entityInFlight('recipe', [recipeId]);
     // Everything the page decides, once for both apps: the viewer (the session claim, else the profile), the Private
     // gate, the visibility notice, the primary, the ⋯ menu, the rating block and the owner dialogs. This shell draws it.
     const page = useRecipeDetailController({
@@ -218,6 +222,7 @@ function SettledRecipeDetail({
         sessionClaims,
         profile,
         finishRefused: finishRefused === true,
+        saving,
         ...(refusalArrived === undefined ? {} : { refusalArrived }),
         ...(onFinishRefusalSeen === undefined ? {} : { onFinishRefusalSeen }),
         nav: {

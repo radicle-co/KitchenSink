@@ -56,6 +56,8 @@ function mount(
         readonly finishRefused?: boolean;
         readonly refusalArrived?: boolean;
         readonly onFinishRefusalSeen?: () => void;
+        /** A write of this recipe is on the wire (the host's `SyncQueue.entityInFlight`). Defaults to idle. */
+        readonly saving?: boolean;
     } = {},
 ): Mounted {
     const client = createFakeRecipeServiceClient();
@@ -87,6 +89,7 @@ function mount(
                 sessionClaims: over.sessionClaims,
                 profile: over.profile ?? settledProfile(undefined),
                 finishRefused: over.finishRefused ?? false,
+                saving: over.saving ?? false,
                 ...(over.refusalArrived === undefined ? {} : { refusalArrived: over.refusalArrived }),
                 ...(over.onFinishRefusalSeen === undefined ? {} : { onFinishRefusalSeen: over.onFinishRefusalSeen }),
                 nav,
@@ -200,6 +203,47 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
         act(() => result.current.menu?.items[0]?.onSelect());
 
         expect(nav.onVersions).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * Owner ruling 2026-10-17, "Don't allow users to delete while saving": while a write of the recipe is on the wire (the
+ * editor left with a checkpoint in flight) the menu's Delete and the open confirm's Delete are unavailable, each saying
+ * why, and they work again once the host reports the write settled.
+ */
+describe('useRecipeDetailController — Delete while the recipe is saving', () => {
+    const OWNER_VIEW = { sessionClaims: { external_id: OWNER } };
+
+    it('⛔ the menu`s Delete is unavailable with the reason "Saving…", and the confirm`s Delete too', () => {
+        const { result } = mount({ ...OWNER_VIEW, saving: true });
+
+        expect(result.current.menu?.destructiveItem?.unavailable).toBe('Saving…');
+        expect(result.current.dialogs.delete.unavailable).toBe('Saving…');
+    });
+
+    it('⛔ choosing Delete while saving does not open the confirm', () => {
+        const { result } = mount({ ...OWNER_VIEW, saving: true });
+
+        act(() => result.current.menu?.destructiveItem?.onSelect());
+
+        expect(result.current.dialogs.delete.open).toBe(false);
+    });
+
+    it('⛔ a confirm confirmed while saving deletes nothing', () => {
+        const { result, client, nav } = mount({ ...OWNER_VIEW, saving: true });
+        const deleteRecipe = vi.spyOn(client, 'deleteRecipe').mockResolvedValue(undefined);
+
+        act(() => result.current.dialogs.delete.onConfirm());
+
+        expect(deleteRecipe).not.toHaveBeenCalled();
+        expect(nav.onDeleted).not.toHaveBeenCalled();
+    });
+
+    it('⛔ available when nothing is being saved', () => {
+        const { result } = mount({ ...OWNER_VIEW, saving: false });
+
+        expect(result.current.menu?.destructiveItem?.unavailable).toBeUndefined();
+        expect(result.current.dialogs.delete.unavailable).toBeUndefined();
     });
 });
 

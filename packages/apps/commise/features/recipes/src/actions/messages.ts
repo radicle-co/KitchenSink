@@ -127,6 +127,11 @@ export interface RecipeDetailActionMessages {
     readonly saveCopy: string;
     /** Said while the copy is being made. */
     readonly savingCopy: string;
+    /**
+     * Why Delete cannot be used while a write of the recipe is on the wire (owner ruling 2026-10-17, "Don't allow users to
+     * delete while saving"). Said by the menu item and the open confirm.
+     */
+    readonly saving: string;
     readonly versionHistory: string;
     readonly makePrivate: string;
     readonly makePublic: string;
@@ -188,6 +193,7 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             editRecipe: 'Edit recipe',
             saveCopy: 'Save a copy',
             savingCopy: 'Saving a copy…',
+            saving: 'Saving…',
             versionHistory: 'Version history',
             makePrivate: 'Make private',
             makePublic: 'Make public',

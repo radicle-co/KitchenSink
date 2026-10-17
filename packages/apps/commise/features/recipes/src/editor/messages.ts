@@ -113,8 +113,13 @@ export interface EditorMessages {
         readonly mayBeSavedBodyTab: string;
         readonly confirm: string;
         readonly keep: string;
-        /** Said while a confirmed Discard waits for the recipe's create to answer (the confirm is busy). */
+        /** Said while a confirmed Discard is being handed to the outbox (the confirm is busy). */
         readonly discarding: string;
+        /**
+         * Why Discard cannot be used while a write of the recipe is on the wire. The ⋯ item, the open confirm and the resume
+         * notice all say it, so a screen reader hears it on whichever control the cook is on (owner ruling 2026-10-17).
+         */
+        readonly saving: string;
         /** The confirm's body after storage refused a confirmed Discard: nothing was removed, and it can be tried again. */
         readonly failedBody: string;
     };
@@ -316,6 +321,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             confirm: 'Discard',
             keep: 'Keep editing',
             discarding: 'Discarding…',
+            saving: 'Saving…',
             failedBody: "We couldn't discard. Nothing was removed, so you can try again.",
         },
 

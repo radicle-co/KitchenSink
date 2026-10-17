@@ -62,7 +62,7 @@ import type { ErrorReporter } from '@commise/features-core';
 import type { Locale } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import type { RecipeDetail, VersionConflictSide } from '@kitchensink/recipe-core';
-import { DEFAULT_REQUEST_TIMEOUT_MS, isVersionConflictError } from '@kitchensink/recipe-service-client';
+import { isVersionConflictError } from '@kitchensink/recipe-service-client';
 import {
     isLocalRef,
     mintLocalRef,
@@ -70,6 +70,7 @@ import {
     type DiscardRequest,
     type FailureClass,
     type Intent,
+    type SyncEntity,
     type SettlementEvent,
     type SyncFailure,
 } from '@kitchensink/sync';
@@ -110,7 +111,7 @@ import {
     type EditorCoreStore,
 } from '../editor/editorCore.js';
 import { DiscardPromiseBrokenError } from '../editor/discardPromiseBrokenError.js';
-import { recipeDeleteIntent, recipeWriteIntent, type DiscardExit, type DiscardPlan } from '../editor/editorIntents.js';
+import { recipeWriteIntent, type DiscardExit, type DiscardPlan } from '../editor/editorIntents.js';
 import {
     conflictInfoOf,
     earlierParkedOf,
@@ -174,6 +175,12 @@ export interface EditorWritePort {
      * discarded may still stand. Never rejects for a record's state; rejects when storage refuses the write.
      */
     readonly discard: (request: DiscardRequest) => Promise<DiscardOutcome>;
+    /**
+     * Whether a write about the entity is on the wire right now (`SyncQueue.entityInFlight`, the predicate `discard`
+     * refuses by): what the Discard control disables itself by (owner ruling 2026-10-17, "Don't allow users to delete while
+     * saving"). Read at render; the app's queue changes identity with its log, so the editor re-renders when it moves.
+     */
+    readonly entityInFlight: (entity: SyncEntity, ids: readonly string[]) => boolean;
     readonly subscribe: (listener: (event: SettlementEvent<EditorWriteAnswer>) => void) => () => void;
     readonly failures: readonly EditorParkedWrite[];
 }
@@ -297,14 +304,19 @@ export interface UseRecipeEditorResult {
      */
     readonly discardMayLeaveServerCopy: boolean;
     /**
+     * A write of this recipe is on the wire, so Discard is unavailable until it settles (owner ruling 2026-10-17: "Don't
+     * allow users to delete while saving"). The outbox refuses the Discard too (`applyDiscard`), so this is a courtesy to
+     * the cook, never the guard. It clears when the write is answered AND when it parks, an unknown outcome included: the
+     * cook then decides, and a Discard of an unknown create warns that the recipe may already be saved
+     * (`discardMayLeaveServerCopy`). A write that is only queued (offline) does not set it.
+     */
+    readonly writeInFlight: boolean;
+    /**
      * A published recipe's earlier Save changes is parked with an unknown outcome: Discard stops retrying it, but the
      * changes may already stand on the server, so the confirm says so rather than "your recipe stays as it was".
      */
     readonly discardSavedChangesMayStand: boolean;
-    /**
-     * A confirmed Discard waits for the recipe's create to answer before it finishes (it may have to withdraw it): the
-     * confirm shows it busy, and the editor stays mounted. Bounded by the request timeout.
-     */
+    /** The outbox is being asked to take a confirmed Discard: the confirm shows it busy, and the editor stays mounted. */
     readonly discarding: boolean;
     /**
      * The outbox's storage refused a confirmed Discard: nothing was queued or dropped and the draft stays. The confirm
@@ -328,10 +340,7 @@ export interface UseRecipeEditorResult {
      * changes are dropped. The container confirms with the cook first.
      */
     readonly discard: () => void;
-    /**
-     * Take back a Discard that waits for its create (Keep, while the confirm is busy), or dismiss one storage refused.
-     * Lossless: nothing has been queued or dropped yet. A no-op once the outbox is being asked, or when no Discard waits.
-     */
+    /** Dismiss a Discard that storage refused (Keep). Lossless: nothing was queued or dropped. A no-op otherwise. */
     readonly cancelDiscard: () => void;
     /** The rebind command's port, for `useLineCommit`. */
     readonly lineCommand: LineCommandPort;
@@ -866,15 +875,6 @@ function onSettled(ctx: EditorContext, event: Settlement): void {
         return;
     }
 
-    // ⛔ ONLY A CREATE'S ANSWER IS A DISCARD'S TO HANDLE: a Discard waits for, and then deletes by, the id a create gets.
-    // A published recipe's Save changes that lands while its Discard asks the outbox is an ordinary answer — read as
-    // the create's, it would delete the published recipe.
-    if (ctx.lane.get().discarding !== undefined && pending.kind === 'create') {
-        onDiscardSettled(ctx, event);
-
-        return;
-    }
-
     if (event.outcome !== 'synced') {
         onParked(ctx, event, pending);
 
@@ -1196,20 +1196,55 @@ interface DiscardFinish {
  * @sideEffect Moves the lane, asks the outbox, and finishes the discard or reports its refusal.
  */
 function discardThrough(ctx: EditorContext, request: DiscardRequest, finish: DiscardFinish): void {
-    ctx.lane.dispatch({ type: 'discarding', phase: 'asking' });
+    ctx.lane.dispatch({ type: 'discarding' });
 
     ctx.opts.port.discard(request).then(
         (outcome) => {
-            if (outcome.kind === 'mayStand' && !finish.promisedMayStand) {
-                ctx.opts.reportError(new DiscardPromiseBrokenError(), { operation: 'recipeDiscard' });
-            }
+            switch (outcome.kind) {
+                case 'refused':
+                    // ⛔ THE OUTBOX IS THE ONLY GUARD (owner ruling 2026-10-17). The control is disabled from a render
+                    // snapshot of the log, which can be stale in either direction; the refusal is decided inside the
+                    // outbox's serialized mutation, so a press that raced the drain's claim ends here.
+                    discardDeclined(ctx);
 
-            finishDiscard(ctx, finish.refs, finish.exit);
+                    return;
+
+                case 'mayStand':
+                    if (!finish.promisedMayStand) {
+                        ctx.opts.reportError(new DiscardPromiseBrokenError(), { operation: 'recipeDiscard' });
+                    }
+
+                    finishDiscard(ctx, finish.refs, finish.exit);
+
+                    return;
+
+                case 'settled':
+                    finishDiscard(ctx, finish.refs, finish.exit);
+
+                    return;
+
+                default: {
+                    const unreachable: never = outcome;
+
+                    return unreachable;
+                }
+            }
         },
         (error: unknown) => {
             discardRefused(ctx, error);
         },
     );
+}
+
+/**
+ * The outbox refused a Discard because a write of the recipe is on the wire (`applyDiscard`): nothing was queued or
+ * dropped, so the draft stays and the editor goes back to editing. Not an error and not reported: the control was right
+ * to be enabled when it was drawn, and it is drawn disabled now (`writeInFlight`).
+ *
+ * @sideEffect Moves the lane.
+ */
+function discardDeclined(ctx: EditorContext): void {
+    ctx.lane.dispatch({ type: 'discardRefused' });
 }
 
 /**
@@ -1255,14 +1290,13 @@ function finishDiscard(
 /**
  * Discard a recipe only a create can have made (finding 2 of the 2026-10-10 review). Only the outbox knows, inside its
  * serialized mutation, what became of that create (`appendExclusive`): still queued, both go and the discard is done;
- * parked, the cook's confirmed Discard is the consent to withdraw it; on the wire, NOTHING is queued and the editor
- * waits for its answer, busy and mounted, so a create that parks is withdrawn rather than left in the outbox with no
- * editor to withdraw it. The wait is bounded ({@link discardBoundPassed}).
+ * parked, the cook's confirmed Discard is the consent to withdraw it; on the wire, NOTHING is queued and the Discard is
+ * declined (owner ruling 2026-10-17, {@link discardDeclined}).
  *
  * @sideEffect Submits to the outbox and moves the lane.
  */
 function discardOfCreate(ctx: EditorContext, remove: Intent): void {
-    ctx.lane.dispatch({ type: 'discarding', phase: 'asking' });
+    ctx.lane.dispatch({ type: 'discarding' });
 
     void ctx.opts.port.submitExclusive(remove).then(
         (outcome) => {
@@ -1284,15 +1318,8 @@ function discardAnswered(ctx: EditorContext, remove: Intent, outcome: EditorSubm
 
     switch (outcome.kind) {
         case 'inFlight':
-            if (ctx.lane.get().left === true) {
-                discardBehindCreate(ctx, remove);
-
-                return;
-            }
-
-            ctx.lane.dispatch({ type: 'discarding', phase: 'waiting' });
-            // After `waiting`, because a kept early answer is replayed at once and must find the discard waiting.
-            ctx.lane.dispatch({ type: 'tracked', seq: outcome.seq, kind: 'create' });
+            // A write of this recipe went on the wire between the press and the outbox's mutation. Nothing was queued.
+            discardDeclined(ctx);
 
             return;
 
@@ -1321,81 +1348,10 @@ function discardAnswered(ctx: EditorContext, remove: Intent, outcome: EditorSubm
 }
 
 /**
- * The create a Discard waited for answered. Synced: the recipe is deleted by the id it got (both device drafts go: the
- * outbox's draft observer moves the draft to that id on the same answer). Parked: withdrawn by the outbox when it acts —
- * its delete would wait forever — and nothing more; an unknown outcome may have left a copy, which the confirm already
- * said, so a `mayStand` answer is no broken promise.
+ * The editor unmounted while the outbox was asked about a Discard (browser Back, the session ending): nobody is there to
+ * hand off to, so the Discard finishes without a hand-off when the outbox answers.
  *
- * @sideEffect Asks the outbox and finishes the discard.
- */
-function onDiscardSettled(ctx: EditorContext, event: Settlement): void {
-    const ref = ctx.core.get().server.ref;
-
-    if (event.outcome === 'synced') {
-        const id = event.serverId ?? (event.answer?.kind === 'recipeWritten' ? event.answer.detail.id : undefined);
-
-        if (id !== undefined) {
-            discardThrough(
-                ctx,
-                { kind: 'entity', intent: recipeDeleteIntent(id) },
-                { refs: [ref, id], exit: { kind: 'discarded' }, promisedMayStand: false },
-            );
-
-            return;
-        }
-
-        finishDiscard(ctx, [ref, id]);
-
-        return;
-    }
-
-    discardThrough(
-        ctx,
-        { kind: 'parkedWrite', seq: event.seq },
-        { refs: [ref], exit: { kind: 'discarded' }, promisedMayStand: true },
-    );
-}
-
-/**
- * Finish a Discard whose create has not answered: its delete is queued behind it, depending on its ref
- * (`SyncQueue.discard`), so a create that still syncs is deleted. A create that parks after this settles WITH its delete,
- * inside the outbox (`withdrawMoot`), so no editor is needed to clean up after the bounded wait. The same call also
- * covers a create that parked in the breath between the bound and this call: `submit` threw on it and orphaned it.
- *
- * @sideEffect Asks the outbox and finishes the discard.
- */
-function discardBehindCreate(ctx: EditorContext, remove: Intent): void {
-    discardThrough(
-        ctx,
-        { kind: 'entity', intent: remove },
-        { refs: [remove.localId], exit: { kind: 'discarded' }, promisedMayStand: false },
-    );
-}
-
-/** The bound on a Discard's wait passed: finish it behind the create. @sideEffect */
-function discardBoundPassed(ctx: EditorContext): void {
-    const { discarding, closed } = ctx.lane.get();
-    const plan = discardPlanNow(ctx);
-    const { remove } = plan;
-
-    if (closed === true || discarding === undefined) {
-        return;
-    }
-
-    if (discarding === 'waiting' && remove?.kind === 'ofCreate') {
-        discardBehindCreate(ctx, remove.intent);
-
-        return;
-    }
-
-    finishDiscard(ctx, [ctx.core.get().server.ref, plan.draftRef], plan.exit);
-}
-
-/**
- * The editor unmounted while a Discard waited (browser Back, the session ending): nobody is there to hand off to. A
- * wait for a create finishes as the bound would; a question still with the outbox is finished by its answer.
- *
- * @sideEffect Moves the lane, and may submit and finish the discard.
+ * @sideEffect Moves the lane.
  */
 function discardLeft(ctx: EditorContext): void {
     const { discarding, closed } = ctx.lane.get();
@@ -1405,10 +1361,6 @@ function discardLeft(ctx: EditorContext): void {
     }
 
     ctx.lane.dispatch({ type: 'left' });
-
-    if (discarding === 'waiting') {
-        discardBoundPassed(ctx);
-    }
 }
 
 // ── Conflict resolutions ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -1551,18 +1503,12 @@ function createEditorStores(seed: EditorSeed) {
 }
 
 /**
- * The bound on a Discard's wait for its create, and the editor leaving during it.
- *
- * ⛔ The bound is the request timeout the outbox's client already applies to each attempt (`DEFAULT_REQUEST_TIMEOUT_MS`),
- * not a figure of the editor's own. The drain may retry a transient refusal past it, which the bound accepts.
+ * The editor leaving while the outbox is asked about a Discard.
  *
  * ⛔ The cleanup tells an unmount apart without a ref: the flag flips back only when the discard finishes (the lane
- * closes) or is taken back (no longer discarding), so a cleanup that still finds it discarding is the editor leaving.
+ * closes) or is declined (no longer discarding), so a cleanup that still finds it discarding is the editor leaving.
  */
-function useDiscardBound(ctx: EditorContext, discarding: boolean): void {
-    const boundPassed = useEffectEvent((): void => {
-        discardBoundPassed(ctx);
-    });
+function useDiscardLeft(ctx: EditorContext, discarding: boolean): void {
     const left = useEffectEvent((): void => {
         discardLeft(ctx);
     });
@@ -1572,12 +1518,7 @@ function useDiscardBound(ctx: EditorContext, discarding: boolean): void {
             return undefined;
         }
 
-        const timer = setTimeout(() => {
-            boundPassed();
-        }, DEFAULT_REQUEST_TIMEOUT_MS);
-
         return () => {
-            clearTimeout(timer);
             left();
         };
     }, [discarding]);
@@ -1730,7 +1671,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
     useSettlements(ctx, opts.port);
     useStayed(stores.lane);
     useReleasedPasteHold(ctx, opts.pasteHold);
-    useDiscardBound(ctx, lane.discarding !== undefined);
+    useDiscardLeft(ctx, lane.discarding !== undefined);
     useIdleTimers(ctx, core.draft, core.touched && view.status !== 'done');
     useCommandRunner(ctx, core, view.outstanding);
 
@@ -1771,6 +1712,10 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
             createSubmitted: view.outstanding?.kind === 'create',
         }),
         discardMayLeaveServerCopy: view.discard.mayLeaveServerCopy,
+        writeInFlight: opts.port.entityInFlight(
+            'recipe',
+            [core.server.ref, view.serverId].filter((id): id is string => id !== undefined),
+        ),
         discardSavedChangesMayStand: view.discard.savedChangesMayStand,
         discarding: lane.discarding !== undefined,
         discardFailed: lane.discardFailed === true,

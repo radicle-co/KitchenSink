@@ -52,6 +52,18 @@ describe('RecipeDeleteDialog (web)', () => {
         expect(dialog.getAttribute('aria-modal')).toBe('true');
     });
 
+    // Owner ruling 2026-10-17, "Don't allow users to delete while saving".
+    it('⛔ passes an unavailable reason to the confirm: said, disabled, and the confirm fires nothing', async () => {
+        const onConfirm = vi.fn();
+        renderDialog({ unavailable: 'Saving…', onConfirm });
+
+        expect(screen.getByRole('status').textContent).toBe('Saving…');
+
+        await userEvent.setup().click(screen.getByRole('button', { name: 'Delete recipe' }));
+
+        expect(onConfirm).not.toHaveBeenCalled();
+    });
+
     it('names the recipe being deleted', () => {
         renderDialog({ recipeTitle: 'Asparagus with Green Sauce' });
 

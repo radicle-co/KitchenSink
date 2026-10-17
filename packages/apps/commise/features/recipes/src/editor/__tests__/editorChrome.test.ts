@@ -57,6 +57,38 @@ describe('the title', () => {
     });
 });
 
+/**
+ * Owner ruling 2026-10-17, "Don't allow users to delete while saving": the Discard item says why it cannot be used while
+ * a write of the recipe is on the wire, in words, and says nothing otherwise. One reason for the menu item, the confirm
+ * and the resume notice, so the platforms cannot disagree.
+ */
+describe('the ⋯ discard item while the recipe is saving', () => {
+    it.each([
+        ['a draft', { values: makeFilledRecipeFormValues() }],
+        ['a stored draft', { lifecycle: 'neverPublished' as const, recipeId: 'rec_1' }],
+        [
+            'a published recipe`s changes',
+            { lifecycle: 'published' as const, recipeId: 'rec_1', hasUnsavedChanges: true },
+        ],
+    ])('⛔ %s: unavailable with the reason "Saving…" while a write is on the wire', (_label, over) => {
+        expect(chrome({ ...over, writeInFlight: true }).discard?.unavailable).toBe('Saving…');
+    });
+
+    it.each([
+        ['a draft', { values: makeFilledRecipeFormValues() }],
+        [
+            'a published recipe`s changes',
+            { lifecycle: 'published' as const, recipeId: 'rec_1', hasUnsavedChanges: true },
+        ],
+    ])('⛔ %s: available once the write has settled', (_label, over) => {
+        expect(chrome({ ...over, writeInFlight: false }).discard?.unavailable).toBeUndefined();
+    });
+
+    it('offers nothing to discard, and so nothing to explain, for a new recipe nothing was typed into', () => {
+        expect(chrome({ writeInFlight: true }).discard).toBeUndefined();
+    });
+});
+
 describe('the ⋯ discard item', () => {
     it('is absent for a new recipe nothing was typed into: there is nothing to discard', () => {
         expect(chrome().discard).toBeUndefined();

@@ -69,6 +69,18 @@ const { useAuthMock, useUserProfileMock, pushMock, setRatingMutateMock, deleteRa
         searchState: { value: '' },
     }));
 
+/** Whether the outbox has a write of the recipe on the wire (`SyncQueue.entityInFlight`), as a test sets it. */
+const syncState = vi.hoisted(() => ({ saving: false }));
+
+vi.mock('@commise/query/sync', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@commise/query/sync')>();
+
+    return {
+        ...actual,
+        useSyncQueue: () => ({ ...actual.useSyncQueue(), entityInFlight: () => syncState.saving }),
+    };
+});
+
 vi.mock('@kitchensink/recipe-service-client/hooks', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@kitchensink/recipe-service-client/hooks')>()),
     // CP-6 T3 pragmatism clause: the rating-write hooks stay a narrow, type-checked mock for this file. One
@@ -885,6 +897,42 @@ describe('RecipeDetailContainer', () => {
             // outcome rides in the address instead, and My recipes says it (`RecipeDeletedNotice`).
             await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes?deleted=1'));
             expect(screen.queryByText('Recipe deleted')).not.toBeInTheDocument();
+        });
+
+        /**
+         * Owner ruling 2026-10-17, "Don't allow users to delete while saving": the editor can be left with a checkpoint
+         * on the wire. Delete is unavailable until the outbox settles it, and says why in words a screen reader reads.
+         */
+        it('⛔ is unavailable while a write of the recipe is on the wire: described by "Saving…", opens no dialog, deletes nothing', async () => {
+            syncState.saving = true;
+
+            try {
+                const user = userEvent.setup();
+                const client = createFakeRecipeServiceClient();
+                vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+                    makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, title: 'Weeknight Pasta' }),
+                );
+                const deleteSpy = vi.spyOn(client, 'deleteRecipe').mockResolvedValue(undefined);
+                renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
+
+                await user.click(
+                    (await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement,
+                );
+                const item = screen.getByRole('menuitem', { name: 'Delete recipe' });
+                const describedBy = item.getAttribute('aria-describedby');
+
+                expect(item).toHaveAttribute('aria-disabled', 'true');
+                expect(describedBy === null ? undefined : document.getElementById(describedBy)?.textContent).toBe(
+                    'Saving…',
+                );
+
+                await user.click(item);
+
+                expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+                expect(deleteSpy).not.toHaveBeenCalled();
+            } finally {
+                syncState.saving = false;
+            }
         });
 
         it('says nothing about a delete that failed', async () => {

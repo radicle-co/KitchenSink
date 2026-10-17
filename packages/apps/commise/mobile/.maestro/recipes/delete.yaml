@@ -29,6 +29,13 @@ appId: ${APP_ID}
       element: 'Delete recipe'
       direction: DOWN
       timeout: 20000
+# Owner ruling 2026-10-17, "Don't allow users to delete while saving": the item is disabled ("Saving…") while a write of this
+# recipe is on the wire. Wait until it is enabled, so a tap is never lost on a control that does nothing.
+- extendedWaitUntil:
+      visible:
+          text: 'Delete recipe'
+          enabled: true
+      timeout: 30000
 - tapOn: 'Delete recipe'
 # ⛔ NO `scrollUntilVisible` HERE, DELIBERATELY — and this is the whole point of the step. RecipeDeleteDialog
 # is an RN `Modal` overlaying the screen, so the confirm is visible the instant the trigger is tapped; it does

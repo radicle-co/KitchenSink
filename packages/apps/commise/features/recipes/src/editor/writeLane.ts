@@ -50,12 +50,12 @@ export interface LaneState {
      */
     readonly closed?: true;
     /**
-     * A Discard that cannot finish yet (finding 2 of the 2026-10-10 review): `asking` while the outbox decides whether a
-     * create of this recipe stands in the way, `waiting` for the answer of one on the wire. No checkpoint runs and no
-     * device draft is written meanwhile, for `closed`'s reason. Only `waiting` can be taken back (Keep): by then nothing
-     * has been queued, whereas the outbox may already have removed a queued create while `asking`.
+     * The outbox is being asked to take a confirmed Discard. No checkpoint runs and no device draft is written
+     * meanwhile, for `closed`'s reason. It ends when the Discard finishes (`closed`), is refused because a write is on
+     * the wire (`discardRefused`), or storage refused it (`discardFailed`). There is no waiting for a write's answer:
+     * the control is unavailable while one is on the wire (owner ruling 2026-10-17).
      */
-    readonly discarding?: 'asking' | 'waiting';
+    readonly discarding?: true;
     /**
      * The outbox's storage refused a confirmed Discard: nothing was queued or dropped, and the draft stays. The confirm
      * shows the failure until the cook tries again (a new `discarding`) or keeps editing (`discardCancelled`).
@@ -92,7 +92,9 @@ export type LaneEvent =
     | { readonly type: 'withdrawn'; readonly seq: number }
     | { readonly type: 'deferredTaken' }
     | { readonly type: 'closed' }
-    | { readonly type: 'discarding'; readonly phase: 'asking' | 'waiting' }
+    | { readonly type: 'discarding' }
+    /** The outbox declined the Discard because a write of the recipe is on the wire: nothing was queued or dropped. */
+    | { readonly type: 'discardRefused' }
     | { readonly type: 'discardCancelled' }
     | { readonly type: 'discardFailed' }
     | { readonly type: 'left' }
@@ -200,15 +202,19 @@ export function laneReducer(state: LaneState, event: LaneEvent): LaneState {
         case 'discarding': {
             const { discardFailed: _retried, ...rest } = state;
 
-            return state.closed === true || state.discarding === event.phase
-                ? state
-                : { ...rest, discarding: event.phase };
+            return state.closed === true || state.discarding === true ? state : { ...rest, discarding: true };
+        }
+
+        case 'discardRefused': {
+            const { discarding: _declined, ...rest } = state;
+
+            return state.discarding === true ? rest : state;
         }
 
         case 'discardCancelled': {
-            const { discarding: _taken, discardFailed: _dismissed, ...rest } = state;
+            const { discardFailed: _dismissed, ...rest } = state;
 
-            return state.discarding === 'waiting' || state.discardFailed === true ? rest : state;
+            return state.discardFailed === true ? rest : state;
         }
 
         case 'discardFailed': {

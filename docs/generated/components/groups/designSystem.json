@@ -6,11 +6,11 @@
     "coverage": {
         "components": 69,
         "implementations": 119,
-        "props": 683,
+        "props": 685,
         "documentedComponents": 69,
         "implementationsWithModuleDoc": 119,
         "implementationsWithComponentDoc": 111,
-        "documentedProps": 648,
+        "documentedProps": 650,
         "classifiedComponents": 62,
         "componentsWithPatternTag": 69,
         "crossPlatformComponents": 50
@@ -2797,6 +2797,15 @@
                             "defaultValue": null,
                             "description": "The dialog's accessible title (also the visible heading).",
                             "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "unavailable",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Why the confirm cannot be pressed NOW, already localised (\"Saving…\"): the confirm is disabled, the reason is said\npolitely and drawn as text (not colour alone), and Keep still closes the dialog. Distinct from {@link busy}, which\nis the confirmed request itself in flight. Used by a Discard or Delete while the recipe is being saved (owner\nruling 2026-10-17, \"Don't allow users to delete while saving\"); the dialog may already be open when the write starts.",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -2915,6 +2924,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The dialog's accessible title (also the visible heading).",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "unavailable",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Why the confirm cannot be pressed NOW, already localised (\"Saving…\"): the confirm is disabled, the reason is said\npolitely and drawn as text (not colour alone), and Keep still closes the dialog. Distinct from {@link busy}, which\nis the confirmed request itself in flight. Used by a Discard or Delete while the recipe is being saved (owner\nruling 2026-10-17, \"Don't allow users to delete while saving\"); the dialog may already be open when the write starts.",
                             "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
                         }
                     ],

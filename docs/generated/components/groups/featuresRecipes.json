@@ -6,11 +6,11 @@
     "coverage": {
         "components": 155,
         "implementations": 264,
-        "props": 1288,
+        "props": 1295,
         "documentedComponents": 155,
         "implementationsWithModuleDoc": 264,
         "implementationsWithComponentDoc": 157,
-        "documentedProps": 1009,
+        "documentedProps": 1016,
         "classifiedComponents": 135,
         "componentsWithPatternTag": 77,
         "crossPlatformComponents": 109
@@ -107,6 +107,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Title of the recipe being deleted — named in the confirmation copy.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "unavailable",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Why Delete cannot be used now (\"Saving…\"): the confirm is disabled and the reason is said (owner ruling 2026-10-17).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
                         }
                     ],
@@ -12623,7 +12632,7 @@
                         },
                         {
                             "name": "menu",
-                            "type": "{ readonly triggerLabel: string; readonly closeLabel: string; readonly discardLabel: string; readonly onDiscard: () => void; }",
+                            "type": "{ readonly triggerLabel: string; readonly closeLabel: string; readonly discardLabel: string; readonly onDiscard: () => void; readonly discardUnavailable?: string; }",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
@@ -12702,7 +12711,7 @@
                         },
                         {
                             "name": "menu",
-                            "type": "{ readonly triggerLabel: string; readonly closeLabel: string; readonly discardLabel: string; readonly onDiscard: () => void; }",
+                            "type": "{ readonly triggerLabel: string; readonly closeLabel: string; readonly discardLabel: string; readonly onDiscard: () => void; readonly discardUnavailable?: string; }",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
@@ -13882,6 +13891,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         },
                         {
+                            "name": "discardUnavailable",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Why Discard cannot be used now (\"Saving…\"): the button is disabled and the reason is said beside it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
+                        },
+                        {
                             "name": "onDiscard",
                             "type": "() => void",
                             "typeDetail": null,
@@ -13949,6 +13967,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
+                        },
+                        {
+                            "name": "discardUnavailable",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Why Discard cannot be used now (\"Saving…\"): the button is disabled and the reason is said beside it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         },
                         {
@@ -19934,7 +19961,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/photos/RecipePhotoManager.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/photos",
-                    "moduleDoc": "@commise/features-recipes — web recipe photo manager (T067 building block, wireframe step 4; w3/e4\nper-file queue grid).\n\nPresentational: renders the recipe's confirmed photos MERGED with any in-flight queue items in a grid of 3 columns\n(4 from 600 px of the grid's own container, buildSpec §7.7), each queue cell carrying its own status badge (Queued / Uploading… / Upload\nfailed, via role + text — never colour alone, WCAG 1.4.1) plus Retry (only where the queue reports the\nfailure as `retryable`) and Remove controls,\nand renders the caller-supplied `addControl` (the web file input) below the grid — hidden once the recipe\nis at the photo cap. The container owns image acquisition + the presign → PUT → confirm upload (via the\n`useRecipePhotoUploadQueue` layer over the single-flight `useRecipePhotoUpload`).\n\nB7: every grid image is `loading=\"lazy\"` plus `decoding=\"async\"`, with an explicit `aspect-square` ratio\nclass, so a recipe with many photos does not eagerly paint the whole grid of full-size originals at once\n(mirrors the detail view's `PhotoCarousel`, the other web surface painting these same originals).\n\nREQ-014 (per-file \"which photo failed and why\"): the generic `queueStatusFailed` badge already names\nWHICH photo (its cell, its `fileName`-scoped Retry/Remove labels); a failed item's own `errorMessage`\n(client validation — REQ-011/REQ-012 — or an upload failure, both surfaced by the caller through the same\nfield) renders as a second, distinct line naming WHY, whenever the caller supplies one — BELOW the tile, on the page\nbackground (E6), never over the image, where its contrast would depend on the photo.\n\nWith no photo and no queued file it shows the recipe's own generated cover (when `coverPreview` is supplied) and says\nthat cover stands in until a photo is added (A-010).\n\nA failed cell's ACTIONS follow the queue's `retryable` discriminator, never `status === 'failed'`: the queue\nre-validates on retry by design, so retrying a file the CLIENT rejected (too large / wrong type) re-runs the\nsame pure check on the same file and re-fails — Retry there is a dead affordance. Such a cell offers Remove\nonly (and still says WHY it failed); a transport/server failure keeps both.",
+                    "moduleDoc": "@commise/features-recipes — web recipe photo manager (T067 building block, wireframe step 4; w3/e4\nper-file queue grid).\n\nOwner ruling 2026-10-17: every confirmed photo's tile carries ONE ⋯ menu button (`@commise/ui/action-menu`, the\n`disc` look, 44 px) holding Set as cover, Move earlier, Move later, Replace and Remove (`photoMenu.ts`); a queue tile\nholds Remove in the same menu, and a failed, retryable one keeps a visible Retry `Button`.\n\nPresentational: renders the recipe's confirmed photos MERGED with any in-flight queue items in a grid of 3 columns\n(4 from 600 px of the grid's own container, buildSpec §7.7), each queue cell carrying its own status badge (Queued / Uploading… / Upload\nfailed, via role + text — never colour alone, WCAG 1.4.1) plus Retry (only where the queue reports the\nfailure as `retryable`) and a Remove menu,\nand renders the caller-supplied `addControl` (the web file input) below the grid — hidden once the recipe\nis at the photo cap. The container owns image acquisition + the presign → PUT → confirm upload (via the\n`useRecipePhotoUploadQueue` layer over the single-flight `useRecipePhotoUpload`).\n\nB7: every grid image is `loading=\"lazy\"` plus `decoding=\"async\"`, with an explicit `aspect-square` ratio\nclass, so a recipe with many photos does not eagerly paint the whole grid of full-size originals at once\n(mirrors the detail view's `PhotoCarousel`, the other web surface painting these same originals).\n\nREQ-014 (per-file \"which photo failed and why\"): the generic `queueStatusFailed` badge already names\nWHICH photo (its cell, its `fileName`-scoped Retry/Remove labels); a failed item's own `errorMessage`\n(client validation — REQ-011/REQ-012 — or an upload failure, both surfaced by the caller through the same\nfield) renders as a second, distinct line naming WHY, whenever the caller supplies one — BELOW the tile, on the page\nbackground (E6), never over the image, where its contrast would depend on the photo.\n\nWith no photo and no queued file it shows the recipe's own generated cover (when `coverPreview` is supplied) and says\nthat cover stands in until a photo is added (A-010).\n\nA failed cell's ACTIONS follow the queue's `retryable` discriminator, never `status === 'failed'`: the queue\nre-validates on retry by design, so retrying a file the CLIENT rejected (too large / wrong type) re-runs the\nsame pure check on the same file and re-fails — Retry there is a dead affordance. Such a cell offers Remove\nonly (and still says WHY it failed); a transport/server failure keeps both.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -19974,6 +20001,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/photos/model.ts"
                         },
                         {
+                            "name": "onMovePhoto",
+                            "type": "((photoId: string, direction: PhotoMoveDirection) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Move the photo with this id one place earlier or later (2026-10-17 owner ruling: the tile's ⋯ menu). Presentational:\nthe manager disables Move earlier on the first photo and Move later on the last, and reports the rest upward; the\ncontainer runs `reorderRecipePhotos` with the whole new order. Omitted on a surface that does not offer reordering.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/photos/model.ts"
+                        },
+                        {
                             "name": "onRemovePhoto",
                             "type": "(photoId: string) => void",
                             "typeDetail": null,
@@ -20046,6 +20082,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/photos/model.ts"
                         },
                         {
+                            "name": "reordering",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "A reorder is in flight. Set as cover and both moves are unavailable until it lands, because the server takes the\nwhole list and refuses one built from a list that has since changed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/photos/model.ts"
+                        },
+                        {
                             "name": "uploading",
                             "type": "boolean",
                             "typeDetail": null,
@@ -20067,7 +20112,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/photos/RecipePhotoManager.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/photos",
-                    "moduleDoc": "@commise/features-recipes — native recipe photo manager (T067 building block, wireframe step 4;\nw3/e4 per-file queue grid).\n\nThe React Native leaf of `RecipePhotoManager` — same contract, RN\nprimitives. Renders the confirmed photos MERGED with any in-flight queue items across a grid of 3 columns (4 from\n600 of the grid's own measured width, buildSpec §7.7), each queue cell carrying its own status badge (Queued / Uploading… / Upload failed, via\n`accessibilityRole` + visible text — never colour alone) plus Retry (only where the queue reports the\nfailure as `retryable`) and Remove, and the caller-supplied `addControl` (the native picker button), hidden\nat the photo cap. Presentational only.\n\nA failed cell's ACTIONS follow the queue's `retryable` discriminator, never `status === 'failed'`: retry\nre-validates by design, so a client-rejected file (too large / wrong type) can never succeed on a\nre-attempt — that cell offers Remove only, while a transport/server failure keeps both.\n\nREQ-014 (per-file \"which photo failed and why\"): the generic status badge already names WHICH photo\n(its cell, its `fileName`-scoped Retry/Remove labels); a failed item's own `errorMessage` (client\nvalidation — REQ-011/REQ-012 — or an upload failure, both surfaced by the caller through the same field)\nrenders as a second, distinct line naming WHY, whenever the caller supplies one — BELOW the tile, in flow (E6), never\nover the image. With no photo and no queued file it shows the recipe's generated cover and says it stands in (A-010).",
+                    "moduleDoc": "@commise/features-recipes — native recipe photo manager (T067 building block, wireframe step 4;\nw3/e4 per-file queue grid).\n\nThe React Native leaf of `RecipePhotoManager` — same contract, RN\nprimitives. Owner ruling 2026-10-17: every photo tile carries ONE ⋯ menu button (44 pt, 48 dp on Android; a sheet of\n`menuitem` rows, `photoMenu.ts`); a queue tile holds Remove in the same menu, and a failed, retryable one keeps a\nvisible Retry `Button`. Renders the confirmed photos MERGED with any in-flight queue items across a grid of 3 columns (4 from\n600 of the grid's own measured width, buildSpec §7.7), each queue cell carrying its own status badge (Queued / Uploading… / Upload failed, via\n`accessibilityRole` + visible text — never colour alone) plus Retry (only where the queue reports the\nfailure as `retryable`) and Remove, and the caller-supplied `addControl` (the native picker button), hidden\nat the photo cap. Presentational only.\n\nA failed cell's ACTIONS follow the queue's `retryable` discriminator, never `status === 'failed'`: retry\nre-validates by design, so a client-rejected file (too large / wrong type) can never succeed on a\nre-attempt — that cell offers Remove only, while a transport/server failure keeps both.\n\nREQ-014 (per-file \"which photo failed and why\"): the generic status badge already names WHICH photo\n(its cell, its `fileName`-scoped Retry/Remove labels); a failed item's own `errorMessage` (client\nvalidation — REQ-011/REQ-012 — or an upload failure, both surfaced by the caller through the same field)\nrenders as a second, distinct line naming WHY, whenever the caller supplies one — BELOW the tile, in flow (E6), never\nover the image. With no photo and no queued file it shows the recipe's generated cover and says it stands in (A-010).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -20107,6 +20152,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/photos/model.ts"
                         },
                         {
+                            "name": "onMovePhoto",
+                            "type": "((photoId: string, direction: PhotoMoveDirection) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Move the photo with this id one place earlier or later (2026-10-17 owner ruling: the tile's ⋯ menu). Presentational:\nthe manager disables Move earlier on the first photo and Move later on the last, and reports the rest upward; the\ncontainer runs `reorderRecipePhotos` with the whole new order. Omitted on a surface that does not offer reordering.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/photos/model.ts"
+                        },
+                        {
                             "name": "onRemovePhoto",
                             "type": "(photoId: string) => void",
                             "typeDetail": null,
@@ -20176,6 +20230,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The id of the photo whose removal is in flight (busies just that row), if any.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/photos/model.ts"
+                        },
+                        {
+                            "name": "reordering",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "A reorder is in flight. Set as cover and both moves are unavailable until it lands, because the server takes the\nwhole list and refuses one built from a list that has since changed.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/photos/model.ts"
                         },
                         {

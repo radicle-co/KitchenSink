@@ -371,7 +371,12 @@ describe('a Discard settles the outbox through the real client (integration)', (
     });
     const wire = (calls: readonly Call[]): string[] => calls.map((call) => `${call.method} ${call.path}`);
 
-    it('⛔ a create times out with a delete queued behind it: the log ends empty, no second POST, no DELETE', async () => {
+    /**
+     * REWRITTEN (owner ruling 2026-10-17, "Don't allow users to delete while saving"): a Discard pressed while the create
+     * is on the wire is REFUSED and leaves the log as it was; once the create parks with an unknown outcome, the Discard
+     * withdraws it. Still no second POST, and no DELETE for a recipe that may never have been made.
+     */
+    it('⛔ a Discard during a create is refused; after the create times out it withdraws it: no second POST, no DELETE', async () => {
         let fail: (() => void) | undefined;
         const network = scriptedFetch([
             async () => {
@@ -393,19 +398,27 @@ describe('a Discard settles the outbox through the real client (integration)', (
         await press('discard 0');
         expect((await loadOutbox(store, 'user_a')).records.map((record) => record.intentKind)).toStrictEqual([
             'create',
-            'delete',
         ]);
 
         await act(async () => {
             fail?.();
         });
+        await waitFor(async () =>
+            expect((await loadOutbox(store, 'user_a')).records.map((record) => record.state)).toStrictEqual(['parked']),
+        );
+
+        await press('discard 0');
 
         await waitFor(async () => expect((await loadOutbox(store, 'user_a')).records).toStrictEqual([]));
         await waitFor(() => expect(screen.getByText('pending:0')).toBeTruthy());
         expect(wire(network.calls)).toStrictEqual(['POST /api/v1/recipes']);
     });
 
-    it('⛔ an update gets 409 with the delete behind it, the delete gets 204: the log ends empty', async () => {
+    /**
+     * REWRITTEN (owner ruling 2026-10-17): the Discard pressed while the update is on the wire is refused; after the 409
+     * parks the update, the Discard queues the delete, which gets 204, and the log ends empty.
+     */
+    it('⛔ a Discard during an update is refused; after its 409 the delete gets 204 and the log ends empty', async () => {
         let conflict: (() => void) | undefined;
         const network = scriptedFetch([
             async () => {
@@ -430,9 +443,18 @@ describe('a Discard settles the outbox through the real client (integration)', (
         await waitFor(() => expect(network.calls).toHaveLength(1));
 
         await press('discard 0');
+        expect((await loadOutbox(store, 'user_a')).records.map((record) => record.intentKind)).toStrictEqual([
+            'update',
+        ]);
+
         await act(async () => {
             conflict?.();
         });
+        await waitFor(async () =>
+            expect((await loadOutbox(store, 'user_a')).records.map((record) => record.state)).toStrictEqual(['parked']),
+        );
+
+        await press('discard 0');
 
         await waitFor(async () => expect((await loadOutbox(store, 'user_a')).records).toStrictEqual([]));
         expect(wire(network.calls)).toStrictEqual([

@@ -12,6 +12,8 @@ import {
     admitPhotoBatch,
     isAtPhotoCap,
     isCoverPhoto,
+    movedPhotoIds,
+    coverFirstPhotoIds,
     MAX_RECIPE_PHOTOS,
     photoGridColumns,
     remainingPhotoSlots,
@@ -140,5 +142,55 @@ describe('uploadedCount', () => {
     it('is zero for no queue at all', () => {
         expect(uploadedCount(undefined)).toBe(0);
         expect(uploadedCount([])).toBe(0);
+    });
+});
+
+describe('movedPhotoIds (2026-10-17: Move earlier / Move later)', () => {
+    const photos = [makePhoto({ id: 'a' }), makePhoto({ id: 'b' }), makePhoto({ id: 'c' })];
+
+    it('swaps a photo with its earlier neighbour', () => {
+        expect(movedPhotoIds(photos, 'b', 'earlier')).toEqual(['b', 'a', 'c']);
+        expect(movedPhotoIds(photos, 'c', 'earlier')).toEqual(['a', 'c', 'b']);
+    });
+
+    it('swaps a photo with its later neighbour', () => {
+        expect(movedPhotoIds(photos, 'a', 'later')).toEqual(['b', 'a', 'c']);
+        expect(movedPhotoIds(photos, 'b', 'later')).toEqual(['a', 'c', 'b']);
+    });
+
+    it('answers nothing for a move off either end — the first cannot go earlier, the last cannot go later', () => {
+        expect(movedPhotoIds(photos, 'a', 'earlier')).toBeUndefined();
+        expect(movedPhotoIds(photos, 'c', 'later')).toBeUndefined();
+    });
+
+    it('answers nothing for a photo it does not hold, and for a lone photo', () => {
+        expect(movedPhotoIds(photos, 'zzz', 'later')).toBeUndefined();
+        expect(movedPhotoIds([makePhoto({ id: 'only' })], 'only', 'later')).toBeUndefined();
+        expect(movedPhotoIds([], 'a', 'earlier')).toBeUndefined();
+    });
+
+    it('does not mutate the list it was given', () => {
+        const before = photos.map((photo) => photo.id);
+        movedPhotoIds(photos, 'b', 'earlier');
+
+        expect(photos.map((photo) => photo.id)).toEqual(before);
+    });
+
+    it('moving to the front makes the photo the cover — the same rule isCoverPhoto reads', () => {
+        const ids = movedPhotoIds(photos, 'b', 'earlier') ?? [];
+
+        expect(ids[0]).toBe('b');
+    });
+});
+
+describe('coverFirstPhotoIds', () => {
+    const photos = [makePhoto({ id: 'a' }), makePhoto({ id: 'b' }), makePhoto({ id: 'c' })];
+
+    it('puts the chosen photo first and keeps the others in their order', () => {
+        expect(coverFirstPhotoIds(photos, 'c')).toEqual(['c', 'a', 'b']);
+    });
+
+    it('is the identity for the current cover', () => {
+        expect(coverFirstPhotoIds(photos, 'a')).toEqual(['a', 'b', 'c']);
     });
 });

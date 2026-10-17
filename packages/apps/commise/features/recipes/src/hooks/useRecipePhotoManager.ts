@@ -35,7 +35,13 @@ import { useState } from 'react';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { photoMessages } from '../photos/messages.js';
-import { MAX_RECIPE_PHOTO_UPLOAD_MB, type RecipePhotoAdmission } from '../photos/model.js';
+import {
+    coverFirstPhotoIds,
+    MAX_RECIPE_PHOTO_UPLOAD_MB,
+    movedPhotoIds,
+    type PhotoMoveDirection,
+    type RecipePhotoAdmission,
+} from '../photos/model.js';
 import { useRecipePhotoUpload } from './useRecipePhotoUpload.js';
 import {
     useRecipePhotoUploadQueue,
@@ -90,6 +96,10 @@ export interface UseRecipePhotoManagerResult {
     readonly removePhoto: (photoId: string) => void;
     /** Make `photoId` the cover: a reorder that moves it to the front (the cover is the lowest sort order). */
     readonly setCover: (photoId: string) => void;
+    /** Move `photoId` one place earlier or later; a move off either end sends nothing. */
+    readonly movePhoto: (photoId: string, direction: PhotoMoveDirection) => void;
+    /** A reorder is in flight; a second is refused until it lands (the server takes the whole list). */
+    readonly reordering: boolean;
 }
 
 /**
@@ -161,15 +171,21 @@ export function useRecipePhotoManager({
         deletePhoto.mutate({ id: recipeId, photoId }, { onError: () => setErrorMessage(copy.removeError) });
     };
 
-    const setCover = (photoId: string): void => {
-        if (recipeId === null) {
+    // ONE writer for every reorder: the server takes the WHOLE list as an exact reordering, so a second request built from
+    // a list that has not been refetched yet would be refused. Refused here, by `reordering`, rather than left to a 400.
+    const reorder = (photoIds: readonly string[] | undefined, failure: string): void => {
+        if (recipeId === null || photoIds === undefined || reorderPhotos.isPending) {
             return;
         }
 
-        const photoIds = [photoId, ...photos.filter((photo) => photo.id !== photoId).map((photo) => photo.id)];
         setErrorMessage(undefined);
-        reorderPhotos.mutate({ id: recipeId, photoIds }, { onError: () => setErrorMessage(copy.setCoverError) });
+        reorderPhotos.mutate({ id: recipeId, photoIds }, { onError: () => setErrorMessage(failure) });
     };
+
+    const setCover = (photoId: string): void => reorder(coverFirstPhotoIds(photos, photoId), copy.setCoverError);
+
+    const movePhoto = (photoId: string, direction: PhotoMoveDirection): void =>
+        reorder(movedPhotoIds(photos, photoId, direction), copy.moveError);
 
     return {
         photos,
@@ -182,5 +198,7 @@ export function useRecipePhotoManager({
         beginReplace,
         removePhoto,
         setCover,
+        movePhoto,
+        reordering: reorderPhotos.isPending,
     };
 }

@@ -67,6 +67,17 @@ export interface RecipePhotoManagerProps {
      */
     readonly onSetCover?: (photoId: string) => void;
     /**
+     * Move the photo with this id one place earlier or later (2026-10-17 owner ruling: the tile's ⋯ menu). Presentational:
+     * the manager disables Move earlier on the first photo and Move later on the last, and reports the rest upward; the
+     * container runs `reorderRecipePhotos` with the whole new order. Omitted on a surface that does not offer reordering.
+     */
+    readonly onMovePhoto?: (photoId: string, direction: PhotoMoveDirection) => void;
+    /**
+     * A reorder is in flight. Set as cover and both moves are unavailable until it lands, because the server takes the
+     * whole list and refuses one built from a list that has since changed.
+     */
+    readonly reordering?: boolean;
+    /**
      * Replace the photo with this id (U6). Presentational only: the manager renders a per-photo "Replace"
      * control and reports the id upward; the container owns the platform image-acquisition glue (web: a
      * dedicated hidden single-select file input; native: `expo-image-picker`).
@@ -136,6 +147,51 @@ export const photoGridColumns = (width: number | undefined): 3 | 4 =>
  * @returns `true` when `photoId` is the first photo, `false` otherwise (including an empty list).
  */
 export const isCoverPhoto = (photos: readonly RecipePhoto[], photoId: string): boolean => photos[0]?.id === photoId;
+
+/** Which way a photo moves in the display order. */
+export type PhotoMoveDirection = 'earlier' | 'later';
+
+/**
+ * The photo ids in the order that makes `photoId` the cover: it first, the rest as they were. The server's reorder takes
+ * the WHOLE list (an exact reordering of the recipe's photos), so "set as cover" is this list. Pure.
+ *
+ * @param photos - The recipe's confirmed photos, in display order.
+ * @param photoId - The photo to put first.
+ * @returns Every id, `photoId` first.
+ */
+export const coverFirstPhotoIds = (photos: readonly RecipePhoto[], photoId: string): readonly string[] => [
+    photoId,
+    ...photos.filter((photo) => photo.id !== photoId).map((photo) => photo.id),
+];
+
+/**
+ * The photo ids after `photoId` swaps places with its neighbour (2026-10-17: Move earlier / Move later). Moving a photo
+ * to index 0 makes it the cover, by the same rule {@link isCoverPhoto} reads. Pure.
+ *
+ * @param photos - The recipe's confirmed photos, in display order.
+ * @param photoId - The photo to move.
+ * @param direction - Which way.
+ * @returns Every id in the new order, or `undefined` when the move goes nowhere: the first photo cannot go earlier, the
+ *   last cannot go later, and a photo the list does not hold cannot go at all. It answers `undefined` rather than the
+ *   unchanged list so a caller cannot send a reorder that changes nothing.
+ */
+export const movedPhotoIds = (
+    photos: readonly RecipePhoto[],
+    photoId: string,
+    direction: PhotoMoveDirection,
+): readonly string[] | undefined => {
+    const from = photos.findIndex((photo) => photo.id === photoId);
+    const to = direction === 'earlier' ? from - 1 : from + 1;
+
+    if (from === -1 || to < 0 || to >= photos.length) {
+        return undefined;
+    }
+
+    const ids = photos.map((photo) => photo.id);
+    [ids[from], ids[to]] = [ids[to] as string, ids[from] as string];
+
+    return ids;
+};
 
 /** Whether the recipe is at the photo cap (used to hide the add control and show the cap notice). */
 export const isAtPhotoCap = (photoCount: number): boolean => photoCount >= MAX_RECIPE_PHOTOS;

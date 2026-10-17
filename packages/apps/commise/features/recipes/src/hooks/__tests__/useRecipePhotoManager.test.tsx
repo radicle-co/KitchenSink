@@ -59,13 +59,15 @@ const fileOf = (name: string, overrides: { fileSize?: number; contentType?: stri
 
 let deleteMutate: ReturnType<typeof vi.fn>;
 let reorderMutate: ReturnType<typeof vi.fn>;
+const reorderPending = { current: false };
 
 beforeEach(() => {
     deleteMutate = vi.fn();
     reorderMutate = vi.fn();
+    reorderPending.current = false;
     photosQueryMock.mockReset().mockReturnValue({ data: [] });
     deletePhotoMock.mockReset().mockReturnValue({ mutate: deleteMutate, isPending: false, variables: undefined });
-    reorderMock.mockReset().mockReturnValue({ mutate: reorderMutate });
+    reorderMock.mockReset().mockReturnValue({ mutate: reorderMutate, isPending: reorderPending.current });
 });
 
 describe('useRecipePhotoManager — a pick past the cap', () => {
@@ -264,6 +266,74 @@ describe('useRecipePhotoManager — set cover', () => {
         act(() => result.current.setCover('ph_2'));
 
         expect(result.current.errorMessage).toBeUndefined();
+    });
+});
+
+describe('useRecipePhotoManager — movePhoto (2026-10-17)', () => {
+    it('reorders the whole list with the photo swapped one place earlier', () => {
+        photosQueryMock.mockReturnValue({ data: photosOf(3) });
+        const { result } = renderHook(() => useRecipePhotoManager({ recipeId: 'rec_1' }));
+
+        act(() => result.current.movePhoto('ph_3', 'earlier'));
+
+        expect(reorderMutate).toHaveBeenCalledWith(
+            { id: 'rec_1', photoIds: ['ph_1', 'ph_3', 'ph_2'] },
+            expect.any(Object),
+        );
+    });
+
+    it('reorders the whole list with the photo swapped one place later', () => {
+        photosQueryMock.mockReturnValue({ data: photosOf(3) });
+        const { result } = renderHook(() => useRecipePhotoManager({ recipeId: 'rec_1' }));
+
+        act(() => result.current.movePhoto('ph_1', 'later'));
+
+        expect(reorderMutate).toHaveBeenCalledWith(
+            { id: 'rec_1', photoIds: ['ph_2', 'ph_1', 'ph_3'] },
+            expect.any(Object),
+        );
+    });
+
+    it('sends nothing for a move off either end', () => {
+        photosQueryMock.mockReturnValue({ data: photosOf(3) });
+        const { result } = renderHook(() => useRecipePhotoManager({ recipeId: 'rec_1' }));
+
+        act(() => result.current.movePhoto('ph_1', 'earlier'));
+        act(() => result.current.movePhoto('ph_3', 'later'));
+
+        expect(reorderMutate).not.toHaveBeenCalled();
+    });
+
+    it('sends nothing before the recipe has an id', () => {
+        const { result } = renderHook(() => useRecipePhotoManager({ recipeId: null }));
+
+        act(() => result.current.movePhoto('ph_1', 'later'));
+
+        expect(reorderMutate).not.toHaveBeenCalled();
+    });
+
+    it('refuses a second reorder while one is in flight — a stale list is a 400 from the server', () => {
+        photosQueryMock.mockReturnValue({ data: photosOf(3) });
+        reorderPending.current = true;
+        reorderMock.mockReturnValue({ mutate: reorderMutate, isPending: true });
+        const { result } = renderHook(() => useRecipePhotoManager({ recipeId: 'rec_1' }));
+
+        act(() => result.current.movePhoto('ph_2', 'later'));
+        act(() => result.current.setCover('ph_3'));
+
+        expect(result.current.reordering).toBe(true);
+        expect(reorderMutate).not.toHaveBeenCalled();
+    });
+
+    it('says the move failed in the one error slot', () => {
+        photosQueryMock.mockReturnValue({ data: photosOf(3) });
+        const { result } = renderHook(() => useRecipePhotoManager({ recipeId: 'rec_1' }));
+
+        act(() => result.current.movePhoto('ph_2', 'later'));
+        const options = reorderMutate.mock.calls[0]?.[1] as { onError: () => void };
+        act(() => options.onError());
+
+        expect(result.current.errorMessage).toBe('We couldn’t move that photo. Please try again.');
     });
 });
 

@@ -178,4 +178,29 @@ describe('the account app deploys through ksaccount (ADR-0065)', () => {
             expect(artifact.properties?.['cloudFormationExecutionRoleArn'], id).toBeUndefined();
         }
     });
+
+    // Its template is over CloudFormation's 51,200-byte inline limit, so the CLI uploads it to a bucket first. The
+    // ksaccount bucket cannot be that bucket: the ksaccount bootstrap attaches policies this stack creates, so it does
+    // not exist yet on the first deploy. The template goes to the default bootstrap's assets bucket, written with the
+    // owner's own credentials (no role assumed); nothing else of the default bootstrap is used.
+    it('uploads the owner-only template to the default assets bucket with the owner credentials', () => {
+        const assetFiles = ownerOnly.files.filter(
+            (file) => file.includes('kitchensink-ci-policies') || file.includes('CiExecutionPolicy'),
+        );
+        const manifests = assetFiles.filter((file) => file.endsWith('.assets.json'));
+
+        expect(manifests.length).toBe(1);
+
+        const assets = JSON.parse(read(ownerOnly, manifests[0] ?? '')) as {
+            files?: Record<string, { destinations: Record<string, { bucketName: string; assumeRoleArn?: string }> }>;
+        };
+        const destinations = Object.values(assets.files ?? {}).flatMap((file) => Object.values(file.destinations));
+
+        expect(destinations.length).toBeGreaterThan(0);
+
+        for (const destination of destinations) {
+            expect(destination.bucketName).toContain(`cdk-${DEFAULT_QUALIFIER}-assets-`);
+            expect(destination.assumeRoleArn).toBeUndefined();
+        }
+    });
 });

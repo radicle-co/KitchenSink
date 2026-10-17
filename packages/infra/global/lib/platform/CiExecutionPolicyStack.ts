@@ -28,7 +28,13 @@
  *
  * @pattern Adapter — renders the bootstrap package's policy tables as CloudFormation managed policies
  */
-import { CliCredentialsStackSynthesizer, Stack, type StackProps, aws_iam as iam } from 'aws-cdk-lib';
+import {
+    CliCredentialsStackSynthesizer,
+    DefaultStackSynthesizer,
+    Stack,
+    type StackProps,
+    aws_iam as iam,
+} from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
 import { buildBoundary } from '@kitchensink/cdk-bootstrap/boundary';
@@ -71,7 +77,13 @@ export function boundaryPolicyArn(qualifier: QualifierName, account: string): st
 /** The owner-only stack of boundary and execution managed policies for every KitchenSink bootstrap qualifier. */
 export class CiExecutionPolicyStack extends Stack {
     public constructor(scope: Construct, id: string, props: StackProps = {}) {
-        super(scope, id, { ...props, synthesizer: new CliCredentialsStackSynthesizer() });
+        // The template exceeds CloudFormation's 51,200-byte inline limit, so the CLI uploads it first. The ksaccount
+        // bucket does not exist before the bootstrap that attaches these policies, so the upload goes to the default
+        // bootstrap's assets bucket, with the owner's own credentials; no default bootstrap role is used.
+        super(scope, id, {
+            ...props,
+            synthesizer: new CliCredentialsStackSynthesizer({ qualifier: DefaultStackSynthesizer.DEFAULT_QUALIFIER }),
+        });
 
         const context = { account: this.account, region: this.region };
         const render = (document: PolicyDocument): iam.PolicyDocument =>

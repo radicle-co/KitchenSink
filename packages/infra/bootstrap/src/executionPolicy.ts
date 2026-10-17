@@ -113,6 +113,34 @@ const allow = (
     },
 });
 
+/** Verbs that only read: the SAR access levels Read and List. `readsUngated.test.ts` holds the split to the catalogue. */
+const READ_ACTION = /^[a-z0-9-]+:(Get|List|Describe)|^apigateway:GET$/u;
+
+/**
+ * An Allow for resources that carry the stack-name tag: mutations and deletes keep the tag condition, READS do not.
+ *
+ * CloudFormation's resource handlers read before they create (an existence or attribute check on a resource that has
+ * no tag yet), so a read gated on the tag is denied at create time (the first sandbox probe: `SNS:GetTopicAttributes`
+ * on a topic that did not exist). Reads are scoped by NAME only; they change nothing, and the tier Denies and the
+ * name patterns still refuse the other tier. The read statement is named `<Sid>Reads`.
+ */
+function ownAllow(
+    part: PartName,
+    sid: string,
+    action: readonly string[],
+    resource: readonly string[],
+    covers: readonly string[],
+    condition: Condition,
+): Grant[] {
+    const reads = action.filter((candidate) => READ_ACTION.test(candidate));
+    const writes = action.filter((candidate) => !READ_ACTION.test(candidate));
+
+    return [
+        ...(reads.length === 0 ? [] : [allow(part, `${sid}Reads`, reads, resource, writes.length === 0 ? covers : [])]),
+        ...(writes.length === 0 ? [] : [allow(part, sid, writes, resource, covers, condition)]),
+    ];
+}
+
 const deny = (
     part: PartName,
     sid: string,
@@ -177,7 +205,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             [arn('lambda', `function:${KS}`)],
             ['AWS::Lambda::Function'],
         ),
-        allow(
+        ...ownAllow(
             'compute',
             'LambdaOwn',
             [
@@ -222,7 +250,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             [arn('ecs', `cluster/${KS}`), arn('ecs', `service/${KS}/*`)],
             ['AWS::ECS::Cluster', 'AWS::ECS::Service'],
         ),
-        allow(
+        ...ownAllow(
             'compute',
             'EcsOwn',
             [
@@ -252,7 +280,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             [arn('ecs', 'task-definition/*:*')],
             ['AWS::ECS::TaskDefinition'],
         ),
-        allow(
+        ...ownAllow(
             'compute',
             'EcsTaskDefinitionsOwn',
             [
@@ -289,7 +317,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             [arn('states', 'stateMachine:*')],
             ['AWS::StepFunctions::StateMachine'],
         ),
-        allow(
+        ...ownAllow(
             'compute',
             'StatesOwnMachines',
             [
@@ -311,7 +339,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             [arn('events', `rule/${KS}`), arn('events', `rule/*/${KS}`), arn('events', `event-bus/${KS}`)],
             ['AWS::Events::Rule', 'AWS::Events::EventBus'],
         ),
-        allow(
+        ...ownAllow(
             'compute',
             'EventsOwn',
             [
@@ -346,7 +374,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
         ),
         // ---- data ---------------------------------------------------------------------------------------------
         allow('data', 'SqsCreate', ['sqs:CreateQueue', 'sqs:TagQueue'], [arn('sqs', KS)], ['AWS::SQS::Queue']),
-        allow(
+        ...ownAllow(
             'data',
             'SqsOwn',
             [
@@ -364,7 +392,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             own,
         ),
         allow('data', 'SnsCreate', ['sns:CreateTopic', 'sns:TagResource'], [arn('sns', KS)], ['AWS::SNS::Topic']),
-        allow(
+        ...ownAllow(
             'data',
             'SnsOwn',
             [
@@ -416,7 +444,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             [arn('dynamodb', `table/${KS}`)],
             ['AWS::DynamoDB::Table'],
         ),
-        allow(
+        ...ownAllow(
             'data',
             'DynamoDbOwn',
             [
@@ -444,7 +472,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ],
             ['AWS::RDS::DBInstance', 'AWS::RDS::DBSubnetGroup'],
         ),
-        allow(
+        ...ownAllow(
             'data',
             'RdsOwn',
             [
@@ -477,7 +505,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             [arn('secretsmanager', 'secret:kitchensink*')],
             ['AWS::SecretsManager::Secret', 'AWS::SecretsManager::SecretTargetAttachment'],
         ),
-        allow(
+        ...ownAllow(
             'data',
             'SecretsByStackTag',
             [
@@ -561,7 +589,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ],
             ['AWS::Logs::LogGroup'],
         ),
-        allow(
+        ...ownAllow(
             'observe',
             'LogGroupsOwn',
             [
@@ -655,7 +683,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 ],
             },
         }),
-        allow(
+        ...ownAllow(
             'network',
             'Ec2Own',
             [
@@ -704,7 +732,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 ],
             },
         }),
-        allow(
+        ...ownAllow(
             'network',
             'ElbOwn',
             [
@@ -757,7 +785,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 'AWS::CloudFront::ResponseHeadersPolicy',
             ],
         ),
-        allow(
+        ...ownAllow(
             'edge',
             'CloudFrontOwnDistributions',
             [
@@ -818,7 +846,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
         allow('edge', 'AcmRequest', ['acm:RequestCertificate'], ['*'], ['AWS::CertificateManager::Certificate'], {
             'ForAllValues:StringLike': { 'acm:DomainNames': nonprod ? ['*sandbox.commise.app'] : ['*commise.app'] },
         }),
-        allow(
+        ...ownAllow(
             'edge',
             'AcmOwn',
             [
@@ -864,7 +892,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             [`arn:aws:apigateway:${REGION}::/restapis`, `arn:aws:apigateway:${REGION}::/domainnames`],
             ['AWS::ApiGateway::DomainName', 'AWS::ApiGateway::RestApi'],
         ),
-        allow(
+        ...ownAllow(
             'edge',
             'ApiGatewayOwn',
             ['apigateway:DELETE', 'apigateway:GET', 'apigateway:PATCH', 'apigateway:POST', 'apigateway:PUT'],
@@ -909,7 +937,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 'iam:PolicyARN': ATTACHABLE_AWS_POLICIES.map((policy) => `arn:aws:iam::aws:policy/${policy}`),
             },
         }),
-        allow(
+        ...ownAllow(
             'iam',
             'IamOwnRoles',
             [

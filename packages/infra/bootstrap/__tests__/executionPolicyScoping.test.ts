@@ -37,7 +37,7 @@ const reachable = (qualifier: QualifierName, action: string, resource: string): 
     unconditionalAllow(documents(qualifier), action, resource) &&
     !unconditionalDeny(documents(qualifier), action, resource);
 
-const READ_ONLY = /^[a-z0-9-]+:(Get|List|Describe|BatchGet|View)/u;
+const READ_ONLY = /^[a-z0-9-]+:(Get|List|Describe|BatchGet|View|GET$)/u;
 
 const isMutating = (statement: Statement): boolean => statement.Action.some((action) => !READ_ONLY.test(action));
 

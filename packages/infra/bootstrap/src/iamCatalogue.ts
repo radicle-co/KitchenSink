@@ -16,6 +16,8 @@ import type { PolicyDocument } from './policyDocument.js';
 export interface IamServiceEntry {
     /** Every action name of the service (`CreateDelivery`), sorted. */
     readonly actions: readonly string[];
+    /** The actions whose access level is Read or List (they change nothing), sorted. */
+    readonly readOnly: readonly string[];
     /** Resource type -> ARN formats (`arn:${Partition}:logs:${Region}:${Account}:delivery:${DeliveryName}`). */
     readonly resources: Readonly<Record<string, readonly string[]>>;
 }
@@ -228,4 +230,19 @@ export function arnProblems(catalogue: IamCatalogue, arn: string, context: ArnCo
     return [
         `"${arn}": the account field must be ${context.account}${context.effect === 'Deny' ? ' or *' : ''}, or empty where the type has none`,
     ];
+}
+
+/**
+ * The real read-only actions (access level Read or List) an action pattern matches.
+ *
+ * @returns Action names (`lambda:GetFunction`); empty when the pattern matches none or names an unknown service. Pure.
+ */
+export function readOnlyActionsMatching(catalogue: IamCatalogue, pattern: string): string[] {
+    const separator = pattern.indexOf(':');
+    const service = pattern.slice(0, separator).toLowerCase();
+    const name = pattern.slice(separator + 1).toLowerCase();
+
+    return (catalogue.services[service]?.readOnly ?? [])
+        .filter((action) => iamLike(name, action.toLowerCase()))
+        .map((action) => `${service}:${action}`);
 }

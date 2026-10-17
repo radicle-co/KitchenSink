@@ -39,7 +39,16 @@ interface IndexEntry {
 interface ServiceReference {
     readonly Name: string;
     readonly Version?: string;
-    readonly Actions: ReadonlyArray<{ readonly Name: string }>;
+    readonly Actions: ReadonlyArray<{
+        readonly Name: string;
+        readonly Annotations?: {
+            readonly Properties?: {
+                readonly IsWrite?: boolean;
+                readonly IsPermissionManagement?: boolean;
+                readonly IsTaggingOnly?: boolean;
+            };
+        };
+    }>;
     readonly Resources?: ReadonlyArray<{ readonly Name: string; readonly ARNFormats: readonly string[] }>;
 }
 
@@ -70,6 +79,19 @@ async function catalogueEntry(service: string): Promise<readonly [string, IamCat
         service,
         {
             actions: reference.Actions.map((action) => action.Name).sort(),
+            // Access level Read or List: the reference marks every other action as write, permissions or tagging.
+            readOnly: reference.Actions.filter((action) => {
+                const properties = action.Annotations?.Properties;
+
+                return (
+                    properties !== undefined &&
+                    properties.IsWrite !== true &&
+                    properties.IsPermissionManagement !== true &&
+                    properties.IsTaggingOnly !== true
+                );
+            })
+                .map((action) => action.Name)
+                .sort(),
             resources: Object.fromEntries(
                 (reference.Resources ?? [])
                     .map((resource) => [resource.Name, [...resource.ARNFormats].sort()] as const)

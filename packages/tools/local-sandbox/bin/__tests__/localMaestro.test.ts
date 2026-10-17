@@ -385,4 +385,12 @@ describe('the local run names its platform', () => {
 
         expect(result.stdout.trim().split('\n').at(-1)).toBe('android 1');
     });
+
+    // `e2e-seed provision` reads its signer's entitlement from identity, so it refuses to start without this origin.
+    it('points the seed tools at the local identity service', () => {
+        const sandbox = makeSandbox();
+        const result = run(sandbox, `local_maestro_seed_env '${sandbox.state}'; echo "$E2E_SEED_IDENTITY_URL"`);
+
+        expect(result.stdout.trim().split('\n').at(-1)).toBe('http://localhost:3001');
+    });
 });

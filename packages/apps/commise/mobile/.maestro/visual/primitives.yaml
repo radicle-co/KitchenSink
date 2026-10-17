@@ -16,17 +16,15 @@ appId: ${APP_ID}
 - takeScreenshot: primitives_recipeList
 
 # The scroll hint (`HorizontalScroller`, `docs/design/uiOverhaul/horizontalScrollHint.md`) on the quick-filter chip row:
-# at rest (chevron at the end when the chips overflow), after a swipe away (chevron gone, the 24 dp fade left), and after
-# the swipe back (chevron returned). Captures, not assertions: the chevron is decorative and has no accessibility node.
+# at rest (chevron at the end when the chips overflow) and after a swipe away (chevron gone). Captures, not assertions:
+# the chevron is decorative and has no accessibility node. The swipe starts on the row's first chip, because Android does
+# not expose the row's group name to Maestro. The return to the start is asserted by the component tests: after this
+# swipe no chip is guaranteed to be on screen to start a swipe back from.
 - takeScreenshot: primitives_chipRowRest
 - swipe:
-      from: 'Quick filters'
+      from: 'All'
       direction: LEFT
 - takeScreenshot: primitives_chipRowScrolled
-- swipe:
-      from: 'Quick filters'
-      direction: RIGHT
-- takeScreenshot: primitives_chipRowReturned
 
 # Collections: the primary create Button. Captured BEFORE the owner-only detail, so a world in which the signer owns no
 # recipe still yields every capture it can.

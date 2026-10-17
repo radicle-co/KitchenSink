@@ -7,6 +7,7 @@
         "./qualifiers": "./src/qualifiers.ts",
         "./executionPolicy": "./src/executionPolicy.ts",
         "./boundary": "./src/boundary.ts",
+        "./policyDocument": "./src/policyDocument.ts",
         "./customizeBootstrapTemplate": "./src/customizeBootstrapTemplate.ts"
     },
     "dependencies": {

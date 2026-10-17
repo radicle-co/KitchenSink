@@ -337,6 +337,9 @@ const PACKAGE_INTERNALS_PATTERN = {
         // `retry-after`'s `bearer-replay`: the replay of a refused bearer every service client shares, an entry of its
         // own beside the package's `Retry-After` parser.
         '!@kitchensink/*/bearer-replay',
+        // `cdk-bootstrap` (ADR-0064): the qualifier names, the policy tables and the document helpers are separate
+        // entries so a CDK app takes one table without the others.
+        '!@kitchensink/cdk-bootstrap/*',
         // The four shared TOOLING packages, allowed per-package rather than
         // per-name: each declares a wildcard `"./*"` export, so subpath import IS
         // their entire API (`@kitchensink/eslint/nativeA11y`,

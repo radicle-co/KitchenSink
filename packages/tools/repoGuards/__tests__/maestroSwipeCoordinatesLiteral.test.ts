@@ -25,20 +25,25 @@ export function swipeCoordinates(node: unknown): readonly string[] {
     if (Array.isArray(node)) {
         return node.flatMap(swipeCoordinates);
     }
+
     if (node === null || typeof node !== 'object') {
         return [];
     }
+
     const record = node as Record<string, unknown>;
     const own: string[] = [];
     const swipe = record['swipe'];
+
     if (swipe !== null && typeof swipe === 'object') {
         for (const key of ['start', 'end'] as const) {
             const value = (swipe as Record<string, unknown>)[key];
+
             if (typeof value === 'string') {
                 own.push(value);
             }
         }
     }
+
     return [...own, ...Object.values(record).flatMap(swipeCoordinates)];
 }
 

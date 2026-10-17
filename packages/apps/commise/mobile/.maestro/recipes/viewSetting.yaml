@@ -25,9 +25,10 @@ appId: ${APP_ID}
 
 # Chosen: the switch shows the choice at once, and no failure is reported.
 - tapOn: 'Grid view'
-- assertVisible:
-      text: 'Grid view'
-      checked: true
+- runFlow:
+      file: common/assertViewChecked.yaml
+      env:
+          VIEW: 'Grid view'
 - assertNotVisible: 'We couldn’t save your view. Try choosing it again.'
 
 # A fresh launch of the app: the setting is read back from the account.
@@ -37,12 +38,14 @@ appId: ${APP_ID}
       visible:
           text: '^3 recipes$'
       timeout: 40000
-- assertVisible:
-      text: 'Grid view'
-      checked: true
+- runFlow:
+      file: common/assertViewChecked.yaml
+      env:
+          VIEW: 'Grid view'
 
 # Put the account back on the layout a phone shows by default.
 - tapOn: 'List view'
-- assertVisible:
-      text: 'List view'
-      checked: true
+- runFlow:
+      file: common/assertViewChecked.yaml
+      env:
+          VIEW: 'List view'

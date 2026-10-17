@@ -939,8 +939,8 @@ jobs:
                       exit 0
                   fi
 
-                  # ⛔ ONE authority for the question: `deployedSandboxLiveness.sh check` (the same script the
-                  # flow loop re-asks after a failure, `MAESTRO_SANDBOX_LIVENESS`). It prints the gate's
+                  # ⛔ ONE authority for the question: `deployedSandboxLiveness.sh check` (the same script whose
+                  # `stopped` question the flow loop asks after a failure, `MAESTRO_SANDBOX_STOPPED`). It prints the gate's
                   # verdicts, then `live=` and `reason=` last.
                   verdict=$(bash .github/scripts/deployedSandboxLiveness.sh check \
                       "${STAGE}" "${DEFAULT_AWS_REGION}" "${RECIPE_ORIGIN}" "${FOOD_ORIGIN}")
@@ -1202,15 +1202,13 @@ jobs:
                   # The APK `_mobileAppBuild.yml` built and this job downloaded and verified. The runner script's own
                   # default is the Gradle output path, which only a developer's local build produces.
                   MAESTRO_ANDROID_APK: ${{ runner.temp }}/testApp/app.apk
-                  # ⛔ MID-SHARD LIVENESS. The midnight stop (04:00 UTC) can land while this shard is running, and
-                  # a flow that fails into it failed for absence. After a failed flow or reset the loop runs this
-                  # command; only `live=false` turns that failure into a skip, and earlier failures stand. The
-                  # SAME script the start probe above calls, with the same stage and origins. `STAGE` and
-                  # `DEFAULT_AWS_REGION` are job and workflow env; the origins are named here, not reusing
-                  # `E2E_SEED_*`, which the per-flow reset reads and must not see a new food origin.
-                  MAESTRO_LIVENESS_RECIPE_ORIGIN: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
-                  MAESTRO_LIVENESS_FOOD_ORIGIN: ${{ needs.resolve-mobile-target.outputs.food_origin }}
-                  MAESTRO_SANDBOX_LIVENESS: bash .github/scripts/deployedSandboxLiveness.sh check "${STAGE}" "${DEFAULT_AWS_REGION}" "${MAESTRO_LIVENESS_RECIPE_ORIGIN}" "${MAESTRO_LIVENESS_FOOD_ORIGIN}"
+                  # ⛔ MID-SHARD STOP. The midnight stop (04:00 UTC) can land while this shard is running, and a
+                  # flow that fails into it failed for absence. After a failed flow or reset the loop runs this
+                  # command; only `stopped=true` turns that failure into a skip, and earlier failures stand. It
+                  # asks for the STOP's own facts (shared tier stopped, or this stage's stacks reclaimed), twice,
+                  # and never health: a service that is up but unhealthy stays RED. `check` (the start probe
+                  # above) is the other question, "is it serving?", and must not be used here.
+                  MAESTRO_SANDBOX_STOPPED: bash .github/scripts/deployedSandboxLiveness.sh stopped "${STAGE}" "${DEFAULT_AWS_REGION}"
                   MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
                   # The per-flow reset reconciles the signer's library to the manifest through the recipe
                   # API, re-minting from the session `provision` established. Same three values that step
@@ -1596,8 +1594,8 @@ jobs:
                       exit 0
                   fi
 
-                  # ⛔ ONE authority for the question: `deployedSandboxLiveness.sh check` (the same script the
-                  # flow loop re-asks after a failure, `MAESTRO_SANDBOX_LIVENESS`). It prints the gate's
+                  # ⛔ ONE authority for the question: `deployedSandboxLiveness.sh check` (the same script whose
+                  # `stopped` question the flow loop asks after a failure, `MAESTRO_SANDBOX_STOPPED`). It prints the gate's
                   # verdicts, then `live=` and `reason=` last.
                   verdict=$(bash .github/scripts/deployedSandboxLiveness.sh check \
                       "${STAGE}" "${DEFAULT_AWS_REGION}" "${RECIPE_ORIGIN}" "${FOOD_ORIGIN}")
@@ -1750,11 +1748,9 @@ jobs:
                   CLERK_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
                   E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
-                  # ⛔ MID-SHARD LIVENESS - the Android step's, for its reason: only `live=false` turns a failed
+                  # ⛔ MID-SHARD STOP - the Android step's, for its reason: only `stopped=true` turns a failed
                   # flow or reset into a skip, and earlier failures stand.
-                  MAESTRO_LIVENESS_RECIPE_ORIGIN: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
-                  MAESTRO_LIVENESS_FOOD_ORIGIN: ${{ needs.resolve-mobile-target.outputs.food_origin }}
-                  MAESTRO_SANDBOX_LIVENESS: bash .github/scripts/deployedSandboxLiveness.sh check "${STAGE}" "${DEFAULT_AWS_REGION}" "${MAESTRO_LIVENESS_RECIPE_ORIGIN}" "${MAESTRO_LIVENESS_FOOD_ORIGIN}"
+                  MAESTRO_SANDBOX_STOPPED: bash .github/scripts/deployedSandboxLiveness.sh stopped "${STAGE}" "${DEFAULT_AWS_REGION}"
                   # Env, never expanded into the body (zizmor template-injection) — the Android step's reason.
                   MAESTRO_FLOW_SELECTOR: ${{ inputs.maestro_flow_selector }}
                   MAESTRO_SHARD_INDEX: ${{ matrix.shard }}

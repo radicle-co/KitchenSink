@@ -267,19 +267,20 @@ describe.each(maestroJobs())('%s re-proves liveness inside its own job', (_, job
         ).toBe(questionOf(resolverRun));
     });
 
-    it('re-asks the same script mid-shard: the flow loop is handed the SAME command, stage and origins', () => {
+    it('asks the STOP question mid-shard, never the serving one: the flow loop is handed `stopped`, stage and region only', () => {
+        // CHANGED 2026-10-17: the in-run check used to re-ask `check` (health, stack status, seed), which reads a crashed
+        // or redeploying service as "down" and turned a real defect into a skip. It now asks `stopped`, the stop's own
+        // facts (`deployedSandboxLiveness.test.ts` holds the verdict table), so it needs no origins at all.
         const runStep = maestroJob()?.steps?.find((step) =>
             /runMaestroFlows\.sh/u.test(step.run ?? step.with?.['script'] ?? ''),
         );
         const env = runStep?.env ?? {};
 
         expect(runStep, 'the step that runs the flow loop was not found').toBeDefined();
-        expect(env['MAESTRO_SANDBOX_LIVENESS']).toBe(
-            'bash .github/scripts/deployedSandboxLiveness.sh check "${STAGE}" "${DEFAULT_AWS_REGION}" "${MAESTRO_LIVENESS_RECIPE_ORIGIN}" "${MAESTRO_LIVENESS_FOOD_ORIGIN}"',
+        expect(env['MAESTRO_SANDBOX_STOPPED']).toBe(
+            'bash .github/scripts/deployedSandboxLiveness.sh stopped "${STAGE}" "${DEFAULT_AWS_REGION}"',
         );
-        // The origins are the run's OWN recorded ones, exactly as the start probe reads them.
-        expect(env['MAESTRO_LIVENESS_RECIPE_ORIGIN']).toBe('${{ needs.resolve-mobile-target.outputs.recipe_origin }}');
-        expect(env['MAESTRO_LIVENESS_FOOD_ORIGIN']).toBe('${{ needs.resolve-mobile-target.outputs.food_origin }}');
+        expect(Object.keys(env).filter((key) => key.startsWith('MAESTRO_LIVENESS_'))).toEqual([]);
     });
 
     it('signs in through awsAuth, unconditionally, before it asks — and the probe holds no key of its own', () => {

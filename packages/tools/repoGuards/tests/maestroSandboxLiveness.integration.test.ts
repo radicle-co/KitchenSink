@@ -7,7 +7,7 @@
  * shard 1 started at 03:44 with the sandbox up, `recipes/detailBack` failed at 04:02, and the shard went red for
  * absence. Android shard 1 of the same run had two REAL failures at 03:55, while the sandbox was still up, and
  * those must stay red. So the loop attributes per flow: after a failed flow, or a failed reset, it asks the probe
- * named by `MAESTRO_SANDBOX_LIVENESS` (a command printing `live=true|false`). Only a confirmed `live=false`
+ * named by `MAESTRO_SANDBOX_STOPPED` (a command printing `stopped=true|false`, the stop's own facts, never health). Only a confirmed `stopped=true`
  * turns that failure into a skip; an earlier failure, recorded while the probe still answered live, stays a failure.
  *
  * ## What is real here
@@ -31,8 +31,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const SCRIPT = join(REPO_ROOT, 'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh');
 
-/** Scripted answers: `live=true`, `live=false`, `ERROR` (the probe itself fails) or `garbage` (no verdict). */
-type ProbeAnswer = 'live=true' | 'live=false' | 'ERROR' | 'garbage';
+/** Scripted answers: `stopped=false`, `stopped=true`, `ERROR` (the probe itself fails) or `garbage` (no verdict). */
+type ProbeAnswer = 'stopped=false' | 'stopped=true' | 'live=false' | 'ERROR' | 'garbage';
 
 interface Scenario {
     /** Flows (by name) whose `maestro test` exits 1. */
@@ -108,10 +108,10 @@ echo "reason=scripted"; echo "$answer"`,
         PATH: `${dir}:${process.env['PATH'] ?? ''}`,
     };
 
-    delete env['MAESTRO_SANDBOX_LIVENESS'];
+    delete env['MAESTRO_SANDBOX_STOPPED'];
 
     if (scenario.probe !== undefined) {
-        env['MAESTRO_SANDBOX_LIVENESS'] = join(dir, 'probe');
+        env['MAESTRO_SANDBOX_STOPPED'] = join(dir, 'probe');
     }
 
     const result = spawnSync('bash', [SCRIPT, 'run-one', ...flows], { encoding: 'utf8', env, cwd: REPO_ROOT });
@@ -132,8 +132,8 @@ function stoppedNotice(log: string): string | undefined {
 const FLOWS = ['a/one', 'a/two', 'a/three'] as const;
 
 describe('a red is attributed to absence only when the probe confirms the sandbox is down', () => {
-    it('(a) a flow fails and the probe says DOWN: exit 0, a notice names it and the flows not run, none is driven after', () => {
-        const outcome = run(FLOWS, { failFlows: ['a/two'], probe: ['live=false'] });
+    it('(a) a flow fails and the probe confirms the STOP: exit 0, a notice names it and the flows not run, none is driven after', () => {
+        const outcome = run(FLOWS, { failFlows: ['a/two'], probe: ['stopped=true'] });
         const notice = stoppedNotice(outcome.log);
 
         expect(outcome.status, outcome.log).toBe(0);
@@ -144,8 +144,8 @@ describe('a red is attributed to absence only when the probe confirms the sandbo
         expect(notice).not.toContain('a/one');
     });
 
-    it('(b) a flow fails while LIVE, a later one fails after the stop: exit 1, the live failure stays red', () => {
-        const outcome = run(FLOWS, { failFlows: ['a/one', 'a/two'], probe: ['live=true', 'live=false'] });
+    it('(b) a flow fails while the sandbox is not stopped, a later one fails after the stop: exit 1, the live failure stays red', () => {
+        const outcome = run(FLOWS, { failFlows: ['a/one', 'a/two'], probe: ['stopped=false', 'stopped=true'] });
 
         expect(outcome.status, outcome.log).toBe(1);
         expect(outcome.driven).toEqual(['a/one', 'a/two']);
@@ -153,15 +153,15 @@ describe('a red is attributed to absence only when the probe confirms the sandbo
     });
 
     it('(b2) every failure while live: all flows are driven and the shard is red', () => {
-        const outcome = run(FLOWS, { failFlows: ['a/one', 'a/three'], probe: ['live=true', 'live=true'] });
+        const outcome = run(FLOWS, { failFlows: ['a/one', 'a/three'], probe: ['stopped=false', 'stopped=false'] });
 
         expect(outcome.status, outcome.log).toBe(1);
         expect(outcome.driven).toEqual([...FLOWS]);
         expect(stoppedNotice(outcome.log)).toBeUndefined();
     });
 
-    it('(c) a reset fails and the probe says DOWN: exit 0 with the notice, the flow is not driven', () => {
-        const outcome = run(FLOWS, { failResetAt: 2, probe: ['live=false'] });
+    it('(c) a reset fails and the probe confirms the STOP: exit 0 with the notice, the flow is not driven', () => {
+        const outcome = run(FLOWS, { failResetAt: 2, probe: ['stopped=true'] });
         const notice = stoppedNotice(outcome.log);
 
         expect(outcome.status, outcome.log).toBe(0);
@@ -171,15 +171,15 @@ describe('a red is attributed to absence only when the probe confirms the sandbo
         expect(notice).toContain('a/three');
     });
 
-    it('(c2) a reset fails while the probe says LIVE: still the stage failing, so red', () => {
-        const outcome = run(FLOWS, { failResetAt: 2, probe: ['live=true'] });
+    it('(c2) a reset fails while the probe does not confirm a stop: still the stage failing, so red', () => {
+        const outcome = run(FLOWS, { failResetAt: 2, probe: ['stopped=false'] });
 
         expect(outcome.status, outcome.log).toBe(1);
         expect(outcome.driven).toEqual(['a/one']);
     });
 
     it('(c3) an earlier live failure survives a later reset that fails into the outage', () => {
-        const outcome = run(FLOWS, { failFlows: ['a/one'], failResetAt: 2, probe: ['live=true', 'live=false'] });
+        const outcome = run(FLOWS, { failFlows: ['a/one'], failResetAt: 2, probe: ['stopped=false', 'stopped=true'] });
 
         expect(outcome.status, outcome.log).toBe(1);
     });
@@ -191,10 +191,18 @@ describe('a red is attributed to absence only when the probe confirms the sandbo
         expect(outcome.driven).toEqual([...FLOWS]);
     });
 
-    it('(d2) a probe that prints no live= verdict is unknown too', () => {
+    it('(d2) a probe that prints no stopped= verdict is unknown too', () => {
         const outcome = run(FLOWS, { failFlows: ['a/two'], probe: ['garbage'] });
 
         expect(outcome.status, outcome.log).toBe(1);
+    });
+
+    it('(d3) the retired serving-style answer `live=false` is not a stop: an unhealthy service stays red', () => {
+        const outcome = run(FLOWS, { failFlows: ['a/two'], probe: ['live=false'] });
+
+        expect(outcome.status, outcome.log).toBe(1);
+        expect(outcome.driven).toEqual([...FLOWS]);
+        expect(stoppedNotice(outcome.log)).toBeUndefined();
     });
 
     it('(e) env var UNSET: today’s behaviour - a failure is red, the loop continues, the probe is never run', () => {

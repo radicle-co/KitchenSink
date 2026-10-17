@@ -1356,22 +1356,23 @@ maestro_run_flows() {
 
 # maestro_sandbox_is_down
 #
-# Exit 0 ONLY when the probe named by MAESTRO_SANDBOX_LIVENESS answers `live=false`. Exit 1 for everything else: a
-# live sandbox, no probe configured (local runs and the `run-one` seam keep today's behaviour byte for byte), a
+# Exit 0 ONLY when the probe named by MAESTRO_SANDBOX_STOPPED answers `stopped=true`. Exit 1 for everything else: a
+# sandbox not proven stopped (including one that is up but unhealthy, which stays a RED), no probe configured (local runs and the `run-one` seam keep today's behaviour byte for byte), a
 # probe that errored, and a probe that printed no verdict. UNKNOWN is never DOWN - a red is only converted into a
 # skip on positive proof of absence, so a broken probe can hide nothing.
 #
-# The command is `.github/scripts/deployedSandboxLiveness.sh check …` in CI, the one authority for the question;
-# the LAST `live=` line is the verdict because the gate's own per-service verdicts carry `live=` keys too.
+# The command is `.github/scripts/deployedSandboxLiveness.sh stopped …` in CI, the one authority for the question. It
+# reads the STOP's own facts (the shared tier stopped, or this stage's stacks reclaimed), confirmed twice, and never
+# health: a crash, a 503 or a redeploy the flow may have caused is not absence. The LAST `stopped=` line is the verdict.
 #
 # @sideEffect Runs the probe command (AWS reads and HTTP health requests in CI) and echoes its output.
 maestro_sandbox_is_down() {
-    [ -n "${MAESTRO_SANDBOX_LIVENESS:-}" ] || return 1
+    [ -n "${MAESTRO_SANDBOX_STOPPED:-}" ] || return 1
 
     local out probe_rc=0 verdict
-    out=$(bash -c "$MAESTRO_SANDBOX_LIVENESS" 2>&1) || probe_rc=$?
+    out=$(bash -c "$MAESTRO_SANDBOX_STOPPED" 2>&1) || probe_rc=$?
     printf '%s\n' "$out"
-    verdict=$(printf '%s\n' "$out" | sed -n 's/^live=//p' | tail -1)
+    verdict=$(printf '%s\n' "$out" | sed -n 's/^stopped=//p' | tail -1)
 
     if [ "$probe_rc" -ne 0 ] || { [ "$verdict" != 'true' ] && [ "$verdict" != 'false' ]; }; then
         echo "::warning::the sandbox liveness probe gave no verdict (exit ${probe_rc}) - treating it as UNKNOWN and keeping the failure"
@@ -1379,7 +1380,7 @@ maestro_sandbox_is_down() {
         return 1
     fi
 
-    [ "$verdict" = 'false' ]
+    [ "$verdict" = 'true' ]
 }
 
 # maestro_announce_sandbox_stopped <what failed into the outage> <flows not run, space separated>
@@ -1389,7 +1390,7 @@ maestro_sandbox_is_down() {
 #
 # @sideEffect Prints a `::notice::` annotation.
 maestro_announce_sandbox_stopped() {
-    echo "::notice::the sandbox stopped mid-shard (the liveness probe now answers down) - $1. Not run: $2. This is absence, not an app defect, so it is a SKIP and not a failure; failures recorded earlier, while the sandbox still answered, stand."
+    echo "::notice::the sandbox stopped mid-shard (the stop probe now confirms it) - $1. Not run: $2. This is absence, not an app defect, so it is a SKIP and not a failure; failures recorded earlier, while the sandbox still answered, stand."
 }
 
 # Run each named flow through the full per-flow lifecycle.

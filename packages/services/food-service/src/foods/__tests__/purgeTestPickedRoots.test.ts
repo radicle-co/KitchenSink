@@ -20,6 +20,7 @@ function rootOf(foodId: string, facts: Partial<AttributedRoot['facts']> = {}): A
             authorId: null,
             seedOwned: false,
             hasVariants: false,
+            forwardTarget: false,
             status: 'RESOLVED',
             ...facts,
         },
@@ -62,13 +63,14 @@ describe('purgeTestPickedRoots', () => {
         expect(deleted.map((chosen) => chosen.map((root) => root.foodId))).toStrictEqual([['R-mine']]);
     });
 
-    it('⛔ keeps a root a real cook holds, a seed-owned root, an authored food and a root with variants', async () => {
+    it('⛔ keeps a root a real cook holds, a seed-owned root, an authored food and a root with variants and a forward target', async () => {
         const { dao, deleted } = fakeDao([
             rootOf('R-mine'),
             rootOf('R-held', { heldByRealUser: true }),
             rootOf('R-seed', { seedOwned: true }),
             rootOf('R-authored', { authorId: POOL_ULID }),
             rootOf('R-variants', { hasVariants: true }),
+            rootOf('R-forwarded', { forwardTarget: true }),
             rootOf('R-deleting', { status: 'DELETING' }),
         ]);
 

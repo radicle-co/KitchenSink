@@ -49,6 +49,11 @@ export interface PickedRootFacts {
     readonly seedOwned: boolean;
     /** A `food_variant` hangs off the root (its foreign key does not cascade). */
     readonly hasVariants: boolean;
+    /**
+     * A `food_forward` row names the root as its target. The 0018 deferred trigger refuses to commit the delete of such
+     * a root, so a purge that chose it would roll back and wedge the pool slot on every later run.
+     */
+    readonly forwardTarget: boolean;
     /** `food.status`. */
     readonly status: string;
 }
@@ -84,6 +89,7 @@ export function marksRealHold(audience: AnswerAudience): boolean {
 /**
  * Whether the caller's purge may delete this root. Pure and total.
  *
+ * A root a forward names is kept: retired roots now resolve through it, which is the same reliance a variant is.
  * A mid-erasure root is the erasure protocol's until it completes. Every other status is deletable: a picked root
  * that the reader still sees as `PENDING` or `FAILED` is no safer to keep than a `RESOLVED` one.
  *
@@ -98,6 +104,7 @@ export function isPurgeablePickedRoot(facts: PickedRootFacts, callerId: string):
         facts.authorId === null &&
         !facts.seedOwned &&
         !facts.hasVariants &&
+        !facts.forwardTarget &&
         facts.status !== 'DELETING'
     );
 }

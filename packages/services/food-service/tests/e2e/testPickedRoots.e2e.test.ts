@@ -26,6 +26,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import * as schema from '../../src/db/schema/index.js';
+import { FoodForwardDao } from '../../src/foods/dao/foodForward.dao.js';
 import { TestPickedRootDao } from '../../src/foods/dao/testPickedRoot.dao.js';
 import { adoptRemoteFoodResponseSchema, authoredFoodTestPurgeResponseSchema } from '../../src/foods/foods.schema.js';
 import { progressiveSearchFrameSchema, type ProgressiveSearchFrame } from '../../src/foods/progressiveSearch.schema.js';
@@ -257,6 +258,22 @@ describe('the test purge and the roots a test pick created (booted app, real Pos
         await purge(poolA);
 
         await expect(purge(poolA)).resolves.toMatchObject({ deletedPickedRoots: 0 });
+    });
+
+    it('⛔ keeps a root a forward names: deleting it would fail the 0018 deferred trigger at COMMIT and answer 500', async () => {
+        const { rootId, owner } = await testCreatedRoot();
+
+        // A by-name root the worker retired onto the picked root: the shape the catalog-first and fan-out paths write.
+        const byName = await makeCatalogFood(pool, { name: 'halloumi by name' });
+
+        await drizzle(pool, { schema }).transaction((tx) =>
+            new FoodForwardDao(tx).forwardLiveRoot(byName.id, { kind: 'root', id: rootId }),
+        );
+
+        // Deleting the root would raise `foreign_key_violation` at COMMIT and answer 500, every run, for this slot.
+        await expect(purge(owner.token)).resolves.toMatchObject({ deletedPickedRoots: 0 });
+
+        expect(await rowsOf(rootId)).toStrictEqual({ food: 1, item: 1, sources: 1, picked: 1 });
     });
 
     it('⛔ keeps a root a real cook created, and never records it', async () => {

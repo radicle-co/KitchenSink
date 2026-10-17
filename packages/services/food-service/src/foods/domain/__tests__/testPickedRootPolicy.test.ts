@@ -28,6 +28,7 @@ const DELETABLE: PickedRootFacts = {
     authorId: null,
     seedOwned: false,
     hasVariants: false,
+    forwardTarget: false,
     status: 'RESOLVED',
 };
 
@@ -80,6 +81,7 @@ describe('isPurgeablePickedRoot', () => {
         ['it is an authored food, not a catalog root', { authorId: POOL_ULID }],
         ['the seed owns its item', { seedOwned: true }],
         ['a variant hangs off it', { hasVariants: true }],
+        ['a forward names it, so a retired root now resolves through it', { forwardTarget: true }],
         ['it is mid-erasure', { status: 'DELETING' }],
     ] as const)('keeps it when %s', (_name, change) => {
         expect(isPurgeablePickedRoot({ ...DELETABLE, ...change }, POOL_ULID)).toBe(false);

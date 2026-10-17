@@ -71,10 +71,12 @@ export class TestPickedRootDao {
             user_id: string | null;
             seed_owned: boolean;
             has_variants: boolean;
+            forward_target: boolean;
             status: string;
         }>(sql`
             SELECT a.food_id, a.created_by, a.held_by_real_user, f.user_id, i.seed_owned,
                    EXISTS (SELECT 1 FROM food_variant v WHERE v.food_id = f.id) AS has_variants,
+                   EXISTS (SELECT 1 FROM food_forward w WHERE w.target_food_id = f.id) AS forward_target,
                    f.status::text AS status
               FROM test_picked_root a
               JOIN food f ON f.id = a.food_id
@@ -91,6 +93,7 @@ export class TestPickedRootDao {
                 authorId: row.user_id,
                 seedOwned: row.seed_owned,
                 hasVariants: row.has_variants,
+                forwardTarget: row.forward_target,
                 status: row.status,
             },
         }));

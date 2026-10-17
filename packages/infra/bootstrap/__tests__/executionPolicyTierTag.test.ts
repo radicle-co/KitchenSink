@@ -475,3 +475,28 @@ describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod])('executionPolicy(%s) — ru
         },
     );
 });
+
+/**
+ * CloudFormation reads the OIDC provider's tags whenever the account stack's tags change (every commit moves
+ * `CommitSha`): the account deploy of 2026-10-17 was refused `iam:ListOpenIDConnectProviderTags` and stuck in a
+ * rollback on the same call.
+ */
+describe('executionPolicy(ksaccount) — the GitHub OIDC provider', () => {
+    const rendered = (): PolicyDocument =>
+        JSON.parse(
+            JSON.stringify({
+                Version: '2012-10-17',
+                Statement: buildExecutionPolicy(QUALIFIERS.account).flatMap((part) => part.document.Statement),
+            })
+                .replaceAll('<region>', 'us-east-1')
+                .replaceAll('<account>', '040663841500'),
+        ) as PolicyDocument;
+
+    it('reads the provider tags, and only on the GitHub provider', () => {
+        const provider = 'arn:aws:iam::040663841500:oidc-provider/token.actions.githubusercontent.com';
+        const other = 'arn:aws:iam::040663841500:oidc-provider/accounts.google.com';
+
+        expect(evaluates(rendered(), 'iam:ListOpenIDConnectProviderTags', provider)).toBe(true);
+        expect(evaluates(rendered(), 'iam:ListOpenIDConnectProviderTags', other)).toBe(false);
+    });
+});

@@ -1455,6 +1455,7 @@ function accountGrants(): Grant[] {
                 'iam:CreateOpenIDConnectProvider',
                 'iam:DeleteOpenIDConnectProvider',
                 'iam:GetOpenIDConnectProvider',
+                'iam:ListOpenIDConnectProviderTags',
                 'iam:RemoveClientIDFromOpenIDConnectProvider',
                 'iam:TagOpenIDConnectProvider',
                 'iam:UntagOpenIDConnectProvider',

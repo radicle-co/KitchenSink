@@ -150,9 +150,10 @@ const observeGrants = ({ account, region }: Scope): readonly Grant[] => {
     const arn = (service: string, resource: string): string => `arn:aws:${service}:${region}:${account}:${resource}`;
 
     return [
-        { actions: ['ecs:DescribeServices'], resources: [arn('ecs', 'service/kitchensink-*/*')] },
+        // `ListServices` is authorized against the service form `service/<cluster>/*`, not the cluster ARN.
+        { actions: ['ecs:DescribeServices', 'ecs:ListServices'], resources: [arn('ecs', 'service/kitchensink-*/*')] },
         { actions: ['ecs:DescribeTasks'], resources: [arn('ecs', 'task/kitchensink-*/*')] },
-        { actions: ['ecs:ListServices', 'ecs:ListTasks'], resources: [arn('ecs', 'cluster/kitchensink-*')] },
+        { actions: ['ecs:ListTasks'], resources: [arn('ecs', 'cluster/kitchensink-*')] },
         { actions: ['ecs:DescribeTaskDefinition', 'ecs:ListClusters'], resources: ['*'] },
         {
             actions: ['logs:DescribeLogGroups', 'logs:DescribeSubscriptionFilters'],

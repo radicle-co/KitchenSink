@@ -743,6 +743,7 @@ describe('GithubActionsAccessStack: the observe grants are the enumerated CI com
         ['ecs:DescribeServices', arn('ecs', 'service/armoury-production/api')],
         ['ecs:DescribeTasks', arn('ecs', 'task/armoury-production/abc')],
         ['ecs:ListServices', arn('ecs', 'cluster/armoury-production')],
+        ['ecs:ListServices', arn('ecs', 'service/armoury-production/*')],
         ['sqs:GetQueueAttributes', arn('sqs', 'armoury-production-jobs')],
         ['sns:GetTopicAttributes', arn('sns', 'armoury-production-alarms')],
         ['cloudwatch:DescribeAlarms', '*'],
@@ -934,6 +935,8 @@ describe('GithubActionsAccessStack: what the non-prod role reaches in the produc
         'cloudformation:GetTemplateSummary -> prod stack',
         'cloudformation:ListStackResources -> prod stack',
         'ecs:DescribeServices -> prod ecs service',
+        // Service names only; the cluster form it replaced already reached every kitchensink cluster, prod included.
+        'ecs:ListServices -> prod ecs service',
         'ecs:DescribeTasks -> prod ecs task',
         'logs:DescribeLogGroups -> other application log group',
         'logs:DescribeLogGroups -> prod log group',

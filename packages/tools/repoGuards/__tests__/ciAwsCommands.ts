@@ -37,7 +37,9 @@ export function observeCommands(env: { readonly account: string; readonly region
         ['deploy checks: aws ecs describe-services', 'ecs:DescribeServices', arn('ecs', `service/${CLUSTER}/api`), ALL],
         ['deploy checks: aws ecs describe-task-definition', 'ecs:DescribeTaskDefinition', '*', ALL],
         ['deploy checks: aws ecs list-clusters', 'ecs:ListClusters', '*', ALL],
-        ['deploy checks: aws ecs list-services', 'ecs:ListServices', arn('ecs', `cluster/${CLUSTER}`), ALL],
+        // ListServices is authorized against the SERVICE form `service/<cluster>/*`, not the cluster ARN (the preview's
+        // recipe smoke was refused on exactly that resource, 2026-10-17).
+        ['deploy checks: aws ecs list-services', 'ecs:ListServices', arn('ecs', `service/${CLUSTER}/*`), ALL],
         ['ecsQuiesce.sh: aws ecs list-tasks', 'ecs:ListTasks', arn('ecs', `cluster/${CLUSTER}`), ALL],
         ['ecsQuiesce.sh: aws ecs wait tasks-stopped', 'ecs:DescribeTasks', arn('ecs', `task/${CLUSTER}/0123abcd`), ALL],
         ['verifyDeployment.sh: aws logs describe-log-groups', 'logs:DescribeLogGroups', GROUP, ALL],

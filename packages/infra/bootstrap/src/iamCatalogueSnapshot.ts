@@ -20,6 +20,9 @@ const catalogueSchema = z.object({
         z.object({
             actions: z.array(z.string()),
             readOnly: z.array(z.string()),
+            requestTag: z.array(z.string()),
+            resourceTag: z.array(z.string()),
+            tagging: z.array(z.string()),
             resources: z.record(z.string(), z.array(z.string())),
         }),
     ),

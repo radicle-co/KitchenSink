@@ -10,7 +10,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { actionProblems, catalogueServicesOf } from '../src/iamCatalogue.js';
+import { actionProblems, catalogueServicesOf, tagKeySupport } from '../src/iamCatalogue.js';
 import { renderedPolicies } from '../src/policySet.js';
 import { iamCatalogue, TEST_CONTEXT } from './iamCatalogueFixture.js';
 
@@ -47,8 +47,8 @@ describe('actionProblems — fixture table', () => {
 describe('every rendered policy document', () => {
     const policies = renderedPolicies(TEST_CONTEXT);
 
-    it('renders the twenty documents of the policy stack', () => {
-        expect(policies).toHaveLength(20);
+    it('renders the twenty-two documents of the policy stack (3 boundaries + 8 + 8 + 3 execution parts)', () => {
+        expect(policies).toHaveLength(22);
     });
 
     it('is covered by the committed catalogue: every service the tables mention is in the snapshot', () => {
@@ -67,5 +67,45 @@ describe('every rendered policy document', () => {
         );
 
         expect(problems).toEqual([]);
+    });
+});
+
+/**
+ * The snapshot also carries which actions honour the tag condition keys ADR-0065 authorizes by: `aws:RequestTag` (the
+ * tags on the request) and `aws:ResourceTag` (the tags on the resource acted on). A key an action does not honour is
+ * ABSENT from the request context, so a `StringEquals` on it never matches: on a create it denies the create, and on a
+ * modify it denies the modify. Whether an action honours a key is therefore decidable offline, from the reference.
+ */
+describe('tagKeySupport — which actions honour the tier tag keys', () => {
+    const FIXTURES: ReadonlyArray<readonly [string, 'requestTag' | 'resourceTag', boolean]> = [
+        ['lambda:CreateFunction', 'requestTag', true],
+        ['acm:RequestCertificate', 'requestTag', true],
+        ['acm:AddTagsToCertificate', 'requestTag', true],
+        ['acm:DeleteCertificate', 'requestTag', false],
+        ['acm:DeleteCertificate', 'resourceTag', true],
+        ['lambda:DeleteFunction', 'resourceTag', true],
+        ['lambda:DeleteFunction', 'requestTag', false],
+        ['route53:ChangeResourceRecordSets', 'requestTag', false],
+        ['route53:ChangeResourceRecordSets', 'resourceTag', false],
+    ];
+
+    it.each(FIXTURES)('%s honours %s: %s', (action, key, expected) => {
+        const { supported } = tagKeySupport(iamCatalogue, action, key);
+
+        expect(supported.length > 0).toBe(expected);
+    });
+
+    it('reports the unsupported members of a wildcard, so a guard can refuse a partly supported pattern', () => {
+        const { supported, unsupported } = tagKeySupport(iamCatalogue, 'lambda:Get*', 'resourceTag');
+
+        expect(supported).toContain('lambda:GetFunction');
+        expect(unsupported).toContain('lambda:GetAccountSettings');
+    });
+
+    it('answers nothing for a pattern that matches no real action', () => {
+        expect(tagKeySupport(iamCatalogue, 'lambda:Nonexistent*', 'requestTag')).toEqual({
+            supported: [],
+            unsupported: [],
+        });
     });
 });

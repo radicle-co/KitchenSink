@@ -18,6 +18,12 @@ export interface IamServiceEntry {
     readonly actions: readonly string[];
     /** The actions whose access level is Read or List (they change nothing), sorted. */
     readonly readOnly: readonly string[];
+    /** The actions that honour `aws:RequestTag/<key>` (the tags carried by the request), sorted. */
+    readonly requestTag: readonly string[];
+    /** The actions that act on a resource type which honours `aws:ResourceTag/<key>`, sorted. */
+    readonly resourceTag: readonly string[];
+    /** The actions the reference marks tagging-only (they add or remove tags and do nothing else), sorted. */
+    readonly tagging: readonly string[];
     /** Resource type -> ARN formats (`arn:${Partition}:logs:${Region}:${Account}:delivery:${DeliveryName}`). */
     readonly resources: Readonly<Record<string, readonly string[]>>;
 }
@@ -264,4 +270,66 @@ export function isReadOnlyPattern(catalogue: IamCatalogue, pattern: string): boo
     const readOnly = new Set(entry.readOnly);
 
     return matched.length > 0 && matched.every((action) => readOnly.has(action));
+}
+
+/** The two tag condition keys a policy can authorize by. */
+export type TagKeyKind = 'requestTag' | 'resourceTag';
+
+/**
+ * Which real actions an action pattern matches honour a tag condition key.
+ *
+ * A key an action does not honour is absent from the request context, so a `StringEquals` on it never matches. The
+ * caller decides what to require: for `requestTag` on a create EVERY matched action must be supported (an
+ * unsupported one is denied by the condition), for `resourceTag` on a modify at least one must be (an unsupported one
+ * is merely not granted, which fails closed).
+ *
+ * @returns The matched actions split into the ones that honour the key and the ones that do not; both empty when the
+ *   pattern matches no action or names an unknown service. Pure.
+ */
+export function tagKeySupport(
+    catalogue: IamCatalogue,
+    pattern: string,
+    kind: TagKeyKind,
+): { readonly supported: string[]; readonly unsupported: string[] } {
+    const separator = pattern.indexOf(':');
+    const service = pattern.slice(0, separator).toLowerCase();
+    const entry = catalogue.services[service];
+
+    if (separator <= 0 || entry === undefined) {
+        return { supported: [], unsupported: [] };
+    }
+
+    const name = pattern.slice(separator + 1).toLowerCase();
+    const honoured = new Set(entry[kind]);
+    const matched = entry.actions.filter((action) => iamLike(name, action.toLowerCase()));
+
+    return {
+        supported: matched.filter((action) => honoured.has(action)).map((action) => `${service}:${action}`),
+        unsupported: matched.filter((action) => !honoured.has(action)).map((action) => `${service}:${action}`),
+    };
+}
+
+/**
+ * Whether an action pattern only ADDS tags: it matches at least one real action and every one of them is a
+ * tagging-only action whose name adds (`TagResource`, `AddTagsToCertificate`, `CreateTags`). Removing tags
+ * (`UntagResource`) is not an add: it has no request tag to carry.
+ *
+ * @returns True for a tag-adding pattern. Pure.
+ */
+export function isTagAddPattern(catalogue: IamCatalogue, pattern: string): boolean {
+    const separator = pattern.indexOf(':');
+    const entry = catalogue.services[pattern.slice(0, separator).toLowerCase()];
+
+    if (separator <= 0 || entry === undefined) {
+        return false;
+    }
+
+    const name = pattern.slice(separator + 1).toLowerCase();
+    const matched = entry.actions.filter((action) => iamLike(name, action.toLowerCase()));
+    const tagging = new Set(entry.tagging);
+
+    return (
+        matched.length > 0 &&
+        matched.every((action) => tagging.has(action) && /^(tag|addtags|createtags)/iu.test(action))
+    );
 }

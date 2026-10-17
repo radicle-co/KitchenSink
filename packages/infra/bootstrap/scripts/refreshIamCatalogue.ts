@@ -40,6 +40,10 @@ const referenceSchema = z.object({
     Actions: z.array(
         z.object({
             Name: z.string(),
+            ActionConditionKeys: z.array(z.string()).optional(),
+            Resources: z
+                .array(z.object({ Name: z.string(), ConditionKeys: z.array(z.string()).optional() }))
+                .optional(),
             Annotations: z
                 .object({
                     Properties: z
@@ -53,7 +57,15 @@ const referenceSchema = z.object({
                 .optional(),
         }),
     ),
-    Resources: z.array(z.object({ Name: z.string(), ARNFormats: z.array(z.string()) })).optional(),
+    Resources: z
+        .array(
+            z.object({
+                Name: z.string(),
+                ARNFormats: z.array(z.string()),
+                ConditionKeys: z.array(z.string()).optional(),
+            }),
+        )
+        .optional(),
 });
 
 async function getJson<T>(url: string, schema: z.ZodType<T>): Promise<T> {
@@ -79,9 +91,34 @@ async function catalogueEntry(service: string): Promise<readonly [string, IamCat
 
     const reference = await getJson(entry.url, referenceSchema);
 
+    const REQUEST_TAG = 'aws:RequestTag/${TagKey}';
+    const RESOURCE_TAG = 'aws:ResourceTag/${TagKey}';
+    // A key is honoured when the action lists it itself, or when ANY resource type the action acts on does. The
+    // reference documents the same fact in three places (the action, the action's resource entry, the resource type
+    // table), so all three are read. "Any resource type" over-approximates for an action that acts on several
+    // (`RunInstances`): the guard that uses this refuses a create whose key is NOT honoured, never one that might be.
+    const typeKeys = new Map(
+        (reference.Resources ?? []).map((resource) => [resource.Name, resource.ConditionKeys ?? []]),
+    );
+    const honours = (action: (typeof reference.Actions)[number], key: string): boolean =>
+        action.ActionConditionKeys?.includes(key) === true ||
+        (action.Resources ?? []).some(
+            (resource) =>
+                resource.ConditionKeys?.includes(key) === true || typeKeys.get(resource.Name)?.includes(key) === true,
+        );
+
     return [
         service,
         {
+            requestTag: reference.Actions.filter((action) => honours(action, REQUEST_TAG))
+                .map((action) => action.Name)
+                .sort(),
+            resourceTag: reference.Actions.filter((action) => honours(action, RESOURCE_TAG))
+                .map((action) => action.Name)
+                .sort(),
+            tagging: reference.Actions.filter((action) => action.Annotations?.Properties?.IsTaggingOnly === true)
+                .map((action) => action.Name)
+                .sort(),
             actions: reference.Actions.map((action) => action.Name).sort(),
             // Access level Read or List: the reference marks every other action as write, permissions or tagging.
             readOnly: reference.Actions.filter((action) => {

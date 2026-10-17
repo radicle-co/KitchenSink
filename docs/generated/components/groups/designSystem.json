@@ -10989,7 +10989,7 @@
             "dir": "packages/apps/commise/ui/src/stateNotice",
             "kind": "presentational",
             "patterns": [
-                "Strategy — a link or a button, chosen per action by whether it has somewhere to go (the `RouteAction` rule)"
+                "Template — one alert layout; the link-or-button choice is `RouteAction`'s Strategy, not this component's"
             ],
             "platforms": [
                 "web",
@@ -11012,7 +11012,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Strategy — a link or a button, chosen per action by whether it has somewhere to go (the `RouteAction` rule)"
+                            "text": "Template — one alert layout; the link-or-button choice is `RouteAction`'s Strategy, not this component's"
                         }
                     ],
                     "description": "The web state notice: presentational, props → JSX.",

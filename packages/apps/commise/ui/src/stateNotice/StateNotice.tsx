@@ -6,8 +6,7 @@
  *
  * Presentational: props → JSX.
  *
- * @pattern Template — one alert layout (heading, body, up to two actions); whether an action is a link or a button is
- *   `RouteAction`'s Strategy, not this component's
+ * @pattern Template — one alert layout; the link-or-button choice is `RouteAction`'s Strategy, not this component's
  */
 import type { FC } from 'react';
 

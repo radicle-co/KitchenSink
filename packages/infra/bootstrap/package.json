@@ -26,6 +26,7 @@
         "bootstrap:derive": "tsx scripts/deriveResourceTypes.ts"
     },
     "devDependencies": {
+        "@kitchensink/db-schema-guard": "*",
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",

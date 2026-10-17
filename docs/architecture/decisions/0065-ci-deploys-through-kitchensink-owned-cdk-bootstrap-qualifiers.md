@@ -73,10 +73,20 @@ because truncated names defeat a name-only rule. Role creation, role policy writ
 with the qualifier's boundary attached, and removing a boundary is denied. `iam:PassRole` is limited to this repository's
 roles and a list of services. No user, access key, login profile, organization or account action is granted, and the
 bootstrap roles and the policies themselves cannot be edited by what they govern. The boundary is the capability cap on
-every role a stack creates: the union of what the synthesized roles need, with an explicit Deny on assuming bootstrap roles,
-and, for non-production, on production names. A role created by a branch therefore cannot read production, independently
-of the execution policy. The allowed resource types are derived by synthesizing every app at several stages and committed
-as a manifest; a new resource type fails a test until someone scopes it.
+every role a stack creates, and it bounds resources as well as actions. Each action that has a resource-level form is
+allowed only on KitchenSink names: `kitchensink-*` queues, topics, tables, functions, buckets and repositories, the
+`/kitchensink/*` parameters, the log groups that carry `kitchensink`, the Nova models, and the registry's database
+logins. A role whose own policy says `secretsmanager:GetSecretValue` on `*` can therefore still read only KitchenSink's
+secrets, not the other application's. Two kinds of resource cannot be matched by name. CloudFormation names a generated
+secret with no stack prefix, and an EC2 instance has an id, so those two are allowed on `*` only under a condition on the
+`aws:cloudformation:stack-name` tag, pinned to the tier's stack patterns; a resource of the other application is untagged
+or tagged with a stack that is not ours, and the condition fails closed. `ecs:RunTask` names a task definition whose
+family is generated, so it is bounded by the cluster it runs in. Actions with no resource-level form stay on `*` as a
+short named list with a reason each, and none of them touches data. The boundary also carries an explicit Deny on assuming
+bootstrap roles and, for non-production, on production names, so a role created by a branch cannot read production
+independently of the execution policy. The allowed resource types and the (action, resource) pairs that roles really use
+are derived by synthesizing every app at several stages and committed as a manifest; a new resource type or a new
+resource fails a test until someone scopes it.
 
 **6. The policy documents and the bootstrap itself are deployed only by the owner.** The managed policies and boundary
 must exist before the bootstrap, and a role that could change them could widen its own limits. So the policy stack, the
@@ -128,8 +138,23 @@ after step 4.
       Auto Scaling, the API Gateway account settings and tags, log deliveries and Lambda event-source mappings. They are
       scoped by name pattern only, and the structural guard lists each as a named residual.
     - `ecs:RegisterTaskDefinition` can add a revision to any task family in the account.
-    - Actions without resource-level permissions (several `ec2:Describe*` and some `Create*` actions) stay on `*`.
-    - `rds-db:connect` cannot be separated by tier by IAM.
+    - Actions without resource-level permissions stay on `*` in the execution policy (several `ec2:Describe*` and some
+      `Create*` actions). In the permissions boundary the same applies to a short named list: list-all calls of
+      CloudFormation, ECS, EventBridge, CloudWatch Logs and Route 53, the network-interface verbs a VPC Lambda needs,
+      the ECR registry token, X-Ray telemetry, the tagging API and CloudWatch metrics. They read names or write
+      telemetry only. `PutResourcePolicy` on CloudWatch Logs is the one write among them.
+    - The boundary admits a few actions on the other application's resources because the resource id carries no name:
+      invalidating a CloudFront distribution, the CloudFront key-value store calls and the Route 53 record calls of the
+      account tier, and the `Describe` calls of RDS. The test that judges the boundary against a table of the other
+      application's ARNs lists exactly these and fails if the list grows or if an entry admits nothing.
+    - A CloudFormation-generated secret or instance is bounded by the stack-name tag, not by name. A role under the
+      boundary cannot change the tag, because the boundary allows no tagging action on secrets or instances. The
+      execution role can tag at creation, so a malicious template can still make its OWN secret look like ours; that
+      grants nothing over the other application's secrets, which it did not create.
+    - `rds-db:connect` is bounded to the registry's login prefixes, but the database resource id in front of the login is
+      opaque, so IAM cannot separate production from non-production database access.
+    - Log groups are matched by the word `kitchensink` anywhere in the name, which covers every group the stacks make.
+      A group of the other application that contains the word is reachable; none is known.
     - The action lists are reviewed against the AWS Service Authorization Reference and are not proven by a deploy. A scope
       that is too narrow fails loudly and rolls the stack back. The first sandbox deploy also proves whether CloudFormation
       populates `aws:SourceAccount` on the execution role's trust; if it does not, every deploy fails until the guard is

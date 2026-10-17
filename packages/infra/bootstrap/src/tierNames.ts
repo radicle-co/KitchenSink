@@ -114,9 +114,6 @@ const prefixOf = (service: TierService, type: string): string => {
     return shape === 'accountOnly' ? `arn:aws:${service}::*:` : `arn:aws:${service}:*:*:`;
 };
 
-/** The services a Deny of this kind may name, for guards that compare them with what a policy set allows. */
-export const TIER_SERVICES: readonly TierService[] = Object.keys(SERVICE_SHAPES).sort() as TierService[];
-
 /**
  * One resource type a Deny must name: its prefix (`role/`, `log-group:`, or `''` for a bare name) and whether the
  * Allows reach names that are also slash-separated paths (`/kitchensink/prod/...`), which need the path forms too.
@@ -138,6 +135,46 @@ const typeOf = (resource: string): string => {
 
     return delimiter === -1 ? '' : literal.slice(0, delimiter + 1);
 };
+
+/**
+ * The `[service, type, path]` triples one Allow names: a type per resource ARN of a service that carries names, and
+ * the {@link STATIC_TYPES} of each such service the statement grants on `*`.
+ *
+ * @param statement - One Allow statement.
+ * @returns The triples, duplicates included. Pure.
+ */
+function typesNamedBy(statement: Statement): readonly (readonly [TierService, string, boolean])[] {
+    const fromResources = statement.Resource.flatMap((arn) => {
+        const fields = arn.split(':');
+        const service = fields[2] ?? '';
+
+        if (fields[0] !== 'arn' || !isTierService(service)) {
+            return [];
+        }
+
+        const resource = fields.slice(5).join(':');
+
+        return [
+            [
+                service,
+                BARE_NAME_SERVICES.has(service) ? '' : typeOf(resource),
+                /kitchensink[/?*]/u.test(resource),
+            ] as const,
+        ];
+    });
+
+    const fromWildcard = statement.Resource.includes('*')
+        ? statement.Action.flatMap((action) => {
+              const service = action.split(':')[0] ?? '';
+
+              return isTierService(service)
+                  ? (STATIC_TYPES[service] ?? []).map((type) => [service, type, false] as const)
+                  : [];
+          })
+        : [];
+
+    return [...fromResources, ...fromWildcard];
+}
 
 /**
  * The resource types a policy set's Allows name, per service that carries names.
@@ -165,31 +202,8 @@ export function resourceTypesOf(statements: readonly Statement[], skipResourceTa
     for (const statement of statements) {
         const tagged = JSON.stringify(statement.Condition ?? {}).includes('ResourceTag');
 
-        if (statement.Effect !== 'Allow' || (skipResourceTagged && tagged)) {
-            continue;
-        }
-
-        for (const arn of statement.Resource) {
-            const fields = arn.split(':');
-            const service = fields[2] ?? '';
-
-            if (fields[0] === 'arn' && isTierService(service)) {
-                const resource = fields.slice(5).join(':');
-
-                add(
-                    service,
-                    BARE_NAME_SERVICES.has(service) ? '' : typeOf(resource),
-                    /kitchensink[/?*]/u.test(resource),
-                );
-            }
-        }
-
-        for (const action of statement.Action) {
-            const service = action.split(':')[0] ?? '';
-
-            if (statement.Resource.includes('*') && isTierService(service)) {
-                (STATIC_TYPES[service] ?? []).forEach((type) => add(service, type, false));
-            }
+        if (statement.Effect === 'Allow' && !(skipResourceTagged && tagged)) {
+            typesNamedBy(statement).forEach(([service, type, path]) => add(service, type, path));
         }
     }
 

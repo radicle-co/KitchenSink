@@ -695,14 +695,10 @@ function errorsStillHolding(recorded: RecipeFormErrors, draft: RecipeFormValues,
         return recorded;
     }
 
-    const live = new Map(Object.entries(validateRecipeForm(draft, entryText)).filter(([, code]) => code !== undefined));
-
     return Object.fromEntries(
-        Object.keys(recorded).flatMap((field) => {
-            const code = live.get(field);
-
-            return code === undefined ? [] : [[field, code]];
-        }),
+        Object.entries(validateRecipeForm(draft, entryText)).filter(
+            ([field, code]) => code !== undefined && field in recorded,
+        ),
     );
 }
 

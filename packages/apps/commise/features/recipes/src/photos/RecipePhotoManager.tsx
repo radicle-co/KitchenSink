@@ -2,10 +2,14 @@
  * @module @commise/features-recipes — web recipe photo manager (T067 building block, wireframe step 4; w3/e4
  * per-file queue grid).
  *
+ * Owner ruling 2026-10-17: every confirmed photo's tile carries ONE ⋯ menu button (`@commise/ui/action-menu`, the
+ * `disc` look, 44 px) holding Set as cover, Move earlier, Move later, Replace and Remove (`photoMenu.ts`); a queue tile
+ * holds Remove in the same menu, and a failed, retryable one keeps a visible Retry `Button`.
+ *
  * Presentational: renders the recipe's confirmed photos MERGED with any in-flight queue items in a grid of 3 columns
  * (4 from 600 px of the grid's own container, buildSpec §7.7), each queue cell carrying its own status badge (Queued / Uploading… / Upload
  * failed, via role + text — never colour alone, WCAG 1.4.1) plus Retry (only where the queue reports the
- * failure as `retryable`) and Remove controls,
+ * failure as `retryable`) and a Remove menu,
  * and renders the caller-supplied `addControl` (the web file input) below the grid — hidden once the recipe
  * is at the photo cap. The container owns image acquisition + the presign → PUT → confirm upload (via the
  * `useRecipePhotoUploadQueue` layer over the single-flight `useRecipePhotoUpload`).
@@ -28,7 +32,8 @@
  * same pure check on the same file and re-fails — Retry there is a dead affordance. Such a cell offers Remove
  * only (and still says WHY it failed); a transport/server failure keeps both.
  */
-import { BUSY_CONTROL_CLASS, busyControlProps } from '@commise/ui/button';
+import { ActionMenu } from '@commise/ui/action-menu';
+import { Button } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
 import { LiveRegion } from '@commise/ui/live-region';
 import { RecipeCover } from '@commise/ui/recipe-cover';
@@ -36,6 +41,7 @@ import type { FC } from 'react';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { photoMessages } from './messages.js';
+import { photoMenu } from './photoMenu.js';
 import {
     isAtPhotoCap,
     isCoverPhoto,
@@ -56,7 +62,9 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
     onRetryQueueItem,
     onRemoveQueueItem,
     onSetCover,
+    onMovePhoto,
     onReplacePhoto,
+    reordering = false,
     addControl,
     coverPreview,
 }) => {
@@ -127,57 +135,45 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     />
                                     {/* U6: the cover status is text (never colour alone, WCAG 1.4.1); shown only on the
                                     index-0 photo the server resolves as `coverPhotoUrl`, and only where the surface
-                                    offers cover selection. */}
+                                    offers cover selection. It sits at the foot-left, clear of the menu button. */}
                                     {onSetCover !== undefined && isCover ? (
-                                        <span className="absolute left-2 top-2 rounded-full bg-action px-2 py-1 text-caption font-semibold text-on-action">
+                                        <span className="absolute bottom-2 left-2 rounded-full bg-action px-2 py-1 text-caption font-semibold text-on-action">
                                             {m.coverBadge}
                                         </span>
                                     ) : null}
-                                    <button
-                                        type="button"
-                                        aria-label={fillTemplate(m.removeLabel, { index: index + 1 })}
-                                        {...busyControlProps({
-                                            busy: removing,
-                                            onClick: () => onRemovePhoto(photo.id),
-                                        })}
-                                        className={`absolute right-2 top-2 rounded-full bg-photo-chip px-3 py-1 text-caption font-medium text-ink transition hover:bg-danger hover:text-on-action ${BUSY_CONTROL_CLASS}`}
-                                    >
-                                        {removing ? m.removing : m.remove}
-                                    </button>
-                                    {onSetCover !== undefined || onReplacePhoto !== undefined ? (
-                                        <div className="absolute inset-x-2 bottom-2 flex items-center justify-between gap-2">
-                                            {/* U6: single-select cover with RADIO semantics — native radios sharing one
-                                            `name` form one group (exactly one checked = the current cover), keyboard-
-                                            navigable and screen-reader-announced ("N of M"); each is named by its
-                                            1-based index so every control is uniquely addressable. Fully controlled:
-                                            the checked state derives from `isCoverPhoto`, so after the container's
-                                            reorder + refetch reprojects `photos[0]`, the check follows. */}
-                                            {onSetCover !== undefined ? (
-                                                <span className="rounded-full bg-photo-chip p-1.5">
-                                                    {/* Accessible name via `aria-label` (the indexed setCoverLabel); the
-                                                    visible "Cover" state is the badge above + the checked circle, so no
-                                                    duplicate "Cover" text here. */}
-                                                    <input
-                                                        type="radio"
-                                                        name="recipe-cover-photo"
-                                                        className="block accent-selected-edge"
-                                                        aria-label={fillTemplate(m.setCoverLabel, { index: index + 1 })}
-                                                        checked={isCover}
-                                                        onChange={() => onSetCover(photo.id)}
-                                                    />
-                                                </span>
-                                            ) : null}
-                                            {onReplacePhoto !== undefined ? (
-                                                <button
-                                                    type="button"
-                                                    aria-label={fillTemplate(m.replaceLabel, { index: index + 1 })}
-                                                    onClick={() => onReplacePhoto(photo.id)}
-                                                    className="rounded-full bg-paper px-3 py-1 text-caption font-medium text-ink shadow-sm transition hover:bg-ink/6"
-                                                >
-                                                    {m.replace}
-                                                </button>
-                                            ) : null}
-                                        </div>
+                                    {/* Owner ruling 2026-10-17: ONE ⋯ menu button per tile (a 44 px disc) holds every
+                                    action. The cover is stated by the button's NAME (SC 4.1.2), as the radio it replaces
+                                    stated it by `checked`. A removal in flight makes the button unavailable: it stays
+                                    focusable (SC 2.4.3) and opens nothing. */}
+                                    <div className="absolute right-1 top-1">
+                                        <ActionMenu
+                                            appearance="disc"
+                                            triggerLabel={fillTemplate(isCover ? m.menuTriggerCover : m.menuTrigger, {
+                                                index: index + 1,
+                                            })}
+                                            title={fillTemplate(m.menuTitle, { index: index + 1 })}
+                                            closeLabel={fillTemplate(m.menuClose, { index: index + 1 })}
+                                            unavailable={removing}
+                                            {...photoMenu({
+                                                copy: m,
+                                                photoId: photo.id,
+                                                index,
+                                                count: photos.length,
+                                                reordering,
+                                                onRemovePhoto,
+                                                ...(onSetCover === undefined ? {} : { onSetCover }),
+                                                ...(onMovePhoto === undefined ? {} : { onMovePhoto }),
+                                                ...(onReplacePhoto === undefined ? {} : { onReplacePhoto }),
+                                            })}
+                                        />
+                                    </div>
+                                    {removing ? (
+                                        <span
+                                            role="status"
+                                            className="absolute inset-x-0 bottom-2 mx-2 rounded-full bg-photo-chip px-2 py-1 text-center text-caption font-medium text-ink"
+                                        >
+                                            {m.removing}
+                                        </span>
                                     ) : null}
                                 </li>
                             );
@@ -220,40 +216,49 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     started uploading is the one a cook is most likely to want back — and on
                                     the CREATE path every draft pick sits `queued` until the recipe exists, so
                                     without this the photo chosen before the first save was the ONE field of
-                                    the editor that could not be changed. Retry stays `failed`-only: there is
-                                    nothing to retry about a file that has not tried yet. */}
-                                        {item.status === 'failed' || item.status === 'queued' ? (
-                                            <div className="relative flex items-center gap-2">
-                                                {/* Retry is offered ONLY where it can plausibly succeed. The queue
-                                            re-validates on retry by design, so a client-rejected file (too
-                                            large / wrong type) would re-fail identically — a dead affordance.
-                                            `retryable` is the queue's own discriminator for that. */}
-                                                {item.status === 'failed' && item.retryable ? (
-                                                    <button
-                                                        type="button"
-                                                        aria-label={fillTemplate(m.queueRetryLabel, {
-                                                            fileName: item.fileName,
-                                                        })}
-                                                        onClick={() => onRetryQueueItem?.(item.fileId)}
-                                                        className="rounded-full bg-paper px-3 py-1 text-caption font-medium text-ink shadow-sm transition hover:bg-ink/6"
-                                                    >
-                                                        {m.queueRetry}
-                                                    </button>
-                                                ) : null}
-                                                {/* Offered only when wired: a container withholds removal by not
-                                            wiring it, and an unwired Remove would do nothing. */}
-                                                {onRemoveQueueItem === undefined ? null : (
-                                                    <button
-                                                        type="button"
-                                                        aria-label={fillTemplate(m.queueRemoveLabel, {
-                                                            fileName: item.fileName,
-                                                        })}
-                                                        onClick={() => onRemoveQueueItem(item.fileId)}
-                                                        className="rounded-full bg-paper px-3 py-1 text-caption font-medium text-ink shadow-sm transition hover:bg-ink/6"
-                                                    >
-                                                        {m.remove}
-                                                    </button>
-                                                )}
+                                    the editor that could not be changed. Offered only when wired: a container
+                                    withholds removal by not wiring it, and an unwired Remove would do nothing.
+                                    Remove is the ⋯ menu's one item here (2026-10-17). */}
+                                        {(item.status === 'failed' || item.status === 'queued') &&
+                                        onRemoveQueueItem !== undefined ? (
+                                            <div className="absolute right-1 top-1">
+                                                <ActionMenu
+                                                    appearance="disc"
+                                                    triggerLabel={fillTemplate(m.queueMenuTrigger, {
+                                                        fileName: item.fileName,
+                                                    })}
+                                                    title={item.fileName}
+                                                    closeLabel={fillTemplate(m.queueMenuClose, {
+                                                        fileName: item.fileName,
+                                                    })}
+                                                    items={[]}
+                                                    destructiveItem={{
+                                                        id: 'remove',
+                                                        label: m.remove,
+                                                        onSelect: () => onRemoveQueueItem(item.fileId),
+                                                    }}
+                                                />
+                                            </div>
+                                        ) : null}
+                                        {/* Retry stays a VISIBLE button, not a menu item: it is the one recovery for the
+                                    tile's headline state, so it is one tap at the design system's `Button` size.
+                                    Offered ONLY where it can plausibly succeed: the queue re-validates on retry by
+                                    design, so a client-rejected file (too large / wrong type) would re-fail
+                                    identically — a dead affordance. `retryable` is the queue's own discriminator. */}
+                                        {item.status === 'failed' && item.retryable ? (
+                                            <div className="relative w-full px-2">
+                                                <Button
+                                                    variant="secondary"
+                                                    size="md"
+                                                    icon="refreshCw"
+                                                    width="fill"
+                                                    accessibilityLabel={fillTemplate(m.queueRetryLabel, {
+                                                        fileName: item.fileName,
+                                                    })}
+                                                    onPress={() => onRetryQueueItem?.(item.fileId)}
+                                                >
+                                                    {m.queueRetry}
+                                                </Button>
                                             </div>
                                         ) : null}
                                     </div>

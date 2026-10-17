@@ -67,6 +67,12 @@ function stubFetch(ok: boolean): ReturnType<typeof vi.fn> {
     return fetchMock;
 }
 
+/** Open a photo tile's ⋯ menu and choose an item (2026-10-17: every photo action lives in that menu). */
+async function chooseFromTile(user: ReturnType<typeof userEvent.setup>, trigger: string, item: string): Promise<void> {
+    await user.click(await screen.findByRole('button', { name: trigger }));
+    await user.click(await screen.findByRole('menuitem', { name: item }));
+}
+
 afterEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
@@ -88,7 +94,7 @@ describe('RecipePhotoUploaderContainer', () => {
         renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
         expect(await screen.findByRole('img', { name: 'Recipe photo 1' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Remove photo 1' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Actions for photo 1, the cover' })).toBeInTheDocument();
     });
 
     it('runs presign → PUT → confirm in order with the right args when a file is selected', async () => {
@@ -249,7 +255,7 @@ describe('RecipePhotoUploaderContainer', () => {
         await user.upload(await screen.findByLabelText('Add photo'), file);
         await screen.findByRole('alert', { name: 'Upload failed' });
 
-        await user.click(screen.getByRole('button', { name: 'Remove dinner.png' }));
+        await chooseFromTile(user, 'Actions for dinner.png', 'Remove');
 
         expect(screen.queryByRole('alert', { name: 'Upload failed' })).not.toBeInTheDocument();
         expect(del).not.toHaveBeenCalled();
@@ -339,7 +345,7 @@ describe('RecipePhotoUploaderContainer', () => {
 
         renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
-        await user.click(await screen.findByRole('button', { name: 'Remove photo 1' }));
+        await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
         expect(del).toHaveBeenCalledWith('rec_1', 'photo_42');
     });
@@ -352,17 +358,17 @@ describe('RecipePhotoUploaderContainer', () => {
 
         renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
-        await user.click(await screen.findByRole('button', { name: 'Remove photo 1' }));
+        await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
         expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t remove this photo. Please try again.');
 
         del.mockReturnValue(new Promise(() => {}));
-        await user.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+        await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
         await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
     });
 
-    it('busies the removing photo row from the delete mutation’s in-flight variables', async () => {
+    it('makes the removing photo’s menu unavailable from the delete mutation’s in-flight variables', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([makeRecipePhoto({ id: 'photo_42', order: 1 })]);
@@ -370,9 +376,78 @@ describe('RecipePhotoUploaderContainer', () => {
 
         renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
-        await user.click(await screen.findByRole('button', { name: 'Remove photo 1' }));
+        await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
-        expect(await screen.findByRole('button', { name: 'Remove photo 1' })).toHaveAttribute('aria-busy', 'true');
+        // The tile whose removal is in flight cannot open its menu again, and says "Removing…".
+        expect(await screen.findByRole('button', { name: 'Actions for photo 1, the cover' })).toHaveAttribute(
+            'aria-disabled',
+            'true',
+        );
+        expect(screen.getByText('Removing…')).toBeInTheDocument();
+    });
+
+    /**
+     * 2026-10-17: Move earlier / Move later / Set as cover are all ONE `PATCH …/photos/reorder` carrying the WHOLE new
+     * order (the server accepts only an exact reordering), through the real mutation hook over the fake client.
+     */
+    describe('reordering from the tile’s menu', () => {
+        const threeStored = () => [
+            makeRecipePhoto({ id: 'photo_1', order: 1 }),
+            makeRecipePhoto({ id: 'photo_2', order: 2 }),
+            makeRecipePhoto({ id: 'photo_3', order: 3 }),
+        ];
+
+        it('Move later sends the whole order with the photo swapped one place later', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(threeStored());
+            const reorder = vi.spyOn(client, 'reorderRecipePhotos').mockResolvedValue(threeStored());
+
+            renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+            await chooseFromTile(user, 'Actions for photo 2', 'Move later');
+
+            await waitFor(() => expect(reorder).toHaveBeenCalledWith('rec_1', ['photo_1', 'photo_3', 'photo_2']));
+        });
+
+        it('Set as cover sends the chosen photo first and the rest in order', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(threeStored());
+            const reorder = vi.spyOn(client, 'reorderRecipePhotos').mockResolvedValue(threeStored());
+
+            renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+            await chooseFromTile(user, 'Actions for photo 3', 'Set as cover');
+
+            await waitFor(() => expect(reorder).toHaveBeenCalledWith('rec_1', ['photo_3', 'photo_1', 'photo_2']));
+        });
+
+        it('says so when the reorder fails', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(threeStored());
+            vi.spyOn(client, 'reorderRecipePhotos').mockRejectedValue(new Error('boom'));
+
+            renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+            await chooseFromTile(user, 'Actions for photo 2', 'Move earlier');
+
+            expect(await screen.findByRole('alert')).toHaveTextContent(
+                'We couldn’t move that photo. Please try again.',
+            );
+        });
+
+        it('offers no way off either end: the cover cannot go earlier and the last photo cannot go later', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(threeStored());
+
+            renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+            await user.click(await screen.findByRole('button', { name: 'Actions for photo 1, the cover' }));
+            expect(screen.getByRole('menuitem', { name: 'Move earlier' })).toHaveAttribute('aria-disabled', 'true');
+        });
     });
 
     it('refuses a pick larger than the remaining slots WHOLE — no presign for any file, and says how many fit', async () => {

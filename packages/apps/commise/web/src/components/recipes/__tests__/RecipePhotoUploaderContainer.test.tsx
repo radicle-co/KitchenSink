@@ -114,6 +114,16 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
+/** A photo tile's menu button: the cover's name says so (2026-10-17). */
+const tileName = (index: number): string =>
+    index === 1 ? 'Actions for photo 1, the cover' : `Actions for photo ${index}`;
+
+/** Open a photo tile's ⋯ menu and choose an item (2026-10-17: every photo action lives in that menu). */
+async function chooseFromTile(user: ReturnType<typeof userEvent.setup>, trigger: string, item: string): Promise<void> {
+    await user.click(screen.getByRole('button', { name: trigger }));
+    await user.click(await screen.findByRole('menuitem', { name: item }));
+}
+
 describe('RecipePhotoUploaderContainer (web) — the add control (inputRef)', () => {
     it('renders the hidden, multi-select file input as the labeled add control', () => {
         render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
@@ -222,7 +232,7 @@ describe('RecipePhotoUploaderContainer (web) — a pick past the photo cap', () 
         await user.upload(screen.getByLabelText('Add photo'), [makeFile('a.png'), makeFile('b.png')]);
         expect(screen.getByRole('alert')).toBeTruthy();
 
-        await user.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+        await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
         expect(screen.queryByRole('alert')).toBeNull();
     });
@@ -280,7 +290,7 @@ describe('RecipePhotoUploaderContainer (web) — delete', () => {
         const user = userEvent.setup();
         render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
 
-        await user.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+        await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
         expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' }, expect.any(Object));
     });
@@ -295,7 +305,7 @@ describe('RecipePhotoUploaderContainer (web) — set cover (U6)', () => {
         render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
 
         // ph_1 is the current cover (index 0, checked); choosing ph_3 must move it to the front.
-        await user.click(screen.getByRole('radio', { name: 'Set photo 3 as cover' }));
+        await chooseFromTile(user, 'Actions for photo 3', 'Set as cover');
 
         expect(mutate).toHaveBeenCalledWith(
             { id: 'rec_1', photoIds: ['ph_3', 'ph_1', 'ph_2'] },
@@ -323,7 +333,7 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
         const user = userEvent.setup();
         render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
 
-        await user.click(screen.getByRole('button', { name: `Replace photo ${photoIndex}` }));
+        await chooseFromTile(user, tileName(photoIndex), 'Replace');
 
         return { deleteMutate, reorderMutate, clickSpy, user };
     }
@@ -381,7 +391,7 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
         // Cover semantics are untouched by a replace: the cover is still resolved as the lowest-sort-order
         // photo, so replacing one never reorders (and never silently reassigns the cover).
         expect(reorderMutate).not.toHaveBeenCalled();
-        expect(screen.getByRole('radio', { name: 'Set photo 1 as cover' })).toBeChecked();
+        expect(screen.getByRole('button', { name: 'Actions for photo 1, the cover' })).toBeInTheDocument();
     });
 
     it('replaces the COVER photo without reordering — the cover stays the lowest-sort-order photo', async () => {
@@ -413,7 +423,7 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
         const user = userEvent.setup();
         const { rerender } = render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
 
-        await user.click(screen.getByRole('button', { name: 'Replace photo 3' }));
+        await chooseFromTile(user, 'Actions for photo 3', 'Replace');
         expect(screen.queryByRole('alert')).toBeNull();
 
         photosQueryMock.mockReturnValue({ data: photos(10) });
@@ -447,7 +457,7 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
         const user = userEvent.setup();
         render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
 
-        await user.click(screen.getByRole('button', { name: 'Replace photo 3' }));
+        await chooseFromTile(user, 'Actions for photo 3', 'Replace');
 
         expect(screen.getByRole('alert')).toHaveTextContent(
             'Remove a photo first — replacing needs room for the new one.',
@@ -457,7 +467,7 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
 
         // Following the advice retires it: the message must not keep claiming there is no room once the user
         // has made some.
-        await user.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+        await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
         expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' }, expect.any(Object));
         expect(screen.queryByRole('alert')).toBeNull();

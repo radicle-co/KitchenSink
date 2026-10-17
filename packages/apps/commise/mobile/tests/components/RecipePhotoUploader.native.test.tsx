@@ -66,6 +66,12 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useReorderRecipePhotos: vi.fn(() => ({ mutate: vi.fn(), isPending: false, reset: vi.fn() })),
 }));
 
+/** Open a photo tile's ⋯ menu and choose an item (2026-10-17: every photo action lives in that menu). */
+function chooseFromTile(trigger: string, item: string): void {
+    fireEvent.click(screen.getByRole('button', { name: trigger }));
+    fireEvent.click(screen.getByRole('menuitem', { name: item }));
+}
+
 const launchImageLibraryAsyncMock = vi.mocked(ImagePicker.launchImageLibraryAsync);
 const launchCameraAsyncMock = vi.mocked(ImagePicker.launchCameraAsync);
 const requestCameraPermissionsAsyncMock = vi.mocked(ImagePicker.requestCameraPermissionsAsync);
@@ -221,14 +227,14 @@ describe('RecipePhotoUploader — draft destination (U33)', () => {
     it('offers no Remove on a draft cell when no draft remove handler is wired', () => {
         render(<RecipePhotoUploader recipeId={null} pendingDrafts={[draft]} />);
 
-        expect(screen.queryByRole('button', { name: /Remove draft\.png/u })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Actions for draft.png' })).toBeNull();
     });
 
     it('offers Remove on a draft cell, reporting its index, when the handler is wired', () => {
         const onRemoveDraft = vi.fn();
 
         render(<RecipePhotoUploader recipeId={null} pendingDrafts={[draft]} onRemoveDraft={onRemoveDraft} />);
-        fireEvent.click(screen.getByRole('button', { name: /Remove draft\.png/u }));
+        chooseFromTile('Actions for draft.png', 'Remove');
 
         expect(onRemoveDraft).toHaveBeenCalledWith(0);
     });
@@ -799,7 +805,7 @@ describe('RecipePhotoUploader — remove', () => {
         useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
 
         render(<RecipePhotoUploader recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+        chooseFromTile('Actions for photo 1, the cover', 'Remove');
 
         expect(mutate).toHaveBeenCalledWith(
             { id: 'rec_1', photoId: 'pht_42' },
@@ -813,13 +819,13 @@ describe('RecipePhotoUploader — remove', () => {
         useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
 
         render(<RecipePhotoUploader recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+        chooseFromTile('Actions for photo 1, the cover', 'Remove');
         const options = mutate.mock.calls[0]?.[1] as { onError: () => void };
         act(() => options.onError());
 
         expect(screen.getByText('We couldn’t remove this photo. Please try again.')).toBeTruthy();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+        chooseFromTile('Actions for photo 1, the cover', 'Remove');
 
         expect(screen.queryByText('We couldn’t remove this photo. Please try again.')).toBeNull();
     });
@@ -864,7 +870,7 @@ describe('RecipePhotoUploader — remove', () => {
 
         // A fresh, UNRELATED remove of the confirmed photo (and — since `onError` is never invoked here —
         // succeeds) must not clear the failed queue item's own badge; the two are independent now.
-        fireEvent.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+        chooseFromTile('Actions for photo 1, the cover', 'Remove');
 
         expect(mutate).toHaveBeenCalledWith(
             { id: 'rec_1', photoId: 'pht_42' },
@@ -893,7 +899,7 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
         launchImageLibraryAsyncMock.mockResolvedValue({ canceled: true, assets: null } as never);
 
         render(<RecipePhotoUploader recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: 'Replace photo 2' }));
+        chooseFromTile('Actions for photo 2', 'Replace');
 
         await waitFor(() => expect(launchImageLibraryAsyncMock).toHaveBeenCalledTimes(1));
         // The regression this pins: the old wiring deleted the photo BEFORE opening the picker, so a cancel
@@ -909,7 +915,7 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
         fetchMock.mockRejectedValueOnce(new Error('unreadable asset'));
 
         render(<RecipePhotoUploader recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: 'Replace photo 2' }));
+        chooseFromTile('Actions for photo 2', 'Replace');
 
         expect(await screen.findByText('We couldn’t upload that photo. Please try again.')).toBeTruthy();
         expect(mutate).not.toHaveBeenCalled();
@@ -928,7 +934,7 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
             .mockResolvedValueOnce({ ok: false, status: 500 });
 
         render(<RecipePhotoUploader recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: 'Replace photo 2' }));
+        chooseFromTile('Actions for photo 2', 'Replace');
 
         expect(await screen.findByRole('alert', { name: 'Upload failed' })).toBeTruthy();
         expect(confirmMutateAsync).not.toHaveBeenCalled();
@@ -954,7 +960,7 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
             .mockResolvedValueOnce({ ok: true, status: 200 });
 
         render(<RecipePhotoUploader recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: 'Replace photo 2' }));
+        chooseFromTile('Actions for photo 2', 'Replace');
 
         await waitFor(() => expect(confirmMutateAsync).toHaveBeenCalledTimes(1));
         await waitFor(() => expect(mutate).toHaveBeenCalledTimes(1));
@@ -979,7 +985,7 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
         useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
 
         render(<RecipePhotoUploader recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: 'Replace photo 3' }));
+        chooseFromTile('Actions for photo 3', 'Replace');
 
         expect(await screen.findByText('Remove a photo first — replacing needs room for the new one.')).toBeTruthy();
         expect(launchImageLibraryAsyncMock).not.toHaveBeenCalled();
@@ -999,7 +1005,7 @@ describe('RecipePhotoUploader — Replace counts the drafts a create holds', () 
                 pendingDrafts={[{ fileName: 'draft.jpg', contentType: 'image/jpeg', fileSize: 5 } as never]}
             />,
         );
-        fireEvent.click(screen.getByRole('button', { name: 'Replace photo 3' }));
+        chooseFromTile('Actions for photo 3', 'Replace');
 
         expect(screen.getByText('Remove a photo first — replacing needs room for the new one.')).toBeTruthy();
         expect(launchImageLibraryAsyncMock).not.toHaveBeenCalled();
@@ -1017,5 +1023,66 @@ describe('RecipePhotoUploader — photo cap', () => {
 
         expect(screen.queryByRole('button', { name: 'Add photos' })).toBeNull();
         expect(screen.getByText('Maximum of 10 photos reached.')).toBeTruthy();
+    });
+});
+
+describe('RecipePhotoUploader — reordering from the tile’s menu (2026-10-17)', () => {
+    const threeStored = [makePhoto({ id: 'pht_1' }), makePhoto({ id: 'pht_2' }), makePhoto({ id: 'pht_3' })];
+
+    const wireReorder = (isPending = false) => {
+        const reorderMutate = vi.fn();
+        useRecipePhotosMock.mockReturnValue(photosResult(threeStored));
+        vi.mocked(useReorderRecipePhotos).mockReturnValue({
+            mutate: reorderMutate,
+            isPending,
+        } as unknown as ReturnType<typeof useReorderRecipePhotos>);
+
+        return reorderMutate;
+    };
+
+    it('Move later sends the WHOLE new order in one reorder', () => {
+        const reorderMutate = wireReorder();
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        chooseFromTile('Actions for photo 2', 'Move later');
+
+        expect(reorderMutate).toHaveBeenCalledWith(
+            { id: 'rec_1', photoIds: ['pht_1', 'pht_3', 'pht_2'] },
+            expect.objectContaining({ onError: expect.any(Function) }),
+        );
+    });
+
+    it('Set as cover sends the chosen photo first and the rest in order', () => {
+        const reorderMutate = wireReorder();
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        chooseFromTile('Actions for photo 3', 'Set as cover');
+
+        expect(reorderMutate).toHaveBeenCalledWith(
+            { id: 'rec_1', photoIds: ['pht_3', 'pht_1', 'pht_2'] },
+            expect.objectContaining({ onError: expect.any(Function) }),
+        );
+    });
+
+    it('says so when the reorder fails', () => {
+        const reorderMutate = wireReorder();
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        chooseFromTile('Actions for photo 2', 'Move earlier');
+        const options = reorderMutate.mock.calls[0]?.[1] as { onError: () => void };
+        act(() => options.onError());
+
+        expect(screen.getByText('We couldn’t move that photo. Please try again.')).toBeTruthy();
+    });
+
+    it('disables the moves while a reorder is in flight, and sends nothing', () => {
+        const reorderMutate = wireReorder(true);
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for photo 2' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Move later' }));
+
+        expect(screen.getByRole('menuitem', { name: 'Move later' }).getAttribute('aria-disabled')).toBe('true');
+        expect(reorderMutate).not.toHaveBeenCalled();
     });
 });

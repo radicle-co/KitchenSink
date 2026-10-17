@@ -256,6 +256,8 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
                 onRetryQueueItem={queue.retry}
                 onRemoveQueueItem={queue.remove}
                 onSetCover={session.setCover}
+                onMovePhoto={session.movePhoto}
+                reordering={session.reordering}
                 onReplacePhoto={handleReplacePhoto}
                 addControl={addControl}
                 coverPreview={{ recipeId, title: title ?? '', ...(cuisine === undefined ? {} : { cuisine }) }}

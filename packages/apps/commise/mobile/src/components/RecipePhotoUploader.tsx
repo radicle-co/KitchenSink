@@ -382,6 +382,8 @@ export function RecipePhotoUploader({
                       }
                     : {})}
                 onSetCover={session.setCover}
+                onMovePhoto={session.movePhoto}
+                reordering={session.reordering}
                 onReplacePhoto={replacePhoto}
                 {...(canPick ? { addControl } : {})}
                 coverPreview={{

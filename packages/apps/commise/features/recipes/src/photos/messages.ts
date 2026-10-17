@@ -17,12 +17,10 @@ export interface PhotoMessages {
     readonly emptyBody: string;
     /** Accessible alt text for a photo thumbnail (contains `{index}`, so each photo is uniquely named). */
     readonly photoAlt: string;
-    /** Visible label of the idle remove action. */
+    /** Label of the Remove item in a tile's menu, and the tile's idle remove wording. */
     readonly remove: string;
-    /** Visible label of the remove action while its removal is in flight. */
+    /** Shown on a tile while its removal is in flight (its menu is unavailable until it lands). */
     readonly removing: string;
-    /** Accessible label of the remove action (contains `{index}`, so each row's remove is uniquely named). */
-    readonly removeLabel: string;
     /** Accessible label for the upload-in-flight busy status. */
     readonly uploadingLabel: string;
     /** Spoken (never shown) when an upload finishes: the polite counterpart of {@link uploadingLabel} (WCAG 4.1.3). */
@@ -44,15 +42,26 @@ export interface PhotoMessages {
     readonly queueRetry: string;
     /** Accessible label of the retry action (contains `{fileName}`, so each failed file's retry is unique). */
     readonly queueRetryLabel: string;
-    /** Accessible label of the remove action on a queued/failed queue item (contains `{fileName}`). */
-    readonly queueRemoveLabel: string;
+    /** The menu button on a photo tile (2026-10-17; contains `{index}`, so each tile's button is uniquely named). */
+    readonly menuTrigger: string;
+    /** The same button on the cover tile: its name is what states the cover to a screen reader (SC 4.1.2). */
+    readonly menuTriggerCover: string;
+    /** The native sheet's title for a photo tile's menu (contains `{index}`). */
+    readonly menuTitle: string;
+    /** The native sheet's Close control for a photo tile's menu (contains `{index}`). */
+    readonly menuClose: string;
+    /** The menu button on a queue tile (contains `{fileName}`). */
+    readonly queueMenuTrigger: string;
+    /** The native sheet's Close control for a queue tile's menu (contains `{fileName}`). */
+    readonly queueMenuClose: string;
+    /** Menu item: make this photo the cover. */
+    readonly setCover: string;
+    /** Menu item: move this photo one place earlier. */
+    readonly moveEarlier: string;
+    /** Menu item: move this photo one place later. */
+    readonly moveLater: string;
     /** Visible + accessible badge on the current cover photo (U6). */
     readonly coverBadge: string;
-    /** Accessible label of a photo's radio-semantic "set as cover" control (contains `{index}`, so each
-     *  photo's control is uniquely named). */
-    readonly setCoverLabel: string;
-    /** Accessible label of a photo's replace action (contains `{index}`, so each photo's replace is unique). */
-    readonly replaceLabel: string;
     /** Visible label of the replace action. */
     readonly replace: string;
     /** Visible label and accessible name of the secondary "Add photos" button (A-010, buildSpec §7.7). */
@@ -99,7 +108,6 @@ export const photoMessages: LocalizedMessages<PhotoMessages> = {
         photoAlt: 'Recipe photo {index}',
         remove: 'Remove',
         removing: 'Removing…',
-        removeLabel: 'Remove photo {index}',
         uploadingLabel: 'Uploading photo',
         uploadedLabel: 'Photo uploaded',
         maxReached: 'Maximum of {max} photos reached.',
@@ -110,10 +118,16 @@ export const photoMessages: LocalizedMessages<PhotoMessages> = {
         queueStatusFailed: 'Upload failed',
         queueRetry: 'Retry',
         queueRetryLabel: 'Retry upload of {fileName}',
-        queueRemoveLabel: 'Remove {fileName}',
+        menuTrigger: 'Actions for photo {index}',
+        menuTriggerCover: 'Actions for photo {index}, the cover',
+        menuTitle: 'Photo {index}',
+        menuClose: 'Close actions for photo {index}',
+        queueMenuTrigger: 'Actions for {fileName}',
+        queueMenuClose: 'Close actions for {fileName}',
+        setCover: 'Set as cover',
+        moveEarlier: 'Move earlier',
+        moveLater: 'Move later',
         coverBadge: 'Cover',
-        setCoverLabel: 'Set photo {index} as cover',
-        replaceLabel: 'Replace photo {index}',
         replace: 'Replace',
         addPhotos: 'Add photos',
         addPhotosSheetTitle: 'Add photos',

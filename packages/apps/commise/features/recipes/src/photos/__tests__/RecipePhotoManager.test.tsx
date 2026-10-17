@@ -108,23 +108,15 @@ describe('RecipePhotoManager (web) — empty state (A-010)', () => {
 });
 
 describe('RecipePhotoManager (web) — populated', () => {
-    it('renders one image + remove button per photo, with indexed accessible names', () => {
-        renderManager({ photos: threePhotos });
-
-        const list = screen.getByRole('list');
-        expect(within(list).getAllByRole('listitem')).toHaveLength(3);
-        expect(screen.getByRole('img', { name: 'Recipe photo 1' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Remove photo 3' })).toBeTruthy();
-    });
-
     /**
      * buildSpec §7.7 rules 3 columns, 4 from 600 — and from 600 of the CONTAINER, not the viewport, because the editor
      * sits beside a rail from 840 px so the viewport says nothing about the width the grid has. jsdom evaluates no
      * container query, so this pins the classes; `recipePhotos.spec.ts` measures the real columns.
      *
-     * ⚠️ DEPARTURE FROM §7.7, recorded: below 480 px of container the web grid stays two-up. §7.7's per-tile ⋯ menu is
-     * what lets a 3-up tile at 320 hold one control; until it replaces the inline Cover, Remove and Replace controls, a
-     * tile under about 130 px cannot hold the Cover badge and the Remove pill without them overlapping.
+     * ⚠️ DEPARTURE FROM §7.7, recorded: below 480 px of container the web grid stays two-up. The per-tile ⋯ menu
+     * (2026-10-17) is one 44 px disc where there were three controls, but a 3-up tile at 320 is about 90 px and holds
+     * a 44 px disc beside the "Upload failed" badge only if the two are laid out apart; that layout is a visual check
+     * owed (`recipePhotos.spec.ts` measures the columns), so the grid stays two-up until it is made.
      */
     it('lays the photo grid out two-up, three-up from 480 px and four-up from 600 px of its own container', () => {
         renderManager({ photos: threePhotos });
@@ -143,37 +135,6 @@ describe('RecipePhotoManager (web) — populated', () => {
         expect(img.getAttribute('loading')).toBe('lazy');
         expect(img.getAttribute('decoding')).toBe('async');
         expect(img.className).toContain('aspect-square');
-    });
-
-    it('reports the photo id to remove upward', async () => {
-        const user = userEvent.setup();
-        const onRemovePhoto = vi.fn();
-        renderManager({ photos: threePhotos, onRemovePhoto });
-
-        await user.click(screen.getByRole('button', { name: 'Remove photo 2' }));
-
-        expect(onRemovePhoto).toHaveBeenCalledWith('ph_2');
-    });
-
-    /**
-     * REWRITTEN from native `disabled`: the control the cook just pressed goes busy, and a real browser drops focus
-     * to <body> the moment a focused control is natively disabled (WCAG 2.2 SC 2.4.3). It stays focusable and
-     * `aria-disabled` (`busyControlProps`), and the press is refused.
-     */
-    it('busies only the photo whose removal is in flight, keeping it focusable and refusing a second press', async () => {
-        const user = userEvent.setup();
-        const onRemovePhoto = vi.fn();
-        renderManager({ photos: threePhotos, removingPhotoId: 'ph_2', onRemovePhoto });
-
-        const removing = screen.getByRole<HTMLButtonElement>('button', { name: 'Remove photo 2' });
-        expect(removing.disabled).toBe(false);
-        expect(removing.getAttribute('aria-disabled')).toBe('true');
-        expect(
-            screen.getByRole<HTMLButtonElement>('button', { name: 'Remove photo 1' }).hasAttribute('aria-disabled'),
-        ).toBe(false);
-
-        await user.click(removing);
-        expect(onRemovePhoto).not.toHaveBeenCalled();
     });
 });
 
@@ -232,82 +193,260 @@ describe('RecipePhotoManager (web) — add control + cap', () => {
     });
 });
 
-describe('RecipePhotoManager (web) — per-photo cover selection (U6)', () => {
-    it('renders no cover badge and no cover radios when onSetCover is not wired (feature gated)', () => {
-        renderManager({ photos: threePhotos });
+/** The tile's ⋯ menu, opened: returns the user and the menu. */
+async function openMenu(triggerName: string) {
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: triggerName }));
 
-        expect(screen.queryByText('Cover')).toBeNull();
+    return { user, menu: screen.getByRole('menu') };
+}
+
+const allWired = (overrides: Partial<RecipePhotoManagerProps> = {}): Partial<RecipePhotoManagerProps> => ({
+    photos: threePhotos,
+    onSetCover: noop,
+    onMovePhoto: noop,
+    onReplacePhoto: noop,
+    ...overrides,
+});
+
+const MENU_ITEMS = ['Set as cover', 'Move earlier', 'Move later', 'Replace', 'Remove'] as const;
+
+const itemState = (name: string): 'disabled' | 'enabled' =>
+    screen.getByRole('menuitem', { name }).getAttribute('aria-disabled') === 'true' ? 'disabled' : 'enabled';
+
+/**
+ * Owner ruling 2026-10-17 (buildSpec §7.7 + Replace): each photo tile carries ONE ⋯ menu button, 44 px, holding
+ * Set as cover, Move earlier, Move later, Replace and, after a divider, Remove. It replaces the inline Remove pill, the
+ * cover radio and the Replace pill (parity audit G4, F1-F3: ~24 px controls).
+ */
+describe('RecipePhotoManager (web) — the tile’s ⋯ menu (2026-10-17)', () => {
+    it('gives every photo one menu button named for its position, and no inline Remove, Replace or cover radio', () => {
+        renderManager(allWired());
+
+        for (const index of [1, 2, 3]) {
+            const trigger = screen.getByRole('button', {
+                name: index === 1 ? 'Actions for photo 1, the cover' : `Actions for photo ${index}`,
+            });
+            expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
+        }
+
+        expect(screen.queryByRole('button', { name: /^(remove|replace) photo/i })).toBeNull();
         expect(screen.queryAllByRole('radio')).toHaveLength(0);
     });
 
-    it('shows the "Cover" badge on the FIRST photo only (cover defaults to index 0)', () => {
-        renderManager({ photos: threePhotos, onSetCover: noop });
+    it('makes the menu button a 44 px target (SC 2.5.8)', () => {
+        renderManager(allWired());
 
-        const badges = screen.getAllByText('Cover');
-        expect(badges).toHaveLength(1);
-        // The badge lives inside the first photo's list item — not the second or third.
-        const firstItem = within(screen.getByRole('list')).getAllByRole('listitem')[0];
-        expect(within(firstItem!).getByText('Cover')).toBeTruthy();
-        const items = within(screen.getByRole('list')).getAllByRole('listitem');
-        expect(within(items[1]!).queryByText('Cover')).toBeNull();
-        expect(within(items[2]!).queryByText('Cover')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Actions for photo 2' }).className).toContain('size-11');
     });
 
-    it('renders one radio-semantic "Set as cover" control per photo, indexed, with only the first checked', () => {
-        renderManager({ photos: threePhotos, onSetCover: noop });
+    it('lists Set as cover, Move earlier, Move later, Replace, then Remove after a divider', async () => {
+        renderManager(allWired());
 
-        expect(screen.getAllByRole('radio')).toHaveLength(3);
-        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Set photo 1 as cover' }).checked).toBe(true);
-        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Set photo 2 as cover' }).checked).toBe(false);
-        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Set photo 3 as cover' }).checked).toBe(false);
+        const { menu } = await openMenu('Actions for photo 2');
+
+        expect(
+            within(menu)
+                .getAllByRole('menuitem')
+                .map((item) => item.textContent),
+        ).toEqual([...MENU_ITEMS]);
+        expect(within(menu).getByRole('separator')).toBeTruthy();
     });
 
-    it('reports the chosen photo id upward when a non-cover "Set as cover" control is selected', async () => {
-        const user = userEvent.setup();
+    it('enables everything on a middle photo', async () => {
+        renderManager(allWired());
+        await openMenu('Actions for photo 2');
+
+        expect(MENU_ITEMS.map(itemState)).toEqual(['enabled', 'enabled', 'enabled', 'enabled', 'enabled']);
+    });
+
+    it('on the cover: Set as cover and Move earlier are disabled, and the trigger’s name says it is the cover (SC 4.1.2)', async () => {
+        renderManager(allWired());
+        await openMenu('Actions for photo 1, the cover');
+
+        expect(itemState('Set as cover')).toBe('disabled');
+        expect(itemState('Move earlier')).toBe('disabled');
+        expect(itemState('Move later')).toBe('enabled');
+    });
+
+    it('on the last photo: Move later is disabled', async () => {
+        renderManager(allWired());
+        await openMenu('Actions for photo 3');
+
+        expect(itemState('Move later')).toBe('disabled');
+        expect(itemState('Move earlier')).toBe('enabled');
+        expect(itemState('Set as cover')).toBe('enabled');
+    });
+
+    it('on a single photo: nothing can move and it is already the cover, but Replace and Remove work', async () => {
+        renderManager(allWired({ photos: [threePhotos[0]!] }));
+        await openMenu('Actions for photo 1, the cover');
+
+        expect(MENU_ITEMS.map(itemState)).toEqual(['disabled', 'disabled', 'disabled', 'enabled', 'enabled']);
+    });
+
+    it('reports each choice upward with the photo id', async () => {
         const onSetCover = vi.fn();
-        renderManager({ photos: threePhotos, onSetCover });
+        const onMovePhoto = vi.fn();
+        const onReplacePhoto = vi.fn();
+        const onRemovePhoto = vi.fn();
+        renderManager(allWired({ onSetCover, onMovePhoto, onReplacePhoto, onRemovePhoto }));
 
-        await user.click(screen.getByRole('radio', { name: 'Set photo 3 as cover' }));
+        for (const name of MENU_ITEMS) {
+            const { user } = await openMenu('Actions for photo 2');
+            await user.click(screen.getByRole('menuitem', { name }));
+        }
 
-        expect(onSetCover).toHaveBeenCalledWith('ph_3');
+        expect(onSetCover).toHaveBeenCalledExactlyOnceWith('ph_2');
+        expect(onMovePhoto.mock.calls).toEqual([
+            ['ph_2', 'earlier'],
+            ['ph_2', 'later'],
+        ]);
+        expect(onReplacePhoto).toHaveBeenCalledExactlyOnceWith('ph_2');
+        expect(onRemovePhoto).toHaveBeenCalledExactlyOnceWith('ph_2');
     });
 
-    it('moves the "Cover" badge and the checked radio to the next photo once the former cover is removed', () => {
+    it('runs nothing for a disabled item', async () => {
+        const onMovePhoto = vi.fn();
+        renderManager(allWired({ onMovePhoto }));
+        const { user } = await openMenu('Actions for photo 1, the cover');
+
+        await user.click(screen.getByRole('menuitem', { name: 'Move earlier' }));
+
+        expect(onMovePhoto).not.toHaveBeenCalled();
+    });
+
+    it('offers only what the container wired: no cover badge, no Set as cover, no moves, no Replace', async () => {
+        renderManager({ photos: threePhotos });
+        await openMenu('Actions for photo 2');
+
+        expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Remove']);
+        expect(screen.queryByText('Cover')).toBeNull();
+    });
+
+    it('shows the "Cover" badge on the FIRST photo only, as text', () => {
+        renderManager(allWired());
+
+        const items = within(screen.getByRole('list')).getAllByRole('listitem');
+        expect(screen.getAllByText('Cover')).toHaveLength(1);
+        expect(within(items[0]!).getByText('Cover')).toBeTruthy();
+    });
+
+    it('moves the badge and the cover reading to the next photo once the former cover is removed', () => {
         const { rerender } = render(<RecipePhotoManager photos={threePhotos} onRemovePhoto={noop} onSetCover={noop} />);
+        expect(screen.getByRole('button', { name: 'Actions for photo 1, the cover' })).toBeTruthy();
 
-        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Set photo 1 as cover' }).checked).toBe(true);
-
-        // The former cover `ph_1` is removed → the projection re-sorts and `ph_2` becomes index 0 (the new cover).
         rerender(<RecipePhotoManager photos={threePhotos.slice(1)} onRemovePhoto={noop} onSetCover={noop} />);
 
         expect(screen.getAllByText('Cover')).toHaveLength(1);
-        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Set photo 1 as cover' }).checked).toBe(true);
-        // `ph_2` is now the sole remaining "photo 1"; the label is positional (index), so the check followed the cover.
+        expect(screen.getByRole('button', { name: 'Actions for photo 1, the cover' })).toBeTruthy();
+    });
+
+    it('keeps Replace and Remove but disables Set as cover and both moves while a reorder is in flight', async () => {
+        renderManager(allWired({ reordering: true }));
+        await openMenu('Actions for photo 2');
+
+        expect(MENU_ITEMS.map(itemState)).toEqual(['disabled', 'disabled', 'disabled', 'enabled', 'enabled']);
+    });
+
+    /**
+     * REWRITTEN from the Remove pill: the tile whose removal is in flight cannot open its menu (the trigger is
+     * `aria-disabled` and stays focusable, SC 2.4.3) and says "Removing…" as text; its siblings are untouched.
+     */
+    it('busies only the photo whose removal is in flight: its menu will not open and it says so', async () => {
+        const user = userEvent.setup();
+        renderManager(allWired({ removingPhotoId: 'ph_2' }));
+
+        const removing = screen.getByRole<HTMLButtonElement>('button', { name: 'Actions for photo 2' });
+        expect(removing.disabled).toBe(false);
+        expect(removing.getAttribute('aria-disabled')).toBe('true');
+        expect(screen.getByText('Removing…')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Actions for photo 3' }).hasAttribute('aria-disabled')).toBe(false);
+
+        await user.click(removing);
+        expect(screen.queryByRole('menu')).toBeNull();
     });
 });
 
-describe('RecipePhotoManager (web) — per-photo replace (U6)', () => {
-    it('renders no Replace control when onReplacePhoto is not wired (feature gated)', () => {
-        renderManager({ photos: threePhotos });
+describe('RecipePhotoManager (web) — a queue tile’s actions (2026-10-17)', () => {
+    const retryable = makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed', retryable: true });
 
-        expect(screen.queryByRole('button', { name: /replace/i })).toBeNull();
+    it('gives an uploading file no controls at all — its status is the whole tile', () => {
+        renderManager({ queueItems: [makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'uploading' })] });
+
+        expect(screen.queryByRole('button')).toBeNull();
     });
 
-    it('renders one indexed Replace control per photo when onReplacePhoto is wired', () => {
-        renderManager({ photos: threePhotos, onReplacePhoto: noop });
+    it('gives a queued file a ⋯ menu holding Remove', async () => {
+        const onRemoveQueueItem = vi.fn();
+        renderManager({
+            queueItems: [makeQueueItem({ fileId: 4, fileName: 'a.png', status: 'queued' })],
+            onRemoveQueueItem,
+        });
 
-        expect(screen.getByRole('button', { name: 'Replace photo 1' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Replace photo 3' })).toBeTruthy();
+        const { user } = await openMenu('Actions for a.png');
+        expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Remove']);
+        await user.click(screen.getByRole('menuitem', { name: 'Remove' }));
+
+        expect(onRemoveQueueItem).toHaveBeenCalledWith(4);
     });
 
-    it('reports the photo id to replace upward when Replace is clicked', async () => {
+    it('offers no menu when no remove handler is wired — a container withholds removal by not wiring it', () => {
+        render(
+            <RecipePhotoManager
+                photos={[]}
+                onRemovePhoto={noop}
+                queueItems={[makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'queued' })]}
+            />,
+        );
+
+        expect(screen.getByRole('status', { name: 'Queued' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Actions for a.png' })).toBeNull();
+    });
+
+    /**
+     * DECISION: Retry stays a VISIBLE button on the failed tile, not a menu item. Retry is the one recovery for the
+     * tile's headline state, so it is one tap, at the design system's `Button` size (min 44 px); Remove, the rarer and
+     * destructive half, moves into the ⋯ menu with the other tiles' actions.
+     */
+    it('keeps Retry a visible, full-size button on a retryable failed file, with Remove in its menu', async () => {
+        const onRetryQueueItem = vi.fn();
+        const onRemoveQueueItem = vi.fn();
+        renderManager({ queueItems: [retryable], onRetryQueueItem, onRemoveQueueItem });
+
+        const retry = screen.getByRole('button', { name: 'Retry upload of burnt.png' });
+        expect(retry.className).toContain('min-h-11');
+        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+
         const user = userEvent.setup();
-        const onReplacePhoto = vi.fn();
-        renderManager({ photos: threePhotos, onReplacePhoto });
+        await user.click(retry);
+        expect(onRetryQueueItem).toHaveBeenCalledWith(7);
 
-        await user.click(screen.getByRole('button', { name: 'Replace photo 2' }));
+        await openMenu('Actions for burnt.png');
+        await user.click(screen.getByRole('menuitem', { name: 'Remove' }));
+        expect(onRemoveQueueItem).toHaveBeenCalledWith(7);
+    });
 
-        expect(onReplacePhoto).toHaveBeenCalledWith('ph_2');
+    // The queue re-validates on retry BY DESIGN, so re-attempting a file the CLIENT rejected re-fails identically:
+    // Retry there is a dead affordance. The tile keeps WHY it failed and the one meaningful action, Remove.
+    it('offers Remove but NOT Retry for a client-validation rejection (`retryable: false`)', async () => {
+        renderManager({
+            queueItems: [
+                makeQueueItem({
+                    fileId: 7,
+                    fileName: 'huge.png',
+                    status: 'failed',
+                    retryable: false,
+                    errorMessage: 'That photo is larger than 5 MB.',
+                }),
+            ],
+        });
+
+        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        expect(screen.getByText('That photo is larger than 5 MB.')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Retry upload of huge.png' })).toBeNull();
+        await openMenu('Actions for huge.png');
+        expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Remove']);
     });
 });
 
@@ -333,21 +472,6 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
         expect(img.getAttribute('decoding')).toBe('async');
     });
 
-    it('offers no Remove on a queue cell when no remove handler is wired', () => {
-        // A container withholds removal (the create's in-flight save) by not wiring it. A Remove that rendered anyway
-        // would appear to work and do nothing.
-        render(
-            <RecipePhotoManager
-                photos={[]}
-                onRemovePhoto={noop}
-                queueItems={[makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'queued' })]}
-            />,
-        );
-
-        expect(screen.getByRole('status', { name: 'Queued' })).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Remove a.png' })).toBeNull();
-    });
-
     it('renders a status badge for a queued file', () => {
         renderManager({ queueItems: [makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'queued' })] });
 
@@ -359,47 +483,6 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
 
         expect(screen.getByRole('status', { name: 'Uploading…' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
-    });
-
-    it('renders a RETRYABLE failed file with a Retry and a Remove control, and no other status text confusable with it', () => {
-        renderManager({
-            queueItems: [
-                makeQueueItem({
-                    fileId: 7,
-                    fileName: 'burnt.png',
-                    status: 'failed',
-                    retryable: true,
-                    errorMessage: 'oops',
-                }),
-            ],
-        });
-
-        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Retry upload of burnt.png' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Remove burnt.png' })).toBeTruthy();
-    });
-
-    // The queue re-validates on retry BY DESIGN, so re-attempting a file the CLIENT rejected (too large /
-    // wrong type) re-runs the same pure check against the same file and re-fails — Retry there is a dead
-    // affordance that only invites a pointless click. Remove is the one meaningful action, and it must stay.
-    it('offers Remove but NOT Retry for a client-validation rejection (`retryable: false`)', () => {
-        renderManager({
-            queueItems: [
-                makeQueueItem({
-                    fileId: 7,
-                    fileName: 'huge.png',
-                    status: 'failed',
-                    retryable: false,
-                    errorMessage: 'That photo is larger than 5 MB.',
-                }),
-            ],
-        });
-
-        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
-        // The reason still shows — the viewer is told WHY, they are just not offered a doomed retry.
-        expect(screen.getByText('That photo is larger than 5 MB.')).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Retry upload of huge.png' })).toBeNull();
-        expect(screen.getByRole('button', { name: 'Remove huge.png' })).toBeTruthy();
     });
 
     it('renders the failed item’s own errorMessage as a distinct line naming WHY it failed (REQ-014)', () => {
@@ -456,32 +539,6 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
 
         expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
         expect(document.querySelector('p.text-error-dark')).toBeNull();
-    });
-
-    it('invokes onRetryQueueItem with the fileId when Retry is clicked', async () => {
-        const user = userEvent.setup();
-        const onRetryQueueItem = vi.fn();
-        renderManager({
-            queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed', retryable: true })],
-            onRetryQueueItem,
-        });
-
-        await user.click(screen.getByRole('button', { name: 'Retry upload of burnt.png' }));
-
-        expect(onRetryQueueItem).toHaveBeenCalledWith(7);
-    });
-
-    it('invokes onRemoveQueueItem with the fileId when Remove is clicked on a failed item', async () => {
-        const user = userEvent.setup();
-        const onRemoveQueueItem = vi.fn();
-        renderManager({
-            queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed', retryable: true })],
-            onRemoveQueueItem,
-        });
-
-        await user.click(screen.getByRole('button', { name: 'Remove burnt.png' }));
-
-        expect(onRemoveQueueItem).toHaveBeenCalledWith(7);
     });
 
     it('omits an `ok` queue item from the grid — it is folded into the confirmed photos', () => {

@@ -85,7 +85,7 @@ export const ACCOUNT_APP = 'packages/infra/global/bin/account.ts';
  *
  * @sideEffect Writes `packages/infra/global/dist-edge` and `dist-lambda` (ignored build output).
  */
-function buildGlobalBundles(): void {
+export function buildGlobalBundles(): void {
     const result = spawnSync('node', ['esbuild.mjs'], {
         cwd: path.join(REPO_ROOT, 'packages/infra/global'),
         env: placeholderEnvironment('prod', ''),
@@ -98,7 +98,7 @@ function buildGlobalBundles(): void {
 }
 
 /** Placeholder environment that lets every app synthesize offline. Never a real id. */
-function placeholderEnvironment(stage: string, outdir: string): NodeJS.ProcessEnv {
+export function placeholderEnvironment(stage: string, outdir: string): NodeJS.ProcessEnv {
     return {
         ...process.env,
         CDK_OUTDIR: outdir,

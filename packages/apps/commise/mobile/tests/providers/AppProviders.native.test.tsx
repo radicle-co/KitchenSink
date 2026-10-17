@@ -24,6 +24,9 @@ import { Text } from 'react-native';
 // life, as Clerk's is, and nobody is signed in here.
 const { clerk } = vi.hoisted(() => ({ clerk: { session: null } }));
 
+// The error reporter reaches the Sentry SDK, which needs the native runtime; the gate only hands it to the queue.
+vi.mock('../../src/observability/sentryErrorReporter.js', () => ({ reportErrorToSentry: vi.fn() }));
+
 vi.mock('@clerk/expo', () => ({
     ClerkProvider: ({ children }: { readonly children?: unknown }) => children,
     useAuth: vi.fn(),

@@ -62,6 +62,9 @@ interface FakeSession {
 // the LIVE session: the gate mints from it, and the token proxy checks it, so a case moves it to change who is signed in.
 const { clerk } = vi.hoisted(() => ({ clerk: { session: null as FakeSession | null } }));
 
+// The error reporter reaches the Sentry SDK, which needs the native runtime; the gate only hands it to the queue.
+vi.mock('../../src/observability/sentryErrorReporter.js', () => ({ reportErrorToSentry: vi.fn() }));
+
 vi.mock('@clerk/expo', () => ({ useAuth: vi.fn(), useClerk: () => clerk }));
 
 vi.mock('../../src/config/env.js', () => ({

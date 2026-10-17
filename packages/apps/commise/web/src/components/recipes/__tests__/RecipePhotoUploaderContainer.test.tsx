@@ -297,7 +297,10 @@ describe('RecipePhotoUploaderContainer (web) — set cover (U6)', () => {
         // ph_1 is the current cover (index 0, checked); choosing ph_3 must move it to the front.
         await user.click(screen.getByRole('radio', { name: 'Set photo 3 as cover' }));
 
-        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', photoIds: ['ph_3', 'ph_1', 'ph_2'] });
+        expect(mutate).toHaveBeenCalledWith(
+            { id: 'rec_1', photoIds: ['ph_3', 'ph_1', 'ph_2'] },
+            expect.objectContaining({ onError: expect.any(Function) }),
+        );
     });
 });
 

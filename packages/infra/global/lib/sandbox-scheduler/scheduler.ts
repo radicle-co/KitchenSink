@@ -327,6 +327,22 @@ export function isStageScopedName(name: string): boolean {
 }
 
 /**
+ * Whether a STACK is a non-production one: `kitchensink-…-sandbox`, `kitchensink-…-sandbox-…` or `kitchensink-…-pr-N…`,
+ * the same three shapes as the ksnonprod `STACK_TAG_PATTERNS` (`packages/infra/bootstrap/src/qualifiers.ts`).
+ *
+ * ⛔ Positive, not `isStageScopedName`: the account tier's stacks (`kitchensink-ci-policies`, `kitchensink-cost-guardrails`,
+ * `kitchensink-github-actions-access`, the `kitchensink-bootstrap-*` stacks) carry no `-prod` and the non-production
+ * boundary still refuses every per-resource call on them (Sandbox Identity Deploy, 2026-10-17: `ListStackResources` on
+ * `kitchensink-ci-policies`).
+ *
+ * @param stackName - A CloudFormation stack name.
+ * @returns `true` for a sandbox or per-PR stack. Pure.
+ */
+export function isNonProdStackName(stackName: string): boolean {
+    return /^kitchensink-.+-(?:sandbox|pr-[0-9]+)(?:-.+)?$/u.test(stackName);
+}
+
+/**
  * Whether a cluster ARN may be DESCRIBED: its name is in stage scope and not production's.
  *
  * @param clusterArn - The cluster ARN.
@@ -400,7 +416,7 @@ export function isSandboxNatInstance(instance: Ec2InstanceSummary): boolean {
 
     return (
         instance.sourceDestCheck === false &&
-        isStageScopedName(stack) &&
+        isNonProdStackName(stack) &&
         stack.includes(`-${SANDBOX_MARKER}`) &&
         (instance.nameTag ?? '').toLowerCase().includes(SANDBOX_MARKER)
     );
@@ -631,7 +647,7 @@ interface RuleReport {
  */
 async function writeRuleStates(clients: SchedulerClients, tier: TierState, report: RuleReport): Promise<void> {
     const { tally, errors, warnings } = report;
-    const rules = await clients.events.listScheduledRules(isStageScopedName);
+    const rules = await clients.events.listScheduledRules(isNonProdStackName);
     const owned = new Set(rules.flatMap((rule) => (rule.stageTag === undefined ? [] : [rule.stageTag])));
     const servingStages = tier.upStages.size > 0 ? [...tier.upStages, SANDBOX_MARKER] : [];
 

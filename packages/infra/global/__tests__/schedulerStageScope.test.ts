@@ -347,8 +347,21 @@ describe('the scheduler and the reclaim hand the adapters the one scope predicat
         expect(inScope).toBeDefined();
         expect(ACCOUNT_CLUSTERS.filter((candidate) => inScope?.(candidate))).toEqual([SANDBOX_CLUSTER, PR_CLUSTER]);
         const ruleScope = vi.mocked(clients.events.listScheduledRules).mock.calls[0]?.[0];
-        expect(ruleScope?.('kitchensink-x-prod-Rule')).toBe(false);
-        expect(ruleScope?.('kitchensink-x-sandbox-Rule')).toBe(true);
+        // The predicate judges STACK names (real ones, read from the account 2026-10-17). The account tier's stacks pass
+        // "kitchensink- and no -prod" but the non-production boundary refuses them: Sandbox Identity Deploy was denied
+        // ListStackResources on kitchensink-ci-policies. Only a sandbox or per-PR stack is in scope.
+        for (const [stackName, inScope] of [
+            ['kitchensink-identity-webhooks-sandbox', true],
+            ['kitchensink-recipe-workers-pr-91', true],
+            ['kitchensink-sandbox-scheduler-sandbox', true],
+            ['kitchensink-identity-webhooks-prod', false],
+            ['kitchensink-ci-policies', false],
+            ['kitchensink-cost-guardrails', false],
+            ['kitchensink-gha-roles', false],
+            ['armoury-api-sandbox', false],
+        ] as const) {
+            expect(ruleScope?.(stackName), stackName).toBe(inScope);
+        }
     });
 
     it('the reclaim asks for clusters with the same predicate and expands no foreign cluster', async () => {

@@ -1,0 +1,18 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: type `NAME` into the new-collection sheet's Name field and read it back. Called with
+# `runFlow: { file: common/typeCollectionName.yaml, env: { NAME: '…' } }`; the caller then presses Enter or taps Create.
+#
+# The text is read back and typed once more, for the iOS Simulator's dropped keystrokes (`common/typeTitle.yaml`, and
+# `auth/signinHome.yaml`): in run 38988891871 `collectionsSaveCopy` typed `Maestro clone source`, got `Ma`, and Enter
+# CREATED a collection called `Ma`, so the detail it then waited for was never named what the flow looked for. The
+# read-back allows a tail, for the Android emulator's doubled last key.
+- tapOn: 'Name'
+- inputText: ${NAME}
+- runFlow:
+      when:
+          notVisible: ${NAME}.*
+      commands:
+          - eraseText: 64
+          - inputText: ${NAME}
+- assertVisible: ${NAME}.*

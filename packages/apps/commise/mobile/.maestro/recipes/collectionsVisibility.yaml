@@ -25,8 +25,10 @@ appId: ${APP_ID}
 
 - tapOn: 'New collection'
 - assertVisible: 'Name'
-- tapOn: 'Name'
-- inputText: 'Maestro visibility gate'
+- runFlow:
+      file: common/typeCollectionName.yaml
+      env:
+          NAME: 'Maestro visibility gate'
 # Enter submits the name from the keyboard, as a cook finishes a one-field form.
 - pressKey: Enter
 

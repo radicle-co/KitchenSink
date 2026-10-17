@@ -156,8 +156,10 @@ appId: ${APP_ID}
       timeout: 40000
 - tapOn: 'New collection'
 - assertVisible: 'Description \(optional\)'
-- tapOn: 'Name'
-- inputText: 'System Back Guard Collection'
+- runFlow:
+      file: common/typeCollectionName.yaml
+      env:
+          NAME: 'System Back Guard Collection'
 
 - hideKeyboard
 - pressKey: Back

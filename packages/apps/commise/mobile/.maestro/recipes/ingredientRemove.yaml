@@ -62,10 +62,11 @@ appId: ${APP_ID}
 - tapOn: 'Remove ingredient'
 - assertNotVisible: 'Actions for Maestro Alpha'
 - assertVisible: 'Actions for Maestro Beta'
+# The row's name is its own node on Android and part of the "Edit <name>" label on iOS.
 - assertNotVisible:
-      text: '^Maestro Alpha$'
+      text: '(Edit )?Maestro Alpha'
 - assertVisible:
-      text: '^Maestro Beta$'
+      text: '(Edit )?Maestro Beta'
 
 # Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
 - runFlow: common/discardDraft.yaml

@@ -33,8 +33,10 @@ appId: ${APP_ID}
 # deleted), and a created collection opens its own detail.
 - tapOn: 'New collection'
 - assertVisible: 'Description \(optional\)'
-- tapOn: 'Name'
-- inputText: 'Maestro test collection'
+- runFlow:
+      file: common/typeCollectionName.yaml
+      env:
+          NAME: 'Maestro test collection'
 # Enter submits the name from the keyboard, as a cook finishes a one-field form.
 - pressKey: Enter
 

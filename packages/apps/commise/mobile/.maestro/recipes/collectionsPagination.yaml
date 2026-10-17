@@ -39,8 +39,10 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Description \(optional\)'
       timeout: 20000
-- tapOn: 'Name'
-- inputText: 'Maestro pagination target'
+- runFlow:
+      file: common/typeCollectionName.yaml
+      env:
+          NAME: 'Maestro pagination target'
 - pressKey: Enter
 - extendedWaitUntil:
       visible: 'More actions for Maestro pagination target'
@@ -58,8 +60,10 @@ appId: ${APP_ID}
           - extendedWaitUntil:
                 visible: 'Description \(optional\)'
                 timeout: 20000
-          - tapOn: 'Name'
-          - inputText: 'Maestro pagination filler'
+          - runFlow:
+                file: common/typeCollectionName.yaml
+                env:
+                    NAME: 'Maestro pagination filler'
           - pressKey: Enter
           - extendedWaitUntil:
                 visible: 'More actions for Maestro pagination filler'

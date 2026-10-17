@@ -25,8 +25,10 @@ appId: ${APP_ID}
 # which does not block self-cloning (see above).
 - tapOn: 'New collection'
 - assertVisible: 'Description \(optional\)'
-- tapOn: 'Name'
-- inputText: 'Maestro clone source'
+- runFlow:
+      file: common/typeCollectionName.yaml
+      env:
+          NAME: 'Maestro clone source'
 # Enter submits the name from the keyboard, as a cook finishes a one-field form.
 - pressKey: Enter
 

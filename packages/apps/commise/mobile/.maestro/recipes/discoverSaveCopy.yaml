@@ -28,6 +28,9 @@ appId: ${APP_ID}
       element: 'Save a copy of ${E2E_RECIPE_RISOTTO}'
       direction: DOWN
       timeout: 40000
+      # Centred: a control that scrolls in at the screen's foot sits under the tab bar, where an iOS tap reaches the bar and
+      # opens My recipes instead (run 38988891871).
+      centerElement: true
 
 # SAVE. Nothing opens by itself: the snackbar and the control both say it, and Discover is still on screen.
 - tapOn: 'Save a copy of ${E2E_RECIPE_RISOTTO}'

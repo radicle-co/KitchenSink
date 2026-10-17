@@ -86,12 +86,17 @@ appId: ${APP_ID}
 - assertVisible: '10 min'
 
 # Back to the author's yield with the note's own Reset: the note disappears and the stored total returns.
+# Centred: the note sits under the tab bar otherwise, and on iOS a tap there reached the bar and left the count at 4
+# (run 38988891871).
 - scrollUntilVisible:
       element: 'Reset'
       direction: DOWN
       timeout: 20000
+      centerElement: true
 - tapOn: 'Reset'
-- assertVisible: 'for 2'
+- extendedWaitUntil:
+      visible: 'for 2'
+      timeout: 10000
 - assertNotVisible: 'Amounts scaled from 2 servings.*'
 - scrollUntilVisible:
       element: '20 min'

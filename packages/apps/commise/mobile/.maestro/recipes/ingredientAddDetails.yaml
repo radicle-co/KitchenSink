@@ -62,7 +62,13 @@ appId: ${APP_ID}
       visible:
           text: 'Actions for boneless skinless chicken breasts, fried'
       timeout: 30000
-- assertVisible: 'fried'
+# iOS merges a row's dotted line into the row's own label ("Edit <name>"), so the part is not a node of its own there; the
+# row's ⋮ label, asserted on both platforms, names it too.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible: 'fried'
 
 # Change it.
 - tapOn: 'Actions for boneless skinless chicken breasts, fried'

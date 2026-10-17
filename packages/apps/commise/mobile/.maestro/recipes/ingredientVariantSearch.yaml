@@ -49,9 +49,15 @@ appId: ${APP_ID}
           text: 'Actions for boneless skinless chicken breasts, fried'
       timeout: 30000
       label: 'the line binds the "fried" variant'
-- assertVisible:
-      text: 'fried'
-      below: 'Edit boneless skinless chicken breasts'
+# iOS merges a row's dotted line into the row's own label ("Edit <name>"), so the part is not a node of its own there; the
+# row's ⋮ label, asserted on both platforms, names it too.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'fried'
+                below: 'Edit boneless skinless chicken breasts'
 
 # Several variants named: Change food searches "grilled", which names two variants, so the result is the root alone.
 # The field opens on the food's name with the caret at its end (`Combobox.native.tsx`'s focus request), so the name is

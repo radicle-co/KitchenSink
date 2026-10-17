@@ -19,8 +19,10 @@ appId: ${APP_ID}
       timeout: 40000
 
 - tapOn: 'New collection'
-- tapOn: 'Name'
-- inputText: 'Maestro undo collection'
+- runFlow:
+      file: common/typeCollectionName.yaml
+      env:
+          NAME: 'Maestro undo collection'
 # Enter submits the name from the keyboard, as a cook finishes a one-field form.
 - pressKey: Enter
 - extendedWaitUntil:
@@ -75,8 +77,10 @@ appId: ${APP_ID}
 # collection's name. The title row is `numberOfLines={1}`, so a 60-character name ends in an ellipsis and never pushes
 # the Close control or the search field off screen. HERMETIC: it creates its own collection and deletes it.
 - tapOn: 'New collection'
-- tapOn: 'Name'
-- inputText: 'Maestro long collection name to prove a one line sheet title'
+- runFlow:
+      file: common/typeCollectionName.yaml
+      env:
+          NAME: 'Maestro long collection name to prove a one line sheet title'
 - pressKey: Enter
 - extendedWaitUntil:
       visible: 'More actions for Maestro long collection name to prove a one line sheet title'

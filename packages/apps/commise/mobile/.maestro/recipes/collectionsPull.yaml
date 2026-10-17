@@ -30,8 +30,10 @@ appId: ${APP_ID}
 # CREATE the source.
 - tapOn: 'New collection'
 - assertVisible: 'Description \(optional\)'
-- tapOn: 'Name'
-- inputText: 'Maestro pull source'
+- runFlow:
+      file: common/typeCollectionName.yaml
+      env:
+          NAME: 'Maestro pull source'
 # Enter submits the name from the keyboard, as a cook finishes a one-field form.
 - pressKey: Enter
 
@@ -158,7 +160,7 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'New collection'
       timeout: 40000
-- tapOn: 'Maestro pull source'
+- tapOn: 'Maestro pull source(, .*)?'
 - extendedWaitUntil:
       visible: 'More actions for Maestro pull source'
       timeout: 40000
@@ -168,4 +170,4 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'New collection'
       timeout: 40000
-- assertNotVisible: 'Maestro pull source'
+- assertNotVisible: 'Maestro pull source(, .*)?'

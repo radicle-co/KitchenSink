@@ -63,8 +63,9 @@ appId: ${APP_ID}
 
 # UI overhaul slice 8 (build spec §7.5.1): the row says it needs a choice in an attention line under its name.
 - extendedWaitUntil:
+      # iOS reads the line as one label, "Choose a match: halloumi", so the words after the colon are allowed.
       visible:
-          text: 'Choose a match'
+          text: 'Choose a match.*'
       timeout: 60000
       label: 'a name our database has never seen settles UNRESOLVED on this stage, so row 6 has a line to show'
 
@@ -98,7 +99,7 @@ appId: ${APP_ID}
       notVisible:
           text: 'Search for another food'
       timeout: 40000
-- assertNotVisible: 'Choose a match'
+- assertNotVisible: 'Choose a match.*'
 
 # Leave with ×. REWRITTEN for slice 7: Save Draft is gone; × is the exit checkpoint, which creates the titled draft
 # (build spec §7.3), so the recipe is in My recipes when the list returns.

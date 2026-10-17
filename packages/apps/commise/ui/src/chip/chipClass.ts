@@ -9,12 +9,12 @@
  * `selectedFill` tint, a 1.5 px `selectedEdge` and an `actionText` label (5.18:1 on the tint) — the check glyph the
  * leaf draws is what keeps selection from resting on colour alone.
  *
- * The row: one line that scrolls inside itself with proximity snapping, 16 px of trailing room and a 24 px fade at the
- * trailing edge, or wrapped lines. A row that scrolls sideways clips vertically too, which cut each chip's
- * coarse-pointer overlay back to its 36 px pill (measured: a 37 px tap band); on a coarse pointer the scrolling row
- * therefore keeps 6 px of room above and below for it, cancelled by a negative margin so the layout does not move.
- * ⚠️ The fade is a static mask, so it also shows when the row is scrolled to its end; a fade that tracks "more exists"
- * needs a scroll-driven animation, which the theme does not emit yet.
+ * The row: one line, 16 px of trailing room, or wrapped lines. A scrolling row sits inside the design-system
+ * `HorizontalScroller` (`ChipRow.tsx`), which owns the overflow, the snapping, the hidden scrollbar and the hint at the
+ * trailing edge. A row that scrolls sideways clips vertically too, which cut each chip's coarse-pointer overlay back to
+ * its 36 px pill (measured: a 37 px tap band); on a coarse pointer the line therefore keeps 6 px of room above and
+ * below for it, and the wrapper `ChipRow` draws around the scroller cancels it with a negative margin so the layout
+ * does not move.
  */
 import type { ChipRowOverflow } from './props.js';
 
@@ -45,13 +45,12 @@ export function chipClass(selected: boolean): string {
     return `${CHIP_BASE} ${selected ? CHIP_SELECTED : CHIP_REST}`;
 }
 
+/** The negative margin that cancels a scrolling line's coarse-pointer padding; it belongs to the box around the scroller. */
+export const SCROLL_BOX_CLASS = 'pointer-coarse:-my-1.5';
+
 /** Each overflow's row layout. */
 const ROW: Readonly<Record<ChipRowOverflow, string>> = {
-    scroll:
-        'flex flex-nowrap gap-2 overflow-x-auto snap-x snap-proximity pe-4 ' +
-        'pointer-coarse:-my-1.5 pointer-coarse:py-1.5 ' +
-        '[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)] ' +
-        'rtl:[mask-image:linear-gradient(to_left,black_calc(100%-24px),transparent)]',
+    scroll: 'flex flex-nowrap gap-2 pe-4 pointer-coarse:py-1.5',
     wrap: 'flex flex-wrap gap-2',
 };
 

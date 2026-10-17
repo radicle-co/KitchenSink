@@ -6,6 +6,7 @@ import { role, roleDark } from '@commise/ui/colors';
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+import { chevronOf, expectChevron, overflows, scrollTo, scrollerAround } from './utils/scrollHint';
 
 /**
  * The first slice of 008 FR-035 on the recipe page (`docs/design/uiOverhaul/buildSpec.md` §6.2, §6.3), in a real
@@ -311,6 +312,45 @@ test.describe('the section switch below a 720 px body', () => {
                 (navBox?.x ?? 0) + (navBox?.width ?? 0) + 0.5,
             );
         }
+    });
+
+    /**
+     * The scroll hint (`docs/design/uiOverhaul/horizontalScrollHint.md`): the links scroll inside the bar, and a chevron at
+     * its end shows only while they overflow and the bar rests at its start. Text at 200% forces the overflow.
+     */
+    test('hints at more links with a chevron that goes on the first scroll and returns at the start', async ({
+        page,
+    }) => {
+        await stubWakeLock(page);
+        await page.setViewportSize({ width: 320, height: 700 });
+        await openRecipe(page);
+        await page.addStyleTag({ content: 'html { font-size: 200%; }' });
+
+        const nav = page.getByRole('navigation', { name: 'Recipe sections' });
+        const scroller = scrollerAround(nav.getByRole('link', { name: 'Ingredients' }));
+        const chevron = chevronOf(scroller);
+
+        expect(await overflows(scroller)).toBe(true);
+        await expectChevron(chevron, 'shown');
+
+        await scrollTo(scroller, 30);
+        await expectChevron(chevron, 'hidden');
+
+        await scrollTo(scroller, 0);
+        await expectChevron(chevron, 'shown');
+    });
+
+    test('draws no chevron while the links fit the bar', async ({ page }) => {
+        await stubWakeLock(page);
+        await page.setViewportSize({ width: 390, height: 844 });
+        await openRecipe(page);
+
+        const scroller = scrollerAround(
+            page.getByRole('navigation', { name: 'Recipe sections' }).getByRole('link', { name: 'Ingredients' }),
+        );
+
+        expect(await overflows(scroller)).toBe(false);
+        await expectChevron(chevronOf(scroller), 'hidden');
     });
 
     test('says what Screen on is once, and takes it back at the first scroll', async ({ page }) => {

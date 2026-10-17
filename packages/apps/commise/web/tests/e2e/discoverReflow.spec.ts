@@ -36,7 +36,11 @@ for (const width of WIDTHS) {
 
         await page.goto(route('/discover'));
 
-        await expect(page.getByRole('status', { name: 'Loading recipes' }).first()).toBeVisible();
+        const loading = page.getByRole('status', { name: 'Loading recipes' }).first();
+        await expect(loading).toBeVisible();
+        // The placeholders have nothing to scroll to, so they promise nothing: no chevron, and no scroller.
+        await expect(loading.locator('svg')).toHaveCount(0);
+        await expect(loading.locator('[class*="overflow-x-auto"]')).toHaveCount(0);
         const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
         expect(scrollWidth).toBe(width);
     });

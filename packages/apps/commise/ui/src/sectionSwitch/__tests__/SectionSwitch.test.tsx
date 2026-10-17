@@ -120,6 +120,10 @@ describe('SectionSwitch (web)', () => {
      * F14 (`evaluateFinal.md`): at 320 the links shrank under the trailing toggle, which covered "Nutrition" (SC 2.5.8),
      * and +35% strings pushed the bar 47 px past the page (SC 1.4.10). The links scroll INSIDE the bar, each at its
      * label's width, and the trailing toggle stays pinned at the end, outside the scroller.
+     *
+     * ⚠️ REWRITTEN for the scroll hint: the `nav` used to be the scroller (`overflow-x-auto` and a hidden scrollbar on its
+     * own classes). It is now the landmark around the design-system `HorizontalScroller`, which owns the overflow, the
+     * thin scrollbar that shows only while scrolling, and the chevron; the links and the pinned toggle are unchanged.
      */
     it('scrolls its links inside the bar, never squeezing them, and pins the trailing control outside the scroller', () => {
         render(
@@ -136,14 +140,22 @@ describe('SectionSwitch (web)', () => {
 
         const nav = screen.getByRole('navigation', { name: 'Recipe sections' });
         const toggle = screen.getByRole('switch', { name: 'Screen on' });
+        const scroller = within(nav).getAllByRole('link')[0]?.closest('[class*="overflow-x-auto"]') as HTMLElement;
 
-        expect(nav.className.split(' ')).toEqual(expect.arrayContaining(['min-w-0', 'flex-1', 'overflow-x-auto']));
+        expect(nav.className.split(' ')).toEqual(expect.arrayContaining(['min-w-0', 'flex-1']));
+        expect(nav.className.split(' ')).not.toContain('overflow-x-auto');
+        expect(nav.contains(scroller)).toBe(true);
+        expect(scroller.className.split(' ')).toContain('[scrollbar-width:thin]');
+        expect(scroller.className).not.toContain('scrollbar-width:none');
+        // The chevron sits beside the links inside the landmark, decorative.
+        expect(scroller.nextElementSibling?.getAttribute('aria-hidden')).toBe('true');
 
         for (const link of within(nav).getAllByRole('link')) {
             expect((link.closest('li') as HTMLElement).className.split(' ')).toContain('shrink-0');
         }
 
         expect(nav.contains(toggle)).toBe(false);
+        expect(scroller.contains(toggle)).toBe(false);
         expect((toggle.parentElement as HTMLElement).className.split(' ')).toContain('shrink-0');
     });
 

@@ -1,42 +1,14 @@
 /**
  * @module @commise/features-recipes/discovery — the pure arithmetic of a browse rail's scroll track
- * (`docs/design/uiOverhaul/buildSpec.md` §4.4): whether the track is at either end, how far one card moves it, and how
- * far Previous and Next move it ("by one view minus one card").
+ * (`docs/design/uiOverhaul/buildSpec.md` §4.4): how far one card moves it, and how far Previous and Next move it ("by
+ * one view minus one card"). Whether the track is at either end is the design-system scroll hint's rule
+ * (`@commise/ui/horizontal-scroller`), reported by the track.
  *
  * Pure: the DOM reads happen at the call site and arrive as numbers.
  */
 
 /** The gap between a rail's cards, in px (`gap-4`). */
 export const RAIL_GAP_PX = 16;
-
-/** What the track is doing, as far as the two buttons care. */
-export interface RailScrollState {
-    /** Scrolled to the start (or not scrollable at all): Previous has nowhere to go. */
-    readonly atStart: boolean;
-    /** Scrolled to the end (or not scrollable at all): Next has nowhere to go. */
-    readonly atEnd: boolean;
-}
-
-/** The numbers a scroll container reports about itself. */
-export interface RailGeometry {
-    readonly scrollLeft: number;
-    readonly clientWidth: number;
-    readonly scrollWidth: number;
-}
-
-/**
- * Where the track stands. A track that fits its view is at both ends. The 1 px slack absorbs the sub-pixel rounding of
- * `scrollLeft` on a zoomed or scaled display, which would otherwise leave Next live at the very end.
- *
- * @param geometry - The track's scroll position and sizes.
- * @returns Whether it is at the start and at the end.
- */
-export function railScrollState({ scrollLeft, clientWidth, scrollWidth }: RailGeometry): RailScrollState {
-    return {
-        atStart: Math.abs(scrollLeft) <= 1,
-        atEnd: Math.abs(scrollLeft) + clientWidth >= scrollWidth - 1,
-    };
-}
 
 /**
  * How far one card moves the track: the card and its gap, or a fraction of the view while no card has a measured width.

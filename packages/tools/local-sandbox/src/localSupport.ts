@@ -250,6 +250,10 @@ export const LOCAL_SUPPORT: Readonly<Record<string, LocalSupport>> = Object.free
         kind: 'unsupported',
         why: 'deploy-time provisioner that uploads the public half to CloudFront; there is no local CloudFront to upload to',
     },
+    'AWS::CloudFront::ResponseHeadersPolicy': {
+        kind: 'unsupported',
+        why: 'response headers a deployed distribution adds at the edge; no local distribution serves them',
+    },
     'AWS::CloudFront::CachePolicy': {
         kind: 'unsupported',
         why: 'caching shape of the deployed distributions (the router edge and the search copies), neither of which has a local equivalent',

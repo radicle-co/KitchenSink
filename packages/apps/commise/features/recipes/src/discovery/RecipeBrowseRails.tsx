@@ -20,6 +20,7 @@ import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Chip, ChipRow } from '@commise/ui/chip';
 import { useFocusOnSignal } from '@commise/ui/dialog-focus';
+import { UNMEASURED_EXTENT, type ScrollExtent } from '@commise/ui/horizontal-scroller';
 import { Icon } from '@commise/ui/icon';
 import { EnterTransition } from '@commise/ui/motion';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
@@ -72,7 +73,9 @@ const Rail: FC<{
     // The track's element, handed up by the track as the body renders it. State, not a ref: the buttons must re-render
     // when the loading track gives way to the loaded one.
     const [track, setTrack] = useState<HTMLElement | null>(null);
-    const scroll = useRailScroll(track);
+    // Where the track rests, reported by the track itself; the same facts as its scroll hint.
+    const [position, setPosition] = useState<ScrollExtent>(UNMEASURED_EXTENT);
+    const scroll = useRailScroll(track, position);
 
     return (
         <section className="flex flex-col gap-3">
@@ -115,7 +118,7 @@ const Rail: FC<{
                     {discovery.seeAll}
                 </Button>
             </header>
-            <RailContext value={{ title, trackRef: setTrack }}>{rail.body}</RailContext>
+            <RailContext value={{ title, trackRef: setTrack, onPosition: setPosition }}>{rail.body}</RailContext>
         </section>
     );
 };

@@ -48,6 +48,7 @@ import type { DurationField } from '@commise/ui/duration-field';
 import type { RevealSpacer } from '@commise/ui/field-reveal';
 import type { FullScreenSheet } from '@commise/ui/full-screen-sheet';
 import type { HeroButton, HeroButtonProps } from '@commise/ui/hero-button';
+import type { HorizontalScroller } from '@commise/ui/horizontal-scroller';
 import type { Icon } from '@commise/ui/icon';
 import type { FieldLabel, Input, Stepper, TextArea } from '@commise/ui/input';
 import type { KeepAwakeToggle } from '@commise/ui/keep-awake';
@@ -140,6 +141,7 @@ export interface CardComponents {
     readonly HeroButton: typeof HeroButton;
     readonly HomeSidebar: typeof HomeSidebar;
     readonly HomeTabBar: typeof HomeTabBar;
+    readonly HorizontalScroller: typeof HorizontalScroller;
     readonly Icon: typeof Icon;
     readonly IngredientRow: typeof IngredientRow;
     readonly Input: typeof Input;

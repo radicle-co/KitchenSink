@@ -280,6 +280,71 @@ describe('RecipeBrowseRails (web) — Previous and Next', () => {
     });
 });
 
+/**
+ * The scroll hint on a rail (`docs/design/uiOverhaul/horizontalScrollHint.md`): a chevron while the track overflows and
+ * rests at its start, gone on any scroll, back at the start. Previous and Next read the SAME facts, so a button and the
+ * chevron cannot disagree. The chevron is the track's decorative next sibling; its opacity is read from its inline style.
+ */
+describe('RecipeBrowseRails (web) — the scroll hint', () => {
+    function track(scrollLeft: number, { view = 600, content = 1400 } = {}): HTMLElement {
+        const region = screen.getByRole('region', { name: 'Trending recipes' });
+
+        Object.defineProperty(region, 'clientWidth', { configurable: true, value: view });
+        Object.defineProperty(region, 'scrollWidth', { configurable: true, value: content });
+        Object.defineProperty(region, 'scrollLeft', { configurable: true, writable: true, value: scrollLeft });
+        fireEvent.scroll(region);
+
+        return region;
+    }
+
+    const chevronOpacity = (region: HTMLElement): string => (region.nextElementSibling as HTMLElement).style.opacity;
+
+    it('shows the chevron at the start of an overflowing track, hides it on a scroll, and brings it back at the start', () => {
+        renderRails();
+        const region = track(0);
+
+        expect(chevronOpacity(region)).toBe('1');
+
+        Object.defineProperty(region, 'scrollLeft', { configurable: true, writable: true, value: 300 });
+        fireEvent.scroll(region);
+        expect(chevronOpacity(region)).toBe('0');
+
+        Object.defineProperty(region, 'scrollLeft', { configurable: true, writable: true, value: 0 });
+        fireEvent.scroll(region);
+        expect(chevronOpacity(region)).toBe('1');
+    });
+
+    it('shows no chevron when the rail fits, and agrees with Previous and Next about the start', () => {
+        renderRails();
+        const region = track(0, { view: 1000, content: 900 });
+        const row = region.closest('section') as HTMLElement;
+
+        expect(chevronOpacity(region)).toBe('0');
+        expect(within(row).getByRole('button', { name: 'Previous' }).getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('survives a burst of scrolls without an update loop', () => {
+        const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        renderRails();
+        const region = track(0);
+
+        for (let at = 0; at < 60; at += 1) {
+            Object.defineProperty(region, 'scrollLeft', { configurable: true, writable: true, value: (at % 2) * 400 });
+            fireEvent.scroll(region);
+        }
+
+        expect(errors).not.toHaveBeenCalled();
+        errors.mockRestore();
+    });
+
+    it('snaps to cards, and draws the focus ring inside the track so the fade cannot clip it', () => {
+        renderRails();
+        const tokens = screen.getByRole('region', { name: 'Trending recipes' }).className.split(' ');
+
+        expect(tokens).toEqual(expect.arrayContaining(['snap-x', 'snap-mandatory', 'focus-visible:ring-inset']));
+    });
+});
+
 describe('RecipeBrowseRails (web) — section enter motion (U8 motion pass)', () => {
     /** The `EnterTransition` wrappers each section is composed inside. */
     const enterWrappers = (): readonly HTMLElement[] => [

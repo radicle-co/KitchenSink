@@ -54,6 +54,8 @@ const SHAPES: readonly (readonly [RegExp, string])[] = [
     [/_SUBNET_ID$/u, 'subnet-0000000000000beef'],
     [/_DISTRIBUTION_ID$/u, 'ELOCALDISTRIBUTION'],
     [/_ARN$/u, 'arn:aws:sqs:us-east-1:000000000000:local-placeholder'],
+    // A bare https origin, because `@kitchensink/clerk-verify`'s upload-origin policy refuses anything else at synth.
+    [/_AUTHORIZED_PARTIES$/u, 'https://local.invalid'],
     [/_URL$|_ENDPOINT$|_ORIGIN$/u, 'http://localhost:1'],
     [/ACCOUNT(_ID)?$/u, '000000000000'],
     [/REGION$/u, 'us-east-1'],

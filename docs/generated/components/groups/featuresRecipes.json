@@ -10625,7 +10625,7 @@
             "dir": "packages/apps/commise/features/recipes/src/discovery",
             "kind": "presentational",
             "patterns": [
-                "Adapter over a scroll container's keyboard model — the arrow keys call `scrollBy`"
+                "Adapter over `HorizontalScroller` — the rail's contract (a named region, card snapping, a position report) over the design-system scroller"
             ],
             "platforms": [
                 "web"
@@ -10639,7 +10639,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/discovery/RailTrack.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/discovery",
-                    "moduleDoc": "@commise/features-recipes — web browse-rail TRACK: the one horizontal scroll container a rail's cards sit\nin, whether they are loaded cards or loading placeholders (`docs/design/uiOverhaul/buildSpec.md` §4.4).\n\nBoth rail bodies render through this element so the pending strip and the loaded strip cannot drift apart. They\ndid once (E1, `docs/design/uiOverhaul/evaluateShellAndLists.md`): the skeleton strip had no overflow rule, so its\ntiles widened the whole page at 320 px while only the loaded strip scrolled inside itself. The overflow belongs to\nthe track, and every tile inside it is a `shrink-0` item.\n\nThe loaded track is a focusable `region` named \"{rail} recipes\", the arrow keys scroll it by one card, and each card\nis a tab stop of its own (SC 2.1.1). It scrolls with proximity-mandatory snapping, and the next card peeks at the\nedge — the swipe cue on touch. Its element is handed to the rail through `RailContext`, so the rail's Previous and Next\nmove it. A placeholder track is `aria-hidden`: its tiles carry no content, and its rail's live region speaks for it.\n\nPresentational: the scrolling track of one rail; the scroll position is read from the host's context.",
+                    "moduleDoc": "@commise/features-recipes — web browse-rail TRACK: the one horizontal scroll container a rail's cards sit\nin, whether they are loaded cards or loading placeholders (`docs/design/uiOverhaul/buildSpec.md` §4.4).\n\nBoth rail bodies render through this element so the pending strip and the loaded strip cannot drift apart. They\ndid once (E1, `docs/design/uiOverhaul/evaluateShellAndLists.md`): the skeleton strip had no overflow rule, so its\ntiles widened the whole page at 320 px while only the loaded strip scrolled inside itself. The overflow belongs to\nthe track, and every tile inside it is a `shrink-0` item.\n\nThe loaded track is the design-system `HorizontalScroller`: a focusable `region` named \"{rail} recipes\", whose arrow keys\nscroll it by one card, and each card is a tab stop of its own (SC 2.1.1). It snaps card by card, the next card peeks at\nthe edge — the swipe cue on touch — and a chevron hints at the cards beyond while it rests at its start. Its element and\nits position are handed to the rail through `RailContext`, so the rail's Previous and Next move it and read the same\nfacts. A placeholder track is `aria-hidden` and does not scroll: its tiles carry no content, its rail's live region\nspeaks for it, and it has nothing to promise.\n\nPresentational: the scrolling track of one rail; the scroll position is read from the host's context.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -10647,7 +10647,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Adapter over a scroll container's keyboard model — the arrow keys call `scrollBy`"
+                            "text": "Adapter over `HorizontalScroller` — the rail's contract (a named region, card snapping, a position report) over the design-system scroller"
                         }
                     ],
                     "description": "The horizontal, snap-scrolling list every browse rail lays its tiles out in.",
@@ -10929,7 +10929,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/discovery/RecipeBrowseRailResults.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/discovery",
-                    "moduleDoc": "@commise/features-recipes — native browse-rail RESULTS (presentational, U7; slice 5 of the UI overhaul).\n\nThe React Native twin of `RecipeBrowseRailResults`: a horizontal strip of full grid cards, each `clamp(240, 78% of the\ntrack, 256)` wide so the next card peeks at the edge — the swipe cue — and snaps to the start; or the rail's empty note.\nThe strip is a `region` named \"{rail} recipes\".",
+                    "moduleDoc": "@commise/features-recipes — native browse-rail RESULTS (presentational, U7; slice 5 of the UI overhaul).\n\nThe React Native twin of `RecipeBrowseRailResults`: a horizontal strip of full grid cards, each `clamp(240, 78% of the\ntrack, 256)` wide so the next card peeks at the edge — the swipe cue — and snaps to the start; or the rail's empty note.\nThe strip is a `region` named \"{rail} recipes\", drawn by the design-system `HorizontalScroller`: it keeps the platform's\nscroll indicator and hints at the cards beyond with a chevron while it rests at its start.",
                     "moduleTags": [
                         {
                             "name": "module",

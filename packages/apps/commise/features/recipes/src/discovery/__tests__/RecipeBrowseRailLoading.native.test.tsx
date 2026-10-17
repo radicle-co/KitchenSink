@@ -23,3 +23,13 @@ describe('RecipeBrowseRailLoading (native) — N1: a status said by its caption 
         expect(screen.queryAllByLabelText('Loading recipes')).toEqual([]);
     });
 });
+
+/** The loading strip has nothing to scroll to, so it promises nothing: no chevron and no fade, even when laid out wide. */
+describe('RecipeBrowseRailLoading (native) — no scroll hint', () => {
+    it('draws neither the chevron nor the fade', () => {
+        const { container } = render(<RecipeBrowseRailLoading />);
+
+        expect(container.querySelector('[data-icon-name="chevron-right"]')).toBeNull();
+        expect(container.querySelector('[data-commise-stub="linear-gradient"]')).toBeNull();
+    });
+});

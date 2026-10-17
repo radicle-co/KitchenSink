@@ -64,6 +64,12 @@ describe('inferPlaceholder', () => {
         expect(inferPlaceholder('DOMAIN_NAME')).toMatch(/\.invalid$/u);
     });
 
+    // `@kitchensink/clerk-verify`'s upload-origin policy refuses any authorized party that is not a bare https origin,
+    // so a token placeholder made `infra-global` fail to synthesise and `local:up` refused to start.
+    it('gives an authorized-parties list a bare https origin on a reserved domain', () => {
+        expect(inferPlaceholder('CLERK_AUTHORIZED_PARTIES')).toBe('https://local.invalid');
+    });
+
     it('gives an unrecognised key a harmless token rather than an empty string', () => {
         // Empty would pass `process.env['X'] ?? fallback` and silently take the fallback path, so a synth
         // could succeed against a code path no deploy ever uses.

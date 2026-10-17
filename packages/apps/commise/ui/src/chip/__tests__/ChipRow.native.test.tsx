@@ -1,16 +1,20 @@
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Chip } from '../Chip.native.js';
 import { role } from '../../tokens/colors.js';
-import { ChipRow, hasMoreAhead } from '../ChipRow.native.js';
+import { ChipRow } from '../ChipRow.native.js';
 import type { ChipRowProps } from '../props.js';
 
 /**
- * ChipRow (native) — the trailing fade of a scrolling row (`docs/design/uiOverhaul/buildSpec.md` §1.11: a 24 px fade
- * "while more exists", A-028 e). The web row masks its end; native had nothing, so a chip cut at the edge looked like a
- * layout bug and not like a row that scrolls.
+ * ChipRow (native) — the scroll hint of a scrolling row (`docs/design/uiOverhaul/horizontalScrollHint.md`). The row sits
+ * in the design-system `HorizontalScroller`, which owns the platform scroll indicator, the gradient into the surface
+ * colour and the chevron; its own suite owns their behaviour, and this one pins that the row is wired to it.
+ *
+ * ⚠️ REWRITTEN. This suite pinned a 24 dp fade built in the row, shown by `hasMoreAhead` and with no chevron. The fade
+ * is now the scroller's: 40 dp with the chevron while the row rests at its start, 24 dp once it has been scrolled.
+ * The `hasMoreAhead` table moved to `horizontalScroller/__tests__/scrollHint.test.ts`.
  */
 
 afterEach(cleanup);
@@ -49,14 +53,14 @@ function row(overflow: 'scroll' | 'wrap', surface?: 'canvas' | 'overlay') {
     );
 }
 
-describe('ChipRow (native) — the trailing fade of a scrolling row', () => {
-    it('draws no fade before it knows the row is wider than its box', () => {
+describe('ChipRow (native) — the scroll hint of a scrolling row', () => {
+    it('draws no hint before it knows the row is wider than its box', () => {
         const { container } = row('scroll');
 
         expect(container.querySelector(FADE)).toBeNull();
     });
 
-    it('draws a 24 dp fade at the end while the chips run past the box', () => {
+    it('draws a 40 dp band with the chevron at the start while the chips run past the box', () => {
         const { container } = row('scroll');
         const [scroller, content] = measured(container);
 
@@ -68,10 +72,29 @@ describe('ChipRow (native) — the trailing fade of a scrolling row', () => {
         expect(fade).not.toBeNull();
         const box = fade?.parentElement as HTMLElement;
 
-        expect(getComputedStyle(box).width).toBe('24px');
+        expect(getComputedStyle(box).width).toBe('40px');
         // It decorates, and it must never take a touch meant for the chip under it.
         expect(box.getAttribute('aria-hidden')).toBe('true');
         expect(getComputedStyle(box).pointerEvents).toBe('none');
+        expect(container.querySelector('[data-icon-name="chevron-right"]')).not.toBeNull();
+    });
+
+    it('narrows to the 24 dp fade, without the chevron, once the row has been scrolled', () => {
+        const { container } = row('scroll');
+        const [scroller, content] = measured(container);
+
+        layOut(scroller as Element, 300);
+        layOut(content as Element, 640);
+        (scroller as HTMLElement).scrollLeft = 120;
+        fireEvent.scroll(scroller as Element);
+
+        const box = container.querySelector<HTMLElement>(FADE)?.parentElement as HTMLElement;
+
+        expect(getComputedStyle(box).width).toBe('24px');
+        expect(
+            container.querySelector('[data-icon-name="chevron-right"]')?.closest<HTMLElement>('[style*="opacity"]')
+                ?.style.opacity,
+        ).toBe('0');
     });
 
     it('fades into the canvas by default, and into the sheet’s surface when the row sits on one', () => {
@@ -107,6 +130,7 @@ describe('ChipRow (native) — the trailing fade of a scrolling row', () => {
         const { container } = row('wrap');
 
         expect(container.querySelector(FADE)).toBeNull();
+        expect(container.querySelector('[data-icon-name="chevron-right"]')).toBeNull();
     });
 });
 
@@ -170,17 +194,5 @@ describe('ChipRow (native) — a wrapped row is free to wrap', () => {
 
         expect(rows).toHaveLength(1);
         expect(line === undefined ? undefined : getComputedStyle(line).flexWrap).toBe('wrap');
-    });
-});
-
-describe('hasMoreAhead', () => {
-    it.each([
-        [{ viewport: 300, content: 640, offset: 0 }, true],
-        [{ viewport: 300, content: 640, offset: 338 }, true],
-        [{ viewport: 300, content: 640, offset: 339 }, false],
-        [{ viewport: 400, content: 240, offset: 0 }, false],
-        [{ viewport: 0, content: 640, offset: 0 }, false],
-    ])('answers for %j', (extent, expected) => {
-        expect(hasMoreAhead(extent)).toBe(expected);
     });
 });

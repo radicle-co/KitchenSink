@@ -15,6 +15,19 @@ appId: ${APP_ID}
       timeout: 20000
 - takeScreenshot: primitives_recipeList
 
+# The scroll hint (`HorizontalScroller`, `docs/design/uiOverhaul/horizontalScrollHint.md`) on the quick-filter chip row:
+# at rest (chevron at the end when the chips overflow), after a swipe away (chevron gone, the 24 dp fade left), and after
+# the swipe back (chevron returned). Captures, not assertions: the chevron is decorative and has no accessibility node.
+- takeScreenshot: primitives_chipRowRest
+- swipe:
+      from: 'Quick filters'
+      direction: LEFT
+- takeScreenshot: primitives_chipRowScrolled
+- swipe:
+      from: 'Quick filters'
+      direction: RIGHT
+- takeScreenshot: primitives_chipRowReturned
+
 # Collections: the primary create Button. Captured BEFORE the owner-only detail, so a world in which the signer owns no
 # recipe still yields every capture it can.
 - tapOn: 'Collections'

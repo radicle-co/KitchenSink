@@ -4,10 +4,12 @@
  * A rail's heading (with Previous and Next) sits OUTSIDE the rail's read boundary, and its track sits inside, so the two
  * meet through the render tree: the rail provides this context around its body, and the track reads it. The track is
  * handed to the rail as a state-holding callback ref, so the rail re-renders when the track mounts or is replaced (the
- * loading track gives way to the loaded one).
+ * loading track gives way to the loaded one), and the track reports where it rests, so Previous and Next read the same
+ * facts as the scroll hint.
  *
  * @pattern Provider — the rail carries its name and its track hook to the track without threading props through the body
  */
+import type { ScrollExtent } from '@commise/ui/horizontal-scroller';
 import { createContext } from 'react';
 
 /** What a rail gives its track. */
@@ -16,6 +18,8 @@ export interface RailScroll {
     readonly title: string;
     /** Hands the rail its scroll container. Web only: native has no Previous and Next, so its rail needs no element. */
     readonly trackRef?: (node: HTMLElement | null) => void;
+    /** Hears where the track rests, once measured and each time it reaches or leaves an end. Web only, with `trackRef`. */
+    readonly onPosition?: (extent: ScrollExtent) => void;
 }
 
 /** Absent when a track is drawn outside a rail: the track is then an unnamed scroller. */

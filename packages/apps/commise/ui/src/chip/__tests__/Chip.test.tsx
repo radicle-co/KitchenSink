@@ -310,16 +310,50 @@ describe('ChipRow (web) — filter and input', () => {
         expect(within(group).getAllByRole('button')).toHaveLength(2);
     });
 
-    it('scrolls one line inside itself, snapping, with trailing room and a fade at the end', () => {
+    /**
+     * ⚠️ REWRITTEN for the scroll hint. The row used to BE the scroller (overflow, snapping and a static end mask on its own
+     * classes). It now sits in the design-system `HorizontalScroller`, which owns overflow, snapping, the hidden scrollbar,
+     * the tracking fade and the chevron; the row keeps its single line, gap and trailing room.
+     */
+    it('lays its chips on one line inside a HorizontalScroller that snaps to them, with trailing room', () => {
         render(
             <ChipRow mode="input" label="Applied filters" overflow="scroll">
                 <Chip kind="input" label="Vegan" removeLabel="Remove Vegan" onRemove={vi.fn()} />
             </ChipRow>,
         );
 
-        expect(tokensOf(screen.getByRole('group', { name: 'Applied filters' }))).toEqual(
-            expect.arrayContaining(['flex-nowrap', 'overflow-x-auto', 'snap-x', 'snap-proximity', 'pe-4']),
+        const group = screen.getByRole('group', { name: 'Applied filters' });
+        const scroller = group.closest('[class*="overflow-x-auto"]') as HTMLElement;
+
+        expect(tokensOf(group)).toEqual(expect.arrayContaining(['flex-nowrap', 'pe-4']));
+        expect(tokensOf(group)).not.toContain('overflow-x-auto');
+        expect(tokensOf(scroller)).toEqual(expect.arrayContaining(['overflow-x-auto', 'snap-x', 'snap-proximity']));
+        // The chevron is the scroller's sibling: a mask on the scroller would erase a child.
+        expect(scroller.nextElementSibling?.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('draws the same scroller around a choice row that scrolls', () => {
+        render(
+            <ChipRow
+                mode="choice"
+                label="Cuisine"
+                overflow="scroll"
+                value="thai"
+                onChange={vi.fn()}
+                options={[
+                    { value: 'thai', label: 'Thai' },
+                    { value: 'greek', label: 'Greek' },
+                ]}
+            />,
         );
+
+        const group = screen.getByRole('radiogroup', { name: 'Cuisine' });
+
+        expect(tokensOf(group)).toEqual(expect.arrayContaining(['flex-nowrap', 'pe-4']));
+        const scroller = group.closest('[class*="snap-proximity"]');
+
+        expect(scroller).not.toBeNull();
+        expect(scroller).not.toBe(group);
     });
 
     it('wraps to further lines when its overflow is wrap', () => {
@@ -331,5 +365,7 @@ describe('ChipRow (web) — filter and input', () => {
 
         expect(tokensOf(screen.getByRole('group', { name: 'Diet' }))).toContain('flex-wrap');
         expect(tokensOf(screen.getByRole('group', { name: 'Diet' }))).not.toContain('overflow-x-auto');
+        // A wrapping row is never a scroller: it has no chevron and nothing to scroll.
+        expect(screen.getByRole('group', { name: 'Diet' }).closest('[class*="overflow-x-auto"]')).toBeNull();
     });
 });

@@ -1,8 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+import { chevronOf, expectChevron, overflows, scrollTo, scrollerAround } from './utils/scrollHint';
 
 /**
  * Recipe-list card parity (mockup-parity plan #2/#4), driven through the real web UI (Next dev server + Clerk
@@ -151,5 +152,64 @@ test.describe('recipe list chips — labels, clearing and untimed recipes (W-10,
         await page.getByRole('button', { name: 'Clear filters' }).click();
 
         await expect(chips.getByRole('button', { name: 'All' })).toBeInViewport();
+    });
+
+    /**
+     * The scroll hint (`docs/design/uiOverhaul/horizontalScrollHint.md`): a chevron at the right of a chip row that
+     * overflows, while the row rests at its start; gone on the first scroll; back when the row returns to its start; and
+     * never drawn for a row that fits.
+     */
+    test.describe('the scroll hint', () => {
+        async function openWithCuisines(page: Page, width: number): Promise<Locator> {
+            await page.setViewportSize({ width, height: 700 });
+            await signInWithTicket(page);
+            const viewerId = await readViewerAppId(page);
+            const cuisines = ['Moroccan', 'Italian', 'Peruvian', 'Thai', 'Greek', 'Korean'];
+            await mockRecipeApi(page, {
+                viewerId,
+                paidFeatures: 'granted',
+                recipes: cuisines.map((cuisine, index) =>
+                    makeRecipeDetail({
+                        id: `ec000000-0000-4000-8000-0000000000${String(60 + index)}`,
+                        ownerId: viewerId,
+                        title: `${cuisine} dish`,
+                        cuisine,
+                    }),
+                ),
+            });
+
+            await page.goto(route('/recipes'));
+            const chips = page.getByRole('group', { name: 'Quick filters' });
+            await expect(chips.getByRole('button', { name: /^Peruvian/u })).toBeAttached();
+
+            return scrollerAround(chips);
+        }
+
+        test('shows at rest, goes on the first scroll, and returns at the start (320 px)', async ({ page }) => {
+            const scroller = await openWithCuisines(page, 320);
+            const chevron = chevronOf(scroller);
+
+            expect(await overflows(scroller)).toBe(true);
+            await expectChevron(chevron, 'shown');
+
+            await scrollTo(scroller, 40);
+            await expectChevron(chevron, 'hidden');
+
+            await scrollTo(scroller, 100000);
+            await expectChevron(chevron, 'hidden');
+
+            await scrollTo(scroller, 0);
+            await expectChevron(chevron, 'shown');
+        });
+
+        test('is not drawn at a width where the chips wrap and there is nothing to scroll (1280 px)', async ({
+            page,
+        }) => {
+            await openWithCuisines(page, 1280);
+
+            const chips = page.getByRole('group', { name: 'Quick filters' });
+
+            await expect(scrollerAround(chips)).toHaveCount(0);
+        });
     });
 });

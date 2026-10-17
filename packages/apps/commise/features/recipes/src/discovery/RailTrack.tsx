@@ -9,23 +9,25 @@
  * tiles widened the whole page at 320 px while only the loaded strip scrolled inside itself. The overflow belongs to
  * the track, and every tile inside it is a `shrink-0` item.
  *
- * The loaded track is a focusable `region` named "{rail} recipes", the arrow keys scroll it by one card, and each card
- * is a tab stop of its own (SC 2.1.1). It scrolls with proximity-mandatory snapping, and the next card peeks at the
- * edge — the swipe cue on touch. Its element is handed to the rail through `RailContext`, so the rail's Previous and Next
- * move it. A placeholder track is `aria-hidden`: its tiles carry no content, and its rail's live region speaks for it.
+ * The loaded track is the design-system `HorizontalScroller`: a focusable `region` named "{rail} recipes", whose arrow keys
+ * scroll it by one card, and each card is a tab stop of its own (SC 2.1.1). It snaps card by card, the next card peeks at
+ * the edge — the swipe cue on touch — and a chevron hints at the cards beyond while it rests at its start. Its element and
+ * its position are handed to the rail through `RailContext`, so the rail's Previous and Next move it and read the same
+ * facts. A placeholder track is `aria-hidden` and does not scroll: its tiles carry no content, its rail's live region
+ * speaks for it, and it has nothing to promise.
  *
  * Presentational: the scrolling track of one rail; the scroll position is read from the host's context.
  *
- * @pattern Adapter over a scroll container's keyboard model — the arrow keys call `scrollBy`
+ * @pattern Adapter over `HorizontalScroller` — the rail's contract (a named region, card snapping, a position report) over the design-system scroller
  */
 import { useMessages } from '@commise/i18n/react';
-import { useContext, type FC, type KeyboardEvent, type ReactNode } from 'react';
+import { HorizontalScroller } from '@commise/ui/horizontal-scroller';
+import { useContext, type FC, type ReactNode } from 'react';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { discoveryMessages } from './messages.js';
 import { RailContext } from './railContext.js';
-import { cardStepOf } from './railScroll.js';
-import { firstCardWidthOf, scrollBehaviorOf } from './useRailScroll.js';
+import { RAIL_CARD_MAX_PX, RAIL_GAP_PX } from './railScroll.js';
 
 /** Props for {@link RailTrack}. */
 export interface RailTrackProps {
@@ -35,64 +37,46 @@ export interface RailTrackProps {
     readonly decorative?: boolean;
 }
 
-/** The scroll container: identical for the placeholders and the cards. */
-const TRACK =
-    'overflow-x-auto snap-x snap-mandatory scroll-px-4 pb-2 focus-visible:outline-none focus-visible:ring-2 ' +
-    'focus-visible:ring-focus-ring';
-
-/** The list inside it. */
-const LIST = 'flex gap-4';
+/**
+ * The list inside the track: the same for the placeholders and the cards, so they lay out identically. The room below
+ * is the scroller's own, so it is the list's.
+ */
+const LIST = 'flex gap-4 pb-2';
 
 /**
- * Scroll the track by one card on a left or right arrow. In a right-to-left page the arrows keep their physical
- * direction, as every scroller does.
- *
- * @param event - The key press on the track.
- * @sideEffect Scrolls the track.
+ * The loaded track snaps card by card. Web snaps to the cards themselves and ignores the interval; it is the nominal card
+ * pitch, which is the distance native snaps by in `RecipeBrowseRailResults.native.tsx`.
  */
-function scrollOneCard(event: KeyboardEvent<HTMLElement>): void {
-    const direction = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
-
-    if (direction === 0 || event.target !== event.currentTarget) {
-        return;
-    }
-
-    event.preventDefault();
-    event.currentTarget.scrollBy({
-        left: direction * cardStepOf(firstCardWidthOf(event.currentTarget), event.currentTarget.clientWidth),
-        behavior: scrollBehaviorOf(),
-    });
-}
+const SNAP_TO_CARDS = { kind: 'card', interval: RAIL_CARD_MAX_PX + RAIL_GAP_PX } as const;
 
 /** The horizontal, snap-scrolling list every browse rail lays its tiles out in. */
 export const RailTrack: FC<RailTrackProps> = ({ children, decorative = false }) => {
     const rail = useContext(RailContext);
     const discovery = useMessages(discoveryMessages);
 
+    // Placeholders have nothing to scroll to and nothing to promise: the box holds them at 320 px, with no hint.
     if (decorative) {
         return (
-            <div aria-hidden="true" className={TRACK}>
+            <div aria-hidden="true" className="overflow-x-hidden">
                 <ul className={LIST}>{children}</ul>
             </div>
         );
     }
 
     return (
-        <div
-            ref={rail?.trackRef}
+        <HorizontalScroller
+            snap={SNAP_TO_CARDS}
             {...(rail === undefined
                 ? {}
                 : {
-                      role: 'region',
-                      'aria-label': fillTemplate(discovery.railRegion, { rail: rail.title }),
-                      tabIndex: 0,
+                      regionLabel: fillTemplate(discovery.railRegion, { rail: rail.title }),
+                      ...(rail.trackRef === undefined ? {} : { onScroller: rail.trackRef }),
+                      ...(rail.onPosition === undefined ? {} : { onPosition: rail.onPosition }),
                   })}
-            onKeyDown={scrollOneCard}
-            className={TRACK}
         >
             <ul role="list" className={LIST}>
                 {children}
             </ul>
-        </div>
+        </HorizontalScroller>
     );
 };

@@ -26,12 +26,13 @@
  */
 import * as RadioGroup from '@radix-ui/react-radio-group';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
-import type { FC } from 'react';
+import type { FC, ReactElement } from 'react';
 
+import { HorizontalScroller } from '../horizontalScroller/HorizontalScroller.js';
 import { Icon } from '../icon/Icon.js';
-import { CHIP_LABEL_CLASS, chipClass, chipRowClass } from './chipClass.js';
+import { CHIP_LABEL_CLASS, SCROLL_BOX_CLASS, chipClass, chipRowClass } from './chipClass.js';
 import { visibleChipLabel } from './chipLabel.js';
-import type { ChipOption, ChipRowProps, ChoiceRowProps } from './props.js';
+import type { ChipOption, ChipRowOverflow, ChipRowProps, ChoiceRowProps } from './props.js';
 
 /** An option's face: the check while chosen, then its label. */
 const OptionFace: FC<{ readonly option: ChipOption; readonly chosen: boolean }> = ({ option, chosen }) => (
@@ -41,54 +42,71 @@ const OptionFace: FC<{ readonly option: ChipOption; readonly chosen: boolean }> 
     </>
 );
 
-/** A choice row: radios that stay chosen, or — clearable — radios that clear when pressed again. */
-const ChoiceRow: FC<ChoiceRowProps> = ({ label, overflow, options, value, onChange, clearable = false }) =>
-    clearable ? (
-        <ToggleGroup.Root
-            type="single"
-            aria-label={label}
-            value={value ?? ''}
-            onValueChange={(next) => onChange(next === '' ? null : next)}
-            className={chipRowClass(overflow)}
-        >
-            {options.map((option) => (
-                <ToggleGroup.Item
-                    key={option.value}
-                    value={option.value}
-                    aria-label={option.label}
-                    className={chipClass(option.value === value)}
-                >
-                    <OptionFace option={option} chosen={option.value === value} />
-                </ToggleGroup.Item>
-            ))}
-        </ToggleGroup.Root>
+const SNAP_TO_CHIPS = { kind: 'item' } as const;
+
+/** A scrolling row sits in the design-system scroller; a wrapping one is its own line. */
+const Lined: FC<{ readonly overflow: ChipRowOverflow; readonly children: ReactElement }> = ({ overflow, children }) =>
+    overflow === 'scroll' ? (
+        <div className={SCROLL_BOX_CLASS}>
+            <HorizontalScroller snap={SNAP_TO_CHIPS}>{children}</HorizontalScroller>
+        </div>
     ) : (
-        <RadioGroup.Root
-            aria-label={label}
-            orientation="horizontal"
-            value={value ?? ''}
-            onValueChange={onChange}
-            className={chipRowClass(overflow)}
-        >
-            {options.map((option) => (
-                <RadioGroup.Item
-                    key={option.value}
-                    value={option.value}
-                    aria-label={option.label}
-                    className={chipClass(option.value === value)}
-                >
-                    <OptionFace option={option} chosen={option.value === value} />
-                </RadioGroup.Item>
-            ))}
-        </RadioGroup.Root>
+        children
     );
+
+/** A choice row: radios that stay chosen, or — clearable — radios that clear when pressed again. */
+const ChoiceRow: FC<ChoiceRowProps> = ({ label, overflow, options, value, onChange, clearable = false }) => (
+    <Lined overflow={overflow}>
+        {clearable ? (
+            <ToggleGroup.Root
+                type="single"
+                aria-label={label}
+                value={value ?? ''}
+                onValueChange={(next) => onChange(next === '' ? null : next)}
+                className={chipRowClass(overflow)}
+            >
+                {options.map((option) => (
+                    <ToggleGroup.Item
+                        key={option.value}
+                        value={option.value}
+                        aria-label={option.label}
+                        className={chipClass(option.value === value)}
+                    >
+                        <OptionFace option={option} chosen={option.value === value} />
+                    </ToggleGroup.Item>
+                ))}
+            </ToggleGroup.Root>
+        ) : (
+            <RadioGroup.Root
+                aria-label={label}
+                orientation="horizontal"
+                value={value ?? ''}
+                onValueChange={onChange}
+                className={chipRowClass(overflow)}
+            >
+                {options.map((option) => (
+                    <RadioGroup.Item
+                        key={option.value}
+                        value={option.value}
+                        aria-label={option.label}
+                        className={chipClass(option.value === value)}
+                    >
+                        <OptionFace option={option} chosen={option.value === value} />
+                    </RadioGroup.Item>
+                ))}
+            </RadioGroup.Root>
+        )}
+    </Lined>
+);
 
 /** The web design-system chip row. */
 export const ChipRow: FC<ChipRowProps> = (props) =>
     props.mode === 'choice' ? (
         <ChoiceRow {...props} />
     ) : (
-        <div role="group" aria-label={props.label} className={chipRowClass(props.overflow)}>
-            {props.children}
-        </div>
+        <Lined overflow={props.overflow}>
+            <div role="group" aria-label={props.label} className={chipRowClass(props.overflow)}>
+                {props.children}
+            </div>
+        </Lined>
     );

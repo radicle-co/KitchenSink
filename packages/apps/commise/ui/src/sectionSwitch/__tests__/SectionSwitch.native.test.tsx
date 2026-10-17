@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { Text, View } from 'react-native';
+
+import { role } from '../../tokens/colors.js';
 
 import { ScrollHostContext } from '../../scrollHost/scrollHostContext.js';
 import type { ScrollHostApi } from '../../scrollHost/props.js';
@@ -63,5 +66,73 @@ describe('SectionSwitch (native)', () => {
         expect(onJump).toHaveBeenCalledWith('steps');
         expect(screen.getByRole('link', { name: 'Ingredients' }).getAttribute('aria-current')).toBe('location');
         expect(steps.getAttribute('aria-current')).toBeNull();
+    });
+});
+
+/**
+ * The native bar used to lay its links in a `flex: 1` row with no scroller, so at a large font they were squeezed or cut
+ * (`docs/design/uiOverhaul/horizontalScrollHint.md` §1a). They now scroll inside the bar, in the design-system
+ * `HorizontalScroller`, and the trailing control stays pinned outside it.
+ */
+describe('SectionSwitch (native) — scrolling links', () => {
+    const FADE = '[data-commise-stub="linear-gradient"]';
+
+    /** Report a laid-out size to a view, the way react-native-web's ResizeObserver does. */
+    function layOut(element: Element, width: number): void {
+        const handler = (element as Element & { __reactLayoutHandler?: (event: unknown) => void }).__reactLayoutHandler;
+
+        act(() => handler?.({ nativeEvent: { layout: { x: 0, y: 0, width, height: 48 } } }));
+    }
+
+    const measured = (container: HTMLElement): Element[] =>
+        [...container.querySelectorAll('*')].filter(
+            (node) => (node as Element & { __reactLayoutHandler?: unknown }).__reactLayoutHandler !== undefined,
+        );
+
+    function bar() {
+        return render(
+            <ScrollHostContext.Provider value={recordingHost().api}>
+                <SectionSwitch
+                    label="Recipe sections"
+                    sections={SECTIONS}
+                    trailing={
+                        <View>
+                            <Text>Screen on</Text>
+                        </View>
+                    }
+                />
+            </ScrollHostContext.Provider>,
+        );
+    }
+
+    it('holds its links in a scroller, and the trailing control outside it', () => {
+        const { container } = bar();
+        const [scroller] = measured(container);
+
+        expect(scroller?.contains(screen.getByRole('link', { name: 'Steps' }))).toBe(true);
+        expect(scroller?.contains(screen.getByText('Screen on'))).toBe(false);
+    });
+
+    it('hints at more links with the chevron on a band into the bar’s own surface', () => {
+        const { container } = bar();
+        const [scroller, content] = measured(container);
+
+        layOut(scroller as Element, 120);
+        layOut(content as Element, 360);
+
+        const fade = container.querySelector<HTMLElement>(FADE);
+
+        expect(fade?.dataset['colors']?.endsWith(`|${role.paper}`)).toBe(true);
+        expect(container.querySelector('[data-icon-name="chevron-right"]')).not.toBeNull();
+    });
+
+    it('draws no hint while the links fit', () => {
+        const { container } = bar();
+        const [scroller, content] = measured(container);
+
+        layOut(scroller as Element, 400);
+        layOut(content as Element, 200);
+
+        expect(container.querySelector(FADE)).toBeNull();
     });
 });

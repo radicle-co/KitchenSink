@@ -4,16 +4,16 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 69,
-        "implementations": 119,
-        "props": 685,
-        "documentedComponents": 69,
-        "implementationsWithModuleDoc": 119,
-        "implementationsWithComponentDoc": 111,
-        "documentedProps": 650,
-        "classifiedComponents": 62,
-        "componentsWithPatternTag": 69,
-        "crossPlatformComponents": 50
+        "components": 70,
+        "implementations": 121,
+        "props": 697,
+        "documentedComponents": 70,
+        "implementationsWithModuleDoc": 121,
+        "implementationsWithComponentDoc": 113,
+        "documentedProps": 662,
+        "classifiedComponents": 63,
+        "componentsWithPatternTag": 70,
+        "crossPlatformComponents": 51
     },
     "components": [
         {
@@ -1684,7 +1684,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/chip/ChipRow.native.tsx",
                     "dir": "packages/apps/commise/ui/src/chip",
-                    "moduleDoc": "@commise/ui/chip — the native design-system {@link ChipRow}.\n\nIn `filter` and `input` mode the row is a named `group` around the chips the screen places. In `choice` mode it owns\nits options: a named `radiogroup` of `radio`s with `aria-checked`. Pressing an option chooses it; pressing the chosen\noption again clears the choice only when the row is `clearable`. A `scroll` row is one horizontal `ScrollView` line;\na `wrap` row wraps.",
+                    "moduleDoc": "@commise/ui/chip — the native design-system {@link ChipRow}.\n\nIn `filter` and `input` mode the row is a named `group` around the chips the screen places. In `choice` mode it owns\nits options: a named `radiogroup` of `radio`s with `aria-checked`. Pressing an option chooses it; pressing the chosen\noption again clears the choice only when the row is `clearable`. A `scroll` row is one line in the design-system\n`HorizontalScroller`, which owns its scroll indicator, fade and chevron; a `wrap` row wraps.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -4275,6 +4275,210 @@
                             "defaultValue": null,
                             "description": "The pressable, for moving the screen-reader cursor onto it.",
                             "declaredIn": "packages/apps/commise/ui/src/heroButton/HeroButton.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/horizontalScroller/HorizontalScroller",
+            "name": "HorizontalScroller",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/horizontalScroller",
+            "kind": "presentational",
+            "patterns": [
+                "Decorator — adds the scroll hint to a scroller that knows nothing of it",
+                "Observer — reports where it rests to the owner through `onPosition`"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "HorizontalScroller",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/HorizontalScroller.tsx",
+                    "dir": "packages/apps/commise/ui/src/horizontalScroller",
+                    "moduleDoc": "@commise/ui/horizontal-scroller — the web design-system {@link HorizontalScroller}\n(`docs/design/uiOverhaul/horizontalScrollHint.md`).\n\nThe one horizontal scroller of the app. Its scrollbar stays hidden until the reader scrolls (and, with a fine\npointer, while the pointer is over it); a decorative chevron shows at the inline-end edge only while the content\noverflows and the scroller rests at its start; a fade over the end shows while more lies ahead.\n\n- The scrollbar is always `thin`, so it never moves the layout; once scripts run it is transparent at rest, and it is\n  coloured while `data-scrolling` is set by the hook. With no script it keeps the browser's own colour.\n- The fade is a `mask-image` on the scroller. A mask erases its own children, so the chevron is a SIBLING of the\n  scroller in a `relative` wrapper. While the chevron shows the mask widens from 24 px to a 40 px band whose last\n  24 px are fully transparent, which is where the glyph sits.\n- A named scroller (`regionLabel`) is a focusable region whose arrow keys move it by one item. A child that takes\n  focus is scrolled whole into view, clear of the band (`scroll-pe-10`).\n\nPresentational: props → JSX; the position is read by {@link useScrollHint}.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/horizontal-scroller — the web design-system {@link HorizontalScroller}"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator — adds the scroll hint to a scroller that knows nothing of it"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Observer — reports where it rests to the owner through `onPosition`"
+                        }
+                    ],
+                    "description": "The web horizontal scroller.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The content row. The scroller wraps it in a box as wide as it is.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/props.ts"
+                        },
+                        {
+                            "name": "onPosition",
+                            "type": "((extent: ScrollExtent) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Receives where the scroller rests, once measured and again each time it reaches or leaves an end.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/props.ts"
+                        },
+                        {
+                            "name": "onScroller",
+                            "type": "((element: HTMLElement | null) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web only: receives the scroll element, and `null` when it goes. Inert on native.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/props.ts"
+                        },
+                        {
+                            "name": "regionLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Makes the scroller a named region the reader can focus. On web it is a tab stop and the arrow keys move it by one\nitem (a list item, `li`); native scrolls by touch only.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/props.ts"
+                        },
+                        {
+                            "name": "snap",
+                            "type": "ScrollerSnap",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "{ kind: 'none' }",
+                            "description": "How the scroller settles; see {@link ScrollerSnap}. Defaults to `none`.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/props.ts"
+                        },
+                        {
+                            "name": "surface",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"canvas\"",
+                                "\"overlay\"",
+                                "\"bar\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The surface behind the scroller; see {@link ScrollerSurface}.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "HorizontalScroller",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/HorizontalScroller.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/horizontalScroller",
+                    "moduleDoc": "@commise/ui/horizontal-scroller — the native design-system {@link HorizontalScroller}\n(`docs/design/uiOverhaul/horizontalScrollHint.md`).\n\nA horizontal `ScrollView` that keeps the platform's own scroll indicator (iOS and Android show it only while the\nreader scrolls), a gradient over the inline-end edge into the surface colour while more lies ahead, and a decorative\nchevron on that gradient's solid end while the content overflows and the scroller rests at its start. React Native\nhas no CSS mask, so the fade is a gradient to the colour behind the scroller: say which with `surface`.\n\nThe chevron changes opacity over 150 ms, instantly while the OS reduce-motion preference is on or not yet known.\n\nPresentational: props → JSX; the position is read by {@link useScrollHint}.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/horizontal-scroller — the native design-system {@link HorizontalScroller}"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator — adds the scroll hint to a scroller that knows nothing of it"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Observer — reports where it rests to the owner through `onPosition`"
+                        }
+                    ],
+                    "description": "The native horizontal scroller.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The content row. The scroller wraps it in a box as wide as it is.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/props.ts"
+                        },
+                        {
+                            "name": "onPosition",
+                            "type": "((extent: ScrollExtent) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Receives where the scroller rests, once measured and again each time it reaches or leaves an end.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/props.ts"
+                        },
+                        {
+                            "name": "onScroller",
+                            "type": "((element: HTMLElement | null) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web only: receives the scroll element, and `null` when it goes. Inert on native.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/props.ts"
+                        },
+                        {
+                            "name": "regionLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Makes the scroller a named region the reader can focus. On web it is a tab stop and the arrow keys move it by one\nitem (a list item, `li`); native scrolls by touch only.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/props.ts"
+                        },
+                        {
+                            "name": "snap",
+                            "type": "ScrollerSnap",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "How the scroller settles; see {@link ScrollerSnap}. Defaults to `none`.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/props.ts"
+                        },
+                        {
+                            "name": "surface",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"canvas\"",
+                                "\"overlay\"",
+                                "\"bar\""
+                            ],
+                            "required": false,
+                            "defaultValue": "canvas",
+                            "description": "The surface behind the scroller; see {@link ScrollerSurface}.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/props.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -9551,7 +9755,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/sectionSwitch/SectionSwitch.tsx",
                     "dir": "packages/apps/commise/ui/src/sectionSwitch",
-                    "moduleDoc": "@commise/ui/section-switch — the web design-system {@link SectionSwitch}.\n\nA sticky 48 px bar on the navigation layer — so the one place, with the photo's buttons, where the recipe page may\nblur (owner decision D12): `paper` at 90% with a small backdrop blur, readable with the blur off. A `nav` of real\n`#id` links, so the page works with no script; a press jumps through the screen's ONE scroll host\n(`useScrollHost().scrollToSection`, blueprint A7), which scrolls the heading under the sticky chrome, focuses it and\nrecords the hash. The current link carries `aria-current=\"location\"` and the tab's selected state (§1.10): `ink` at\n600 over the 3 px `hereBar`.\n\nPresentational: props → JSX; the jump is the host's.",
+                    "moduleDoc": "@commise/ui/section-switch — the web design-system {@link SectionSwitch}.\n\nA sticky 48 px bar on the navigation layer — so the one place, with the photo's buttons, where the recipe page may\nblur (owner decision D12): `paper` at 90% with a small backdrop blur, readable with the blur off. A `nav` of real\n`#id` links, so the page works with no script; a press jumps through the screen's ONE scroll host\n(`useScrollHost().scrollToSection`, blueprint A7), which scrolls the heading under the sticky chrome, focuses it and\nrecords the hash. The current link carries `aria-current=\"location\"` and the tab's selected state (§1.10): `ink` at\n600 over the 3 px `hereBar`.\n\nPresentational: props → JSX; the jump is the host's.\n\nThe links sit in the design-system `HorizontalScroller`, which scrolls them inside the bar and hints that more lie\nto the side.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -9625,7 +9829,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/sectionSwitch/SectionSwitch.native.tsx",
                     "dir": "packages/apps/commise/ui/src/sectionSwitch",
-                    "moduleDoc": "@commise/ui/section-switch — the native design-system {@link SectionSwitch}: the section links as `link`s\nat least 44 pt tall, the current one in `ink` over the 3 pt `hereBar`, and one trailing control. A press jumps\nthrough the screen's ONE scroll host (`useScrollHost().scrollToSection`, blueprint A7), the call the web leaf makes,\nand is then reported. On Android the bar is a solid surface (D12); colours come from the theme at render.",
+                    "moduleDoc": "@commise/ui/section-switch — the native design-system {@link SectionSwitch}: the section links as `link`s\nat least 44 pt tall, the current one in `ink` over the 3 pt `hereBar`, and one trailing control. A press jumps\nthrough the screen's ONE scroll host (`useScrollHost().scrollToSection`, blueprint A7), the call the web leaf makes,\nand is then reported. The links scroll inside the bar, in the design-system `HorizontalScroller`, so a large font\ncannot squeeze or cut them, and the trailing control stays pinned outside it. On Android the bar is a solid surface (D12); colours come from the theme at render.",
                     "moduleTags": [
                         {
                             "name": "module",

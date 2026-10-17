@@ -12,10 +12,14 @@
  *
  * Presentational: props → JSX; the jump is the host's.
  *
+ * The links sit in the design-system `HorizontalScroller`, which scrolls them inside the bar and hints that more lie
+ * to the side.
+ *
  * @pattern Mediator client — the switch asks the screen's scroll host for the jump; real links stay the no-script path
  */
 import type { FC } from 'react';
 
+import { HorizontalScroller } from '../horizontalScroller/HorizontalScroller.js';
 import { useScrollHost } from '../scrollHost/scrollHostContext.js';
 import type { SectionSwitchProps } from './props.js';
 
@@ -26,43 +30,41 @@ export const SectionSwitch: FC<SectionSwitchProps> = ({ label, sections, current
     return (
         <div className="sticky top-0 z-20 flex min-h-12 items-center gap-2 border-b border-line-divider bg-paper/90 px-2 backdrop-blur-md">
             {/* The links scroll INSIDE the bar, each at its label's width; the trailing control stays pinned outside the
-                scroller. Squeezed, they ran under the toggle at 320 (SC 2.5.8) and past the page at +35% (SC 1.4.10, F14). */}
-            <nav aria-label={label} className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]">
-                <ul className="flex w-max items-center gap-1">
-                    {sections.map((section) => {
-                        const current = section.id === currentId;
+                scroller. Squeezed, they ran under the toggle at 320 (SC 2.5.8) and past the page at +35% (SC 1.4.10, F14).
+                The scroller brings a focused link whole into the bar (F14) and hints that there is more to the side. */}
+            <nav aria-label={label} className="min-w-0 flex-1">
+                <HorizontalScroller surface="bar">
+                    <ul className="flex items-center gap-1">
+                        {sections.map((section) => {
+                            const current = section.id === currentId;
 
-                        return (
-                            <li key={section.id} className="shrink-0">
-                                <a
-                                    href={`#${section.id}`}
-                                    aria-current={current ? 'location' : undefined}
-                                    // A browser scrolls a focused element only when it is entirely out of view; one the bar's
-                                    // scroll half hides is brought whole into the bar (F14).
-                                    onFocus={(event) => {
-                                        event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-                                    }}
-                                    onClick={(event) => {
-                                        event.preventDefault();
-                                        scrollToSection(section.id);
-                                        onJump?.(section.id);
-                                    }}
-                                    className={`relative inline-flex min-h-11 items-center px-2 text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ${
-                                        current ? 'text-ink' : 'text-ink-muted hover:text-ink'
-                                    }`}
-                                >
-                                    {section.label}
-                                    {current && (
-                                        <span
-                                            aria-hidden="true"
-                                            className="absolute inset-x-2 bottom-0 h-[3px] rounded-full bg-here-bar"
-                                        />
-                                    )}
-                                </a>
-                            </li>
-                        );
-                    })}
-                </ul>
+                            return (
+                                <li key={section.id} className="shrink-0">
+                                    <a
+                                        href={`#${section.id}`}
+                                        aria-current={current ? 'location' : undefined}
+                                        onClick={(event) => {
+                                            event.preventDefault();
+                                            scrollToSection(section.id);
+                                            onJump?.(section.id);
+                                        }}
+                                        className={`relative inline-flex min-h-11 items-center px-2 text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ${
+                                            current ? 'text-ink' : 'text-ink-muted hover:text-ink'
+                                        }`}
+                                    >
+                                        {section.label}
+                                        {current && (
+                                            <span
+                                                aria-hidden="true"
+                                                className="absolute inset-x-2 bottom-0 h-[3px] rounded-full bg-here-bar"
+                                            />
+                                        )}
+                                    </a>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </HorizontalScroller>
             </nav>
             {trailing === undefined ? null : <div className="shrink-0">{trailing}</div>}
         </div>

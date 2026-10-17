@@ -50,3 +50,12 @@ if (typeof globalThis.TransitionEvent === 'undefined') {
 
     globalThis.TransitionEvent = TransitionEventPolyfill;
 }
+
+/**
+ * `Element.prototype.scrollIntoView` — never implemented by jsdom. The design system's `HorizontalScroller` calls it
+ * when a child takes focus, so every focus inside a scrolling row would throw without it. A no-op: jsdom has no
+ * layout, so there is nothing to scroll. A test that asserts the call replaces it with `vi.fn()`.
+ */
+if (typeof Element !== 'undefined' && typeof Element.prototype.scrollIntoView !== 'function') {
+    Element.prototype.scrollIntoView = function scrollIntoView() {};
+}

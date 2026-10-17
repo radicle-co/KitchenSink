@@ -33,22 +33,31 @@ describe('RecipeBrowseRailLoading (web)', () => {
 
     /**
      * E1 (`docs/design/uiOverhaul/evaluateShellAndLists.md`): the skeleton strip had `flex gap-4` and no overflow rule,
-     * so three 256 px tiles widened the whole page to 832 px at 320. The fix is that the pending strip IS the loaded
-     * strip's scroll container, so they cannot drift again. jsdom has no layout, so this proves the shared container;
-     * `tests/e2e/discoverReflow.spec.ts` proves the page width in a browser.
+     * so three 256 px tiles widened the whole page to 832 px at 320. The fix is that the pending strip is held inside its
+     * box, so they cannot widen the page. jsdom has no layout, so this proves the rule; `tests/e2e/discoverReflow.spec.ts`
+     * proves the page width in a browser.
+     *
+     * ⚠️ REWRITTEN for the scroll hint. The pending strip used to share the loaded rail's scroll container, class for
+     * class. The loaded rail is now a `HorizontalScroller`; the pending strip has nothing to scroll to and nothing to
+     * promise, so it is a non-scrolling box (`overflow-x-hidden`) with no chevron and no fade, and it shares the loaded
+     * rail's LIST so the tiles lay out identically.
      */
-    it('lays its shimmer cards out in the SAME scroll track as the loaded rail', () => {
+    it('holds its shimmer cards inside a box that does not scroll, and draws no scroll hint', () => {
         render(<RecipeBrowseRailLoading />);
-        const pendingTrack = screen.getByRole('status').querySelector('[aria-hidden="true"]');
+        const status = screen.getByRole('status');
+        const pendingTrack = status.querySelector('[aria-hidden="true"]') as HTMLElement;
+        const pendingList = pendingTrack.querySelector('ul') as HTMLElement;
+
+        expect(pendingTrack.className.split(' ')).toContain('overflow-x-hidden');
+        expect(status.querySelector('[class*="overflow-x-auto"]')).toBeNull();
+        expect(status.querySelector('svg')).toBeNull();
+
         cleanup();
         render(
             <RecipeBrowseRailResults results={[{ recipe: makeRecipe() }]} saveCopy={SAVE_COPY} onSelectRecipe={noop} />,
         );
-        // The scroll container is the list's parent: it carries the overflow, so it is what must not drift.
-        const loadedTrack = screen.getByRole('list').parentElement as HTMLElement;
 
-        expect(pendingTrack?.tagName).toBe(loadedTrack.tagName);
-        expect(pendingTrack?.className).toBe(loadedTrack.className);
+        expect(pendingList.className).toBe(screen.getByRole('list').className);
     });
 
     it('renders decorative shimmer cards that stop under reduce-motion', () => {

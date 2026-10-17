@@ -966,9 +966,7 @@ function commonDenies(qualifier: QualifierName): Grant[] {
             'guard',
             'DenyBootstrapPolicyTamper',
             ['iam:CreatePolicyVersion', 'iam:DeletePolicy', 'iam:DeletePolicyVersion', 'iam:SetDefaultPolicyVersion'],
-            qualifier === QUALIFIERS.account
-                ? [iamArn(`policy/kitchensink-ci-*-${QUALIFIERS.account}*`)]
-                : [iamArn('policy/kitchensink-ci-*')],
+            [iamArn('policy/kitchensink-ci-*')],
         ),
         deny(
             'guard',
@@ -1037,15 +1035,11 @@ function tierDenies(qualifier: QualifierName): Grant[] {
     return [];
 }
 
-/** Grants of the account qualifier: the CI roles, the bootstrap policies, the budget and the cost monitor. */
+/** Grants of the account qualifier: the CI roles, the OIDC provider, the budget and the cost monitor. */
 function accountGrants(): Grant[] {
     const q = QUALIFIERS.account;
     const assetsBucket = `cdk-${q}-assets-${ACCOUNT}-${REGION}`;
     const ciOidcProvider = iamArn('oidc-provider/token.actions.githubusercontent.com');
-    const stagePolicies = [QUALIFIERS.nonprod, QUALIFIERS.prod].flatMap((tier) => [
-        iamArn(`policy/${boundaryPolicyName(tier)}`),
-        iamArn(`policy/${executionPolicyName(tier, '*')}`),
-    ]);
 
     return [
         allow(
@@ -1056,10 +1050,6 @@ function accountGrants(): Grant[] {
             ['AWS::IAM::Role', 'AWS::IAM::Policy'],
             { StringEquals: { 'iam:PermissionsBoundary': boundaryArn(q) } },
         ),
-        allow('iam', 'IamAttachCiPolicies', ['iam:AttachRolePolicy'], [iamArn('role/kitchensink-gha-*')], [], {
-            StringEquals: { 'iam:PermissionsBoundary': boundaryArn(q) },
-            ArnEquals: { 'iam:PolicyARN': stagePolicies },
-        }),
         allow(
             'iam',
             'IamOwnCiRoles',
@@ -1095,24 +1085,6 @@ function accountGrants(): Grant[] {
             ],
             [ciOidcProvider],
             ['AWS::IAM::OIDCProvider'],
-        ),
-        allow(
-            'iam',
-            'IamStageBootstrapPolicies',
-            [
-                'iam:CreatePolicy',
-                'iam:CreatePolicyVersion',
-                'iam:DeletePolicy',
-                'iam:DeletePolicyVersion',
-                'iam:GetPolicy',
-                'iam:GetPolicyVersion',
-                'iam:ListPolicyVersions',
-                'iam:SetDefaultPolicyVersion',
-                'iam:TagPolicy',
-                'iam:UntagPolicy',
-            ],
-            stagePolicies,
-            ['AWS::IAM::ManagedPolicy'],
         ),
         allow(
             'data',

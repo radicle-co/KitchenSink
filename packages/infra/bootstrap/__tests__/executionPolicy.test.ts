@@ -186,6 +186,13 @@ describe.each(allQualifiers)('executionPolicy(%s) — roles it creates are cappe
     it.each(BOUNDARY_GATED)('allows %s only with the qualifier permissions boundary', (action) => {
         const granting = allows.filter((statement) => statement.Action.includes(action));
 
+        // The account tier attaches no managed policy: its roles carry inline policies only.
+        if (qualifier === QUALIFIERS.account && action === 'iam:AttachRolePolicy') {
+            expect(granting).toEqual([]);
+
+            return;
+        }
+
         expect(granting.length).toBeGreaterThan(0);
 
         for (const statement of granting) {
@@ -421,5 +428,55 @@ describe.each(allQualifiers)('executionPolicy(%s) — covers every resource type
         );
 
         expect(missing).toEqual([]);
+    });
+});
+
+describe('executionPolicy(ksaccount) — touches only its own policies', () => {
+    const q = QUALIFIERS.account;
+    const policyArn = (name: string): string => `arn:aws:iam::${ACCOUNT}:policy/${name}`;
+    const TAMPER_ACTIONS = [
+        'iam:CreatePolicyVersion',
+        'iam:DeletePolicy',
+        'iam:DeletePolicyVersion',
+        'iam:SetDefaultPolicyVersion',
+    ];
+    /** Every customer-managed policy KitchenSink's bootstrap owns, across all three tiers. */
+    const EVERY_CI_POLICY = [
+        boundaryPolicyName(QUALIFIERS.nonprod),
+        boundaryPolicyName(QUALIFIERS.prod),
+        boundaryPolicyName(QUALIFIERS.account),
+        ...[QUALIFIERS.nonprod, QUALIFIERS.prod, QUALIFIERS.account].flatMap((tier) =>
+            buildExecutionPolicy(tier).map((part) => part.policyName),
+        ),
+    ];
+
+    it('has no Allow that names a managed policy at all (its own stack creates none)', () => {
+        // The only consumer of such a grant was the owner-only policy stack, which ksaccount can never deploy.
+        const naming = allowStatements(q).filter((statement) =>
+            statement.Resource.some((resource) => resource.includes(':policy/')),
+        );
+
+        expect(naming.map((statement) => statement.Sid)).toEqual([]);
+    });
+
+    it('allows no managed-policy lifecycle or attachment action', () => {
+        const actions = allowStatements(q).flatMap((statement) => [...statement.Action]);
+
+        expect(
+            actions.filter((action) =>
+                /^iam:(CreatePolicy|DeletePolicy|SetDefaultPolicyVersion|AttachRolePolicy)/u.test(action),
+            ),
+        ).toEqual([]);
+    });
+
+    it.each(EVERY_CI_POLICY.flatMap((name) => TAMPER_ACTIONS.map((action) => [name, action] as const)))(
+        'denies %s: %s',
+        (name, action) => {
+            expect(unconditionalDeny(parts(q), action, policyArn(name))).toBe(true);
+        },
+    );
+
+    it('denies tampering with a kitchensink-ci policy it has never heard of', () => {
+        expect(unconditionalDeny(parts(q), 'iam:CreatePolicyVersion', policyArn('kitchensink-ci-anything'))).toBe(true);
     });
 });

@@ -110,6 +110,69 @@ describe('ChipRow (native) — the trailing fade of a scrolling row', () => {
     });
 });
 
+/**
+ * The boxes from the row's group or radiogroup down to the box that holds the chips, outermost first. Pure over the
+ * rendered tree.
+ */
+function boxesDownToChips(container: HTMLElement, groupRole: 'group' | 'radiogroup', chip: string): HTMLElement[] {
+    const group = container.querySelector<HTMLElement>(`[role="${groupRole}"]`);
+    const firstChip = container.querySelector(chip);
+
+    if (group === null || firstChip?.parentElement == null) {
+        throw new Error('the row rendered no group, or no chip inside it');
+    }
+
+    const chain: HTMLElement[] = [];
+
+    for (
+        let box: HTMLElement | null = firstChip.parentElement;
+        box !== null && box !== group;
+        box = box.parentElement
+    ) {
+        chain.unshift(box);
+    }
+
+    return [group, ...chain];
+}
+
+/**
+ * A wrapped row wraps only when the box that wraps is as wide as the row. In React Native a child of a row-direction
+ * box sizes to its content (it does not shrink by default), so a wrapping line nested inside another row line is as
+ * wide as all its chips and never wraps. The contract is therefore structural: exactly one box between the group and
+ * its chips lays out as a row, and it wraps. jsdom computes no layout, so this asserts the styles that decide it.
+ */
+describe('ChipRow (native) — a wrapped row is free to wrap', () => {
+    it.each([
+        ['a choice row', 'radiogroup', '[role="radio"]'] as const,
+        ['a group of chips', 'group', '[role="button"], [role="checkbox"]'] as const,
+    ])('%s has one row box between its group and its chips, and that box wraps', (_case, groupRole, chip) => {
+        const { container } =
+            groupRole === 'radiogroup'
+                ? render(
+                      <ChipRow
+                          mode="choice"
+                          label="Cuisine"
+                          overflow="wrap"
+                          value="thai"
+                          onChange={() => undefined}
+                          options={[
+                              { value: 'thai', label: 'Thai' },
+                              { value: 'greek', label: 'Greek' },
+                          ]}
+                      />,
+                  )
+                : row('wrap');
+        const rows = boxesDownToChips(container, groupRole, chip).filter(
+            (box) => getComputedStyle(box).flexDirection === 'row',
+        );
+
+        const [line] = rows;
+
+        expect(rows).toHaveLength(1);
+        expect(line === undefined ? undefined : getComputedStyle(line).flexWrap).toBe('wrap');
+    });
+});
+
 describe('hasMoreAhead', () => {
     it.each([
         [{ viewport: 300, content: 640, offset: 0 }, true],

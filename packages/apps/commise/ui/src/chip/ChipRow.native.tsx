@@ -97,7 +97,10 @@ const ScrollingLine: FC<{ readonly surface: ChipRowSurface; readonly children: R
     );
 };
 
-/** Lay chips out on one scrolling line, or wrapped. */
+/**
+ * Lay chips out on one scrolling line, or wrapped. The wrapping line is the only row box between the group and its
+ * chips: inside another row box it would size to its content, which React Native does not shrink, and never wrap.
+ */
 const Lines: FC<{
     readonly overflow: ChipRowOverflow;
     readonly surface: ChipRowSurface;
@@ -135,7 +138,7 @@ const ChoiceRow: FC<ChoiceRowProps> = ({
     const theme = useTheme();
 
     return (
-        <View collapsable={false} role="radiogroup" aria-label={label} style={overflow === 'wrap' ? styles.wrap : null}>
+        <View collapsable={false} role="radiogroup" aria-label={label}>
             <Lines overflow={overflow} surface={surface}>
                 {options.map((option) => {
                     const chosen = option.value === value;
@@ -176,12 +179,7 @@ export const ChipRow: FC<ChipRowProps> = (props) =>
     props.mode === 'choice' ? (
         <ChoiceRow {...props} />
     ) : (
-        <View
-            collapsable={false}
-            role="group"
-            aria-label={props.label}
-            style={props.overflow === 'wrap' ? styles.wrap : null}
-        >
+        <View collapsable={false} role="group" aria-label={props.label}>
             <Lines overflow={props.overflow} surface={props.surface ?? 'canvas'}>
                 {props.children}
             </Lines>

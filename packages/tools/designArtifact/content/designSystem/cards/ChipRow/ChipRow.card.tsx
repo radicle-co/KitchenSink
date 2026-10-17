@@ -1,6 +1,7 @@
 /**
- * @module ChipRow.card — the design-system card of the ChipRow: a choice row (clearable, wrapping), a filter row
- * (scrolling, with counts) and an input row (removable chips), on both platforms.
+ * @module ChipRow.card — the design-system card of the ChipRow: a choice row (clearable, wrapping), a choice row with more
+ * options than one line holds (wrapping), a filter row (scrolling, with counts) and an input row (removable chips), on
+ * both platforms.
  */
 import { useState } from 'react';
 
@@ -8,9 +9,12 @@ import { defineCard } from '../../../../src/cards/defineCard.js';
 
 const noop = (): void => undefined;
 
+/** More choices than one line holds, so the row has to wrap. */
+const BROWSE = ['Trending', 'New', 'Quick', 'Italian', 'Indian', 'Mexican', 'Thai', 'Japanese', 'Greek', 'American'];
+
 export default defineCard({
     group: 'Selection',
-    height: 330,
+    height: 400,
     platforms: 'both',
     uses: ['ChipRow', 'Chip'],
     render: ({ ChipRow, Chip }) => {
@@ -31,6 +35,14 @@ export default defineCard({
                             { value: 'medium', label: 'Medium' },
                             { value: 'hard', label: 'Hard' },
                         ]}
+                    />
+                    <ChipRow
+                        mode="choice"
+                        label="Browse recipes"
+                        overflow="wrap"
+                        value="trending"
+                        onChange={noop}
+                        options={BROWSE.map((label) => ({ value: label.toLowerCase(), label }))}
                     />
                     <ChipRow mode="filter" label="Cuisine" overflow="scroll">
                         <Chip kind="filter" label="Italian" selected count={24} onPress={noop} />

@@ -286,13 +286,15 @@ describe('ChipRow (native) — filter and input', () => {
         expect(scroller).toBeDefined();
     });
 
-    it('wraps when its overflow is wrap', () => {
+    // The line that holds the chips wraps, not the group around it (`ChipRow.native.test.tsx` pins the structure).
+    it('wraps the line that holds the chips when its overflow is wrap', () => {
         render(
             <ChipRow mode="filter" label="Diet" overflow="wrap">
                 <Chip kind="filter" label="Vegan" selected={false} onPress={vi.fn()} />
             </ChipRow>,
         );
+        const line = screen.getByRole('checkbox', { name: 'Vegan' }).parentElement;
 
-        expect(getComputedStyle(screen.getByRole('group', { name: 'Diet' })).flexWrap).toBe('wrap');
+        expect(line === null ? undefined : getComputedStyle(line).flexWrap).toBe('wrap');
     });
 });

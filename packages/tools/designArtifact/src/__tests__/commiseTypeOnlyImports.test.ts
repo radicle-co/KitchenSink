@@ -49,7 +49,9 @@ describe('the product-tree path aliases are type-only', () => {
         const scanned = new Set(parsed.fileNames);
 
         expect(compiled.filter((file) => !scanned.has(file))).toEqual([]);
-    });
+        // Building the program parses the product files the aliases reach: about a second here, past vitest's 5 s
+        // default on a loaded CI runner.
+    }, 30_000);
 
     it('is not one-sided: the registry really does import through the alias, with `import type`', () => {
         const registry = readFileSync(join(PACKAGE_ROOT, 'src/cards/cardComponents.ts'), 'utf8');

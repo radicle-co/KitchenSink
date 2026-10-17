@@ -43,7 +43,7 @@ the key is **not scoped to the signed-in person**, and I found **no code that cl
 sees person A's searches. It predates this range (`00eb976e2` is an ancestor of `4b658b672`), so it is not a regression of
 this branch. Underlying goal (a fast repeat search) is kept by an in-memory list per session, or by `sessionStorage` scoped by
 subject like D18. Native `AsyncStorage` is allowed by the ruling but has the same unscoped key and no sign-out clear.
-**Decision needed:** keep as a recorded exception, or move to session scope. I have not changed code.
+**Decided (owner, 2026-10-17): keep on the device, per user, ended by sign-out. Recorded as D23 in `ownerDecisions.md`; built.**
 
 ---
 

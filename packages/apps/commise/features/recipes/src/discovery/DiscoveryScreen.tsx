@@ -65,6 +65,7 @@ export const DiscoveryScreen: FC<DiscoveryScreenProps> = ({
     const screen = useDiscoveryScreen({
         criteria,
         recentSearchStore: platform.recentSearchStore,
+        recentSearchSubject: platform.useRecentSearchSubject(),
         useRecoverySignal: platform.useRecoverySignal,
         onEditCopy,
     });

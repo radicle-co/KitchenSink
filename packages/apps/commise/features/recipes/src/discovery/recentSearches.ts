@@ -22,17 +22,25 @@
 export const MAX_RECENT_SEARCHES = 6;
 
 /**
- * The key the history is stored under. VERSIONED (`.v1`): if the persisted shape ever changes, the new key
- * simply reads as "no history" instead of mis-parsing an older payload.
+ * The key one user's history is stored under, so a device shared by two people holds two histories and each sees only
+ * their own. `subject` is the signed-in user's opaque identity-provider id (Clerk `userId`, never an email) — the same one
+ * the editor's device keys use, and the one the sign-out command still holds after the session ends, which is what lets it
+ * remove exactly this key. VERSIONED (`.v2`): the earlier `.v1` key was shared by everyone on the device, and is never
+ * read again. Owner ruling 2026-10-17, recorded in `docs/design/uiOverhaul/ownerDecisions.md`.
+ *
+ * @param subject - The signed-in user's id.
+ * @returns The storage key for that user's history.
  */
-export const RECENT_SEARCHES_STORAGE_KEY = 'commise.recipes.recentSearches.v1';
+export function recentSearchesKeyFor(subject: string): string {
+    return `commise.recipes.recentSearches.v2.${subject}`;
+}
 
 /**
  * The persistence port the recent-search history is read/written through — an injectable seam, so nothing
  * in the shared layer or in a test touches a real platform global.
  *
  * Async in both directions because native storage is (web `localStorage` is synchronous, which the promise
- * subsumes). Implementations MUST NOT reject: a history that cannot be read or written is a missing
+ * subsumes). Implementations MUST NOT reject: a history that cannot be read, written or removed is a missing
  * convenience, never a broken search — each adapter swallows its own platform failures (quota, private
  * mode, a missing native module) and reports "nothing stored".
  */
@@ -49,6 +57,12 @@ export interface RecentSearchStore {
      * @sideEffect Writes platform storage.
      */
     readonly setItem: (key: string, value: string) => Promise<void>;
+    /**
+     * Remove whatever is stored under `key`. Used when the user's session ends.
+     *
+     * @sideEffect Writes platform storage.
+     */
+    readonly removeItem: (key: string) => Promise<void>;
 }
 
 /** Case-insensitive identity of a query — the de-duplication key (searches are not case-significant). */

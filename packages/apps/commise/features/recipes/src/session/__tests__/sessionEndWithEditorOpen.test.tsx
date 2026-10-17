@@ -26,10 +26,18 @@ import { act, render } from '@testing-library/react';
 import { useEffect } from 'react';
 import { describe, expect, it } from 'vitest';
 
+import type { RecentSearchStore } from '../../discovery/recentSearches.js';
 import { draftQuarantineKeyFor, draftStoreFor, draftStoreKeyFor } from '../../editor/draftStore.js';
 import { useRecipeEditorSession, type RecipeEditorSession } from '../../editor/useRecipeEditorSession.js';
 import type { EditorWritePort } from '../../hooks/useRecipeEditor.js';
 import { useDeviceSessionScope } from '../deviceSession.js';
+
+/** The session end also reaches the recent searches; this suite is about the editor, so they hold nothing. */
+const recentSearches: RecentSearchStore = {
+    getItem: async () => null,
+    setItem: async () => undefined,
+    removeItem: async () => undefined,
+};
 
 /** The editor's write port over the real mutator, offline: it queues and never sends. */
 function offlinePort(store: OutboxStore, subject: string): EditorWritePort {
@@ -98,7 +106,7 @@ function App(props: {
 }) {
     const { store, subject, onSession } = props;
 
-    useDeviceSessionScope(store, subject);
+    useDeviceSessionScope(store, subject, recentSearches);
 
     return subject === null ? null : <Editor store={store} subject={subject} onSession={onSession} />;
 }

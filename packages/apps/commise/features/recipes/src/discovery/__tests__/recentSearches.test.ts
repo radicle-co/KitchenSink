@@ -15,6 +15,7 @@ import {
     addRecentSearch,
     mergeRecentSearches,
     parseRecentSearches,
+    recentSearchesKeyFor,
     serializeRecentSearches,
 } from '../recentSearches.js';
 
@@ -141,5 +142,22 @@ describe('parseRecentSearches', () => {
         const queries = ['risotto', 'pasta', 'lamb tagine'];
 
         expect(parseRecentSearches(serializeRecentSearches(queries))).toEqual(queries);
+    });
+});
+
+/** Owner ruling 2026-10-17 (`docs/design/uiOverhaul/ownerDecisions.md`): the history is kept per signed-in user. */
+describe('recentSearchesKeyFor', () => {
+    it('gives each user their own key, so one user can never read another`s history', () => {
+        expect(recentSearchesKeyFor('user_a')).not.toBe(recentSearchesKeyFor('user_b'));
+        expect(recentSearchesKeyFor('user_a')).toContain('user_a');
+    });
+
+    it('is stable for the same user (a reload reads what the last visit wrote)', () => {
+        expect(recentSearchesKeyFor('user_a')).toBe(recentSearchesKeyFor('user_a'));
+    });
+
+    it('⛔ is not the unscoped key the history used before the ruling, which is never read again', () => {
+        expect(recentSearchesKeyFor('user_a')).not.toBe('commise.recipes.recentSearches.v1');
+        expect(recentSearchesKeyFor('v1')).not.toBe('commise.recipes.recentSearches.v1');
     });
 });

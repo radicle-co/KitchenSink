@@ -23,12 +23,30 @@ import { StrictMode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { makeRecipeFormValues } from '../../__fixtures__/index.js';
+import { recentSearchesKeyFor, type RecentSearchStore } from '../../discovery/recentSearches.js';
 import { cookMarksKey } from '../../detail/cookMarks.js';
 import { draftQuarantineKeyFor, draftStoreFor, draftStoreKeyFor, toDraftValues } from '../../editor/draftStore.js';
 import { endDeviceSession, useDeviceSessionScope } from '../deviceSession.js';
 
+/** The recent-search store the apps bind beside the device store (localStorage on web, AsyncStorage on mobile). */
+function makeRecentStore(): RecentSearchStore & { readonly data: Map<string, string> } {
+    const data = new Map<string, string>();
+
+    return {
+        data,
+        getItem: async (key) => data.get(key) ?? null,
+        setItem: async (key, value) => {
+            data.set(key, value);
+        },
+        removeItem: async (key) => {
+            data.delete(key);
+        },
+    };
+}
+
 /** Seed everything the device keeps for a cook: a draft, a queued write, both quarantines, and a cook mark. */
-async function seedCook(store: OutboxStore, subject: string): Promise<void> {
+async function seedCook(store: OutboxStore, subject: string, recents?: RecentSearchStore): Promise<void> {
+    await recents?.setItem(recentSearchesKeyFor(subject), JSON.stringify(['soup']));
     await draftStoreFor(store, subject).save({
         recipeRef: 'local:recipe:a',
         baseVersion: null,
@@ -77,20 +95,43 @@ afterEach(() => {
 describe('endDeviceSession', () => {
     it('⛔ removes one cook`s drafts, outbox and both quarantines, and leaves another cook`s', async () => {
         const store = createMemoryOutboxStore();
-        await seedCook(store, 'user_a');
-        await seedCook(store, 'user_b');
+        const recents = makeRecentStore();
+        await seedCook(store, 'user_a', recents);
+        await seedCook(store, 'user_b', recents);
 
-        await endDeviceSession(store, 'user_a');
+        await endDeviceSession(store, 'user_a', recents);
 
         expect(await keptFor(store, 'user_a')).toEqual([]);
         expect(await keptFor(store, 'user_b')).toHaveLength(4);
+    });
+
+    /** Owner ruling 2026-10-17 (`ownerDecisions.md`): recent searches end with the cook's session, and only theirs. */
+    it('⛔ removes the cook`s recent searches and leaves another cook`s', async () => {
+        const store = createMemoryOutboxStore();
+        const recents = makeRecentStore();
+        await seedCook(store, 'user_a', recents);
+        await seedCook(store, 'user_b', recents);
+
+        await endDeviceSession(store, 'user_a', recents);
+
+        expect([...recents.data.keys()]).toEqual([recentSearchesKeyFor('user_b')]);
+    });
+
+    it('a failing recent-search removal does not stop the drafts and outbox being removed', async () => {
+        const store = createMemoryOutboxStore();
+        const recents = makeRecentStore();
+        await seedCook(store, 'user_a', recents);
+
+        await endDeviceSession(store, 'user_a', { ...recents, removeItem: () => Promise.reject(new Error('quota')) });
+
+        expect(await keptFor(store, 'user_a')).toEqual([]);
     });
 
     it('removes every cook mark in the tab (D18: whoever made them)', async () => {
         const store = createMemoryOutboxStore();
         window.sessionStorage.setItem(cookMarksKey('user_b', 'rec_2'), '{}');
 
-        await endDeviceSession(store, undefined);
+        await endDeviceSession(store, undefined, makeRecentStore());
 
         expect(window.sessionStorage.length).toBe(0);
     });
@@ -102,15 +143,25 @@ describe('endDeviceSession', () => {
             appendIntent(log, { entity: 'recipe', intentKind: 'update', localId: 'rec_1', dependsOn: [], payload: {} }),
         );
 
-        await Promise.all([queued, endDeviceSession(store, 'user_a')]);
+        await Promise.all([queued, endDeviceSession(store, 'user_a', makeRecentStore())]);
 
         expect((await loadOutbox(store, 'user_a')).records).toEqual([]);
         expect(await store.getItem(storeKeyFor('user_a'))).toBeNull();
     });
 });
 
-function Scope({ store, subject }: { readonly store: OutboxStore; readonly subject: string | null | undefined }) {
-    useDeviceSessionScope(store, subject);
+const scopeRecents = makeRecentStore();
+
+function Scope({
+    store,
+    subject,
+    recents = scopeRecents,
+}: {
+    readonly store: OutboxStore;
+    readonly subject: string | null | undefined;
+    readonly recents?: RecentSearchStore;
+}) {
+    useDeviceSessionScope(store, subject, recents);
 
     return null;
 }
@@ -128,6 +179,19 @@ describe('useDeviceSessionScope', () => {
         await flush();
 
         expect(await keptFor(store, 'user_a')).toEqual([]);
+    });
+
+    it('⛔ removes the previous cook`s recent searches when the cook changes, leaving the new cook`s', async () => {
+        const store = createMemoryOutboxStore();
+        const recents = makeRecentStore();
+        await seedCook(store, 'user_a', recents);
+        await recents.setItem(recentSearchesKeyFor('user_b'), JSON.stringify(['stew']));
+        const view = render(<Scope store={store} subject="user_a" recents={recents} />);
+
+        view.rerender(<Scope store={store} subject="user_b" recents={recents} />);
+        await flush();
+
+        expect([...recents.data.keys()]).toEqual([recentSearchesKeyFor('user_b')]);
     });
 
     /** Clerk reports `undefined` while it loads: that is not a sign-out, and the cook's unsent work must survive it. */

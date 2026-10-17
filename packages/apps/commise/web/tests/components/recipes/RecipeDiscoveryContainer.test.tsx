@@ -17,7 +17,7 @@
  * `vi.spyOn(client, 'searchRecipes' | 'cloneRecipe')`. The Next router mocks and the `replaceState` spy
  * stay as before.
  */
-import { EMPTY_RECIPE_FILTERS, RECENT_SEARCHES_STORAGE_KEY, discoverySearchParams } from '@commise/features-recipes';
+import { EMPTY_RECIPE_FILTERS, discoverySearchParams, recentSearchesKeyFor } from '@commise/features-recipes';
 import { LocaleProvider } from '@commise/i18n/react';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -46,6 +46,12 @@ const { pushMock, nav } = vi.hoisted(() => ({
     // `window.history.replaceState` (spied per-test), which updates `useSearchParams()` reactively.
     nav: { params: new URLSearchParams(), pathname: '/en/discover' },
 }));
+
+// The discovery platform reads the signed-in user: recent searches are kept per user (owner ruling 2026-10-17). `undefined`
+// is Clerk still loading, `null` signed out.
+const { auth } = vi.hoisted(() => ({ auth: { userId: 'user_a' as string | null | undefined } }));
+
+vi.mock('@clerk/nextjs', () => ({ useAuth: () => ({ userId: auth.userId }) }));
 
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ push: pushMock }),
@@ -600,7 +606,13 @@ describe('RecipeDiscoveryContainer — browse rails (U7)', () => {
  * (covered in `RecipeDiscoveryFrame.test.tsx`).
  */
 describe('RecipeDiscoveryContainer — recent searches (U7)', () => {
-    afterEach(() => window.localStorage.clear());
+    /** The signed-in user's key; owner ruling 2026-10-17 keeps the history per user. */
+    const RECENT_KEY = recentSearchesKeyFor('user_a');
+
+    afterEach(() => {
+        window.localStorage.clear();
+        auth.userId = 'user_a';
+    });
 
     /** The search field, as the user reaches it. */
     function searchBox(): HTMLInputElement {
@@ -622,9 +634,7 @@ describe('RecipeDiscoveryContainer — recent searches (U7)', () => {
         await user.clear(searchBox());
 
         expect(await screen.findByRole('button', { name: 'Search for “pasta”' })).toBeInTheDocument();
-        await vi.waitFor(() =>
-            expect(window.localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY)).toBe(JSON.stringify(['pasta'])),
-        );
+        await vi.waitFor(() => expect(window.localStorage.getItem(RECENT_KEY)).toBe(JSON.stringify(['pasta'])));
     });
 
     it('records NOTHING for a whitespace-only query', async () => {
@@ -635,14 +645,14 @@ describe('RecipeDiscoveryContainer — recent searches (U7)', () => {
         renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
 
         await user.type(searchBox(), '   ');
-        await vi.waitFor(() => expect(window.localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY)).not.toBeNull());
+        await vi.waitFor(() => expect(window.localStorage.getItem(RECENT_KEY)).not.toBeNull());
 
-        expect(window.localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY)).toBe(JSON.stringify([]));
+        expect(window.localStorage.getItem(RECENT_KEY)).toBe(JSON.stringify([]));
         expect(screen.queryByRole('button', { name: /^Search for/ })).not.toBeInTheDocument();
     });
 
     it('offers a history persisted by an earlier session (the reload case)', async () => {
-        window.localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['risotto', 'lamb tagine']));
+        window.localStorage.setItem(RECENT_KEY, JSON.stringify(['risotto', 'lamb tagine']));
         const user = userEvent.setup();
         const client = discoveryClient();
         vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
@@ -656,7 +666,7 @@ describe('RecipeDiscoveryContainer — recent searches (U7)', () => {
     });
 
     it('runs the chosen recent search (field + fetch + shareable URL)', async () => {
-        window.localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['risotto']));
+        window.localStorage.setItem(RECENT_KEY, JSON.stringify(['risotto']));
         const user = userEvent.setup();
         const replaceState = vi.spyOn(window.history, 'replaceState');
         const client = discoveryClient();
@@ -673,7 +683,7 @@ describe('RecipeDiscoveryContainer — recent searches (U7)', () => {
     });
 
     it('clears the whole history, panel and storage alike', async () => {
-        window.localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['risotto', 'pasta']));
+        window.localStorage.setItem(RECENT_KEY, JSON.stringify(['risotto', 'pasta']));
         const user = userEvent.setup();
         const client = discoveryClient();
         vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
@@ -684,9 +694,54 @@ describe('RecipeDiscoveryContainer — recent searches (U7)', () => {
         await user.click(await screen.findByRole('button', { name: 'Clear recent searches' }));
 
         expect(screen.queryByRole('button', { name: /^Search for/ })).not.toBeInTheDocument();
-        await vi.waitFor(() =>
-            expect(window.localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY)).toBe(JSON.stringify([])),
-        );
+        await vi.waitFor(() => expect(window.localStorage.getItem(RECENT_KEY)).toBe(JSON.stringify([])));
+    });
+
+    it('⛔ never offers another user`s history on the same browser, and stores a new search under the signed-in user only', async () => {
+        window.localStorage.setItem(recentSearchesKeyFor('user_b'), JSON.stringify(['b-stew']));
+        const user = userEvent.setup();
+        const client = discoveryClient();
+        const searchSpy = vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
+
+        renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
+
+        await user.type(searchBox(), 'pasta');
+        await vi.waitFor(() => expect(searchSpy).toHaveBeenCalledWith(expect.objectContaining({ query: 'pasta' })));
+        await user.clear(searchBox());
+
+        expect(await screen.findByRole('button', { name: 'Search for “pasta”' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Search for “b-stew”' })).not.toBeInTheDocument();
+        await vi.waitFor(() => expect(window.localStorage.getItem(RECENT_KEY)).toBe(JSON.stringify(['pasta'])));
+        expect(window.localStorage.getItem(recentSearchesKeyFor('user_b'))).toBe(JSON.stringify(['b-stew']));
+    });
+
+    it('⛔ never reads the unscoped history the browser held before the ruling', async () => {
+        window.localStorage.setItem('commise.recipes.recentSearches.v1', JSON.stringify(['earlier']));
+        const user = userEvent.setup();
+        const client = discoveryClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
+
+        renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
+        await user.click(searchBox());
+
+        await vi.waitFor(() => expect(window.localStorage.getItem(RECENT_KEY)).not.toBeNull());
+        expect(screen.queryByRole('button', { name: 'Search for “earlier”' })).not.toBeInTheDocument();
+    });
+
+    it('⛔ shows and writes nothing while nobody is signed in', async () => {
+        auth.userId = null;
+        window.localStorage.setItem(RECENT_KEY, JSON.stringify(['risotto']));
+        const user = userEvent.setup();
+        const client = discoveryClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
+
+        renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
+        await user.click(searchBox());
+        await user.type(searchBox(), 'pasta');
+        await user.clear(searchBox());
+
+        expect(screen.queryByRole('button', { name: 'Search for “risotto”' })).not.toBeInTheDocument();
+        expect(window.localStorage.getItem(RECENT_KEY)).toBe(JSON.stringify(['risotto']));
     });
 
     it('says the SERVER total from the first page, and Load more appends rows without changing that sentence', async () => {

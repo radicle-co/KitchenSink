@@ -53,10 +53,11 @@ folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
   for now.
 - **D18, cook marks on web.** The recipe page keeps the ticked ingredients and the current step in `sessionStorage`,
   as recipe and line ids only. They survive a reload in the same tab. Closing the tab or signing out clears them. This
-  is the second narrow exception to the ruling of 2026-09-17, after D7.
+  is a narrow exception to the ruling of 2026-09-17, after D7.
 - **D19, user settings.** A user's app preferences are stored on the server, in a new identity `settings` table with
   its own wire contract, so they follow the user across devices (owner, 2026-10-10). The web "/" search-shortcut switch
-  is the first setting. No preference is kept in browser storage.
+  is the first setting. No preference is kept in browser storage. The recent-search exception of 2026-10-17 (below) is not a preference: it is a
+  history, and it is recorded on its own.
 - **D20, publishing with unmatched lines.** A cook may publish while some ingredients have no matched food. The section
   index and the publish step say how many lines have no match and that nutrition leaves them out (owner, 2026-10-10).
 - **D21, ingredient row name.** A row shows the cook's own amount and unit, then the curated catalog food name, then the
@@ -129,3 +130,14 @@ These come after the UI walk-through. Where an earlier line in this file or in `
     like mobile". Web drops the read-only Username and Email rows under Account; the Account group holds the display
     name row alone. This amends decision 11 (which covered mobile only) and plan
     `docs/plans/2026-10-15-010-feat-username-byline-plan.md` D12 (the "web Account-group row").
+
+## Owner decision of 2026-10-17
+
+- **D23, recent searches stay on the device, per user.** Discover's recent searches are kept on the device, on web and on
+  mobile, keyed to the signed-in user and never to their email (the opaque identity-provider id the editor's device keys
+  already use). They end with the session: our one sign-out command, account close and account erase remove them (and on
+  web so does any other end of the session the app sees, as for D7 and D18). One user never sees another user's entries on
+  the same device, and signed-out use keeps nothing on the device. The earlier unscoped list is not read again. On web they
+  stay in `localStorage`, not `sessionStorage`; this is a narrow exception to the ruling of 2026-09-17 that the browser
+  keeps no durable app data, alongside D7 and D18, and it covers the search history only (owner, 2026-10-17). Where it
+  lives in code: `recentSearchesKeyFor` and `endDeviceSession` in `@commise/features-recipes`.

@@ -48,6 +48,9 @@ const { pushMock, replaceStateMock, nav } = vi.hoisted(() => ({
 
 // The container reads its criteria from the URL and writes them back with the history API. A non-blank
 // `query` is what puts the surface into its RESULT body — the default body is the curated browse rails.
+// The discovery platform reads the signed-in user (recent searches are kept per user); this suite is about nutrition.
+vi.mock('@clerk/nextjs', () => ({ useAuth: () => ({ userId: 'user_a' }) }));
+
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ push: pushMock }),
     usePathname: () => '/en/discover',

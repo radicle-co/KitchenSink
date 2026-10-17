@@ -12,6 +12,22 @@ vi.mock('../../src/storage/outboxStore.js', async () => ({
         .createMemoryOutboxStore,
 }));
 
+// The recent searches live in AsyncStorage too (owner ruling 2026-10-17); an in-memory double stands in for the native module.
+const { asyncStorage } = vi.hoisted(() => ({ asyncStorage: { store: new Map<string, string>() } }));
+
+vi.mock('@react-native-async-storage/async-storage', () => ({
+    default: {
+        getItem: async (key: string) => asyncStorage.store.get(key) ?? null,
+        setItem: async (key: string, value: string) => {
+            asyncStorage.store.set(key, value);
+        },
+        removeItem: async (key: string) => {
+            asyncStorage.store.delete(key);
+        },
+    },
+}));
+
+const { recentSearchesKeyFor } = await import('@commise/features-recipes');
 const { endDeviceSession, nativeDeviceStore } = await import('../../src/storage/deviceSession.js');
 const { editorDraftsFor } = await import('@commise/features-recipes/editor');
 
@@ -56,5 +72,14 @@ describe('endDeviceSession (mobile)', () => {
         expect((await loadOutbox(nativeDeviceStore, 'user_a')).records).toEqual([]);
         expect(await editorDraftsFor(nativeDeviceStore, 'user_b')?.load('local:recipe:a')).toBeDefined();
         expect((await loadOutbox(nativeDeviceStore, 'user_b')).records).toHaveLength(1);
+    });
+
+    it('⛔ removes the cook`s recent searches from AsyncStorage and keeps another cook`s', async () => {
+        asyncStorage.store.set(recentSearchesKeyFor('user_a'), JSON.stringify(['soup']));
+        asyncStorage.store.set(recentSearchesKeyFor('user_b'), JSON.stringify(['stew']));
+
+        await endDeviceSession('user_a');
+
+        expect([...asyncStorage.store.keys()]).toEqual([recentSearchesKeyFor('user_b')]);
     });
 });

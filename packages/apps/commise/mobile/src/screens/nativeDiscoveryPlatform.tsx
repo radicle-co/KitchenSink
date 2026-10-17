@@ -7,6 +7,7 @@
  *
  * @pattern Adapter — the discovery platform port over the mobile app's boundary, nutrition lookup and storage
  */
+import { useAuth } from '@clerk/expo';
 import { nutritionSlotRenderer, type RenderRecipeNutrition } from '@commise/features-recipes';
 import type { DiscoveryPlatform } from '@commise/features-recipes/discovery';
 import { useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
@@ -29,6 +30,14 @@ function useNativeNutrition(recipeIdPages: readonly (readonly string[])[]): Rend
     return nutritionSlotRenderer(useRecipeNutritionBatches(recipeIdPages));
 }
 
+/**
+ * Whose recent searches these are: Clerk's `userId` (`undefined` while Clerk loads, `null` signed out), the id the sign-out
+ * command removes the history by.
+ */
+function useRecentSearchSubject(): string | null | undefined {
+    return useAuth().userId;
+}
+
 /** The mobile discovery platform. */
 export const nativeDiscoveryPlatform: DiscoveryPlatform = {
     // The extra `prefetchedKeys` a web boundary reads is ignored here: `QueryBoundary` takes the props it knows.
@@ -37,4 +46,5 @@ export const nativeDiscoveryPlatform: DiscoveryPlatform = {
     useRefreshNotice,
     useRecoverySignal,
     recentSearchStore: nativeRecentSearchStore,
+    useRecentSearchSubject,
 };

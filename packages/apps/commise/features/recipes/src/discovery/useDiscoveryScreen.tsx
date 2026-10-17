@@ -103,11 +103,14 @@ export interface DiscoveryScreenState {
 export function useDiscoveryScreen({
     criteria,
     recentSearchStore,
+    recentSearchSubject,
     useRecoverySignal,
     onEditCopy,
 }: {
     readonly criteria: DiscoveryCriteriaStore;
     readonly recentSearchStore: RecentSearchStore;
+    /** Whose recent searches to keep: see `DiscoveryPlatform.useRecentSearchSubject`. */
+    readonly recentSearchSubject: string | null | undefined;
     /** The platform's recovery counter hook (a module constant, so its hook order is stable). */
     readonly useRecoverySignal: () => DiscoveryRecoverySignal;
     readonly onEditCopy: (copyId: string) => void;
@@ -142,7 +145,7 @@ export function useDiscoveryScreen({
     const presentation = useFilterPresentation();
     // Recent searches (U7) are keyed off the DEBOUNCED term — the one that searches — so history records searches the
     // viewer ran, never keystrokes.
-    const recentSearches = useRecentSearches(debouncedQuery, recentSearchStore);
+    const recentSearches = useRecentSearches(debouncedQuery, recentSearchStore, recentSearchSubject);
 
     // Annotated with the NARROW view-model: the `?? {}` fallback (nothing settled yet) would otherwise widen it to `{}`.
     const facets: RecipeFacets = settledSearch.data?.pages[0]?.facets ?? {};

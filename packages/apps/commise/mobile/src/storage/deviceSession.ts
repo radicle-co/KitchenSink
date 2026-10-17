@@ -20,17 +20,18 @@
  */
 import { endDeviceSession as endStoredDeviceSession } from '@commise/features-recipes';
 
+import { nativeRecentSearchStore } from './recentSearchStore.js';
 import { createNativeOutboxStore } from './outboxStore.js';
 
 /** The device's one store for the cook's editor work: AsyncStorage, surviving a relaunch. */
 export const nativeDeviceStore = createNativeOutboxStore();
 
 /**
- * End a cook's device session: their drafts, their outbox and both quarantines.
+ * End a cook's device session: their drafts, their outbox, both quarantines and their recent searches.
  *
  * @param subject - The cook who was signed in (Clerk `userId`), or `undefined` when nobody was.
- * @sideEffect Removes keys from AsyncStorage, through each store's own writer.
+ * @sideEffect Removes keys from AsyncStorage, through each store's own writer (the recent searches through theirs).
  */
 export function endDeviceSession(subject: string | undefined): Promise<void> {
-    return endStoredDeviceSession(nativeDeviceStore, subject);
+    return endStoredDeviceSession(nativeDeviceStore, subject, nativeRecentSearchStore);
 }

@@ -21,6 +21,8 @@
 import { endDeviceSession as endStoredDeviceSession } from '@commise/features-recipes';
 import { createTabCopyProbe, createWebStorageStore, type LockManagerLike } from '@kitchensink/sync';
 
+import { webRecentSearchStore } from '@/lib/recentSearchStore';
+
 /** The browser's Web Locks, or `undefined` where the origin is not secure or the browser predates them. */
 function browserLocks(): LockManagerLike | undefined {
     return typeof navigator !== 'undefined' && 'locks' in navigator ? navigator.locks : undefined;
@@ -36,11 +38,12 @@ export const webDeviceStore = createWebStorageStore(() => window.sessionStorage,
 });
 
 /**
- * End a cook's device session in this tab: their drafts, their outbox, both quarantines, and every cook mark.
+ * End a cook's device session in this tab: their drafts, their outbox, both quarantines, every cook mark, and their
+ * recent searches (kept in `localStorage`, by owner ruling 2026-10-17 in `docs/design/uiOverhaul/ownerDecisions.md`).
  *
  * @param subject - The cook who was signed in (Clerk `userId`), or `undefined` when nobody was.
  * @sideEffect Removes keys from session storage, through each store's own writer.
  */
 export function endDeviceSession(subject: string | undefined): Promise<void> {
-    return endStoredDeviceSession(webDeviceStore, subject);
+    return endStoredDeviceSession(webDeviceStore, subject, webRecentSearchStore);
 }

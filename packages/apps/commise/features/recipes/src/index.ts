@@ -375,10 +375,10 @@ export {
 } from './discovery/model.js';
 export {
     MAX_RECENT_SEARCHES,
-    RECENT_SEARCHES_STORAGE_KEY,
     addRecentSearch,
     mergeRecentSearches,
     parseRecentSearches,
+    recentSearchesKeyFor,
     serializeRecentSearches,
 } from './discovery/recentSearches.js';
 export type { DiscoveryMessages } from './discovery/messages.js';

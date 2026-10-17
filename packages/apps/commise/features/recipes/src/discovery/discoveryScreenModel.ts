@@ -112,6 +112,12 @@ export interface DiscoveryPlatform {
     readonly useRecoverySignal: () => DiscoveryRecoverySignal;
     /** Where the recent searches persist. A module-level singleton: its identity is an effect dependency. */
     readonly recentSearchStore: RecentSearchStore;
+    /**
+     * Whose recent searches these are: the signed-in user's id, `null` when signed out, `undefined` while that is not yet
+     * known (Clerk's `useAuth().userId`, which is what the sign-out command removes by). A hook, because it reads the
+     * session. Owner ruling 2026-10-17, `docs/design/uiOverhaul/ownerDecisions.md`.
+     */
+    readonly useRecentSearchSubject: () => string | null | undefined;
 }
 
 /** What every card on the surface shares: its Save a copy control, where it leads, and how it is opened. */

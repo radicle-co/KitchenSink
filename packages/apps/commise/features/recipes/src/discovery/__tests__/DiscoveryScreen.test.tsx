@@ -68,7 +68,8 @@ const platform: DiscoveryPlatform = {
     useRenderNutrition: noNutrition,
     useRefreshNotice: useTestRefreshNotice,
     useRecoverySignal: useTestRecoverySignal,
-    recentSearchStore: { getItem: async () => null, setItem: async () => undefined },
+    recentSearchStore: { getItem: async () => null, setItem: async () => undefined, removeItem: async () => undefined },
+    useRecentSearchSubject: () => 'user_a',
 };
 
 let client: ReturnType<typeof createFakeRecipeServiceClient>;

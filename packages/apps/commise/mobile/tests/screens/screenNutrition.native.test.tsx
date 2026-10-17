@@ -66,6 +66,9 @@ vi.mock('react-native', async (importOriginal) => {
     return { ...actual, useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: 1200 }) };
 });
 
+// The discovery platform reads the signed-in user (recent searches are kept per user); this suite is about nutrition.
+vi.mock('@clerk/expo', () => ({ useAuth: () => ({ userId: 'user_a' }) }));
+
 vi.mock('@react-native-async-storage/async-storage', () => ({
     default: { getItem: async () => null, setItem: async () => undefined },
 }));

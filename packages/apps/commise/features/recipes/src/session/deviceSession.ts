@@ -2,8 +2,8 @@
 
 /**
  * @module @commise/features-recipes/session — what a device keeps for one cook, and its end with their session (ADR-0057,
- * ADR-0054, owner D7 and D18), for both apps: the cook's editor drafts and outbox journal, each with its quarantine, and
- * the tab's cook marks. Each app hands over its ONE key/value store (AsyncStorage on mobile, the tab's `sessionStorage`
+ * ADR-0054, owner D7 and D18), for both apps: the cook's editor drafts and outbox journal, each with its quarantine,
+ * the tab's cook marks and the cook's recent searches (owner ruling 2026-10-17). Each app hands over its ONE key/value store (AsyncStorage on mobile, the tab's `sessionStorage`
  * on web); the drafts and the journal are reached through their stores' own writers (`draftStoreFor`,
  * `outboxMutatorFor`), so the clear is queued behind every change asked for before it and cannot be written back.
  *
@@ -21,25 +21,36 @@ import { createSerialQueue, outboxMutatorFor, type OutboxStore, type SerialQueue
 import { useEffect } from 'react';
 
 import { clearStoredCookMarks } from '../detail/cookMarksBackend.js';
+import { recentSearchesKeyFor, type RecentSearchStore } from '../discovery/recentSearches.js';
 import { draftStoreFor } from '../editor/draftStore.js';
 
 /**
  * Remove what the device kept for a cook: every cook mark in the tab (D18, whoever made them; a no-op on native, which
- * keeps marks in memory), and the cook's drafts and outbox with both quarantines.
+ * keeps marks in memory), the cook's drafts and outbox with both quarantines, and the cook's recent searches (owner ruling
+ * 2026-10-17, `docs/design/uiOverhaul/ownerDecisions.md`).
  *
  * @param store - The app's one key/value store, the same object its draft store and `SyncProvider` use.
  * @param subject - The cook who was signed in (Clerk `userId`), or `undefined` when nobody was.
- * @sideEffect Removes keys from the store and from `sessionStorage`.
+ * @param recentSearches - The app's recent-search store (REQUIRED: a caller that forgot it would leave the history behind).
+ * @sideEffect Removes keys from the stores and from `sessionStorage`.
  */
-export async function endDeviceSession(store: OutboxStore, subject: string | undefined): Promise<void> {
+export async function endDeviceSession(
+    store: OutboxStore,
+    subject: string | undefined,
+    recentSearches: RecentSearchStore,
+): Promise<void> {
     clearStoredCookMarks();
 
     if (subject === undefined) {
         return;
     }
 
+    // A failed removal must not stop the drafts and outbox going: the history is the lesser loss, and the key stays
+    // namespaced to this cook, unreachable by anyone else signed in.
+    const forgetRecents = recentSearches.removeItem(recentSearchesKeyFor(subject)).catch(() => undefined);
+
     // Both are queued now, synchronously, behind every change already asked of either store.
-    await Promise.all([draftStoreFor(store, subject).clear(), outboxMutatorFor(store, subject).clear()]);
+    await Promise.all([draftStoreFor(store, subject).clear(), outboxMutatorFor(store, subject).clear(), forgetRecents]);
 }
 
 /**
@@ -79,14 +90,18 @@ function scopeQueueFor(store: OutboxStore): SerialQueue {
  *
  * @sideEffect Reads and writes {@link HELD_COOK_KEY}; may remove the previous cook's stored data.
  */
-async function observeCook(store: OutboxStore, subject: string | null): Promise<void> {
+async function observeCook(
+    store: OutboxStore,
+    subject: string | null,
+    recentSearches: RecentSearchStore,
+): Promise<void> {
     // An unreadable record is treated as none: there is nothing to compare, and the namespacing still keeps another
     // cook's keys unreachable.
     const held = await store.getItem(HELD_COOK_KEY).catch(() => null);
 
     if (held !== null && held !== subject) {
         // A failed clear leaves the keys namespaced to that cook, unreachable by anyone else signed in.
-        await endDeviceSession(store, held).catch(() => undefined);
+        await endDeviceSession(store, held, recentSearches).catch(() => undefined);
     }
 
     if (held === subject) {
@@ -102,9 +117,14 @@ async function observeCook(store: OutboxStore, subject: string | null): Promise<
  *
  * @param store - The app's one key/value store.
  * @param subject - Clerk's `userId`: a cook, `null` when signed out, `undefined` while loading (ignored).
- * @sideEffect Removes the previous cook's stored drafts, outbox and the tab's cook marks.
+ * @param recentSearches - The app's recent-search store, whose entries for the previous cook end with their session.
+ * @sideEffect Removes the previous cook's stored drafts, outbox, recent searches and the tab's cook marks.
  */
-export function useDeviceSessionScope(store: OutboxStore, subject: string | null | undefined): void {
+export function useDeviceSessionScope(
+    store: OutboxStore,
+    subject: string | null | undefined,
+    recentSearches: RecentSearchStore,
+): void {
     useEffect(() => {
         if (subject === undefined) {
             return;
@@ -112,6 +132,6 @@ export function useDeviceSessionScope(store: OutboxStore, subject: string | null
 
         // ⛔ Queued now, synchronously: an editor's exit checkpoint in the same commit (its cleanup runs first) has
         // already queued its writes on the stores' own writers, so a clear this decides is queued behind them.
-        void scopeQueueFor(store)(() => observeCook(store, subject)).catch(() => undefined);
-    }, [store, subject]);
+        void scopeQueueFor(store)(() => observeCook(store, subject, recentSearches)).catch(() => undefined);
+    }, [store, subject, recentSearches]);
 }

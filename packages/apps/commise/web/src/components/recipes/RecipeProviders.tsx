@@ -43,6 +43,7 @@ import { useCallback, useMemo, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
 import { webDeviceStore } from '@/components/recipes/deviceSession';
+import { webRecentSearchStore } from '@/lib/recentSearchStore';
 import { FOOD_SERVICE_BASE_URL } from '@/lib/foodServiceConfig';
 import { reportErrorToSentry } from '@/lib/sentryErrorReporter';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
@@ -72,7 +73,7 @@ export function RecipeProviders({ children }: { readonly children: ReactNode }):
     // ADR-0057, owner D7: the cook's editor drafts and unsent saves end with their session, however it ends — our own
     // sign-out, another tab's, an expiry or revocation, the UserButton, or a switch of cook. Fed Clerk's raw `userId`, so
     // the loading `undefined` is told apart from a signed-out `null`.
-    useDeviceSessionScope(webDeviceStore, userId);
+    useDeviceSessionScope(webDeviceStore, userId, webRecentSearchStore);
     // The one Clerk session-token resolver both clients use, so recipe and food authenticate the same way. A missing
     // `getToken` (SSR / pre-hydration) is "no token": the shared hook sends nothing for it rather than an empty bearer.
     const mint = useCallback(

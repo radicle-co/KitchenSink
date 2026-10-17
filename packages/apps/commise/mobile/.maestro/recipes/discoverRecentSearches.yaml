@@ -5,7 +5,7 @@ appId: ${APP_ID}
 #   2. the history appears only in the IDLE state — keyword field focused, query blank;
 #   3. tapping an entry re-runs that search (the results come back);
 #   4. "Clear" forgets the history, and the panel disappears.
-# `AsyncStorage` persistence across an app restart is exercised by step 5 (stopApp + relaunch).
+# `AsyncStorage` persistence across an app restart is exercised by step 4 (stopApp + relaunch).
 # Read-only with respect to recipe data: it types, clears, and clears history, mutating no recipe. Anchored
 # on the seeded public row "Herb Risotto" that no other flow renames.
 - runFlow: ../auth/signin.yaml
@@ -72,3 +72,29 @@ appId: ${APP_ID}
 - tapOn: 'Clear recent searches'
 - assertNotVisible: 'Recent searches'
 - assertVisible: 'Trending'
+
+# 6. Sign-out ends the history. Run a search again so there is something to forget, return to the idle state to see it,
+# then leave through the app's own sign-out (`signOutIfSignedIn.yaml` taps the Profile page's `Sign out`, the verified
+# command of ADR-0009) and come back as the same cook: the history must be gone.
+- runFlow:
+      file: common/searchDiscover.yaml
+      env:
+          QUERY: 'Risotto'
+- scrollUntilVisible:
+      element: 'Search recipes'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search recipes'
+- eraseText
+- extendedWaitUntil:
+      visible: 'Recent searches'
+      timeout: 40000
+- runFlow: ../auth/signOutIfSignedIn.yaml
+- runFlow: ../auth/signin.yaml
+- tapOn: 'Discover'
+- extendedWaitUntil:
+      visible: 'Discover'
+      timeout: 40000
+- tapOn: 'Search recipes'
+- assertNotVisible: 'Recent searches'
+- assertNotVisible: 'Search for “Risotto”'

@@ -65,7 +65,8 @@ export function isSignOutNotVerifiedError(error: unknown): error is SignOutNotVe
  *
  * @param client - The identity client, read for the post-condition (pass `useClerk()`).
  * @param signOut - The SDK's LOAD-SAFE sign-out (`useAuth().signOut`), never the raw client method.
- * @param endDeviceSession - Removes what the device kept for this cook (the editor's drafts and the outbox, ADR-0057),
+ * @param endDeviceSession - Removes what the device kept for this cook (the editor's drafts and the outbox, ADR-0057, and
+ *   their recent searches, owner ruling 2026-10-17),
  *   run once the session is proven ended and awaited, so leaving happens after it. Its failure is not the command's.
  * @throws {SignOutNotVerifiedError} When the client failed to load, or when the sign-out resolved WITHOUT
  *   ending the session — so the caller reports a failure instead of telling the viewer they left.

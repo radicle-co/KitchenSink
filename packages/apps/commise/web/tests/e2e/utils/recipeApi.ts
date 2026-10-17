@@ -1487,6 +1487,36 @@ export async function mockRecipeApi(
             return route.fulfill({ status: 201, json: photo });
         }
 
+        // Reorder (the tile menu's Set as cover, Move earlier and Move later): the body carries the WHOLE new order and
+        // the service accepts only an exact reordering of the recipe's current photos (400 otherwise), so the mock does
+        // too. Re-derives `order` 1..N, which is what makes "the cover is the lowest-order photo" keep holding.
+        const reorderPhotosPath = path.match(/\/api\/v1\/recipes\/([^/]+)\/photos\/reorder$/);
+
+        if (reorderPhotosPath && method === 'PATCH') {
+            const id = reorderPhotosPath[1] as string;
+            const current = photoStore.get(id) ?? [];
+            const body = route.request().postDataJSON() as { photoIds: string[] };
+            const exact =
+                body.photoIds.length === current.length &&
+                new Set(body.photoIds).size === current.length &&
+                current.every((photo) => body.photoIds.includes(photo.id));
+
+            if (!exact) {
+                return route.fulfill({
+                    status: 400,
+                    json: { code: 'VALIDATION_ERROR', message: 'Not an exact reordering.' },
+                });
+            }
+
+            const reordered = body.photoIds.map((photoId, index) => ({
+                ...(current.find((photo) => photo.id === photoId) as RecipePhoto),
+                order: index + 1,
+            }));
+            photoStore.set(id, reordered);
+
+            return route.fulfill({ json: reordered });
+        }
+
         // Delete one confirmed photo (the per-photo Remove control, and the commit step of U6's
         // upload-first Replace). Re-derives `order` so the surviving photos stay 1..N with no gap — the same
         // renumbering the service does, and what makes "the cover is the lowest-order photo" keep holding.

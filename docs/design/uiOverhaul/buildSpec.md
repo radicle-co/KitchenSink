@@ -1546,8 +1546,11 @@ Add an ingredient
 
 ### 7.7 Photos & publish section
 
-1. **Photos:** a grid of 1:1 tiles, 3 columns below 600, 4 above. The first tile is labelled "Cover". Each tile's ⋯:
-   Set as cover · Move earlier · Move later · divider · Remove. **Add photos** (secondary, `image-plus`): native opens
+1. **Photos:** a grid of 1:1 tiles, 3 columns below 600, 4 above. The first tile is labelled "Cover". Each tile's ⋯ (one 44 pt button,
+   48 dp on Android; the menu is the `ActionMenu` with the `disc` look): Set as cover · Move earlier · Move later ·
+   Replace · divider · Remove (Replace added by owner ruling 2026-10-17, `ownerDecisions.md` 14). The first tile
+   disables Move earlier and Set as cover, the last disables Move later, and the cover is named in its button. A failed
+   upload keeps a visible Retry `Button` on its tile. **Add photos** (secondary, `image-plus`): native opens
    a sheet with "Take photo" and "Choose from library". Web opens a multi-select file input. Drag and drop is an extra
    on a fine pointer, never the only way (SC 2.5.7). Empty: a `RecipeCover` preview of this recipe and "No photo? This
    cover is used instead. Add one any time."

@@ -141,3 +141,13 @@ These come after the UI walk-through. Where an earlier line in this file or in `
   stay in `localStorage`, not `sessionStorage`; this is a narrow exception to the ruling of 2026-09-17 that the browser
   keeps no durable app data, alongside D7 and D18, and it covers the search history only (owner, 2026-10-17). Where it
   lives in code: `recentSearchesKeyFor` and `endDeviceSession` in `@commise/features-recipes`.
+
+14. **Photo tiles get one ⋯ menu each, on both platforms.** One 44 pt (iOS and web) or 48 dp (Android) ⋯ button per
+    tile opens a menu of Set as cover, Move earlier, Move later, Replace and, after a divider, Remove. This is
+    `buildSpec.md` §7.7 (the `PhotoControl` and `ActionMenu` pair) plus one addition: **Replace** joins the §7.7 list
+    by this ruling. It replaces the inline Remove pill, the cover radio and the Replace pill (parity audit G4,
+    F1 to F3: about 21 to 24 pt). The first tile disables Move earlier and Set as cover; the last disables Move later.
+    The cover is stated by the tile's "Cover" text and by the menu button's name ("Actions for photo 1, the cover").
+    **Retry of a failed upload stays a visible `Button`** on the failed tile, not a menu item: it is the one recovery
+    for that tile's state, so it is one tap at the design system's button size. Its Remove goes in the tile's menu.
+    Reordering uses the existing `PATCH /api/v1/recipes/{id}/photos/reorder`, which takes the whole new order.

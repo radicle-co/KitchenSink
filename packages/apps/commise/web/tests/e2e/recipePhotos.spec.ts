@@ -110,7 +110,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
 
     /**
      * A-010 / E6: the grid is two columns below 480 px of its own width, three from 480 and four from 600 (§7.7 asks for
-     * three below 600; the per-tile menu that would make that fit is not built), and a failed tile's message
+     * three below 600: the per-tile menu now exists, but a 3-up tile at 390 is about 90 px and the layout that fits the 44 px menu button beside a failure badge is a visual check owed), and a failed tile's message
      * sits BELOW its image rather than over it. Five GIFs are rejected locally (no API is reached), so the grid has
      * five failed tiles to measure at two widths.
      */
@@ -190,7 +190,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         // REQ-014 — the rejection names WHICH file (its own failed cell + `fileName`-scoped controls) and WHY.
         await expect(photosRegion.getByRole('alert', { name: 'Upload failed' })).toBeVisible();
         await expect(page.getByText('That photo is larger than 5 MB. Choose a smaller file.')).toBeVisible();
-        await expect(photosRegion.getByRole('button', { name: 'Remove huge.png' })).toBeVisible();
+        await expect(photosRegion.getByRole('button', { name: 'Actions for huge.png' })).toBeVisible();
 
         // …and nothing was transmitted: no upload ever went in flight, and no photo was ever confirmed (the
         // confirmed grid cells are the ones with an indexed "Recipe photo N" image).
@@ -254,7 +254,8 @@ test.describe('recipe photo replace (U6)', () => {
     test('pressing Replace opens the picker but deletes nothing on its own', async ({ page }) => {
         const photosRegion = await openEditorWithOnePhoto(page);
 
-        await photosRegion.getByRole('button', { name: 'Replace photo 1' }).click();
+        await photosRegion.getByRole('button', { name: 'Actions for photo 1, the cover' }).click();
+        await page.getByRole('menuitem', { name: 'Replace' }).click();
 
         // No file was chosen (the cancel case): the original photo is still the recipe's only photo, and the
         // replacement picker is present and empty rather than having consumed anything.
@@ -267,7 +268,8 @@ test.describe('recipe photo replace (U6)', () => {
         const photosRegion = await openEditorWithOnePhoto(page);
         const originalSrc = await page.getByRole('img', { name: 'Recipe photo 1' }).getAttribute('src');
 
-        await photosRegion.getByRole('button', { name: 'Replace photo 1' }).click();
+        await photosRegion.getByRole('button', { name: 'Actions for photo 1, the cover' }).click();
+        await page.getByRole('menuitem', { name: 'Replace' }).click();
         await page.getByLabel('Choose a replacement photo').setInputFiles({
             name: 'replacement.png',
             mimeType: 'image/png',
@@ -281,6 +283,69 @@ test.describe('recipe photo replace (U6)', () => {
             'src',
             originalSrc as string,
         );
+    });
+});
+
+/**
+ * Owner ruling 2026-10-17 (buildSpec §7.7 + Replace): each photo tile has ONE ⋯ menu button of at least 44 px (parity
+ * audit G4, F3), and the menu reorders through the real `PATCH …/photos/reorder`. Measured at a phone width, where the
+ * old ~24 px pills lived.
+ */
+test.describe('recipe photo tile menu (2026-10-17)', () => {
+    async function openEditorWithTwoPhotos(page: import('@playwright/test').Page) {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
+        await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
+
+        for (const name of ['first.png', 'second.png']) {
+            await page.getByLabel('Add photo').setInputFiles({
+                name,
+                mimeType: 'image/png',
+                buffer: Buffer.from(TINY_PNG_BASE64, 'base64'),
+            });
+            await expect(
+                page.getByRole('region', { name: 'Photos', exact: true }).getByRole('img', { name: /^Recipe photo/ }),
+            ).toHaveCount(name === 'first.png' ? 1 : 2);
+        }
+
+        return page.getByRole('region', { name: 'Photos', exact: true });
+    }
+
+    test('the menu button is at least 44 px square at a phone width', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 900 });
+        const photosRegion = await openEditorWithTwoPhotos(page);
+
+        const box = await photosRegion.getByRole('button', { name: 'Actions for photo 2' }).boundingBox();
+
+        expect(box?.width).toBeGreaterThanOrEqual(44);
+        expect(box?.height).toBeGreaterThanOrEqual(44);
+    });
+
+    test('Move earlier puts the second photo first, making it the cover', async ({ page }) => {
+        const photosRegion = await openEditorWithTwoPhotos(page);
+        const secondSrc = await photosRegion.getByRole('img', { name: 'Recipe photo 2' }).getAttribute('src');
+
+        await photosRegion.getByRole('button', { name: 'Actions for photo 2' }).click();
+        await page.getByRole('menuitem', { name: 'Move earlier' }).click();
+
+        await expect(photosRegion.getByRole('img', { name: 'Recipe photo 1' })).toHaveAttribute(
+            'src',
+            secondSrc as string,
+        );
+        await expect(photosRegion.getByRole('button', { name: 'Actions for photo 1, the cover' })).toBeVisible();
+    });
+
+    test('the cover cannot move earlier and the last photo cannot move later', async ({ page }) => {
+        const photosRegion = await openEditorWithTwoPhotos(page);
+
+        await photosRegion.getByRole('button', { name: 'Actions for photo 1, the cover' }).click();
+        await expect(page.getByRole('menuitem', { name: 'Move earlier' })).toHaveAttribute('aria-disabled', 'true');
+        await expect(page.getByRole('menuitem', { name: 'Set as cover' })).toHaveAttribute('aria-disabled', 'true');
+        await page.keyboard.press('Escape');
+
+        await photosRegion.getByRole('button', { name: 'Actions for photo 2' }).click();
+        await expect(page.getByRole('menuitem', { name: 'Move later' })).toHaveAttribute('aria-disabled', 'true');
     });
 });
 

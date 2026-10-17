@@ -143,9 +143,9 @@ for (const [scheme, colors] of THEMES) {
             // §7.7); the section's H2 above it is the `ink` one.
             expect(await computed(photos.getByRole('heading', { name: 'Photos' }), 'color')).toBe(rgb(colors.inkMuted));
 
-            const remove = photos.getByRole('button', { name: 'Remove photo 1' });
-            expect(await computed(remove, 'backgroundColor')).toBe(colors.photoChip);
-            expect(await computed(remove, 'color')).toBe(rgb(colors.ink));
+            const menu = photos.getByRole('button', { name: 'Actions for photo 1, the cover' });
+            expect(await computed(menu, 'backgroundColor')).toBe(colors.photoChip);
+            expect(await computed(menu, 'color')).toBe(rgb(colors.ink));
         });
 
         test('paints the primary Edit action as the flat action fill', async ({ page }) => {

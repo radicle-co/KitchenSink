@@ -106,6 +106,13 @@ jobs:
                   account-id: ${{ vars.AWS_ACCOUNT_ID }}
                   region: ${{ vars.DEFAULT_AWS_REGION }}
 
+            # ⛔ ADR-0065: every stack below deploys through KitchenSink's own CDK bootstrap qualifier. Until the owner has run
+            # `docs/runbooks/cdkBootstrapQualifiers.md` that bootstrap does not exist and `cdk deploy` dies at AssumeRole with an
+            # error that names neither the qualifier nor the cure. This turns it into one `::error::` that does.
+            # `bootstrapPreflightWiring.test.ts` requires it before every `cdk deploy`.
+            - name: Check the CDK bootstrap is present for this stage
+              run: bash .github/scripts/bootstrapPreflight.sh check "account" "${DEFAULT_AWS_REGION}"
+
             # ⛔ HOW THESE CREDENTIALS REACH THE ACCOUNT QUALIFIER (ADR-0065). The step above signs in as the `prod` CI
             # role, which only a job bound to the `Production` environment on `main` can become. That role alone holds
             # `sts:AssumeRole` on `cdk-ksaccount-{deploy,file-publishing,lookup}-role-*`, and the `ksaccount` bootstrap

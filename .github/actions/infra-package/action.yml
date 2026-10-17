@@ -509,6 +509,18 @@ runs:
         # given, so the deploy and the verification have to pass the BYTE-IDENTICAL string or they are
         # provably talking about the same app only by argument. `deployVerificationCoverage.test.ts`
         # compares them literally, and caught exactly this drift.
+        # ⛔ ADR-0065: this package deploys through KitchenSink's own CDK bootstrap qualifier, which does not exist until
+        # the owner has run `docs/runbooks/cdkBootstrapQualifiers.md`. Without this, the first deploy dies at AssumeRole
+        # with an error naming neither the qualifier nor the cure. `bootstrapPreflightWiring.test.ts` requires it before
+        # every `cdk deploy`, here and in the workflows that deploy directly.
+        - name: Check the CDK bootstrap is present for this stage
+          if: inputs.deploy == 'true' && inputs.synth == 'true'
+          shell: bash
+          env:
+              STAGE: ${{ inputs.stage }}
+              REGION: ${{ inputs.aws-region }}
+          run: bash .github/scripts/bootstrapPreflight.sh check "${STAGE}" "${REGION:-$DEFAULT_AWS_REGION}"
+
         - name: Deploy the schema stack
           if: inputs.schema-stack != '' && inputs.deploy == 'true' && inputs.synth == 'true'
           shell: bash

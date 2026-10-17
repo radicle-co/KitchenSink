@@ -182,6 +182,13 @@ jobs:
                   region: ${{ env.DEFAULT_AWS_REGION }}
                   session-minutes: '180'
 
+            # ⛔ ADR-0065: every stack below deploys through KitchenSink's own CDK bootstrap qualifier. Until the owner has run
+            # `docs/runbooks/cdkBootstrapQualifiers.md` that bootstrap does not exist and `cdk deploy` dies at AssumeRole with an
+            # error that names neither the qualifier nor the cure. This turns it into one `::error::` that does.
+            # `bootstrapPreflightWiring.test.ts` requires it before every `cdk deploy`.
+            - name: Check the CDK bootstrap is present for this stage
+              run: bash .github/scripts/bootstrapPreflight.sh check "${STAGE}" "${DEFAULT_AWS_REGION}"
+
             # ⛔ Before any deploy: every app that owns alarms reads ALARMS_ENABLED at synth, and an unset flag
             # deploys none, whatever the stage's parameter says (`alarmFeatureFlag.test.ts`).
             - name: Resolve the alarm feature flag

@@ -1474,7 +1474,9 @@ export async function mockRecipeApi(
             const contentType = typeof input['contentType'] === 'string' ? input['contentType'] : 'image/jpeg';
             const existing = photoStore.get(id) ?? [];
             const photo: RecipePhoto = {
-                id: `pht_${nextPhotoId++}`,
+                // A v4 UUID, as the service mints: the client validates a reorder body against the service's own
+                // schema (`z.uuid({ version: 'v4' })`) before sending, so a `pht_N` id never reached the wire.
+                id: `00000000-0000-4000-8000-${String(nextPhotoId++).padStart(12, '0')}`,
                 recipeId: id,
                 key,
                 url: `https://cdn.example.com/${key}`,

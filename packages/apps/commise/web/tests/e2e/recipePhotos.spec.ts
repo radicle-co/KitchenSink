@@ -273,8 +273,14 @@ test.describe('recipe photo replace (U6)', () => {
         const originalSrc = await page.getByRole('img', { name: 'Recipe photo 1' }).getAttribute('src');
 
         await photosRegion.getByRole('button', { name: 'Actions for photo 1, the cover' }).click();
-        await page.getByRole('menuitem', { name: 'Replace' }).click();
-        await page.getByLabel('Choose a replacement photo').setInputFiles({
+        // The menu runs its chosen action just AFTER it closes, and the pick is only honoured once that action has
+        // recorded which photo is being replaced. Taking the file from the chooser the action opens sequences the
+        // pick behind it; handing the hidden input a file straight after the click races it.
+        const [chooser] = await Promise.all([
+            page.waitForEvent('filechooser'),
+            page.getByRole('menuitem', { name: 'Replace' }).click(),
+        ]);
+        await chooser.setFiles({
             name: 'replacement.png',
             mimeType: 'image/png',
             buffer: Buffer.from(TINY_PNG_BASE64, 'base64'),

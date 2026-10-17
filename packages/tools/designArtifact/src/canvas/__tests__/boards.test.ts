@@ -8,9 +8,9 @@ import { CONTENT_DIR } from '../../config.js';
 import { BOARDS, BOARDS_DIR, BOARD_WIDTH, BOARD_WIDTHS, boardWidth } from '../boards.js';
 
 describe('boards registry', () => {
-    it('lists the 127 boards, each file once', () => {
-        expect(BOARDS).toHaveLength(127);
-        expect(new Set(BOARDS.map((b) => b.file)).size).toBe(127);
+    it('lists the 396 boards, each file once', () => {
+        expect(BOARDS).toHaveLength(396);
+        expect(new Set(BOARDS.map((b) => b.file)).size).toBe(396);
     });
 
     it('is exactly the files in content/canvas/boards, so a new board cannot be forgotten', () => {
@@ -55,7 +55,7 @@ describe('boards registry', () => {
             }
         }
 
-        expect(seen).toHaveLength(21);
+        expect(seen).toHaveLength(36);
     });
 
     it('declares heights that are positive whole numbers', () => {

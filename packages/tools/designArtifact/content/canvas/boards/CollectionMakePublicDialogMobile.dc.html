@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Collection detail, make public? (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                </style></helmet
+            >
+            <div
+                style="
+                    position: relative;
+                    width: 390px;
+                    height: 844px;
+                    overflow: hidden;
+                    display: flex;
+                    flex-direction: column;
+                    background: var(--canvas);
+                    transform: translateZ(0);
+                "
+            >
+                <div style="position: relative; flex: 1; min-height: 0; overflow: hidden">
+                    <div
+                        style="
+                            box-sizing: border-box;
+                            height: 100%;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 12px;
+                            padding: 0 16px;
+                            overflow: hidden;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.LargeTitleHeader"
+                            heading-id="collection-title"
+                            title="Weeknight dinners"
+                            back="{{back}}"
+                        ></x-import>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: row;
+                                flex-wrap: wrap;
+                                align-items: center;
+                                column-gap: 12px;
+                                row-gap: 4px;
+                                font: 400 14px/1.4 var(--font-body);
+                                color: var(--ink-muted);
+                            "
+                        >
+                            <span style="display: inline-flex; align-items: center; gap: 4px"
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Icon"
+                                    name="lock"
+                                    size="{{s16}}"
+                                    tone="inkMuted"
+                                ></x-import
+                                >Private</span
+                            ><span>6 recipes</span>
+                        </div>
+                        <p style="margin: 0; font: 400 16px/1.5 var(--font-body); color: var(--ink)">
+                            Fast, forgiving meals for school nights. Nothing here needs more than one pan or about an
+                            hour.
+                        </p>
+                        <div style="display: flex; flex-direction: row; align-items: center; gap: 8px">
+                            <div style="min-width: 0; flex: 1; display: flex; flex-direction: column">
+                                <x-import component-from-global-scope="Commise.Native.Button" icon="plus" width="fill"
+                                    >Add recipes</x-import
+                                >
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Native.ActionMenu"
+                                trigger-label="More actions for Weeknight dinners"
+                                title="Weeknight dinners"
+                                close-label="Close menu"
+                                items="{{items}}"
+                                destructive-item="{{del}}"
+                            ></x-import>
+                        </div>
+                        <div
+                            role="region"
+                            aria-label="Recipes"
+                            style="display: flex; flex-direction: column; gap: 12px"
+                        >
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: center;
+                                    justify-content: space-between;
+                                    gap: 12px;
+                                "
+                            >
+                                <span
+                                    style="
+                                        font: 600 14px/1.4 var(--font-body);
+                                        color: var(--ink);
+                                        font-variant-numeric: tabular-nums lining-nums;
+                                    "
+                                    >6 recipes</span
+                                >
+                                <div style="width: 112px; display: flex; flex-direction: column">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.SegmentedControl"
+                                        form="view"
+                                        label="View"
+                                        label-visibility="hidden"
+                                        value="list"
+                                        segments="{{views}}"
+                                        on-change="{{noop}}"
+                                    ></x-import>
+                                </div>
+                            </div>
+                            <div role="list" style="display: flex; flex-direction: column; gap: 8px">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.RecipeCard"
+                                    variant="row"
+                                    heading-level="{{two}}"
+                                    recipe="{{rec0}}"
+                                    on-select="{{noop}}"
+                                    nutrition="{{nut0}}"
+                                    note="{{note0}}"
+                                    trailing="{{menu0}}"
+                                ></x-import>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.RecipeCard"
+                                    variant="row"
+                                    heading-level="{{two}}"
+                                    recipe="{{rec1}}"
+                                    on-select="{{noop}}"
+                                    nutrition="{{nut1}}"
+                                    note="{{note1}}"
+                                    trailing="{{menu1}}"
+                                ></x-import>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.RecipeCard"
+                                    variant="row"
+                                    heading-level="{{two}}"
+                                    recipe="{{rec2}}"
+                                    on-select="{{noop}}"
+                                    nutrition="{{nut2}}"
+                                    note="{{note2}}"
+                                    trailing="{{menu2}}"
+                                ></x-import>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.RecipeCard"
+                                    variant="row"
+                                    heading-level="{{two}}"
+                                    recipe="{{rec3}}"
+                                    on-select="{{noop}}"
+                                    nutrition="{{nut3}}"
+                                    note="{{note3}}"
+                                    trailing="{{menu3}}"
+                                ></x-import>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.RecipeCard"
+                                    variant="row"
+                                    heading-level="{{two}}"
+                                    recipe="{{rec4}}"
+                                    on-select="{{noop}}"
+                                    nutrition="{{nut4}}"
+                                    note="{{note4}}"
+                                    trailing="{{menu4}}"
+                                ></x-import>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.RecipeCard"
+                                    variant="row"
+                                    heading-level="{{two}}"
+                                    recipe="{{rec5}}"
+                                    on-select="{{noop}}"
+                                    nutrition="{{nut5}}"
+                                    note="{{note5}}"
+                                    trailing="{{menu5}}"
+                                ></x-import>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <x-import
+                    component-from-global-scope="Commise.Native.HomeTabBar"
+                    chrome="{{chrome}}"
+                    live-capabilities="{{none}}"
+                    active-id="recipes"
+                    on-press="{{noop}}"
+                    bottom-inset="{{inset}}"
+                    compact="{{no}}"
+                    left-inset="{{zero}}"
+                    right-inset="{{zero}}"
+                ></x-import
+                ><x-import
+                    component-from-global-scope="Commise.Native.ConfirmDialog"
+                    open="{{yes}}"
+                    title="Make this collection public?"
+                    body="Anyone can see a public collection and save a copy. To make this one private again, you'll need Premium."
+                    confirm="{{mpConfirm}}"
+                    keep="{{mpKeep}}"
+                    on-confirm="{{noop}}"
+                    on-keep="{{noop}}"
+                ></x-import>
+                <div
+                    style="
+                        position: absolute;
+                        left: 12px;
+                        right: 12px;
+                        top: 12px;
+                        z-index: 9999;
+                        box-sizing: border-box;
+                        padding: 10px 12px;
+                        border-radius: var(--radius-md);
+                        background: var(--paper);
+                        border: 1px solid var(--line-divider);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    "
+                >
+                    <p style="margin: 0; font: 600 12px/1.4 var(--font-body); color: var(--ink)">
+                        One body is shown, chosen by why the owner cannot simply undo it:
+                    </p>
+                    <p style="margin: 0; font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                        <b>Final:</b> Anyone can see a public collection and save a copy. You won't be able to make this
+                        one private again.
+                    </p>
+                    <p style="margin: 0; font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                        <b>Premium</b> (shown): Anyone can see a public collection and save a copy. To make this one
+                        private again, you'll need Premium.
+                    </p>
+                    <p style="margin: 0; font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                        <b>Unknown:</b> Anyone can see a public collection and save a copy. You may not be able to make
+                        this one private again.
+                    </p>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+            class Component extends DCLogic { renderVals(){ const h=window.React.createElement, C=window.Commise.Native, noop=function(){}; const ago=d=>new Date(Date.now()-d*864e5).toISOString();
+             return {
+              yes:true, mpConfirm:{label:'Make public',icon:'globe'}, mpKeep:{label:'Keep private',icon:'lock'},
+              rec0:{id:'rcp_01j9chickencacc',title:"Weeknight Chicken Cacciatore",cuisine:'Italian',totalTimeMinutes:55,servings:4,difficulty:'medium',averageRating:4.6,ratingCount:23,usesPremiumCapability:false,createdAt:ago(40),updatedAt:ago(2),currentVersion:1,visibility:'public',status:'published',tags:[]},
+              nut0:h('span',{style:{font:'14px/1.4 Inter,system-ui',color:'var(--ink-muted)'}},'420 cal'),
+              note0:'Added by you',
+              menu0:h(C.ActionMenu,{triggerLabel:"More actions for Weeknight Chicken Cacciatore",title:"Weeknight Chicken Cacciatore",closeLabel:'Close menu',items:[{id:'open',label:'Open recipe',onSelect:noop},{id:'remove',label:'Remove from collection',onSelect:noop}]}),
+              rec1:{id:'rcp_01j9misosalmon',title:"Miso-Glazed Salmon with Sesame Greens",cuisine:'Japanese',totalTimeMinutes:25,servings:2,difficulty:'easy',averageRating:4.4,ratingCount:9,usesPremiumCapability:false,createdAt:ago(40),updatedAt:ago(0.125),currentVersion:1,visibility:'private',status:'published',tags:[]},
+              nut1:h('span',{style:{font:'14px/1.4 Inter,system-ui',color:'var(--ink-muted)'}},'480 cal'),
+              note1:'From the original collection',
+              menu1:h(C.ActionMenu,{triggerLabel:"More actions for Miso-Glazed Salmon with Sesame Greens",title:"Miso-Glazed Salmon with Sesame Greens",closeLabel:'Close menu',items:[{id:'open',label:'Open recipe',onSelect:noop},{id:'remove',label:'Remove from collection',onSelect:noop}]}),
+              rec2:{id:'rcp_01j9padthai',title:"Pad Thai with Shrimp",cuisine:'Thai',totalTimeMinutes:35,servings:3,difficulty:'medium',averageRating:4.7,ratingCount:41,usesPremiumCapability:false,createdAt:ago(40),updatedAt:ago(14),currentVersion:1,visibility:'public',status:'published',tags:[]},
+              nut2:h('span',{style:{font:'14px/1.4 Inter,system-ui',color:'var(--ink-muted)'}},'560 cal'),
+              note2:'Added by you',
+              menu2:h(C.ActionMenu,{triggerLabel:"More actions for Pad Thai with Shrimp",title:"Pad Thai with Shrimp",closeLabel:'Close menu',items:[{id:'open',label:'Open recipe',onSelect:noop},{id:'remove',label:'Remove from collection',onSelect:noop}]}),
+              rec3:{id:'rcp_01j9pancakes',title:"Lemon Ricotta Pancakes",cuisine:'American',totalTimeMinutes:25,servings:4,difficulty:'easy',averageRating:4.5,ratingCount:22,usesPremiumCapability:false,createdAt:ago(40),updatedAt:ago(21),currentVersion:1,visibility:'public',status:'published',tags:[]},
+              nut3:h('span',{style:{font:'14px/1.4 Inter,system-ui',color:'var(--ink-muted)'}},'340 cal'),
+              note3:'Added by you',
+              menu3:h(C.ActionMenu,{triggerLabel:"More actions for Lemon Ricotta Pancakes",title:"Lemon Ricotta Pancakes",closeLabel:'Close menu',items:[{id:'open',label:'Open recipe',onSelect:noop},{id:'remove',label:'Remove from collection',onSelect:noop}]}),
+              rec4:{id:'rcp_01j9blackbeanchili',title:"Smoky Black Bean Chili",cuisine:'Mexican',totalTimeMinutes:75,servings:6,difficulty:'easy',averageRating:4.3,ratingCount:18,usesPremiumCapability:false,createdAt:ago(40),updatedAt:ago(6),currentVersion:1,visibility:'private',status:'published',tags:[]},
+              nut4:h('span',{style:{font:'14px/1.4 Inter,system-ui',color:'var(--ink-muted)'}},'310 cal'),
+              note4:'From the original collection',
+              menu4:h(C.ActionMenu,{triggerLabel:"More actions for Smoky Black Bean Chili",title:"Smoky Black Bean Chili",closeLabel:'Close menu',items:[{id:'open',label:'Open recipe',onSelect:noop},{id:'remove',label:'Remove from collection',onSelect:noop}]}),
+              rec5:{id:'rcp_01j9tomatosoup',title:"Roasted Tomato Basil Soup",cuisine:'Mediterranean',totalTimeMinutes:50,servings:6,difficulty:'easy',averageRating:4.2,ratingCount:15,usesPremiumCapability:false,createdAt:ago(40),updatedAt:ago(4),currentVersion:1,visibility:'private',status:'published',tags:[]},
+              nut5:h('span',{style:{font:'14px/1.4 Inter,system-ui',color:'var(--ink-muted)'}},'180 cal'),
+              note5:'Added by you',
+              menu5:h(C.ActionMenu,{triggerLabel:"More actions for Roasted Tomato Basil Soup",title:"Roasted Tomato Basil Soup",closeLabel:'Close menu',items:[{id:'open',label:'Open recipe',onSelect:noop},{id:'remove',label:'Remove from collection',onSelect:noop}]}),
+              noop, two:2, s16:16, inset:34, zero:0, no:false, none:[],
+              back:{label:'Back to Collections',parent:'Collections',onPress:noop},
+              items:[{id:'rename',label:'Rename',icon:'pencilLine',onSelect:noop},{id:'visibility',label:'Make public',icon:'globe',onSelect:noop},{id:'saveCopy',label:'Save a copy',icon:'copyPlus',onSelect:noop}],
+              del:{id:'delete',label:'Delete collection',icon:'trash',onSelect:noop},
+              views:[{id:'list',label:'List view',icon:'list'},{id:'grid',label:'Grid view',icon:'layoutGrid'}],
+              chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'}
+             }; } }
+        </script>
+    </body>
+</html>

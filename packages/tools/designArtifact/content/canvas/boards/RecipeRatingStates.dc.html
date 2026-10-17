@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe detail, rating states (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/1.5 var(--font-body);
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    .cap {
+                        margin: 0 0 8px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fr {
+                        min-width: 0;
+                    }
+                    .scrim {
+                        background: var(--scrim);
+                        border-radius: var(--radius-lg);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                    .panel {
+                        border: 1px solid var(--line-divider);
+                        border-radius: var(--radius-lg);
+                        background: var(--canvas);
+                    }
+
+                    .wrap {
+                        padding: 32px;
+                        display: grid;
+                        grid-template-columns: repeat(2, minmax(0, 1fr));
+                        gap: 24px 32px;
+                        align-items: start;
+                    }
+                    .sec {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                    }
+                    .panel.sec {
+                        padding: 20px 24px;
+                    }
+                    .sec-h {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .h2 {
+                        margin: 0;
+                        font: 600 18px/1.25 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .agg {
+                        display: flex;
+                        align-items: center;
+                        gap: 4px;
+                    }
+                    .agg-t {
+                        margin-inline-start: 4px;
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .unr {
+                        margin: 0;
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .rate {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    fieldset {
+                        margin: 0;
+                        padding: 0;
+                        border: 0;
+                        min-width: 0;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    legend {
+                        padding: 0;
+                        font: 500 14px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .stars {
+                        display: flex;
+                        align-items: center;
+                        gap: 4px;
+                    }
+                    .star {
+                        padding: 2px;
+                        display: inline-flex;
+                    }
+                    .dim {
+                        opacity: 0.6;
+                    }
+                    .rm {
+                        width: fit-content;
+                        border: 0;
+                        background: transparent;
+                        padding: 0;
+                        font: 500 14px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .stat {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .al {
+                        margin: 0;
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+                </style></helmet
+            >
+            <div class="wrap">
+                <div class="fr">
+                    <p class="cap">Not yet rated</p>
+                    <section class="panel sec" aria-label="Recipe rating">
+                        <div class="sec-h">
+                            <h2 class="h2">Community rating</h2>
+                            <p class="unr">Not yet rated</p>
+                        </div>
+                        <div class="rate">
+                            <fieldset role="radiogroup" aria-label="Your rating">
+                                <legend>Rate this recipe</legend>
+                                <div class="stars">
+                                    <span class="star"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import></span
+                                    ><span class="star"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import></span
+                                    ><span class="star"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import></span
+                                    ><span class="star"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import></span
+                                    ><span class="star"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import
+                                    ></span>
+                                </div>
+                            </fieldset>
+                        </div>
+                    </section>
+                </div>
+                <div class="fr">
+                    <p class="cap">Saving: the stars and Remove dim, and the status says why</p>
+                    <section class="panel sec" aria-label="Recipe rating">
+                        <div class="sec-h">
+                            <h2 class="h2">Community rating</h2>
+                            <div class="agg" role="img" aria-label="Rated 4.8 out of 5, 12 ratings">
+                                <x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="star"
+                                    size="20"
+                                    tone="rating"
+                                    filled="{{yes}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="star"
+                                    size="20"
+                                    tone="rating"
+                                    filled="{{yes}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="star"
+                                    size="20"
+                                    tone="rating"
+                                    filled="{{yes}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="star"
+                                    size="20"
+                                    tone="rating"
+                                    filled="{{yes}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="star"
+                                    size="20"
+                                    tone="rating"
+                                    filled="{{yes}}"
+                                ></x-import
+                                ><span class="agg-t" aria-hidden="true">4.8 · 12 ratings</span>
+                            </div>
+                        </div>
+                        <div class="rate">
+                            <fieldset role="radiogroup" aria-label="Your rating">
+                                <legend>Rate this recipe</legend>
+                                <div class="stars">
+                                    <span class="star dim"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="rating"
+                                            filled="{{yes}}"
+                                        ></x-import></span
+                                    ><span class="star dim"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="rating"
+                                            filled="{{yes}}"
+                                        ></x-import></span
+                                    ><span class="star dim"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="rating"
+                                            filled="{{yes}}"
+                                        ></x-import></span
+                                    ><span class="star dim"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="rating"
+                                            filled="{{yes}}"
+                                        ></x-import></span
+                                    ><span class="star dim"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import
+                                    ></span>
+                                </div>
+                            </fieldset>
+                            <button type="button" class="rm dim">Remove my rating</button
+                            ><span role="status" class="stat">Saving your rating…</span>
+                        </div>
+                    </section>
+                </div>
+                <div class="fr">
+                    <p class="cap">Save failed</p>
+                    <section class="panel sec" aria-label="Recipe rating">
+                        <div class="sec-h">
+                            <h2 class="h2">Community rating</h2>
+                            <div class="agg" role="img" aria-label="Rated 4.8 out of 5, 12 ratings">
+                                <x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="star"
+                                    size="20"
+                                    tone="rating"
+                                    filled="{{yes}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="star"
+                                    size="20"
+                                    tone="rating"
+                                    filled="{{yes}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="star"
+                                    size="20"
+                                    tone="rating"
+                                    filled="{{yes}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="star"
+                                    size="20"
+                                    tone="rating"
+                                    filled="{{yes}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="star"
+                                    size="20"
+                                    tone="rating"
+                                    filled="{{yes}}"
+                                ></x-import
+                                ><span class="agg-t" aria-hidden="true">4.8 · 12 ratings</span>
+                            </div>
+                        </div>
+                        <div class="rate">
+                            <fieldset role="radiogroup" aria-label="Your rating">
+                                <legend>Rate this recipe</legend>
+                                <div class="stars">
+                                    <span class="star"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import></span
+                                    ><span class="star"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import></span
+                                    ><span class="star"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import></span
+                                    ><span class="star"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import></span
+                                    ><span class="star"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import
+                                    ></span>
+                                </div>
+                            </fieldset>
+                            <p role="alert" class="al">We couldn’t save your rating. Please try again.</p>
+                        </div>
+                    </section>
+                </div>
+                <div class="fr">
+                    <p class="cap">Recipe no longer available</p>
+                    <section class="panel sec" aria-label="Recipe rating">
+                        <div class="sec-h">
+                            <h2 class="h2">Community rating</h2>
+                            <div class="agg" role="img" aria-label="Rated 4.8 out of 5, 12 ratings">
+                                <x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="star"
+                                    size="20"
+                                    tone="rating"
+                                    filled="{{yes}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="star"
+                                    size="20"
+                                    tone="rating"
+                                    filled="{{yes}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="star"
+                                    size="20"
+                                    tone="rating"
+                                    filled="{{yes}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="star"
+                                    size="20"
+                                    tone="rating"
+                                    filled="{{yes}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="star"
+                                    size="20"
+                                    tone="rating"
+                                    filled="{{yes}}"
+                                ></x-import
+                                ><span class="agg-t" aria-hidden="true">4.8 · 12 ratings</span>
+                            </div>
+                        </div>
+                        <div class="rate">
+                            <fieldset role="radiogroup" aria-label="Your rating">
+                                <legend>Rate this recipe</legend>
+                                <div class="stars">
+                                    <span class="star"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import></span
+                                    ><span class="star"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import></span
+                                    ><span class="star"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import></span
+                                    ><span class="star"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import></span
+                                    ><span class="star"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="star"
+                                            size="28"
+                                            tone="inkMuted"
+                                        ></x-import
+                                    ></span>
+                                </div>
+                            </fieldset>
+                            <p role="alert" class="al">This recipe isn’t available.</p>
+                        </div>
+                    </section>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":553}}'>
+            class Component extends DCLogic { renderVals(){ return {yes:true,no:false};  } }
+        </script>
+    </body>
+</html>

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Sign in, errors (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        font-family: var(--font-body);
+                        color: var(--ink);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    .cap {
+                        margin: 0;
+                        font: 600 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                </style></helmet
+            >
+            <main style="width: 1280px; padding: 40px 48px; display: flex; flex-direction: column; gap: 24px">
+                <p class="cap">
+                    Clerk renders this form and its error slot. The repo sets only the words of the email field’s
+                    errors, and its own comment says the error codes are probable, not observed. A wrong password keeps
+                    Clerk’s own message, so it is not drawn here.
+                </p>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; align-items: start">
+                    <div style="display: flex; flex-direction: column; gap: 12px">
+                        <p class="cap">Email left empty</p>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                gap: 16px;
+                                border-radius: var(--radius-xl);
+                                background: var(--paper);
+                                padding: 32px;
+                                box-shadow: var(--shadow-sm);
+                            "
+                        >
+                            <div style="display: flex; flex-direction: column; gap: 4px">
+                                <x-import
+                                    component-from-global-scope="Commise.FieldLabel"
+                                    for-id="w1-email"
+                                    label="Email address"
+                                ></x-import>
+                                <x-import
+                                    component-from-global-scope="Commise.Input"
+                                    id="w1-email"
+                                    value=""
+                                    on-change-text="{{noop}}"
+                                    placeholder="Enter your email address"
+                                    input-mode="email"
+                                    auto-complete="email"
+                                    invalid="{{yes}}"
+                                    described-by="w1-err"
+                                ></x-import>
+                                <p
+                                    id="w1-err"
+                                    role="alert"
+                                    style="margin: 0; font-size: 14px; line-height: 1.4; color: var(--danger-text)"
+                                >
+                                    Enter your email address.
+                                </p>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Button"
+                                variant="primary"
+                                size="lg"
+                                width="fill"
+                                icon="logIn"
+                                on-press="{{noop}}"
+                                >Continue</x-import
+                            >
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 12px">
+                        <p class="cap">Email is not an address</p>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                gap: 16px;
+                                border-radius: var(--radius-xl);
+                                background: var(--paper);
+                                padding: 32px;
+                                box-shadow: var(--shadow-sm);
+                            "
+                        >
+                            <div style="display: flex; flex-direction: column; gap: 4px">
+                                <x-import
+                                    component-from-global-scope="Commise.FieldLabel"
+                                    for-id="w2-email"
+                                    label="Email address"
+                                ></x-import>
+                                <x-import
+                                    component-from-global-scope="Commise.Input"
+                                    id="w2-email"
+                                    value="ana@"
+                                    on-change-text="{{noop}}"
+                                    placeholder="Enter your email address"
+                                    input-mode="email"
+                                    auto-complete="email"
+                                    invalid="{{yes}}"
+                                    described-by="w2-err"
+                                ></x-import>
+                                <p
+                                    id="w2-err"
+                                    role="alert"
+                                    style="margin: 0; font-size: 14px; line-height: 1.4; color: var(--danger-text)"
+                                >
+                                    Enter a valid email address.
+                                </p>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Button"
+                                variant="primary"
+                                size="lg"
+                                width="fill"
+                                icon="logIn"
+                                on-press="{{noop}}"
+                                >Continue</x-import
+                            >
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 12px">
+                        <p class="cap">No account has that email</p>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                gap: 16px;
+                                border-radius: var(--radius-xl);
+                                background: var(--paper);
+                                padding: 32px;
+                                box-shadow: var(--shadow-sm);
+                            "
+                        >
+                            <div style="display: flex; flex-direction: column; gap: 4px">
+                                <x-import
+                                    component-from-global-scope="Commise.FieldLabel"
+                                    for-id="w3-email"
+                                    label="Email address"
+                                ></x-import>
+                                <x-import
+                                    component-from-global-scope="Commise.Input"
+                                    id="w3-email"
+                                    value="ana@example.com"
+                                    on-change-text="{{noop}}"
+                                    placeholder="Enter your email address"
+                                    input-mode="email"
+                                    auto-complete="email"
+                                    invalid="{{yes}}"
+                                    described-by="w3-err"
+                                ></x-import>
+                                <p
+                                    id="w3-err"
+                                    role="alert"
+                                    style="margin: 0; font-size: 14px; line-height: 1.4; color: var(--danger-text)"
+                                >
+                                    We couldn’t find an account with that email address.
+                                </p>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Button"
+                                variant="primary"
+                                size="lg"
+                                width="fill"
+                                icon="logIn"
+                                on-press="{{noop}}"
+                                >Continue</x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":560}}'>
+            class Component extends DCLogic { renderVals(){ return { noop: function(){}, yes: true }; } }
+        </script>
+    </body>
+</html>

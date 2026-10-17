@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>RecipeVersionPreviewMobile</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    nav[data-tab-bar] {
+                        display: flex !important;
+                    }
+                </style></helmet
+            >
+            <div
+                style="
+                    width: 390px;
+                    height: 932px;
+                    position: relative;
+                    overflow: hidden;
+                    transform: translateZ(0);
+                    background: var(--canvas);
+                    color: var(--ink);
+                    font-family: var(--font-body);
+                    display: flex;
+                    flex-direction: column;
+                "
+            >
+                <div
+                    style="
+                        flex: 1;
+                        display: flex;
+                        flex-direction: column;
+                        min-height: 0;
+                        padding-top: 47px;
+                        padding-bottom: 98px;
+                    "
+                >
+                    <div style="display: flex; flex-direction: column; gap: 16px; padding-bottom: 24px">
+                        <x-import
+                            component-from-global-scope="Commise.Native.LargeTitleHeader"
+                            heading-id="vh"
+                            title="Version history"
+                            subtitle="Lemon and thyme roast chicken"
+                            back="{{back}}"
+                        ></x-import>
+                        <div style="display: flex; flex-direction: column">
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: flex-start;
+                                    gap: 12px;
+                                    padding: 12px 16px;
+                                    border-bottom: 0.5px solid var(--line-divider);
+                                "
+                            >
+                                <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 2px">
+                                    <span style="font: 600 16px/1.3 var(--font-body); color: var(--ink)"
+                                        >Oct 15, 2026, 6:42 PM</span
+                                    ><span style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)"
+                                        >Version 5 · Edited 14 hours ago</span
+                                    ><span
+                                        style="
+                                            font: 400 14px/1.4 var(--font-body);
+                                            color: var(--ink-muted);
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                        "
+                                        >Changed: Steps</span
+                                    >
+                                </div>
+                                <span
+                                    style="
+                                        flex: none;
+                                        border-radius: var(--radius-sm);
+                                        background: var(--selected-fill);
+                                        padding: 2px 8px;
+                                        font: 500 12px/1.4 var(--font-body);
+                                        color: var(--action-text);
+                                    "
+                                    >Current version</span
+                                >
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: flex-start;
+                                    gap: 12px;
+                                    padding: 12px 16px;
+                                    border-bottom: 0.5px solid var(--line-divider);
+                                "
+                            >
+                                <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 2px">
+                                    <span style="font: 600 16px/1.3 var(--font-body); color: var(--ink)"
+                                        >Oct 12, 2026, 7:15 PM</span
+                                    ><span style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)"
+                                        >Version 4 · Edited 3 days ago</span
+                                    ><span
+                                        style="
+                                            font: 400 14px/1.4 var(--font-body);
+                                            color: var(--ink-muted);
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                        "
+                                        >Changed: Servings, Ingredients</span
+                                    >
+                                </div>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.ActionMenu"
+                                    trigger-label="More actions for version 4"
+                                    title="Version 4"
+                                    close-label="Back to recipe"
+                                    items="{{menu}}"
+                                ></x-import>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: flex-start;
+                                    gap: 12px;
+                                    padding: 12px 16px;
+                                    border-bottom: 0.5px solid var(--line-divider);
+                                "
+                            >
+                                <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 2px">
+                                    <span style="font: 600 16px/1.3 var(--font-body); color: var(--ink)"
+                                        >Oct 9, 2026, 11:20 AM</span
+                                    ><span style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)"
+                                        >Version 3 · Edited 6 days ago</span
+                                    ><span
+                                        style="
+                                            font: 400 14px/1.4 var(--font-body);
+                                            color: var(--ink-muted);
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                        "
+                                        >Changed: Description, Cook time</span
+                                    >
+                                </div>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.ActionMenu"
+                                    trigger-label="More actions for version 3"
+                                    title="Version 3"
+                                    close-label="Back to recipe"
+                                    items="{{menu}}"
+                                ></x-import>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: flex-start;
+                                    gap: 12px;
+                                    padding: 12px 16px;
+                                    border-bottom: 0.5px solid var(--line-divider);
+                                "
+                            >
+                                <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 2px">
+                                    <span style="font: 600 16px/1.3 var(--font-body); color: var(--ink)"
+                                        >Sep 28, 2026, 5:05 PM</span
+                                    ><span style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)"
+                                        >Version 2 · Edited 17 days ago</span
+                                    ><span
+                                        style="
+                                            font: 400 14px/1.4 var(--font-body);
+                                            color: var(--ink-muted);
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                        "
+                                        >Changed: Title</span
+                                    >
+                                </div>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.ActionMenu"
+                                    trigger-label="More actions for version 2"
+                                    title="Version 2"
+                                    close-label="Back to recipe"
+                                    items="{{menu}}"
+                                ></x-import>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: flex-start;
+                                    gap: 12px;
+                                    padding: 12px 16px;
+                                    border-bottom: 0.5px solid var(--line-divider);
+                                "
+                            >
+                                <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 2px">
+                                    <span style="font: 600 16px/1.3 var(--font-body); color: var(--ink)"
+                                        >Sep 21, 2026, 8:30 AM</span
+                                    ><span style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)"
+                                        >Version 1 · Edited 25 days ago</span
+                                    ><span
+                                        style="
+                                            font: 400 14px/1.4 var(--font-body);
+                                            color: var(--ink-muted);
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                        "
+                                        >Initial version</span
+                                    >
+                                </div>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.ActionMenu"
+                                    trigger-label="More actions for version 1"
+                                    title="Version 1"
+                                    close-label="Back to recipe"
+                                    items="{{menu}}"
+                                ></x-import>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <x-import
+                    component-from-global-scope="Commise.Native.HomeTabBar"
+                    chrome="{{chrome}}"
+                    live-capabilities="{{none}}"
+                    active-id="recipes"
+                    on-press="{{noop}}"
+                    bottom-inset="{{n34}}"
+                    compact="{{no}}"
+                    left-inset="{{n0}}"
+                    right-inset="{{n0}}"
+                ></x-import>
+                <div style="position: absolute; inset: 0; z-index: 40">
+                    <div
+                        style="
+                            box-sizing: border-box;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 16px;
+                            height: 932px;
+                            background: var(--paper);
+                            padding: 67px 20px 54px;
+                        "
+                    >
+                        <h2 style="margin: 0; font: 600 20px/1.3 var(--font-body); color: var(--ink)">
+                            Version 3 Preview: Lemon and thyme roast chicken
+                        </h2>
+                        <div style="flex: 1; min-height: 0; overflow: hidden">
+                            <div style="display: flex; flex-direction: column; gap: 16px">
+                                <div style="display: flex; flex-direction: column; gap: 6px">
+                                    <div style="display: flex; flex-direction: row; gap: 8px">
+                                        <span
+                                            style="
+                                                min-width: 96px;
+                                                font: 600 14px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                            >Title</span
+                                        ><span
+                                            style="
+                                                flex-shrink: 1;
+                                                min-width: 0;
+                                                font: 400 14px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            >Lemon and thyme roast chicken</span
+                                        >
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; gap: 8px">
+                                        <span
+                                            style="
+                                                min-width: 96px;
+                                                font: 600 14px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                            >Description</span
+                                        ><span
+                                            style="
+                                                flex-shrink: 1;
+                                                min-width: 0;
+                                                font: 400 14px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            >A bright, herby roast with a crisp skin.</span
+                                        >
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; gap: 8px">
+                                        <span
+                                            style="
+                                                min-width: 96px;
+                                                font: 600 14px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                            >Servings</span
+                                        ><span
+                                            style="
+                                                flex-shrink: 1;
+                                                min-width: 0;
+                                                font: 400 14px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            >4</span
+                                        >
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; gap: 8px">
+                                        <span
+                                            style="
+                                                min-width: 96px;
+                                                font: 600 14px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                            >Prep time</span
+                                        ><span
+                                            style="
+                                                flex-shrink: 1;
+                                                min-width: 0;
+                                                font: 400 14px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            >15 min</span
+                                        >
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; gap: 8px">
+                                        <span
+                                            style="
+                                                min-width: 96px;
+                                                font: 600 14px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                            >Cook time</span
+                                        ><span
+                                            style="
+                                                flex-shrink: 1;
+                                                min-width: 0;
+                                                font: 400 14px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            >75 min</span
+                                        >
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; gap: 8px">
+                                        <span
+                                            style="
+                                                min-width: 96px;
+                                                font: 600 14px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                            >Total time</span
+                                        ><span
+                                            style="
+                                                flex-shrink: 1;
+                                                min-width: 0;
+                                                font: 400 14px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            >90 min</span
+                                        >
+                                    </div>
+                                </div>
+                                <h3 style="margin: 0; font: 600 16px/1.3 var(--font-body); color: var(--ink)">
+                                    Ingredients at v3
+                                </h3>
+                                <div style="display: flex; flex-direction: column; gap: 4px">
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            justify-content: space-between;
+                                            gap: 8px;
+                                        "
+                                    >
+                                        <span
+                                            style="
+                                                flex-shrink: 1;
+                                                min-width: 0;
+                                                font: 400 15px/22px var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                            >1.8 kg Whole chicken</span
+                                        >
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            justify-content: space-between;
+                                            gap: 8px;
+                                        "
+                                    >
+                                        <span
+                                            style="
+                                                flex-shrink: 1;
+                                                min-width: 0;
+                                                font: 400 15px/22px var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                            >2 Lemon</span
+                                        >
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            justify-content: space-between;
+                                            gap: 8px;
+                                        "
+                                    >
+                                        <span
+                                            style="
+                                                flex-shrink: 1;
+                                                min-width: 0;
+                                                font: 400 15px/22px var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                            >6 sprig Fresh thyme</span
+                                        >
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            justify-content: space-between;
+                                            gap: 8px;
+                                        "
+                                    >
+                                        <span
+                                            style="
+                                                flex-shrink: 1;
+                                                min-width: 0;
+                                                font: 400 15px/22px var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                            >50 g Butter</span
+                                        ><span
+                                            style="
+                                                flex-shrink: 0;
+                                                font: 400 14px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                            >360 cal</span
+                                        >
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            justify-content: space-between;
+                                            gap: 8px;
+                                        "
+                                    >
+                                        <span
+                                            style="
+                                                flex-shrink: 1;
+                                                min-width: 0;
+                                                font: 400 15px/22px var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                            >4 clove Garlic</span
+                                        >
+                                    </div>
+                                </div>
+                                <h3 style="margin: 0; font: 600 16px/1.3 var(--font-body); color: var(--ink)">
+                                    Steps at v3
+                                </h3>
+                                <div style="display: flex; flex-direction: column; gap: 4px">
+                                    <div style="display: flex; flex-direction: row; gap: 8px">
+                                        <span style="font: 400 15px/22px var(--font-body); color: var(--ink-muted)"
+                                            >1.</span
+                                        ><span
+                                            style="
+                                                flex-shrink: 1;
+                                                min-width: 0;
+                                                font: 400 15px/22px var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            >Heat the oven to 200°C.</span
+                                        >
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; gap: 8px">
+                                        <span style="font: 400 15px/22px var(--font-body); color: var(--ink-muted)"
+                                            >2.</span
+                                        ><span
+                                            style="
+                                                flex-shrink: 1;
+                                                min-width: 0;
+                                                font: 400 15px/22px var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            >Rub the chicken with butter, lemon zest and thyme.</span
+                                        >
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; gap: 8px">
+                                        <span style="font: 400 15px/22px var(--font-body); color: var(--ink-muted)"
+                                            >3.</span
+                                        ><span
+                                            style="
+                                                flex-shrink: 1;
+                                                min-width: 0;
+                                                font: 400 15px/22px var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            >Roast for 75 minutes, until the juices run clear.</span
+                                        >
+                                    </div>
+                                </div>
+                                <span style="font: italic 400 13px/1.4 var(--font-body); color: var(--ink-muted)"
+                                    >Changed from current: 3 ingredients, 2 steps</span
+                                >
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: row;
+                                justify-content: flex-end;
+                                gap: 12px;
+                                margin-top: auto;
+                                flex-wrap: wrap;
+                            "
+                        >
+                            <x-import component-from-global-scope="Commise.Native.Button" variant="secondary" icon="x"
+                                >Keep current version</x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                variant="primary"
+                                icon="rotateCcw"
+                                >Restore this version</x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":932}}'>
+            class Component extends DCLogic { renderVals(){ const noop=()=>{}; return {noop,no:false,yes:true,none:[],n34:34,n0:0,
+            back:{label:'Back to recipe',parent:"Lemon and thyme roast chicken",onPress:noop},
+            chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},
+            menu:[{id:'preview',label:'Preview',icon:'eye',onSelect:noop},{id:'restore',label:'Restore this version',icon:'rotateCcw',onSelect:noop},{id:'compare',label:'Compare with current',icon:'slidersHorizontal',onSelect:noop}]}; } }
+        </script>
+    </body>
+</html>

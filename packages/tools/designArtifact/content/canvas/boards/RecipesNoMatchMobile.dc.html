@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipes, no match (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                </style></helmet
+            >
+            <div
+                style="
+                    width: 390px;
+                    padding: 16px 0 8px;
+                    background: var(--canvas);
+                    color: var(--ink);
+                    font-family: var(--font-body);
+                "
+            >
+                <figure style="margin: 0 0 28px">
+                    <p
+                        style="
+                            margin: 0 0 8px;
+                            padding: 0 16px;
+                            font: 600 14px/1.4 var(--font-body);
+                            color: var(--ink-muted);
+                        "
+                    >
+                        Search only: nothing matches the words
+                    </p>
+                    <div
+                        style="
+                            width: 390px;
+                            position: relative;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 16px;
+                            padding: 16px;
+                            height: 500px;
+                            background: var(--canvas);
+                            border-block: 1px solid var(--line-divider);
+                            overflow: hidden;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.SearchField"
+                            id="recipes-search"
+                            label="Search your recipes"
+                            label-visibility="hidden"
+                            clear-label="Clear search"
+                            placeholder="Search your recipes"
+                            value="lasagne"
+                            on-change-text="{{noop}}"
+                        ></x-import
+                        ><x-import
+                            component-from-global-scope="Commise.Native.ChipRow"
+                            mode="filter"
+                            label="Quick filters"
+                            overflow="scroll"
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="All"
+                                selected="{{yes}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Under 30 min"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="American"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="French"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Italian"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Japanese"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Mediterranean"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Mexican"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Thai"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Vegan"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Vegetarian"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                        ></x-import>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: row;
+                                flex-wrap: wrap;
+                                align-items: center;
+                                justify-content: space-between;
+                                column-gap: 12px;
+                                row-gap: 8px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font: 600 14px/1.2 var(--font-body);
+                                    color: var(--ink);
+                                    font-variant-numeric: tabular-nums lining-nums;
+                                "
+                            >
+                                0 recipes
+                            </div>
+                            <div style="display: flex; flex-direction: row; align-items: center; gap: 8px">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="ghost"
+                                    size="sm"
+                                    icon="chevronDown"
+                                    icon-placement="end"
+                                    accessibility-label="Sort: Recently edited"
+                                    on-press="{{noop}}"
+                                    >Recently edited</x-import
+                                >
+                                <div style="width: 112px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.SegmentedControl"
+                                        form="view"
+                                        label="View"
+                                        label-visibility="hidden"
+                                        value="list"
+                                        segments="{{views}}"
+                                        on-change="{{noop}}"
+                                    ></x-import>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            role="status"
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: flex-start;
+                                gap: 12px;
+                                padding: 24px 0;
+                            "
+                        >
+                            <h2 style="margin: 0; font: 600 18px/1.25 var(--font-body); color: var(--ink)">
+                                No recipes match
+                            </h2>
+                            <p style="margin: 0; font: 400 16px/1.5 var(--font-body); color: var(--ink-muted)">
+                                Nothing matches “lasagne”.
+                            </p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 12px">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="x"
+                                    >Clear search</x-import
+                                >
+                            </div>
+                        </div>
+                        <x-import
+                            component-from-global-scope="Commise.Native.CreateFab"
+                            label="New recipe"
+                            icon="plus"
+                            on-press="{{noop}}"
+                        ></x-import>
+                    </div>
+                </figure>
+                <figure style="margin: 0 0 28px">
+                    <p
+                        style="
+                            margin: 0 0 8px;
+                            padding: 0 16px;
+                            font: 600 14px/1.4 var(--font-body);
+                            color: var(--ink-muted);
+                        "
+                    >
+                        Chips only: no recipe is both under 30 minutes and French
+                    </p>
+                    <div
+                        style="
+                            width: 390px;
+                            position: relative;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 16px;
+                            padding: 16px;
+                            height: 500px;
+                            background: var(--canvas);
+                            border-block: 1px solid var(--line-divider);
+                            overflow: hidden;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.SearchField"
+                            id="recipes-search"
+                            label="Search your recipes"
+                            label-visibility="hidden"
+                            clear-label="Clear search"
+                            placeholder="Search your recipes"
+                            value=""
+                            on-change-text="{{noop}}"
+                        ></x-import
+                        ><x-import
+                            component-from-global-scope="Commise.Native.ChipRow"
+                            mode="filter"
+                            label="Quick filters"
+                            overflow="scroll"
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="All"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Under 30 min"
+                                count="{{zero}}"
+                                selected="{{yes}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="American"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="French"
+                                count="{{zero}}"
+                                selected="{{yes}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Italian"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Japanese"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Mediterranean"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Mexican"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Thai"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Vegan"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Vegetarian"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                        ></x-import>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: row;
+                                flex-wrap: wrap;
+                                align-items: center;
+                                justify-content: space-between;
+                                column-gap: 12px;
+                                row-gap: 8px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font: 600 14px/1.2 var(--font-body);
+                                    color: var(--ink);
+                                    font-variant-numeric: tabular-nums lining-nums;
+                                "
+                            >
+                                0 recipes
+                            </div>
+                            <div style="display: flex; flex-direction: row; align-items: center; gap: 8px">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="ghost"
+                                    size="sm"
+                                    icon="chevronDown"
+                                    icon-placement="end"
+                                    accessibility-label="Sort: Recently edited"
+                                    on-press="{{noop}}"
+                                    >Recently edited</x-import
+                                >
+                                <div style="width: 112px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.SegmentedControl"
+                                        form="view"
+                                        label="View"
+                                        label-visibility="hidden"
+                                        value="list"
+                                        segments="{{views}}"
+                                        on-change="{{noop}}"
+                                    ></x-import>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            role="status"
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: flex-start;
+                                gap: 12px;
+                                padding: 24px 0;
+                            "
+                        >
+                            <h2 style="margin: 0; font: 600 18px/1.25 var(--font-body); color: var(--ink)">
+                                No recipes match
+                            </h2>
+                            <p style="margin: 0; font: 400 16px/1.5 var(--font-body); color: var(--ink-muted)">
+                                No recipes match these filters.
+                            </p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 12px">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="x"
+                                    >Clear filters</x-import
+                                >
+                            </div>
+                        </div>
+                        <x-import
+                            component-from-global-scope="Commise.Native.CreateFab"
+                            label="New recipe"
+                            icon="plus"
+                            on-press="{{noop}}"
+                        ></x-import>
+                    </div>
+                </figure>
+                <figure style="margin: 0 0 28px">
+                    <p
+                        style="
+                            margin: 0 0 8px;
+                            padding: 0 16px;
+                            font: 600 14px/1.4 var(--font-body);
+                            color: var(--ink-muted);
+                        "
+                    >
+                        Search and chips together
+                    </p>
+                    <div
+                        style="
+                            width: 390px;
+                            position: relative;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 16px;
+                            padding: 16px;
+                            height: 500px;
+                            background: var(--canvas);
+                            border-block: 1px solid var(--line-divider);
+                            overflow: hidden;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.SearchField"
+                            id="recipes-search"
+                            label="Search your recipes"
+                            label-visibility="hidden"
+                            clear-label="Clear search"
+                            placeholder="Search your recipes"
+                            value="lasagne"
+                            on-change-text="{{noop}}"
+                        ></x-import
+                        ><x-import
+                            component-from-global-scope="Commise.Native.ChipRow"
+                            mode="filter"
+                            label="Quick filters"
+                            overflow="scroll"
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="All"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Under 30 min"
+                                count="{{zero}}"
+                                selected="{{yes}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="American"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="French"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Italian"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Japanese"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Mediterranean"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Mexican"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Thai"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Vegan"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Chip"
+                                kind="filter"
+                                label="Vegetarian"
+                                count="{{zero}}"
+                                selected="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                        ></x-import>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: row;
+                                flex-wrap: wrap;
+                                align-items: center;
+                                justify-content: space-between;
+                                column-gap: 12px;
+                                row-gap: 8px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font: 600 14px/1.2 var(--font-body);
+                                    color: var(--ink);
+                                    font-variant-numeric: tabular-nums lining-nums;
+                                "
+                            >
+                                0 recipes
+                            </div>
+                            <div style="display: flex; flex-direction: row; align-items: center; gap: 8px">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="ghost"
+                                    size="sm"
+                                    icon="chevronDown"
+                                    icon-placement="end"
+                                    accessibility-label="Sort: Recently edited"
+                                    on-press="{{noop}}"
+                                    >Recently edited</x-import
+                                >
+                                <div style="width: 112px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.SegmentedControl"
+                                        form="view"
+                                        label="View"
+                                        label-visibility="hidden"
+                                        value="list"
+                                        segments="{{views}}"
+                                        on-change="{{noop}}"
+                                    ></x-import>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            role="status"
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: flex-start;
+                                gap: 12px;
+                                padding: 24px 0;
+                            "
+                        >
+                            <h2 style="margin: 0; font: 600 18px/1.25 var(--font-body); color: var(--ink)">
+                                No recipes match
+                            </h2>
+                            <p style="margin: 0; font: 400 16px/1.5 var(--font-body); color: var(--ink-muted)">
+                                Nothing matches “lasagne”.
+                            </p>
+                            <p style="margin: 0; font: 400 16px/1.5 var(--font-body); color: var(--ink-muted)">
+                                No recipes match these filters.
+                            </p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 12px">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="x"
+                                    >Clear filters</x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="x"
+                                    >Clear search</x-import
+                                >
+                            </div>
+                        </div>
+                        <x-import
+                            component-from-global-scope="Commise.Native.CreateFab"
+                            label="New recipe"
+                            icon="plus"
+                            on-press="{{noop}}"
+                        ></x-import>
+                    </div>
+                </figure></div
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1711}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement, N=window.Commise.Native; const R=[["Weeknight Chicken Cacciatore", "Italian", 55, 4, 420, "medium", 4.6, 23, "public", "published", false, 48, 500], ["Brown Butter Chocolate Chip Cookies", "American", 40, 24, 210, "easy", 4.9, 112, "public", "published", false, 168, 900], ["Miso-Glazed Salmon with Sesame Greens", "Japanese", 25, 2, 480, "easy", 4.4, 9, "private", "published", false, 3, 400], ["Slow-Roasted Pork Shoulder", "American", 390, 8, null, "hard", null, 0, "private", "draft", false, 120, 120], ["Roasted Tomato Basil Soup", "Mediterranean", 50, 6, 180, "easy", 4.2, 15, "private", "published", false, 96, 600], ["Pad Thai with Shrimp", "Thai", 35, 3, 560, "medium", 4.7, 41, "public", "published", false, 336, 700], ["Overnight Sourdough Boule", "French", 870, 10, 150, "hard", 4.8, 63, "private", "published", true, 24, 800], ["Lemon Ricotta Pancakes", "American", 25, 4, 340, "easy", 4.5, 22, "public", "published", false, 504, 900], ["Smoky Black Bean Chili", "Mexican", 75, 6, 310, "easy", 4.3, 18, "private", "published", false, 144, 500]]; const K=[null, 2, 3, 1, 1, 1, 1, 1, 1, 1, 1];
+            const ago=(hrs)=>new Date(Date.now()-hrs*36e5).toISOString();
+            const out={no:false,yes:true,n0:0,n2:2,n34:34,none:[],noop:()=>{},fill:{flex:1},
+            chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},
+            action:{kind:'avatar',avatar:h(N.Avatar,{status:'ready',initials:'SR',label:'Profile, Sam Rivera',onPress:()=>{}})},
+            segments:h(N.SegmentedControl,{form:'route',width:'adaptive',label:'Recipes',current:'mine',segments:[{id:'mine',label:'My recipes',href:'#recipes'},{id:'collections',label:'Collections',href:'#collections'}],onSelect:()=>{}}),
+            views:[{id:'list',label:'List view',icon:'list'},{id:'grid',label:'Grid view',icon:'layoutGrid'}]};
+            K.forEach((c,j)=>{out['k'+j]=c});
+            R.forEach(([title,cuisine,mins,servings,cal,level,rating,count,visibility,status,pro,u,c],i)=>{const r={id:'rcp_'+i,title,totalTimeMinutes:mins,servings,difficulty:level,ratingCount:count,usesPremiumCapability:pro,createdAt:ago(c),updatedAt:ago(u),cuisine,tags:[],currentVersion:1,visibility,status}; if(rating)r.averageRating=rating; out['c'+i]={recipe:r,cal:cal?h('span',{style:{fontSize:13,color:'var(--ink-muted)'}},cal+' cal'):null};});
+            out.zero=0; out.one=1; out.yes=true; out.lmLabels={loadMore:'Load more',loadingMore:'Loading more recipes',retry:'Try again',failed:'We couldn’t load more recipes.'}; return out; } }
+        </script>
+    </body>
+</html>

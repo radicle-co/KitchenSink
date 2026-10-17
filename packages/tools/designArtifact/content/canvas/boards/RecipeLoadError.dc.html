@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe, could not load (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        font-family: var(--font-body);
+                        color: var(--ink);
+                    }
+                    .c-shell {
+                        display: flex;
+                        min-height: 100vh;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/1.5 var(--font-body);
+                    }
+                    .c-side {
+                        display: none;
+                        align-self: stretch;
+                        flex-shrink: 0;
+                        width: 256px;
+                        flex-direction: column;
+                        overflow-y: auto;
+                        box-sizing: border-box;
+                        border-right: 1px solid var(--line-divider);
+                        background: color-mix(in srgb, var(--paper) 70%, transparent);
+                    }
+                    .c-nav-link {
+                        position: relative;
+                        display: flex;
+                        min-height: 44px;
+                        align-items: center;
+                        gap: 12px;
+                        border-radius: var(--radius-md);
+                        padding: 0 12px;
+                        font: 600 14px/1.2 var(--font-body);
+                        text-decoration: none;
+                        color: var(--ink-muted);
+                    }
+                    .c-nav-link[aria-current='page'] {
+                        background: color-mix(in srgb, var(--action) 10%, transparent);
+                        color: var(--ink);
+                    }
+                    .c-nav-bar {
+                        position: absolute;
+                        top: 8px;
+                        bottom: 8px;
+                        left: 0;
+                        width: 3px;
+                        border-radius: 0 9999px 9999px 0;
+                        background: transparent;
+                    }
+                    .c-nav-link[aria-current='page'] .c-nav-bar {
+                        background: var(--here-bar);
+                    }
+                    .c-main {
+                        min-width: 0;
+                        flex: 1;
+                        box-sizing: border-box;
+                        padding: 24px 16px 168px;
+                    }
+                    .c-hero-ctl {
+                        display: flex;
+                    }
+                    .c-back,
+                    .c-plain {
+                        display: none;
+                    }
+                    @media (min-width: 600px) {
+                        .c-main {
+                            padding-left: 24px;
+                            padding-right: 24px;
+                        }
+                    }
+                    @media (min-width: 840px) {
+                        .c-side {
+                            display: flex;
+                        }
+                        .c-main {
+                            padding: 24px 32px 32px;
+                        }
+                        .c-hero-ctl {
+                            display: none;
+                        }
+                        .c-back {
+                            display: flex;
+                        }
+                        .c-plain {
+                            display: contents;
+                        }
+                    }
+
+                    .cap {
+                        padding: 12px 32px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                        background: var(--canvas);
+                    }
+                    .c-shell {
+                        min-height: calc(100vh - 41px);
+                    }
+                </style></helmet
+            >
+            <p class="cap">The recipe editor shows this same notice inside its own frame.</p>
+            <div class="c-shell">
+                <div class="c-side">
+                    <div style="display: flex; height: 64px; flex-shrink: 0; align-items: center; padding: 0 24px">
+                        <span style="font: 700 20px/1.4 var(--font-display); color: var(--ink)">Commise</span>
+                    </div>
+                    <nav aria-label="Main" style="display: flex; flex-direction: column; gap: 4px; padding: 0 12px">
+                        <a href="#" class="c-nav-link"
+                            ><span aria-hidden="true" class="c-nav-bar"></span
+                            ><x-import component-from-global-scope="Commise.Icon" name="house" size="24"></x-import
+                            ><span>Home</span></a
+                        ><a href="#" class="c-nav-link" aria-current="page"
+                            ><span aria-hidden="true" class="c-nav-bar"></span
+                            ><x-import component-from-global-scope="Commise.Icon" name="bookOpen" size="24"></x-import
+                            ><span>Recipes</span></a
+                        ><a href="#" class="c-nav-link"
+                            ><span aria-hidden="true" class="c-nav-bar"></span
+                            ><x-import component-from-global-scope="Commise.Icon" name="compass" size="24"></x-import
+                            ><span>Discover</span></a
+                        >
+                    </nav>
+                    <div style="margin-top: auto">
+                        <button
+                            type="button"
+                            aria-expanded="{{yes}}"
+                            class="c-nav-link"
+                            style="
+                                width: calc(100% - 24px);
+                                border: 0;
+                                background: transparent;
+                                margin: 0 12px 12px;
+                                cursor: pointer;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Icon"
+                                name="chevronsLeft"
+                                size="24"
+                            ></x-import
+                            ><span>Collapse</span>
+                        </button>
+                    </div>
+                </div>
+                <main class="c-main">
+                    <x-import
+                        component-from-global-scope="Commise.StateNotice"
+                        title="We couldn’t load this recipe."
+                        primary="{{primary}}"
+                        secondary="{{secondary}}"
+                    ></x-import>
+                </main>
+            </div>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+            class Component extends DCLogic { renderVals(){ const noop=function(){};return {noop:noop,primary:{label:'Try again',icon:'refreshCw',onPress:noop},secondary:{label:'Back to My recipes',icon:'chevronLeft',onPress:noop,href:'#'}}; } }
+        </script>
+    </body>
+</html>

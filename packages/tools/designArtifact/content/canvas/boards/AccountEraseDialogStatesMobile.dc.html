@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Profile, erase and close: states (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                        width: 390px;
+                    }
+                    .cap {
+                        margin: 0;
+                        padding: 0 16px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .pg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 12px 0 24px;
+                    }
+                    .fg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .crop {
+                        width: 390px;
+                        box-sizing: border-box;
+                        padding: 16px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .stage {
+                        position: relative;
+                        width: 390px;
+                        box-sizing: border-box;
+                        overflow: hidden;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 16px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        transform: translateZ(0);
+                    }
+                    .stage .bg {
+                        position: absolute;
+                        inset: 0;
+                        padding: 16px;
+                        box-sizing: border-box;
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                    .card {
+                        position: relative;
+                        width: 100%;
+                        box-sizing: border-box;
+                        max-width: 480px;
+                        overflow: hidden;
+                        border-radius: var(--radius-lg);
+                        border: 1px solid var(--line-divider);
+                        background: var(--paper-overlay);
+                        padding: 24px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .card h2,
+                    .card h3,
+                    .card p {
+                        margin: 0;
+                    }
+                    .stack {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                    }
+                    .cstack {
+                        display: flex;
+                        flex-direction: column-reverse;
+                        align-items: stretch;
+                        gap: 12px;
+                    }
+                    .gate {
+                        width: 390px;
+                        box-sizing: border-box;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        padding: 24px;
+                        text-align: center;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .screen {
+                        width: 390px;
+                        box-sizing: border-box;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 20px;
+                        padding: 8px 16px 24px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                </style></helmet
+            >
+            <div class="pg">
+                <div class="fg">
+                    <p class="cap">Recipes loading: the list is replaced by one status line.</p>
+                    <div class="stage" style="min-height: 0px">
+                        <div class="scrim"></div>
+                        <div class="card" role="dialog">
+                            <h2 class="text-section-title" style="color: var(--ink)">Erase my data</h2>
+                            <div style="display: flex; flex-direction: row; align-items: flex-start; gap: 8px">
+                                <span aria-hidden="true" style="flex: none; color: var(--danger-text)"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.Icon"
+                                        name="triangleAlert"
+                                        size="20"
+                                        tone="dangerText"
+                                    ></x-import
+                                ></span>
+                                <p style="flex: 1; font-size: 15px; line-height: 22px; color: var(--ink-muted)">
+                                    This permanently deletes your account and erases your personal data everywhere we
+                                    hold it — your sign-in, your profile and photo, and your private recipes, ratings
+                                    and collections. You will be signed out and will not be able to sign in again. It
+                                    cannot be undone.
+                                </p>
+                            </div>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                This is not the same as closing your account: closing is recoverable, but erasing
+                                destroys your data for good and cannot be reversed.
+                            </p>
+                            <h3 style="margin-top: 4px; font-size: 16px; font-weight: 600; color: var(--ink)">
+                                Choose recipes to keep public
+                            </h3>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                Recipes you choose here become public and are permanently unremovable by you once your
+                                account is erased. Everything you don’t choose is deleted.
+                            </p>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                Loading your recipes
+                            </p>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                To confirm, type ERASE MY DATA below.
+                            </p>
+                            <div
+                                role="textbox"
+                                aria-label="Confirmation phrase"
+                                style="
+                                    border: 1px solid var(--line-control);
+                                    border-radius: 8px;
+                                    padding: 8px 12px;
+                                    font-size: 15px;
+                                    color: var(--ink);
+                                    min-height: 21px;
+                                "
+                            ></div>
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    justify-content: flex-end;
+                                    gap: 12px;
+                                    margin-top: 4px;
+                                "
+                            >
+                                <span
+                                    role="button"
+                                    style="
+                                        border-radius: 999px;
+                                        padding: 8px 16px;
+                                        font-size: 14px;
+                                        font-weight: 500;
+                                        color: var(--ink-muted);
+                                    "
+                                    >Cancel</span
+                                ><span
+                                    role="button"
+                                    aria-disabled="true"
+                                    style="
+                                        border-radius: 999px;
+                                        padding: 8px 20px;
+                                        font-size: 14px;
+                                        font-weight: 600;
+                                        background: var(--danger);
+                                        color: var(--on-action);
+                                        opacity: 0.5;
+                                    "
+                                    >Erase my data</span
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">No private recipes: nothing to choose.</p>
+                    <div class="stage" style="min-height: 0px">
+                        <div class="scrim"></div>
+                        <div class="card" role="dialog">
+                            <h2 class="text-section-title" style="color: var(--ink)">Erase my data</h2>
+                            <div style="display: flex; flex-direction: row; align-items: flex-start; gap: 8px">
+                                <span aria-hidden="true" style="flex: none; color: var(--danger-text)"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.Icon"
+                                        name="triangleAlert"
+                                        size="20"
+                                        tone="dangerText"
+                                    ></x-import
+                                ></span>
+                                <p style="flex: 1; font-size: 15px; line-height: 22px; color: var(--ink-muted)">
+                                    This permanently deletes your account and erases your personal data everywhere we
+                                    hold it — your sign-in, your profile and photo, and your private recipes, ratings
+                                    and collections. You will be signed out and will not be able to sign in again. It
+                                    cannot be undone.
+                                </p>
+                            </div>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                This is not the same as closing your account: closing is recoverable, but erasing
+                                destroys your data for good and cannot be reversed.
+                            </p>
+                            <h3 style="margin-top: 4px; font-size: 16px; font-weight: 600; color: var(--ink)">
+                                Choose recipes to keep public
+                            </h3>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                Recipes you choose here become public and are permanently unremovable by you once your
+                                account is erased. Everything you don’t choose is deleted.
+                            </p>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                You have no private recipes to publish. Everything will be deleted.
+                            </p>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                To confirm, type ERASE MY DATA below.
+                            </p>
+                            <div
+                                role="textbox"
+                                aria-label="Confirmation phrase"
+                                style="
+                                    border: 1px solid var(--line-control);
+                                    border-radius: 8px;
+                                    padding: 8px 12px;
+                                    font-size: 15px;
+                                    color: var(--ink);
+                                    min-height: 21px;
+                                "
+                            ></div>
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    justify-content: flex-end;
+                                    gap: 12px;
+                                    margin-top: 4px;
+                                "
+                            >
+                                <span
+                                    role="button"
+                                    style="
+                                        border-radius: 999px;
+                                        padding: 8px 16px;
+                                        font-size: 14px;
+                                        font-weight: 500;
+                                        color: var(--ink-muted);
+                                    "
+                                    >Cancel</span
+                                ><span
+                                    role="button"
+                                    aria-disabled="true"
+                                    style="
+                                        border-radius: 999px;
+                                        padding: 8px 20px;
+                                        font-size: 14px;
+                                        font-weight: 600;
+                                        background: var(--danger);
+                                        color: var(--on-action);
+                                        opacity: 0.5;
+                                    "
+                                    >Erase my data</span
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Recipes failed to load: nothing is listed, and erasing still works.</p>
+                    <div class="stage" style="min-height: 0px">
+                        <div class="scrim"></div>
+                        <div class="card" role="dialog">
+                            <h2 class="text-section-title" style="color: var(--ink)">Erase my data</h2>
+                            <div style="display: flex; flex-direction: row; align-items: flex-start; gap: 8px">
+                                <span aria-hidden="true" style="flex: none; color: var(--danger-text)"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.Icon"
+                                        name="triangleAlert"
+                                        size="20"
+                                        tone="dangerText"
+                                    ></x-import
+                                ></span>
+                                <p style="flex: 1; font-size: 15px; line-height: 22px; color: var(--ink-muted)">
+                                    This permanently deletes your account and erases your personal data everywhere we
+                                    hold it — your sign-in, your profile and photo, and your private recipes, ratings
+                                    and collections. You will be signed out and will not be able to sign in again. It
+                                    cannot be undone.
+                                </p>
+                            </div>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                This is not the same as closing your account: closing is recoverable, but erasing
+                                destroys your data for good and cannot be reversed.
+                            </p>
+                            <h3 style="margin-top: 4px; font-size: 16px; font-weight: 600; color: var(--ink)">
+                                Choose recipes to keep public
+                            </h3>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                Recipes you choose here become public and are permanently unremovable by you once your
+                                account is erased. Everything you don’t choose is deleted.
+                            </p>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                We couldn’t load your recipes, so none are listed to keep. You can still erase your data
+                                — nothing will be published.
+                            </p>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                To confirm, type ERASE MY DATA below.
+                            </p>
+                            <div
+                                role="textbox"
+                                aria-label="Confirmation phrase"
+                                style="
+                                    border: 1px solid var(--line-control);
+                                    border-radius: 8px;
+                                    padding: 8px 12px;
+                                    font-size: 15px;
+                                    color: var(--ink);
+                                    min-height: 21px;
+                                "
+                            ></div>
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    justify-content: flex-end;
+                                    gap: 12px;
+                                    margin-top: 4px;
+                                "
+                            >
+                                <span
+                                    role="button"
+                                    style="
+                                        border-radius: 999px;
+                                        padding: 8px 16px;
+                                        font-size: 14px;
+                                        font-weight: 500;
+                                        color: var(--ink-muted);
+                                    "
+                                    >Cancel</span
+                                ><span
+                                    role="button"
+                                    aria-disabled="true"
+                                    style="
+                                        border-radius: 999px;
+                                        padding: 8px 20px;
+                                        font-size: 14px;
+                                        font-weight: 600;
+                                        background: var(--danger);
+                                        color: var(--on-action);
+                                        opacity: 0.5;
+                                    "
+                                    >Erase my data</span
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Erasing: the buttons do not change. Erase my data is dimmed, and Erasing… sits under them. There
+                        is no spinner on mobile.
+                    </p>
+                    <div class="stage" style="min-height: 0px">
+                        <div class="scrim"></div>
+                        <div class="card" role="dialog">
+                            <h2 class="text-section-title" style="color: var(--ink)">Erase my data</h2>
+                            <div style="display: flex; flex-direction: row; align-items: flex-start; gap: 8px">
+                                <span aria-hidden="true" style="flex: none; color: var(--danger-text)"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.Icon"
+                                        name="triangleAlert"
+                                        size="20"
+                                        tone="dangerText"
+                                    ></x-import
+                                ></span>
+                                <p style="flex: 1; font-size: 15px; line-height: 22px; color: var(--ink-muted)">
+                                    This permanently deletes your account and erases your personal data everywhere we
+                                    hold it — your sign-in, your profile and photo, and your private recipes, ratings
+                                    and collections. You will be signed out and will not be able to sign in again. It
+                                    cannot be undone.
+                                </p>
+                            </div>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                This is not the same as closing your account: closing is recoverable, but erasing
+                                destroys your data for good and cannot be reversed.
+                            </p>
+                            <h3 style="margin-top: 4px; font-size: 16px; font-weight: 600; color: var(--ink)">
+                                Choose recipes to keep public
+                            </h3>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                Recipes you choose here become public and are permanently unremovable by you once your
+                                account is erased. Everything you don’t choose is deleted.
+                            </p>
+                            <div
+                                role="checkbox"
+                                aria-checked="true"
+                                aria-label="Weeknight Ramen"
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: center;
+                                    gap: 8px;
+                                    padding: 4px 0;
+                                "
+                            >
+                                <span style="font-size: 18px; line-height: 22px; color: var(--ink)">☑</span
+                                ><span style="font-size: 14px; line-height: 20px; color: var(--ink)"
+                                    >Weeknight Ramen</span
+                                >
+                            </div>
+                            <div
+                                role="checkbox"
+                                aria-checked="false"
+                                aria-label="Miso Soup"
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: center;
+                                    gap: 8px;
+                                    padding: 4px 0;
+                                "
+                            >
+                                <span style="font-size: 18px; line-height: 22px; color: var(--ink)">☐</span
+                                ><span style="font-size: 14px; line-height: 20px; color: var(--ink)">Miso Soup</span>
+                            </div>
+                            <div
+                                role="checkbox"
+                                aria-checked="false"
+                                aria-label="Ramen"
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: center;
+                                    gap: 8px;
+                                    padding: 4px 0;
+                                "
+                            >
+                                <span style="font-size: 18px; line-height: 22px; color: var(--ink)">☐</span
+                                ><span style="font-size: 14px; line-height: 20px; color: var(--ink)">Ramen</span>
+                            </div>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                To confirm, type ERASE MY DATA below.
+                            </p>
+                            <div
+                                role="textbox"
+                                aria-label="Confirmation phrase"
+                                style="
+                                    border: 1px solid var(--line-control);
+                                    border-radius: 8px;
+                                    padding: 8px 12px;
+                                    font-size: 15px;
+                                    color: var(--ink);
+                                    min-height: 21px;
+                                "
+                            >
+                                ERASE MY DATA
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    justify-content: flex-end;
+                                    gap: 12px;
+                                    margin-top: 4px;
+                                "
+                            >
+                                <span
+                                    role="button"
+                                    style="
+                                        border-radius: 999px;
+                                        padding: 8px 16px;
+                                        font-size: 14px;
+                                        font-weight: 500;
+                                        color: var(--ink-muted);
+                                    "
+                                    >Cancel</span
+                                ><span
+                                    role="button"
+                                    aria-disabled="true"
+                                    style="
+                                        border-radius: 999px;
+                                        padding: 8px 20px;
+                                        font-size: 14px;
+                                        font-weight: 600;
+                                        background: var(--danger);
+                                        color: var(--on-action);
+                                        opacity: 0.5;
+                                    "
+                                    >Erase my data</span
+                                >
+                            </div>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">Erasing…</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Erase failed to start: the sentence sits under the buttons. The phrase is kept.</p>
+                    <div class="stage" style="min-height: 0px">
+                        <div class="scrim"></div>
+                        <div class="card" role="dialog">
+                            <h2 class="text-section-title" style="color: var(--ink)">Erase my data</h2>
+                            <div style="display: flex; flex-direction: row; align-items: flex-start; gap: 8px">
+                                <span aria-hidden="true" style="flex: none; color: var(--danger-text)"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.Icon"
+                                        name="triangleAlert"
+                                        size="20"
+                                        tone="dangerText"
+                                    ></x-import
+                                ></span>
+                                <p style="flex: 1; font-size: 15px; line-height: 22px; color: var(--ink-muted)">
+                                    This permanently deletes your account and erases your personal data everywhere we
+                                    hold it — your sign-in, your profile and photo, and your private recipes, ratings
+                                    and collections. You will be signed out and will not be able to sign in again. It
+                                    cannot be undone.
+                                </p>
+                            </div>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                This is not the same as closing your account: closing is recoverable, but erasing
+                                destroys your data for good and cannot be reversed.
+                            </p>
+                            <h3 style="margin-top: 4px; font-size: 16px; font-weight: 600; color: var(--ink)">
+                                Choose recipes to keep public
+                            </h3>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                Recipes you choose here become public and are permanently unremovable by you once your
+                                account is erased. Everything you don’t choose is deleted.
+                            </p>
+                            <div
+                                role="checkbox"
+                                aria-checked="true"
+                                aria-label="Weeknight Ramen"
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: center;
+                                    gap: 8px;
+                                    padding: 4px 0;
+                                "
+                            >
+                                <span style="font-size: 18px; line-height: 22px; color: var(--ink)">☑</span
+                                ><span style="font-size: 14px; line-height: 20px; color: var(--ink)"
+                                    >Weeknight Ramen</span
+                                >
+                            </div>
+                            <div
+                                role="checkbox"
+                                aria-checked="false"
+                                aria-label="Miso Soup"
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: center;
+                                    gap: 8px;
+                                    padding: 4px 0;
+                                "
+                            >
+                                <span style="font-size: 18px; line-height: 22px; color: var(--ink)">☐</span
+                                ><span style="font-size: 14px; line-height: 20px; color: var(--ink)">Miso Soup</span>
+                            </div>
+                            <div
+                                role="checkbox"
+                                aria-checked="false"
+                                aria-label="Ramen"
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: center;
+                                    gap: 8px;
+                                    padding: 4px 0;
+                                "
+                            >
+                                <span style="font-size: 18px; line-height: 22px; color: var(--ink)">☐</span
+                                ><span style="font-size: 14px; line-height: 20px; color: var(--ink)">Ramen</span>
+                            </div>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                To confirm, type ERASE MY DATA below.
+                            </p>
+                            <div
+                                role="textbox"
+                                aria-label="Confirmation phrase"
+                                style="
+                                    border: 1px solid var(--line-control);
+                                    border-radius: 8px;
+                                    padding: 8px 12px;
+                                    font-size: 15px;
+                                    color: var(--ink);
+                                    min-height: 21px;
+                                "
+                            >
+                                ERASE MY DATA
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    justify-content: flex-end;
+                                    gap: 12px;
+                                    margin-top: 4px;
+                                "
+                            >
+                                <span
+                                    role="button"
+                                    style="
+                                        border-radius: 999px;
+                                        padding: 8px 16px;
+                                        font-size: 14px;
+                                        font-weight: 500;
+                                        color: var(--ink-muted);
+                                    "
+                                    >Cancel</span
+                                ><span
+                                    role="button"
+                                    aria-disabled="false"
+                                    style="
+                                        border-radius: 999px;
+                                        padding: 8px 20px;
+                                        font-size: 14px;
+                                        font-weight: 600;
+                                        background: var(--danger);
+                                        color: var(--on-action);
+                                    "
+                                    >Erase my data</span
+                                >
+                            </div>
+                            <p style="font-size: 13px; color: var(--danger-text)">
+                                We couldn’t start erasing your data. Please try again.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Erase accepted, sign-out failed: the dialog is gone. The sentence and a Sign out card sit under
+                        the Danger zone card.
+                    </p>
+                    <div class="crop">
+                        <x-import component-from-global-scope="Commise.Native.ProfileGroup" heading="Danger zone"
+                            ><x-import
+                                component-from-global-scope="Commise.Native.ProfileRow"
+                                label="Close account"
+                                hint="Signs you out and deactivates your account. Support can restore it."
+                                tone="danger"
+                                chevron="{{yes}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.ProfileRow"
+                                label="Erase my data"
+                                hint="Permanently deletes your account and personal data."
+                                tone="danger"
+                                chevron="{{yes}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                        ></x-import>
+                        <p role="alert" class="text-meta text-danger-text" style="margin: 0">
+                            Your data is being erased, but we couldn’t sign you out. Sign out to finish leaving this
+                            account.
+                        </p>
+                        <x-import component-from-global-scope="Commise.Native.ProfileGroup" label="Sign out"
+                            ><x-import
+                                component-from-global-scope="Commise.Native.ProfileRow"
+                                label="Sign out"
+                                tone="ink"
+                                chevron="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                        ></x-import>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Account closed, sign-out failed: the row becomes an inert Account closed with no arrow. The
+                        sentence and a Sign out card sit under the card.
+                    </p>
+                    <div class="crop">
+                        <x-import component-from-global-scope="Commise.Native.ProfileGroup" heading="Danger zone"
+                            ><x-import
+                                component-from-global-scope="Commise.Native.ProfileRow"
+                                label="Account closed"
+                                hint="Signs you out and deactivates your account. Support can restore it."
+                                tone="danger"
+                                chevron="{{no}}"
+                                inert="{{yes}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.ProfileRow"
+                                label="Erase my data"
+                                hint="Permanently deletes your account and personal data."
+                                tone="danger"
+                                chevron="{{yes}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                        ></x-import>
+                        <p role="alert" class="text-meta text-danger-text" style="margin: 0">
+                            Your account is closed, but we couldn’t sign you out. Sign out to finish leaving this
+                            account.
+                        </p>
+                        <x-import component-from-global-scope="Commise.Native.ProfileGroup" label="Sign out"
+                            ><x-import
+                                component-from-global-scope="Commise.Native.ProfileRow"
+                                label="Sign out"
+                                tone="ink"
+                                chevron="{{no}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                        ></x-import>
+                    </div>
+                </div></div
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":7000}}'>
+            class Component extends DCLogic { renderVals(){ const noop=function(){}; return { yes:true, no:false, noop:noop, back:{ label:'Back', parent:'Home', onPress:noop } }; } }
+        </script>
+    </body>
+</html>

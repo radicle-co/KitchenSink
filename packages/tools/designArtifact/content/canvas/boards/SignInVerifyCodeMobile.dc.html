@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Sign in, verification code (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                        width: 390px;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .cap {
+                        margin: 0;
+                        padding: 0 16px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .pg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 12px 0 24px;
+                    }
+                    .fg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .pagef {
+                        position: relative;
+                        width: 390px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        transform: translateZ(0);
+                    }
+                    .wash {
+                        width: 390px;
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 20px;
+                    }
+                    .crop {
+                        width: 390px;
+                        padding: 16px 20px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .fld {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .fields {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .foot {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        padding: 12px 0;
+                    }
+                    .err {
+                        margin: 0;
+                        font-size: 14px;
+                        line-height: 1.4;
+                        color: var(--danger-text);
+                    }
+                    .status {
+                        margin: 0;
+                        font-size: 14px;
+                        line-height: 1.4;
+                        color: var(--ink-muted);
+                    }
+                </style></helmet
+            >
+            <div class="pg">
+                <div class="fg">
+                    <p class="cap">
+                        Sign in, second step: a correct password on a new device sends a code to the email.
+                    </p>
+                    <div class="pagef">
+                        <main class="wash" style="min-height: 600px; padding: 71px 20px 58px">
+                            <header style="display: flex; flex-direction: column; gap: 8px">
+                                <span style="font-size: 18px; font-weight: 600; line-height: 1.25; color: var(--ink)"
+                                    >Commise</span
+                                >
+                                <h1
+                                    style="
+                                        margin: 0;
+                                        font-family: var(--font-display);
+                                        font-size: 28px;
+                                        font-weight: 700;
+                                        line-height: 1.15;
+                                        color: var(--ink);
+                                    "
+                                >
+                                    Sign in to Commise
+                                </h1>
+                                <span style="font-size: 16px; line-height: 1.5; color: var(--ink-muted)"
+                                    >Your recipes, in one place.</span
+                                >
+                            </header>
+                            <div style="display: flex; flex-direction: column; gap: 12px">
+                                <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink-muted)">
+                                    Enter the verification code sent to your email.
+                                </p>
+                                <div class="fld">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.FieldLabel"
+                                        for-id="signin-code"
+                                        label="Verification code"
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.Input"
+                                        id="signin-code"
+                                        label="Verification code"
+                                        value=""
+                                        on-change-text="{{noop}}"
+                                        placeholder="123456"
+                                        auto-complete="one-time-code"
+                                        input-mode="numeric"
+                                    ></x-import>
+                                </div>
+                            </div>
+                            <div class="foot">
+                                <span style="min-height: 20px" aria-live="assertive"></span
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    size="lg"
+                                    width="fill"
+                                    icon="check"
+                                    on-press="{{noop}}"
+                                    >Verify</x-import
+                                >
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 8px">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="refreshCw"
+                                    on-press="{{noop}}"
+                                    >Send a new code</x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="ghost"
+                                    icon="rotateCcw"
+                                    on-press="{{noop}}"
+                                    >Start over</x-import
+                                >
+                            </div>
+                        </main>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Create account reaches the same step with the title Create your account. Same words, same two
+                        actions below Verify.
+                    </p>
+                    <div class="pagef">
+                        <main class="wash" style="min-height: 600px; padding: 71px 20px 58px">
+                            <header style="display: flex; flex-direction: column; gap: 8px">
+                                <span style="font-size: 18px; font-weight: 600; line-height: 1.25; color: var(--ink)"
+                                    >Commise</span
+                                >
+                                <h1
+                                    style="
+                                        margin: 0;
+                                        font-family: var(--font-display);
+                                        font-size: 28px;
+                                        font-weight: 700;
+                                        line-height: 1.15;
+                                        color: var(--ink);
+                                    "
+                                >
+                                    Create your account
+                                </h1>
+                                <span style="font-size: 16px; line-height: 1.5; color: var(--ink-muted)"
+                                    >Your recipes, in one place.</span
+                                >
+                            </header>
+                            <div style="display: flex; flex-direction: column; gap: 12px">
+                                <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink-muted)">
+                                    Enter the verification code sent to your email.
+                                </p>
+                                <div class="fld">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.FieldLabel"
+                                        for-id="signup-code"
+                                        label="Verification code"
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.Input"
+                                        id="signup-code"
+                                        label="Verification code"
+                                        value=""
+                                        on-change-text="{{noop}}"
+                                        placeholder="123456"
+                                        auto-complete="one-time-code"
+                                        input-mode="numeric"
+                                    ></x-import>
+                                </div>
+                            </div>
+                            <div class="foot">
+                                <span style="min-height: 20px" aria-live="assertive"></span
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    size="lg"
+                                    width="fill"
+                                    icon="check"
+                                    on-press="{{noop}}"
+                                    >Verify</x-import
+                                >
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 8px">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="refreshCw"
+                                    on-press="{{noop}}"
+                                    >Send a new code</x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="ghost"
+                                    icon="rotateCcw"
+                                    on-press="{{noop}}"
+                                    >Start over</x-import
+                                >
+                            </div>
+                        </main>
+                    </div>
+                </div>
+            </div>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1700}}'>
+            class Component extends DCLogic { renderVals(){ return { noop: function(){}, yes: true, no: false }; } }
+        </script>
+    </body>
+</html>

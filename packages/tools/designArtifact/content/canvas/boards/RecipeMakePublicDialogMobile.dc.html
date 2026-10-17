@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe detail, make public? (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/1.5 var(--font-body);
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    .cap {
+                        margin: 0 0 8px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fr {
+                        min-width: 0;
+                    }
+                    .scrim {
+                        background: var(--scrim);
+                        border-radius: var(--radius-lg);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                    .panel {
+                        border: 1px solid var(--line-divider);
+                        border-radius: var(--radius-lg);
+                        background: var(--canvas);
+                    }
+
+                    .wrap {
+                        width: 390px;
+                        padding: 16px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                    }
+                    .scrim {
+                        padding: 16px;
+                        min-height: 280px;
+                    }
+                    .dlg {
+                        width: 100%;
+                        max-width: 400px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        padding: 24px;
+                        background: var(--paper-overlay);
+                        border: 1px solid var(--line-divider);
+                        border-radius: var(--radius-lg);
+                    }
+                    .dlg-t {
+                        margin: 0;
+                        font: 600 18px/1.25 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .dlg-b {
+                        margin: 0;
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .dlg-e {
+                        margin: 0;
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .dlg-s {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .dlg-r {
+                        display: flex;
+                        flex-direction: column-reverse;
+                        align-items: stretch;
+                        gap: 12px;
+                    }
+                </style></helmet
+            >
+            <div class="wrap">
+                <div class="fr">
+                    <p class="cap">Asking: the owner cannot use Premium (final)</p>
+                    <div class="scrim">
+                        <div class="dlg" role="alertdialog" aria-label="Make this recipe public?">
+                            <h2 class="dlg-t">Make this recipe public?</h2>
+                            <p class="dlg-b">
+                                Anyone can see a public recipe and save a copy. You won't be able to make this one
+                                private again.
+                            </p>
+                            <div class="dlg-r">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="lock"
+                                    width="fill"
+                                    >Keep private</x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="destructive"
+                                    tone="confirm"
+                                    icon="globe"
+                                    width="fill"
+                                    >Make public</x-import
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fr">
+                    <p class="cap">Asking: Premium would make it private again</p>
+                    <div class="scrim">
+                        <div class="dlg" role="alertdialog" aria-label="Make this recipe public?">
+                            <h2 class="dlg-t">Make this recipe public?</h2>
+                            <p class="dlg-b">
+                                Anyone can see a public recipe and save a copy. To make this one private again, you'll
+                                need Premium.
+                            </p>
+                            <div class="dlg-r">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="lock"
+                                    width="fill"
+                                    >Keep private</x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="destructive"
+                                    tone="confirm"
+                                    icon="globe"
+                                    width="fill"
+                                    >Make public</x-import
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fr">
+                    <p class="cap">Asking: the owner’s Premium state is still loading</p>
+                    <div class="scrim">
+                        <div class="dlg" role="alertdialog" aria-label="Make this recipe public?">
+                            <h2 class="dlg-t">Make this recipe public?</h2>
+                            <p class="dlg-b">
+                                Anyone can see a public recipe and save a copy. You may not be able to make this one
+                                private again.
+                            </p>
+                            <div class="dlg-r">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="lock"
+                                    width="fill"
+                                    >Keep private</x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="destructive"
+                                    tone="confirm"
+                                    icon="globe"
+                                    width="fill"
+                                    >Make public</x-import
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fr">
+                    <p class="cap">Making public: the confirm spins and says “Making public…”</p>
+                    <div class="scrim">
+                        <div class="dlg" role="alertdialog" aria-label="Make this recipe public?">
+                            <h2 class="dlg-t">Make this recipe public?</h2>
+                            <p class="dlg-b">
+                                Anyone can see a public recipe and save a copy. You won't be able to make this one
+                                private again.
+                            </p>
+                            <span role="status" class="dlg-s">Making public…</span>
+                            <div class="dlg-r">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="lock"
+                                    width="fill"
+                                    >Keep private</x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="destructive"
+                                    tone="confirm"
+                                    icon="globe"
+                                    width="fill"
+                                    busy="{{yes}}"
+                                    >Make public</x-import
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fr">
+                    <p class="cap">Change failed: the reason shows inside the dialog</p>
+                    <div class="scrim">
+                        <div class="dlg" role="alertdialog" aria-label="Make this recipe public?">
+                            <h2 class="dlg-t">Make this recipe public?</h2>
+                            <p class="dlg-b">
+                                Anyone can see a public recipe and save a copy. You won't be able to make this one
+                                private again.
+                            </p>
+                            <p role="alert" class="dlg-e">
+                                We couldn’t change who can see this recipe. Please try again.
+                            </p>
+                            <div class="dlg-r">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="lock"
+                                    width="fill"
+                                    >Keep private</x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="destructive"
+                                    tone="confirm"
+                                    icon="globe"
+                                    width="fill"
+                                    >Make public</x-import
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1846}}'>
+            class Component extends DCLogic { renderVals(){ return {yes:true,no:false};  } }
+        </script>
+    </body>
+</html>

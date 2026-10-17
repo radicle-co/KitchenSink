@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Data sources, loading and problems (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                        width: 390px;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .cap {
+                        margin: 0;
+                        padding: 0 16px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .pg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 12px 0 24px;
+                    }
+                    .fg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .pagef {
+                        position: relative;
+                        width: 390px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        transform: translateZ(0);
+                    }
+                    .wash {
+                        width: 390px;
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 20px;
+                    }
+                    .crop {
+                        width: 390px;
+                        padding: 16px 20px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .fld {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .fields {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .foot {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        padding: 12px 0;
+                    }
+                    .err {
+                        margin: 0;
+                        font-size: 14px;
+                        line-height: 1.4;
+                        color: var(--danger-text);
+                    }
+                    .status {
+                        margin: 0;
+                        font-size: 14px;
+                        line-height: 1.4;
+                        color: var(--ink-muted);
+                    }
+                </style></helmet
+            >
+            <div class="pg">
+                <div class="fg">
+                    <p class="cap">
+                        Loading: three placeholders about as tall as a card. The caption is a polite live region.
+                    </p>
+                    <div class="pagef">
+                        <main class="wash" style="min-height: 560px; padding: 8px 16px 24px; gap: 12px">
+                            <x-import
+                                component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                heading-id="ds-h1"
+                                title="Data sources"
+                                back="{{back}}"
+                            ></x-import>
+                            <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink)">
+                                The nutrition figures in this app come from these public food databases.
+                            </p>
+                            <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink-muted)">
+                                When no database lists a food exactly, we use the figures for a similar or more general
+                                food.
+                            </p>
+                            <div style="display: flex; flex-direction: column; gap: 12px">
+                                <p
+                                    role="status"
+                                    style="margin: 0; font-size: 12px; line-height: 1.4; color: var(--ink-muted)"
+                                >
+                                    Loading data sources…
+                                </p>
+                                <div aria-hidden="true" style="display: flex; flex-direction: column; gap: 12px">
+                                    <div
+                                        style="
+                                            height: 160px;
+                                            border-radius: var(--radius-lg);
+                                            background: var(--surface-muted);
+                                        "
+                                    ></div>
+                                    <div
+                                        style="
+                                            height: 160px;
+                                            border-radius: var(--radius-lg);
+                                            background: var(--surface-muted);
+                                        "
+                                    ></div>
+                                    <div
+                                        style="
+                                            height: 160px;
+                                            border-radius: var(--radius-lg);
+                                            background: var(--surface-muted);
+                                        "
+                                    ></div>
+                                </div>
+                            </div>
+                        </main>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Load failed: the alert line sits above Try again, which is the only way out.</p>
+                    <div class="pagef">
+                        <main class="wash" style="min-height: 560px; padding: 8px 16px 24px; gap: 12px">
+                            <x-import
+                                component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                heading-id="ds-h2"
+                                title="Data sources"
+                                back="{{back}}"
+                            ></x-import>
+                            <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink)">
+                                The nutrition figures in this app come from these public food databases.
+                            </p>
+                            <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink-muted)">
+                                When no database lists a food exactly, we use the figures for a similar or more general
+                                food.
+                            </p>
+                            <p role="alert" style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink)">
+                                We couldn’t load the data sources.
+                            </p>
+                            <div style="display: flex; flex-direction: column; align-items: flex-start">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="refreshCw"
+                                    on-press="{{noop}}"
+                                    >Try again</x-import
+                                >
+                            </div>
+                        </main>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Empty: only when no stored value cites a source. A deployed stage cannot reach it.
+                    </p>
+                    <div class="pagef">
+                        <main class="wash" style="min-height: 560px; padding: 8px 16px 24px; gap: 12px">
+                            <x-import
+                                component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                heading-id="ds-h3"
+                                title="Data sources"
+                                back="{{back}}"
+                            ></x-import>
+                            <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink)">
+                                The nutrition figures in this app come from these public food databases.
+                            </p>
+                            <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink-muted)">
+                                When no database lists a food exactly, we use the figures for a similar or more general
+                                food.
+                            </p>
+                            <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink-muted)">
+                                No data sources to show yet.
+                            </p>
+                        </main>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Offline: this replaces the loading state. There is no retry, because the read resumes by itself.
+                    </p>
+                    <div class="pagef">
+                        <main class="wash" style="min-height: 560px; padding: 8px 16px 24px; gap: 12px">
+                            <x-import
+                                component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                heading-id="ds-h4"
+                                title="Data sources"
+                                back="{{back}}"
+                            ></x-import>
+                            <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink)">
+                                The nutrition figures in this app come from these public food databases.
+                            </p>
+                            <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink-muted)">
+                                When no database lists a food exactly, we use the figures for a similar or more general
+                                food.
+                            </p>
+                            <x-import
+                                component-from-global-scope="Commise.Native.OfflineReadSlot"
+                                message="Waiting for a connection. This loads on its own."
+                            ></x-import>
+                        </main>
+                    </div>
+                </div>
+            </div>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":3000}}'>
+            class Component extends DCLogic { renderVals(){ return { noop: function(){}, back: { label: 'Back to Profile', parent: 'Profile', onPress: function(){} } }; } }
+        </script>
+    </body>
+</html>

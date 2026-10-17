@@ -80,12 +80,12 @@ describe('canvasLayout', () => {
 
         expect(real.boards['Home.dc.html']).toMatchObject({ x: 0, y: 0, w: 1280, h: 962, expand: 'fill' });
         expect(real.boards['HomeMobile.dc.html']).toMatchObject({ x: 1360, y: 0, w: 390, h: 1388 });
-        expect(real.boards['Discover.dc.html']?.y).toBe(1788);
+        expect(real.boards['Discover.dc.html']?.y).toBe(3639);
         expect(real.boards['RecipeVersionsEmptyMobile.dc.html']?.x).toBe(3190);
-        expect(real.boards['LegalSources.dc.html']?.y).toBe(41373);
+        expect(real.boards['LegalSources.dc.html']?.y).toBe(87272);
         expect(real.notes['row0']?.y).toBe(-260);
-        expect(real.notes['row20']).toMatchObject({ y: 41113, text: 'Data sources' });
-        expect(Object.keys(real.notes)).toHaveLength(21);
+        expect(real.notes['row34']).toMatchObject({ y: 87012, text: 'Data sources' });
+        expect(Object.keys(real.notes)).toHaveLength(36);
     });
 
     it('lays out nothing for no boards', () => {

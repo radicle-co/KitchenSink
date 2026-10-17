@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Profile, sign out and settings, proposal (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .sb {
+                        display: none;
+                    }
+                    @media (min-width: 840px) {
+                        .sb {
+                            display: flex;
+                        }
+                    }
+                    .cap {
+                        margin: 0;
+                        padding: 0 24px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .pg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 32px;
+                        padding: 16px 0 24px;
+                    }
+                    .fg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .pagef {
+                        position: relative;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                        overflow: hidden;
+                    }
+                    .crop {
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                        padding: 24px 32px;
+                        box-sizing: border-box;
+                    }
+                    .crop > .col {
+                        margin: 0 auto;
+                        display: flex;
+                        width: 100%;
+                        max-width: 640px;
+                        flex-direction: column;
+                        gap: 24px;
+                    }
+                    .stage {
+                        position: relative;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        height: 600px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                        transform: translateZ(0);
+                    }
+                    .stage .bg {
+                        position: absolute;
+                        inset: 0;
+                        overflow: hidden;
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                    .sheet {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        width: 100%;
+                        max-width: 512px;
+                        background: var(--paper-overlay);
+                        border-radius: 16px;
+                        box-shadow: var(--shadow-lg);
+                    }
+                    .trow {
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 8px;
+                        padding: 8px 8px 0 24px;
+                    }
+                    .ttl {
+                        flex: 1;
+                        min-width: 0;
+                        margin: 0;
+                        padding-top: 12px;
+                        font: 600 17px/1.2 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .cls {
+                        display: flex;
+                        flex-shrink: 0;
+                        align-items: center;
+                        justify-content: center;
+                        width: 48px;
+                        height: 48px;
+                        border-radius: 9999px;
+                        color: var(--ink-muted);
+                    }
+                    .sbody {
+                        padding: 16px 24px;
+                    }
+                    .foot {
+                        border-top: 1px solid var(--line-divider);
+                        padding: 16px 24px;
+                    }
+                </style></helmet
+            >
+            <div class="pg">
+                <div class="fg">
+                    <p class="cap">
+                        Signing out: only the label changes, to “Signing out…”. The row stays in place and ignores a
+                        second press.
+                    </p>
+                    <div class="crop">
+                        <div class="col">
+                            <x-import component-from-global-scope="Commise.ProfileGroup" label="Sign out"
+                                ><x-import
+                                    component-from-global-scope="Commise.ProfileRow"
+                                    label="Signing out…"
+                                    tone="ink"
+                                    chevron="{{no}}"
+                                    busy="{{yes}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                            ></x-import>
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Sign out failed: the sentence sits under the row inside the same card. The row is ready to try
+                        again.
+                    </p>
+                    <div class="crop">
+                        <div class="col">
+                            <x-import component-from-global-scope="Commise.ProfileGroup" label="Sign out"
+                                ><x-import
+                                    component-from-global-scope="Commise.ProfileRow"
+                                    label="Sign out"
+                                    tone="ink"
+                                    chevron="{{no}}"
+                                    on-press="{{noop}}"
+                                ></x-import>
+                                <p
+                                    role="alert"
+                                    class="text-meta text-danger-text"
+                                    style="margin: 0; padding: 0 16px 12px; border-top: 1px solid var(--line-divider)"
+                                >
+                                    We couldn’t sign you out. Try again.
+                                </p></x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Web only: a keyboard shortcuts change that did not save. The switch goes back to its old
+                        position and the line sits under the Preferences card.
+                    </p>
+                    <div class="crop">
+                        <div class="col">
+                            <x-import component-from-global-scope="Commise.ProfileGroup" heading="Preferences"
+                                ><x-import
+                                    component-from-global-scope="Commise.ProfileRow"
+                                    label="Food data sources"
+                                    tone="ink"
+                                    chevron="{{yes}}"
+                                    href="#"
+                                    on-press="{{noop}}"
+                                ></x-import>
+                                <div aria-hidden="true" style="height: 1px; background: var(--line-divider)"></div>
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked="true"
+                                    style="
+                                        all: unset;
+                                        box-sizing: border-box;
+                                        display: flex;
+                                        min-height: 56px;
+                                        width: 100%;
+                                        align-items: center;
+                                        justify-content: space-between;
+                                        gap: 12px;
+                                        padding: 8px 16px;
+                                        text-align: start;
+                                        font-size: 16px;
+                                        line-height: 1.5;
+                                        color: var(--ink);
+                                        cursor: pointer;
+                                    "
+                                >
+                                    <span>Keyboard shortcuts</span>
+                                    <span
+                                        aria-hidden="true"
+                                        style="
+                                            display: flex;
+                                            width: 48px;
+                                            height: 28px;
+                                            flex-shrink: 0;
+                                            box-sizing: border-box;
+                                            align-items: center;
+                                            justify-content: flex-end;
+                                            border-radius: 9999px;
+                                            border: 1px solid var(--action);
+                                            background: var(--action);
+                                            padding: 2px;
+                                        "
+                                        ><span
+                                            style="
+                                                width: 20px;
+                                                height: 20px;
+                                                border-radius: 9999px;
+                                                background: var(--paper);
+                                            "
+                                        ></span
+                                    ></span></button
+                            ></x-import>
+                            <p role="alert" class="text-meta text-danger-text" style="margin: 0">
+                                We couldn’t save that setting. Try again.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":660}}'>
+            class Component extends DCLogic { renderVals(){ const noop=function(){}; return { yes:true, no:false, noop:noop, back:{ label:'Back to Home', parent:'Home', onPress:noop, href:'#' } }; } }
+        </script>
+    </body>
+</html>

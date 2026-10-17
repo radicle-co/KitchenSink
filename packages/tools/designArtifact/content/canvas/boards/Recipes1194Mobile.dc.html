@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>My recipes, 1194 px (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                </style></helmet
+            >
+            <div
+                style="
+                    width: 1194px;
+                    height: 834px;
+                    position: relative;
+                    display: flex;
+                    flex-direction: column;
+                    background: var(--canvas);
+                    overflow: hidden;
+                "
+            >
+                <x-import component-from-global-scope="Commise.Native.GradientSurface" gradient="hero" style="{{fill}}"
+                    ><div
+                        style="
+                            height: 750px;
+                            position: relative;
+                            display: flex;
+                            flex-direction: column;
+                            overflow: hidden;
+                        "
+                    >
+                        <div
+                            style="
+                                flex: 1;
+                                display: flex;
+                                flex-direction: column;
+                                gap: 16px;
+                                padding: 8px 16px 0;
+                                min-height: 0;
+                                overflow: hidden;
+                            "
+                        >
+                            <div style="display: flex; flex-direction: column; gap: 16px">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                    heading-id="recipes-title"
+                                    title="Recipes"
+                                    action="{{action}}"
+                                    segments="{{segments}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.SearchField"
+                                    id="recipes-search"
+                                    label="Search your recipes"
+                                    label-visibility="hidden"
+                                    clear-label="Clear search"
+                                    placeholder="Search your recipes"
+                                    value=""
+                                    on-change-text="{{noop}}"
+                                ></x-import>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Native.ChipRow"
+                                mode="filter"
+                                label="Quick filters"
+                                overflow="wrap"
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Chip"
+                                    kind="filter"
+                                    label="All"
+                                    selected="{{yes}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Chip"
+                                    kind="filter"
+                                    label="Under 30 min"
+                                    count="{{k1}}"
+                                    selected="{{no}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Chip"
+                                    kind="filter"
+                                    label="American"
+                                    count="{{k2}}"
+                                    selected="{{no}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Chip"
+                                    kind="filter"
+                                    label="French"
+                                    count="{{k3}}"
+                                    selected="{{no}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Chip"
+                                    kind="filter"
+                                    label="Italian"
+                                    count="{{k4}}"
+                                    selected="{{no}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Chip"
+                                    kind="filter"
+                                    label="Japanese"
+                                    count="{{k5}}"
+                                    selected="{{no}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Chip"
+                                    kind="filter"
+                                    label="Mediterranean"
+                                    count="{{k6}}"
+                                    selected="{{no}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Chip"
+                                    kind="filter"
+                                    label="Mexican"
+                                    count="{{k7}}"
+                                    selected="{{no}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Chip"
+                                    kind="filter"
+                                    label="Thai"
+                                    count="{{k8}}"
+                                    selected="{{no}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Chip"
+                                    kind="filter"
+                                    label="Vegan"
+                                    count="{{k9}}"
+                                    selected="{{no}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Chip"
+                                    kind="filter"
+                                    label="Vegetarian"
+                                    count="{{k10}}"
+                                    selected="{{no}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                            ></x-import>
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    flex-wrap: wrap;
+                                    align-items: center;
+                                    justify-content: space-between;
+                                    column-gap: 12px;
+                                    row-gap: 8px;
+                                "
+                            >
+                                <div
+                                    style="
+                                        font: 600 14px/1.2 var(--font-body);
+                                        color: var(--ink);
+                                        font-variant-numeric: tabular-nums lining-nums;
+                                    "
+                                >
+                                    9 recipes
+                                </div>
+                                <div style="display: flex; flex-direction: row; align-items: center; gap: 8px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.Button"
+                                        variant="ghost"
+                                        size="sm"
+                                        icon="chevronDown"
+                                        icon-placement="end"
+                                        accessibility-label="Sort: Recently edited"
+                                        on-press="{{noop}}"
+                                        >Recently edited</x-import
+                                    >
+                                    <div style="width: 112px">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.SegmentedControl"
+                                            form="view"
+                                            label="View"
+                                            label-visibility="hidden"
+                                            value="grid"
+                                            segments="{{views}}"
+                                            on-change="{{noop}}"
+                                        ></x-import>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                style="
+                                    display: grid;
+                                    grid-template-columns: repeat(4, minmax(0, 1fr));
+                                    row-gap: 16px;
+                                    padding-bottom: 20px;
+                                "
+                            >
+                                <div style="min-width: 0; padding: 0 8px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.RecipeCard"
+                                        variant="grid"
+                                        heading-level="{{n2}}"
+                                        recipe="{{c0.recipe}}"
+                                        nutrition="{{c0.cal}}"
+                                        on-select="{{noop}}"
+                                    ></x-import>
+                                </div>
+                                <div style="min-width: 0; padding: 0 8px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.RecipeCard"
+                                        variant="grid"
+                                        heading-level="{{n2}}"
+                                        recipe="{{c1.recipe}}"
+                                        nutrition="{{c1.cal}}"
+                                        on-select="{{noop}}"
+                                    ></x-import>
+                                </div>
+                                <div style="min-width: 0; padding: 0 8px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.RecipeCard"
+                                        variant="grid"
+                                        heading-level="{{n2}}"
+                                        recipe="{{c2.recipe}}"
+                                        nutrition="{{c2.cal}}"
+                                        on-select="{{noop}}"
+                                    ></x-import>
+                                </div>
+                                <div style="min-width: 0; padding: 0 8px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.RecipeCard"
+                                        variant="grid"
+                                        heading-level="{{n2}}"
+                                        recipe="{{c3.recipe}}"
+                                        nutrition="{{c3.cal}}"
+                                        on-select="{{noop}}"
+                                    ></x-import>
+                                </div>
+                                <div style="min-width: 0; padding: 0 8px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.RecipeCard"
+                                        variant="grid"
+                                        heading-level="{{n2}}"
+                                        recipe="{{c4.recipe}}"
+                                        nutrition="{{c4.cal}}"
+                                        on-select="{{noop}}"
+                                    ></x-import>
+                                </div>
+                                <div style="min-width: 0; padding: 0 8px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.RecipeCard"
+                                        variant="grid"
+                                        heading-level="{{n2}}"
+                                        recipe="{{c5.recipe}}"
+                                        nutrition="{{c5.cal}}"
+                                        on-select="{{noop}}"
+                                    ></x-import>
+                                </div>
+                                <div style="min-width: 0; padding: 0 8px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.RecipeCard"
+                                        variant="grid"
+                                        heading-level="{{n2}}"
+                                        recipe="{{c6.recipe}}"
+                                        nutrition="{{c6.cal}}"
+                                        on-select="{{noop}}"
+                                    ></x-import>
+                                </div>
+                                <div style="min-width: 0; padding: 0 8px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.RecipeCard"
+                                        variant="grid"
+                                        heading-level="{{n2}}"
+                                        recipe="{{c7.recipe}}"
+                                        nutrition="{{c7.cal}}"
+                                        on-select="{{noop}}"
+                                    ></x-import>
+                                </div>
+                                <div style="min-width: 0; padding: 0 8px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.RecipeCard"
+                                        variant="grid"
+                                        heading-level="{{n2}}"
+                                        recipe="{{c8.recipe}}"
+                                        nutrition="{{c8.cal}}"
+                                        on-select="{{noop}}"
+                                    ></x-import>
+                                </div>
+                            </div>
+                        </div>
+                        <x-import
+                            component-from-global-scope="Commise.Native.CreateFab"
+                            label="New recipe"
+                            icon="plus"
+                            on-press="{{noop}}"
+                        ></x-import>
+                    </div>
+                    <x-import
+                        component-from-global-scope="Commise.Native.HomeTabBar"
+                        chrome="{{chrome}}"
+                        live-capabilities="{{none}}"
+                        active-id="recipes"
+                        on-press="{{noop}}"
+                        bottom-inset="{{n20}}"
+                        compact="{{no}}"
+                        left-inset="{{n0}}"
+                        right-inset="{{n0}}"
+                    ></x-import>
+                </x-import></div
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1194,"height":834}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement, N=window.Commise.Native; const R=[["Weeknight Chicken Cacciatore", "Italian", 55, 4, 420, "medium", 4.6, 23, "public", "published", false, 48, 500], ["Brown Butter Chocolate Chip Cookies", "American", 40, 24, 210, "easy", 4.9, 112, "public", "published", false, 168, 900], ["Miso-Glazed Salmon with Sesame Greens", "Japanese", 25, 2, 480, "easy", 4.4, 9, "private", "published", false, 3, 400], ["Slow-Roasted Pork Shoulder", "American", 390, 8, null, "hard", null, 0, "private", "draft", false, 120, 120], ["Roasted Tomato Basil Soup", "Mediterranean", 50, 6, 180, "easy", 4.2, 15, "private", "published", false, 96, 600], ["Pad Thai with Shrimp", "Thai", 35, 3, 560, "medium", 4.7, 41, "public", "published", false, 336, 700], ["Overnight Sourdough Boule", "French", 870, 10, 150, "hard", 4.8, 63, "private", "published", true, 24, 800], ["Lemon Ricotta Pancakes", "American", 25, 4, 340, "easy", 4.5, 22, "public", "published", false, 504, 900], ["Smoky Black Bean Chili", "Mexican", 75, 6, 310, "easy", 4.3, 18, "private", "published", false, 144, 500]]; const K=[null, 2, 3, 1, 1, 1, 1, 1, 1, 1, 1];
+            const ago=(hrs)=>new Date(Date.now()-hrs*36e5).toISOString();
+            const out={no:false,yes:true,n0:0,n2:2,n20:20,none:[],noop:()=>{},fill:{flex:1},
+            chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},
+            action:{kind:'avatar',avatar:h(N.Avatar,{status:'ready',initials:'SR',label:'Profile, Sam Rivera',onPress:()=>{}})},
+            segments:h(N.SegmentedControl,{form:'route',width:'adaptive',label:'Recipes',current:'mine',segments:[{id:'mine',label:'My recipes',href:'#recipes'},{id:'collections',label:'Collections',href:'#collections'}],onSelect:()=>{}}),
+            views:[{id:'list',label:'List view',icon:'list'},{id:'grid',label:'Grid view',icon:'layoutGrid'}]};
+            K.forEach((c,j)=>{out['k'+j]=c});
+            R.forEach(([title,cuisine,mins,servings,cal,level,rating,count,visibility,status,pro,u,c],i)=>{const r={id:'rcp_'+i,title,totalTimeMinutes:mins,servings,difficulty:level,ratingCount:count,usesPremiumCapability:pro,createdAt:ago(c),updatedAt:ago(u),cuisine,tags:[],currentVersion:1,visibility,status}; if(rating)r.averageRating=rating; out['c'+i]={recipe:r,cal:cal?h('span',{style:{fontSize:13,color:'var(--ink-muted)'}},cal+' cal'):null};});
+            return out; } }
+        </script>
+    </body>
+</html>

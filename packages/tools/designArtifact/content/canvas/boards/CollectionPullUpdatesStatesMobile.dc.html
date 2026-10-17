@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Collection detail, pull updates: states (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                </style></helmet
+            >
+            <div style="display: flex; flex-direction: column; gap: 12px; padding: 12px 0 24px">
+                <p style="margin: 0; padding: 0 16px; font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                    Loading: before the preview arrives. Cancel only. Full-screen sheet, cropped to 520 px tall: its
+                    actions sit at the foot of the screen.
+                </p>
+                <div
+                    role="dialog"
+                    aria-label="Pull Updates from Source Collection"
+                    style="
+                        position: relative;
+                        width: 390px;
+                        height: 520px;
+                        box-sizing: border-box;
+                        padding: 67px 20px 54px;
+                        background: var(--paper);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                    "
+                >
+                    <div style="display: flex; flex-direction: column; gap: 4px">
+                        <h2 style="margin: 0; font: 600 20px/1.3 var(--font-body); color: var(--ink)">
+                            Pull Updates from Source Collection
+                        </h2>
+                        <p style="margin: 0; font: 400 14px/1.4 var(--font-body); color: var(--ink-muted)">
+                            @marta.cooks (Marta Ilves) / Weeknight dinners
+                        </p>
+                    </div>
+                    <p
+                        role="status"
+                        aria-label="Loading pull preview"
+                        style="margin: 0; font: 400 15px/22px var(--font-body); color: var(--ink-muted)"
+                    >
+                        Loading pull preview
+                    </p>
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            justify-content: flex-end;
+                            gap: 12px;
+                            margin-top: auto;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.Button"
+                            icon="x"
+                            variant="secondary"
+                            on-press="{{noop}}"
+                            >Cancel</x-import
+                        >
+                    </div>
+                </div>
+                <p style="margin: 0; padding: 0 16px; font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                    Nothing new to pull: the counts, the note and the caught-up line. Pull is disabled. Full-screen
+                    sheet, cropped to 520 px tall: its actions sit at the foot of the screen.
+                </p>
+                <div
+                    role="dialog"
+                    aria-label="Pull Updates from Source Collection"
+                    style="
+                        position: relative;
+                        width: 390px;
+                        height: 520px;
+                        box-sizing: border-box;
+                        padding: 67px 20px 54px;
+                        background: var(--paper);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                    "
+                >
+                    <div style="display: flex; flex-direction: column; gap: 4px">
+                        <h2 style="margin: 0; font: 600 20px/1.3 var(--font-body); color: var(--ink)">
+                            Pull Updates from Source Collection
+                        </h2>
+                        <p style="margin: 0; font: 400 14px/1.4 var(--font-body); color: var(--ink-muted)">
+                            @marta.cooks (Marta Ilves) / Weeknight dinners
+                        </p>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 8px">
+                        <p style="margin: 0; font: 400 15px/22px var(--font-body); color: var(--ink-muted)">
+                            0 new public recipes will be added
+                        </p>
+                        <p style="margin: 0; font: 400 15px/22px var(--font-body); color: var(--ink-muted)">
+                            0 recipes removed from source
+                        </p>
+                        <p style="margin: 0; font: 400 15px/22px var(--font-body); color: var(--ink-muted)">
+                            9 already in this collection (no changes)
+                        </p>
+                        <p style="margin: 0; font: 400 italic 13px/1.4 var(--font-body); color: var(--ink-muted)">
+                            Recipes you added directly will not be overwritten.
+                        </p>
+                        <p style="margin: 0; font: 400 15px/22px var(--font-body); color: var(--ink-muted)">
+                            You’re all caught up — there’s nothing new to pull.
+                        </p>
+                    </div>
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            justify-content: flex-end;
+                            gap: 12px;
+                            margin-top: auto;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.Button"
+                            icon="x"
+                            variant="secondary"
+                            on-press="{{noop}}"
+                            >Cancel</x-import
+                        ><x-import
+                            component-from-global-scope="Commise.Native.Button"
+                            icon="check"
+                            disabled="{{yes}}"
+                            on-press="{{noop}}"
+                            >Pull 0 Recipes</x-import
+                        >
+                    </div>
+                </div>
+                <p style="margin: 0; padding: 0 16px; font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                    The source changed since the preview (drift): the counts are hidden, Cancel only. Full-screen sheet,
+                    cropped to 520 px tall: its actions sit at the foot of the screen.
+                </p>
+                <div
+                    role="dialog"
+                    aria-label="Pull Updates from Source Collection"
+                    style="
+                        position: relative;
+                        width: 390px;
+                        height: 520px;
+                        box-sizing: border-box;
+                        padding: 67px 20px 54px;
+                        background: var(--paper);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                    "
+                >
+                    <div style="display: flex; flex-direction: column; gap: 4px">
+                        <h2 style="margin: 0; font: 600 20px/1.3 var(--font-body); color: var(--ink)">
+                            Pull Updates from Source Collection
+                        </h2>
+                        <p style="margin: 0; font: 400 14px/1.4 var(--font-body); color: var(--ink-muted)">
+                            @marta.cooks (Marta Ilves) / Weeknight dinners
+                        </p>
+                    </div>
+                    <p role="alert" style="margin: 0; font: 400 15px/22px var(--font-body); color: var(--danger-text)">
+                        The source collection changed since you last checked. Cancel and choose Pull Updates again to
+                        see the latest changes.
+                    </p>
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            justify-content: flex-end;
+                            gap: 12px;
+                            margin-top: auto;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.Button"
+                            icon="x"
+                            variant="secondary"
+                            on-press="{{noop}}"
+                            >Cancel</x-import
+                        >
+                    </div>
+                </div>
+                <p style="margin: 0; padding: 0 16px; font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                    The preview could not be checked: Cancel only. Full-screen sheet, cropped to 520 px tall: its
+                    actions sit at the foot of the screen.
+                </p>
+                <div
+                    role="dialog"
+                    aria-label="Pull Updates from Source Collection"
+                    style="
+                        position: relative;
+                        width: 390px;
+                        height: 520px;
+                        box-sizing: border-box;
+                        padding: 67px 20px 54px;
+                        background: var(--paper);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                    "
+                >
+                    <div style="display: flex; flex-direction: column; gap: 4px">
+                        <h2 style="margin: 0; font: 600 20px/1.3 var(--font-body); color: var(--ink)">
+                            Pull Updates from Source Collection
+                        </h2>
+                        <p style="margin: 0; font: 400 14px/1.4 var(--font-body); color: var(--ink-muted)">
+                            @marta.cooks (Marta Ilves) / Weeknight dinners
+                        </p>
+                    </div>
+                    <p role="alert" style="margin: 0; font: 400 15px/22px var(--font-body); color: var(--danger-text)">
+                        We couldn’t check for updates. Please try again.
+                    </p>
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            justify-content: flex-end;
+                            gap: 12px;
+                            margin-top: auto;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.Button"
+                            icon="x"
+                            variant="secondary"
+                            on-press="{{noop}}"
+                            >Cancel</x-import
+                        >
+                    </div>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2403}}'>
+            class Component extends DCLogic { renderVals(){ const h=window.React.createElement, C=window.Commise.Native, noop=function(){}; const ago=d=>new Date(Date.now()-d*864e5).toISOString();
+             return {
+              noop:noop, yes:true
+             }; } }
+        </script>
+    </body>
+</html>

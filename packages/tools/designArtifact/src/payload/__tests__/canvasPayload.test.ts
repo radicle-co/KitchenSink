@@ -70,8 +70,8 @@ describe('canvasPayload', () => {
         it('lists the boards in registry order at their laid-out positions, with a note per row', () => {
             expect(canvas.title).toBe('Commise Screens');
             expect(canvas.order).toEqual(BOARDS.map((b) => b.file));
-            expect(canvas.boards['Discover.dc.html']).toMatchObject({ x: 0, y: 1788 });
-            expect(Object.keys(canvas.notes)).toHaveLength(21);
+            expect(canvas.boards['Discover.dc.html']).toMatchObject({ x: 0, y: 3639 });
+            expect(Object.keys(canvas.notes)).toHaveLength(36);
             expect(canvas.createdOnFiles.at).toBe('2026-10-16T12:00:00Z');
         });
 

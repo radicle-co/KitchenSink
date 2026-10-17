@@ -739,6 +739,29 @@ These are not canvas gaps. They are code or copy questions. A board makes them v
 5. **A stale comment.** `c/offline/messages.ts:1-13` says the sync banner "is blocked". `q/SyncNoticeHost.tsx`
    renders it today.
 
+## Found while building the boards
+
+The board builders drew each state from the code. These are app defects or questions they found. Each one needs an owner decision or an app change. A mockup does not fix them.
+
+1. Native version history has no scroll container and no bottom padding for the tab bar, so a long history is cut off.
+2. A held change that fails at Save changes shows "Couldn't save. Retrying." But nothing retries, and no Try again appears.
+3. The editor preview of a draft says "Not counted yet: no ingredient has a food." even when every ingredient has a food.
+4. The loading nutrition total is a bar in the same colour as its box, so it reads as an empty box. Its text is for screen readers only.
+5. On tablets, the native Home, My recipes, Discover, Collections and Collection detail screens pad a fixed 16 pt. Their column count and container class assume 24 or 32.
+6. Native grid cells pad 8 pt on each side with no negative margin, so cards sit 8 pt inside the header line. The cells do not stretch, so card bottoms are uneven.
+7. On tablets, the native sign-in form, Data sources, Versions, Profile and the editor have no maximum width. Web caps them.
+8. The web editor action bar uses a 16 px negative margin at every width, but the gutter is 24 or 32 px from 600 px. The native action bar pads 16 pt, so Publish does not line up with the form.
+9. At 1024 px with the sidebar open, the web main column is 704 px, so Recipe detail loses its two-column body. It keeps it at 768 px.
+10. Two mobile version-preview buttons need about 437 pt in a 350 pt row, and the code does not let them wrap.
+11. The mobile erase dialog's phrase field has no visible label.
+12. The native collections load error sets no text colour, so in dark mode it would show black on a dark background.
+13. On Collections, with a search that matches nothing, the count line still shows the total.
+14. The pull-updates count does not pluralise: "1 recipes".
+15. A scaled garlic amount reads "2 head".
+16. The recipe-deleted snackbar sits over the New recipe button.
+17. The web route error page has Try again only. Back to Home exists only on mobile.
+18. On web, the merge view's fieldset legend may sit on the card's top edge. This was drawn from the markup and is not yet checked in the app.
+
 ## Copy with no render site found
 
 A name search found no code that reads these keys. A spread can still reach a key, so check before you delete one. They

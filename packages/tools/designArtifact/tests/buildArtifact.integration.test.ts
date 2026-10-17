@@ -158,7 +158,7 @@ describe('buildArtifact over mocked ports', () => {
             designSystemDir: '/out/designSystem/project',
             canvasDir: '/out/canvas/project',
             cards: 2,
-            boards: 27,
+            boards: 43,
             warnings: [],
         });
     });

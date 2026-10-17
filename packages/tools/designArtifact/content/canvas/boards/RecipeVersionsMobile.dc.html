@@ -49,13 +49,16 @@
                         padding-bottom: 98px;
                     "
                 >
-                    <x-import
-                        component-from-global-scope="Commise.Native.LargeTitleHeader"
-                        heading-id="vh"
-                        title="Version history"
-                        subtitle="Lemon and thyme roast chicken"
-                        back="{{back}}"
-                    ></x-import>
+                    <!-- PROPOSAL (owner comment, 2026-10-17): the header takes the same 16 px inset as the rows below. -->
+                    <div style="padding: 0 16px">
+                        <x-import
+                            component-from-global-scope="Commise.Native.LargeTitleHeader"
+                            heading-id="vh"
+                            title="Version history"
+                            subtitle="Lemon and thyme roast chicken"
+                            back="{{back}}"
+                        ></x-import>
+                    </div>
                     <div style="display: flex; flex-direction: column">
                         <div
                             style="

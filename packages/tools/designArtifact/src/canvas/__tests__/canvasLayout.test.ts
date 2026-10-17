@@ -63,9 +63,9 @@ describe('canvasLayout', () => {
         expect(real.boards['HomeMobile.dc.html']).toMatchObject({ x: 1360, y: 0, w: 390, h: 1388 });
         expect(real.boards['Discover.dc.html']?.y).toBe(1788);
         expect(real.boards['RecipeVersionsEmptyMobile.dc.html']?.x).toBe(3190);
-        expect(real.boards['LegalSources.dc.html']?.y).toBe(23511);
+        expect(real.boards['LegalSources.dc.html']?.y).toBe(22520);
         expect(real.notes['row0']?.y).toBe(-260);
-        expect(real.notes['row11']).toMatchObject({ y: 23251, text: 'Data sources' });
+        expect(real.notes['row11']).toMatchObject({ y: 22260, text: 'Data sources' });
         expect(Object.keys(real.notes)).toHaveLength(12);
     });
 

@@ -262,17 +262,24 @@
                             action="{{v23}}"
                             segments="{{v24}}"
                         ></x-import>
-                        <div style="margin: 0 -4px; padding: 8px 4px">
-                            <x-import
-                                component-from-global-scope="Commise.SearchField"
-                                id="recipes-search"
-                                label="Search your recipes"
-                                label-visibility="hidden"
-                                clear-label="Clear search"
-                                placeholder="Search your recipes"
-                                value=""
-                                on-change-text="{{v25}}"
-                            ></x-import>
+                        <!-- PROPOSAL (owner comments, 2026-10-17): the create button sits on the search row as a primary button,
+                             with 32 px between them so it does not read as a search button. -->
+                        <div style="display: flex; align-items: center; gap: 32px">
+                            <div style="min-width: 0; flex: 1">
+                                <div style="margin: 0 -4px; padding: 8px 4px">
+                                    <x-import
+                                        component-from-global-scope="Commise.SearchField"
+                                        id="recipes-search"
+                                        label="Search your recipes"
+                                        label-visibility="hidden"
+                                        clear-label="Clear search"
+                                        placeholder="Search your recipes"
+                                        value=""
+                                        on-change-text="{{v25}}"
+                                    ></x-import>
+                                </div>
+                            </div>
+                            <x-import component-from-global-scope="Commise.Button" icon="plus">New recipe</x-import>
                         </div>
                         <x-import
                             component-from-global-scope="Commise.ChipRow"

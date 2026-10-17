@@ -8,9 +8,9 @@ import { CONTENT_DIR } from '../../config.js';
 import { BOARDS, BOARDS_DIR, BOARD_WIDTH } from '../boards.js';
 
 describe('boards registry', () => {
-    it('lists the 27 boards, each file once', () => {
-        expect(BOARDS).toHaveLength(27);
-        expect(new Set(BOARDS.map((b) => b.file)).size).toBe(27);
+    it('lists the 43 boards, each file once', () => {
+        expect(BOARDS).toHaveLength(43);
+        expect(new Set(BOARDS.map((b) => b.file)).size).toBe(43);
     });
 
     it('is exactly the files in content/canvas/boards, so a new board cannot be forgotten', () => {

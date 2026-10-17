@@ -261,18 +261,24 @@
                             title="Recipes"
                             action="{{v6}}"
                             segments="{{v7}}"
-                            after-title="{{v8}}"
                         ></x-import>
-                        <x-import
-                            component-from-global-scope="Commise.SearchField"
-                            id="collections-search"
-                            label="Search your collections"
-                            label-visibility="hidden"
-                            clear-label="Clear search"
-                            placeholder="Search your collections"
-                            value=""
-                            on-change-text="{{v9}}"
-                        ></x-import>
+                        <!-- PROPOSAL (owner comments, 2026-10-17): the create button sits on the search row as a primary button,
+                             with 32 px between them so it does not read as a search button. -->
+                        <div style="display: flex; align-items: center; gap: 32px">
+                            <div style="min-width: 0; flex: 1">
+                                <x-import
+                                    component-from-global-scope="Commise.SearchField"
+                                    id="collections-search"
+                                    label="Search your collections"
+                                    label-visibility="hidden"
+                                    clear-label="Clear search"
+                                    placeholder="Search your collections"
+                                    value=""
+                                    on-change-text="{{v9}}"
+                                ></x-import>
+                            </div>
+                            <x-import component-from-global-scope="Commise.Button" icon="plus">New collection</x-import>
+                        </div>
                         <p
                             style="
                                 margin: 0;
@@ -813,7 +819,6 @@
               v5: 16,
               v6: {kind:'avatar',avatar:h(C.Avatar,{status:'ready',initials:'SR',label:"Profile, Sam Rivera",onPress:noop})},
               v7: h(C.SegmentedControl,{form:'route',width:'adaptive',label:'Recipes',current:"collections",segments:[{id:'mine',label:'My recipes',href:"#recipes"},{id:'collections',label:'Collections',href:"#collections"}],onSelect:noop}),
-              v8: h(React.Fragment,null,h('div',{className:'wide-only'},h(C.Button,{variant:'secondary',icon:'plus',onPress:noop},'New collection'))),
               v9: noop,
               v10: noop,
               v11: 24,

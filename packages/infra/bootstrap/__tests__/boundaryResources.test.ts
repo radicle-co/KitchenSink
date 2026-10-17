@@ -329,25 +329,38 @@ describe.each(allQualifiers)('buildBoundary(%s) — admits every role statement 
         expect(expandPhase.length === 0 || qualifier === QUALIFIERS.account).toBe(true);
     });
 
-    it('admits the AWS-managed policies the roles attach, on the resources they are used on', () => {
-        // Their documents grant these on "*"; what matters is the boundary leaves the resources the stacks make.
-        const used: Readonly<Record<string, string>> = {
-            logs: `arn:aws:logs:${REGION_NAME}:${ACCOUNT_ID}:log-group:/aws/lambda/kitchensink-x-${tierToken}-Fn:*`,
-            ecr: `arn:aws:ecr:${REGION_NAME}:${ACCOUNT_ID}:repository/kitchensink-food`,
-            ec2: '*',
-        };
+    /**
+     * Every log group FORM a stack makes, by its real name: a Lambda's, the ECS services' `/kitchensink/<service>/<stage>`
+     * (the identity task could not open its stream there, Sandbox Identity Deploy 2026-10-17), and a generated one.
+     */
+    const LOG_GROUP_FORMS = [
+        `/aws/lambda/kitchensink-x-${tierToken}-Fn`,
+        `/kitchensink/identity-service/${tierToken}`,
+        `kitchensink-x-${tierToken}-LogGroup-abc`,
+    ];
 
-        for (const policy of manifest(qualifier).awsManagedPolicies) {
-            for (const action of AWS_MANAGED_POLICY_ACTIONS[policy] ?? []) {
-                const resource = used[action.split(':')[0] ?? ''] ?? '*';
+    it.each(LOG_GROUP_FORMS)(
+        'admits the AWS-managed policies the roles attach, on the resources they are used on (log group %s)',
+        (logGroup) => {
+            // Their documents grant these on "*"; what matters is the boundary leaves the resources the stacks make.
+            const used: Readonly<Record<string, string>> = {
+                logs: `arn:aws:logs:${REGION_NAME}:${ACCOUNT_ID}:log-group:${logGroup}:log-stream:task/abc`,
+                ecr: `arn:aws:ecr:${REGION_NAME}:${ACCOUNT_ID}:repository/kitchensink-food`,
+                ec2: '*',
+            };
 
-                expect(
-                    contexts.some((context) => allows(document, action, resource, context, true)),
-                    `${policy}: ${action}`,
-                ).toBe(true);
+            for (const policy of manifest(qualifier).awsManagedPolicies) {
+                for (const action of AWS_MANAGED_POLICY_ACTIONS[policy] ?? []) {
+                    const resource = used[action.split(':')[0] ?? ''] ?? '*';
+
+                    expect(
+                        contexts.some((context) => allows(document, action, resource, context, true)),
+                        `${policy}: ${action}`,
+                    ).toBe(true);
+                }
             }
-        }
-    });
+        },
+    );
 });
 
 describe('buildBoundary — database logins', () => {

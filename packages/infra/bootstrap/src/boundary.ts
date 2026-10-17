@@ -55,8 +55,8 @@ const SECRET_ANY = arn('secretsmanager', 'secret:*');
 const PARAMETER = arn('ssm', 'parameter/kitchensink/*');
 const FUNCTION = arn('lambda', 'function:kitchensink-*');
 /** Every log group a stack makes carries `kitchensink` (`/aws/lambda/kitchensink-...`, `/kitchensink/...`, `kitchensink-...-LogGroup-...`). */
-const LOG_GROUPS = ['log-group:/aws/lambda/kitchensink-*', 'log-group:kitchensink-*'].map((group) =>
-    arn('logs', group),
+const LOG_GROUPS = ['log-group:/aws/lambda/kitchensink-*', 'log-group:/kitchensink/*', 'log-group:kitchensink-*'].map(
+    (group) => arn('logs', group),
 );
 const ECR = arn('ecr', 'repository/kitchensink-*');
 /** Clusters, services and tasks: a cluster named kitchensink-..., or a service or task under one. */

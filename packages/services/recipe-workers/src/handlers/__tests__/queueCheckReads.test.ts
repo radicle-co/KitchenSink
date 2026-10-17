@@ -13,7 +13,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PARSE_LINE_DELIVERY } from '@kitchensink/recipe-core/parsing/parse-line-delivery';
 
-import { ERASURE_GIVE_UP_ATTEMPTS } from '../../common/erasureGiveUp.js';
+import { ERASURE_GIVE_UP_AGE_SECONDS, ERASURE_GIVE_UP_ATTEMPTS } from '../../common/erasureGiveUp.js';
 import { readOnlyCounts } from '../queueCheck.js';
 import { RECIPE_WORK_CLASSES } from '../queueCheckReads.js';
 
@@ -74,10 +74,28 @@ describe('the account-erasure class (the queue the backstop used to skip)', () =
 
     it('counts the owed jobs from account_erasure_jobs, judged by the sweeper give-up allowance and the worker lease', () => {
         expect(erasure?.sql).toContain('account_erasure_jobs');
-        expect(erasure?.params).toEqual([ERASURE_GIVE_UP_ATTEMPTS, 'ERASURE_CLAIM_LEASE_SECONDS']);
+        expect(erasure?.params).toEqual([
+            ERASURE_GIVE_UP_ATTEMPTS,
+            'ERASURE_CLAIM_LEASE_SECONDS',
+            ERASURE_GIVE_UP_AGE_SECONDS,
+        ]);
     });
 
-    it('binds the allowance as the shared constant and the lease from the env, in $1/$2 order', async () => {
+    /**
+     * ⛔ THE ALLOWANCE COUNT CARRIES THE SWEEPER'S AGE FLOOR. `attempts` is not per-job: a fresh row re-POSTed after a
+     * failure is claimed by the old cycle's leftover messages, so it can cross the allowance within minutes. The sweeper
+     * abandons only a job that is attempts-exhausted AND older than the floor (`erasureGiveUp.ts`); the backstop that
+     * reported such a fresh job as exhausted contradicted the policy it watches.
+     */
+    it('⛔ counts a job at the allowance only once it is also past the sweeper’s age floor', () => {
+        const sql = (erasure?.sql ?? '').replace(/\s+/gu, ' ');
+
+        expect(sql).toContain(
+            "FILTER ( WHERE attempts >= $1 AND created_at < now() - ($3 || ' seconds')::interval )::int AS at_allowance",
+        );
+    });
+
+    it('binds the allowance and the age floor as the shared constants and the lease from the env, in $1/$2/$3 order', async () => {
         const query = vi.fn().mockResolvedValue({ rows: [COUNT_ROW] });
 
         await readOnlyCounts({ query, release: vi.fn() }, ENV);
@@ -85,7 +103,7 @@ describe('the account-erasure class (the queue the backstop used to skip)', () =
         const index = RECIPE_WORK_CLASSES.findIndex((workClass) => workClass.queueName === 'account-erasure');
         const [, params] = query.mock.calls[index + 1] as [string, unknown[]];
 
-        expect(params).toEqual([ERASURE_GIVE_UP_ATTEMPTS, 300]);
+        expect(params).toEqual([ERASURE_GIVE_UP_ATTEMPTS, 300, ERASURE_GIVE_UP_AGE_SECONDS]);
     });
 
     // Reset messages RIDE the erasure queue (recipe-service enqueues `testPrincipalReset`; the sweeper re-drains

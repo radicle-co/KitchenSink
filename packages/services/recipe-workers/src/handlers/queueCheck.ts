@@ -150,8 +150,8 @@ export async function runRecipeQueueCheck(deps: RecipeCheckDeps): Promise<readon
  * The visible/in-flight/dead-lettered triple for one class.
  *
  * ⚠️ A class with NO transport answers three zeros, and `classifyOwed` reads that as "nothing is carrying
- * this" — which is the correct reading for `test-resets`, whose runner is in-process, and is stated at each
- * such class in `queueCheckReads.ts` rather than left for a reader to infer from a missing env name.
+ * this". No class is without a transport today; one that is must say so in `queueCheckReads.ts` rather than leave a
+ * reader to infer it from a missing env name.
  *
  * @sideEffect Calls SQS `GetQueueAttributes` — a READ. This role holds no other queue permission.
  */

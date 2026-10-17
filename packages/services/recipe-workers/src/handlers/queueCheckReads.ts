@@ -13,7 +13,7 @@
  * `never_received` is read as "nobody is coming", which is the escalation an operator drops everything for.
  */
 
-import { ERASURE_GIVE_UP_ATTEMPTS } from '../common/erasureGiveUp.js';
+import { ERASURE_GIVE_UP_AGE_SECONDS, ERASURE_GIVE_UP_ATTEMPTS } from '../common/erasureGiveUp.js';
 import { PARSE_LINE_DELIVERY } from '@kitchensink/recipe-core/parsing/parse-line-delivery';
 
 /** A class the backstop covers, and where its transport depth is read from. */
@@ -129,11 +129,15 @@ export const RECIPE_WORK_CLASSES: readonly RecipeWorkClass[] = [
     },
     {
         queueName: 'test-resets',
-        // ⚠️ NO TRANSPORT, stated rather than left as three zeros a reader would take for "the queue is
-        // empty". ADR-0040's self-purge is run in-process by recipe-service, so a `queued` job that nothing
-        // has picked up genuinely IS lost — there is no message in flight that could still arrive — and a
-        // `running` job older than the threshold is a request that died mid-purge, leaving a test
-        // principal's data half-deleted.
+        // ⚠️ THE TRANSPORT IS SHARED, SO `lost` IS NOT RELIABLE HERE (and not for account-erasure either). A reset
+        // message rides the ACCOUNT-ERASURE queue (`testReset.service.ts` sends `testPrincipalReset`; the sweeper
+        // re-drains `test_reset_jobs` onto it), and `classifyOwed` calls a class `lost` only when nothing at all is
+        // carrying it. Both classes read the depth of the same queue, so a lost reset hides behind erasure traffic
+        // and a lost erasure behind reset traffic: either reads `delayed` (still an escalation, a lower urgency).
+        // Splitting it needs a queue of its own for resets.
+        //
+        // A `running` job older than the threshold is a request that died mid-purge, leaving a test principal's data
+        // half-deleted.
         //
         // ⚠️ `TEST_RESET_STALE_SECONDS` is named a THRESHOLD, not a lease, because it is not one: the
         // runner lives in recipe-service and holds no lease this side can read, so unlike every other
@@ -177,7 +181,12 @@ export const RECIPE_WORK_CLASSES: readonly RecipeWorkClass[] = [
             SELECT
                 count(*)::int AS owed_past_deadline,
                 count(*) FILTER (WHERE status = 'queued')::int AS never_received,
-                count(*) FILTER (WHERE attempts >= $1)::int AS at_allowance,
+                -- Attempts AND the sweeper's age floor, because \`attempts\` is not per-job: a fresh row is claimed by
+                -- the old cycle's leftover messages, and the sweeper abandons a job only when both agree
+                -- (erasureGiveUp.ts).
+                count(*) FILTER (
+                    WHERE attempts >= $1 AND created_at < now() - ($3 || ' seconds')::interval
+                )::int AS at_allowance,
                 count(*) FILTER (
                     WHERE status = 'running' AND updated_at < now() - ($2 || ' seconds')::interval
                 )::int AS claimed_too_long,
@@ -185,7 +194,7 @@ export const RECIPE_WORK_CLASSES: readonly RecipeWorkClass[] = [
             FROM account_erasure_jobs
             WHERE status IN ('queued', 'running')
         `,
-        params: [ERASURE_GIVE_UP_ATTEMPTS, 'ERASURE_CLAIM_LEASE_SECONDS'],
+        params: [ERASURE_GIVE_UP_ATTEMPTS, 'ERASURE_CLAIM_LEASE_SECONDS', ERASURE_GIVE_UP_AGE_SECONDS],
         queueUrlEnv: 'ACCOUNT_ERASURE_QUEUE_URL',
         dlqUrlEnv: 'ACCOUNT_ERASURE_DLQ_URL',
     },

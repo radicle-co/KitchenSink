@@ -73,6 +73,13 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
+/**
+ * The polite live region announcing an upload in flight. It stays mounted empty so a screen reader hears the change, and
+ * a `status` role takes no name from its content, so it is found by what it says rather than by an accessible name.
+ */
+const uploadingStatus = (): HTMLElement | undefined =>
+    screen.queryAllByRole('status').find((region) => region.textContent === 'Uploading photo');
+
 describe('RecipePhotoUploaderContainer', () => {
     it('renders the recipe photos from the query', async () => {
         const client = createFakeRecipeServiceClient();
@@ -199,7 +206,7 @@ describe('RecipePhotoUploaderContainer', () => {
         // A failed direct upload never confirms.
         expect(confirm).not.toHaveBeenCalled();
         // The uploading busy status is cleared.
-        expect(screen.queryByRole('status', { name: 'Uploading photo' })).not.toBeInTheDocument();
+        expect(uploadingStatus()).toBeUndefined();
     });
 
     it('retries only the failed file, flipping it to uploading then folding it into the confirmed photos', async () => {
@@ -267,11 +274,11 @@ describe('RecipePhotoUploaderContainer', () => {
         await user.upload(await screen.findByLabelText('Add photo'), file);
 
         // Presign is still pending → the block shows its uploading busy status.
-        expect(await screen.findByRole('status', { name: 'Uploading photo' })).toBeInTheDocument();
+        await waitFor(() => expect(uploadingStatus()).toBeDefined());
 
         resolvePresign(makeUploadUrlResponse());
 
-        await waitFor(() => expect(screen.queryByRole('status', { name: 'Uploading photo' })).not.toBeInTheDocument());
+        await waitFor(() => expect(uploadingStatus()).toBeUndefined());
         expect(presign).toHaveBeenCalledTimes(1);
     });
 

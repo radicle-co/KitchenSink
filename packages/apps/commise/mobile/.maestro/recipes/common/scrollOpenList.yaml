@@ -17,6 +17,7 @@ appId: ${APP_ID}
 # list by design; every later swipe then scrolls the page to its end. The loader is matched INSIDE the list
 # (`childOf` its label): the polite live region outside it keeps saying the same words, 1 dp tall and therefore visible
 # to Maestro, until the remote sources finish.
+- runFlow: dismissKeyboardIntro.yaml
 - extendedWaitUntil:
       notVisible:
           text: 'Searching ingredients'

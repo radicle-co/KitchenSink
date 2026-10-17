@@ -11,6 +11,7 @@ appId: ${APP_ID}
 # shards), so a caller scrolls to its own run-keyed title rather than waiting for it on the first screen.
 - tapOn: 'Search recipes'
 - inputText: ${QUERY}
+- runFlow: dismissKeyboardIntro.yaml
 - runFlow:
       when:
           notVisible: ${QUERY}

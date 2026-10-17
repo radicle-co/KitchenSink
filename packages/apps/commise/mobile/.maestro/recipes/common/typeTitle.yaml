@@ -15,6 +15,7 @@ appId: ${APP_ID}
 # read-back allows a tail, as the flows' own title checks do, for the Android emulator's doubled last key (`create.yaml`).
 - tapOn: 'Title'
 - inputText: ${TITLE}
+- runFlow: dismissKeyboardIntro.yaml
 - runFlow:
       when:
           notVisible: ${TITLE}.*

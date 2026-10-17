@@ -101,10 +101,13 @@ appId: ${APP_ID}
                 above: '3 cloves Garlic.*'
 
 # ── THE CURRENT STEP ── one at a time.
+# ⚠️ Centred: scrolled only just into view, step 2's numeral sits under the tab bar on the iOS Simulator, and the tap
+# lands on the Recipes tab (run 38973223138: the page jumped to the top and nothing was marked).
 - scrollUntilVisible:
       element: 'Mark step 2 as current'
       direction: DOWN
       timeout: 20000
+      centerElement: true
 - tapOn: 'Mark step 1 as current'
 - assertVisible:
       text: 'Mark step 1 as current'

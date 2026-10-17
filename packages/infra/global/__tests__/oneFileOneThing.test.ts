@@ -199,6 +199,16 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             'and would let the two halves drift apart from the single upstream surface they mirror.',
         files: [{ file: 'packages/apps/commise/ui/src/testing/safeAreaContext.native.tsx', classes: 0, components: 2 }],
     },
+    {
+        kind: 'build-time adapter standing in for a whole third-party module',
+        why:
+            'The same ruling as the test double above, for a BUILD alias rather than a test mock: ' +
+            "`@kitchensink/design-artifact` points esbuild's alias for `react-native-safe-area-context` at this " +
+            'module, and an alias replaces the ENTIRE module, so the adapter must export every name the bundled ' +
+            'components import from it (`SafeAreaProvider` and `SafeAreaView` among them). Splitting it would need ' +
+            'a forwarding module to re-join the halves, which is the intra-package barrel §4 forbids.',
+        files: [{ file: 'packages/tools/designArtifact/src/shims/safeAreaContext.tsx', classes: 0, components: 2 }],
+    },
 ];
 
 /** `true` when the declaration carries an `export` modifier (which `export default` also sets). */

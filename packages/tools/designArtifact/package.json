@@ -1,0 +1,55 @@
+{
+    "name": "@kitchensink/design-artifact",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "description": "Builds the Commise Design System artifact and the screens canvas for claude.ai from the real component sources. Output is a publish payload in dist/ (git-ignored); publishing stays manual.",
+    "scripts": {
+        "artifact:build": "tsx bin/buildArtifact.ts",
+        "test": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "test:e2e": "vitest run --config vitest.e2e.config.ts",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "dependencies": {
+        "@commise/features-account": "*",
+        "@commise/features-recipes": "*",
+        "@commise/ui": "*",
+        "@expo-google-fonts/inter": "^0.4.2",
+        "@expo-google-fonts/playfair-display": "^0.4.2",
+        "@kitchensink/docgen-components": "*",
+        "@radix-ui/react-compose-refs": "^1.1.5",
+        "@tailwindcss/postcss": "^4.3.1",
+        "esbuild": "^0.28.1",
+        "postcss": "^8.5.6",
+        "react-native-web": "^0.21.2",
+        "tailwindcss": "^4.3.0"
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@testing-library/react": "^16.3.0",
+        "@types/node": "^24.13.3",
+        "@types/react": "^19.0.0",
+        "eslint": "^10.0.3",
+        "expo-linear-gradient": "~57.0.1",
+        "jsdom": "^30.0.1",
+        "next": "^16.3.3",
+        "playwright-core": "^1.62.0",
+        "prettier": "^3.0.0",
+        "react": "^19.0.0",
+        "react-native": "0.86.0",
+        "react-native-safe-area-context": "~5.7.0",
+        "tsx": "^4.20.6",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

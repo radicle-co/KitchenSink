@@ -1,0 +1,2 @@
+An app-wide notice that reports connectivity and unsynced work. Its state is a union of hidden, offline and syncing, with a caller-supplied title and body for the last two. It reports and does not ask: there is no Retry and no dismiss, because a queued write is safe and sends itself. It is a polite status region, mounted even while hidden so a state change is announced, and it is not an error. The caller passes all strings, including the region label.
+The native leaf is the same polite status region.

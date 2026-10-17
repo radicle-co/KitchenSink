@@ -1,0 +1,3 @@
+The page header that holds the H1 title, an optional subtitle, the way back and the end-of-row action. `back` is a `HeaderBack` (label, parent, onPress, optional href), and `action` is either an avatar or at most one button plus one ⋯ menu. The title wraps to two lines and is never truncated. The H1 is the only level-1 heading and the route-change focus target, moved by advancing `focusSignal`; `afterTitle` places the floating create button right after it in reading order. Use one per screen with a title, and let the screen decide whether a `CondensedTitleBar` accompanies it.
+
+On native the header shows at every size, with the back control and action laid over a 44 pt row above the title, and the title sits in the large-title style for the window's width class.

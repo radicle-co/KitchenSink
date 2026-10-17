@@ -245,6 +245,27 @@
             "outputs": [],
             "cache": false
         },
+        // design-artifact reads sources turbo cannot hash into its inputs. The feature packages are declared
+        // dependencies, so their `^build` hash moves with their sources; the web and mobile apps are NOT (their build
+        // is the full Next.js / Expo build, far too heavy to precede a typecheck), yet every tier reads their home
+        // chrome (`HomeSidebar`, both `HomeTabBar`s). A cache hit could therefore pass a stale tree, so no tier is
+        // cached. `^build` is repeated because a package-task entry replaces the base task.
+        "@kitchensink/design-artifact#test": {
+            "dependsOn": ["^build"],
+            "outputs": [],
+            "cache": false
+        },
+        "@kitchensink/design-artifact#test:integration": {
+            "dependsOn": ["^build"],
+            "outputs": [],
+            "cache": false
+        },
+        "@kitchensink/design-artifact#test:e2e": {
+            "dependsOn": ["^build"],
+            "passThroughEnv": ["DESIGN_CANVAS_RUNTIME"],
+            "outputs": [],
+            "cache": false
+        },
         "test:integration": {
             "dependsOn": ["^build"],
             "outputs": []

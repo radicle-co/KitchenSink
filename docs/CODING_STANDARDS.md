@@ -661,7 +661,11 @@ test". We use his preferred naming.
    the schema**: a CHECK constraint, a unique index, an FK cascade, a migration's derivation, a concurrency
    race, a real `SELECT`'s ordering. ⛔ It runs only on a developer's machine, never in CI. It **never
    skips**: with no `DATABASE_ADMIN_URL` (or, for a LocalStack-only suite, no `AWS_ENDPOINT_URL`) its setup
-   throws.
+   throws. A real browser on the developer's machine is also a LOCAL dependency, when the browser is what is
+   under test (`@kitchensink/design-artifact` renders the real components in Chromium). If no browser is
+   installed, its setup throws. That suite also needs `DESIGN_CANVAS_RUNTIME`, the path of the host's canvas
+   runtime script (get it with the Artifact tool's read of `artifact-type/dc-runtime.js`), and network access
+   to jsDelivr on a cold cache (the React 18 files are then kept); without either its setup throws.
 2. **DEPLOYED** — a real deployed origin: this PR's sandbox, or production. It proves the **deploy**: image
    tag, DNS, listener rule, the schema that actually shipped, cross-service wiring, CORS, the origin a
    client really receives. It runs automatically when the PR's sandbox is up, and **SKIPS when it is not**.

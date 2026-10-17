@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Discover (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                </style></helmet
+            >
+            <div
+                style="
+                    width: 390px;
+                    height: 1949px;
+                    position: relative;
+                    display: flex;
+                    flex-direction: column;
+                    background: var(--canvas);
+                    overflow: hidden;
+                "
+            >
+                <x-import component-from-global-scope="Commise.Native.GradientSurface" gradient="hero" style="{{fill}}"
+                    ><div style="flex: 1; position: relative; display: flex; flex-direction: column; min-height: 0">
+                        <div
+                            style="
+                                flex: 1;
+                                display: flex;
+                                flex-direction: column;
+                                gap: 16px;
+                                padding: 8px 16px 20px;
+                                overflow: hidden;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                heading-id="discover-title"
+                                title="Discover"
+                                action="{{action}}"
+                            ></x-import>
+                            <x-import
+                                component-from-global-scope="Commise.Native.SearchField"
+                                id="discover-search"
+                                label="Search recipes"
+                                label-visibility="hidden"
+                                clear-label="Clear search"
+                                placeholder="Search recipes"
+                                value=""
+                                on-change-text="{{noop}}"
+                            ></x-import>
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: center;
+                                    justify-content: space-between;
+                                    gap: 12px;
+                                "
+                            >
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    size="sm"
+                                    icon="slidersHorizontal"
+                                    accessibility-label="Filters"
+                                    on-press="{{noop}}"
+                                    >Filters</x-import
+                                >
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 48px; padding-bottom: 20px">
+                                <div style="display: flex; flex-direction: column; gap: 12px">
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                        "
+                                    >
+                                        <div style="font: 600 18px/1.25 var(--font-body); color: var(--ink)">
+                                            Trending
+                                        </div>
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Button"
+                                            variant="ghost"
+                                            size="sm"
+                                            accessibility-label="See all Trending"
+                                            on-press="{{noop}}"
+                                            >See all</x-import
+                                        >
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            gap: 16px;
+                                            overflow: hidden;
+                                            padding-bottom: 8px;
+                                        "
+                                    >
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c00.recipe}}"
+                                                author-username="{{c00.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c00.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c01.recipe}}"
+                                                author-username="{{c01.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c01.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c02.recipe}}"
+                                                author-username="{{c02.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c02.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c03.recipe}}"
+                                                author-username="{{c03.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c03.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c04.recipe}}"
+                                                author-username="{{c04.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c04.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c05.recipe}}"
+                                                author-username="{{c05.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c05.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 12px">
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                        "
+                                    >
+                                        <div style="font: 600 18px/1.25 var(--font-body); color: var(--ink)">New</div>
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Button"
+                                            variant="ghost"
+                                            size="sm"
+                                            accessibility-label="See all New"
+                                            on-press="{{noop}}"
+                                            >See all</x-import
+                                        >
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            gap: 16px;
+                                            overflow: hidden;
+                                            padding-bottom: 8px;
+                                        "
+                                    >
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c10.recipe}}"
+                                                author-username="{{c10.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c10.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c11.recipe}}"
+                                                author-username="{{c11.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c11.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c12.recipe}}"
+                                                author-username="{{c12.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c12.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c13.recipe}}"
+                                                author-username="{{c13.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c13.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c14.recipe}}"
+                                                author-username="{{c14.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c14.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c15.recipe}}"
+                                                author-username="{{c15.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c15.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 12px">
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                        "
+                                    >
+                                        <div style="font: 600 18px/1.25 var(--font-body); color: var(--ink)">Quick</div>
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Button"
+                                            variant="ghost"
+                                            size="sm"
+                                            accessibility-label="See all Quick"
+                                            on-press="{{noop}}"
+                                            >See all</x-import
+                                        >
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            gap: 16px;
+                                            overflow: hidden;
+                                            padding-bottom: 8px;
+                                        "
+                                    >
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c20.recipe}}"
+                                                author-username="{{c20.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c20.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c21.recipe}}"
+                                                author-username="{{c21.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c21.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c22.recipe}}"
+                                                author-username="{{c22.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c22.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c23.recipe}}"
+                                                author-username="{{c23.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c23.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c24.recipe}}"
+                                                author-username="{{c24.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c24.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="width: 256px; flex: none; display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                                variant="grid"
+                                                heading-level="{{n3}}"
+                                                recipe="{{c25.recipe}}"
+                                                author-username="{{c25.user}}"
+                                                save-copy="{{idle}}"
+                                                nutrition="{{c25.cal}}"
+                                                on-select="{{noop}}"
+                                                on-save="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 12px">
+                                    <div style="font: 600 18px/1.25 var(--font-body); color: var(--ink)">
+                                        Browse by cuisine
+                                    </div>
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.ChipRow"
+                                        mode="filter"
+                                        label="Browse by cuisine"
+                                        overflow="scroll"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Italian"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Indian"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Mexican"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Thai"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Japanese"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Greek"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="American"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Middle Eastern"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Korean"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Vietnamese"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Spanish"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Moroccan"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                    ></x-import>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <x-import
+                        component-from-global-scope="Commise.Native.HomeTabBar"
+                        chrome="{{chrome}}"
+                        live-capabilities="{{none}}"
+                        active-id="discover"
+                        on-press="{{noop}}"
+                        bottom-inset="{{n34}}"
+                        compact="{{no}}"
+                        left-inset="{{n0}}"
+                        right-inset="{{n0}}"
+                    ></x-import>
+                </x-import></div
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1949}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement; const D={"carbonara": ["Spaghetti alla carbonara", "Italian", 25, "medium", 4.7, 112, 690, 4, ["pasta", "weeknight"], "nonna_lucia"], "shakshuka": ["Shakshuka with feta", "Middle Eastern", 30, "easy", 4.8, 64, 360, 3, ["eggs", "vegetarian", "brunch"], "marisol_cooks"], "curry": ["Chickpea and spinach curry", "Indian", 35, "easy", 4.6, 81, 390, 4, ["vegan", "weeknight", "legumes"], "priya_kitchen"], "ramen": ["Miso butter mushroom ramen", "Japanese", 45, "medium", 4.8, 55, 520, 2, ["noodles", "soup", "umami"], "kenji_t"], "lentil": ["Red lentil dal with crispy shallots", "Indian", 25, "easy", 4.8, 140, 340, 4, ["vegan", "weeknight", "legumes"], "priya_kitchen"], "cookies": ["Brown butter chocolate chip cookies", "American", 40, "easy", 4.9, 210, 210, 24, ["baking", "dessert", "cookies"], "jo_bakes"], "sheet": ["Harissa sheet-pan chicken", "Moroccan", 50, "easy", 4.6, 58, 520, 4, ["sheet-pan", "weeknight"], null], "risotto": ["Lemon asparagus risotto", "Italian", 40, "medium", 4.5, 31, 450, 4, ["rice", "spring", "vegetarian"], "nonna_lucia"], "banhmi": ["Lemongrass pork banh mi", "Vietnamese", 30, "medium", 4.6, 47, 640, 4, ["sandwich", "pork"], "linh_nguyen"], "bibim": ["Bibimbap with gochujang", "Korean", 50, "medium", 4.5, 26, 580, 2, ["rice", "bowl"], null], "oats": ["Overnight oats with roasted plums", "American", 10, "easy", 4.3, 18, 330, 2, ["breakfast", "make-ahead", "fruit"], "jo_bakes"], "tacos": ["Crispy fish tacos with lime slaw", "Mexican", 40, "medium", 4.5, 39, 480, 4, ["seafood", "tacos", "lime"], null], "gazpacho": ["Chilled tomato gazpacho", "Spanish", 15, "easy", 4.4, 22, 150, 4, ["soup", "vegan", "summer"], "carmen_r"]}; const C={"c00": "carbonara", "c01": "shakshuka", "c02": "curry", "c03": "ramen", "c04": "lentil", "c05": "cookies", "c10": "sheet", "c11": "risotto", "c12": "banhmi", "c13": "bibim", "c14": "oats", "c15": "tacos", "c20": "oats", "c21": "gazpacho", "c22": "carbonara", "c23": "lentil", "c24": "shakshuka", "c25": "banhmi"};
+            const mk=(k)=>{const [title,cuisine,mins,level,rating,count,cal,serves,tags,user]=D[k];return {recipe:{id:'r-'+k,title,totalTimeMinutes:mins,servings:serves,difficulty:level,averageRating:rating,ratingCount:count,usesPremiumCapability:false,createdAt:'2026-09-01T10:00:00.000Z',updatedAt:'2026-09-01T10:00:00.000Z',cuisine,tags,currentVersion:1,visibility:'public',status:'published'},user:user||undefined,cal:h('span',{style:{fontSize:13,color:'var(--ink-muted)'}},cal+' cal')};};
+            const out={no:false,n0:0,n3:3,n34:34,none:[],noop:()=>{},fill:{flex:1},idle:{kind:'idle'},
+            chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},
+            action:{kind:'avatar',avatar:h(window.Commise.Native.Avatar,{status:'ready',initials:'ER',label:'Profile, Eliza Ramirez',onPress:()=>{}})}};
+            for(const id in C)out[id]=mk(C[id]); return out; } }
+        </script>
+    </body>
+</html>

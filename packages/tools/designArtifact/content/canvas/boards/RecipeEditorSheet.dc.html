@@ -1,0 +1,2126 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>RecipeEditorSheet</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    h1,
+                    h2,
+                    h3,
+                    p,
+                    ol,
+                    ul {
+                        margin: 0;
+                    }
+                    ol,
+                    ul {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    * {
+                        box-sizing: border-box;
+                    }
+                    .sb {
+                        display: none;
+                    }
+                    .ed-wrap {
+                        display: flex;
+                        flex-direction: column;
+                        margin: 0 auto;
+                        width: 100%;
+                        max-width: 1040px;
+                        flex: 1;
+                    }
+                    .ed-col {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 40px;
+                        width: 100%;
+                        max-width: 768px;
+                        min-width: 0;
+                        flex: 1;
+                        padding: 24px 16px 0;
+                    }
+                    .srv {
+                        flex: 0 0 100%;
+                    }
+                    .amt {
+                        width: 4.5rem;
+                        flex-shrink: 0;
+                    }
+                    .sub {
+                        padding-left: calc(4.5rem + 0.75rem);
+                    }
+                    .g2 {
+                        display: grid;
+                        grid-template-columns: 1fr;
+                        gap: 16px;
+                    }
+                    .pf-cancel {
+                        display: none;
+                    }
+                    .pf-foot {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    @media (min-width: 600px) {
+                        .ed-col {
+                            padding-left: 24px;
+                            padding-right: 24px;
+                        }
+                    }
+                    @media (min-width: 840px) {
+                        .sb {
+                            display: flex;
+                        }
+                        .ed-col {
+                            padding-left: 32px;
+                            padding-right: 32px;
+                        }
+                        .pf-cancel {
+                            display: block;
+                        }
+                        .pf-foot {
+                            flex-direction: row;
+                            justify-content: flex-end;
+                        }
+                    }
+                    @container main (min-width:600px) {
+                        .srv {
+                            flex: 1 1 0;
+                            min-width: fit-content;
+                        }
+                        .amt {
+                            width: 6rem;
+                        }
+                        .sub {
+                            padding-left: calc(6rem + 0.75rem);
+                        }
+                        .g2 {
+                            grid-template-columns: 1fr 1fr;
+                        }
+                    }
+                    @container main (min-width:960px) {
+                        .ed-wrap {
+                            flex-direction: row;
+                            gap: 32px;
+                            padding: 0 16px;
+                        }
+                    }
+                    html,
+                    body,
+                    x-dc {
+                        display: block;
+                        height: 900px;
+                        overflow: hidden;
+                        contain: paint;
+                    }
+                </style></helmet
+            >
+            <x-import component-from-global-scope="Commise.ScrollHost" sections="{{v90}}" activation-offset="{{v91}}"
+                ><div
+                    style="display: flex; min-height: 100vh; background: var(--canvas); height: 100vh; overflow: hidden"
+                >
+                    <div
+                        class="sb"
+                        style="
+                            width: 256px;
+                            flex-shrink: 0;
+                            flex-direction: column;
+                            overflow-y: auto;
+                            border-right: 1px solid var(--line-divider);
+                            background: color-mix(in srgb, var(--paper) 70%, transparent);
+                        "
+                    >
+                        <div style="display: flex; height: 64px; flex-shrink: 0; align-items: center; padding: 0 24px">
+                            <span
+                                style="
+                                    font-family: var(--font-display);
+                                    font-size: 20px;
+                                    font-weight: 700;
+                                    line-height: 1.4;
+                                    color: var(--ink);
+                                "
+                                >Commise</span
+                            >
+                        </div>
+                        <div style="padding: 0 16px 12px">
+                            <x-import component-from-global-scope="Commise.Button" icon="plus" width="fill"
+                                >New recipe</x-import
+                            >
+                        </div>
+                        <nav aria-label="Main" style="display: flex; flex-direction: column; gap: 4px; padding: 0 12px">
+                            <a
+                                href="#"
+                                style="
+                                    position: relative;
+                                    display: flex;
+                                    min-height: 44px;
+                                    align-items: center;
+                                    gap: 12px;
+                                    border-radius: var(--radius-sm);
+                                    padding: 0 12px;
+                                    text-decoration: none;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    line-height: 1.2;
+                                    color: var(--ink-muted);
+                                "
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="house"
+                                    size="{{v84}}"
+                                ></x-import
+                                ><span>Home</span></a
+                            ><a
+                                href="#"
+                                aria-current="page"
+                                style="
+                                    background: color-mix(in srgb, var(--action) 10%, transparent);
+                                    position: relative;
+                                    display: flex;
+                                    min-height: 44px;
+                                    align-items: center;
+                                    gap: 12px;
+                                    border-radius: var(--radius-sm);
+                                    padding: 0 12px;
+                                    text-decoration: none;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    line-height: 1.2;
+                                    color: var(--ink);
+                                "
+                                ><span
+                                    aria-hidden="true"
+                                    style="
+                                        position: absolute;
+                                        top: 8px;
+                                        bottom: 8px;
+                                        left: 0;
+                                        width: 3px;
+                                        border-radius: 0 9999px 9999px 0;
+                                        background: var(--here-bar);
+                                    "
+                                ></span
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="bookOpen"
+                                    size="{{v85}}"
+                                ></x-import
+                                ><span>Recipes</span></a
+                            ><a
+                                href="#"
+                                style="
+                                    position: relative;
+                                    display: flex;
+                                    min-height: 44px;
+                                    align-items: center;
+                                    gap: 12px;
+                                    border-radius: var(--radius-sm);
+                                    padding: 0 12px;
+                                    text-decoration: none;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    line-height: 1.2;
+                                    color: var(--ink-muted);
+                                "
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="compass"
+                                    size="{{v86}}"
+                                ></x-import
+                                ><span>Discover</span></a
+                            ><a
+                                href="#"
+                                style="
+                                    position: relative;
+                                    display: flex;
+                                    min-height: 44px;
+                                    align-items: center;
+                                    gap: 12px;
+                                    border-radius: var(--radius-sm);
+                                    padding: 0 12px;
+                                    text-decoration: none;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    line-height: 1.2;
+                                    color: var(--ink-muted);
+                                "
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="calendar"
+                                    size="{{v87}}"
+                                ></x-import
+                                ><span>Plan</span></a
+                            ><a
+                                href="#"
+                                style="
+                                    position: relative;
+                                    display: flex;
+                                    min-height: 44px;
+                                    align-items: center;
+                                    gap: 12px;
+                                    border-radius: var(--radius-sm);
+                                    padding: 0 12px;
+                                    text-decoration: none;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    line-height: 1.2;
+                                    color: var(--ink-muted);
+                                "
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="shoppingCart"
+                                    size="{{v88}}"
+                                ></x-import
+                                ><span>Shop</span></a
+                            >
+                        </nav>
+                        <div style="margin: 12px; border-top: 1px solid var(--line-divider)"></div>
+                        <a
+                            href="#"
+                            aria-label="Profile, Jordan Lee"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                margin: 0 12px;
+                                border-radius: var(--radius-sm);
+                                padding: 0 12px;
+                                text-decoration: none;
+                                font-size: 14px;
+                                font-weight: 600;
+                                line-height: 1.2;
+                                color: var(--ink);
+                            "
+                            ><x-import
+                                component-from-global-scope="Commise.AvatarDisc"
+                                status="ready"
+                                initials="JL"
+                            ></x-import
+                            ><span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
+                                >Jordan Lee</span
+                            ></a
+                        >
+                        <div style="margin-top: auto">
+                            <button
+                                type="button"
+                                aria-expanded="true"
+                                style="
+                                    display: flex;
+                                    min-height: 44px;
+                                    width: calc(100% - 24px);
+                                    align-items: center;
+                                    gap: 12px;
+                                    margin: 0 12px 12px;
+                                    border: 0;
+                                    background: transparent;
+                                    border-radius: var(--radius-sm);
+                                    padding: 0 12px;
+                                    cursor: pointer;
+                                    font-family: inherit;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    line-height: 1.2;
+                                    color: var(--ink-muted);
+                                "
+                            >
+                                <x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="chevronsLeft"
+                                    size="{{v89}}"
+                                ></x-import
+                                ><span>Collapse</span>
+                            </button>
+                        </div>
+                    </div>
+                    <main
+                        style="
+                            height: 100vh;
+                            overflow: hidden;
+                            flex: 1;
+                            min-width: 0;
+                            container-type: inline-size;
+                            container-name: main;
+                            --top-chrome: 3.5rem;
+                        "
+                    >
+                        <header
+                            style="
+                                position: sticky;
+                                top: 0;
+                                z-index: 30;
+                                display: flex;
+                                height: 56px;
+                                align-items: center;
+                                gap: 8px;
+                                border-bottom: 1px solid var(--line-divider);
+                                background: var(--paper);
+                                padding: 0 8px;
+                            "
+                        >
+                            <button
+                                type="button"
+                                aria-label="Close editor"
+                                style="
+                                    display: inline-flex;
+                                    width: 44px;
+                                    height: 44px;
+                                    flex-shrink: 0;
+                                    align-items: center;
+                                    justify-content: center;
+                                    border: 0;
+                                    background: transparent;
+                                    border-radius: var(--radius-sm);
+                                    color: var(--ink);
+                                    cursor: pointer;
+                                "
+                            >
+                                <x-import component-from-global-scope="Commise.Icon" name="x" size="{{v1}}"></x-import>
+                            </button>
+                            <div style="display: flex; min-width: 0; flex: 1; align-items: baseline; gap: 12px">
+                                <h1
+                                    style="
+                                        flex-shrink: 0;
+                                        font-size: 17px;
+                                        font-weight: 600;
+                                        line-height: 1.2;
+                                        color: var(--ink);
+                                        white-space: nowrap;
+                                    "
+                                >
+                                    New recipe
+                                </h1>
+                                <p
+                                    style="
+                                        min-width: 0;
+                                        font-size: 12px;
+                                        font-weight: 500;
+                                        line-height: 1.4;
+                                        color: var(--ink-muted);
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        white-space: nowrap;
+                                    "
+                                >
+                                    Saved
+                                </p>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.ActionMenu"
+                                trigger-label="More editor actions"
+                                title="New recipe"
+                                close-label="Keep editing"
+                                items="{{v2}}"
+                                destructive-item="{{v3}}"
+                            ></x-import>
+                        </header>
+                        <div class="ed-wrap">
+                            <x-import
+                                component-from-global-scope="Commise.SectionIndex"
+                                label="Recipe sections"
+                                sheet-title="Sections"
+                                sheet-close-label="Close sections"
+                                items="{{v4}}"
+                                current-id="details"
+                                bar-name="Sections. Current: Details."
+                                rail-footer="{{v5}}"
+                            ></x-import>
+                            <div class="ed-col" style="--x: 0">
+                                <section
+                                    aria-labelledby="details"
+                                    style="display: flex; flex-direction: column; gap: 16px"
+                                >
+                                    <div
+                                        style="
+                                            display: flex;
+                                            min-height: 44px;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                            gap: 8px;
+                                        "
+                                    >
+                                        <h2
+                                            id="details"
+                                            tabindex="-1"
+                                            style="
+                                                font-size: 18px;
+                                                font-weight: 600;
+                                                line-height: 1.25;
+                                                color: var(--ink);
+                                            "
+                                        >
+                                            Details
+                                        </h2>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 32px">
+                                        <div style="display: flex; flex-direction: column; gap: 16px">
+                                            <h3
+                                                style="
+                                                    font-size: 14px;
+                                                    font-weight: 600;
+                                                    line-height: 1.2;
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                About the recipe
+                                            </h3>
+                                            <div style="display: flex; flex-direction: column; gap: 4px">
+                                                <x-import
+                                                    component-from-global-scope="Commise.FieldLabel"
+                                                    for-id="recipe-title"
+                                                    label="Title"
+                                                ></x-import
+                                                ><x-import
+                                                    component-from-global-scope="Commise.TextArea"
+                                                    id="recipe-title"
+                                                    value="Brown Butter Lemon Chicken"
+                                                    min-rows="{{v6}}"
+                                                    max-rows="{{v7}}"
+                                                    placeholder="e.g. Weeknight Pasta"
+                                                    auto-capitalize="sentences"
+                                                    on-change-text="{{v8}}"
+                                                ></x-import>
+                                            </div>
+                                            <div style="display: flex; flex-direction: column; gap: 4px">
+                                                <x-import
+                                                    component-from-global-scope="Commise.FieldLabel"
+                                                    for-id="recipe-description"
+                                                    label="Description"
+                                                ></x-import
+                                                ><x-import
+                                                    component-from-global-scope="Commise.TextArea"
+                                                    id="recipe-description"
+                                                    value="A fast skillet dinner: crisp-skinned chicken thighs in a lemony brown butter sauce with capers. Ready in about 40 minutes and good over rice or orzo."
+                                                    min-rows="{{v9}}"
+                                                    auto-capitalize="sentences"
+                                                    on-change-text="{{v10}}"
+                                                ></x-import>
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; flex-direction: column; gap: 16px">
+                                            <h3
+                                                style="
+                                                    font-size: 14px;
+                                                    font-weight: 600;
+                                                    line-height: 1.2;
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                Time and servings
+                                            </h3>
+                                            <div style="display: flex; flex-wrap: wrap; gap: 16px">
+                                                <div class="srv">
+                                                    <x-import
+                                                        component-from-global-scope="Commise.Stepper"
+                                                        id="recipe-servings"
+                                                        label="Servings"
+                                                        value="{{v11}}"
+                                                        min="{{v12}}"
+                                                        on-change="{{v13}}"
+                                                        announce="{{v14}}"
+                                                        decrease-label="Fewer servings"
+                                                        increase-label="More servings"
+                                                    ></x-import>
+                                                </div>
+                                                <div style="min-width: 0; flex: 1">
+                                                    <x-import
+                                                        component-from-global-scope="Commise.DurationField"
+                                                        label="Prep time"
+                                                        hours-label="Prep time, hours"
+                                                        minutes-label="Prep time, minutes"
+                                                        hours-unit="h"
+                                                        minutes-unit="min"
+                                                        value="{{v15}}"
+                                                        on-change="{{v16}}"
+                                                    ></x-import>
+                                                </div>
+                                                <div style="min-width: 0; flex: 1">
+                                                    <x-import
+                                                        component-from-global-scope="Commise.DurationField"
+                                                        label="Cook time"
+                                                        hours-label="Cook time, hours"
+                                                        minutes-label="Cook time, minutes"
+                                                        hours-unit="h"
+                                                        minutes-unit="min"
+                                                        value="{{v17}}"
+                                                        on-change="{{v18}}"
+                                                    ></x-import>
+                                                </div>
+                                            </div>
+                                            <p
+                                                style="
+                                                    font-size: 14px;
+                                                    font-weight: 400;
+                                                    line-height: 1.4;
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                Total 40 min
+                                            </p>
+                                        </div>
+                                        <div style="display: flex; flex-direction: column; gap: 16px">
+                                            <h3
+                                                style="
+                                                    font-size: 14px;
+                                                    font-weight: 600;
+                                                    line-height: 1.2;
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                Kind of dish
+                                            </h3>
+                                            <div class="g2">
+                                                <x-import
+                                                    component-from-global-scope="Commise.Combobox"
+                                                    id="recipe-cuisine"
+                                                    label="Cuisine"
+                                                    list-label="Cuisine suggestions"
+                                                    hint="Choose one, or type your own. You need one to publish."
+                                                    value="Italian"
+                                                    on-value-change="{{v19}}"
+                                                    groups="{{v20}}"
+                                                    on-select="{{v21}}"
+                                                    count-announcement=""
+                                                    open-on-focus="{{v22}}"
+                                                    on-abandon="{{v23}}"
+                                                ></x-import>
+                                                <div style="display: flex; flex-direction: column; gap: 4px">
+                                                    <span
+                                                        aria-hidden="true"
+                                                        style="
+                                                            font-size: 14px;
+                                                            font-weight: 600;
+                                                            line-height: 1.2;
+                                                            color: var(--ink-muted);
+                                                        "
+                                                        >Meal type</span
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.ChipRow"
+                                                        mode="choice"
+                                                        clearable="{{v24}}"
+                                                        label="Meal type"
+                                                        overflow="wrap"
+                                                        options="{{v25}}"
+                                                        value="dinner"
+                                                        on-change="{{v26}}"
+                                                    ></x-import>
+                                                </div>
+                                            </div>
+                                            <div style="display: flex; flex-direction: column; gap: 4px">
+                                                <span
+                                                    aria-hidden="true"
+                                                    style="
+                                                        font-size: 14px;
+                                                        font-weight: 600;
+                                                        line-height: 1.2;
+                                                        color: var(--ink-muted);
+                                                    "
+                                                    >Difficulty</span
+                                                ><x-import
+                                                    component-from-global-scope="Commise.ChipRow"
+                                                    mode="choice"
+                                                    clearable="{{v27}}"
+                                                    label="Difficulty"
+                                                    overflow="wrap"
+                                                    options="{{v28}}"
+                                                    value="easy"
+                                                    on-change="{{v29}}"
+                                                ></x-import>
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; flex-direction: column; gap: 16px">
+                                            <h3
+                                                style="
+                                                    font-size: 14px;
+                                                    font-weight: 600;
+                                                    line-height: 1.2;
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                Diet and tags
+                                            </h3>
+                                            <div style="display: flex; flex-direction: column; gap: 8px">
+                                                <x-import
+                                                    component-from-global-scope="Commise.FieldLabel"
+                                                    for-id="recipe-dietary-flags"
+                                                    label="Dietary flags"
+                                                    hint="Type and press Enter"
+                                                ></x-import
+                                                ><x-import
+                                                    component-from-global-scope="Commise.ChipRow"
+                                                    mode="input"
+                                                    label="Dietary flags"
+                                                    overflow="wrap"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Chip"
+                                                        kind="input"
+                                                        label="Nut-free"
+                                                        remove-label="Remove Nut-free"
+                                                        on-remove="{{v30}}"
+                                                    ></x-import></x-import
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Input"
+                                                    id="recipe-dietary-flags"
+                                                    value=""
+                                                    described-by="recipe-dietary-flags-hint"
+                                                    enter-key-hint="done"
+                                                    on-change-text="{{v31}}"
+                                                ></x-import>
+                                            </div>
+                                            <div style="display: flex; flex-direction: column; gap: 8px">
+                                                <x-import
+                                                    component-from-global-scope="Commise.FieldLabel"
+                                                    for-id="recipe-tags"
+                                                    label="Tags"
+                                                    hint="Type and press Enter"
+                                                ></x-import
+                                                ><x-import
+                                                    component-from-global-scope="Commise.ChipRow"
+                                                    mode="input"
+                                                    label="Tags"
+                                                    overflow="wrap"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Chip"
+                                                        kind="input"
+                                                        label="weeknight"
+                                                        remove-label="Remove weeknight"
+                                                        on-remove="{{v32}}"
+                                                    ></x-import
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Chip"
+                                                        kind="input"
+                                                        label="skillet"
+                                                        remove-label="Remove skillet"
+                                                        on-remove="{{v33}}"
+                                                    ></x-import
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Chip"
+                                                        kind="input"
+                                                        label="one-pan"
+                                                        remove-label="Remove one-pan"
+                                                        on-remove="{{v34}}"
+                                                    ></x-import></x-import
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Input"
+                                                    id="recipe-tags"
+                                                    value=""
+                                                    described-by="recipe-tags-hint"
+                                                    enter-key-hint="done"
+                                                    on-change-text="{{v35}}"
+                                                ></x-import>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+                                <section
+                                    aria-labelledby="ingredients"
+                                    style="display: flex; flex-direction: column; gap: 16px"
+                                >
+                                    <div
+                                        style="
+                                            display: flex;
+                                            min-height: 44px;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                            gap: 8px;
+                                        "
+                                    >
+                                        <h2
+                                            id="ingredients"
+                                            tabindex="-1"
+                                            style="
+                                                font-size: 18px;
+                                                font-weight: 600;
+                                                line-height: 1.25;
+                                                color: var(--ink);
+                                            "
+                                        >
+                                            Ingredients
+                                        </h2>
+                                        <x-import
+                                            component-from-global-scope="Commise.Button"
+                                            variant="ghost"
+                                            icon="clipboardPaste"
+                                            >Paste a list</x-import
+                                        >
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 16px">
+                                        <div style="display: flex; flex-direction: column; gap: 4px">
+                                            <ul aria-label="Ingredients" style="display: flex; flex-direction: column">
+                                                <li
+                                                    style="
+                                                        display: flex;
+                                                        flex-direction: column;
+                                                        border-bottom: 1px solid var(--line-divider);
+                                                    "
+                                                >
+                                                    <div style="display: flex; align-items: flex-start; gap: 8px">
+                                                        <button
+                                                            type="button"
+                                                            aria-label="Edit 8 Chicken thighs"
+                                                            style="
+                                                                display: flex;
+                                                                min-height: 48px;
+                                                                min-width: 0;
+                                                                flex: 1;
+                                                                align-items: flex-start;
+                                                                gap: 12px;
+                                                                border: 0;
+                                                                background: transparent;
+                                                                border-radius: var(--radius-sm);
+                                                                padding: 12px 0;
+                                                                text-align: left;
+                                                                font-family: inherit;
+                                                                cursor: pointer;
+                                                            "
+                                                        >
+                                                            <span
+                                                                class="amt"
+                                                                style="
+                                                                    font-size: 16px;
+                                                                    font-weight: 600;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                    font-variant-numeric: tabular-nums;
+                                                                "
+                                                                >8</span
+                                                            ><span
+                                                                style="
+                                                                    min-width: 0;
+                                                                    flex: 1;
+                                                                    font-size: 16px;
+                                                                    font-weight: 400;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                "
+                                                                >Chicken thighs<span style="color: var(--ink-muted)">
+                                                                    · bone-in, skin-on</span
+                                                                ></span
+                                                            ></button
+                                                        ><span style="flex-shrink: 0; padding-top: 2px"
+                                                            ><x-import
+                                                                component-from-global-scope="Commise.ActionMenu"
+                                                                trigger-label="Actions for Chicken thighs"
+                                                                title="Chicken thighs"
+                                                                close-label="Close actions for Chicken thighs"
+                                                                items="{{v36}}"
+                                                                destructive-item="{{v37}}"
+                                                            ></x-import
+                                                        ></span>
+                                                    </div>
+                                                </li>
+                                                <li
+                                                    style="
+                                                        display: flex;
+                                                        flex-direction: column;
+                                                        border-bottom: 1px solid var(--line-divider);
+                                                    "
+                                                >
+                                                    <div style="display: flex; align-items: flex-start; gap: 8px">
+                                                        <button
+                                                            type="button"
+                                                            aria-label="Edit 0.25 cup All-purpose flour"
+                                                            style="
+                                                                display: flex;
+                                                                min-height: 48px;
+                                                                min-width: 0;
+                                                                flex: 1;
+                                                                align-items: flex-start;
+                                                                gap: 12px;
+                                                                border: 0;
+                                                                background: transparent;
+                                                                border-radius: var(--radius-sm);
+                                                                padding: 12px 0;
+                                                                text-align: left;
+                                                                font-family: inherit;
+                                                                cursor: pointer;
+                                                            "
+                                                        >
+                                                            <span
+                                                                class="amt"
+                                                                style="
+                                                                    font-size: 16px;
+                                                                    font-weight: 600;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                    font-variant-numeric: tabular-nums;
+                                                                "
+                                                                >0.25 cup</span
+                                                            ><span
+                                                                style="
+                                                                    min-width: 0;
+                                                                    flex: 1;
+                                                                    font-size: 16px;
+                                                                    font-weight: 400;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                "
+                                                                >All-purpose flour</span
+                                                            ></button
+                                                        ><span style="flex-shrink: 0; padding-top: 2px"
+                                                            ><x-import
+                                                                component-from-global-scope="Commise.ActionMenu"
+                                                                trigger-label="Actions for All-purpose flour"
+                                                                title="All-purpose flour"
+                                                                close-label="Close actions for All-purpose flour"
+                                                                items="{{v38}}"
+                                                                destructive-item="{{v39}}"
+                                                            ></x-import
+                                                        ></span>
+                                                    </div>
+                                                </li>
+                                                <li
+                                                    style="
+                                                        display: flex;
+                                                        flex-direction: column;
+                                                        border-bottom: 1px solid var(--line-divider);
+                                                    "
+                                                >
+                                                    <div style="display: flex; align-items: flex-start; gap: 8px">
+                                                        <button
+                                                            type="button"
+                                                            aria-label="Edit 2 tbsp Olive oil"
+                                                            style="
+                                                                display: flex;
+                                                                min-height: 48px;
+                                                                min-width: 0;
+                                                                flex: 1;
+                                                                align-items: flex-start;
+                                                                gap: 12px;
+                                                                border: 0;
+                                                                background: transparent;
+                                                                border-radius: var(--radius-sm);
+                                                                padding: 12px 0;
+                                                                text-align: left;
+                                                                font-family: inherit;
+                                                                cursor: pointer;
+                                                            "
+                                                        >
+                                                            <span
+                                                                class="amt"
+                                                                style="
+                                                                    font-size: 16px;
+                                                                    font-weight: 600;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                    font-variant-numeric: tabular-nums;
+                                                                "
+                                                                >2 tbsp</span
+                                                            ><span
+                                                                style="
+                                                                    min-width: 0;
+                                                                    flex: 1;
+                                                                    font-size: 16px;
+                                                                    font-weight: 400;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                "
+                                                                >Olive oil</span
+                                                            ></button
+                                                        ><span style="flex-shrink: 0; padding-top: 2px"
+                                                            ><x-import
+                                                                component-from-global-scope="Commise.ActionMenu"
+                                                                trigger-label="Actions for Olive oil"
+                                                                title="Olive oil"
+                                                                close-label="Close actions for Olive oil"
+                                                                items="{{v40}}"
+                                                                destructive-item="{{v41}}"
+                                                            ></x-import
+                                                        ></span>
+                                                    </div>
+                                                </li>
+                                                <li
+                                                    style="
+                                                        display: flex;
+                                                        flex-direction: column;
+                                                        border-bottom: 1px solid var(--line-divider);
+                                                    "
+                                                >
+                                                    <div style="display: flex; align-items: flex-start; gap: 8px">
+                                                        <button
+                                                            type="button"
+                                                            aria-label="Edit 3 tbsp Unsalted butter"
+                                                            style="
+                                                                display: flex;
+                                                                min-height: 48px;
+                                                                min-width: 0;
+                                                                flex: 1;
+                                                                align-items: flex-start;
+                                                                gap: 12px;
+                                                                border: 0;
+                                                                background: transparent;
+                                                                border-radius: var(--radius-sm);
+                                                                padding: 12px 0;
+                                                                text-align: left;
+                                                                font-family: inherit;
+                                                                cursor: pointer;
+                                                            "
+                                                        >
+                                                            <span
+                                                                class="amt"
+                                                                style="
+                                                                    font-size: 16px;
+                                                                    font-weight: 600;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                    font-variant-numeric: tabular-nums;
+                                                                "
+                                                                >3 tbsp</span
+                                                            ><span
+                                                                style="
+                                                                    min-width: 0;
+                                                                    flex: 1;
+                                                                    font-size: 16px;
+                                                                    font-weight: 400;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                "
+                                                                >Unsalted butter</span
+                                                            ></button
+                                                        ><span style="flex-shrink: 0; padding-top: 2px"
+                                                            ><x-import
+                                                                component-from-global-scope="Commise.ActionMenu"
+                                                                trigger-label="Actions for Unsalted butter"
+                                                                title="Unsalted butter"
+                                                                close-label="Close actions for Unsalted butter"
+                                                                items="{{v42}}"
+                                                                destructive-item="{{v43}}"
+                                                            ></x-import
+                                                        ></span>
+                                                    </div>
+                                                </li>
+                                                <li
+                                                    style="
+                                                        display: flex;
+                                                        flex-direction: column;
+                                                        border-bottom: 1px solid var(--line-divider);
+                                                    "
+                                                >
+                                                    <div style="display: flex; align-items: flex-start; gap: 8px">
+                                                        <button
+                                                            type="button"
+                                                            aria-label="Edit 3 clove Garlic"
+                                                            style="
+                                                                display: flex;
+                                                                min-height: 48px;
+                                                                min-width: 0;
+                                                                flex: 1;
+                                                                align-items: flex-start;
+                                                                gap: 12px;
+                                                                border: 0;
+                                                                background: transparent;
+                                                                border-radius: var(--radius-sm);
+                                                                padding: 12px 0;
+                                                                text-align: left;
+                                                                font-family: inherit;
+                                                                cursor: pointer;
+                                                            "
+                                                        >
+                                                            <span
+                                                                class="amt"
+                                                                style="
+                                                                    font-size: 16px;
+                                                                    font-weight: 600;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                    font-variant-numeric: tabular-nums;
+                                                                "
+                                                                >3 clove</span
+                                                            ><span
+                                                                style="
+                                                                    min-width: 0;
+                                                                    flex: 1;
+                                                                    font-size: 16px;
+                                                                    font-weight: 400;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                "
+                                                                >Garlic<span style="color: var(--ink-muted)">
+                                                                    · minced</span
+                                                                ></span
+                                                            ></button
+                                                        ><span style="flex-shrink: 0; padding-top: 2px"
+                                                            ><x-import
+                                                                component-from-global-scope="Commise.ActionMenu"
+                                                                trigger-label="Actions for Garlic"
+                                                                title="Garlic"
+                                                                close-label="Close actions for Garlic"
+                                                                items="{{v44}}"
+                                                                destructive-item="{{v45}}"
+                                                            ></x-import
+                                                        ></span>
+                                                    </div>
+                                                </li>
+                                                <li
+                                                    style="
+                                                        display: flex;
+                                                        flex-direction: column;
+                                                        border-bottom: 1px solid var(--line-divider);
+                                                    "
+                                                >
+                                                    <div style="display: flex; align-items: flex-start; gap: 8px">
+                                                        <button
+                                                            type="button"
+                                                            aria-label="Edit 0.5 cup Chicken broth"
+                                                            style="
+                                                                display: flex;
+                                                                min-height: 48px;
+                                                                min-width: 0;
+                                                                flex: 1;
+                                                                align-items: flex-start;
+                                                                gap: 12px;
+                                                                border: 0;
+                                                                background: transparent;
+                                                                border-radius: var(--radius-sm);
+                                                                padding: 12px 0;
+                                                                text-align: left;
+                                                                font-family: inherit;
+                                                                cursor: pointer;
+                                                            "
+                                                        >
+                                                            <span
+                                                                class="amt"
+                                                                style="
+                                                                    font-size: 16px;
+                                                                    font-weight: 600;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                    font-variant-numeric: tabular-nums;
+                                                                "
+                                                                >0.5 cup</span
+                                                            ><span
+                                                                style="
+                                                                    min-width: 0;
+                                                                    flex: 1;
+                                                                    font-size: 16px;
+                                                                    font-weight: 400;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                "
+                                                                >Chicken broth</span
+                                                            ></button
+                                                        ><span style="flex-shrink: 0; padding-top: 2px"
+                                                            ><x-import
+                                                                component-from-global-scope="Commise.ActionMenu"
+                                                                trigger-label="Actions for Chicken broth"
+                                                                title="Chicken broth"
+                                                                close-label="Close actions for Chicken broth"
+                                                                items="{{v46}}"
+                                                                destructive-item="{{v47}}"
+                                                            ></x-import
+                                                        ></span>
+                                                    </div>
+                                                </li>
+                                                <li
+                                                    style="
+                                                        display: flex;
+                                                        flex-direction: column;
+                                                        border-bottom: 1px solid var(--line-divider);
+                                                    "
+                                                >
+                                                    <div style="display: flex; align-items: flex-start; gap: 8px">
+                                                        <button
+                                                            type="button"
+                                                            aria-label="Edit 1 Lemon"
+                                                            style="
+                                                                display: flex;
+                                                                min-height: 48px;
+                                                                min-width: 0;
+                                                                flex: 1;
+                                                                align-items: flex-start;
+                                                                gap: 12px;
+                                                                border: 0;
+                                                                background: transparent;
+                                                                border-radius: var(--radius-sm);
+                                                                padding: 12px 0;
+                                                                text-align: left;
+                                                                font-family: inherit;
+                                                                cursor: pointer;
+                                                            "
+                                                        >
+                                                            <span
+                                                                class="amt"
+                                                                style="
+                                                                    font-size: 16px;
+                                                                    font-weight: 600;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                    font-variant-numeric: tabular-nums;
+                                                                "
+                                                                >1</span
+                                                            ><span
+                                                                style="
+                                                                    min-width: 0;
+                                                                    flex: 1;
+                                                                    font-size: 16px;
+                                                                    font-weight: 400;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                "
+                                                                >Lemon<span style="color: var(--ink-muted)">
+                                                                    · zested and juiced</span
+                                                                ></span
+                                                            ></button
+                                                        ><span style="flex-shrink: 0; padding-top: 2px"
+                                                            ><x-import
+                                                                component-from-global-scope="Commise.ActionMenu"
+                                                                trigger-label="Actions for Lemon"
+                                                                title="Lemon"
+                                                                close-label="Close actions for Lemon"
+                                                                items="{{v48}}"
+                                                                destructive-item="{{v49}}"
+                                                            ></x-import
+                                                        ></span>
+                                                    </div>
+                                                </li>
+                                                <li
+                                                    style="
+                                                        display: flex;
+                                                        flex-direction: column;
+                                                        border-bottom: 1px solid var(--line-divider);
+                                                    "
+                                                >
+                                                    <div style="display: flex; align-items: flex-start; gap: 8px">
+                                                        <button
+                                                            type="button"
+                                                            aria-label="Edit 2 tbsp Capers"
+                                                            style="
+                                                                display: flex;
+                                                                min-height: 48px;
+                                                                min-width: 0;
+                                                                flex: 1;
+                                                                align-items: flex-start;
+                                                                gap: 12px;
+                                                                border: 0;
+                                                                background: transparent;
+                                                                border-radius: var(--radius-sm);
+                                                                padding: 12px 0;
+                                                                text-align: left;
+                                                                font-family: inherit;
+                                                                cursor: pointer;
+                                                            "
+                                                        >
+                                                            <span
+                                                                class="amt"
+                                                                style="
+                                                                    font-size: 16px;
+                                                                    font-weight: 600;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                    font-variant-numeric: tabular-nums;
+                                                                "
+                                                                >2 tbsp</span
+                                                            ><span
+                                                                style="
+                                                                    min-width: 0;
+                                                                    flex: 1;
+                                                                    font-size: 16px;
+                                                                    font-weight: 400;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                "
+                                                                >Capers<span style="color: var(--ink-muted)">
+                                                                    · drained</span
+                                                                ></span
+                                                            ></button
+                                                        ><span style="flex-shrink: 0; padding-top: 2px"
+                                                            ><x-import
+                                                                component-from-global-scope="Commise.ActionMenu"
+                                                                trigger-label="Actions for Capers"
+                                                                title="Capers"
+                                                                close-label="Close actions for Capers"
+                                                                items="{{v50}}"
+                                                                destructive-item="{{v51}}"
+                                                            ></x-import
+                                                        ></span>
+                                                    </div>
+                                                </li>
+                                                <li style="display: flex; flex-direction: column; border-bottom: 0">
+                                                    <div style="display: flex; align-items: flex-start; gap: 8px">
+                                                        <button
+                                                            type="button"
+                                                            aria-label="Edit 2 tbsp Fresh parsley"
+                                                            style="
+                                                                display: flex;
+                                                                min-height: 48px;
+                                                                min-width: 0;
+                                                                flex: 1;
+                                                                align-items: flex-start;
+                                                                gap: 12px;
+                                                                border: 0;
+                                                                background: transparent;
+                                                                border-radius: var(--radius-sm);
+                                                                padding: 12px 0;
+                                                                text-align: left;
+                                                                font-family: inherit;
+                                                                cursor: pointer;
+                                                            "
+                                                        >
+                                                            <span
+                                                                class="amt"
+                                                                style="
+                                                                    font-size: 16px;
+                                                                    font-weight: 600;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                    font-variant-numeric: tabular-nums;
+                                                                "
+                                                                >2 tbsp</span
+                                                            ><span
+                                                                style="
+                                                                    min-width: 0;
+                                                                    flex: 1;
+                                                                    font-size: 16px;
+                                                                    font-weight: 400;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                "
+                                                                >Fresh parsley<span style="color: var(--ink-muted)">
+                                                                    · chopped</span
+                                                                ></span
+                                                            ></button
+                                                        ><span style="flex-shrink: 0; padding-top: 2px"
+                                                            ><x-import
+                                                                component-from-global-scope="Commise.ActionMenu"
+                                                                trigger-label="Actions for Fresh parsley"
+                                                                title="Fresh parsley"
+                                                                close-label="Close actions for Fresh parsley"
+                                                                items="{{v52}}"
+                                                                destructive-item="{{v53}}"
+                                                            ></x-import
+                                                        ></span>
+                                                    </div>
+                                                </li>
+                                            </ul>
+                                            <div style="display: flex; flex-direction: column; gap: 4px">
+                                                <x-import
+                                                    component-from-global-scope="Commise.Combobox"
+                                                    id="ingredient-add"
+                                                    label="Add an ingredient"
+                                                    list-label="Food suggestions for ingredient 10"
+                                                    hint="Type the amount first, then pick the food. For example: 2 tbsp olive oil."
+                                                    value=""
+                                                    on-value-change="{{v54}}"
+                                                    groups="{{v55}}"
+                                                    on-select="{{v56}}"
+                                                    count-announcement=""
+                                                    leading-icon="{{v57}}"
+                                                ></x-import>
+                                            </div>
+                                        </div>
+                                        <div style="display: flex">
+                                            <x-import
+                                                component-from-global-scope="Commise.Button"
+                                                variant="ghost"
+                                                icon="plus"
+                                                >Add a group</x-import
+                                            >
+                                        </div>
+                                        <div
+                                            style="
+                                                border-radius: var(--radius-md);
+                                                background: var(--surface-muted);
+                                                padding: 12px 16px;
+                                            "
+                                        >
+                                            <p
+                                                style="
+                                                    font-size: 14px;
+                                                    font-weight: 500;
+                                                    line-height: 1.4;
+                                                    color: var(--ink);
+                                                    font-variant-numeric: tabular-nums;
+                                                "
+                                            >
+                                                548 cal per serving · 9 of 9 counted
+                                            </p>
+                                        </div>
+                                    </div>
+                                </section>
+                                <section
+                                    aria-labelledby="steps"
+                                    style="display: flex; flex-direction: column; gap: 16px"
+                                >
+                                    <div
+                                        style="
+                                            display: flex;
+                                            min-height: 44px;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                            gap: 8px;
+                                        "
+                                    >
+                                        <h2
+                                            id="steps"
+                                            tabindex="-1"
+                                            style="
+                                                font-size: 18px;
+                                                font-weight: 600;
+                                                line-height: 1.25;
+                                                color: var(--ink);
+                                            "
+                                        >
+                                            Steps
+                                        </h2>
+                                        <x-import
+                                            component-from-global-scope="Commise.Button"
+                                            variant="ghost"
+                                            icon="listPlus"
+                                            >Paste steps</x-import
+                                        >
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 16px">
+                                        <ol style="display: flex; flex-direction: column; gap: 24px">
+                                            <li style="display: flex; flex-direction: column; gap: 8px">
+                                                <div style="display: flex; align-items: center; gap: 12px">
+                                                    <span
+                                                        aria-hidden="true"
+                                                        style="
+                                                            display: flex;
+                                                            width: 32px;
+                                                            height: 32px;
+                                                            flex-shrink: 0;
+                                                            align-items: center;
+                                                            justify-content: center;
+                                                            border-radius: 9999px;
+                                                            background: var(--selected-fill);
+                                                            font-size: 14px;
+                                                            font-weight: 600;
+                                                            line-height: 1.2;
+                                                            color: var(--ink);
+                                                            font-variant-numeric: tabular-nums;
+                                                        "
+                                                        >1</span
+                                                    >
+                                                    <div style="min-width: 0; flex: 1">
+                                                        <x-import
+                                                            component-from-global-scope="Commise.FieldLabel"
+                                                            for-id="step-0"
+                                                            label="Step 1"
+                                                        ></x-import>
+                                                    </div>
+                                                    <x-import
+                                                        component-from-global-scope="Commise.ActionMenu"
+                                                        trigger-label="Actions for step 1"
+                                                        title="Step 1"
+                                                        close-label="Close actions for Step 1"
+                                                        items="{{v58}}"
+                                                        destructive-item="{{v59}}"
+                                                    ></x-import>
+                                                </div>
+                                                <x-import
+                                                    component-from-global-scope="Commise.TextArea"
+                                                    id="step-0"
+                                                    value="Pat the chicken dry and season all over with salt and pepper. Dredge lightly in flour and shake off the excess."
+                                                    min-rows="{{v60}}"
+                                                    auto-capitalize="sentences"
+                                                    on-change-text="{{v61}}"
+                                                ></x-import>
+                                                <div style="align-self: flex-start">
+                                                    <x-import
+                                                        component-from-global-scope="Commise.Button"
+                                                        variant="ghost"
+                                                        icon="timer"
+                                                        >Add a timer</x-import
+                                                    >
+                                                </div>
+                                            </li>
+                                            <li style="display: flex; flex-direction: column; gap: 8px">
+                                                <div style="display: flex; align-items: center; gap: 12px">
+                                                    <span
+                                                        aria-hidden="true"
+                                                        style="
+                                                            display: flex;
+                                                            width: 32px;
+                                                            height: 32px;
+                                                            flex-shrink: 0;
+                                                            align-items: center;
+                                                            justify-content: center;
+                                                            border-radius: 9999px;
+                                                            background: var(--selected-fill);
+                                                            font-size: 14px;
+                                                            font-weight: 600;
+                                                            line-height: 1.2;
+                                                            color: var(--ink);
+                                                            font-variant-numeric: tabular-nums;
+                                                        "
+                                                        >2</span
+                                                    >
+                                                    <div style="min-width: 0; flex: 1">
+                                                        <x-import
+                                                            component-from-global-scope="Commise.FieldLabel"
+                                                            for-id="step-1"
+                                                            label="Step 2"
+                                                        ></x-import>
+                                                    </div>
+                                                    <x-import
+                                                        component-from-global-scope="Commise.ActionMenu"
+                                                        trigger-label="Actions for step 2"
+                                                        title="Step 2"
+                                                        close-label="Close actions for Step 2"
+                                                        items="{{v62}}"
+                                                        destructive-item="{{v63}}"
+                                                    ></x-import>
+                                                </div>
+                                                <x-import
+                                                    component-from-global-scope="Commise.TextArea"
+                                                    id="step-1"
+                                                    value="Heat the olive oil in a large skillet over medium-high heat. Sear the chicken skin-side down until deep golden, then flip and cook until browned on the second side."
+                                                    min-rows="{{v64}}"
+                                                    auto-capitalize="sentences"
+                                                    on-change-text="{{v65}}"
+                                                ></x-import>
+                                                <div
+                                                    style="
+                                                        display: flex;
+                                                        flex-wrap: wrap;
+                                                        align-items: flex-end;
+                                                        gap: 12px;
+                                                    "
+                                                >
+                                                    <div style="flex: 1 1 200px; min-width: 0; max-width: 240px">
+                                                        <x-import
+                                                            component-from-global-scope="Commise.DurationField"
+                                                            label="Timer"
+                                                            hours-label="Step 2 timer, hours"
+                                                            minutes-label="Step 2 timer, minutes"
+                                                            hours-unit="h"
+                                                            minutes-unit="min"
+                                                            value="{{v66}}"
+                                                            on-change="{{v67}}"
+                                                        ></x-import>
+                                                    </div>
+                                                    <x-import
+                                                        component-from-global-scope="Commise.Button"
+                                                        variant="ghost"
+                                                        >Remove timer</x-import
+                                                    >
+                                                </div>
+                                            </li>
+                                            <li style="display: flex; flex-direction: column; gap: 8px">
+                                                <div style="display: flex; align-items: center; gap: 12px">
+                                                    <span
+                                                        aria-hidden="true"
+                                                        style="
+                                                            display: flex;
+                                                            width: 32px;
+                                                            height: 32px;
+                                                            flex-shrink: 0;
+                                                            align-items: center;
+                                                            justify-content: center;
+                                                            border-radius: 9999px;
+                                                            background: var(--selected-fill);
+                                                            font-size: 14px;
+                                                            font-weight: 600;
+                                                            line-height: 1.2;
+                                                            color: var(--ink);
+                                                            font-variant-numeric: tabular-nums;
+                                                        "
+                                                        >3</span
+                                                    >
+                                                    <div style="min-width: 0; flex: 1">
+                                                        <x-import
+                                                            component-from-global-scope="Commise.FieldLabel"
+                                                            for-id="step-2"
+                                                            label="Step 3"
+                                                        ></x-import>
+                                                    </div>
+                                                    <x-import
+                                                        component-from-global-scope="Commise.ActionMenu"
+                                                        trigger-label="Actions for step 3"
+                                                        title="Step 3"
+                                                        close-label="Close actions for Step 3"
+                                                        items="{{v68}}"
+                                                        destructive-item="{{v69}}"
+                                                    ></x-import>
+                                                </div>
+                                                <x-import
+                                                    component-from-global-scope="Commise.TextArea"
+                                                    id="step-2"
+                                                    value="Move the chicken to a plate and pour off most of the fat. Add the butter and garlic and cook until the butter foams and turns nutty brown."
+                                                    min-rows="{{v70}}"
+                                                    auto-capitalize="sentences"
+                                                    on-change-text="{{v71}}"
+                                                ></x-import>
+                                                <div
+                                                    style="
+                                                        display: flex;
+                                                        flex-wrap: wrap;
+                                                        align-items: flex-end;
+                                                        gap: 12px;
+                                                    "
+                                                >
+                                                    <div style="flex: 1 1 200px; min-width: 0; max-width: 240px">
+                                                        <x-import
+                                                            component-from-global-scope="Commise.DurationField"
+                                                            label="Timer"
+                                                            hours-label="Step 3 timer, hours"
+                                                            minutes-label="Step 3 timer, minutes"
+                                                            hours-unit="h"
+                                                            minutes-unit="min"
+                                                            value="{{v72}}"
+                                                            on-change="{{v73}}"
+                                                        ></x-import>
+                                                    </div>
+                                                    <x-import
+                                                        component-from-global-scope="Commise.Button"
+                                                        variant="ghost"
+                                                        >Remove timer</x-import
+                                                    >
+                                                </div>
+                                            </li>
+                                            <li style="display: flex; flex-direction: column; gap: 8px">
+                                                <div style="display: flex; align-items: center; gap: 12px">
+                                                    <span
+                                                        aria-hidden="true"
+                                                        style="
+                                                            display: flex;
+                                                            width: 32px;
+                                                            height: 32px;
+                                                            flex-shrink: 0;
+                                                            align-items: center;
+                                                            justify-content: center;
+                                                            border-radius: 9999px;
+                                                            background: var(--selected-fill);
+                                                            font-size: 14px;
+                                                            font-weight: 600;
+                                                            line-height: 1.2;
+                                                            color: var(--ink);
+                                                            font-variant-numeric: tabular-nums;
+                                                        "
+                                                        >4</span
+                                                    >
+                                                    <div style="min-width: 0; flex: 1">
+                                                        <x-import
+                                                            component-from-global-scope="Commise.FieldLabel"
+                                                            for-id="step-3"
+                                                            label="Step 4"
+                                                        ></x-import>
+                                                    </div>
+                                                    <x-import
+                                                        component-from-global-scope="Commise.ActionMenu"
+                                                        trigger-label="Actions for step 4"
+                                                        title="Step 4"
+                                                        close-label="Close actions for Step 4"
+                                                        items="{{v74}}"
+                                                        destructive-item="{{v75}}"
+                                                    ></x-import>
+                                                </div>
+                                                <x-import
+                                                    component-from-global-scope="Commise.TextArea"
+                                                    id="step-3"
+                                                    value="Stir in the broth, lemon juice and capers, scraping up the browned bits. Return the chicken, cover and simmer until cooked through."
+                                                    min-rows="{{v76}}"
+                                                    auto-capitalize="sentences"
+                                                    on-change-text="{{v77}}"
+                                                ></x-import>
+                                                <div
+                                                    style="
+                                                        display: flex;
+                                                        flex-wrap: wrap;
+                                                        align-items: flex-end;
+                                                        gap: 12px;
+                                                    "
+                                                >
+                                                    <div style="flex: 1 1 200px; min-width: 0; max-width: 240px">
+                                                        <x-import
+                                                            component-from-global-scope="Commise.DurationField"
+                                                            label="Timer"
+                                                            hours-label="Step 4 timer, hours"
+                                                            minutes-label="Step 4 timer, minutes"
+                                                            hours-unit="h"
+                                                            minutes-unit="min"
+                                                            value="{{v78}}"
+                                                            on-change="{{v79}}"
+                                                        ></x-import>
+                                                    </div>
+                                                    <x-import
+                                                        component-from-global-scope="Commise.Button"
+                                                        variant="ghost"
+                                                        >Remove timer</x-import
+                                                    >
+                                                </div>
+                                            </li>
+                                            <li style="display: flex; flex-direction: column; gap: 8px">
+                                                <div style="display: flex; align-items: center; gap: 12px">
+                                                    <span
+                                                        aria-hidden="true"
+                                                        style="
+                                                            display: flex;
+                                                            width: 32px;
+                                                            height: 32px;
+                                                            flex-shrink: 0;
+                                                            align-items: center;
+                                                            justify-content: center;
+                                                            border-radius: 9999px;
+                                                            background: var(--selected-fill);
+                                                            font-size: 14px;
+                                                            font-weight: 600;
+                                                            line-height: 1.2;
+                                                            color: var(--ink);
+                                                            font-variant-numeric: tabular-nums;
+                                                        "
+                                                        >5</span
+                                                    >
+                                                    <div style="min-width: 0; flex: 1">
+                                                        <x-import
+                                                            component-from-global-scope="Commise.FieldLabel"
+                                                            for-id="step-4"
+                                                            label="Step 5"
+                                                        ></x-import>
+                                                    </div>
+                                                    <x-import
+                                                        component-from-global-scope="Commise.ActionMenu"
+                                                        trigger-label="Actions for step 5"
+                                                        title="Step 5"
+                                                        close-label="Close actions for Step 5"
+                                                        items="{{v80}}"
+                                                        destructive-item="{{v81}}"
+                                                    ></x-import>
+                                                </div>
+                                                <x-import
+                                                    component-from-global-scope="Commise.TextArea"
+                                                    id="step-4"
+                                                    value="Finish with the lemon zest and parsley. Taste and adjust the salt before serving."
+                                                    min-rows="{{v82}}"
+                                                    auto-capitalize="sentences"
+                                                    on-change-text="{{v83}}"
+                                                ></x-import>
+                                                <div style="align-self: flex-start">
+                                                    <x-import
+                                                        component-from-global-scope="Commise.Button"
+                                                        variant="ghost"
+                                                        icon="timer"
+                                                        >Add a timer</x-import
+                                                    >
+                                                </div>
+                                            </li>
+                                        </ol>
+                                        <div style="align-self: flex-start">
+                                            <x-import
+                                                component-from-global-scope="Commise.Button"
+                                                variant="secondary"
+                                                icon="plus"
+                                                >Add step</x-import
+                                            >
+                                        </div>
+                                    </div>
+                                </section>
+                                <section
+                                    aria-labelledby="photos"
+                                    style="display: flex; flex-direction: column; gap: 16px"
+                                >
+                                    <div
+                                        style="
+                                            display: flex;
+                                            min-height: 44px;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                            gap: 8px;
+                                        "
+                                    >
+                                        <h2
+                                            id="photos"
+                                            tabindex="-1"
+                                            style="
+                                                font-size: 18px;
+                                                font-weight: 600;
+                                                line-height: 1.25;
+                                                color: var(--ink);
+                                            "
+                                        >
+                                            Photos &amp; publish
+                                        </h2>
+                                    </div>
+                                    <p
+                                        style="
+                                            font-size: 12px;
+                                            font-weight: 500;
+                                            line-height: 1.4;
+                                            color: var(--ink-muted);
+                                        "
+                                    >
+                                        Ready to publish.
+                                    </p>
+                                    <section
+                                        aria-label="Photos"
+                                        style="display: flex; flex-direction: column; gap: 12px"
+                                    >
+                                        <h3
+                                            style="
+                                                font-size: 14px;
+                                                font-weight: 600;
+                                                line-height: 1.2;
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            Photos
+                                        </h3>
+                                        <div style="display: flex; flex-direction: column; gap: 12px">
+                                            <div style="width: 100%; max-width: 320px">
+                                                <x-import
+                                                    component-from-global-scope="Commise.RecipeCover"
+                                                    recipe-id="draft-brown-butter-lemon-chicken"
+                                                    title="Brown Butter Lemon Chicken"
+                                                    cuisine="Italian"
+                                                    aspect="4:3"
+                                                ></x-import>
+                                            </div>
+                                            <p
+                                                style="
+                                                    font-size: 14px;
+                                                    font-weight: 400;
+                                                    line-height: 1.5;
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                No photo? This cover is used instead. Add one any time.
+                                            </p>
+                                        </div>
+                                        <p
+                                            style="
+                                                font-size: 12px;
+                                                font-weight: 500;
+                                                line-height: 1.4;
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            JPEG, PNG, or WebP · max 5 MB
+                                        </p>
+                                        <div style="display: flex">
+                                            <x-import
+                                                component-from-global-scope="Commise.Button"
+                                                variant="secondary"
+                                                icon="imagePlus"
+                                                >Add photos</x-import
+                                            >
+                                        </div>
+                                    </section>
+                                    <fieldset
+                                        style="
+                                            display: flex;
+                                            flex-direction: column;
+                                            gap: 8px;
+                                            border: 0;
+                                            margin: 0;
+                                            padding: 0;
+                                            min-width: 0;
+                                        "
+                                    >
+                                        <legend
+                                            style="
+                                                margin-bottom: 8px;
+                                                padding: 0;
+                                                font-size: 14px;
+                                                font-weight: 600;
+                                                line-height: 1.2;
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            Who can see it
+                                        </legend>
+                                        <div class="g2" style="gap: 8px">
+                                            <label
+                                                style="
+                                                    display: flex;
+                                                    min-height: 56px;
+                                                    cursor: pointer;
+                                                    align-items: center;
+                                                    gap: 12px;
+                                                    border-radius: var(--radius-lg);
+                                                    border: 1px solid var(--selected-edge);
+                                                    background: var(--selected-fill);
+                                                    padding: 8px 16px;
+                                                "
+                                                ><input
+                                                    type="radio"
+                                                    name="recipe-visibility"
+                                                    value="public"
+                                                    checked
+                                                    aria-labelledby="vis-public"
+                                                    style="
+                                                        width: 20px;
+                                                        height: 20px;
+                                                        flex-shrink: 0;
+                                                        accent-color: var(--action);
+                                                        margin: 0;
+                                                    "
+                                                /><span
+                                                    style="display: flex; min-width: 0; flex: 1; flex-direction: column"
+                                                    ><span
+                                                        id="vis-public"
+                                                        style="
+                                                            font-size: 16px;
+                                                            font-weight: 600;
+                                                            line-height: 1.5;
+                                                            color: var(--ink);
+                                                        "
+                                                        >Public</span
+                                                    ><span
+                                                        style="
+                                                            font-size: 14px;
+                                                            font-weight: 400;
+                                                            line-height: 1.4;
+                                                            color: var(--ink-muted);
+                                                        "
+                                                        >Anyone can find it in Discover</span
+                                                    ></span
+                                                ></label
+                                            ><label
+                                                style="
+                                                    display: flex;
+                                                    min-height: 56px;
+                                                    cursor: pointer;
+                                                    align-items: center;
+                                                    gap: 12px;
+                                                    border-radius: var(--radius-lg);
+                                                    border: 1px solid var(--line-control);
+                                                    background: var(--paper);
+                                                    padding: 8px 16px;
+                                                "
+                                                ><input
+                                                    type="radio"
+                                                    name="recipe-visibility"
+                                                    value="private"
+                                                    aria-labelledby="vis-private"
+                                                    style="
+                                                        width: 20px;
+                                                        height: 20px;
+                                                        flex-shrink: 0;
+                                                        accent-color: var(--action);
+                                                        margin: 0;
+                                                    "
+                                                /><span
+                                                    style="display: flex; min-width: 0; flex: 1; flex-direction: column"
+                                                    ><span
+                                                        id="vis-private"
+                                                        style="
+                                                            font-size: 16px;
+                                                            font-weight: 600;
+                                                            line-height: 1.5;
+                                                            color: var(--ink);
+                                                        "
+                                                        >Private</span
+                                                    ><span
+                                                        style="
+                                                            font-size: 14px;
+                                                            font-weight: 400;
+                                                            line-height: 1.4;
+                                                            color: var(--ink-muted);
+                                                        "
+                                                        >Only you can see it</span
+                                                    ></span
+                                                ></label
+                                            >
+                                        </div>
+                                    </fieldset>
+                                </section>
+                                <div
+                                    role="group"
+                                    aria-label="Recipe actions"
+                                    style="
+                                        position: relative;
+                                        z-index: 20;
+                                        isolation: isolate;
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: 8px;
+                                        margin: 0 -16px;
+                                        padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+                                    "
+                                >
+                                    <x-import component-from-global-scope="Commise.ChromeSurface" edge="top"></x-import>
+                                    <div
+                                        style="display: flex; align-items: center; justify-content: flex-end; gap: 12px"
+                                    >
+                                        <x-import
+                                            component-from-global-scope="Commise.Button"
+                                            variant="secondary"
+                                            icon="eye"
+                                            >Preview</x-import
+                                        ><x-import component-from-global-scope="Commise.Button" icon="check"
+                                            >Publish</x-import
+                                        >
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div></x-import
+            ><x-import
+                component-from-global-scope="Commise.Sheet"
+                open="{{v95}}"
+                on-open-change="{{v96}}"
+                title="Paste a list"
+                close-label="Close paste a list"
+                size="content"
+                footer="{{v97}}"
+                ><div style="display: flex; flex-direction: column; gap: 4px">
+                    <x-import
+                        component-from-global-scope="Commise.FieldLabel"
+                        for-id="paste-list"
+                        label="Ingredient lines"
+                        hint="One ingredient per line. You can add the steps next."
+                    ></x-import>
+                    <div style="max-width: 72ch">
+                        <x-import
+                            component-from-global-scope="Commise.TextArea"
+                            id="paste-list"
+                            value="{{v92}}"
+                            min-rows="{{v93}}"
+                            described-by="paste-list-hint"
+                            on-change-text="{{v94}}"
+                        ></x-import>
+                    </div>
+                    <p
+                        style="
+                            font-size: 14px;
+                            font-weight: 600;
+                            line-height: 1.4;
+                            color: var(--ink-muted);
+                            font-variant-numeric: tabular-nums;
+                        "
+                    >
+                        4 lines
+                    </p>
+                </div></x-import
+            ></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement, C=window.Commise, noop=()=>{}; return {
+            v1:24,
+            v2:[],
+            v3:{id:'discard',label:'Discard draft',icon:'trash',onSelect:noop},
+            v4:[{"id": "details", "label": "Details", "tone": "complete", "spokenStatus": "Complete"}, {"id": "ingredients", "label": "Ingredients", "tone": "complete", "spokenStatus": "Complete"}, {"id": "steps", "label": "Steps", "tone": "complete", "spokenStatus": "Complete"}, {"id": "photos", "label": "Photos & publish", "tone": "complete", "shortLabel": "Photos", "reason": "Ready to publish"}],
+            v5:h('p',{style:{margin:0,fontSize:'14px',fontWeight:500,lineHeight:1.4,color:'var(--ink)',fontVariantNumeric:'tabular-nums'}},"548 cal per serving \u00b7 9 of 9 counted"),
+            v6:1,
+            v7:3,
+            v8:noop,
+            v9:4,
+            v10:noop,
+            v11:4,
+            v12:1,
+            v13:noop,
+            v14:(n)=>'Serves '+n,
+            v15:900,
+            v16:noop,
+            v17:1500,
+            v18:noop,
+            v19:noop,
+            v20:[],
+            v21:noop,
+            v22:true,
+            v23:noop,
+            v24:true,
+            v25:[{"value": "breakfast", "label": "Breakfast"}, {"value": "brunch", "label": "Brunch"}, {"value": "lunch", "label": "Lunch"}, {"value": "dinner", "label": "Dinner"}, {"value": "snack", "label": "Snack"}, {"value": "dessert", "label": "Dessert"}, {"value": "drink", "label": "Drink"}],
+            v26:noop,
+            v27:true,
+            v28:[{"value": "easy", "label": "Easy"}, {"value": "medium", "label": "Medium"}, {"value": "hard", "label": "Hard"}],
+            v29:noop,
+            v30:noop,
+            v31:noop,
+            v32:noop,
+            v33:noop,
+            v34:noop,
+            v35:noop,
+            v36:[],
+            v37:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+            v38:[],
+            v39:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+            v40:[],
+            v41:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+            v42:[],
+            v43:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+            v44:[],
+            v45:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+            v46:[],
+            v47:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+            v48:[],
+            v49:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+            v50:[],
+            v51:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+            v52:[],
+            v53:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+            v54:noop,
+            v55:[],
+            v56:noop,
+            v57:h(C.Icon,{name:"plus",size:16}),
+            v58:[{"id": "moveDown", "label": "Move down"}],
+            v59:{id:'remove',label:'Remove step',icon:'trash',onSelect:noop},
+            v60:2,
+            v61:noop,
+            v62:[{"id": "moveUp", "label": "Move up"}, {"id": "moveDown", "label": "Move down"}],
+            v63:{id:'remove',label:'Remove step',icon:'trash',onSelect:noop},
+            v64:2,
+            v65:noop,
+            v66:720,
+            v67:noop,
+            v68:[{"id": "moveUp", "label": "Move up"}, {"id": "moveDown", "label": "Move down"}],
+            v69:{id:'remove',label:'Remove step',icon:'trash',onSelect:noop},
+            v70:2,
+            v71:noop,
+            v72:180,
+            v73:noop,
+            v74:[{"id": "moveUp", "label": "Move up"}, {"id": "moveDown", "label": "Move down"}],
+            v75:{id:'remove',label:'Remove step',icon:'trash',onSelect:noop},
+            v76:2,
+            v77:noop,
+            v78:600,
+            v79:noop,
+            v80:[{"id": "moveUp", "label": "Move up"}],
+            v81:{id:'remove',label:'Remove step',icon:'trash',onSelect:noop},
+            v82:2,
+            v83:noop,
+            v84:24,
+            v85:24,
+            v86:24,
+            v87:24,
+            v88:24,
+            v89:24,
+            v90:["details", "ingredients", "steps", "photos"],
+            v91:120,
+            v92:"1 cup orzo\n2 cups baby spinach\n1 tbsp Dijon mustard\n1 pinch red pepper flakes",
+            v93:10,
+            v94:noop,
+            v95:true,
+            v96:noop,
+            v97:h('div',{className:'pf-foot'},h('div',{className:'pf-cancel'},h(C.Button,{variant:'ghost'},'Cancel')),h('div',null,h(C.Button,{icon:'plus',width:'fill'},'Add 4 ingredients')))
+            }; } }
+        </script>
+    </body>
+</html>

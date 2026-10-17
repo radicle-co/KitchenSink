@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>RecipeVersionsEmptyMobile</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    nav[data-tab-bar] {
+                        display: flex !important;
+                    }
+                </style></helmet
+            >
+            <div
+                style="
+                    width: 390px;
+                    height: 844px;
+                    position: relative;
+                    overflow: hidden;
+                    transform: translateZ(0);
+                    background: var(--canvas);
+                    color: var(--ink);
+                    font-family: var(--font-body);
+                    display: flex;
+                    flex-direction: column;
+                "
+            >
+                <div
+                    style="
+                        flex: 1;
+                        display: flex;
+                        flex-direction: column;
+                        min-height: 0;
+                        padding-top: 47px;
+                        padding-bottom: 98px;
+                    "
+                >
+                    <x-import
+                        component-from-global-scope="Commise.Native.LargeTitleHeader"
+                        heading-id="vh"
+                        title="Version history"
+                        subtitle="Lemon and thyme roast chicken"
+                        back="{{back}}"
+                    ></x-import>
+                    <div
+                        style="
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            gap: 12px;
+                            padding: 32px 16px;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.Icon"
+                            name="clock"
+                            size="48"
+                            tone="inkMuted"
+                        ></x-import>
+                        <div style="font: 600 18px/1.25 var(--font-body); color: var(--ink); text-align: center">
+                            No earlier versions yet
+                        </div>
+                        <div style="font: 400 16px/1.5 var(--font-body); color: var(--ink-muted); text-align: center">
+                            Each time you save changes, the version before is kept here.
+                        </div>
+                    </div>
+                </div>
+                <x-import
+                    component-from-global-scope="Commise.Native.HomeTabBar"
+                    chrome="{{chrome}}"
+                    live-capabilities="{{none}}"
+                    active-id="recipes"
+                    on-press="{{noop}}"
+                    bottom-inset="{{n34}}"
+                    compact="{{no}}"
+                    left-inset="{{n0}}"
+                    right-inset="{{n0}}"
+                ></x-import></div
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+            class Component extends DCLogic { renderVals(){ const noop=()=>{}; return {noop,no:false,none:[],n34:34,n0:0,
+            back:{label:'Back to recipe',parent:'Lemon and thyme roast chicken',onPress:noop},
+            chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},
+            menu:[{id:'preview',label:'Preview',icon:'eye',onSelect:noop},{id:'restore',label:'Restore this version',icon:'rotateCcw',onSelect:noop},{id:'compare',label:'Compare with current',icon:'slidersHorizontal',onSelect:noop}]}; } }
+        </script>
+    </body>
+</html>

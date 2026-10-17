@@ -13,7 +13,15 @@ export { discoverComponentFiles, isDocumentedComponentFile, isDocumentedDirector
 export { parseDocblock, readDeclarationDocs, readLeadingDocblock, readModuleDocblock } from './docblock.js';
 export type { Docblock } from './docblock.js';
 export { DocgenError, isDocgenError } from './errors.js';
-export { extractImplementations, loadCompilerOptions, platformOf, resolveTrimmedPath } from './extract.js';
+export {
+    componentExportsOf,
+    exportsAComponentName,
+    extractImplementations,
+    loadCompilerOptions,
+    platformOf,
+    resolveTrimmedPath,
+} from './extract.js';
+export type { ComponentExport } from './extract.js';
 export { collectFindings } from './findings.js';
 export { buildArtifacts, readCommittedArtifacts, readGroup, writeArtifacts } from './generate.js';
 export type { Coverage, GroupCatalogue } from './generate.js';

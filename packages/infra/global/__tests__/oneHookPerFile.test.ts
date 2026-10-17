@@ -89,9 +89,10 @@ interface HookExemption {
  * licence: adding a third hook to a file exempted at two fails this guard and needs its own argument. Same
  * discipline as `oneFileOneThing.test.ts`'s `GOD_FILE_EXEMPTIONS`.
  *
- * ⚠️ There is exactly one legitimate reason to sit here, and it is not "this file is fine": it is that the
- * hooks share module-PRIVATE state, so splitting them would force that state to be exported — trading a
- * one-file-two-hooks violation for a wider public surface, which is a worse outcome by the rule's own logic.
+ * ⚠️ There are two legitimate reasons to sit here, and neither is "this file is fine". One: the hooks share
+ * module-PRIVATE state, so splitting them would force that state to be exported — trading a one-file-two-hooks
+ * violation for a wider public surface, which is a worse outcome by the rule's own logic. Two: the file is a build
+ * alias target standing in for a whole third-party module, whose surface the upstream module dictates.
  */
 const HOOK_EXEMPTIONS: readonly HookExemption[] = [
     {
@@ -102,6 +103,23 @@ const HOOK_EXEMPTIONS: readonly HookExemption[] = [
             'them would have to export that context, widening the public surface to satisfy a file-count rule. ' +
             'The same reasoning keeps recipe-service-client’s provider, its props type and its context reader ' +
             'together in one file.',
+    },
+    {
+        file: 'packages/tools/designArtifact/src/shims/safeAreaContext.tsx',
+        hooks: 2,
+        why:
+            'useSafeAreaInsets reads the module-private insets context the provider writes, and useSafeAreaFrame ' +
+            'sits beside it because the file is the esbuild alias target for the whole react-native-safe-area-context ' +
+            'module, which must export both hooks from one module.',
+    },
+    {
+        file: 'packages/tools/designArtifact/src/shims/nextNavigation.ts',
+        hooks: 4,
+        why:
+            'A SECOND reason, beside module-private state: this file is the esbuild alias target that replaces the ' +
+            'whole next/navigation module in the design-artifact bundle, and an alias replaces a module entirely, ' +
+            'so every hook the bundled chrome imports from next/navigation must come from this one module. ' +
+            'Splitting it would need a forwarding module to re-join the hooks, the barrel §4 forbids.',
     },
 ];
 

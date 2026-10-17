@@ -56,6 +56,7 @@ const FIXTURE_DOORS = ['provisionRoleDatabase', 'roleDatabase'] as const;
 describe('what reaches a real dependency, and through which door', () => {
     const suite = 'pkg/tests/a.test.ts';
     const s3 = "import { S3Client } from '@aws-sdk/client-s3';";
+    const chromium = "import { chromium } from 'playwright-core';";
 
     it.each<[string, Readonly<Record<string, string>>, readonly DoorKind[], string?]>([
         ['a provisioner call', { [suite]: 'await provisionRoleDatabase(spec);' }, ['database']],
@@ -170,10 +171,162 @@ describe('what reaches a real dependency, and through which door', () => {
             [],
         ],
         ['an AWS client named only in a comment', { [suite]: `${s3}\n// new S3Client({})` }, []],
+        [
+            'an AWS client destructured from a dynamic import',
+            { [suite]: "const { S3Client } = await import('@aws-sdk/client-s3');\nnew S3Client({});" },
+            ['awsClient'],
+        ],
+        [
+            'an AWS client destructured from a require',
+            { [suite]: "const { SQSClient } = require('@aws-sdk/client-sqs');\nnew SQSClient({});" },
+            ['awsClient'],
+        ],
+        ['an AWS client re-bound to an alias', { [suite]: `${s3}\nconst C = S3Client;\nnew C({});` }, ['awsClient']],
+        [
+            'an AWS client reached through a required namespace',
+            { [suite]: "const sqs = require('@aws-sdk/client-sqs');\nnew sqs.SQSClient({});" },
+            ['awsClient'],
+        ],
+        [
+            'an AWS client alias over its mocked module',
+            {
+                [suite]:
+                    "vi.mock('@aws-sdk/client-s3');\nconst { S3Client } = await import('@aws-sdk/client-s3');\nconst C = S3Client;\nnew C({});",
+            },
+            [],
+        ],
+        [
+            'an AWS command destructured from a require, which is not a client',
+            { [suite]: "const { GetObjectCommand } = require('@aws-sdk/client-s3');\nnew GetObjectCommand({});" },
+            [],
+        ],
         ['a door named only in a comment', { [suite]: '// we never call roleDatabase(spec) here' }, []],
         [
             'an import of a production module that opens a door, which is not the suite opening one',
             { [suite]: "import { boot } from '../src/boot.js';", 'pkg/src/boot.ts': 'new pg.Pool({});' },
+            [],
+        ],
+        [
+            'a Playwright browser, launched',
+            { [suite]: `${chromium}\nconst browser = await chromium.launch();` },
+            ['browser'],
+        ],
+        [
+            'a Playwright browser, renamed on import',
+            { [suite]: "import { firefox as engine } from 'playwright';\nawait engine.launch();" },
+            ['browser'],
+        ],
+        [
+            'a Playwright browser through a namespace import',
+            { [suite]: "import * as pw from '@playwright/test';\nawait pw.webkit.launch();" },
+            ['browser'],
+        ],
+        [
+            'a Playwright browser launched in a helper the suite imports',
+            {
+                [suite]: "import { open } from './support/browser.js';",
+                'pkg/tests/support/browser.ts': `${chromium}\nexport const open = () => chromium.launch();`,
+            },
+            ['browser'],
+        ],
+        [
+            'a Playwright browser over its mocked module',
+            { [suite]: `vi.mock('playwright-core');\n${chromium}\nawait chromium.launch();` },
+            [],
+        ],
+        [
+            'a type-only Playwright import',
+            { [suite]: "import type { Browser } from 'playwright-core';\nlet b: Browser | undefined;" },
+            [],
+        ],
+        ['a Playwright launch named only in a comment', { [suite]: `${chromium}\n// await chromium.launch()` }, []],
+        [
+            'a launch() on something that is not a Playwright browser type',
+            { [suite]: "import { rocket } from './rocket.js';\nrocket.launch();" },
+            [],
+        ],
+        [
+            'a Playwright persistent context',
+            { [suite]: `${chromium}\nawait chromium.launchPersistentContext('/tmp/p');` },
+            ['browser'],
+        ],
+        ['a Playwright browser server', { [suite]: `${chromium}\nawait chromium.launchServer();` }, ['browser']],
+        [
+            'a Playwright connect to a running browser',
+            { [suite]: `${chromium}\nawait chromium.connect('ws://x');` },
+            ['browser'],
+        ],
+        [
+            'a Playwright connect over CDP',
+            { [suite]: `${chromium}\nawait chromium.connectOverCDP('http://x');` },
+            ['browser'],
+        ],
+        [
+            'a Playwright default import',
+            { [suite]: "import pw from 'playwright';\nawait pw.chromium.launch();" },
+            ['browser'],
+        ],
+        [
+            'a Playwright dynamic import, destructured',
+            { [suite]: "const { chromium } = await import('playwright-core');\nawait chromium.launch();" },
+            ['browser'],
+        ],
+        [
+            'a Playwright dynamic import, as a namespace',
+            { [suite]: "const pw = await import('playwright-core');\nawait pw.firefox.launch();" },
+            ['browser'],
+        ],
+        [
+            'a Playwright dynamic import, called inline',
+            { [suite]: "const b = (await import('playwright')).webkit.launch();" },
+            ['browser'],
+        ],
+        [
+            'a Playwright require',
+            { [suite]: "const { chromium } = require('playwright');\nawait chromium.launch();" },
+            ['browser'],
+        ],
+        [
+            'a Playwright require, as a namespace',
+            { [suite]: "const pw = require('playwright');\nawait pw.chromium.launch();" },
+            ['browser'],
+        ],
+        [
+            'a Playwright browser type re-bound to an alias',
+            { [suite]: `${chromium}\nconst c = chromium;\nawait c.launch();` },
+            ['browser'],
+        ],
+        [
+            'a Playwright browser type re-bound through a namespace and a second alias',
+            { [suite]: "import * as pw from 'playwright';\nconst a = pw.chromium;\nconst b = a;\nawait b.launch();" },
+            ['browser'],
+        ],
+        [
+            'a Playwright dynamic import over its mocked module',
+            {
+                [suite]:
+                    "vi.mock('playwright-core');\nconst { chromium } = await import('playwright-core');\nawait chromium.launch();",
+            },
+            [],
+        ],
+        [
+            'a Playwright alias over its mocked module',
+            { [suite]: `vi.mock('playwright-core');\n${chromium}\nconst c = chromium;\nawait c.launch();` },
+            [],
+        ],
+        [
+            'a connect() on something that is not a Playwright browser type',
+            { [suite]: "import { socket } from './socket.js';\nconst s = socket;\nawait s.connect('x');" },
+            [],
+        ],
+        [
+            'a dynamic import of a module that is not Playwright',
+            { [suite]: "const { chromium } = await import('./fake.js');\nawait chromium.launch();" },
+            [],
+        ],
+        [
+            'a Playwright default import whose methods are not browser entry points',
+            { [suite]: "import pw from 'playwright';\nawait pw.chromium.executablePath();" },
             [],
         ],
         ['a fully mocked suite', { [suite]: "vi.mock('../src/db.js');\nexpect(1).toBe(1);" }, []],

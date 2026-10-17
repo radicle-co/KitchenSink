@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>RecipeVersions</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    .c-shell {
+                        display: flex;
+                        min-height: 100vh;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/1.5 var(--font-body);
+                    }
+                    .c-side {
+                        display: none;
+                        align-self: stretch;
+                        flex-shrink: 0;
+                        width: 256px;
+                        flex-direction: column;
+                        overflow-y: auto;
+                        box-sizing: border-box;
+                        border-right: 1px solid var(--line-divider);
+                        background: color-mix(in srgb, var(--paper) 70%, transparent);
+                    }
+                    .c-main {
+                        min-width: 0;
+                        flex: 1;
+                        box-sizing: border-box;
+                        padding: 24px 16px 168px;
+                    }
+                    .c-tabs {
+                        display: flex;
+                        justify-content: space-around;
+                    }
+                    .c-hero-ctl {
+                        display: flex;
+                    }
+                    .c-back,
+                    .c-plain {
+                        display: none;
+                    }
+                    @media (min-width: 600px) {
+                        .c-main {
+                            padding-left: 24px;
+                            padding-right: 24px;
+                        }
+                    }
+                    @media (min-width: 840px) {
+                        .c-side {
+                            display: flex;
+                        }
+                        .c-tabs {
+                            display: none;
+                        }
+                        .c-main {
+                            padding: 24px 32px 32px;
+                        }
+                        .c-hero-ctl {
+                            display: none;
+                        }
+                        .c-back {
+                            display: flex;
+                        }
+                        .c-plain {
+                            display: contents;
+                        }
+                    }
+                </style></helmet
+            >
+
+            <div class="c-shell">
+                <div class="c-side">
+                    <div style="display: flex; height: 64px; flex-shrink: 0; align-items: center; padding: 0 24px">
+                        <span style="font: 700 20px/1.4 var(--font-display); color: var(--ink)">Commise</span>
+                    </div>
+                    <div style="padding: 0 16px 12px">
+                        <x-import
+                            component-from-global-scope="Commise.Button"
+                            variant="primary"
+                            icon="plus"
+                            width="fill"
+                            >New recipe</x-import
+                        >
+                    </div>
+                    <nav aria-label="Main" style="display: flex; flex-direction: column; gap: 4px; padding: 0 12px">
+                        <a
+                            href="#"
+                            style="
+                                position: relative;
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: var(--radius-md);
+                                padding: 0 12px;
+                                font: 600 14px/1.2 var(--font-body);
+                                text-decoration: none;
+                                color: var(--ink-muted);
+                            "
+                        >
+                            <span
+                                aria-hidden="true"
+                                style="
+                                    position: absolute;
+                                    top: 8px;
+                                    bottom: 8px;
+                                    left: 0;
+                                    width: 3px;
+                                    border-radius: 0 9999px 9999px 0;
+                                    background: transparent;
+                                "
+                            ></span
+                            ><x-import component-from-global-scope="Commise.Icon" name="house" size="24"></x-import
+                            ><span>Home</span></a
+                        ><a
+                            href="#"
+                            aria-current="page"
+                            style="
+                                position: relative;
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: var(--radius-md);
+                                padding: 0 12px;
+                                font: 600 14px/1.2 var(--font-body);
+                                text-decoration: none;
+                                background: color-mix(in srgb, var(--action) 10%, transparent);
+                                font-weight: 600;
+                                color: var(--ink);
+                            "
+                        >
+                            <span
+                                aria-hidden="true"
+                                style="
+                                    position: absolute;
+                                    top: 8px;
+                                    bottom: 8px;
+                                    left: 0;
+                                    width: 3px;
+                                    border-radius: 0 9999px 9999px 0;
+                                    background: var(--here-bar);
+                                "
+                            ></span
+                            ><x-import component-from-global-scope="Commise.Icon" name="bookOpen" size="24"></x-import
+                            ><span>Recipes</span></a
+                        ><a
+                            href="#"
+                            style="
+                                position: relative;
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: var(--radius-md);
+                                padding: 0 12px;
+                                font: 600 14px/1.2 var(--font-body);
+                                text-decoration: none;
+                                color: var(--ink-muted);
+                            "
+                        >
+                            <span
+                                aria-hidden="true"
+                                style="
+                                    position: absolute;
+                                    top: 8px;
+                                    bottom: 8px;
+                                    left: 0;
+                                    width: 3px;
+                                    border-radius: 0 9999px 9999px 0;
+                                    background: transparent;
+                                "
+                            ></span
+                            ><x-import component-from-global-scope="Commise.Icon" name="compass" size="24"></x-import
+                            ><span>Discover</span></a
+                        >
+                    </nav>
+                    <div style="margin: 12px; border-top: 1px solid var(--line-divider)"></div>
+                    <a
+                        href="#"
+                        aria-label="Profile, Jordan Ellis"
+                        style="
+                            display: flex;
+                            min-height: 44px;
+                            align-items: center;
+                            gap: 12px;
+                            border-radius: var(--radius-md);
+                            margin: 0 12px;
+                            padding: 0 12px;
+                            font: 600 14px/1.2 var(--font-body);
+                            color: var(--ink);
+                            text-decoration: none;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.AvatarDisc"
+                            status="ready"
+                            initials="JE"
+                        ></x-import
+                        ><span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
+                            >Jordan Ellis</span
+                        ></a
+                    >
+                    <div style="margin-top: auto">
+                        <button
+                            type="button"
+                            aria-expanded="{{yes}}"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                width: calc(100% - 24px);
+                                align-items: center;
+                                gap: 12px;
+                                border: 0;
+                                background: transparent;
+                                border-radius: var(--radius-md);
+                                margin: 0 12px 12px;
+                                padding: 0 12px;
+                                font: 600 14px/1.2 var(--font-body);
+                                color: var(--ink-muted);
+                                cursor: pointer;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Icon"
+                                name="chevronsLeft"
+                                size="24"
+                            ></x-import
+                            ><span>Collapse</span>
+                        </button>
+                    </div>
+                </div>
+                <main class="c-main">
+                    <section
+                        aria-labelledby="h1"
+                        style="
+                            display: flex;
+                            width: 100%;
+                            max-width: 48rem;
+                            flex-direction: column;
+                            gap: 16px;
+                            padding-bottom: 40px;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.LargeTitleHeader"
+                            heading-id="h1"
+                            title="Version history"
+                            subtitle="Lemon and thyme roast chicken"
+                            back="{{back}}"
+                        ></x-import>
+                        <ul style="margin: 0; padding: 0; list-style: none">
+                            <li
+                                style="
+                                    display: flex;
+                                    align-items: flex-start;
+                                    gap: 12px;
+                                    padding: 12px 0;
+                                    border-bottom: 1px solid var(--line-divider);
+                                "
+                            >
+                                <div style="display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px">
+                                    <span
+                                        style="font: 400 16px/1.5 var(--font-body); font-weight: 600; color: var(--ink)"
+                                        >Oct 15, 2026, 6:42 PM</span
+                                    >
+                                    <span style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)"
+                                        >Version 5 · Edited 14 hours ago</span
+                                    >
+                                    <span
+                                        style="
+                                            font: 400 14px/1.4 var(--font-body);
+                                            color: var(--ink-muted);
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                            white-space: nowrap;
+                                        "
+                                        >Changed: Steps</span
+                                    >
+                                </div>
+                                <span
+                                    style="
+                                        flex-shrink: 0;
+                                        border-radius: var(--radius-sm);
+                                        background: var(--selected-fill);
+                                        padding: 2px 8px;
+                                        font: 500 12px/1.4 var(--font-body);
+                                        color: var(--action-text);
+                                    "
+                                    >Current version</span
+                                >
+                            </li>
+                            <li
+                                style="
+                                    display: flex;
+                                    align-items: flex-start;
+                                    gap: 12px;
+                                    padding: 12px 0;
+                                    border-bottom: 1px solid var(--line-divider);
+                                "
+                            >
+                                <div style="display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px">
+                                    <span
+                                        style="font: 400 16px/1.5 var(--font-body); font-weight: 600; color: var(--ink)"
+                                        >Oct 12, 2026, 7:15 PM</span
+                                    >
+                                    <span style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)"
+                                        >Version 4 · Edited 3 days ago</span
+                                    >
+                                    <span
+                                        style="
+                                            font: 400 14px/1.4 var(--font-body);
+                                            color: var(--ink-muted);
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                            white-space: nowrap;
+                                        "
+                                        >Changed: Ingredients, Servings</span
+                                    >
+                                </div>
+                                <x-import
+                                    component-from-global-scope="Commise.ActionMenu"
+                                    trigger-label="More actions for version 4"
+                                    title="Version 4"
+                                    close-label="Back to recipe"
+                                    items="{{menuItems}}"
+                                ></x-import>
+                            </li>
+                            <li
+                                style="
+                                    display: flex;
+                                    align-items: flex-start;
+                                    gap: 12px;
+                                    padding: 12px 0;
+                                    border-bottom: 1px solid var(--line-divider);
+                                "
+                            >
+                                <div style="display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px">
+                                    <span
+                                        style="font: 400 16px/1.5 var(--font-body); font-weight: 600; color: var(--ink)"
+                                        >Oct 9, 2026, 11:20 AM</span
+                                    >
+                                    <span style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)"
+                                        >Version 3 · Edited 6 days ago</span
+                                    >
+                                    <span
+                                        style="
+                                            font: 400 14px/1.4 var(--font-body);
+                                            color: var(--ink-muted);
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                            white-space: nowrap;
+                                        "
+                                        >Changed: Description, Cook time, Total time</span
+                                    >
+                                </div>
+                                <x-import
+                                    component-from-global-scope="Commise.ActionMenu"
+                                    trigger-label="More actions for version 3"
+                                    title="Version 3"
+                                    close-label="Back to recipe"
+                                    items="{{menuItems}}"
+                                ></x-import>
+                            </li>
+                            <li
+                                style="
+                                    display: flex;
+                                    align-items: flex-start;
+                                    gap: 12px;
+                                    padding: 12px 0;
+                                    border-bottom: 1px solid var(--line-divider);
+                                "
+                            >
+                                <div style="display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px">
+                                    <span
+                                        style="font: 400 16px/1.5 var(--font-body); font-weight: 600; color: var(--ink)"
+                                        >Sep 28, 2026, 5:05 PM</span
+                                    >
+                                    <span style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)"
+                                        >Version 2 · Edited 17 days ago</span
+                                    >
+                                    <span
+                                        style="
+                                            font: 400 14px/1.4 var(--font-body);
+                                            color: var(--ink-muted);
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                            white-space: nowrap;
+                                        "
+                                        >Changed: Title</span
+                                    >
+                                </div>
+                                <x-import
+                                    component-from-global-scope="Commise.ActionMenu"
+                                    trigger-label="More actions for version 2"
+                                    title="Version 2"
+                                    close-label="Back to recipe"
+                                    items="{{menuItems}}"
+                                ></x-import>
+                            </li>
+                            <li
+                                style="
+                                    display: flex;
+                                    align-items: flex-start;
+                                    gap: 12px;
+                                    padding: 12px 0;
+                                    border-bottom: 1px solid var(--line-divider);
+                                "
+                            >
+                                <div style="display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px">
+                                    <span
+                                        style="font: 400 16px/1.5 var(--font-body); font-weight: 600; color: var(--ink)"
+                                        >Sep 21, 2026, 8:30 AM</span
+                                    >
+                                    <span style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)"
+                                        >Version 1 · Edited 25 days ago</span
+                                    >
+                                    <span
+                                        style="
+                                            font: 400 14px/1.4 var(--font-body);
+                                            color: var(--ink-muted);
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                            white-space: nowrap;
+                                        "
+                                        >Initial version</span
+                                    >
+                                </div>
+                                <x-import
+                                    component-from-global-scope="Commise.ActionMenu"
+                                    trigger-label="More actions for version 1"
+                                    title="Version 1"
+                                    close-label="Back to recipe"
+                                    items="{{menuItems}}"
+                                ></x-import>
+                            </li>
+                        </ul>
+                    </section>
+                </main>
+
+                <nav
+                    aria-label="Tabs"
+                    style="
+                        position: fixed;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        z-index: 50;
+                        isolation: isolate;
+                        height: 64px;
+                        justify-content: space-around;
+                        padding: 0 8px;
+                    "
+                    class="c-tabs"
+                >
+                    <x-import component-from-global-scope="Commise.ChromeSurface" edge="top"></x-import>
+                    <a
+                        href="#"
+                        style="
+                            position: relative;
+                            display: flex;
+                            min-height: 56px;
+                            min-width: 96px;
+                            flex: 1;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 4px;
+                            border-radius: var(--radius-md);
+                            text-decoration: none;
+                            color: var(--ink-muted);
+                        "
+                    >
+                        <span
+                            aria-hidden="true"
+                            style="
+                                position: absolute;
+                                top: 0;
+                                height: 3px;
+                                width: 32px;
+                                border-radius: 0 0 9999px 9999px;
+                                background: transparent;
+                            "
+                        ></span>
+                        <x-import component-from-global-scope="Commise.Icon" name="house" size="24"></x-import
+                        ><span style="font: 500 12px/1.4 var(--font-body)">Home</span></a
+                    ><a
+                        href="#"
+                        aria-current="page"
+                        style="
+                            position: relative;
+                            display: flex;
+                            min-height: 56px;
+                            min-width: 96px;
+                            flex: 1;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 4px;
+                            border-radius: var(--radius-md);
+                            text-decoration: none;
+                            color: var(--ink);
+                        "
+                    >
+                        <span
+                            aria-hidden="true"
+                            style="
+                                position: absolute;
+                                top: 0;
+                                height: 3px;
+                                width: 32px;
+                                border-radius: 0 0 9999px 9999px;
+                                background: var(--here-bar);
+                            "
+                        ></span>
+                        <x-import component-from-global-scope="Commise.Icon" name="bookOpen" size="24"></x-import
+                        ><span style="font: 500 12px/1.4 var(--font-body); font-weight: 600">Recipes</span></a
+                    ><a
+                        href="#"
+                        style="
+                            position: relative;
+                            display: flex;
+                            min-height: 56px;
+                            min-width: 96px;
+                            flex: 1;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 4px;
+                            border-radius: var(--radius-md);
+                            text-decoration: none;
+                            color: var(--ink-muted);
+                        "
+                    >
+                        <span
+                            aria-hidden="true"
+                            style="
+                                position: absolute;
+                                top: 0;
+                                height: 3px;
+                                width: 32px;
+                                border-radius: 0 0 9999px 9999px;
+                                background: transparent;
+                            "
+                        ></span>
+                        <x-import component-from-global-scope="Commise.Icon" name="compass" size="24"></x-import
+                        ><span style="font: 500 12px/1.4 var(--font-body)">Discover</span></a
+                    >
+                </nav>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":844}}'>
+            class Component extends DCLogic { renderVals(){ return {noop(){},back:{label:'Back to recipe',parent:"Lemon and thyme roast chicken",onPress(){},href:'#'},menuItems:[{id:'preview',label:'Preview',icon:'eye',onSelect(){}},{id:'restore',label:'Restore this version',icon:'rotateCcw',onSelect(){}},{id:'compare',label:'Compare with current',icon:'slidersHorizontal',onSelect(){}}]}; } }
+        </script>
+    </body>
+</html>

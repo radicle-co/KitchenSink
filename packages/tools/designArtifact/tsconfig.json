@@ -1,0 +1,17 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "@kitchensink/typescript/base.json",
+    "compilerOptions": {
+        "outDir": "dist",
+        "jsx": "react-jsx",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "noEmit": true,
+        // `bundler`, like the feature packages: the typed card registry imports types from their sources, which only
+        // resolve the way they are built (extensionless `next/link`, default-import interop). This package is only
+        // ever run by tsx, esbuild and vitest, which resolve the same way; nothing compiles it to Node.
+        "module": "esnext",
+        "moduleResolution": "bundler"
+    },
+    "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "bin/**/*.ts", "content/**/*.tsx", "*.config.ts"],
+    "exclude": ["node_modules", "dist"]
+}

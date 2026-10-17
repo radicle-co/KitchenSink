@@ -1,0 +1,3 @@
+Input is a one-line text field, controlled through `value` and `onChangeText`. It takes `inputMode`, `autoComplete`, `enterKeyHint` and `secret` for passwords, plus `maxLength`, which stops typing at the limit. Set `invalid` with `describedBy` pointing at your error message to get a danger edge and `aria-invalid`; `disabled` dims it to 40%. It draws no label or message of its own, so pair it with a FieldLabel by id. Use `placeholder` for an example value, never as a label.
+
+The native leaf also takes `label`, `error` and `hint`, which become the field's accessible name and hint because React Native cannot link them by id, and `focusRequested` for a host that asks for focus.

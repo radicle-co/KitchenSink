@@ -320,6 +320,8 @@ const COMPONENT_NAME = /^[A-Z][a-z0-9]/;
 interface ModuleExports {
     readonly locals: ReadonlyMap<string, LocalDeclaration>;
     readonly exported: ReadonlyMap<string, 'named' | 'default'>;
+    /** Every VALUE export by the name a consumer imports it under, with the local it came from. */
+    readonly exportNames: ReadonlyMap<string, string>;
     /** An `export default <expression>` that is not a bare identifier (`export default Sentry.wrap(App)`). */
     readonly defaultExpression: boolean;
 }
@@ -330,9 +332,27 @@ interface ModuleExports {
  * @param source - The parsed source file.
  * @returns The locals and the exports.
  */
+/**
+ * Each exported local's kind, read off the exported-name map: a local exported as `default` is a default export,
+ * any other is named. Both maps are written in statement order, and the later export of a local wins, exactly as a
+ * second map written beside it did.
+ *
+ * @param exportNames - Exported name to the local it binds.
+ * @returns Local name to its export kind.
+ */
+function exportKindsOf(exportNames: ReadonlyMap<string, string>): Map<string, 'named' | 'default'> {
+    const kinds = new Map<string, 'named' | 'default'>();
+
+    for (const [exportedName, local] of exportNames) {
+        kinds.set(local, exportedName === 'default' ? 'default' : 'named');
+    }
+
+    return kinds;
+}
+
 function moduleExportsOf(source: ts.SourceFile): ModuleExports {
     const locals = new Map<string, LocalDeclaration>();
-    const exported = new Map<string, 'named' | 'default'>();
+    const exportNames = new Map<string, string>();
     let defaultExpression = false;
 
     for (const statement of source.statements) {
@@ -344,7 +364,7 @@ function moduleExportsOf(source: ts.SourceFile): ModuleExports {
             locals.set(statement.name.text, { declaration: statement, docHost: statement });
 
             if (hasExport) {
-                exported.set(statement.name.text, hasDefault ? 'default' : 'named');
+                exportNames.set(hasDefault ? 'default' : statement.name.text, statement.name.text);
             }
 
             continue;
@@ -354,7 +374,7 @@ function moduleExportsOf(source: ts.SourceFile): ModuleExports {
         // component through signal 2, and the compiler's JSX and conditional readings are of function bodies.
         if (ts.isClassDeclaration(statement) && statement.name !== undefined) {
             if (hasExport) {
-                exported.set(statement.name.text, hasDefault ? 'default' : 'named');
+                exportNames.set(hasDefault ? 'default' : statement.name.text, statement.name.text);
             }
 
             continue;
@@ -369,7 +389,7 @@ function moduleExportsOf(source: ts.SourceFile): ModuleExports {
                     });
 
                     if (hasExport) {
-                        exported.set(declaration.name.text, 'named');
+                        exportNames.set(declaration.name.text, declaration.name.text);
                     }
                 }
             }
@@ -379,9 +399,10 @@ function moduleExportsOf(source: ts.SourceFile): ModuleExports {
 
         // `export { Foo, Bar as Baz }` — a local declared above is exported here, possibly under a new name.
         if (ts.isExportDeclaration(statement) && statement.exportClause !== undefined) {
-            if (ts.isNamedExports(statement.exportClause)) {
-                for (const specifier of statement.exportClause.elements) {
-                    exported.set((specifier.propertyName ?? specifier.name).text, 'named');
+            if (ts.isNamedExports(statement.exportClause) && !statement.isTypeOnly) {
+                for (const specifier of statement.exportClause.elements.filter((element) => !element.isTypeOnly)) {
+                    const local = (specifier.propertyName ?? specifier.name).text;
+                    exportNames.set(specifier.name.text, local);
                 }
             }
 
@@ -390,13 +411,49 @@ function moduleExportsOf(source: ts.SourceFile): ModuleExports {
 
         // `export default Foo` — the identifier names a local declared above.
         if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) {
-            exported.set(statement.expression.text, 'default');
+            exportNames.set('default', statement.expression.text);
         } else if (ts.isExportAssignment(statement)) {
             defaultExpression = true;
         }
     }
 
-    return { locals, exported, defaultExpression };
+    return { locals, exported: exportKindsOf(exportNames), exportNames, defaultExpression };
+}
+
+/** A component-named VALUE export: the binding in the file, and the name a consumer imports it under. */
+export interface ComponentExport {
+    /** The name the file declares it under (`Inner` in `export { Inner as Button }`). */
+    readonly local: string;
+    /** The name a consumer imports it under (`Button`); this is the component's public identity. */
+    readonly exported: string;
+}
+
+/**
+ * The component-named value exports of a file, in source order, each once. A name is a component name by
+ * {@link COMPONENT_NAME} — the ONE definition, so file selection ({@link exportsAComponentName}) and anything that
+ * names exports (the design-artifact surface) cannot disagree about `X2`, `IOSBadge` or `export { Inner as Button }`.
+ *
+ * The test applies to the name a consumer imports. A default export has no such name, so it is never listed here;
+ * {@link exportsAComponentName} counts it separately. Type-only exports are values of no kind and never appear.
+ *
+ * @param filePath - Absolute path to the file.
+ * @returns Each component-named export with its local and exported names.
+ * @sideEffect Reads the file.
+ */
+export function componentExportsOf(filePath: string): readonly ComponentExport[] {
+    return componentExportsIn(moduleExportsOf(parseFile(filePath)).exportNames);
+}
+
+/** The component-named entries of a file's `exported name -> local` table. Pure. */
+function componentExportsIn(exportNames: ReadonlyMap<string, string>): readonly ComponentExport[] {
+    return [...exportNames]
+        .filter(([exported]) => exported !== 'default' && COMPONENT_NAME.test(exported))
+        .map(([exported, local]) => ({ local, exported }));
+}
+
+/** @sideEffect Reads the file. */
+function parseFile(filePath: string): ts.SourceFile {
+    return ts.createSourceFile(filePath, readFileSync(filePath, 'utf8'), ts.ScriptTarget.Latest, true);
 }
 
 /**
@@ -409,10 +466,9 @@ function moduleExportsOf(source: ts.SourceFile): ModuleExports {
  * @sideEffect Reads the file.
  */
 export function exportsAComponentName(filePath: string): boolean {
-    const source = ts.createSourceFile(filePath, readFileSync(filePath, 'utf8'), ts.ScriptTarget.Latest, true);
-    const { exported, defaultExpression } = moduleExportsOf(source);
+    const { exportNames, defaultExpression } = moduleExportsOf(parseFile(filePath));
 
-    return defaultExpression || [...exported].some(([name, kind]) => kind === 'default' || COMPONENT_NAME.test(name));
+    return defaultExpression || exportNames.has('default') || componentExportsIn(exportNames).length > 0;
 }
 
 /**

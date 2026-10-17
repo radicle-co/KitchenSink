@@ -1712,6 +1712,11 @@ jobs:
             # recipe sender, the real client's zod parsing), with only `fetch` mocked.
             - name: Run query integration tests
               run: npm run test:integration --workspace=@commise/query
+            # The design-artifact build over the REAL sources: esbuild bundles both platforms' component surfaces, Tailwind
+            # compiles their stylesheet, and the surface checks run on the actual cards and canvas boards. No browser,
+            # no network. The Chromium render of every card and board is the LOCAL e2e tier, on a developer's machine.
+            - name: Run design-artifact integration tests
+              run: npm run test:integration --workspace=@kitchensink/design-artifact
             - name: Run recipe-service-client integration tests
               run: npm run test:integration --workspace=@kitchensink/recipe-service-client
             # Self-contained like the recipe one: a real in-process `node:http` server, no Docker. It covers the

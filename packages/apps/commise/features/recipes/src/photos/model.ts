@@ -101,6 +101,17 @@ export interface RecipeCoverPreview {
     readonly cuisine?: string;
 }
 
+/**
+ * How many queued files have finished uploading: the event count the manager's "Photo uploaded" announcement keys on
+ * (`LiveRegion`'s `occurrence`), so each finished file is spoken even when the text is the same. A failed or queued
+ * file is not counted. Pure.
+ *
+ * @param queueItems - The upload queue's items, `ok` ones included (they stay in the queue until it is cleared).
+ * @returns The number of items whose upload completed.
+ */
+export const uploadedCount = (queueItems: readonly RecipePhotoQueueItem[] | undefined): number =>
+    (queueItems ?? []).filter((item) => item.status === 'ok').length;
+
 /** The container width from which the photo grid goes from three columns to four (buildSpec §7.7), in px. */
 export const PHOTO_GRID_WIDE_FROM = 600;
 

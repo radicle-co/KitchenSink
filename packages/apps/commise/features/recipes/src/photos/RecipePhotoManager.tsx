@@ -30,6 +30,7 @@
  */
 import { BUSY_CONTROL_CLASS, busyControlProps } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
+import { LiveRegion } from '@commise/ui/live-region';
 import { RecipeCover } from '@commise/ui/recipe-cover';
 import type { FC } from 'react';
 
@@ -41,6 +42,7 @@ import {
     MAX_RECIPE_PHOTO_UPLOAD_MB,
     MAX_RECIPE_PHOTOS,
     visibleQueueItems,
+    uploadedCount,
     type RecipePhotoManagerProps,
 } from './model.js';
 
@@ -61,21 +63,23 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
     const m = useMessages(photoMessages);
     const pendingItems = visibleQueueItems(queueItems ?? []);
     const atCap = isAtPhotoCap(photos.length + pendingItems.length);
+    const finished = uploadedCount(queueItems);
 
     return (
         <section aria-label={m.heading} className="flex flex-col gap-3">
             {/* The section name is an H3 in the `label` role, muted — the Details groups' heading (buildSpec §7.7). */}
             <h3 className="text-label text-ink-muted">{m.heading}</h3>
 
-            {/* The upload-in-flight affordance carries its label as CONTENT, not only as `aria-label`: an empty
-                `role="status"` paragraph is a zero-height node — nothing for a sighted viewer to see, and
-                nothing for a screen reader to announce (a live region announces content CHANGES). Same
-                doctrine as `LoadingNotice` (specSharedSystem.md §18): the contextual label doubles as the visible caption. */}
-            {uploading === true ? (
-                <p role="status" aria-label={m.uploadingLabel} className="text-body-sm text-ink-muted">
-                    {m.uploadingLabel}
-                </p>
-            ) : null}
+            {/* WCAG 4.1.3: BOTH regions are mounted before there is anything to say, because a live region speaks at a
+                change of its text and a node that mounts with its text in it is not reliably spoken. The first carries
+                its label as visible CONTENT (the contextual caption, `LoadingNotice` doctrine, specSharedSystem.md
+                §18); the second is spoken only, once per finished file. A failure keeps its own assertive alert. */}
+            <LiveRegion politeness="polite" className="text-body-sm text-ink-muted">
+                {uploading === true ? m.uploadingLabel : ''}
+            </LiveRegion>
+            <LiveRegion politeness="polite" visuallyHidden occurrence={finished}>
+                {finished > 0 && uploading !== true ? m.uploadedLabel : ''}
+            </LiveRegion>
             {errorMessage !== undefined ? (
                 <p role="alert" className="text-body-sm text-danger-text">
                     {errorMessage}

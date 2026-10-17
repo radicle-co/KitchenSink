@@ -25,6 +25,8 @@ export interface PhotoMessages {
     readonly removeLabel: string;
     /** Accessible label for the upload-in-flight busy status. */
     readonly uploadingLabel: string;
+    /** Spoken (never shown) when an upload finishes: the polite counterpart of {@link uploadingLabel} (WCAG 4.1.3). */
+    readonly uploadedLabel: string;
     /** Notice shown when the recipe is at the photo cap (contains `{max}`). */
     readonly maxReached: string;
     /** Accepted-formats hint shown next to `addControl` (C6, wireframe recipe-edit.md:101-104; contains
@@ -95,6 +97,7 @@ export const photoMessages: LocalizedMessages<PhotoMessages> = {
         removing: 'Removing…',
         removeLabel: 'Remove photo {index}',
         uploadingLabel: 'Uploading photo',
+        uploadedLabel: 'Photo uploaded',
         maxReached: 'Maximum of {max} photos reached.',
         formatHint: 'JPEG, PNG, or WebP · max {maxMb} MB',
         queuePhotoAlt: 'Photo {fileName}',

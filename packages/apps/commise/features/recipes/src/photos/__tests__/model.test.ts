@@ -15,6 +15,7 @@ import {
     MAX_RECIPE_PHOTOS,
     photoGridColumns,
     remainingPhotoSlots,
+    uploadedCount,
 } from '../model.js';
 
 describe('MAX_RECIPE_PHOTOS (single source of truth)', () => {
@@ -121,5 +122,23 @@ describe('photoGridColumns', () => {
     it('holds the narrow reading until the grid has been measured', () => {
         expect(photoGridColumns(undefined)).toBe(3);
         expect(photoGridColumns(0)).toBe(3);
+    });
+});
+
+describe('uploadedCount', () => {
+    it('counts only the files whose upload completed', () => {
+        const items = [
+            makeQueueItem({ fileId: 1, status: 'ok' }),
+            makeQueueItem({ fileId: 2, status: 'failed' }),
+            makeQueueItem({ fileId: 3, status: 'queued' }),
+            makeQueueItem({ fileId: 4, status: 'ok' }),
+        ];
+
+        expect(uploadedCount(items)).toBe(2);
+    });
+
+    it('is zero for no queue at all', () => {
+        expect(uploadedCount(undefined)).toBe(0);
+        expect(uploadedCount([])).toBe(0);
     });
 });

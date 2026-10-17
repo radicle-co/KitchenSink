@@ -20,6 +20,7 @@
  * over the image. With no photo and no queued file it shows the recipe's generated cover and says it stands in (A-010).
  */
 import { useMessages } from '@commise/i18n/react';
+import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { RecipeCover } from '@commise/ui/recipe-cover';
 import { useTheme } from '@commise/ui/theme';
@@ -35,6 +36,7 @@ import {
     MAX_RECIPE_PHOTO_UPLOAD_MB,
     MAX_RECIPE_PHOTOS,
     photoGridColumns,
+    uploadedCount,
     visibleQueueItems,
     type RecipePhotoManagerProps,
 } from './model.js';
@@ -61,6 +63,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
     const ink = { color: colors.ink };
     const pendingItems = visibleQueueItems(queueItems ?? []);
     const atCap = isAtPhotoCap(photos.length + pendingItems.length);
+    const finished = uploadedCount(queueItems);
     // The grid's own width, once laid out (buildSpec §7.7: 3 columns below 600, 4 from 600). Not the window's: the
     // window is not the container, and until the first measure the grid holds the narrow reading.
     const [gridWidth, setGridWidth] = useState<number | undefined>(undefined);
@@ -73,14 +76,16 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                 {m.heading}
             </Text>
 
-            {/* The upload-in-flight affordance carries its label as VISIBLE text, not only as
-                `accessibilityLabel`: an empty progressbar is a nameless, contentless shape a sighted viewer
-                cannot distinguish from "wedged" (`LoadingNotice` doctrine, specSharedSystem.md §18). */}
-            {uploading === true ? (
-                <View accessible accessibilityRole="progressbar" accessibilityLabel={m.uploadingLabel}>
-                    <Text style={[styles.muted, { color: colors.inkMuted }]}>{m.uploadingLabel}</Text>
-                </View>
-            ) : null}
+            {/* WCAG 4.1.3, the web leaf's pair: both regions mounted EMPTY before anything uploads (Android speaks a
+                CHANGE to a live region it already holds; iOS is handed an announcement by `LiveRegion`). The first
+                carries its label as visible text (`LoadingNotice` doctrine, specSharedSystem.md §18); the second is
+                spoken only, once per finished file. A failure keeps its own assertive alert. */}
+            <LiveRegion politeness="polite" style={[styles.muted, { color: colors.inkMuted }]}>
+                {uploading === true ? m.uploadingLabel : ''}
+            </LiveRegion>
+            <LiveRegion politeness="polite" visuallyHidden occurrence={finished}>
+                {finished > 0 && uploading !== true ? m.uploadedLabel : ''}
+            </LiveRegion>
             {errorMessage !== undefined ? (
                 <Text
                     accessibilityRole="alert"

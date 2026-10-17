@@ -258,16 +258,17 @@ describe('RecipePhotoManager (native) — upload + error states', () => {
     it('shows a busy status while an upload is in flight, with its label as VISIBLE text', () => {
         renderManager({ uploading: true });
 
-        // A named-but-empty progressbar is a nameless spinning shape with nothing to look at: the label has to
-        // double as the visible caption (`LoadingNotice` doctrine, specSharedSystem.md §18), so a sighted viewer can tell
-        // "uploading" from "wedged".
-        expect(screen.getByRole('progressbar', { name: 'Uploading photo' })).toBeTruthy();
-        expect(screen.getByText('Uploading photo')).toBeTruthy();
+        // REWRITTEN for WCAG 4.1.3: a bare `progressbar` had no live region, so nothing spoke between choosing a
+        // photo and the result. The label is now the text of a polite `LiveRegion` and stays the visible caption
+        // (`LoadingNotice` doctrine, specSharedSystem.md §18). Start, finish and failure are pinned in
+        // `photoUploadAnnouncement.native.test.tsx`.
+        expect(screen.getByText('Uploading photo').getAttribute('aria-live')).toBe('polite');
+        expect(screen.queryByRole('progressbar')).toBeNull();
     });
 
-    it('renders no busy status when nothing is uploading', () => {
+    it('renders no busy text when nothing is uploading', () => {
         renderManager({ uploading: false });
-        expect(screen.queryByRole('progressbar', { name: 'Uploading photo' })).toBeNull();
+        expect(screen.queryByText('Uploading photo')).toBeNull();
     });
 
     it('shows an alert when an error message is present', () => {

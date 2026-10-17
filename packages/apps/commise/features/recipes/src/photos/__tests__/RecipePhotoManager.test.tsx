@@ -181,17 +181,16 @@ describe('RecipePhotoManager (web) — upload + error states', () => {
     it('shows a busy status while an upload is in flight, with its label as VISIBLE text', () => {
         renderManager({ uploading: true });
 
-        // The live region must carry its label as CONTENT, not only as `aria-label`: an empty `role="status"`
-        // paragraph is a zero-height node — invisible to a sighted viewer and silent to a screen reader (a
-        // live region announces content CHANGES, and there is no content to change). Same doctrine as the
-        // `LoadingNotice` (specSharedSystem.md §18): the label doubles as the visible caption.
-        const status = screen.getByRole('status', { name: 'Uploading photo' });
-        expect(status.textContent).toBe('Uploading photo');
+        // REWRITTEN for WCAG 4.1.3: the status is now a `LiveRegion` (mounted before the upload starts), whose
+        // accessible name is not its content, so the assertion reads the TEXT. The label stays the visible caption
+        // (`LoadingNotice` doctrine, specSharedSystem.md §18). Start, finish and failure are pinned in
+        // `photoUploadAnnouncement.test.tsx`.
+        expect(screen.getByText('Uploading photo').getAttribute('role')).toBe('status');
     });
 
-    it('renders no busy status when nothing is uploading', () => {
+    it('renders no busy text when nothing is uploading', () => {
         renderManager({ uploading: false });
-        expect(screen.queryByRole('status', { name: 'Uploading photo' })).toBeNull();
+        expect(screen.queryByText('Uploading photo')).toBeNull();
     });
 
     it('shows an alert when an error message is present', () => {

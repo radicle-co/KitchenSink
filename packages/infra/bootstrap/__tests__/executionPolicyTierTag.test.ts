@@ -324,3 +324,55 @@ describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod])('executionPolicy(%s) — ev
         expect(evaluates(rendered(), 'lambda:TagResource', mapping, { [REQUEST_TAG]: other })).toBe(false);
     });
 });
+
+/**
+ * Two creates the first per-PR deploy refused (Sandbox Up, 2026-10-17), judged against the rendered policy.
+ *
+ * - CloudFormation calls `events:PutRule` with NO tags and tags the rule in a second call (CloudTrail, every PutRule
+ *   since 2026-10-10), so a request-tag condition can never pass for a new rule: the name is its scope.
+ * - A preview's public hosts are `<service>-pr-N.commise.app` and `<service>-sandbox.commise.app`, beside the
+ *   `*.sandbox.commise.app` names, so the non-production record grant must admit them and production must not.
+ */
+describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod])('executionPolicy(%s) — per-PR creates', (qualifier) => {
+    const nonprod = qualifier === QUALIFIERS.nonprod;
+    const rendered = (): PolicyDocument =>
+        JSON.parse(
+            JSON.stringify({
+                Version: '2012-10-17',
+                Statement: buildExecutionPolicy(qualifier).flatMap((part) => part.document.Statement),
+            })
+                .replaceAll('<region>', 'us-east-1')
+                .replaceAll('<account>', '040663841500'),
+        ) as PolicyDocument;
+    const rule = (name: string) => `arn:aws:events:us-east-1:040663841500:rule/${name}`;
+    const records = (name: string) => ({ 'route53:ChangeResourceRecordSetsNormalizedRecordNames': name });
+    const zone = 'arn:aws:route53:::hostedzone/Z0474040RGDAGYCWHZ7M';
+
+    it.each(
+        nonprod
+            ? ['kitchensink-recipe-analytics-retention-pr-91', 'kitchensink-recipe-erasure-orphan-sweep-sandbox']
+            : ['kitchensink-recipe-analytics-retention-prod'],
+    )('creates its own rule %s with an untagged PutRule', (name) => {
+        expect(evaluates(rendered(), 'events:PutRule', rule(name))).toBe(true);
+    });
+
+    it.each(
+        nonprod ? ['kitchensink-recipe-analytics-retention-prod'] : ['kitchensink-recipe-analytics-retention-pr-91'],
+    )("never creates the other tier's rule %s", (name) => {
+        expect(evaluates(rendered(), 'events:PutRule', rule(name))).toBe(false);
+    });
+
+    it.each(
+        nonprod ? ['remote-search-pr-91.commise.app', 'remote-search-sandbox.commise.app'] : ['search.commise.app'],
+    )('writes its own service record %s', (name) => {
+        expect(evaluates(rendered(), 'route53:ChangeResourceRecordSets', zone, records(name))).toBe(true);
+    });
+
+    it.each(
+        nonprod
+            ? ['remote-search.commise.app', 'commise.app', 'identity.commise.app']
+            : ['remote-search-pr-91.commise.app', 'remote-search-sandbox.commise.app', 'pr-91.sandbox.commise.app'],
+    )("never writes the other tier's record %s", (name) => {
+        expect(evaluates(rendered(), 'route53:ChangeResourceRecordSets', zone, records(name))).toBe(false);
+    });
+});

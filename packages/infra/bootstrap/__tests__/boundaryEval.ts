@@ -24,16 +24,23 @@ function conditionHolds(condition: Condition | undefined, context: RequestContex
         return true;
     }
 
-    return Object.entries(condition).every(([operator, keys]) => {
-        if (!['StringLike', 'StringEquals', 'ArnLike'].includes(operator)) {
-            throw new Error(`boundaryEval does not evaluate the condition operator ${operator}`);
+    return Object.entries(condition).every(([qualified, keys]) => {
+        // A multi-valued key is given here as its one value. IAM: `ForAllValues` holds over an absent key (the empty
+        // set), `ForAnyValue` does not.
+        const [setOperator, operator = ''] = qualified.includes(':') ? qualified.split(':') : [undefined, qualified];
+
+        if (
+            !['StringLike', 'StringEquals', 'ArnLike'].includes(operator) ||
+            (setOperator !== undefined && !['ForAllValues', 'ForAnyValue'].includes(setOperator))
+        ) {
+            throw new Error(`boundaryEval does not evaluate the condition operator ${qualified}`);
         }
 
         return Object.entries(keys).every(([key, expected]) => {
             const actual = context[key];
 
             if (actual === undefined) {
-                return false;
+                return setOperator === 'ForAllValues';
             }
 
             return asList(expected).some((pattern) =>

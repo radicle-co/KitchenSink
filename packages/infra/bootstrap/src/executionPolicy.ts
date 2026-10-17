@@ -215,9 +215,15 @@ const tagAddGrant = (action: readonly string[], resource: readonly string[], cov
  * Actions the Service Authorization Reference says honour `aws:RequestTag`, but that must NOT be asked for it.
  *
  * A multi-resource request evaluates the condition against every resource it creates, and one of them (a volume, a
- * network interface) is not tagged by CloudFormation. They stay name-scoped (EC2 has no names: they are residuals).
+ * network interface) is not tagged by CloudFormation. And CloudFormation calls `events:PutRule` with NO tags, then tags
+ * the rule in a second call (CloudTrail, every PutRule since 2026-10-10), so the request never carries the tier tag.
+ * They stay name-scoped (EC2 has no names: they are residuals).
  */
-const REQUEST_TAG_EXEMPT: ReadonlySet<string> = new Set(['ec2:RunInstances', 'ec2:CreateNetworkInterface']);
+const REQUEST_TAG_EXEMPT: ReadonlySet<string> = new Set([
+    'ec2:RunInstances',
+    'ec2:CreateNetworkInterface',
+    'events:PutRule',
+]);
 
 /**
  * An Allow for CREATING resources: the resource has no tag to ask for yet, so the REQUEST must carry the tier tag.
@@ -525,16 +531,17 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             [],
             own,
         ),
+        // EventBridge and EventBridge Scheduler sit in `observe`: the compute part is at the managed-policy size limit.
         ...createAllow(
             qualifier,
-            'compute',
+            'observe',
             'EventsCreate',
             ['events:CreateEventBus', 'events:PutRule', 'events:TagResource'],
             [arn('events', `rule/${KS}`), arn('events', `rule/*/${KS}`), arn('events', `event-bus/${KS}`)],
             ['AWS::Events::Rule', 'AWS::Events::EventBus'],
         ),
         ...ownAllow(
-            'compute',
+            'observe',
             'EventsOwn',
             [
                 'events:DeleteEventBus',
@@ -555,14 +562,14 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
         ),
         // The bus policy actions honour no resource tag in the reference, so they are name-scoped (named residual).
         allow(
-            'compute',
+            'observe',
             'EventsBusPermissions',
             ['events:PutPermission', 'events:RemovePermission'],
             [arn('events', `event-bus/${KS}`)],
             ['AWS::Events::EventBus'],
         ),
         allow(
-            'compute',
+            'observe',
             'SchedulerSchedules',
             [
                 'scheduler:CreateSchedule',
@@ -1135,7 +1142,13 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             {
                 'ForAllValues:StringLike': {
                     'route53:ChangeResourceRecordSetsNormalizedRecordNames': nonprod
-                        ? ['sandbox.commise.app*', '*.sandbox.commise.app*']
+                        ? // A preview's service hosts are `<service>-pr-N` and `<service>-sandbox` under the apex.
+                          [
+                              'sandbox.commise.app*',
+                              '*.sandbox.commise.app*',
+                              '*-sandbox.commise.app*',
+                              '*-pr-*.commise.app*',
+                          ]
                         : ['commise.app*', '*.commise.app*', '_*.commise.app*'],
                 },
             },
@@ -1363,7 +1376,10 @@ function tierDenies(qualifier: QualifierName, allows: readonly Statement[]): Gra
             ),
             deny('guard', 'DenySandboxDns', ['route53:ChangeResourceRecordSets'], ['*'], {
                 'ForAnyValue:StringLike': {
-                    'route53:ChangeResourceRecordSetsNormalizedRecordNames': ['*sandbox.commise.app*'],
+                    'route53:ChangeResourceRecordSetsNormalizedRecordNames': [
+                        '*sandbox.commise.app*',
+                        '*-pr-*.commise.app*',
+                    ],
                 },
             }),
             otherTierTagDeny(qualifier),

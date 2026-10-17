@@ -108,6 +108,8 @@ const NAMED_RESIDUALS: Readonly<Record<string, string>> = {
     EventsBusPermissions: 'PutPermission and RemovePermission honour no resource tag; event-bus names carry the stage',
     Ec2CreateNameOnly:
         'RunInstances and CreateNetworkInterface create several resources in one request and CloudFormation tags only one of them, so asking each for the tier tag would deny the create',
+    EventsCreateNameOnly:
+        'CloudFormation calls PutRule with no tags and tags the rule in a second call, so a request-tag condition refuses every create; rule names carry the stage, and a truncated generated name is held by the other-tier tag Deny',
     CloudFrontCreateNameOnly:
         'cache, origin-request and response-headers policies, access controls, key groups, public keys honour no request tag in the reference',
     ApiGatewayTags: 'the tags of an API Gateway resource are addressed by the tagged resource ARN',

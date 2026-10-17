@@ -200,6 +200,7 @@ export function arnProblems(catalogue: IamCatalogue, arn: string, context: ArnCo
 
     // An AWS-published parameter (`/aws/service/...`) belongs to no account: its ARN has an empty account field.
     const publicParameter = service === 'ssm' && resource.startsWith('parameter/aws/service/');
+
     const accountOk = (format: ArnFormat): boolean => {
         if (format.account === 'none' || publicParameter) {
             return account === '';

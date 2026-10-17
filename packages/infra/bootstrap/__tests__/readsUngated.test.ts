@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildExecutionPolicy } from '../src/executionPolicy.js';
 import { iamLike } from '../src/iamPattern.js';
-import { readOnlyActionsMatching } from '../src/iamCatalogue.js';
+import { isReadOnlyPattern, readOnlyActionsMatching } from '../src/iamCatalogue.js';
 import { QUALIFIERS } from '../src/qualifiers.js';
 import { iamCatalogue } from './iamCatalogueFixture.js';
 
@@ -37,6 +37,24 @@ describe('readOnlyActionsMatching', () => {
         } else {
             expect(found).toEqual(expected);
         }
+    });
+});
+
+describe('isReadOnlyPattern: a pattern is a read only when EVERY action it matches is one', () => {
+    it.each([
+        ['sns:GetTopicAttributes', true],
+        ['sns:Get*', true],
+        ['sns:ListTagsForResource', true],
+        ['apigateway:GET', true],
+        ['sns:Publish', false],
+        ['sns:Set*', false],
+        ['lambda:Invoke*', false],
+        ['sns:*', false],
+        ['sns:*Topic', false],
+        ['nosuchservice:Get*', false],
+        ['sns:NoSuchAction', false],
+    ] as const)('%s -> %s', (pattern, expected) => {
+        expect(isReadOnlyPattern(iamCatalogue, pattern)).toBe(expected);
     });
 });
 

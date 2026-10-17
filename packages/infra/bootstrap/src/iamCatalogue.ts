@@ -243,3 +243,25 @@ export function readOnlyActionsMatching(catalogue: IamCatalogue, pattern: string
         .filter((action) => iamLike(name, action.toLowerCase()))
         .map((action) => `${service}:${action}`);
 }
+
+/**
+ * Whether an action pattern only reads: it matches at least one real action and EVERY action it matches has the
+ * access level Read or List. A pattern that also matches a write (`sns:*`), matches nothing, or names an unknown
+ * service is not a read, so a caller that splits grants into reads and writes keeps the doubtful ones as writes.
+ *
+ * @returns True for a read-only pattern. Pure.
+ */
+export function isReadOnlyPattern(catalogue: IamCatalogue, pattern: string): boolean {
+    const separator = pattern.indexOf(':');
+    const entry = catalogue.services[pattern.slice(0, separator).toLowerCase()];
+
+    if (separator <= 0 || entry === undefined) {
+        return false;
+    }
+
+    const name = pattern.slice(separator + 1).toLowerCase();
+    const matched = entry.actions.filter((action) => iamLike(name, action.toLowerCase()));
+    const readOnly = new Set(entry.readOnly);
+
+    return matched.length > 0 && matched.every((action) => readOnly.has(action));
+}

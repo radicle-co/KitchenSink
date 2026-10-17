@@ -29,6 +29,8 @@
  * @pattern Registry — `covers` ties every grant to the CloudFormation resource types it serves, so a new type in
  *   the committed manifest fails a test until someone scopes it
  */
+import { isReadOnlyPattern } from './iamCatalogue.js';
+import { iamCatalogueSnapshot } from './iamCatalogueSnapshot.js';
 import { ACCOUNT, REGION, type Condition, type PolicyDocument, type Statement } from './policyDocument.js';
 import {
     QUALIFIERS,
@@ -113,8 +115,8 @@ const allow = (
     },
 });
 
-/** Verbs that only read: the SAR access levels Read and List. `readsUngated.test.ts` holds the split to the catalogue. */
-const READ_ACTION = /^[a-z0-9-]+:(Get|List|Describe)|^apigateway:GET$/u;
+/** Whether an action pattern only reads, by the Service Authorization Reference's access level (Read or List). */
+const isRead = (pattern: string): boolean => isReadOnlyPattern(iamCatalogueSnapshot, pattern);
 
 /**
  * An Allow for resources that carry the stack-name tag: mutations and deletes keep the tag condition, READS do not.
@@ -132,8 +134,8 @@ function ownAllow(
     covers: readonly string[],
     condition: Condition,
 ): Grant[] {
-    const reads = action.filter((candidate) => READ_ACTION.test(candidate));
-    const writes = action.filter((candidate) => !READ_ACTION.test(candidate));
+    const reads = action.filter(isRead);
+    const writes = action.filter((candidate) => !isRead(candidate));
 
     return [
         ...(reads.length === 0 ? [] : [allow(part, `${sid}Reads`, reads, resource, writes.length === 0 ? covers : [])]),

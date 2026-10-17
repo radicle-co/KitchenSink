@@ -258,6 +258,14 @@ npm run infra:synth --workspace=packages/services/identity-webhooks
 npm run infra:deploy --workspace=packages/services/identity
 ```
 
+### Design System and screens canvas (claude.ai artifacts)
+
+"Regenerate the design system and screens" means: follow the "Regenerate the artifacts" section of
+`packages/tools/designArtifact/README.md` end to end, without asking. Build, publish the Design System, rebuild the
+canvas against the new system version, publish the canvas, then check both. That section names the two artifact links
+and the exact Artifact tool inputs. Only the Artifact tool can publish, so a person runs the build and asks Claude to
+publish.
+
 ## Architecture
 
 This is a TypeScript monorepo using **npm workspaces** and **Turborepo** for the **Commise** recipe/meal-planning platform.

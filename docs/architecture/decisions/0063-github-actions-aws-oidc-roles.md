@@ -7,6 +7,8 @@
   — teardown is keyed on `pr-{N}`, and the non-prod role's delete rights follow the same names.
   [ADR-0060](0060-sandbox-starts-only-by-hand.md) and [ADR-0061](0061-midnight-stop-reclaims-what-nothing-uses.md) — the
   teardown and reclaim jobs bind no GitHub environment, which decides the non-prod trust.
+  [ADR-0065](0065-ci-deploys-through-kitchensink-owned-cdk-bootstrap-qualifiers.md) — the CDK bootstrap roles these roles
+  assume are KitchenSink's own, and the default qualifier is denied to them.
 
 ## Context
 
@@ -20,7 +22,8 @@ Facts the design rests on:
 - The account is the organisation's management account. Service control policies never apply to it, so a boundary here has
   to be an IAM boundary.
 - The CDK bootstrap (`CDKToolkit`, qualifier `hnb659fds`) is shared with another application in the same account, and its
-  CloudFormation execution role is `AdministratorAccess`.
+  CloudFormation execution role is `AdministratorAccess`. KitchenSink does not deploy through it: it has bootstrap
+  qualifiers of its own (ADR-0065).
 - The other application's stacks also carry `Environment=production`. A condition keyed on that tag would reach them.
 - The repository is public. GitHub's OIDC provider issues a token to any workflow on GitHub, so everything depends on the
   trust policy refusing every token that is not this repository's.
@@ -69,8 +72,8 @@ with no `sub`, a bare or owner-wide `sub`, no repository id, or a production tie
 the builder runs its own output through that judge.
 
 **4. Direct permissions are scoped by name, never by the `Environment` tag alone.** Every pattern starts `kitchensink-` or
-sits under `/kitchensink/`. Anything that creates or changes infrastructure goes through the CDK bootstrap roles, so each
-role's own policy covers only what a job does itself: publish images, invoke and describe functions, read its stage's
+sits under `/kitchensink/`. Anything that creates or changes infrastructure goes through KitchenSink's own CDK bootstrap
+roles (ADR-0065), so each role's own policy covers only what a job does itself: publish images, invoke and describe functions, read its stage's
 parameters and secrets, read stacks. Each action set the non-prod and prod roles share is named once in the stack.
 
 The non-prod role's stack, service and task deletes are not written in its own stack. They come from `teardownGrants`
@@ -97,15 +100,24 @@ it later cannot turn it into a writer. No role holds `iam:*` or `organizations:*
 **5. Sessions last at most three hours**, and each role's ARN is a stack output. A job that signs in states a
 `timeout-minutes` no longer than the session it asks for.
 
+**6. Deploys go through KitchenSink-owned bootstrap qualifiers, and the default qualifier is denied.** `nonprod` may
+assume the `ksnonprod` deploy, file-publishing and lookup roles. `prod` may assume the same three of `ksprod`, and of
+`ksaccount` because only a job bound to `Production` on `main` can become it. `prod-read` may assume the `ksprod` lookup
+role. No tier may assume an image-publishing role. Each qualifier's CloudFormation execution role carries a scoped policy
+and a permissions boundary, so the role a template acts as is no longer an administrator. All three roles carry an
+explicit Deny of `sts:AssumeRole` on the default qualifier's roles. The qualifiers, the execution policy, the boundary and
+the order of the migration are ADR-0065.
+
 ## Consequences
 
 - **No credential in a repository secret once the workflows move.** A token lives for one job, can be minted only for a job
   that matches the trust, and is bound to a repository id that a deleted-and-recreated repository does not inherit.
-- **Residual risk, and the largest one: any role that may assume the CDK deploy role is account administrator.** The
-  bootstrap's execution role is `AdministratorAccess`, so a template can do anything. The tiers bound who can become a
-  role and what a mistaken command can reach directly; they do not bound a malicious workflow that runs on a trusted ref.
-  Until the bootstrap is split, the real protection for `prod` is the `Production` environment's required reviewer and the
-  `main`-only rule, not IAM.
+- **Residual risk: a trusted workflow can still change this project's resources within the execution policy.** The
+  tiers bound who can become a role, the qualifiers bound what a template can do as that role, and neither stops a
+  malicious workflow on a trusted ref from changing what the policy admits. The named residuals of the execution policy
+  (resource kinds scoped by name only, task-definition revisions, actions that take no resource) are listed in ADR-0065.
+  The real protection for `prod` and for the account qualifier is still the `Production` environment's required reviewer
+  and the `main`-only rule, with IAM as the second layer.
 - **A function's configuration is its environment, so the non-prod role reaches a Lambda only through a tag-conditioned Allow.**
   `lambda:InvokeFunction`, `GetFunctionConfiguration` and `GetFunctionUrlConfig` are allowed on `kitchensink-*` functions
   only when the function's `aws:cloudformation:stack-name` tag matches `kitchensink-*-sandbox` or `kitchensink-*-pr-*`.
@@ -135,10 +147,10 @@ it later cannot turn it into a writer. No role holds `iam:*` or `organizations:*
   on `*` to equal the list above. The action-to-resource-type facts come from the AWS Service Authorization Reference as
   last read; the first deploy after a change proves them, because a scope that is too narrow fails loudly in a deploy
   check.
-- **The roles a CI role may assume are an enumerated set.** `nonprod` and `prod` may assume exactly the four CDK bootstrap
-  roles, and `prod-read` the lookup role, each with no condition; a test fails on any other `sts` grant. This does not
-  close the largest residual risk above, because the deploy role is still account administrator; it keeps that risk from
-  widening unnoticed. Closing it is an owner decision (a bootstrap qualifier of its own, or its own accounts).
+- **The roles a CI role may assume are an enumerated set.** Each tier may assume exactly the KitchenSink-owned bootstrap
+  roles named in decision 6, each with no condition, and a test fails on any other `sts` grant, on an image-publishing
+  role, on a grant that crosses a tier, and when the real synthesized grant is widened by a wildcard resource, a wildcard
+  action or an extra role. The explicit Deny on the default qualifier keeps a later broad Allow from reopening it.
 - **What the non-prod role reaches in the production tree is a reviewed list.** The guard evaluates every concrete action
   the role holds against production and other-application resource shapes and compares the result with a literal set (the
   stack reads, the ECS, queue, topic and log-group metadata reads). It sees `*` resources and name patterns, which a
@@ -201,9 +213,6 @@ it later cannot turn it into a writer. No role holds `iam:*` or `organizations:*
   `Production` environment's reviewer would guard nothing.
 - **Trust the `Environment` tag to separate production from the rest.** Rejected: another application in the account is
   tagged `production` too, so the tag does not mean this project's production.
-- **A custom bootstrap qualifier for this project (OPEN, owner decision).** Would give this project its own, narrower
-  CloudFormation execution role and end the shared administrator path. It means re-bootstrapping and redeploying every
-  stack against the new qualifier, so it is a separate piece of work with its own risk.
 - **A separate AWS account for this project (OPEN, owner decision).** The strongest boundary: a trust failure here could not
   reach the other application. It is also the largest change, and the owner has not decided it.
 - **A custom-resource provider (`OpenIdConnectProvider`).** Rejected: it ships a Lambda and needs thumbprints; the native

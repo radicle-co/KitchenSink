@@ -218,7 +218,9 @@ describe('GithubActionsAccessStack: what no role may do', () => {
         const resources = JSON.stringify(assume.map((s) => s.Resource));
 
         expect(assume).toHaveLength(1);
-        expect(resources).toContain('cdk-hnb659fds-lookup-role-');
+        expect(resources).toContain('cdk-ksprod-lookup-role-');
+        expect(resources).not.toContain('cdk-ksaccount');
+        expect(resources).not.toContain('cdk-ksnonprod');
         expect(resources).not.toContain('deploy-role');
         expect(resources).not.toContain('publishing-role');
     });
@@ -753,16 +755,24 @@ describe('GithubActionsAccessStack: the observe grants are the enumerated CI com
 });
 
 /**
- * HIGH-1 cannot be closed here (the CDK deploy role is account administrator: ADR-0063, owner decision), so what this
- * pins is that it cannot GET WIDER: the roles each tier may assume are exactly the bootstrap roles it needs today, and
- * no other statement in any role names an `sts:` action.
+ * HIGH-1 (ADR-0063, ADR-0065): a CI role is only as weak as the roles it may assume, so the set each tier may assume
+ * is enumerated here and nothing else in any role may name an `sts:` action. The sets are spelled out, not derived
+ * from the production code, so a change to the trust registry cannot rewrite its own expectation.
+ *
+ * Expand half: the KitchenSink-owned bootstrap roles are granted and the default-qualifier roles are still allowed,
+ * so that nothing breaks while stacks migrate. The contract half (a later commit) removes the legacy Allow.
  */
 describe('GithubActionsAccessStack: the roles a CI role may assume are an enumerated set', () => {
     const t = template();
     const { account, region } = env;
-    const boot = (kind: string): string =>
-        `arn:aws:iam::${account}:role/cdk-hnb659fds-${kind}-role-${account}-${region}`;
-    const ALL_KINDS = ['deploy', 'file-publishing', 'image-publishing', 'lookup'].map(boot);
+    const boot = (qualifier: string, kind: string): string =>
+        `arn:aws:iam::${account}:role/cdk-${qualifier}-${kind}-role-${account}-${region}`;
+    const USED_KINDS = ['deploy', 'file-publishing', 'lookup'] as const;
+    const kindsOf = (qualifier: string): string[] => USED_KINDS.map((kind) => boot(qualifier, kind));
+    const LEGACY = kindsOf('hnb659fds');
+    const NONPROD = kindsOf('ksnonprod');
+    const PROD = kindsOf('ksprod');
+    const ACCOUNT = kindsOf('ksaccount');
 
     const stsGrants = (statements: readonly Statement[]): readonly Statement[] =>
         statements.filter(
@@ -782,33 +792,75 @@ describe('GithubActionsAccessStack: the roles a CI role may assume are an enumer
         );
     };
 
-    it.each([
-        ['kitchensink-gha-nonprod', ALL_KINDS],
-        ['kitchensink-gha-prod', ALL_KINDS],
-        ['kitchensink-gha-prod-read', [boot('lookup')]],
-    ])('%s may assume exactly the bootstrap roles %j', (name, targets) => {
+    const EXPECTED: ReadonlyArray<readonly [string, readonly string[]]> = [
+        ['kitchensink-gha-nonprod', [...LEGACY, ...NONPROD]],
+        // The account qualifier is reachable from this role ONLY because the role itself is issued only to a job
+        // bound to the Production environment on main (the trust test above). Neither other tier may hold it.
+        ['kitchensink-gha-prod', [...LEGACY, ...PROD, ...ACCOUNT]],
+        ['kitchensink-gha-prod-read', [boot('hnb659fds', 'lookup'), boot('ksprod', 'lookup')]],
+    ];
+
+    it.each(EXPECTED)('%s may assume exactly the bootstrap roles %j', (name, targets) => {
         expect(pinned(statementsOf(t, name), targets)).toBe(true);
     });
 
+    it.each(EXPECTED)('%s may assume no image-publishing role, in any qualifier', (name) => {
+        expect(JSON.stringify(stsGrants(statementsOf(t, name)))).not.toContain('image-publishing');
+    });
+
+    it('only the production role reaches the account qualifier, and only prod and prod-read reach the prod one', () => {
+        const reach = (name: string): string => JSON.stringify(stsGrants(statementsOf(t, name)));
+
+        expect(reach('kitchensink-gha-nonprod')).not.toMatch(/cdk-ks(prod|account)-/u);
+        expect(reach('kitchensink-gha-prod-read')).not.toContain('cdk-ksaccount-');
+        expect(reach('kitchensink-gha-prod-read')).not.toContain('cdk-ksnonprod-');
+        expect(reach('kitchensink-gha-prod')).not.toContain('cdk-ksnonprod-');
+    });
+
     // The shapes the pin must tell apart, so it is not green by accident: each is a way the grant could widen.
-    const base: Statement = { Effect: 'Allow', Action: 'sts:AssumeRole', Resource: ALL_KINDS };
+    const base: Statement = { Effect: 'Allow', Action: 'sts:AssumeRole', Resource: NONPROD };
 
     it.each<[string, readonly Statement[]]>([
         ['a wildcard resource added', [base, { ...base, Resource: '*' }]],
         ['an account-wide role arn added', [base, { ...base, Resource: `arn:aws:iam::${account}:role/*` }]],
         [
             'a role outside the bootstrap set',
-            [{ ...base, Resource: [...ALL_KINDS, `arn:aws:iam::${account}:role/admin`] }],
+            [{ ...base, Resource: [...NONPROD, `arn:aws:iam::${account}:role/admin`] }],
         ],
         ['a wildcard sts action', [base, { ...base, Action: 'sts:*' }]],
-        ['a bare star action', [base, { ...base, Action: '*', Resource: boot('lookup') }]],
+        ['a bare star action', [base, { ...base, Action: '*', Resource: boot('ksnonprod', 'lookup') }]],
         [
             'a condition that is not asserted',
             [{ ...base, Condition: { StringEquals: { 'aws:RequestedRegion': region } } }],
         ],
-        ['a role dropped', [{ ...base, Resource: ALL_KINDS.slice(1) }]],
+        ['a role dropped', [{ ...base, Resource: NONPROD.slice(1) }]],
+        [
+            'an image-publishing role added',
+            [{ ...base, Resource: [...NONPROD, boot('ksnonprod', 'image-publishing')] }],
+        ],
     ])('the pin rejects %s', (_label, statements) => {
-        expect(pinned(statements, ALL_KINDS)).toBe(false);
+        expect(pinned(statements, NONPROD)).toBe(false);
+    });
+
+    // The mutation lens, run on the REAL synthesized policies rather than on fixtures: take what each tier actually
+    // holds, widen its `sts:AssumeRole` the ways a careless edit would, and the pin must stop agreeing.
+    const widenings: ReadonlyArray<readonly [string, (s: Statement) => Statement]> = [
+        ['a wildcard resource', (s) => ({ ...s, Resource: '*' })],
+        [
+            'an image-publishing role',
+            (s) => ({ ...s, Resource: [...asList(s.Resource), boot('ksprod', 'image-publishing')] }),
+        ],
+        ['sts:* in place of sts:AssumeRole', (s) => ({ ...s, Action: 'sts:*' })],
+    ];
+
+    it.each(
+        EXPECTED.flatMap(([name, targets]) => widenings.map(([how, widen]) => [name, how, targets, widen] as const)),
+    )('%s: the pin fails when the real assume grant is widened to %s', (name, _how, targets, widen) => {
+        const real = statementsOf(t, name);
+        const mutated = real.map((s) => (stsGrants([s]).length > 0 ? widen(s) : s));
+
+        expect(pinned(real, targets)).toBe(true);
+        expect(pinned(mutated, targets)).toBe(false);
     });
 });
 

@@ -25,8 +25,10 @@
  *   over every combination of the inputs they read, so `deployInfra.yml`'s per-stage binding is judged, not exempted.
  * - `teardown-prod-tier` — a reclamation job (`reclamationJobs.ts`) signs in only as `nonprod`, the one role that
  *   carries `teardownGrants`.
- * - `cdk-bootstrap` — no `cdk bootstrap`. The bootstrap stack is shared with another application in the account, and a
- *   deploy job that re-runs it rewrites a stack it does not own.
+ * - `cdk-bootstrap` — no `cdk bootstrap`, against ANY qualifier, from any workflow or script. The default qualifier's
+ *   stack is shared with another application in the account, and a deploy job that re-runs it rewrites a stack it does
+ *   not own. This repository's own qualifiers (ADR-0065) are bootstrapped by the owner with admin credentials, because
+ *   a CI role that could bootstrap them could rewrite the trust and the execution policy that bound it.
  * - `unknown-tier` — the tier resolves to one of `GITHUB_OIDC_TIERS`. (Which ROLE each names is held to the stack by
  *   `awsAuthPredicate.test.ts`.)
  * - `missing-timeout` / `session-shorter-than-job` — a signing-in job states `timeout-minutes`, and the session it asks
@@ -705,6 +707,24 @@ runs:
         steps:
             - run: packages/infra/global/node_modules/.bin/cdk bootstrap "aws://1/us-east-1"
 `),
+        ],
+        rule: 'cdk-bootstrap',
+    },
+    {
+        shape: 'cdk bootstrap of an owned qualifier in a step',
+        sources: [
+            workflow(`    boot:
+        runs-on: ubuntu-latest
+        steps:
+            - run: packages/infra/global/node_modules/.bin/cdk bootstrap --qualifier ksnonprod --toolkit-stack-name kitchensink-bootstrap-ksnonprod
+`),
+        ],
+        rule: 'cdk-bootstrap',
+    },
+    {
+        shape: 'cdk bootstrap against the default qualifier in a script',
+        sources: [
+            { file: '.github/scripts/boot.sh', text: '#!/usr/bin/env bash\nnpx cdk bootstrap --qualifier hnb659fds\n' },
         ],
         rule: 'cdk-bootstrap',
     },

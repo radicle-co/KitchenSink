@@ -8,11 +8,11 @@
  * ## Why direct permissions are small, and what that does NOT bound
  *
  * Each role carries only what a job does itself, and everything that creates or changes infrastructure goes
- * through CDK's bootstrap roles (`sts:AssumeRole` on `cdk-hnb659fds-*`). ⚠️ That is a limit of this commit,
- * not a security boundary: the shared bootstrap's CloudFormation execution role is `AdministratorAccess`, so
- * any role that may assume the deploy role can do anything in the account through a template. The tier
- * differences below bound the blast radius of a mistake, and the trust policy bounds who may become a role;
- * neither stops a malicious workflow on a trusted ref. ADR-0063 records the follow-up.
+ * through CDK's bootstrap roles (`sts:AssumeRole` on the KitchenSink-owned `cdk-ksnonprod-*`, `cdk-ksprod-*` and,
+ * for the production role alone, `cdk-ksaccount-*`). Those qualifiers carry a scoped execution policy and a
+ * permissions boundary (ADR-0065), so the deploy path is bounded by what that policy admits. The default qualifier's
+ * roles are the other application's and administrator-backed; the access below to them exists only while stacks
+ * migrate.
  *
  * ## Scoping is by NAME, never by the `Environment` tag alone
  *
@@ -30,7 +30,16 @@
  * @pattern Registry — a `Record` over the tier union, so a tier with no role is a compile error
  * @see docs/architecture/decisions/0063-github-actions-aws-oidc-roles.md
  */
-import { CfnOutput, DefaultStackSynthesizer, Duration, Stack, type StackProps, aws_iam as iam } from 'aws-cdk-lib';
+import {
+    ASSUMABLE_ROLE_KINDS,
+    BOOTSTRAP_TRUST,
+    DEFAULT_QUALIFIER,
+    QUALIFIERS,
+    bootstrapRoleArn,
+    type AssumableRoleKind,
+    type CiTier,
+} from '@kitchensink/cdk-bootstrap/qualifiers';
+import { CfnOutput, Duration, Stack, type StackProps, aws_iam as iam } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
 import {
@@ -200,8 +209,36 @@ interface Grant {
     readonly resources: readonly string[];
 }
 
-const bootstrapRoleArn = (scope: Scope, kind: string): string =>
-    `arn:aws:iam::${scope.account}:role/cdk-${DefaultStackSynthesizer.DEFAULT_QUALIFIER}-${kind}-role-${scope.account}-${scope.region}`;
+/**
+ * No docker asset exists in this repository (images are built and pushed by CI into `kitchensink-*` repositories and
+ * referenced by name), so no CI role may assume an image-publishing role in any qualifier.
+ * `cdkQualifierCoverage.test.ts` holds the asset side of that claim.
+ */
+const ASSUMED_KINDS: readonly AssumableRoleKind[] = ASSUMABLE_ROLE_KINDS.filter((kind) => kind !== 'image-publishing');
+
+/**
+ * The KitchenSink-owned bootstrap roles a tier may assume, read from the trust registry that also writes the
+ * bootstrap templates' trust (`BOOTSTRAP_TRUST`), so the two sides of "who may assume which role" cannot disagree.
+ * The account qualifier appears only under `prod`, whose role GitHub issues solely to a job bound to the
+ * `Production` environment on `main`.
+ */
+const ownedBootstrapRoles = (scope: Scope, tier: CiTier): readonly string[] =>
+    Object.values(QUALIFIERS).flatMap((qualifier) =>
+        ASSUMED_KINDS.filter((kind) => BOOTSTRAP_TRUST[qualifier][kind].includes(tier)).map((kind) =>
+            bootstrapRoleArn({ account: scope.account, region: scope.region, qualifier, kind }),
+        ),
+    );
+
+/**
+ * The default-qualifier bootstrap roles, shared with the other application in this account and administrator-backed.
+ * Kept ONLY for the expand half of the migration, so that nothing breaks while stacks move to the owned qualifiers;
+ * the contract half removes this Allow and denies the roles instead.
+ */
+const legacyBootstrapRoles = (scope: Scope, kinds: readonly AssumableRoleKind[]): readonly string[] =>
+    kinds.map(
+        (kind) =>
+            `arn:aws:iam::${scope.account}:role/cdk-${DEFAULT_QUALIFIER}-${kind}-role-${scope.account}-${scope.region}`,
+    );
 
 const allow = (
     role: iam.Role,
@@ -235,9 +272,6 @@ const deny = (
     );
 };
 
-/** The bootstrap roles a deploying job may assume. Prod-read assumes only the lookup role. */
-const CDK_ROLE_KINDS = ['deploy', 'file-publishing', 'image-publishing', 'lookup'] as const;
-
 const permissionsNonprod = (role: iam.Role, scope: Scope): void => {
     const { account, region } = scope;
     const stack = (pattern: string): string => `arn:aws:cloudformation:${region}:${account}:stack/${pattern}`;
@@ -247,7 +281,7 @@ const permissionsNonprod = (role: iam.Role, scope: Scope): void => {
     allow(
         role,
         ['sts:AssumeRole'],
-        CDK_ROLE_KINDS.map((kind) => bootstrapRoleArn(scope, kind)),
+        [...ownedBootstrapRoles(scope, 'nonprod'), ...legacyBootstrapRoles(scope, ASSUMED_KINDS)],
     );
     allow(role, STACK_READ_ACTIONS, [stack('kitchensink-*/*')]);
     allow(role, ACCOUNT_LIST_ACTIONS, ['*']);
@@ -354,7 +388,10 @@ const permissionsNonprod = (role: iam.Role, scope: Scope): void => {
 const permissionsProdRead = (role: iam.Role, scope: Scope): void => {
     const { account, region } = scope;
     const grants: readonly Grant[] = [
-        { actions: ['sts:AssumeRole'], resources: [bootstrapRoleArn(scope, 'lookup')] },
+        {
+            actions: ['sts:AssumeRole'],
+            resources: [...ownedBootstrapRoles(scope, 'prod-read'), ...legacyBootstrapRoles(scope, ['lookup'])],
+        },
         {
             actions: [
                 'cloudformation:DescribeStacks',
@@ -391,7 +428,7 @@ const permissionsProd = (role: iam.Role, scope: Scope): void => {
     allow(
         role,
         ['sts:AssumeRole'],
-        CDK_ROLE_KINDS.map((kind) => bootstrapRoleArn(scope, kind)),
+        [...ownedBootstrapRoles(scope, 'prod'), ...legacyBootstrapRoles(scope, ASSUMED_KINDS)],
     );
     allow(role, STACK_READ_ACTIONS, [`arn:aws:cloudformation:${region}:${account}:stack/kitchensink-*/*`]);
     allow(role, ACCOUNT_LIST_ACTIONS, ['*']);

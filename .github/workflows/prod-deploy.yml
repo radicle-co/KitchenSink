@@ -6,6 +6,7 @@ on:
         paths:
             - 'packages/infra/global/**'
             # The workspace libraries the global app imports (`deployLegsWatchTheirLibraries.test.ts` derives them).
+            - 'packages/infra/bootstrap/**'
             - 'packages/shared/clerk-verify/**'
             - 'packages/shared/db-schema-guard/**'
             - 'packages/shared/edge-verifier/**'
@@ -142,6 +143,7 @@ jobs:
                   filters: |
                       global:
                         - 'packages/infra/global/**'
+                        - 'packages/infra/bootstrap/**'
                         - 'packages/shared/clerk-verify/**'
                         - 'packages/shared/db-schema-guard/**'
                         - 'packages/shared/edge-verifier/**'
@@ -781,9 +783,10 @@ jobs:
                       docker buildx build --platform linux/amd64 -f packages/services/identity/Dockerfile -t ${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG} --push .
                   fi
 
-            # ⛔ NO `cdk bootstrap`. The account's bootstrap stack (`CDKToolkit`, qualifier `hnb659fds`) is already at the
-            # version these apps need, and it is SHARED with another application in this account: re-running it from a
-            # deploy rewrites a stack this repository does not own. `awsCredentialsFederated.test.ts` refuses it.
+            # ⛔ NO `cdk bootstrap`, ever, from any workflow. The default qualifier (`CDKToolkit`, `hnb659fds`) is SHARED
+            # with another application in this account, and this repository's own qualifiers (`ksnonprod`, `ksprod`,
+            # `ksaccount`; ADR-0065) are bootstrapped by the OWNER with admin credentials: a role that bootstrapped them
+            # could rewrite the trust and the execution policy that bound it. `awsCredentialsFederated.test.ts` refuses it.
 
             # `STAGE` is already exported to every step by the workflow-level `env:` block, so the old
             # `STAGE=${{ env.STAGE }}` command prefix was re-deriving a variable that was in scope — and

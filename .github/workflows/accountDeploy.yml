@@ -106,6 +106,13 @@ jobs:
                   account-id: ${{ vars.AWS_ACCOUNT_ID }}
                   region: ${{ vars.DEFAULT_AWS_REGION }}
 
+            # ⛔ HOW THESE CREDENTIALS REACH THE ACCOUNT QUALIFIER (ADR-0065). The step above signs in as the `prod` CI
+            # role, which only a job bound to the `Production` environment on `main` can become. That role alone holds
+            # `sts:AssumeRole` on `cdk-ksaccount-{deploy,file-publishing,lookup}-role-*`, and the `ksaccount` bootstrap
+            # roles trust that one principal (`BOOTSTRAP_TRUST`), so the CDK CLI reaches the deploy role the app's
+            # synthesizer names with no further workflow step. Branch and non-prod roles can neither assume nor be
+            # trusted by it. The CI roles' own stack is in THIS app, so it is also a stack this job could widen: the
+            # `ksaccount` execution policy denies editing its own boundary and policies, which the owner deploys by hand.
             # ⚠️ The package's OWN `cdk`/`tsx`, never `npx`: CDK is deliberately outside the npm workspace
             # (ADR-0013), so `npx` would resolve nothing here. `postPruneToolchain.test.ts` asserts it.
             - name: Deploy the account-scoped stacks

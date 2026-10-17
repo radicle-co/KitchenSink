@@ -1,0 +1,114 @@
+# Maestro E2E: mobile Clerk sign-in journey (US-auth). Verifies that a signed-out app opens DIRECTLY on the
+# sign-in form, that sign-up is reachable from it, and that a full email + password + new-device email-code
+# sign-in lands the caller on the authenticated recipe surface. A wrong password is also asserted to stop at
+# the password step, with no code step.
+#
+# Owner decision, 2026-07-28: the branded welcome hero that used to be the signed-out front door is deleted on
+# both platforms (web's locale root now redirects a signed-out caller straight to `/sign-in`). This flow
+# absorbed the two things `auth/welcome-flow.yaml` used to prove and that still matter — the app's signed-out
+# ENTRY, and that registration is reachable from it — because the welcome hero was mobile's only "Get started"
+# CTA into sign-up, and the login screen's own control is now the sole route there.
+#
+# Uses a Clerk `+clerk_test` magic email whose new-device verification accepts the fixed code 424242 — no
+# real mailbox needed. The shared, idempotent `signin.yaml` sub-flow owns the actual credential entry (and
+# is reused by every recipe flow); this flow adds the login-chrome assertions and a clean-state launch so
+# the sign-in path itself is always exercised.
+#
+# Pre-requisites:
+#   - App installed on a running Android emulator (debug APK loading JS from Metro, or a release build).
+#   - The Maestro signer's test-pool slot provisioned by `poolAdmin` (same Clerk instance the app targets).
+#   - Clerk instance has email+password auth enabled with new-device email-code verification.
+#
+# Run: maestro test .maestro/auth/loginFlow.yaml
+
+appId: ${APP_ID}
+---
+- launchApp:
+      clearState: true
+# On iOS the clear leaves the Keychain session, so the app would open signed in; sign out through the app first.
+- runFlow: signOutIfSignedIn.yaml
+
+# Cleared state opens on the SIGN-IN FORM ITSELF — no landing screen, no tap required. The email placeholder is
+# the landmark unique to that form (its 'Sign in' submit alone would also match the sign-up screen's return
+# control). `extendedWaitUntil` rather than a bare assert because `AuthGate` paints its "Checking your session…"
+# affordance first, and this is the flow's first read of the screen.
+- extendedWaitUntil:
+      visible: 'you@example.com'
+      timeout: 30000
+- assertVisible: 'Email'
+- assertVisible: 'Password'
+- assertVisible: 'Sign in'
+
+# The regression guard for the decision above: the deleted hero must not reappear in front of the form. (The
+# assertion above — that the form is up with NO interaction — is what actually proves the entry; this one names
+# the specific surface that must not come back.)
+- assertNotVisible: 'Cook with confidence. Plan with ease.'
+- assertNotVisible: 'Get started'
+
+# Native social sign-in (plan 012): the CI test app is a SANDBOX build, whose Clerk instance has an Android Google client
+# registered and Sign in with Apple on iOS, so the provider group stands above the email form — Google on Android,
+# Apple and Google on iOS. Only PRESENCE is asserted here: a real Google or Apple sign-in needs a real account and the
+# provider's own UI, which cannot be automated, and the cancel / error path is `auth/socialCancel.yaml` (hand-run; see
+# its header for why it is not in the plan). Copy: mobile i18n `auth.continueWithGoogle`, `auth.orDivider`; the Apple
+# button's label is the system's own, so it is matched by its words, not by a key.
+- assertVisible: 'Continue with Google'
+- assertVisible: 'or'
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible: '.*with Apple'
+
+# Sign-UP is reachable from the sign-in form, and returns to it. This is the entry point the welcome hero used
+# to own, so it is asserted in both directions rather than assumed (web's `routeProtection.spec.ts` asserts the
+# same property via the sign-up link Clerk renders from `signUpUrl` — cross-platform parity). Copy comes from
+# mobile i18n `auth.signUpLink` / `createHeading` / `createAccountAction` / `haveAccountPrompt`.
+- tapOn: 'Create an account'
+- assertVisible: 'Create your account'
+# The sign-up form asks for first name, last name, username and email (owner ruling 2026-10-13) under the provider
+# group, so its submit and its return link can sit below the fold on a short screen: scroll to them, then assert.
+- assertVisible: 'First name'
+- assertVisible: 'Username'
+- scrollUntilVisible:
+      element: 'Already have an account?'
+      direction: DOWN
+- assertVisible: 'Create account'
+- assertVisible: 'Already have an account?'
+# The sign-up screen's return control. 'Sign in' is unambiguous HERE (this screen's submit is 'Create account'),
+# whereas on the login screen it would also match that form's own submit — which is why the flow taps it only
+# while the sign-up screen is up, and confirms the login form is back by its unique email placeholder.
+- tapOn: 'Sign in'
+- assertVisible: 'you@example.com'
+- assertVisible: 'Password'
+
+# A WRONG password stops at the password (A-001): Clerk's error shows and NO verification-code step appears. A
+# sign-in that sends the email code before the password is checked would let the mailbox alone sign a user in.
+# `signinHome.yaml` is not reused here because it enters the CORRECT password; this step enters a wrong one.
+- tapOn: 'you@example.com'
+- inputText: '${E2E_SIGNIN_EMAIL}'
+# Read back and retyped once, for `signinHome.yaml`'s reason (the iOS Simulator drops keystrokes). A dropped key here
+# reads as "Couldn't find your account" instead of the wrong-password error this step asserts.
+- runFlow:
+      when:
+          notVisible: '${E2E_SIGNIN_EMAIL}'
+      commands:
+          - eraseText: 64
+          - inputText: '${E2E_SIGNIN_EMAIL}'
+- assertVisible: '${E2E_SIGNIN_EMAIL}'
+# The Next key, for `signinHome.yaml`'s reason: the iOS keyboard covers the password field.
+- pressKey: Enter
+- inputText: 'wrongpassword123'
+# The keyboard stays up: `Sign in` is pinned above it (`signinHome.yaml`), and tapping it there is what a cook does.
+- tapOn: 'Sign in'
+- extendedWaitUntil:
+      visible: '.*ncorrect.*'
+      timeout: 20000
+- assertNotVisible: 'Verification code'
+- assertVisible: 'Password'
+
+# Sign in with the shared test user (email + password + new-device email code) via the reusable sub-flow.
+# clearState plus the sign-out above guarantee the guarded credential block runs (no persisted session to skip it).
+- runFlow: signin.yaml
+
+# A completed sign-in renders the authenticated surface: the RecipesScreen "Recipes" list heading.
+- assertVisible: 'Recipes'

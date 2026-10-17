@@ -59,7 +59,7 @@ describe('HomeWidgetErrorNotice (web)', () => {
         const notice = screen.getByRole('status');
 
         expect(notice.className).toContain('text-body-sm');
-        expect(notice.className).toContain('text-slate');
+        expect(notice.className).toContain('text-ink-muted');
     });
 
     it('offers no recovery control it could not honour', () => {

@@ -12,8 +12,11 @@
  *  - `instant` — `setValue(1)`: settled, with no animation object ever created.
  *  - `animate` — run the timing, and CANCEL it on unmount / on a preference change (an animation left
  *    running against an unmounted view is a leak).
+ *
+ * @pattern Adapter over React Native's imperative `Animated` driver — it owns the animation so consuming leaves stay
+ *     pure `props → JSX`, and the reduce-motion decision is a pure Strategy in `enterMotionMode`.
  */
-import { useEffect, useRef, type FC } from 'react';
+import { useEffect, useState, type FC } from 'react';
 import { Animated, Easing, Platform } from 'react-native';
 
 import { ENTER_DURATION_MS, ENTER_RISE_PX, enterMotionMode } from './enterMotion.js';
@@ -24,9 +27,12 @@ import type { EnterTransitionProps } from './props.js';
 export const EnterTransition: FC<EnterTransitionProps> = ({ children, delayMs = 0 }) => {
     const reduceMotion = useReduceMotion();
     const mode = enterMotionMode({ reduceMotion });
-    // A ref wrapping `Animated` — the one sanctioned use: an imperative, non-declarative external system
-    // whose value must survive re-renders and has no declarative equivalent in React Native.
-    const progress = useRef(new Animated.Value(0)).current;
+    // The `Animated.Value` is created ONCE (lazy initialiser) and never replaced, so state is the right home for
+    // it. It used to live in `useRef(new Animated.Value(0)).current`, which read `.current` during render — the
+    // shape `react-hooks/refs` forbids — and constructed a throwaway `Animated.Value` on every render besides.
+    // (`useAnimatedValue` is React Native's own hook for this, but `react-native-web`, which the native test
+    // tier renders through, does not export it.)
+    const [progress] = useState(() => new Animated.Value(0));
 
     useEffect(() => {
         if (mode === 'pending') {

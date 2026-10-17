@@ -66,12 +66,38 @@ describe('verifyClerkToken', () => {
 
     it('leaves userId undefined when external_id is absent or empty (shared verifier is backward-compatible; per-service policy fails closed)', async () => {
         // empty-string external_id
-        mockVerify.mockResolvedValue({ sub: 'user_123', external_id: '' } as never);
+        mockVerify.mockResolvedValue({ sub: 'user_123', external_id: '', azp: 'https://app.example.com' } as never);
         expect((await verifyClerkToken('tok', CONFIG)).userId).toBeUndefined();
 
         // external_id omitted entirely (no key on the payload)
-        mockVerify.mockResolvedValue({ sub: 'user_123' } as never);
+        mockVerify.mockResolvedValue({ sub: 'user_123', azp: 'https://app.example.com' } as never);
         expect((await verifyClerkToken('tok', CONFIG)).userId).toBeUndefined();
+    });
+
+    it('surfaces the username claim both session tokens carry (owner ruling 2026-10-13)', async () => {
+        mockVerify.mockResolvedValue({
+            sub: 'user_123',
+            azp: 'https://app.example.com',
+            username: 'goodfellow',
+        } as never);
+
+        const claims = await verifyClerkToken('tok', CONFIG);
+
+        expect(claims.username).toBe('goodfellow');
+    });
+
+    it.each([
+        ['absent', {}],
+        ['empty', { username: '' }],
+        ['not a string', { username: 42 }],
+        // `{{user.username}}` renders as null for a user without one.
+        ['null', { username: null }],
+    ])('leaves username undefined when the claim is %s', async (_case, extra) => {
+        mockVerify.mockResolvedValue({ sub: 'user_123', azp: 'https://app.example.com', ...extra } as never);
+
+        const claims = await verifyClerkToken('tok', CONFIG);
+
+        expect(claims.username).toBeUndefined();
     });
 
     it('also accepts the legacy { data } envelope (back-compat across @clerk/backend versions)', async () => {
@@ -86,24 +112,143 @@ describe('verifyClerkToken', () => {
         expect(claims.scopes).toEqual(['s1']);
     });
 
-    it('passes the configured jwtKey + authorizedParties to verifyToken (networkless, azp-enforced)', async () => {
-        mockVerify.mockResolvedValue({ sub: 'user_1' } as never);
+    it('⛔ NEVER passes authorizedParties to the SDK — azp enforcement is SELF-OWNED in both modes', async () => {
+        // REWRITTEN (2026-09-02): this used to pin the opposite — forwarding the list and delegating the
+        // azp decision to @clerk/backend. That delegation died empirically: 3.16.12's verifyToken REJECTS
+        // an absent azp against a party list ("Invalid JWT Authorized party claim (azp) undefined"),
+        // 401ing every azp-less native token in list mode — measured against a live nice-fowl-6 token.
+        // The wrapper now enforces azp itself in BOTH modes, so an SDK behavior change can never move
+        // this security boundary again.
+        mockVerify.mockResolvedValue({ sub: 'user_1', azp: 'https://app.example.com' } as never);
 
         await verifyClerkToken('tok', CONFIG);
 
-        expect(mockVerify).toHaveBeenCalledWith('tok', {
-            jwtKey: 'PEM',
-            authorizedParties: ['https://app.example.com'],
-        });
+        expect(mockVerify).toHaveBeenCalledWith('tok', { jwtKey: 'PEM', authorizedParties: undefined });
+    });
+
+    it('list mode: a present azp OUTSIDE the list is rejected (self-owned exact match)', async () => {
+        mockVerify.mockResolvedValue({ sub: 'user_1', azp: 'https://evil.example.com' } as never);
+
+        await expect(verifyClerkToken('tok', CONFIG)).rejects.toSatisfy(isClerkVerificationError);
     });
 
     it('reads authorization grants ONLY from public_metadata, never a top-level scopes claim', async () => {
-        mockVerify.mockResolvedValue({ sub: 'user_1', scopes: ['forged:admin'], public_metadata: {} } as never);
+        mockVerify.mockResolvedValue({
+            sub: 'user_1',
+            azp: 'https://app.example.com',
+            scopes: ['forged:admin'],
+            public_metadata: {},
+        } as never);
 
         const claims = await verifyClerkToken('tok', CONFIG);
 
         expect(claims.scopes).toEqual([]);
         expect(claims.permissions).toEqual([]);
+    });
+
+    it('⛔ marks a TEST PRINCIPAL only from public_metadata.testPrincipal === true (ADR-0040)', async () => {
+        mockVerify.mockResolvedValue({
+            sub: 'user_1',
+            azp: 'https://app.example.com',
+            public_metadata: { testPrincipal: true },
+        } as never);
+
+        expect((await verifyClerkToken('tok', CONFIG)).testPrincipal).toBe(true);
+    });
+
+    it.each([
+        ['absent public_metadata', {}],
+        ['a truthy NON-boolean ("true")', { public_metadata: { testPrincipal: 'true' } }],
+        ['a truthy NON-boolean (1)', { public_metadata: { testPrincipal: 1 } }],
+        ['false', { public_metadata: { testPrincipal: false } }],
+        // A user can write unsafe_metadata from the browser — it must never mark anyone.
+        ['unsafe_metadata.testPrincipal', { unsafe_metadata: { testPrincipal: true } }],
+        // A top-level claim can be mapped from unsafe_metadata by a session-token template.
+        ['a top-level testPrincipal claim', { testPrincipal: true }],
+        ['a top-level test_principal claim', { test_principal: true }],
+    ])('⛔ is NOT a test principal for %s', async (_label, extra) => {
+        mockVerify.mockResolvedValue({ sub: 'user_1', azp: 'https://app.example.com', ...extra } as never);
+
+        expect((await verifyClerkToken('tok', CONFIG)).testPrincipal).toBe(false);
+    });
+
+    /**
+     * Roles (plan 2026-10-14-009 D3): read from the signed `public_metadata.roles` only, and expanded into scopes HERE,
+     * once, so identity, recipe, food and the edge all see the same effective scopes.
+     */
+    describe('roles', () => {
+        it('reads roles from public_metadata.roles', async () => {
+            mockVerify.mockResolvedValue({
+                sub: 'user_1',
+                azp: 'https://app.example.com',
+                public_metadata: { roles: ['vip', 'default'] },
+            } as never);
+
+            expect((await verifyClerkToken('tok', CONFIG)).roles).toStrictEqual(['vip', 'default']);
+        });
+
+        it.each([
+            ['absent public_metadata', {}],
+            ['an unknown role', { public_metadata: { roles: ['owner'] } }],
+            ['a wrong-case role', { public_metadata: { roles: ['Superuser'] } }],
+            ['a bare string', { public_metadata: { roles: 'superuser' } }],
+            // A user can write unsafe_metadata from the browser — it must never grant a role.
+            ['unsafe_metadata.roles', { unsafe_metadata: { roles: ['superuser'] } }],
+            // A top-level claim can be mapped from unsafe_metadata by a session-token template.
+            ['a top-level roles claim', { roles: ['superuser'] }],
+        ])('⛔ grants no role and no scope for %s', async (_label, extra) => {
+            mockVerify.mockResolvedValue({ sub: 'user_1', azp: 'https://app.example.com', ...extra } as never);
+
+            const claims = await verifyClerkToken('tok', CONFIG);
+
+            expect(claims.roles).toStrictEqual([]);
+            expect(claims.scopes).toStrictEqual([]);
+        });
+
+        it('expands a superuser into every scope the services authorize on', async () => {
+            mockVerify.mockResolvedValue({
+                sub: 'user_1',
+                azp: 'https://app.example.com',
+                public_metadata: { roles: ['superuser'] },
+            } as never);
+
+            expect([...(await verifyClerkToken('tok', CONFIG)).scopes].sort()).toStrictEqual([
+                'admin:users',
+                'food:admin',
+                'recipes:import:public',
+                'recipes:mappings:global',
+                'recipes:parses:global',
+            ]);
+        });
+
+        it('keeps explicit scopes and adds the role-implied ones, each once', async () => {
+            mockVerify.mockResolvedValue({
+                sub: 'user_1',
+                azp: 'https://app.example.com',
+                public_metadata: { roles: ['admin'], scopes: ['recipes:write', 'food:admin'] },
+            } as never);
+
+            const { scopes } = await verifyClerkToken('tok', CONFIG);
+
+            expect([...scopes].sort()).toStrictEqual([
+                'admin:users',
+                'food:admin',
+                'recipes:import:public',
+                'recipes:mappings:global',
+                'recipes:parses:global',
+                'recipes:write',
+            ]);
+        });
+
+        it('gives a premium user no scope (a paid feature is not a privilege)', async () => {
+            mockVerify.mockResolvedValue({
+                sub: 'user_1',
+                azp: 'https://app.example.com',
+                public_metadata: { roles: ['premium'] },
+            } as never);
+
+            expect((await verifyClerkToken('tok', CONFIG)).scopes).toStrictEqual([]);
+        });
     });
 
     it('fails closed (throws ClerkVerificationError) and never calls verifyToken when the key is absent', async () => {
@@ -139,33 +284,110 @@ describe('verifyClerkToken', () => {
         expect(mockVerify).toHaveBeenCalledWith('tok', { jwtKey: 'PEM', authorizedParties: undefined });
     });
 
-    // ── R10 regression: a native (@clerk/expo) token has NO azp; list mode must still accept it ──
-    // In list mode we delegate the azp decision to @clerk/backend, whose assertAuthorizedPartiesClaim
-    // RETURNS EARLY when azp is absent (`if (!azp || !authorizedParties...) return`) — so an azp-less
-    // token passes even with a non-empty allowlist. That is why mobile (which mints azp-less native
-    // tokens and calls the list-mode identity service) is NOT affected by the sandbox-web pattern-mode
-    // migration. This test pins that our wrapper adds NO azp rejection of its own in list mode; if it
-    // ever did, every mobile request would 401. Absent-azp is only rejected in self-owned PATTERN mode.
-    it('accepts an azp-less (native) token in list mode — delegates the skip-on-absent-azp to Clerk', async () => {
-        mockVerify.mockResolvedValue({ sub: 'mobile_user', scopes: [], permissions: [] } as never);
+    // ── R10, REWRITTEN (2026-09-02): list-mode native admission is now a POSITIVE GATE, not an SDK
+    // skip. The old test here pinned "assertAuthorizedPartiesClaim returns early when azp is absent" —
+    // TRUE of the @clerk/backend that R10 was measured against, FALSE of 3.16.12, which rejects absent
+    // azp against a party list (proven with a live device token; every mobile request 401'd). A mocked
+    // boundary cannot notice its real counterpart changing — this rewrite records where the coverage
+    // went: azp-less admission in list mode now requires the SAME `client_type: 'native'` gate pattern
+    // mode always required, wired via `admitAzplessToken` (services: CLERK_ADMIT_NATIVE_CLIENT=true).
+    it('list mode: an azp-less NATIVE token is admitted through the explicit gate', async () => {
+        mockVerify.mockResolvedValue({ sub: 'mobile_user', client_type: 'native' } as never);
 
         const claims = await verifyClerkToken('tok', {
             jwtKey: 'PEM',
             authorizedParties: ['https://commise.app', 'https://app.commise.app'],
+            admitAzplessToken: isNativeClientToken,
         });
 
         expect(claims.sub).toBe('mobile_user');
         expect(claims.azp).toBeUndefined();
-        // We forwarded the allowlist to Clerk (which owns the azp decision) and did NOT add our own check.
-        expect(mockVerify).toHaveBeenCalledWith('tok', {
-            jwtKey: 'PEM',
-            authorizedParties: ['https://commise.app', 'https://app.commise.app'],
-        });
+    });
+
+    it('list mode: an azp-less token WITHOUT the gate is rejected — absence alone never admits', async () => {
+        mockVerify.mockResolvedValue({ sub: 'mobile_user', client_type: 'native' } as never);
+
+        await expect(
+            verifyClerkToken('tok', { jwtKey: 'PEM', authorizedParties: ['https://commise.app'] }),
+        ).rejects.toSatisfy(isClerkVerificationError);
+    });
+
+    it('list mode: the gate admits only a POSITIVE native signal — an azp-less web-shaped token is rejected', async () => {
+        mockVerify.mockResolvedValue({ sub: 'user_1', client_type: 'browser' } as never);
+
+        await expect(
+            verifyClerkToken('tok', {
+                jwtKey: 'PEM',
+                authorizedParties: ['https://commise.app'],
+                admitAzplessToken: isNativeClientToken,
+            }),
+        ).rejects.toSatisfy(isClerkVerificationError);
     });
 });
 
 const PATTERN = buildPreviewAzpPattern('sandbox.commise.app');
 const PATTERN_CONFIG = { jwtKey: 'PEM', authorizedParties: [], authorizedPartyPattern: PATTERN };
+
+describe('verifyClerkToken — impersonation (`act` claim)', () => {
+    // Owner ruling 2026-10-15: admin impersonation is removed. Clerk marks an impersonation session token with an
+    // `act` object (`{ sub: <impersonator> }`); no service may admit one, however valid its signature.
+    const BASE = { sub: 'user_123', azp: 'https://app.example.com' };
+
+    it.each([
+        ['an object', { sub: 'user_admin' }],
+        ['an empty object', {}],
+        ['a non-empty string', 'user_admin'],
+        ['true', true],
+    ])('⛔ refuses a verified token whose act is %s', async (_label, act) => {
+        mockVerify.mockResolvedValue({ ...BASE, act } as never);
+
+        await expect(verifyClerkToken('tok', CONFIG)).rejects.toSatisfy(isClerkVerificationError);
+    });
+
+    it('refuses it in pattern mode and when no azp check is configured, too', async () => {
+        mockVerify.mockResolvedValue({ ...BASE, act: { sub: 'user_admin' } } as never);
+
+        await expect(
+            verifyClerkToken('tok', {
+                jwtKey: 'PEM',
+                authorizedParties: [],
+                authorizedPartyPattern: buildPreviewAzpPattern('example.com'),
+            }),
+        ).rejects.toSatisfy(isClerkVerificationError);
+        await expect(verifyClerkToken('tok', { jwtKey: 'PEM', authorizedParties: [] })).rejects.toSatisfy(
+            isClerkVerificationError,
+        );
+    });
+
+    it('refuses it even from an azp-less native token the gate admits', async () => {
+        mockVerify.mockResolvedValue({ sub: 'user_123', client_type: 'native', act: { sub: 'user_admin' } } as never);
+
+        await expect(verifyClerkToken('tok', { ...CONFIG, admitAzplessToken: isNativeClientToken })).rejects.toSatisfy(
+            isClerkVerificationError,
+        );
+    });
+
+    it.each([
+        ['absent', {}],
+        ['null', { act: null }],
+        ['undefined', { act: undefined }],
+        ['false', { act: false }],
+        ['an empty string', { act: '' }],
+    ])('admits a token whose act is %s (not an impersonation)', async (_label, extra) => {
+        mockVerify.mockResolvedValue({ ...BASE, ...extra } as never);
+
+        expect((await verifyClerkToken('tok', CONFIG)).sub).toBe('user_123');
+    });
+
+    it('is unrelated to the service-erasure token, whose own string `act` (machine actor) never reaches this verifier', async () => {
+        // The erasure token is Ed25519, audience-pinned, and verified by each service's own erasure verifier
+        // (`serviceErasureAuth.service.ts`), never by `verifyClerkToken`. Fed here it is still refused, but
+        // for the right reason class: it is not a Clerk session. Its own suites prove it still verifies there.
+        mockVerify.mockRejectedValue(new Error('invalid signature'));
+
+        await expect(verifyClerkToken('erasure-token', CONFIG)).rejects.toSatisfy(isClerkVerificationError);
+    });
+});
 
 describe('verifyClerkToken — azp predicate mode (U1)', () => {
     it('accepts a token whose azp matches the anchored preview pattern, and validates azp itself (SDK check skipped)', async () => {
@@ -348,6 +570,28 @@ describe('resolveAzpEnforcement', () => {
             expect(cfg.authorizedPartyPattern?.test('https://pr-7.sandbox.commise.app')).toBe(true);
         },
     );
+});
+
+describe('resolveAzpEnforcement — list mode carries the native gate (2026-09-02)', () => {
+    it('wires admitAzplessToken in LIST mode when admitNativeClient is true — not only pattern mode', () => {
+        const resolved = resolveAzpEnforcement({
+            authorizedPartiesRaw: 'https://commise.app',
+            previewBaseDomain: undefined,
+            admitNativeClient: true,
+        });
+
+        expect(resolved.authorizedParties).toEqual(['https://commise.app']);
+        expect(resolved.admitAzplessToken).toBe(isNativeClientToken);
+    });
+
+    it('carries NO gate in list mode when the flag is unset — fail closed on azp absence', () => {
+        const resolved = resolveAzpEnforcement({
+            authorizedPartiesRaw: 'https://commise.app',
+            previewBaseDomain: undefined,
+        });
+
+        expect(resolved.admitAzplessToken).toBeUndefined();
+    });
 });
 
 describe('hasExactlyOneAzpMode', () => {

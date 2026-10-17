@@ -1,0 +1,60 @@
+appId: ${APP_ID}
+---
+# The Cuisine field on a phone (`docs/design/uiOverhaul/cuisineField.md`; owner rulings 2026-10-13): a cuisine is
+# REQUIRED TO PUBLISH, and it is free text. Mobile mirror of the web Playwright `cuisineField.spec.ts`.
+#
+# The publish-blocked path first: a recipe with a title, a line and a step, and no cuisine, is refused in the editor —
+# one thing to fix, the field's own error — and stays a draft. Then the happy path: the cook types a cuisine the list
+# does not hold, takes "Use “Nyonya”", and publishes, landing on the recipe.
+#
+# Every flow is reseeded before it runs, so the recipe this publishes does not outlive it.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Cuisine Curry'
+
+# One ingredient declared as written (no food service needed) and one step: everything Publish needs but the cuisine.
+- runFlow: common/addTomatoAndStep.yaml
+
+# Publish without a cuisine: refused in the editor, which says how many things to fix and what the fix is.
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible: 'Fix 1 thing to publish'
+      timeout: 20000
+# A refused Publish takes the page to the top of the section with the error: native has no field registry, so it cannot
+# land on the field itself (`ScrollHost.native.tsx`, `scrollToField`). The cuisine is BELOW that heading, after Time and
+# servings, so the error is found scrolling DOWN.
+- scrollUntilVisible:
+      element: 'Choose a cuisine, or type your own.'
+      direction: DOWN
+      timeout: 20000
+- assertVisible: 'Close editor'
+
+# The cook's own words. The list shows all 90 on focus; typing filters it, and with no match it says so and offers
+# the text as the cuisine, in the spelling it will be saved in.
+- scrollUntilVisible:
+      element: 'Cuisine'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Cuisine'
+- assertVisible: 'Afghan'
+- inputText: 'nyonya'
+- assertVisible: 'No cuisines match “Nyonya”. You can use it as your own.'
+- tapOn:
+      text: 'Use “Nyonya”.*'
+# A pick ends the entry (`typedText="isValue"`): the list and the keyboard go, so the action bar is in reach.
+- assertNotVisible: 'No cuisines match “Nyonya”. You can use it as your own.'
+- assertNotVisible: 'Choose a cuisine, or type your own.'
+
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Cuisine Curry.*'
+      timeout: 40000
+- assertVisible: 'Recipe published.'
+- assertVisible: 'Nyonya'

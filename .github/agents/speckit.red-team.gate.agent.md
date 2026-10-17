@@ -1,12 +1,12 @@
 ---
 description: Principle VIII gate — check whether the current feature spec qualifies
-  for red team, and block /speckit.plan if a qualifying spec has no findings report
-  on record.
+    for red team, and block /speckit.plan if a qualifying spec has no findings report
+    on record.
 ---
-
 
 <!-- Extension: red-team -->
 <!-- Config: .specify/extensions/red-team/ -->
+
 ## User Input
 
 ```text
@@ -29,12 +29,12 @@ canonical protocol reference at
 ## Outline
 
 1. **Resolve the spec under consideration**.
-   - If `$ARGUMENTS` contains a path to a spec file, use that.
-   - Else, attempt to determine the current feature from the working branch
-     via the `.specify/scripts/bash/check-prerequisites.sh --json --paths-only`
-     helper. Parse `FEATURE_SPEC` from its output.
-   - If neither resolves, print `Red-Team Gate: SKIPPED (no spec in context)`
-     and return `PROCEED`.
+    - If `$ARGUMENTS` contains a path to a spec file, use that.
+    - Else, attempt to determine the current feature from the working branch
+      via the `.specify/scripts/bash/check-prerequisites.sh --json --paths-only`
+      helper. Parse `FEATURE_SPEC` from its output.
+    - If neither resolves, print `Red-Team Gate: SKIPPED (no spec in context)`
+      and return `PROCEED`.
 
 2. **Scan the spec for Red Team Trigger Criteria**.
    Read the spec file. For each of the six categories below, mark it as
@@ -42,83 +42,87 @@ canonical protocol reference at
    in the spec body. Record which categories matched — this becomes part of
    the gate output for transparency.
 
-   | Category | Example keyword hits (not exhaustive) |
-   |---|---|
-   | `money_path` | `fee`, `fees`, `amount`, `allocation`, `carry`, `carried interest`, `preferred return`, `management fee`, `waterfall`, `price`, `currency`, `invoice`, `AUM`, `IRR`, `MOIC`, `valuation` |
-   | `regulatory_path` | `KYC`, `AML`, `GDPR`, `SEC`, `FCA`, `AIFMD`, `Reg S-P`, `compliance`, `regulator`, `audit report`, `investor disclosure`, `lawful basis`, `subject rights` |
-   | `ai_llm` | `LLM`, `Claude`, `GPT`, `prompt`, `inference`, `classification`, `extraction`, `summarisation`, `summarization`, `scoring`, `model output`, `AI-generated`, `AI-assisted` |
-   | `immutability_audit` | `immutable`, `append-only`, `permanent`, `never deleted`, `audit log`, `audit trail`, `tamper`, `hash chain`, `version chain`, `previous_.*_id` |
-   | `multi_party` | `approval`, `approve`, `IC`, `Investment Committee`, `two-person`, `partner approval`, `override`, `sign-off`, `sign off`, `role-based`, `permission gate` |
-   | `contracts` | `contract`, `interface`, `handoff`, `hand-off`, `upstream`, `downstream`, `API boundary`, `envelope`, `payload`, `request shape`, `response shape`, `schema` |
+    | Category             | Example keyword hits (not exhaustive)                                                                                                                                                    |
+    | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `money_path`         | `fee`, `fees`, `amount`, `allocation`, `carry`, `carried interest`, `preferred return`, `management fee`, `waterfall`, `price`, `currency`, `invoice`, `AUM`, `IRR`, `MOIC`, `valuation` |
+    | `regulatory_path`    | `KYC`, `AML`, `GDPR`, `SEC`, `FCA`, `AIFMD`, `Reg S-P`, `compliance`, `regulator`, `audit report`, `investor disclosure`, `lawful basis`, `subject rights`                               |
+    | `ai_llm`             | `LLM`, `Claude`, `GPT`, `prompt`, `inference`, `classification`, `extraction`, `summarisation`, `summarization`, `scoring`, `model output`, `AI-generated`, `AI-assisted`                |
+    | `immutability_audit` | `immutable`, `append-only`, `permanent`, `never deleted`, `audit log`, `audit trail`, `tamper`, `hash chain`, `version chain`, `previous_.*_id`                                          |
+    | `multi_party`        | `approval`, `approve`, `IC`, `Investment Committee`, `two-person`, `partner approval`, `override`, `sign-off`, `sign off`, `role-based`, `permission gate`                               |
+    | `contracts`          | `contract`, `interface`, `handoff`, `hand-off`, `upstream`, `downstream`, `API boundary`, `envelope`, `payload`, `request shape`, `response shape`, `schema`                             |
 
-   Keyword matching is intentionally liberal — a false positive on the gate
-   just means a spec that did not need red team is still offered the choice.
-   A false negative silently waives a required gate, which is the failure
-   mode the gate exists to prevent.
+    Keyword matching is intentionally liberal — a false positive on the gate
+    just means a spec that did not need red team is still offered the choice.
+    A false negative silently waives a required gate, which is the failure
+    mode the gate exists to prevent.
 
 3. **Check for a findings report**.
-   - Glob `specs/<feature-id>/red-team-findings-*.md` in the repo root.
-   - Also check `99_Archive/red-team/<feature-id>/` in case the spec has
-     already graduated and the findings were archived.
-   - If the project uses a different path convention, honour its
-     `extension.yml` `config.findings_glob` override (if set). Otherwise
-     use the default above.
+    - Glob `specs/<feature-id>/red-team-findings-*.md` in the repo root.
+    - Also check `99_Archive/red-team/<feature-id>/` in case the spec has
+      already graduated and the findings were archived.
+    - If the project uses a different path convention, honour its
+      `extension.yml` `config.findings_glob` override (if set). Otherwise
+      use the default above.
 
 4. **Emit the gate decision**.
 
-   - **No category matched** →
-     ```
-     Red-Team Gate: NOT REQUIRED
-     Triggers matched: none
-     Outcome: PROCEED
-     ```
-     Return `PROCEED`.
+    - **No category matched** →
 
-   - **At least one category matched AND a findings report exists** →
-     ```
-     Red-Team Gate: SATISFIED
-     Triggers matched: <comma-separated list>
-     Findings report: <path>
-     Outcome: PROCEED
-     ```
-     Return `PROCEED`.
+        ```
+        Red-Team Gate: NOT REQUIRED
+        Triggers matched: none
+        Outcome: PROCEED
+        ```
 
-   - **At least one category matched AND no findings report exists** →
-     ```
-     Red-Team Gate: BLOCKED (Constitution Principle VIII — qualifying spec without findings on record)
+        Return `PROCEED`.
 
-     Triggers matched: <comma-separated list>
-     Expected: specs/<feature-id>/red-team-findings-*.md (or 99_Archive/red-team/<feature-id>/)
-     Found: (none)
+    - **At least one category matched AND a findings report exists** →
 
-     Options:
+        ```
+        Red-Team Gate: SATISFIED
+        Triggers matched: <comma-separated list>
+        Findings report: <path>
+        Outcome: PROCEED
+        ```
 
-       1. Run the red team now:
-            /speckit.red-team.run specs/<feature-id>/spec.md
-          Community extension — `specify extension add red-team` if not already installed.
+        Return `PROCEED`.
 
-       2. Explicit opt-out: re-run /speckit.plan with the argument
-            --skip-red-team-gate: <reason>
-          The reason is recorded verbatim in the plan's Constitution Check section
-          as an Accepted Risk tagged [red-team-skipped]. A waived gate is itself
-          an Accepted Risk and will be surfaced to the user in the plan summary.
+    - **At least one category matched AND no findings report exists** →
+        ```
+        Red-Team Gate: BLOCKED (Constitution Principle VIII — qualifying spec without findings on record)
 
-     Outcome: HALT
-     ```
-     Return `HALT`. `/speckit.plan` MUST NOT proceed to its Outline step.
+        Triggers matched: <comma-separated list>
+        Expected: specs/<feature-id>/red-team-findings-*.md (or 99_Archive/red-team/<feature-id>/)
+        Found: (none)
+
+        Options:
+
+          1. Run the red team now:
+               /speckit.red-team.run specs/<feature-id>/spec.md
+             Community extension — `specify extension add red-team` if not already installed.
+
+          2. Explicit opt-out: re-run /speckit.plan with the argument
+               --skip-red-team-gate: <reason>
+             The reason is recorded verbatim in the plan's Constitution Check section
+             as an Accepted Risk tagged [red-team-skipped]. A waived gate is itself
+             an Accepted Risk and will be surfaced to the user in the plan summary.
+
+        Outcome: HALT
+        ```
+        Return `HALT`. `/speckit.plan` MUST NOT proceed to its Outline step.
 
 5. **Respect an explicit opt-out**.
    If `$ARGUMENTS` contains the token `--skip-red-team-gate:` followed by a
    non-empty reason, emit:
-   ```
-   Red-Team Gate: WAIVED
-   Triggers matched: <list>
-   Reason: <verbatim>
-   Outcome: PROCEED (record as Accepted Risk in plan Constitution Check, tagged [red-team-skipped])
-   ```
-   Return `PROCEED`. The caller is responsible for carrying the
-   `[red-team-skipped]` marker into the plan artefact's Constitution Check
-   section.
+    ```
+    Red-Team Gate: WAIVED
+    Triggers matched: <list>
+    Reason: <verbatim>
+    Outcome: PROCEED (record as Accepted Risk in plan Constitution Check, tagged [red-team-skipped])
+    ```
+    Return `PROCEED`. The caller is responsible for carrying the
+    `[red-team-skipped]` marker into the plan artefact's Constitution Check
+    section.
 
 ## Non-Goals
 

@@ -4,13 +4,13 @@
  * Every function here is a pure transformation from a persisted row to its `AccountExport` fragment:
  * `timestamptz` values normalized to ISO-8601 strings, nulls carried through explicitly (a portability
  * document declares every field), and photo object keys resolved to CDN URLs. The impure assembly (the
- * DB reads) lives in {@link AccountExportService}; these are the composable, exhaustively-testable core.
+ * DB reads) lives in `AccountExportService`; these are the composable, exhaustively-testable core.
  */
-import { resolveCdnUrl } from '../photos/photo-view.js';
+import { resolveCdnUrl } from '../photos/photoView.js';
 import type { CollectionRow, RecipeCollectionRow } from '../database/schema/collections.js';
 import type { RecipeRatingRow } from '../database/schema/ratings.js';
 import type { RecipePhotoRow } from '../database/schema/photos.js';
-import type { AuthorHandleRow } from '../database/schema/author-handles.js';
+import type { AuthorHandleRow } from '../database/schema/authorHandles.js';
 import type { RecipeExportRow, VersionMetadataRow } from './dal/export.dal.js';
 import type {
     AuthorHandleExport,
@@ -20,7 +20,7 @@ import type {
     RatingExport,
     RecipeExport,
     VersionExport,
-} from './dto/export.dto.js';
+} from './account.schema.js';
 
 /** Normalize a `timestamptz` (a `Date` from pg, or an ISO string) to an ISO-8601 string. Pure. */
 export function toIsoString(value: Date | string): string {
@@ -44,10 +44,12 @@ export function mapRecipe(row: RecipeExportRow): RecipeExport {
         totalTimeMinutes: row.totalTimeMinutes,
         servings: row.servings,
         difficulty: row.difficulty,
+        mealType: row.mealType,
         averageRating: row.averageRating,
         ratingCount: row.ratingCount,
         visibility: row.visibility,
         status: row.status,
+        firstPublishedAt: toIsoStringOrNull(row.firstPublishedAt),
         sourceType: row.sourceType,
         sourceUrl: row.sourceUrl,
         sourceAttribution: row.sourceAttribution,
@@ -56,9 +58,11 @@ export function mapRecipe(row: RecipeExportRow): RecipeExport {
         cuisine: row.cuisine,
         dietaryFlags: row.dietaryFlags,
         tags: row.tags,
-        hasPartialNutrition: row.hasPartialNutrition,
-        leadCaloriesPerServing: row.leadCaloriesPerServing,
-        authorHandle: row.authorHandle,
+        // ⛔ `hasPartialNutrition` and `leadCaloriesPerServing` are GONE from the export (plan U10). Both
+        // were derived from food's data and stored here, so exporting them shipped the user a value frozen
+        // at its last pre-migration write — a stale number presented as their record.
+        authorDisplayName: row.authorDisplayName,
+        authorUsername: row.authorUsername,
         currentVersion: row.currentVersion,
         deletedAt: toIsoStringOrNull(row.deletedAt),
         createdAt: toIsoString(row.createdAt),
@@ -93,7 +97,7 @@ export function mapCollection(row: CollectionRow, memberships: readonly RecipeCo
         visibility: row.visibility,
         sourceCollectionId: row.sourceCollectionId,
         lastPulledAt: toIsoStringOrNull(row.lastPulledAt),
-        sourceOwnerHandle: row.sourceOwnerHandle,
+        sourceOwnerDisplayName: row.sourceOwnerDisplayName,
         sourceCollectionName: row.sourceCollectionName,
         createdAt: toIsoString(row.createdAt),
         updatedAt: toIsoString(row.updatedAt),
@@ -115,19 +119,19 @@ export function mapRating(row: RecipeRatingRow): RatingExport {
 
 /**
  * Map a `recipe_photos` row to its export shape, resolving both the full-size and thumbnail CDN URLs
- * against `cloudfrontUrl`. The bytes are never included — only keys and their resolved URLs. Pure.
+ * against `mediaCdnUrl`. The bytes are never included — only keys and their resolved URLs. Pure.
  *
  * @param row - The photo row.
- * @param cloudfrontUrl - The CDN base URL used to resolve object keys to URLs.
+ * @param mediaCdnUrl - The CDN base URL used to resolve object keys to URLs.
  */
-export function mapPhoto(row: RecipePhotoRow, cloudfrontUrl: string): PhotoExport {
+export function mapPhoto(row: RecipePhotoRow, mediaCdnUrl: string): PhotoExport {
     return {
         id: row.id,
         recipeId: row.recipeId,
         key: row.s3Key,
-        url: resolveCdnUrl(cloudfrontUrl, row.s3Key),
+        url: resolveCdnUrl(mediaCdnUrl, row.s3Key),
         thumbnailKey: row.thumbnailKey,
-        thumbnailUrl: row.thumbnailKey === null ? null : resolveCdnUrl(cloudfrontUrl, row.thumbnailKey),
+        thumbnailUrl: row.thumbnailKey === null ? null : resolveCdnUrl(mediaCdnUrl, row.thumbnailKey),
         contentType: row.contentType,
         sizeBytes: row.sizeBytes,
         sortOrder: row.sortOrder,
@@ -146,8 +150,8 @@ export function mapVersion(row: VersionMetadataRow): VersionExport {
         s3Key: row.s3Key,
         createdBy: row.createdBy,
         changeSummary: row.changeSummary,
-        deviceLabel: row.deviceLabel,
-        editorHandle: row.editorHandle,
+        editorDisplayName: row.editorDisplayName,
+        editorUsername: row.editorUsername,
         createdAt: toIsoString(row.createdAt),
     };
 }
@@ -157,6 +161,7 @@ export function mapAuthorHandle(row: AuthorHandleRow): AuthorHandleExport {
     return {
         userId: row.userId,
         displayName: row.displayName,
+        username: row.username,
         sourceTimestamp: toIsoString(row.sourceTimestamp),
     };
 }

@@ -1,22 +1,22 @@
 ---
 description: Generate ISO 29119-compliant integration test cases with four mandatory
-  techniques for every architecture module in the design.
+    techniques for every architecture module in the design.
 handoffs:
-- label: Build Traceability Matrix
-  agent: speckit.v-model.trace
-  prompt: Build the full traceability matrix including integration-level coverage
-  send: true
-- label: Back to Architecture Design
-  agent: speckit.v-model.architecture-design
-  prompt: Review or update the architecture design
+    - label: Build Traceability Matrix
+      agent: speckit.v-model.trace
+      prompt: Build the full traceability matrix including integration-level coverage
+      send: true
+    - label: Back to Architecture Design
+      agent: speckit.v-model.architecture-design
+      prompt: Review or update the architecture design
 scripts:
-  sh: .specify/scripts/bash/setup-v-model.sh --json --require-reqs --require-architecture-design
-  ps: .specify/scripts/powershell/setup-v-model.ps1 -Json -RequireReqs -RequireArchitectureDesign
+    sh: .specify/scripts/bash/setup-v-model.sh --json --require-reqs --require-architecture-design
+    ps: .specify/scripts/powershell/setup-v-model.ps1 -Json -RequireReqs -RequireArchitectureDesign
 ---
-
 
 <!-- Extension: v-model -->
 <!-- Config: .specify/extensions/v-model/ -->
+
 ## User Input
 
 ```text
@@ -38,6 +38,7 @@ CRITICAL DISTINCTION: integration tests do NOT test internal module logic (that'
 Run `.specify/scripts/bash/setup-v-model.sh --json --require-reqs --require-architecture-design` from the repository root and parse the JSON output.
 
 The script returns JSON with these keys:
+
 - `VMODEL_DIR`: Path to `specs/{feature}/v-model/` directory
 - `FEATURE_DIR`: Path to `specs/{feature}/` directory
 - `BRANCH`: Current branch name
@@ -52,31 +53,33 @@ For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot
 1. **Load the template**: Read `.specify/templates/integration-test-template.md` from the extension directory to understand the required output structure.
 
 2. **Load architecture design**: Read `architecture-design.md` from the `VMODEL_DIR` path.
-   - If `architecture-design.md` does NOT exist: ERROR — "Architecture design not found. Run `/speckit.v-model.architecture-design` first."
-   - Extract ALL `ARCH-NNN` identifiers from the Logical View
-   - Extract the Process View (feeds Concurrency & Race Condition tests)
-   - Extract the Interface View (feeds Interface Contract Testing + Fault Injection)
-   - Extract the Data Flow View (feeds Data Flow Testing)
-   - Note the total ARCH count — every ARCH must have at least one ITP
+    - If `architecture-design.md` does NOT exist: ERROR — "Architecture design not found. Run `/speckit.v-model.architecture-design` first."
+    - Extract ALL `ARCH-NNN` identifiers from the Logical View
+    - Extract the Process View (feeds Concurrency & Race Condition tests)
+    - Extract the Interface View (feeds Interface Contract Testing + Fault Injection)
+    - Extract the Data Flow View (feeds Data Flow Testing)
+    - Note the total ARCH count — every ARCH must have at least one ITP
 
 3. **Load requirements**: Read `requirements.md` from the `REQUIREMENTS` path for supplementary domain context.
 
 4. **Load existing integration tests** (if `AVAILABLE_DOCS` contains `"integration-test.md"`):
-   - Read the existing `integration-test.md` to preserve existing ITP/ITS IDs and content
-   - Identify the highest existing ITP number to continue the sequence
-   - New test cases append after existing ones — **never renumber**
+    - Read the existing `integration-test.md` to preserve existing ITP/ITS IDs and content
+    - Identify the highest existing ITP number to continue the sequence
+    - New test cases append after existing ones — **never renumber**
 
 ### 2a. Domain Configuration
 
 Load `v-model-config.yml` (if it exists at the repository root).
 
 **If `domain` is set** (e.g., `iso_26262`, `do_178c`, `iec_62304`):
+
 1. Read the command overlay: `commands/overlays/{domain}/integration-test.md`
-   - If it exists: note the safety-critical integration test sections (e.g., SIL/HIL compatibility, resource contention verification)
-   - If it does not exist: this domain does not extend this command — proceed with base only
+    - If it exists: note the safety-critical integration test sections (e.g., SIL/HIL compatibility, resource contention verification)
+    - If it does not exist: this domain does not extend this command — proceed with base only
 2. Where the base command has a domain-variant section (marked with "If a domain overlay is loaded, prefer its content"), use the overlay's version instead of the base default
 
 **If `domain` is empty or absent:**
+
 - Proceed with the base command only
 - Use generic best-practice terminology throughout
 - Do NOT include any safety-critical or domain-specific regulatory references
@@ -88,15 +91,15 @@ before generating new content:
 
 1. **Never delete an ID** — mark as `[DEPRECATED]`
 2. **Deprecation types:**
-   - `[DEPRECATED — Superseded by ITP-NNN]`: Replaced by a new test case
-   - `[DEPRECATED — Withdrawn: <reason>]`: Removed entirely with justification
+    - `[DEPRECATED — Superseded by ITP-NNN]`: Replaced by a new test case
+    - `[DEPRECATED — Withdrawn: <reason>]`: Removed entirely with justification
 3. **Suspect detection from parent ARCH:** If a parent ARCH (in
    `architecture-design.md`) is deprecated or modified, mark each ITP/ITS that
    traces to it as `[SUSPECT — Parent ARCH-NNN {deprecated|modified}]`.
 4. **Suspect resolution:** For each suspect ITP/ITS:
-   - **Re-parent** to the superseding ARCH (if module continues under a new ID)
-   - **Deprecate** (if the architecture module is withdrawn)
-   - **Confirm active** (if still valid despite the parent change — remove the SUSPECT tag)
+    - **Re-parent** to the superseding ARCH (if module continues under a new ID)
+    - **Deprecate** (if the architecture module is withdrawn)
+    - **Confirm active** (if still valid despite the parent change — remove the SUSPECT tag)
 5. **Modified test cases:** Update content in-place, preserve the original ITP/ITS ID.
 
 If no existing `integration-test.md` is found, skip this step entirely — all
@@ -110,14 +113,15 @@ For each `ARCH-NNN` module in the Logical View, generate one or more test cases 
 
 Each test case MUST name its ISO 29119 technique explicitly. Select based on the architecture view being verified:
 
-| Architecture View | Primary Technique | What It Tests |
-|-------------------|------------------|---------------|
-| Interface View | **Interface Contract Testing** | API contract compliance between consumer-provider module pairs |
-| Data Flow View | **Data Flow Testing** | Data transformation chain correctness across module boundaries |
-| Interface View + Process View | **Interface Fault Injection** | Graceful failure when module interfaces receive invalid/malformed data |
-| Process View | **Concurrency & Race Condition Testing** | Thread safety, lock handling, resource contention between modules |
+| Architecture View             | Primary Technique                        | What It Tests                                                          |
+| ----------------------------- | ---------------------------------------- | ---------------------------------------------------------------------- |
+| Interface View                | **Interface Contract Testing**           | API contract compliance between consumer-provider module pairs         |
+| Data Flow View                | **Data Flow Testing**                    | Data transformation chain correctness across module boundaries         |
+| Interface View + Process View | **Interface Fault Injection**            | Graceful failure when module interfaces receive invalid/malformed data |
+| Process View                  | **Concurrency & Race Condition Testing** | Thread safety, lock handling, resource contention between modules      |
 
 **Rules**:
+
 - Every ARCH module gets at least one ITP from its most relevant architecture view
 - Modules with interface contracts get Interface Contract Testing + Interface Fault Injection
 - Modules in data flows get Data Flow Testing
@@ -170,12 +174,14 @@ For each test case (`ITP-NNN-X`), generate one or more executable scenarios (`IT
 Integration test scenarios MUST use **module-boundary, interface-oriented language**. They verify interactions between modules, not internal logic or user journeys.
 
 **PROHIBITED phrases** (these belong in OTHER test levels):
+
 - "the user clicks/sees/navigates/enters/selects/receives" (acceptance test)
 - "the dashboard shows / the form displays" (acceptance test)
 - "the function returns / the method throws" (unit test)
 - "the internal state changes" (unit test)
 
 **REQUIRED language style**:
+
 - "ARCH-NNN sends [message] to ARCH-NNN"
 - "ARCH-NNN receives [response] from ARCH-NNN"
 - "the interface between ARCH-NNN and ARCH-NNN returns [error]"
@@ -186,6 +192,7 @@ Integration test scenarios MUST use **module-boundary, interface-oriented langua
 **Examples**:
 
 ❌ WRONG (user-centric — belongs in acceptance test):
+
 ```
 Given a logged-in user on the dashboard
 When the user clicks "Export Report"
@@ -193,6 +200,7 @@ Then the user sees a download dialog
 ```
 
 ❌ WRONG (internal logic — belongs in unit test):
+
 ```
 Given the parse function receives a JSON string
 When the function processes the string
@@ -200,6 +208,7 @@ Then the internal parse tree is correctly formed
 ```
 
 ✅ CORRECT (module-boundary — integration test):
+
 ```
 Given ARCH-001 (HTTP Router) has routed a valid POST request to ARCH-003 (Data Parser)
 When ARCH-003 sends a parsed event payload to ARCH-005 (Event Emitter)
@@ -209,6 +218,7 @@ Then ARCH-005 publishes the event with the exact schema defined in the Interface
 #### 5.2 Scenario Quality Criteria
 
 Every ITS scenario must satisfy:
+
 1. **Boundary precision**: References specific ARCH-NNN module pairs and their interface contracts
 2. **Measurable outcomes**: Includes data formats, error codes, timing thresholds
 3. **Interface focus**: Tests the SEAM between modules, not internal logic
@@ -262,6 +272,7 @@ Write the complete integration test plan to `{VMODEL_DIR}/integration-test.md` u
 ### 9. Report Completion
 
 Display a summary:
+
 - Total test cases (ITP) and scenarios (ITS) generated
 - Coverage: X/Y ARCH modules covered (must be 100% or flagged)
 - Technique distribution: Interface Contract [N], Data Flow [N], Fault Injection [N], Concurrency [N]
@@ -273,6 +284,7 @@ Display a summary:
 ### 10. Test Harness & Mocking Strategy
 
 After writing the test plan, include a "Test Harness & Mocking Strategy" section that describes:
+
 1. Which modules need mocks/stubs for integration testing
 2. How interface contracts drive mock behavior
 3. Test data management strategy for integration scenarios
@@ -281,10 +293,10 @@ After writing the test plan, include a "Test Harness & Mocking Strategy" section
 
 This command is governed by the following standards for integration testing:
 
-| Standard | Full Name | Role in this Command |
-|----------|-----------|----------------------|
-| **ISO/IEC/IEEE 29119-4:2021** | Software and Systems Engineering — Software Testing — Part 4: Test Techniques | Primary test technique standard: defines the four mandatory integration test techniques (Interface Contract Testing, Data Flow Testing, Fault Injection, Concurrency Testing) and their application criteria for architecture module boundaries |
-| **IEEE 1012:2016** | IEEE Standard for System, Software, and Hardware Verification and Validation | V&V governance: ensures every architecture module interface is exercised by at least one V&V activity (Step 7 — V&V Coverage Gate); distinguishes integration verification ("module interfaces built right") from system validation; prescribes entry/exit criteria for integration test activities (§5.6) |
+| Standard                      | Full Name                                                                     | Role in this Command                                                                                                                                                                                                                                                                                       |
+| ----------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ISO/IEC/IEEE 29119-4:2021** | Software and Systems Engineering — Software Testing — Part 4: Test Techniques | Primary test technique standard: defines the four mandatory integration test techniques (Interface Contract Testing, Data Flow Testing, Fault Injection, Concurrency Testing) and their application criteria for architecture module boundaries                                                            |
+| **IEEE 1012:2016**            | IEEE Standard for System, Software, and Hardware Verification and Validation  | V&V governance: ensures every architecture module interface is exercised by at least one V&V activity (Step 7 — V&V Coverage Gate); distinguishes integration verification ("module interfaces built right") from system validation; prescribes entry/exit criteria for integration test activities (§5.6) |
 
 > **Domain extensions:** If a domain overlay is loaded (Step 2a), additional structural coverage requirements and interface test criteria from the applicable standard (e.g., ISO 26262-6 §9.4.4 interface correctness verification by ASIL, DO-178C §6.4.4.2 structural coverage at component integration level) are applied alongside these best-practice standards.
 
@@ -293,6 +305,7 @@ This command is governed by the following standards for integration testing:
 ### Strict Translation Rules
 
 When generating from `architecture-design.md`:
+
 - **DO NOT** invent test conditions for interfaces not in the architecture design
 - **DO NOT** test user journeys — that is the acceptance test plan's job
 - **DO NOT** test internal module logic — that is the unit test's job

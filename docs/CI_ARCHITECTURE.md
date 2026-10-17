@@ -9,15 +9,16 @@ a build template per run-type": the callers supply the only thing that differs �
   workflows/
     ci-pr.yml         # pull_request → _ci.yml       (stage=sandbox)
     ci-main.yml       # push: main   → _ci.yml       (stage=prod)
-    heavy-e2e.yml     # nightly / dispatch / `heavy-e2e`-labelled PR → _ci-heavy.yml
-    recipe-loadtest.yml # weekly / dispatch → _ci-heavy.yml (k6 only)
+    deployedE2e.yml   # dispatch (manual door) → deployedE2eTiers.yml → _ci-heavy.yml
+    recipe-loadtest.yml # dispatch only → _ci-heavy.yml (k6 only; k6 never runs automatically)
     ci-full.yml       # dispatch → BOTH, concurrently
     _ci.yml           # reusable: BASE tier — install, lint, format, typecheck, test,
                       #   integration, build matrix, e2e (backend / web / food / mobile-vitest)
     _ci-heavy.yml     # reusable: HEAVY tier — mobile Maestro (~50 min emulator + APK),
                       #   recipe k6, food k6
   actions/
-    load-secrets/  # composite: configure AWS creds + load kitchensink/<stage>/identity/keys
+    awsAuth/       # composite: the one way CI signs in to AWS — an OIDC role per tier (ADR-0063)
+    load-secrets/  # composite: load kitchensink/<stage>/identity/keys, after awsAuth
 ```
 
 ## Why the tiers are two FILES and not two flags
@@ -46,13 +47,28 @@ which is a benign no-op for whichever loses.
 - **Pushes to `main`** run `ci-main.yml` → `_ci.yml` with `stage: prod` → the composite reads
   `kitchensink/prod/identity/keys`.
 
-**Exception — the web E2E always uses the sandbox (dev) Clerk keys, even on `main`.** Clerk
-_production_ instances (`pk_live`) are domain-locked and refuse to initialize on any origin other than
-their production domain. The web E2E runs ClerkJS in a browser against the Playwright dev server on
-`http://localhost:3000`, so a `pk_live` key aborts with _"Production Keys are only allowed for domain
-…"_ and `<SignIn>` never mounts. Only a _development_ instance (`pk_test`) permits localhost, so the
+**Exception — the web E2E always uses the sandbox (dev) Clerk keys, even on `main`, and so does the web
+BUILD.** Clerk _production_ instances (`pk_live`) are domain-locked and refuse to initialize on any origin
+other than their production domain. The web E2E runs ClerkJS in a browser against a Playwright-managed
+server on `http://localhost:3000`, so a `pk_live` key aborts with _"Production Keys are only allowed for
+domain …"_ and `<SignIn>` never mounts. Only a _development_ instance (`pk_test`) permits localhost, so the
 `e2e-web` job pins `load-secrets` to `stage: sandbox` regardless of pipeline stage. Backend/mobile E2E
 don't run ClerkJS in a localhost browser, so they keep using the stage's own secrets.
+
+The `build` job's `@commise/web` leg pins the same `stage: sandbox` for the same reason, one step earlier:
+`NEXT_PUBLIC_*` is inlined by the bundler, so the Clerk instance is frozen into the bundle at build time —
+and since `e2e-web` now **serves that build** (see below), a stage-scoped key there would bake `pk_live`
+into the very artifact the localhost suite must sign into. `webE2eProductionBuild.test.ts` fails if either
+job's stage, key or API origins drift from the other's.
+
+**The web E2E serves the PRODUCTION build, not `next dev`.** The `build` job publishes `.next` as a
+GitHub **artifact** (not an `actions/cache` entry — a per-SHA cache entry would feed the eviction problem
+described above), and each of the eight `e2e-web` shards downloads it and runs `next start`
+(`E2E_WEB_SERVER: start`, resolved by `packages/apps/commise/web/tests/e2e/utils/webServerMode.ts`).
+Under `next dev`, Next compiles each route the first time it is _requested_ — inside the assertion that
+triggered it — which put link-and-heading specs at 18.3 s / 14.4 s / 10.6 s, i.e. at their assertion
+budgets, and produced navigation "failures" that were really unfinished compilations. Local runs keep
+using `next dev`; the mode defaults off `CI`.
 
 The base pipeline jobs (install, build-ui, lint, format, typecheck, test, build matrix, e2e) are defined
 once in `_ci.yml`, and the heavy ones once in `_ci-heavy.yml`. There is no duplicated AWS/Clerk fetch logic — the composite is the single source
@@ -61,9 +77,11 @@ of truth and exports every alias the apps/tests consume (`NEXT_PUBLIC_CLERK_PUBL
 
 Secrets live in AWS Secrets Manager scoped by stage (`kitchensink/{sandbox,prod}/identity/keys`, JSON
 keys `PUBLISHABLE_KEY` / `SECRET_KEY` / `WEBHOOK_SIGNING_SECRET`). The web build statically
-prerenders Clerk-wrapped pages, so it needs a real publishable key; the composite supplies the
-stage-correct one. If AWS creds are unavailable (e.g. a fork PR), secret-dependent steps skip rather
-than fail.
+prerenders Clerk-wrapped pages, so it needs a real publishable key; the composite supplies it — the
+**sandbox** one for the web build and the web E2E (see the exception above), the stage-correct one
+everywhere else. If AWS creds are unavailable (e.g. a fork PR), secret-dependent steps skip rather
+than fail — and the web build and `e2e-web` skip on the same condition, so the artifact and its consumer
+stay consistent.
 
 ## Per-PR ephemeral lifecycle — deploy + teardown (ADR-0005)
 
@@ -96,21 +114,69 @@ ECS Container Insights log groups, out-of-band ECR repos). See
 > Until a feature service actually deploys per-PR, the `cleanup` job has nothing to match. Pre-existing
 > orphans created before this convention carry no `Environment` tag and need a one-off manual sweep.
 
-## Recommended hardening (needs repo/IAM setup — not yet done)
+## Recommended hardening (steps 1 and 2 DONE)
 
-Current auth uses static `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` repo secrets, and those creds
-can read both sandbox and prod secrets — there is no AWS-side least-privilege boundary between PR and
-main runs. To close that:
+1. **OIDC roles instead of the access key — DONE (ADR-0063).** One GitHub OIDC provider and three roles
+   (`kitchensink-gha-nonprod`, `-prod-read`, `-prod`) are deployed by the account app, and every job signs in through
+   `.github/actions/awsAuth` with a job-level `id-token: write`; no workflow reads an access key. The production
+   deploys and the manual runs that read production bind `Production` and use `prod`; `main`'s prod-stage checks
+   (`deployInfra.yml` with `deploy: false`) bind nothing and use `prod-read`; everything else uses `nonprod`. A fork or
+   Dependabot run reports `authenticated=false`, and any other run that cannot sign in is red.
+   `packages/infra/global/__tests__/awsCredentialsFederated.test.ts` judges every job's tier against its binding and
+   refuses a key anywhere. The repository secrets `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are deleted once the
+   production roles have run green on `main` (plan `docs/plans/2026-10-13-005-feat-ci-oidc-workflows-plan.md`).
+   ADR-0063 records the residual risk that matters most: any role that may assume the CDK deploy role is account
+   administrator through the shared bootstrap.
 
-1. **OIDC with two stage-scoped IAM roles.** Add `permissions: id-token: write`, switch the composite
-   to `role-to-assume`, and scope each role's trust policy by the OIDC `sub` claim — the sandbox role
-   trusts `repo:radicle-co/KitchenSink:pull_request` / `environment:sandbox`, the prod role trusts
-   `environment:production` / `ref:refs/heads/main`. Restrict each role's `secretsmanager:GetSecretValue`
-   to its own `kitchensink/<stage>/*` ARNs. This makes prod secrets physically unreachable from a PR.
-2. **GitHub Environments** (`sandbox`, `production`) declared on the secret-using jobs in `_ci.yml`
-   (object form: `environment: { name: ... }`), with a deployment-branch rule restricting `production`
-   to `main`. Note environment secrets cannot be forwarded via `workflow_call` — the `environment:`
-   key must live in `_ci.yml`, not the callers.
+2. **GitHub Environments — DONE for the deploy surface (2026-08-11, PR #91).** `Production` exists with a
+   required reviewer (`gooftroop`) and a `main`-only branch policy, bound to `prod-deploy.yml`'s `deploy`
+   job; `Sandbox` exists with **zero** protection rules, bound to the 6 sandbox **deploying** jobs across
+   `sandbox-deploy.yml`, `sandbox-identity-deploy.yml`, `sandbox-router-deploy.yml` and
+   `sandbox-web-preview.yml`. `Sandbox` must STAY unprotected: those jobs run unattended on every
+   non-closed `pull_request`, so any rule would stall previews.
+
+    ⛔ **Reclamation is never gated.** `sandbox-deploy.yml`'s `cleanup` and `reap-abandoned` are
+    deliberately **unbound**. They were briefly bound while wiring this, which was a mistake: an
+    Environment binding is a place a run can be made to WAIT, and the failure modes are not symmetric — a
+    stalled deploy is loud and free, while a stalled cleanup silently leaks AWS spend, which is the exact
+    leak `teardownSandboxPr.sh` exists to prevent. Documenting "never protect `Sandbox`" was not
+    sufficient, because that setting lives in repo configuration where no test can see it and any admin can
+    change it from a UI that gives no hint a scheduled reaper depends on it. The invariant is enforced in
+    code by `packages/tools/repoGuards/__tests__/reclamationNeverGated.test.ts`.
+
+    The **CI** workflows (`_ci`, `ci-pr`, `ci-main`, `ci-full`, `_ci-heavy`, `deployedE2eTiers`, the loadtests, `claude*`) are
+    deliberately left **unbound** too: none is a deployment, binding them to a zero-protection environment
+    would silence zizmor's `secrets-outside-env` without moving any boundary, and binding them to a
+    protected one would make every PR wait on a human. The residual is recorded in `zizmor.yml`'s ledger rather
+    than annotated away. Note for whoever does step 1: environment secrets cannot be forwarded via
+    `workflow_call`, so an `environment:` key intended to scope a secret must live in `_ci.yml` itself,
+    not in its callers.
+
+## Proving the queue guarantees (ADR-0041)
+
+The deployed suite carries one tier that drives the thing WATCHING the services rather than the services
+themselves: `E2E (queues — the deployed backstop is armed and running)`, in `deployedE2eTiers.yml`. It makes
+the two proofs a runner can make, and it carries **no switch** — the two switches in that file gate the heavy
+tiers (an Android emulator, a load generator), and a switch is how a tier quietly stops running.
+
+| Claim                                     | How it is proved                                                                                                        |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| The backstop role holds no queue mutation | Reads the DEPLOYED role's inline **and** attached policies; the SQS action set must be exactly `sqs:GetQueueAttributes` |
+| The backstop is actually running          | Its cron monitor exists — created BY the check-in, so answering at all proves the check has run — and is not `disabled` |
+
+Both degrade on a missing credential rather than failing, so a fork PR and a token-less run stay green
+without claiming a proof they did not make. A `pr-{N}` target skips the monitor half with a notice: a preview
+escalates without checking in, because its stack is torn down while a monitor is not.
+
+⛔ **The three scenario proofs are NOT in CI, and the reason is the network, not the effort.** An expired
+flood draining with no engine calls, a rename with a blocked publisher escalating, and a stale food lease
+refusing a second claim all need to seed a condition in the stage's database and then read what the system
+did about it. That database is private to the VPC (ADR-0004); a runner cannot reach it, and a door into the
+private subnet that existed only to make a test green would be a standing hole in the network. They are a
+runbook instead: `docs/runbooks/queueGuaranteeProof.md`.
+
+⚠️ **A skipped run is never reported as a pass** (ADR-0032's ruling, applied here). "The proof was not run"
+is a complete status; green over a proof nobody made is not.
 
 ## Notes for whoever updates branch protection / rulesets
 

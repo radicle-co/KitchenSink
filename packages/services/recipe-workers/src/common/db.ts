@@ -1,9 +1,11 @@
-import { Signer } from '@aws-sdk/rds-signer';
+import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
+import { rdsPoolConfig } from '@kitchensink/rds-iam-auth';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
 import { requireEnv } from './config.js';
+import { logger } from './logger.js';
 
 /**
  * Passwordless connection to this stage's recipe logical database on the shared RDS instance — the base
@@ -27,8 +29,12 @@ import { requireEnv } from './config.js';
  */
 
 const DEFAULT_DB_PORT = 5432;
-const DEFAULT_DB_USER = 'recipe_app';
+const DEFAULT_DB_USER = DATABASE_ROLES.recipe.app;
 const DEFAULT_POOL_MAX = 5;
+/** How long a query waits for a connection before rejecting. `pg`'s default is forever. Matches recipe-service. */
+const CONNECT_TIMEOUT_MS = 5_000;
+/** How long an idle pooled connection is kept. Matches recipe-service. */
+const IDLE_TIMEOUT_MS = 30_000;
 
 let pool: Pool | null = null;
 let dbInstance: NodePgDatabase<Record<string, never>> | null = null;
@@ -52,23 +58,45 @@ export const getRecipeDb = (): NodePgDatabase<Record<string, never>> => {
     // Which database a worker mutates is not a value with a sensible fallback: unset must stop the worker.
     const database = requireEnv('RECIPE_DB_NAME');
     const user = process.env['RECIPE_DB_USER'] ?? DEFAULT_DB_USER;
-    const region = requireEnv('AWS_REGION');
-
-    const signer = new Signer({ hostname: host, port, username: user, region });
+    // Required rather than defaulted: the signer must sign for the region the database is in, and the Lambda
+    // runtime always sets it.
+    requireEnv('AWS_REGION');
 
     pool = new Pool({
-        host,
-        port,
-        database,
-        user,
-        // A function password is re-invoked by pg for every new physical connection, so each gets a
-        // fresh IAM token rather than reusing an expired one.
-        password: (): Promise<string> => signer.getAuthToken(),
-        ssl: { rejectUnauthorized: false },
+        // IAM auth, a per-connection token FUNCTION and TLS — the wiring lives once in `@kitchensink/rds-iam-auth`.
+        ...rdsPoolConfig({ host, port, database, username: user }),
         max: Number(process.env['RECIPE_DB_POOL_MAX'] ?? String(DEFAULT_POOL_MAX)),
+        // A stopped or half-open database must REJECT, not hang until the Lambda timeout: the single-concurrency
+        // consumers would stall their queue, and the lease/degrade paths only fall back on a rejection.
+        connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
+        idleTimeoutMillis: IDLE_TIMEOUT_MS,
+    });
+
+    // `pg-pool` re-emits an idle connection's error on the pool, and an EventEmitter with no listener throws it.
+    // The pool has already dropped the client; the next query opens a new one.
+    pool.on('error', (error) => {
+        logger.error('recipe-pg-pool-idle-client-error', { cause: String(error) });
     });
 
     dbInstance = drizzle(pool);
 
     return dbInstance;
+};
+
+/**
+ * The raw pool under {@link getRecipeDb}, for the one consumer that needs parameterized TEXT rather than a
+ * drizzle statement: the band-authority store, whose SQL is authored once in `@kitchensink/recipe-core`
+ * over a text-in/rows-out port (see `verification/bandFeedback.ts`). Everything else keeps using the
+ * drizzle handle.
+ *
+ * @sideEffect opens the pooled TLS connection on first call, via {@link getRecipeDb}.
+ */
+export const getRecipePool = (): Pool => {
+    getRecipeDb();
+
+    if (pool === null) {
+        throw new Error('recipe database pool failed to initialise');
+    }
+
+    return pool;
 };

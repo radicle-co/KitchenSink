@@ -1,0 +1,629 @@
+name: Sandbox Up
+
+# THE BUTTON. Actions → Sandbox Up → Run workflow, with a PR number. It is the ONLY thing that starts the
+# sandbox (ADR-0060): nothing wakes it on a push, a schedule or a CI run, and the midnight stop is the only
+# automatic job. Pressing it again on a live sandbox redeploys it.
+#
+# ⚠️  DELIBERATE — read docs/architecture/decisions/0060-sandbox-starts-only-by-hand.md before changing this.
+#
+# ## It runs everything itself, as ONE job graph
+#
+#   start    — refuse a press inside the pre-midnight headroom; the scheduler's per-PR `start` (RDS, the NAT,
+#              the shared identity service and ONLY this PR's services); then wait until the tier is up.
+#   owed-drops — drop the databases of PRs that closed while the sandbox was down (recorded as owed).
+#   identity — `sandbox-identity-deploy.yml`, called: rebuilds the shared ALB and identity service when
+#              Sandbox Down deleted them. BEFORE the previews, because every preview signs in against it.
+#   preview  — `sandboxPreview.yml`, called with `forced: true`: this PR's services.
+#   domain   — `previewDomain.yml`, called: this PR's public web address.
+#   verify   — every stack this sandbox's CDK apps declare, and every origin it serves.
+#   sync     — the scheduler's `sync`: this PR's scheduled jobs (queue checks, sweepers) start running.
+#
+# ⛔ It CALLS reusable workflows; it never dispatches one. The old shape dispatched `sandbox-deploy.yml` and
+# polled for the run id, which reported on whichever run appeared next — and the owner has since disabled
+# that workflow, so a button that depended on it could not work at all. A called workflow is waited on by
+# construction, and its failure is this run's failure.
+#
+# ## ⛔ Why there is a `push:` trigger on this file, and why it deploys nothing
+#
+# It exists so the button EXISTS. A `workflow_dispatch` workflow cannot be dispatched until GitHub holds a
+# WORKFLOW RECORD for it, and a record is created either by the file reaching the default branch or by the
+# workflow actually RUNNING. This file has only ever lived on a feature branch and had only
+# `workflow_dispatch` — so nothing could ever cause it to run, and with no run there was no record, so the
+# dispatch door could not open either. A closed loop, and the reason this button did not appear at all.
+#
+# Measured 2026-09-08: `gh workflow run sandboxUp.yml --ref <branch>` answered "not found on the default
+# branch", and `GET /actions/workflows` listed every sibling but not this one.
+#
+# ⚠️ That error names only ONE of the two ways a record appears, and it misleads: a branch-only workflow IS
+# dispatchable once it has run — `deployedE2e.yml`, also branch-only, dispatches fine by `--ref` because
+# its own label path has already run it.
+#
+# So the `push:` below is a REGISTRATION trigger, scoped to this one file. Pushing it creates a run whose
+# jobs are all skipped, which costs no runner time and stands nothing up — and that run is what registers the
+# workflow so the button appears. ⛔ Do not widen its `paths:`, and do not remove the `if:` on ANY job:
+# either would turn a push into a start, which is exactly what the owner ruled out (ADR-0060).
+#
+# ⚠️ Once this file reaches the default branch the trigger is redundant, because being on `main` registers
+# the workflow by itself. It is cheap enough to leave, and removing it before then would un-register the
+# button on every branch that has not merged.
+
+on:
+    push:
+        paths:
+            - .github/workflows/sandboxUp.yml
+    workflow_dispatch:
+        inputs:
+            pr:
+                description: 'PR number to bring a sandbox up for (e.g. 91)'
+                required: true
+                type: string
+
+permissions:
+    contents: read # checkout of this repo's workflow scripts
+
+concurrency:
+    # One start at a time per PR: two concurrent presses would race on the same stacks.
+    group: sandbox-up-${{ inputs.pr }}
+    cancel-in-progress: false
+
+# ⛔ EVERY JOB carries `github.event_name == 'workflow_dispatch'`, not only the first. The `push:` above is a
+# REGISTRATION trigger (see the header): its run must stand nothing up, and a job whose `needs:` were all
+# skipped still runs when its own condition says so — so "the first job is gated" protects nothing below it.
+# `workflowRegistration.test.ts` asserts this for every job.
+jobs:
+    start:
+        name: Start the sandbox for this PR
+        if: github.event_name == 'workflow_dispatch'
+        runs-on: ubuntu-latest
+        timeout-minutes: 60
+        permissions:
+            contents: read # checkout of this repo's workflow scripts
+            pull-requests: read # `gh pr view` — refuse a PR that is not open
+            actions: read # `gh run list` — is a Sandbox Down releasing the shared tier right now?
+            id-token: write # awsAuth: the non-prod role
+        outputs:
+            stage: ${{ steps.pr.outputs.stage }}
+            head_sha: ${{ steps.pr.outputs.head_sha }}
+        env:
+            GH_TOKEN: ${{ github.token }}
+            PR: ${{ inputs.pr }}
+            AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+
+            # Refuse a PR number that is not an open PR BEFORE anything starts. A sandbox for a closed PR is
+            # infrastructure the on-close cleanup will never see. The `pr-{N}` stage is built HERE, from digits,
+            # once — every job below reads it from this output, and two spellings of it is how a sweep reaches
+            # the wrong environment.
+            - name: Check the PR is open
+              id: pr
+              run: |
+                  set -euo pipefail
+                  if ! [[ $PR =~ ^[1-9][0-9]*$ ]]; then
+                      echo "::error::'${PR}' is not a PR number" >&2; exit 1
+                  fi
+                  # The head commit is read in the same call: the preview address is pinned to it (see `domain`).
+                  view=$(gh pr view "$PR" --json state,headRefOid 2>/dev/null || echo '{}')
+                  state=$(jq -r '.state // "MISSING"' <<<"$view")
+                  head_sha=$(jq -r '.headRefOid // ""' <<<"$view")
+                  if [ "$state" != 'OPEN' ]; then
+                      echo "::error::PR #${PR} is ${state}, not OPEN — refusing to stand up a sandbox that the on-close cleanup will never see." >&2
+                      exit 1
+                  fi
+                  if ! [[ $head_sha =~ ^[0-9a-f]{40}$ ]]; then
+                      echo "::error::could not read PR #${PR}'s head commit (got '${head_sha}'); the preview address would not know which build to serve." >&2; exit 1
+                  fi
+                  echo "stage=pr-${PR}" >>"$GITHUB_OUTPUT"
+                  echo "head_sha=${head_sha}" >>"$GITHUB_OUTPUT"
+
+            # ⛔ REFUSE A PRESS INSIDE THE PRE-MIDNIGHT HEADROOM (ADR-0060). The midnight stop takes the database
+            # and the NAT down whoever is mid-deploy; a deploy that straddles it fails the update, fails the
+            # rollback, and rests in `UPDATE_ROLLBACK_FAILED` (ADR-0007 × ADR-0022). Asked BEFORE the start, so a
+            # late press costs nothing. The rule and its figure are `sandboxWake.sh`'s, sourced rather than
+            # restated, so the button and the gate every deploy runs cannot disagree about what "too late" is.
+            - name: Refuse a start inside the pre-midnight headroom
+              run: |
+                  set -euo pipefail
+                  # shellcheck source=/dev/null
+                  source .github/scripts/sandboxWake.sh
+                  verdict=$(sandbox_wake_headroom "$(date +%s)" "$SANDBOX_WAKE_DEFAULT_REQUIRED_HEADROOM_SECONDS")
+                  if [ "$verdict" != 'clear' ]; then
+                      echo "::error::It is too close to the midnight stop (America/New_York) to bring a sandbox up — the stop would land mid-deploy. Press Sandbox Up again after midnight." >&2
+                      exit 1
+                  fi
+
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+
+            # ⛔ REFUSE A PRESS WHILE THE MIDNIGHT RECLAIM IS RUNNING (ADR-0061). The reclaim deletes stacks for up to two
+            # hours after the stop, and it only deletes a tier that is down: a start now would bring the database and the
+            # NAT back up under it and make it stand down half-way. Only IDLE (0) lets the press through; RUNNING (3)
+            # refuses it, and so does a lookup that could not be made — a failed call is never read as "idle".
+            - name: Refuse a start while the midnight reclaim is running
+              run: |
+                  set -uo pipefail
+                  rc=0
+                  bash .github/scripts/sandboxScheduler.sh reclaim-status "$AWS_REGION" || rc=$?
+                  case "$rc" in
+                      0) echo 'no reclaim is running' ;;
+                      3)
+                          echo "::error::The midnight reclaim is still deleting last night's stacks. Press Sandbox Up again when it has finished (usually within two hours of midnight)." >&2
+                          exit 1
+                          ;;
+                      *)
+                          echo "::error::could not tell whether the midnight reclaim is running (sandboxScheduler.sh reclaim-status exited ${rc})." >&2
+                          exit 1
+                          ;;
+                  esac
+
+            # ⛔ REFUSE A PRESS WHILE THE SHARED TIER IS BEING RELEASED (ADR-0060). Sandbox Down's release deletes the
+            # identity service, its schema stack and the ALB over several minutes. A start now would build on an ALB that
+            # is about to disappear. The release re-checks for a running Up before each delete; this is the other half, so
+            # neither side can begin after the other has passed its own check. Only a clear answer (0) lets the press
+            # through: a release under way (3) refuses it, and so does a lookup that could not be made.
+            - name: Refuse a start while the shared tier is being released
+              run: |
+                  set -uo pipefail
+                  rc=0
+                  why=$(bash .github/scripts/sandboxSharedTier.sh release-in-progress "$AWS_REGION") || rc=$?
+                  case "$rc" in
+                      0) echo 'no release is in progress' ;;
+                      3)
+                          echo "::error::A Sandbox Down is releasing the shared tier (${why}). Press Sandbox Up again when it has finished." >&2
+                          exit 1
+                          ;;
+                      *)
+                          echo "::error::could not tell whether the shared tier is being released (sandboxSharedTier.sh release-in-progress exited ${rc})." >&2
+                          exit 1
+                          ;;
+                  esac
+
+            # ⛔ THE ONE START (ADR-0060), and the only workflow that may issue it (`sandboxWakeWiring.test.ts`).
+            # The scheduler restores each service from the desired count it recorded at the last stop and refuses to
+            # guess one it has no record of, so this never reimplements a start with raw `aws` calls. Every other
+            # preview stays down.
+            - name: Start the database, the NAT, the shared tier and this PR's services
+              env:
+                  STAGE: ${{ steps.pr.outputs.stage }}
+              run: bash .github/scripts/sandboxScheduler.sh start "$STAGE" "$AWS_REGION"
+
+            # `check` never starts anything; it waits a bounded time while RDS and the NAT come up, and answers.
+            # Exit 3 here is a failure, not a skip: the button asked for the tier and it did not arrive.
+            - name: Wait until the database and the NAT are up
+              run: |
+                  set -uo pipefail
+                  rc=0
+                  bash .github/scripts/sandboxWake.sh check "$AWS_REGION" || rc=$?
+                  case "$rc" in
+                      0) echo 'the sandbox is up' ;;
+                      3)
+                          echo '::error::the sandbox did not come up (or the run crossed into the pre-midnight headroom) — nothing was deployed.' >&2
+                          exit 1
+                          ;;
+                      *)
+                          echo "::error::could not tell whether the sandbox is up (sandboxWake.sh check exited ${rc})." >&2
+                          exit 1
+                          ;;
+                  esac
+
+    # ⛔ PAY THE OWED PER-PR DATABASE DROPS (ADR-0060), now that the database is up. A PR that closed while the sandbox
+    # was down had its stacks deleted and its databases' drop RECORDED as owed (`teardownSandboxPr.sh` §1); this is
+    # where the debt is paid, through the one reaper door.
+    # ⚠️ ITS OWN JOB, and BEFORE the deploys: before, because a drop racing this PR's own schema migration could take
+    # a database that migration just created; its own job, so a reaper failure turns this run RED without keeping the
+    # sandbox from coming up — `identity` waits for it, and runs whatever it answered.
+    owed-drops:
+        name: Pay owed per-PR database drops
+        needs: [start]
+        if: github.event_name == 'workflow_dispatch'
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        permissions:
+            contents: read # checkout of this repo's workflow scripts
+            id-token: write # awsAuth: the non-prod role (the owed-drop ledger)
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Drop the databases of PRs that closed while the sandbox was down
+              env:
+                  REGION: ${{ vars.DEFAULT_AWS_REGION }}
+              run: bash .github/scripts/perPrDatabaseDrop.sh drain "$REGION"
+
+    # ⛔ BEFORE the previews. `identity.sandbox.<domain>` is the ONE identity service every preview signs in
+    # against (ADR-0001), and Sandbox Down deletes it with the ALB when the last preview goes (ADR-0060 D9).
+    # Deploy the previews first and they come up, their smoke tests pass, and nobody can log in.
+    identity:
+        name: Rebuild the shared tier (ALB and identity)
+        needs: [start, owed-drops]
+        # After the owed drops whatever they answered (see `owed-drops`), but never without a successful start.
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && needs.start.result == 'success' }}
+        uses: ./.github/workflows/sandbox-identity-deploy.yml
+        # ⛔ A reusable workflow can only DOWNGRADE what its caller grants; a callee job asking for more is a
+        # `startup_failure` before a single step runs (`reusableWorkflowPermissions.test.ts`).
+        permissions:
+            contents: read
+            packages: read # zizmor: ignore[use-trusted-publishing]
+            actions: read # sandbox-identity-deploy.yml lists a pull-request run it must wait for (a callee can only downgrade)
+            id-token: write # awsAuth in sandbox-identity-deploy.yml (a callee can only downgrade)
+        secrets:
+            SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+    # `deployGate.sh` sees `forced=true`, so this deploys unconditionally — the press IS the intent. It also
+    # stamps no deadline: a preview lives until midnight, when the stop takes it down with everything else.
+    preview:
+        name: Deploy this PR's services
+        needs: [start, identity]
+        if: github.event_name == 'workflow_dispatch'
+        uses: ./.github/workflows/sandboxPreview.yml
+        permissions:
+            contents: read
+            packages: read # zizmor: ignore[use-trusted-publishing]
+            id-token: write # awsAuth in sandboxPreview.yml and deployInfra.yml (a callee can only downgrade)
+        with:
+            stage: ${{ needs.start.outputs.stage }}
+            forced: true
+
+    # The browsable address. It needs only the PR, so it runs beside the AWS deploys rather than behind them.
+    domain:
+        name: Publish this PR's preview address
+        needs: [start]
+        if: github.event_name == 'workflow_dispatch'
+        uses: ./.github/workflows/previewDomain.yml
+        permissions:
+            contents: read
+            id-token: write # awsAuth in previewDomain.yml (a callee can only downgrade)
+        with:
+            stage: ${{ needs.start.outputs.stage }}
+            # ⛔ Pinned to the PR head, as every push's address job is. Without it the callee falls back to "the latest
+            # build of the branch", which in the window after a push is the PREVIOUS build, so a press could move the
+            # address back to an older commit. The lock `previewDomain.yml` takes is shared with the push path ON
+            # PURPOSE: a separate one would let the two finish out of order and leave the address on the older
+            # commit SILENTLY, where a replaced waiting run fails LOUDLY and a second press is the retry.
+            commit_sha: ${{ needs.start.outputs.head_sha }}
+        secrets:
+            VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+    verify:
+        name: Verify the assembled sandbox
+        needs: [start, identity, preview, domain]
+        if: github.event_name == 'workflow_dispatch'
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        permissions:
+            contents: read # checkout of this repo's workflow scripts
+            id-token: write # awsAuth: the non-prod role
+        env:
+            AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+            DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+            PR: ${{ inputs.pr }}
+            # The stage every preview stack is named for, from the one place it was built.
+            PREVIEW_STAGE: ${{ needs.start.outputs.stage }}
+            # Needed by the reachability step: the recipe service's browser origin is `{stage}.sandbox.{domain}`.
+            DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            # The reachability step runs the SHARED post-deploy smoke (`recipe-service/infra/smoke/deployedSmoke.ts`)
+            # under `npx tsx`; that module imports nothing but `node:util`, so `npm ci` is the whole toolchain.
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Install dependencies (the shared smoke runs under npx tsx)
+              run: npm ci
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+
+            # ⛔ "EVERY SERVICE, LAMBDA AND RESOURCE, ACCORDING TO ALL THE CDK" — asserted HERE, in the run
+            # whose colour the owner reads, not only inside the workflows it called.
+            #
+            # The called workflows each verify what THEY deployed. Nothing before this asked whether the
+            # ASSEMBLED sandbox is intact at the moment this button claims success: the shared tier is built
+            # by one workflow and the previews by another, twenty-plus minutes apart, and a stack can be
+            # reaped, rolled back or wedged in between. This step asks that question once, over the whole
+            # thing, and it is the same authority — `verifyDeployment.sh` — that every deploy leg uses.
+            #
+            # ⛔ NEITHER SIDE IS A LIST.
+            #   * the STACKS come from `deployGate.sh stacks-for`, which answers from
+            #     `docs/generated/infrastructure/manifest.json` — read out of the CDK source by AST under a
+            #     regenerate-and-diff staleness gate — so a stack added tomorrow is checked the day it is
+            #     written, a prod-only stack is correctly absent, and a refusal (unknown app, unreadable
+            #     guard) ABORTS rather than reading as "nothing to check".
+            #   * the RESOURCES, Lambda code packages, ECS running counts and cross-stack references come
+            #     from `verifyDeployment.sh verify-stacks`, which discovers them from
+            #     `cloudformation:ListStackResources` and each Lambda's own environment.
+            #
+            # ⚠️ The (entrypoint, stage) pairs below ARE written down, and that is the one hand-written thing
+            # in this step: nothing in the repository records which apps belong to the shared `sandbox` tier
+            # and which to the per-PR stage. It cannot rot silently — `sandboxUpVerification.test.ts` DERIVES
+            # the required entrypoints from the `cdk deploy --app` lines of the very workflows this run
+            # calls, and fails the build the moment one of them deploys an app this list omits.
+            #
+            # ⚠️ `preflight` is deliberately NOT run here: it asks whether an EXISTING stack's managed log
+            # groups are still present, before a deploy, and errors on a stack that is absent — which is the
+            # normal resting state of a reaped sandbox at the moment this button is pressed.
+            - name: Verify every stack this sandbox's CDK apps declare — every resource, handler and reference
+              run: |
+                  set -euo pipefail
+                  targets=(
+                      "packages/infra/global/bin/app.ts sandbox"
+                      "packages/services/identity/infra/bin/app.ts sandbox"
+                      "packages/services/identity-webhooks/infra/bin/app.ts sandbox"
+                      "packages/services/food-service/infra/bin/app.ts ${PREVIEW_STAGE}"
+                      "packages/services/remote-search/infra/bin/app.ts ${PREVIEW_STAGE}"
+                      "packages/services/ingredient-parser/infra/bin/app.ts ${PREVIEW_STAGE}"
+                      "packages/services/recipe-workers/infra/bin/app.ts ${PREVIEW_STAGE}"
+                      "packages/services/recipe-service/infra/bin/app.ts ${PREVIEW_STAGE}"
+                      # The sandbox ROUTER (`kitchensink-sandbox-router-sandbox`), which is per-BASE-stage
+                      # rather than per-PR — every preview subdomain resolves through it, so a sandbox
+                      # reported "up" without it is up in name only. ⚠️ This button does not deploy it
+                      # (its own workflow does), so this only VERIFIES it is still standing.
+                      "packages/apps/commise/web/infra/bin/app.ts sandbox"
+                  )
+
+                  stacks=()
+                  for target in "${targets[@]}"; do
+                      entrypoint="${target%% *}"
+                      stage="${target##* }"
+                      # ⛔ An unreadable answer must never read as an empty stack set — three characters of
+                      # stdout say the same thing as "this app declares nothing", and the permissive
+                      # direction verifies nothing behind a green check.
+                      declared=$(bash .github/scripts/deployGate.sh stacks-for "$entrypoint" "$stage") || {
+                          echo "::error::could not read the stacks '${entrypoint}' declares for stage '${stage}' — this run verified NOTHING for it." >&2
+                          exit 1
+                      }
+                      while IFS= read -r name; do
+                          [ -n "$name" ] || continue
+                          stacks+=("$name")
+                      done <<<"$declared"
+                  done
+
+                  if [ "${#stacks[@]}" -eq 0 ]; then
+                      echo '::error::no stacks were derived from the manifest — a sweep over nothing is not a verification.' >&2
+                      exit 1
+                  fi
+                  printf 'verifying %d stacks declared by this sandbox'"'"'s CDK apps:\n' "${#stacks[@]}"
+                  printf '  %s\n' "${stacks[@]}"
+
+                  # An ABSENT stack is reported by the verifier itself: `ListStackResources` returning
+                  # nothing is an `::error::`, never a pass. So presence and contents are one question.
+                  bash .github/scripts/verifyDeployment.sh verify-stacks "${AWS_REGION}" "${stacks[@]}"
+
+                  # …and a hole that ANNOUNCES ITSELF, in the direction the derivation above cannot see: a
+                  # stack that exists for this sandbox which no app named above declares. Reported as a
+                  # warning rather than an error because it is not necessarily wrong — the singleton
+                  # `kitchensink-sandbox-router-sandbox` (deployed by its own workflow, ADR-0001) is the
+                  # known member of that set — but silence would let a whole service go unverified.
+                  # Scoped by explicit `kitchensink-` name: this AWS account also hosts an unrelated
+                  # production system.
+                  known=" ${stacks[*]} "
+                  while IFS= read -r name; do
+                      [ -n "$name" ] || continue
+                      case "$name" in
+                          kitchensink-*-sandbox | kitchensink-*-"${PREVIEW_STAGE}") ;;
+                          *) continue ;;
+                      esac
+                      case "$known" in
+                          *" ${name} "*) continue ;;
+                      esac
+                      echo "::warning::${name} exists for this sandbox and was NOT verified — no CDK app this button dispatches declares it."
+                  done < <(aws cloudformation list-stacks --region "${AWS_REGION}" \
+                    --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE IMPORT_COMPLETE \
+                    --query 'StackSummaries[].StackName' --output text | tr '\t' '\n')
+
+            # ⛔ REACHABILITY IS THE VERDICT (owner directive, 2026-09-05). A resource that exists and does
+            # not answer is not deployed for the purpose this button serves.
+            #
+            # Every origin is DISCOVERED from the CloudFormation exports the deployed stacks publish
+            # (`<stack>:…ServiceUrl`), not from a host shape copied into YAML: the host lives in the CDK
+            # (`foodSubdomainForStage`, `recipeSubdomainForStage`), and a third copy of it here is exactly
+            # the drift `printFoodHost.ts` exists to prevent. A service that starts exporting a
+            # `…ServiceUrl` tomorrow is probed the day it deploys.
+            #
+            # ⚠️ `Exports[].[Name,Value]` is a PROJECTION, not an index. The broken idiom `cfnExport.sh`
+            # exists for is `Exports[?Name=='X'].Value | [0]`, whose `| [0]` is applied PER PAGE and emits a
+            # `None` line for every page without the match. A projection has no such reduction, so every
+            # page contributes its own rows and pagination is harmless. `cfnExport.sh` is still the right
+            # tool for ONE export by name; it cannot enumerate.
+            #
+            # ⛔ The probe is `deployedSmoke.ts` — the SAME five pure classifiers every deploy leg runs — and
+            # not a status table written here. ADR-0010 §4's rule is the reason that matters: for an
+            # authenticated API, `401`/`403` is the PASS (DNS, the shared ALB host rule and the service's own
+            # auth layer all had to work to produce it) while a `2xx` to an unauthenticated probe, the shared
+            # ALB's default `404 text/plain` for an unmatched host (ADR-0003), or a transport failure are all
+            # FAILURES. That distinction lives in `classifyDependencyReachability`, and a second copy of it
+            # would be the authority this repository refuses.
+            #
+            # Which extra assertions each origin gets is derived from the EXPORT NAME, and each mirrors the
+            # invocation that service's own deploy leg already uses:
+            #   * `…:FoodServiceUrl`   → `--food-origin` / `--configured-food-origin`, the authenticated
+            #     `/api/v1/foods/search` door where 401 is the PASS, and `--web-origin`, because food enables
+            #     CORS through the shared policy (ADR-0047) and the apps call it from the browser: preflighted on
+            #     the progressive search and the remote pick (plan 002 S7), whose stream must also refuse a
+            #     tokenless request 401 with the CORS headers. Its other paths are preflighted by its deploy leg.
+            #   * `…:RecipeServiceUrl` → `--web-origin`, the CORS preflight from this preview's own web
+            #     origin. A recipe service that answers curl and not a browser is unusable, and that is a
+            #     shape that has shipped here.
+            #   * everything else (identity) → `/health`. Identity's CORS allowlist is derived per stage from
+            #     `CLERK_AUTHORIZED_PARTIES` / `CLERK_AZP_PATTERN`, so on sandbox there is no single stable
+            #     browser origin to name — the reason `sandbox-identity-deploy.yml` records for omitting it.
+            # A future service with neither export gets `/health` and is reported as such, rather than
+            # silently counting as fully probed.
+            #
+            # ⚠️ The retry is around the WHOLE probe, not inside it: the called deploys already smoked
+            # each service, so this is guarding against a task that is mid-rollout, not polling for a deploy.
+            - name: Reachability — every origin this sandbox serves must answer
+              run: |
+                  set -euo pipefail
+                  smoke='packages/services/recipe-service/infra/smoke/deployedSmoke.ts'
+
+                  probe() {
+                      local label="$1"
+                      shift
+                      local attempts=8 delay=15 i
+                      for i in $(seq 1 "$attempts"); do
+                          if npx tsx "$smoke" "$@"; then
+                              echo "✅ ${label} reachable on attempt ${i}"
+                              return 0
+                          fi
+                          echo "attempt ${i}/${attempts}: ${label} not reachable yet — retrying in ${delay}s"
+                          sleep "$delay"
+                      done
+                      echo "::error::${label} is deployed and does NOT answer — this sandbox is not usable." >&2
+
+                      return 1
+                  }
+
+                  shared=0 preview=0 failures=0
+                  while IFS=$'\t' read -r name url; do
+                      [ -n "${name:-}" ] && [ -n "${url:-}" ] || continue
+                      case "$name" in
+                          kitchensink-*-sandbox:*ServiceUrl) shared=$((shared + 1)) ;;
+                          kitchensink-*-"${PREVIEW_STAGE}":*ServiceUrl) preview=$((preview + 1)) ;;
+                          *) continue ;;
+                      esac
+
+                      case "$name" in
+                          *:FoodServiceUrl)
+                              probe "$name (${url})" --base-url "$url" \
+                                --food-origin "$url" --configured-food-origin "$url" \
+                                --web-origin "https://${PREVIEW_STAGE}.sandbox.${DOMAIN_NAME}" \
+                                --preflight-path /api/v1/foods/search/progressive \
+                                --preflight-path POST:/api/v1/foods/remote/adopt \
+                                --unauthorized-path /api/v1/foods/search/progressive \
+                                || failures=$((failures + 1))
+                              ;;
+                          *:RecipeServiceUrl)
+                              probe "$name (${url})" --base-url "$url" \
+                                --web-origin "https://${PREVIEW_STAGE}.sandbox.${DOMAIN_NAME}" \
+                                || failures=$((failures + 1))
+                              ;;
+                          *)
+                              echo "note: ${name} is probed for liveness only (no browser origin, no API door declared)"
+                              probe "$name (${url})" --base-url "$url" || failures=$((failures + 1))
+                              ;;
+                      esac
+                  done < <(aws cloudformation list-exports --region "${AWS_REGION}" \
+                    --query 'Exports[].[Name,Value]' --output text)
+
+                  # ⛔ VACUITY GUARDS. "Nothing answered badly" is not a pass when nothing was asked: an
+                  # empty export listing, a renamed output or a mistyped stage would otherwise report a
+                  # perfect sandbox. Both TIERS must contribute at least one origin — the shared identity
+                  # service every preview signs in against, and this PR's own services.
+                  if [ "$shared" -eq 0 ]; then
+                      echo '::error::no shared-tier origin was found to probe — kitchensink-*-sandbox publishes no …ServiceUrl export, so sign-in for this preview was never verified.' >&2
+                      failures=$((failures + 1))
+                  fi
+                  if [ "$preview" -eq 0 ]; then
+                      echo "::error::no ${PREVIEW_STAGE} origin was found to probe — this PR's own services publish no …ServiceUrl export, so nothing about the preview was verified." >&2
+                      failures=$((failures + 1))
+                  fi
+                  echo "probed ${shared} shared-tier and ${preview} ${PREVIEW_STAGE} origin(s)"
+
+                  if [ "$failures" -gt 0 ]; then
+                      echo "::error::${failures} reachability check(s) failed — the sandbox is NOT up." >&2
+                      exit 1
+                  fi
+
+            # ADR-0064 - the media path, judged on the DEPLOYED artifact. A green synth proved none of the three defects
+            # this closed: no CORS on the bucket, no read grant for the CDN, and a presign that signed a checksum no plain
+            # client can send. Asked here, after Sandbox Up, because it needs the sandbox up and a stored object to ask about:
+            # the CDN must serve one `avatars/` and one `recipes/` object, the bucket must refuse the same read, and the
+            # bucket's CORS must admit this preview's origin for a PUT and refuse a foreign one.
+            #
+            # A prefix with no object yet is NOT a pass: it is not asked, the step warns, and the smoke prints that the
+            # object checks were not run. The CORS and Block Public Access checks need no object and always run.
+            - name: Media delivery - the CDN serves, the bucket refuses, the bucket CORS admits
+              run: |
+                  set -euo pipefail
+                  smoke='packages/services/recipe-service/infra/smoke/deployedSmoke.ts'
+                  cdn="$(aws ssm get-parameter --name /kitchensink/sandbox/media/cdn-url --query 'Parameter.Value' --output text)"
+                  bucket="$(bash .github/scripts/cfnExport.sh kitchensink-data-sandbox:MediaBucketName)"
+
+                  keys=()
+                  for prefix in avatars/ recipes/; do
+                      key="$(aws s3api list-objects-v2 --bucket "${bucket}" --prefix "${prefix}" --max-items 1 --query 'Contents[0].Key' --output text)"
+                      if [ -z "${key}" ] || [ "${key}" = "None" ]; then
+                          echo "::warning::no object under ${prefix} yet - the CDN serving and bucket refusal for ${prefix} are NOT checked"
+                      else
+                          keys+=(--media-object-key "${key}")
+                      fi
+                  done
+
+                  # Retried as a whole: a distribution that has just deployed can take a moment to answer.
+                  for attempt in 1 2 3 4 5; do
+                      if npx tsx "${smoke}" \
+                          --media-cdn-url "${cdn}" \
+                          --media-bucket-url "https://${bucket}.s3.${AWS_REGION}.amazonaws.com" \
+                          --web-origin "https://${PREVIEW_STAGE}.sandbox.${DOMAIN_NAME}" \
+                          ${keys[@]+"${keys[@]}"}; then
+                          exit 0
+                      fi
+                      echo "attempt ${attempt}/5: media delivery not verified yet - retrying in 15s"
+                      sleep 15
+                  done
+                  echo "::error::the media path is deployed and does NOT verify - photos and avatars are unusable." >&2
+                  exit 1
+
+            # Reached ONLY when every called workflow succeeded, every declared stack verified, and every origin
+            # answered — a failed step skips the rest of the job. So this summary reports what happened.
+            - name: Summary
+              run: |
+                  {
+                      echo "### Sandbox UP and VERIFIED for PR #${PR}"
+                      echo
+                      echo "- Shared tier (\`sandbox\`) and this PR (\`${PREVIEW_STAGE}\`) started, deployed and waited on"
+                      echo "- Every stack their CDK apps declare verified — resources, Lambda code packages, ECS running counts, cross-stack references"
+                      echo "- Every published service origin probed and answering"
+                      echo "- It stays up until the midnight stop (America/New_York). Press Sandbox Up again to bring it back."
+                  } >>"$GITHUB_STEP_SUMMARY"
+
+    # ⛔ THE SCHEDULED JOBS FOLLOW THE SANDBOX (ADR-0060). Every non-prod scheduled rule deploys DISABLED; `sync`
+    # switches on exactly the ones whose stage is now up. It runs whenever the start succeeded — even if a deploy
+    # or the verification failed — because it decides from what IS running, never from what this run hoped for:
+    # services that are up get their jobs, services that are not do not.
+    sync:
+        name: Hand the scheduled jobs to the sandbox scheduler
+        needs: [start, owed-drops, identity, preview, domain, verify]
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && needs.start.result == 'success' }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        permissions:
+            contents: read # checkout of this repo's workflow scripts
+            id-token: write # awsAuth: the non-prod role
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Switch on this PR's scheduled jobs
+              env:
+                  REGION: ${{ vars.DEFAULT_AWS_REGION }}
+              run: bash .github/scripts/sandboxScheduler.sh sync "$REGION"

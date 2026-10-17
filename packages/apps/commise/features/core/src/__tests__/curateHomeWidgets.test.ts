@@ -6,7 +6,7 @@ import type {
     LiveHomeWidgetDescriptor,
     PlaceholderHomeWidgetDescriptor,
 } from '../contract.js';
-import { curateHomeWidgets } from '../curateHomeWidgets.js';
+import { curateHomeWidgets, splitComingSoon } from '../curateHomeWidgets.js';
 
 /**
  * A no-op loader seam; the descriptor's data fields carry the meaningful
@@ -300,5 +300,25 @@ describe('curateHomeWidgets', () => {
         };
 
         expect(ids(curateHomeWidgets(widgets, ctx))).toEqual(['recipes', 'ok-gated']);
+    });
+});
+
+describe('splitComingSoon', () => {
+    it('separates the live widgets from the placeholders, keeping the curated order inside each group', () => {
+        const curated = [
+            makeWidget({ id: 'recipes' }),
+            makePlaceholder({ id: 'nutrition', capability: 'nutrition' }),
+            makeWidget({ id: 'later' }),
+            makePlaceholder({ id: 'meal-plan', capability: 'meal-planning' }),
+        ];
+
+        const { live, comingSoon } = splitComingSoon(curated);
+
+        expect(live.map((widget) => widget.id)).toEqual(['recipes', 'later']);
+        expect(comingSoon.map((widget) => widget.id)).toEqual(['nutrition', 'meal-plan']);
+    });
+
+    it('answers an empty Coming soon group when every feature has shipped', () => {
+        expect(splitComingSoon([makeWidget({ id: 'recipes' })]).comingSoon).toEqual([]);
     });
 });

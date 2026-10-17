@@ -1,85 +1,75 @@
 /**
- * @module @commise/features-recipes — web recipe-detail HERO cover (mockup `screen-recipe-detail`).
+ * @module @commise/features-recipes — web recipe-detail HERO (mockup `screenRecipeDetail`).
  *
- * The mockup opens the recipe detail with the cover photo: a full-width image (`h-64 md:h-96 object-cover`)
- * under a bottom-up scrim (`bg-gradient-to-t from-charcoal/60 to-transparent`) that keeps overlaid chrome
- * legible on a light photo. The web detail previously had no lead treatment at all and started at the title
- * band, so this is the missing first impression.
+ * The recipe detail opens with its photos. The hero IS the photo carousel: slide 1 is the cover, because the service
+ * makes the cover `photos[0]` on every read path. It used to paint the cover as a separate image and then a second
+ * carousel below repeated it as slide 1 (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`), so there is now one
+ * photo surface, built from `photos` alone (`specRecipeAndWizard.md` S2.1).
  *
- * ## The no-cover state is a designed state, not an error path
+ * ## No photo: the monogram band
  *
- * Most recipes will have no photo for a while (a draft, an import, a quick capture). A missing cover must
- * therefore look DELIBERATE, and specifically must not be any of the three easy failures:
- *  - an `<img>` with an empty/undefined `src` → the browser paints a broken-image glyph;
- *  - a zero-height box → the title jumps up and the screen looks truncated;
- *  - an unlabelled grey rectangle → a screen-reader user perceives nothing where sighted users see a panel.
+ * A recipe with no photo shows the 96 px `RecipeCover` band (`buildSpec.md` §1.8, §6.7): a tint chosen by the recipe
+ * id with the title's first letter. It renders no `<img>` (an empty `src` paints a broken-image glyph), keeps a real
+ * height, and is decorative, because the H1 names the recipe. The picture glyph in a 4:3 box it replaces read as "the
+ * image failed" (`evaluateFinal.md` F10).
  *
- * So the fallback is a branded surface at the SAME hero height, painted with the shared beach-glow
- * {@link GradientSurface} (the brand's own background ramp, not an off-palette grey), carrying a photo glyph
- * and the localized `card.noPhotoLabel` — the SAME copy the recipe card's placeholder uses, so "no photo yet"
- * is stated once in the dictionary and read identically on both surfaces.
+ * The leaf itself holds no state, fetches nothing and navigates nowhere; the carousel's open slide is the carousel's
+ * own view state. The mockup's overlaid back/share/save controls are NOT part of this leaf — those are navigation and
+ * mutations, so they belong to the orchestration layer.
  *
- * Pure `props → JSX`: no fetching, no state, no navigation. The mockup's overlaid back/share/save controls are
- * NOT part of this leaf — those are navigation and mutations, so they belong to the orchestration layer.
+ * @pattern Null Object for the no-cover state — the monogram band stands in for the missing photo.
  */
-import { useMessages } from '@commise/i18n/react';
-import { GradientSurface } from '@commise/ui/surface';
+import { RecipeCover } from '@commise/ui/recipe-cover';
 import type { FC } from 'react';
 
-import { recipeMessages } from '../messages.js';
 import type { RecipeHeroProps } from './model.js';
+import { PhotoCarousel } from './PhotoCarousel.js';
 
 export type { RecipeHeroProps };
 
-/** Shared hero geometry — the mockup's `h-64` on phones, `md:h-96` from tablet up. */
-const HERO_BOX = 'h-64 w-full md:h-96';
-
-/** The recipe-detail hero cover, with its deliberate no-cover fallback. */
-export const RecipeHero: FC<RecipeHeroProps> = ({ title, coverPhotoUrl }) => {
-    const { card } = useMessages(recipeMessages);
-
-    if (coverPhotoUrl === undefined) {
+/** The recipe-detail hero: the photo carousel, or its deliberate no-photo fallback. */
+export const RecipeHero: FC<RecipeHeroProps> = ({ recipeId, title, cuisine, photos, overlay }) => {
+    if (overlay === undefined) {
         return (
-            <GradientSurface
-                gradient="hero"
-                className={`flex items-center justify-center overflow-hidden rounded-2xl ${HERO_BOX}`}
-            >
-                {/* `role="img"` + the localized label: the placeholder is a single perceivable thing, announced
-                    once, rather than a decorative glyph that says nothing. */}
-                <div
-                    role="img"
-                    aria-label={card.noPhotoLabel}
-                    // A labelled `role="img"` is a MEANINGFUL graphic, so it is `slate`, not the `mist` hairline
-                    // tone — see the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`. The native leaf
-                    // already uses `palette.slate`; this is the web half catching up.
-                    className={`flex items-center justify-center text-slate ${HERO_BOX}`}
-                >
-                    <svg aria-hidden="true" className="h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={1.5}
-                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                    </svg>
-                </div>
-            </GradientSurface>
+            <HeroMedia
+                recipeId={recipeId}
+                title={title}
+                {...(cuisine === undefined ? {} : { cuisine })}
+                photos={photos}
+            />
         );
     }
 
+    // The overlay comes FIRST in the DOM (Back is reached before the photos) and paints above them through `z-10`.
     return (
-        <div className="relative overflow-hidden rounded-2xl">
-            {/* FOLLOW-UP-CR-001-A applies here too: this is the full-size original, painted at hero size. It is
-                the screen's lead image, so it loads eagerly — a lazy hero is a guaranteed layout flash. */}
-            <img
-                src={coverPhotoUrl}
-                alt={title}
-                loading="eager"
-                decoding="async"
-                className={`object-cover ${HERO_BOX}`}
+        <div className="relative">
+            <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-3">{overlay}</div>
+            <HeroMedia
+                recipeId={recipeId}
+                title={title}
+                {...(cuisine === undefined ? {} : { cuisine })}
+                photos={photos}
             />
-            {/* Decorative scrim — it carries no information, so it is hidden from assistive tech. */}
-            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-charcoal/60 to-transparent" />
         </div>
     );
+};
+
+/** The hero's media: the carousel, or the monogram band. */
+const HeroMedia: FC<Omit<RecipeHeroProps, 'overlay'>> = ({ recipeId, title, cuisine, photos }) => {
+    // No photo: the 96 px monogram band (`buildSpec.md` §1.8, §6.7) — a tint by the recipe id and the title's first
+    // letter, decorative because the H1 names the recipe. A picture glyph in a 4:3 box read as "the image failed" (F10).
+    if (photos.length === 0) {
+        return (
+            <div className="overflow-hidden rounded-lg">
+                <RecipeCover
+                    recipeId={recipeId}
+                    title={title}
+                    {...(cuisine === undefined ? {} : { cuisine })}
+                    aspect="band"
+                />
+            </div>
+        );
+    }
+
+    return <PhotoCarousel photos={photos} title={title} />;
 };

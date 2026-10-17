@@ -1,10 +1,17 @@
 /**
- * @module @commise/features-recipes/detail — platform-neutral barrel for the recipe-detail building block
- * (T066). The component specifier resolves to its web (`*.tsx`) or native (`*.native.tsx`) leaf at bundle
- * time; the model layer is platform-agnostic. The apps compose this into their recipe-detail page/screen.
+ * @module @commise/features-recipes/detail — the recipe detail screen's shared controller and states.
+ *
+ * A package-export entry (the one kind of barrel this repo keeps): `@commise/features-recipes/detail`. The render leaves
+ * the controller feeds are platform pairs, so each specifier below resolves to its web or native file at bundle time.
  */
-export { RecipeDetailView } from './RecipeDetailView.js';
-export { useCookingProgress, type CookingProgressBinding } from './useCookingProgress.js';
-
-export { formatQuantity } from './model.js';
-export type { RecipeDetailViewProps } from './model.js';
+export { RecipeDetailDialogs, type RecipeDetailDialogsProps } from './RecipeDetailDialogs.js';
+export { RecipeLoadError, type RecipeLoadErrorProps } from './RecipeLoadError.js';
+export { recipeLoadMessages, type RecipeLoadMessages } from './messages.js';
+export { RecipeDetailRating, type RecipeDetailRatingProps } from './RecipeDetailRating.js';
+export {
+    useRecipeDetailController,
+    type RecipeDetailController,
+    type RecipeDetailControllerInput,
+    type RecipeDetailNav,
+    type RecipeDetailProfile,
+} from './useRecipeDetailController.js';

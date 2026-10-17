@@ -448,7 +448,7 @@ jobs:
 
 ## 9. Maestro Flow Updates for Cross-Platform
 
-Your current `.maestro/auth/login-flow.yaml` is Android-only (references debug APK). For dual-platform CI, make the flow platform-agnostic using environment variables:
+Your current `.maestro/auth/loginFlow.yaml` is Android-only (references debug APK). For dual-platform CI, make the flow platform-agnostic using environment variables:
 
 ```yaml
 appId: ${APP_ID}
@@ -476,7 +476,7 @@ maestro --env APP_ID=io.souschef.mobile --device $DEVICE_ID test .maestro/auth/
 If you ever need different IDs per platform, use tags:
 
 ```yaml
-# In login-flow.yaml
+# In loginFlow.yaml
 tags:
     - auth
     - cross-platform

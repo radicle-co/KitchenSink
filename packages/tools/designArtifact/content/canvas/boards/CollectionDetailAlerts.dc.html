@@ -1,0 +1,1441 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Collection detail, actions failed, proposal (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .sb {
+                        display: none;
+                    }
+                    .tb {
+                        display: flex;
+                    }
+                    .pad {
+                        padding: 24px 16px calc(64px + 104px);
+                    }
+                    .wide-only {
+                        display: none;
+                    }
+                    .below-nav {
+                        display: block;
+                    }
+                    .page {
+                        max-width: 90rem;
+                        margin: 0 auto;
+                        display: flex;
+                        width: 100%;
+                        flex-direction: column;
+                        gap: 16px;
+                    }
+                    .rgrid {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+                        gap: 16px;
+                    }
+                    .cgrid {
+                        display: grid;
+                        grid-template-columns: repeat(2, 1fr);
+                        gap: 16px;
+                    }
+                    @media (min-width: 600px) {
+                        .pad {
+                            padding-inline: 24px;
+                        }
+                        .rgrid {
+                            gap: 24px;
+                        }
+                        .cgrid {
+                            grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+                            gap: 24px;
+                        }
+                    }
+                    @media (min-width: 840px) {
+                        .sb {
+                            display: flex;
+                        }
+                        .tb {
+                            display: none;
+                        }
+                        .pad {
+                            padding: 24px 32px 32px;
+                        }
+                        .wide-only {
+                            display: contents;
+                        }
+                        .below-nav {
+                            display: none;
+                        }
+                    }
+                </style></helmet
+            >
+            <div style="display: flex; min-height: 100vh">
+                <div
+                    class="sb"
+                    style="
+                        position: sticky;
+                        top: 0;
+                        height: 100vh;
+                        width: 256px;
+                        flex: none;
+                        flex-direction: column;
+                        overflow-y: auto;
+                        border-inline-end: 1px solid var(--line-divider);
+                        background: color-mix(in srgb, var(--paper) 70%, transparent);
+                        box-sizing: border-box;
+                    "
+                >
+                    <div style="display: flex; height: 64px; flex: none; align-items: center; padding: 0 24px">
+                        <span
+                            style="
+                                font-family: var(--font-display);
+                                font-size: 20px;
+                                line-height: 1.4;
+                                font-weight: 700;
+                                color: var(--ink);
+                            "
+                            >Commise</span
+                        >
+                    </div>
+                    <nav aria-label="Main" style="display: flex; flex-direction: column; gap: 4px; padding: 0 12px">
+                        <a
+                            href="#home"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 14px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                position: relative;
+                                color: var(--ink-muted);
+                            "
+                            ><span
+                                aria-hidden="true"
+                                style="
+                                    position: absolute;
+                                    top: 8px;
+                                    bottom: 8px;
+                                    inset-inline-start: 0;
+                                    width: 3px;
+                                    border-radius: 0 9999px 9999px 0;
+                                "
+                            ></span
+                            ><x-import component-from-global-scope="Commise.Icon" name="house" size="{{v28}}"></x-import
+                            ><span>Home</span></a
+                        ><a
+                            href="#recipes"
+                            aria-current="page"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 14px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                position: relative;
+                                background: color-mix(in srgb, var(--action) 10%, transparent);
+                                color: var(--ink);
+                            "
+                            ><span
+                                aria-hidden="true"
+                                style="
+                                    position: absolute;
+                                    top: 8px;
+                                    bottom: 8px;
+                                    inset-inline-start: 0;
+                                    width: 3px;
+                                    border-radius: 0 9999px 9999px 0;
+                                    background: var(--here-bar);
+                                "
+                            ></span
+                            ><x-import
+                                component-from-global-scope="Commise.Icon"
+                                name="bookOpen"
+                                size="{{v29}}"
+                            ></x-import
+                            ><span>Recipes</span></a
+                        ><a
+                            href="#discover"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 14px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                position: relative;
+                                color: var(--ink-muted);
+                            "
+                            ><span
+                                aria-hidden="true"
+                                style="
+                                    position: absolute;
+                                    top: 8px;
+                                    bottom: 8px;
+                                    inset-inline-start: 0;
+                                    width: 3px;
+                                    border-radius: 0 9999px 9999px 0;
+                                "
+                            ></span
+                            ><x-import
+                                component-from-global-scope="Commise.Icon"
+                                name="compass"
+                                size="{{v30}}"
+                            ></x-import
+                            ><span>Discover</span></a
+                        >
+                    </nav>
+                    <div style="margin-top: auto">
+                        <button
+                            type="button"
+                            aria-expanded="true"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 14px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                margin: 0 12px 12px;
+                                width: calc(100% - 24px);
+                                border: 0;
+                                background: transparent;
+                                color: var(--ink-muted);
+                                font-family: inherit;
+                                cursor: pointer;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Icon"
+                                name="chevronsLeft"
+                                size="{{v34}}"
+                            ></x-import
+                            ><span>Collapse</span>
+                        </button>
+                    </div>
+                </div>
+                <main class="pad" style="min-width: 0; flex: 1; box-sizing: border-box">
+                    <p
+                        style="
+                            margin: 0 auto 12px;
+                            max-width: 90rem;
+                            font: 500 12px/1.4 var(--font-body);
+                            color: var(--ink-muted);
+                        "
+                    >
+                        Each line shows only when its action failed. All three are shown here.
+                    </p>
+                    <div
+                        style="
+                            display: flex;
+                            max-width: 90rem;
+                            margin: 0 auto;
+                            width: 100%;
+                            flex-direction: column;
+                            gap: 16px;
+                        "
+                    >
+                        <div style="display: flex; flex-direction: column; gap: 12px">
+                            <x-import
+                                component-from-global-scope="Commise.LargeTitleHeader"
+                                heading-id="collection-title"
+                                title="Weeknight dinners"
+                                back="{{v23}}"
+                                action="{{v24}}"
+                            ></x-import>
+                            <div style="overflow: hidden">
+                                <p
+                                    style="
+                                        margin: 0;
+                                        display: flex;
+                                        flex-wrap: wrap;
+                                        align-items: center;
+                                        column-gap: 12px;
+                                        row-gap: 4px;
+                                        font-size: 14px;
+                                        line-height: 1.4;
+                                        font-weight: 400;
+                                        color: var(--ink-muted);
+                                    "
+                                >
+                                    <span style="display: inline-flex; align-items: center; gap: 4px"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="lock"
+                                            size="{{v25}}"
+                                        ></x-import
+                                        >Private</span
+                                    ><span>6 recipes</span>
+                                </p>
+                            </div>
+                            <p
+                                style="
+                                    margin: 0;
+                                    font-size: 16px;
+                                    line-height: 1.5;
+                                    font-weight: 400;
+                                    color: var(--ink);
+                                "
+                            >
+                                Fast, forgiving meals for school nights. Nothing here needs more than one pan or about
+                                an hour.
+                            </p>
+                            <div class="below-nav">
+                                <div style="display: flex; align-items: center; gap: 8px">
+                                    <div style="min-width: 0; flex: 1">
+                                        <x-import component-from-global-scope="Commise.Button" icon="plus" width="fill"
+                                            >Add recipes</x-import
+                                        >
+                                    </div>
+                                    <x-import
+                                        component-from-global-scope="Commise.ActionMenu"
+                                        trigger-label="More actions for Weeknight dinners"
+                                        title="Weeknight dinners"
+                                        close-label="Close menu"
+                                        items="{{v0}}"
+                                        destructive-item="{{v1}}"
+                                    ></x-import>
+                                </div>
+                            </div>
+                        </div>
+                        <p
+                            role="alert"
+                            style="margin: 0; font: 400 16px/1.5 var(--font-body); color: var(--danger-text)"
+                        >
+                            We couldn’t change who can see this collection. Try again.
+                        </p>
+                        <p
+                            role="alert"
+                            style="margin: 0; font: 400 16px/1.5 var(--font-body); color: var(--danger-text)"
+                        >
+                            We couldn’t save a copy of this collection. Try again.
+                        </p>
+                        <section aria-label="Recipes" style="display: flex; flex-direction: column; gap: 12px">
+                            <p
+                                role="alert"
+                                style="margin: 0; font: 400 16px/1.5 var(--font-body); color: var(--danger-text)"
+                            >
+                                Couldn’t remove Pad Thai with Shrimp. Try again.
+                            </p>
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-wrap: wrap;
+                                    align-items: center;
+                                    justify-content: space-between;
+                                    gap: 8px 12px;
+                                "
+                            >
+                                <p
+                                    style="
+                                        margin: 0;
+                                        font-size: 14px;
+                                        line-height: 1.4;
+                                        font-weight: 400;
+                                        font-weight: 600;
+                                        color: var(--ink);
+                                        font-variant-numeric: tabular-nums lining-nums;
+                                    "
+                                >
+                                    6 recipes
+                                </p>
+                                <x-import
+                                    component-from-global-scope="Commise.SegmentedControl"
+                                    form="view"
+                                    label="View"
+                                    label-visibility="hidden"
+                                    value="grid"
+                                    segments="{{v26}}"
+                                    on-change="{{v27}}"
+                                ></x-import>
+                            </div>
+                            <ul class="rgrid" style="margin: 0; padding: 0">
+                                <li
+                                    style="
+                                        list-style: none;
+                                        display: grid;
+                                        grid-row: span 6;
+                                        grid-template-rows: subgrid;
+                                        gap: 0;
+                                    "
+                                >
+                                    <article
+                                        aria-label="Weeknight Chicken Cacciatore"
+                                        style="
+                                            position: relative;
+                                            height: 100%;
+                                            border-radius: 12px;
+                                            border: 1px solid var(--line-divider);
+                                            background: var(--paper);
+                                            box-shadow: var(--shadow-sm);
+                                            display: grid;
+                                            grid-row: span 6;
+                                            grid-template-rows: subgrid;
+                                            gap: 0;
+                                        "
+                                    >
+                                        <div style="position: relative; overflow: hidden; border-radius: 12px 12px 0 0">
+                                            <x-import
+                                                component-from-global-scope="Commise.RecipeCover"
+                                                recipe-id="rcp_01j9chickencacc"
+                                                title="Weeknight Chicken Cacciatore"
+                                                cuisine="Italian"
+                                                aspect="4:3"
+                                                overline="{{v3}}"
+                                            ></x-import
+                                            ><span
+                                                aria-label="55 minutes total time"
+                                                style="position: absolute; bottom: 8px; inset-inline-start: 8px"
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-height: 24px;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                        border-radius: 6px;
+                                                        background: var(--photo-chip);
+                                                        padding: 2px 8px;
+                                                        font-size: 12px;
+                                                        line-height: 1.4;
+                                                        font-weight: 500;
+                                                        color: var(--ink);
+                                                    "
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Icon"
+                                                        name="clock"
+                                                        size="{{v4}}"
+                                                    ></x-import
+                                                    ><span style="font-variant-numeric: tabular-nums lining-nums"
+                                                        >55 min</span
+                                                    ></span
+                                                ></span
+                                            >
+                                        </div>
+                                        <div style="padding: 12px 16px 0">
+                                            <h2
+                                                style="
+                                                    margin: 0;
+                                                    font-size: 16px;
+                                                    line-height: 1.3;
+                                                    font-weight: 600;
+                                                    color: var(--ink);
+                                                    display: -webkit-box;
+                                                    -webkit-line-clamp: 2;
+                                                    -webkit-box-orient: vertical;
+                                                    overflow: hidden;
+                                                "
+                                            >
+                                                <a href="#rcp_01j9chickencacc" style="color: inherit"
+                                                    >Weeknight Chicken Cacciatore</a
+                                                >
+                                            </h2>
+                                        </div>
+                                        <div style="padding: 8px 16px 0">
+                                            <div
+                                                style="
+                                                    display: flex;
+                                                    flex-wrap: wrap;
+                                                    align-content: flex-start;
+                                                    align-items: center;
+                                                    column-gap: 4px;
+                                                    overflow: hidden;
+                                                    height: 24px;
+                                                "
+                                            >
+                                                <span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-width: 0;
+                                                        max-width: 100%;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                    "
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.DifficultyBadge"
+                                                        level="medium"
+                                                        >Medium</x-import
+                                                    ></span
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-width: 0;
+                                                        max-width: 100%;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                    "
+                                                    ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                    ><span
+                                                        role="img"
+                                                        aria-label="Rated 4.6 out of 5, 23 ratings"
+                                                        style="display: inline-flex; align-items: center; gap: 2px"
+                                                        ><svg
+                                                            aria-hidden="true"
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 20 20"
+                                                            style="flex: none; color: var(--rating)"
+                                                            fill="var(--rating)"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                                                            /></svg
+                                                        ><svg
+                                                            aria-hidden="true"
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 20 20"
+                                                            style="flex: none; color: var(--rating)"
+                                                            fill="var(--rating)"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                                                            /></svg
+                                                        ><svg
+                                                            aria-hidden="true"
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 20 20"
+                                                            style="flex: none; color: var(--rating)"
+                                                            fill="var(--rating)"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                                                            /></svg
+                                                        ><svg
+                                                            aria-hidden="true"
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 20 20"
+                                                            style="flex: none; color: var(--rating)"
+                                                            fill="var(--rating)"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                                                            /></svg
+                                                        ><svg
+                                                            aria-hidden="true"
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 20 20"
+                                                            style="flex: none; color: var(--rating)"
+                                                            fill="var(--rating)"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                                                            /></svg
+                                                        ><span
+                                                            aria-hidden="true"
+                                                            style="
+                                                                margin-inline-start: 4px;
+                                                                font-size: 14px;
+                                                                line-height: 1.4;
+                                                                font-weight: 400;
+                                                                color: var(--ink);
+                                                                font-variant-numeric: tabular-nums lining-nums;
+                                                            "
+                                                            >4.6 (23)</span
+                                                        ></span
+                                                    ></span
+                                                >
+                                            </div>
+                                        </div>
+                                        <div style="padding: 4px 16px 0">
+                                            <div
+                                                style="
+                                                    font-size: 14px;
+                                                    line-height: 1.4;
+                                                    font-weight: 400;
+                                                    color: var(--ink-muted);
+                                                    display: flex;
+                                                    flex-wrap: wrap;
+                                                    align-content: flex-start;
+                                                    align-items: center;
+                                                    column-gap: 4px;
+                                                    overflow: hidden;
+                                                    height: 19.6px;
+                                                "
+                                            >
+                                                <span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-width: 0;
+                                                        max-width: 100%;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                    "
+                                                    ><span
+                                                        style="
+                                                            min-width: 0;
+                                                            overflow: hidden;
+                                                            text-overflow: ellipsis;
+                                                            white-space: nowrap;
+                                                        "
+                                                        >Italian</span
+                                                    ></span
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-width: 0;
+                                                        max-width: 100%;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                    "
+                                                    ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                    ><span style="min-width: 0">420 cal</span></span
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-width: 0;
+                                                        max-width: 100%;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                    "
+                                                    ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                    ><span aria-label="Serves 4">Serves 4</span></span
+                                                >
+                                            </div>
+                                        </div>
+                                        <div style="padding: 4px 16px 0">
+                                            <p
+                                                style="
+                                                    margin: 0;
+                                                    font-size: 12px;
+                                                    line-height: 1.4;
+                                                    font-weight: 500;
+                                                    color: var(--ink-muted);
+                                                    white-space: nowrap;
+                                                    overflow: hidden;
+                                                    text-overflow: ellipsis;
+                                                "
+                                            >
+                                                Chicken · Braise · +2
+                                            </p>
+                                        </div>
+                                        <div style="padding: 4px 16px 16px">
+                                            <div style="display: flex; align-items: center; gap: 8px">
+                                                <span
+                                                    style="
+                                                        min-width: 0;
+                                                        flex: 1;
+                                                        font-size: 12px;
+                                                        line-height: 1.4;
+                                                        font-weight: 500;
+                                                        color: var(--ink-muted);
+                                                        white-space: nowrap;
+                                                        overflow: hidden;
+                                                        text-overflow: ellipsis;
+                                                    "
+                                                    >Added by you</span
+                                                ><x-import
+                                                    component-from-global-scope="Commise.ActionMenu"
+                                                    trigger-label="More actions for Weeknight Chicken Cacciatore"
+                                                    title="Weeknight Chicken Cacciatore"
+                                                    close-label="Close menu"
+                                                    items="{{v2}}"
+                                                ></x-import>
+                                            </div>
+                                        </div>
+                                    </article>
+                                </li>
+                                <li
+                                    style="
+                                        list-style: none;
+                                        display: grid;
+                                        grid-row: span 6;
+                                        grid-template-rows: subgrid;
+                                        gap: 0;
+                                    "
+                                >
+                                    <article
+                                        aria-label="Miso-Glazed Salmon with Sesame Greens"
+                                        style="
+                                            position: relative;
+                                            height: 100%;
+                                            border-radius: 12px;
+                                            border: 1px solid var(--line-divider);
+                                            background: var(--paper);
+                                            box-shadow: var(--shadow-sm);
+                                            display: grid;
+                                            grid-row: span 6;
+                                            grid-template-rows: subgrid;
+                                            gap: 0;
+                                        "
+                                    >
+                                        <div style="position: relative; overflow: hidden; border-radius: 12px 12px 0 0">
+                                            <x-import
+                                                component-from-global-scope="Commise.RecipeCover"
+                                                recipe-id="rcp_01j9misosalmon"
+                                                title="Miso-Glazed Salmon with Sesame Greens"
+                                                cuisine="Japanese"
+                                                aspect="4:3"
+                                                overline="{{v7}}"
+                                            ></x-import
+                                            ><span
+                                                style="
+                                                    position: absolute;
+                                                    inset-inline-start: 8px;
+                                                    top: 8px;
+                                                    max-width: 50%;
+                                                    display: inline-flex;
+                                                    min-height: 24px;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    border-radius: 6px;
+                                                    background: var(--photo-chip);
+                                                    padding: 2px 8px;
+                                                    font-size: 12px;
+                                                    line-height: 1.4;
+                                                    font-weight: 500;
+                                                    color: var(--ink);
+                                                "
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Icon"
+                                                    name="lock"
+                                                    size="{{v6}}"
+                                                ></x-import
+                                                ><span
+                                                    style="
+                                                        overflow: hidden;
+                                                        text-overflow: ellipsis;
+                                                        white-space: nowrap;
+                                                    "
+                                                    >Private</span
+                                                ></span
+                                            ><span
+                                                aria-label="25 minutes total time"
+                                                style="position: absolute; bottom: 8px; inset-inline-start: 8px"
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-height: 24px;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                        border-radius: 6px;
+                                                        background: var(--photo-chip);
+                                                        padding: 2px 8px;
+                                                        font-size: 12px;
+                                                        line-height: 1.4;
+                                                        font-weight: 500;
+                                                        color: var(--ink);
+                                                    "
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Icon"
+                                                        name="clock"
+                                                        size="{{v8}}"
+                                                    ></x-import
+                                                    ><span style="font-variant-numeric: tabular-nums lining-nums"
+                                                        >25 min</span
+                                                    ></span
+                                                ></span
+                                            >
+                                        </div>
+                                        <div style="padding: 12px 16px 0">
+                                            <h2
+                                                style="
+                                                    margin: 0;
+                                                    font-size: 16px;
+                                                    line-height: 1.3;
+                                                    font-weight: 600;
+                                                    color: var(--ink);
+                                                    display: -webkit-box;
+                                                    -webkit-line-clamp: 2;
+                                                    -webkit-box-orient: vertical;
+                                                    overflow: hidden;
+                                                "
+                                            >
+                                                <a href="#rcp_01j9misosalmon" style="color: inherit"
+                                                    >Miso-Glazed Salmon with Sesame Greens</a
+                                                >
+                                            </h2>
+                                        </div>
+                                        <div style="padding: 8px 16px 0">
+                                            <div
+                                                style="
+                                                    display: flex;
+                                                    flex-wrap: wrap;
+                                                    align-content: flex-start;
+                                                    align-items: center;
+                                                    column-gap: 4px;
+                                                    overflow: hidden;
+                                                    height: 24px;
+                                                "
+                                            >
+                                                <span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-width: 0;
+                                                        max-width: 100%;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                    "
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.DifficultyBadge"
+                                                        level="easy"
+                                                        >Easy</x-import
+                                                    ></span
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-width: 0;
+                                                        max-width: 100%;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                    "
+                                                    ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                    ><span
+                                                        role="img"
+                                                        aria-label="Rated 4.4 out of 5, 9 ratings"
+                                                        style="display: inline-flex; align-items: center; gap: 2px"
+                                                        ><svg
+                                                            aria-hidden="true"
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 20 20"
+                                                            style="flex: none; color: var(--rating)"
+                                                            fill="var(--rating)"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                                                            /></svg
+                                                        ><svg
+                                                            aria-hidden="true"
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 20 20"
+                                                            style="flex: none; color: var(--rating)"
+                                                            fill="var(--rating)"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                                                            /></svg
+                                                        ><svg
+                                                            aria-hidden="true"
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 20 20"
+                                                            style="flex: none; color: var(--rating)"
+                                                            fill="var(--rating)"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                                                            /></svg
+                                                        ><svg
+                                                            aria-hidden="true"
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 20 20"
+                                                            style="flex: none; color: var(--rating)"
+                                                            fill="var(--rating)"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                                                            /></svg
+                                                        ><svg
+                                                            aria-hidden="true"
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 20 20"
+                                                            style="flex: none; color: var(--ink-muted)"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                                                            /></svg
+                                                        ><span
+                                                            aria-hidden="true"
+                                                            style="
+                                                                margin-inline-start: 4px;
+                                                                font-size: 14px;
+                                                                line-height: 1.4;
+                                                                font-weight: 400;
+                                                                color: var(--ink);
+                                                                font-variant-numeric: tabular-nums lining-nums;
+                                                            "
+                                                            >4.4 (9)</span
+                                                        ></span
+                                                    ></span
+                                                >
+                                            </div>
+                                        </div>
+                                        <div style="padding: 4px 16px 0">
+                                            <div
+                                                style="
+                                                    font-size: 14px;
+                                                    line-height: 1.4;
+                                                    font-weight: 400;
+                                                    color: var(--ink-muted);
+                                                    display: flex;
+                                                    flex-wrap: wrap;
+                                                    align-content: flex-start;
+                                                    align-items: center;
+                                                    column-gap: 4px;
+                                                    overflow: hidden;
+                                                    height: 19.6px;
+                                                "
+                                            >
+                                                <span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-width: 0;
+                                                        max-width: 100%;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                    "
+                                                    ><span
+                                                        style="
+                                                            min-width: 0;
+                                                            overflow: hidden;
+                                                            text-overflow: ellipsis;
+                                                            white-space: nowrap;
+                                                        "
+                                                        >Japanese</span
+                                                    ></span
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-width: 0;
+                                                        max-width: 100%;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                    "
+                                                    ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                    ><span style="min-width: 0">480 cal</span></span
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-width: 0;
+                                                        max-width: 100%;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                    "
+                                                    ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                    ><span aria-label="Serves 2">Serves 2</span></span
+                                                >
+                                            </div>
+                                        </div>
+                                        <div style="padding: 4px 16px 0">
+                                            <p
+                                                style="
+                                                    margin: 0;
+                                                    font-size: 12px;
+                                                    line-height: 1.4;
+                                                    font-weight: 500;
+                                                    color: var(--ink-muted);
+                                                    white-space: nowrap;
+                                                    overflow: hidden;
+                                                    text-overflow: ellipsis;
+                                                "
+                                            >
+                                                Fish · Quick
+                                            </p>
+                                        </div>
+                                        <div style="padding: 4px 16px 16px">
+                                            <div style="display: flex; align-items: center; gap: 8px">
+                                                <span
+                                                    style="
+                                                        min-width: 0;
+                                                        flex: 1;
+                                                        font-size: 12px;
+                                                        line-height: 1.4;
+                                                        font-weight: 500;
+                                                        color: var(--ink-muted);
+                                                        white-space: nowrap;
+                                                        overflow: hidden;
+                                                        text-overflow: ellipsis;
+                                                    "
+                                                    >From the original collection</span
+                                                ><x-import
+                                                    component-from-global-scope="Commise.ActionMenu"
+                                                    trigger-label="More actions for Miso-Glazed Salmon with Sesame Greens"
+                                                    title="Miso-Glazed Salmon with Sesame Greens"
+                                                    close-label="Close menu"
+                                                    items="{{v5}}"
+                                                ></x-import>
+                                            </div>
+                                        </div>
+                                    </article>
+                                </li>
+                                <li
+                                    style="
+                                        list-style: none;
+                                        display: grid;
+                                        grid-row: span 6;
+                                        grid-template-rows: subgrid;
+                                        gap: 0;
+                                    "
+                                >
+                                    <article
+                                        aria-label="Pad Thai with Shrimp"
+                                        style="
+                                            position: relative;
+                                            height: 100%;
+                                            border-radius: 12px;
+                                            border: 1px solid var(--line-divider);
+                                            background: var(--paper);
+                                            box-shadow: var(--shadow-sm);
+                                            display: grid;
+                                            grid-row: span 6;
+                                            grid-template-rows: subgrid;
+                                            gap: 0;
+                                        "
+                                    >
+                                        <div style="position: relative; overflow: hidden; border-radius: 12px 12px 0 0">
+                                            <x-import
+                                                component-from-global-scope="Commise.RecipeCover"
+                                                recipe-id="rcp_01j9padthai"
+                                                title="Pad Thai with Shrimp"
+                                                cuisine="Thai"
+                                                aspect="4:3"
+                                                overline="{{v10}}"
+                                            ></x-import
+                                            ><span
+                                                aria-label="35 minutes total time"
+                                                style="position: absolute; bottom: 8px; inset-inline-start: 8px"
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-height: 24px;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                        border-radius: 6px;
+                                                        background: var(--photo-chip);
+                                                        padding: 2px 8px;
+                                                        font-size: 12px;
+                                                        line-height: 1.4;
+                                                        font-weight: 500;
+                                                        color: var(--ink);
+                                                    "
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Icon"
+                                                        name="clock"
+                                                        size="{{v11}}"
+                                                    ></x-import
+                                                    ><span style="font-variant-numeric: tabular-nums lining-nums"
+                                                        >35 min</span
+                                                    ></span
+                                                ></span
+                                            >
+                                        </div>
+                                        <div style="padding: 12px 16px 0">
+                                            <h2
+                                                style="
+                                                    margin: 0;
+                                                    font-size: 16px;
+                                                    line-height: 1.3;
+                                                    font-weight: 600;
+                                                    color: var(--ink);
+                                                    display: -webkit-box;
+                                                    -webkit-line-clamp: 2;
+                                                    -webkit-box-orient: vertical;
+                                                    overflow: hidden;
+                                                "
+                                            >
+                                                <a href="#rcp_01j9padthai" style="color: inherit"
+                                                    >Pad Thai with Shrimp</a
+                                                >
+                                            </h2>
+                                        </div>
+                                        <div style="padding: 8px 16px 0">
+                                            <div
+                                                style="
+                                                    display: flex;
+                                                    flex-wrap: wrap;
+                                                    align-content: flex-start;
+                                                    align-items: center;
+                                                    column-gap: 4px;
+                                                    overflow: hidden;
+                                                    height: 24px;
+                                                "
+                                            >
+                                                <span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-width: 0;
+                                                        max-width: 100%;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                    "
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.DifficultyBadge"
+                                                        level="medium"
+                                                        >Medium</x-import
+                                                    ></span
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-width: 0;
+                                                        max-width: 100%;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                    "
+                                                    ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                    ><span
+                                                        role="img"
+                                                        aria-label="Rated 4.7 out of 5, 41 ratings"
+                                                        style="display: inline-flex; align-items: center; gap: 2px"
+                                                        ><svg
+                                                            aria-hidden="true"
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 20 20"
+                                                            style="flex: none; color: var(--rating)"
+                                                            fill="var(--rating)"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                                                            /></svg
+                                                        ><svg
+                                                            aria-hidden="true"
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 20 20"
+                                                            style="flex: none; color: var(--rating)"
+                                                            fill="var(--rating)"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                                                            /></svg
+                                                        ><svg
+                                                            aria-hidden="true"
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 20 20"
+                                                            style="flex: none; color: var(--rating)"
+                                                            fill="var(--rating)"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                                                            /></svg
+                                                        ><svg
+                                                            aria-hidden="true"
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 20 20"
+                                                            style="flex: none; color: var(--rating)"
+                                                            fill="var(--rating)"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                                                            /></svg
+                                                        ><svg
+                                                            aria-hidden="true"
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 20 20"
+                                                            style="flex: none; color: var(--rating)"
+                                                            fill="var(--rating)"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                                                            /></svg
+                                                        ><span
+                                                            aria-hidden="true"
+                                                            style="
+                                                                margin-inline-start: 4px;
+                                                                font-size: 14px;
+                                                                line-height: 1.4;
+                                                                font-weight: 400;
+                                                                color: var(--ink);
+                                                                font-variant-numeric: tabular-nums lining-nums;
+                                                            "
+                                                            >4.7 (41)</span
+                                                        ></span
+                                                    ></span
+                                                >
+                                            </div>
+                                        </div>
+                                        <div style="padding: 4px 16px 0">
+                                            <div
+                                                style="
+                                                    font-size: 14px;
+                                                    line-height: 1.4;
+                                                    font-weight: 400;
+                                                    color: var(--ink-muted);
+                                                    display: flex;
+                                                    flex-wrap: wrap;
+                                                    align-content: flex-start;
+                                                    align-items: center;
+                                                    column-gap: 4px;
+                                                    overflow: hidden;
+                                                    height: 19.6px;
+                                                "
+                                            >
+                                                <span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-width: 0;
+                                                        max-width: 100%;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                    "
+                                                    ><span
+                                                        style="
+                                                            min-width: 0;
+                                                            overflow: hidden;
+                                                            text-overflow: ellipsis;
+                                                            white-space: nowrap;
+                                                        "
+                                                        >Thai</span
+                                                    ></span
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-width: 0;
+                                                        max-width: 100%;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                    "
+                                                    ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                    ><span style="min-width: 0">560 cal</span></span
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        min-width: 0;
+                                                        max-width: 100%;
+                                                        align-items: center;
+                                                        gap: 4px;
+                                                    "
+                                                    ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                    ><span aria-label="Serves 3">Serves 3</span></span
+                                                >
+                                            </div>
+                                        </div>
+                                        <div style="padding: 4px 16px 0">
+                                            <p
+                                                style="
+                                                    margin: 0;
+                                                    font-size: 12px;
+                                                    line-height: 1.4;
+                                                    font-weight: 500;
+                                                    color: var(--ink-muted);
+                                                    white-space: nowrap;
+                                                    overflow: hidden;
+                                                    text-overflow: ellipsis;
+                                                "
+                                            >
+                                                Noodles · Seafood
+                                            </p>
+                                        </div>
+                                        <div style="padding: 4px 16px 16px">
+                                            <div style="display: flex; align-items: center; gap: 8px">
+                                                <span
+                                                    style="
+                                                        min-width: 0;
+                                                        flex: 1;
+                                                        font-size: 12px;
+                                                        line-height: 1.4;
+                                                        font-weight: 500;
+                                                        color: var(--ink-muted);
+                                                        white-space: nowrap;
+                                                        overflow: hidden;
+                                                        text-overflow: ellipsis;
+                                                    "
+                                                    >Added by you</span
+                                                ><x-import
+                                                    component-from-global-scope="Commise.ActionMenu"
+                                                    trigger-label="More actions for Pad Thai with Shrimp"
+                                                    title="Pad Thai with Shrimp"
+                                                    close-label="Close menu"
+                                                    items="{{v9}}"
+                                                ></x-import>
+                                            </div>
+                                        </div>
+                                    </article>
+                                </li>
+                            </ul>
+                        </section>
+                    </div>
+                </main>
+                <nav
+                    class="tb"
+                    aria-label="Tabs"
+                    style="
+                        position: fixed;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        z-index: 50;
+                        isolation: isolate;
+                        height: 64px;
+                        justify-content: space-around;
+                        padding: 0 8px;
+                        box-sizing: border-box;
+                    "
+                >
+                    <x-import component-from-global-scope="Commise.ChromeSurface" edge="top"></x-import
+                    ><a
+                        href="#home"
+                        style="
+                            position: relative;
+                            display: flex;
+                            min-height: 56px;
+                            min-width: 96px;
+                            flex: 1;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 4px;
+                            border-radius: 12px;
+                            color: var(--ink-muted);
+                        "
+                        ><span
+                            aria-hidden="true"
+                            style="
+                                position: absolute;
+                                top: 0;
+                                width: 32px;
+                                height: 3px;
+                                border-radius: 0 0 9999px 9999px;
+                            "
+                        ></span
+                        ><x-import component-from-global-scope="Commise.Icon" name="house" size="{{v31}}"></x-import
+                        ><span style="font-size: 12px; line-height: 1.4; font-weight: 500">Home</span></a
+                    ><a
+                        href="#recipes"
+                        aria-current="page"
+                        style="
+                            position: relative;
+                            display: flex;
+                            min-height: 56px;
+                            min-width: 96px;
+                            flex: 1;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 4px;
+                            border-radius: 12px;
+                            color: var(--ink);
+                        "
+                        ><span
+                            aria-hidden="true"
+                            style="
+                                position: absolute;
+                                top: 0;
+                                width: 32px;
+                                height: 3px;
+                                border-radius: 0 0 9999px 9999px;
+                                background: var(--here-bar);
+                            "
+                        ></span
+                        ><x-import component-from-global-scope="Commise.Icon" name="bookOpen" size="{{v32}}"></x-import
+                        ><span style="font-size: 12px; line-height: 1.4; font-weight: 500; font-weight: 600"
+                            >Recipes</span
+                        ></a
+                    ><a
+                        href="#discover"
+                        style="
+                            position: relative;
+                            display: flex;
+                            min-height: 56px;
+                            min-width: 96px;
+                            flex: 1;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 4px;
+                            border-radius: 12px;
+                            color: var(--ink-muted);
+                        "
+                        ><span
+                            aria-hidden="true"
+                            style="
+                                position: absolute;
+                                top: 0;
+                                width: 32px;
+                                height: 3px;
+                                border-radius: 0 0 9999px 9999px;
+                            "
+                        ></span
+                        ><x-import component-from-global-scope="Commise.Icon" name="compass" size="{{v33}}"></x-import
+                        ><span style="font-size: 12px; line-height: 1.4; font-weight: 500">Discover</span></a
+                    >
+                </nav>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1125}}'>
+            class Component extends DCLogic { renderVals(){ const h=window.React.createElement, C=window.Commise, noop=function(){};
+             return {
+              v0: [{"id":"rename","label":"Rename","icon":"pencilLine"},{"id":"visibility","label":"Make public","icon":"globe"},{"id":"saveCopy","label":"Save a copy","icon":"copyPlus"}],
+              v1: {"id":"delete","label":"Delete collection","icon":"trash"},
+              v2: [{"id":"open","label":"Open recipe"},{"id":"remove","label":"Remove from collection"}],
+              v3: false,
+              v4: 16,
+              v5: [{"id":"open","label":"Open recipe"},{"id":"remove","label":"Remove from collection"}],
+              v6: 16,
+              v7: false,
+              v8: 16,
+              v9: [{"id":"open","label":"Open recipe"},{"id":"remove","label":"Remove from collection"}],
+              v10: false,
+              v11: 16,
+              v12: [{"id":"open","label":"Open recipe"},{"id":"remove","label":"Remove from collection"}],
+              v13: false,
+              v14: 16,
+              v15: [{"id":"open","label":"Open recipe"},{"id":"remove","label":"Remove from collection"}],
+              v16: 16,
+              v17: false,
+              v18: 16,
+              v19: [{"id":"open","label":"Open recipe"},{"id":"remove","label":"Remove from collection"}],
+              v20: 16,
+              v21: false,
+              v22: 16,
+              v23: {"label":"Back to Collections","parent":"Collections","onPress":{"code":"noop"},"href":"#collections"},
+              v24: {kind:'controls',button:h('div',{className:'wide-only'},h(C.Button,{icon:'plus',onPress:noop},'Add recipes')),menu:h('div',{className:'wide-only'},h(C.ActionMenu,{triggerLabel:'More actions for Weeknight dinners',title:'Weeknight dinners',closeLabel:'Close menu',items:[{id:'rename',label:'Rename',icon:'pencilLine',onSelect:noop},{id:'visibility',label:'Make public',icon:'globe',onSelect:noop},{id:'saveCopy',label:'Save a copy',icon:'copyPlus',onSelect:noop}],destructiveItem:{id:'delete',label:'Delete collection',icon:'trash',onSelect:noop}}))},
+              v25: 16,
+              v26: [{"id":"list","label":"List view","icon":"list"},{"id":"grid","label":"Grid view","icon":"layoutGrid"}],
+              v27: noop,
+              v28: 24,
+              v29: 24,
+              v30: 24,
+              v31: 24,
+              v32: 24,
+              v33: 24,
+              v34: 24
+             }; } }
+        </script>
+    </body>
+</html>

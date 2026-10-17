@@ -5,7 +5,7 @@
  * (`@kitchensink/recipe-workers`).
  *
  * Recipe photos are served through an EXTERNAL CloudFront distribution (no `Distribution` construct
- * exists in this repo's CDK — see `photos.module.ts`'s `cloudfrontUrl` config), and deleting the S3
+ * exists in this repo's CDK — see `photos.module.ts`'s `mediaCdnUrl` config), and deleting the S3
  * origin object does NOT purge anything already cached at a CloudFront edge location. Without an explicit
  * invalidation, a deleted or erased photo can keep being served from the CDN until the object's TTL
  * expires — a real residual-exposure window for a right-to-erasure request or an ordinary photo delete.
@@ -15,7 +15,7 @@
  *  - {@link CdnInvalidationPort} — the narrow "issue an invalidation for these paths" seam BOTH packages
  *    implement their own real (`@aws-sdk/client-cloudfront`) adapter against, mirroring how each package
  *    already implements its own S3 adapter rather than sharing one (recipe-service's `PhotoStoragePort` /
- *    `photos.storage.ts` vs recipe-workers' direct `S3Client` calls in `account-erasure-worker.ts`) — the
+ *    `photos.storage.ts` vs recipe-workers' direct `S3Client` calls in `accountErasureWorker.ts`) — the
  *    two packages are different runtimes (a NestJS DI app vs plain Lambda handlers), so the CONTRACT is
  *    shared here while each adapter stays local to its own dependency-injection/construction style.
  *  - {@link cdnPathForKey} / {@link cdnOwnerPrefixInvalidationPath} — pure derivations from the SAME S3

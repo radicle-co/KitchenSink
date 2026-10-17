@@ -74,6 +74,76 @@ Rule reference: [`governance-rules.md#gr-007-shared-type-library-ownership`](../
 
 012 will import shared canonical entities from `@kitchensink/recipe-core` and avoid local type forks for recipe/user/shared domain entities.
 
+### GR-015 — API Contract Ownership
+
+Rule reference: [`governance-rules.md#gr-015-api-contract-ownership`](../governance-rules.md#gr-015-api-contract-ownership)
+· normative source [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) · reasoning and rejected
+alternatives in [ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md).
+
+**Both halves apply, and the client half is separately mandatory** — mandating only the service side is how the
+client half got skipped portfolio-wide.
+
+- **Service half.** `@kitchensink/creator-profiles-service` **authors** every wire shape as zod at
+  `src/**/*.schema.ts` beside its controller, **validates its own requests with that same zod** via
+  `nestjs-zod`'s `createZodDto`, and generates the committed `@kitchensink/schema-creator-profiles` package at
+  `packages/schemas/creator-profiles` (zod + `z.infer` types + `contractHash.ts` + barrel + a **derived**,
+  outbound-only `openapi.yaml`). A `*.schema.ts` imports **only `zod` and other `*.schema.ts` files**.
+- **Client half.** `packages/clients/creator-profiles`, `@commise/web` and `@commise/mobile` import wire types
+  **and zod** from that schema package and **declare no wire shape of their own**; a divergent consumer shape
+  (the `/@handle` SSR page model, an analytics series) is **DERIVED** with `Pick` / `Omit` / `Partial`.
+- **Drift gates** are inherited from GR-015 §15-c — turbo `inputs` rebuild, regenerate-and-diff CI gate, and a
+  `CONTRACT_HASH` boot assertion. **Phase 1 of the scaffold below must create the schema package and wire all
+  three gates**, not defer them; a service that ships without them is where drift starts.
+- **Third-party exception (§15-d)** does not bite here: monetization is delegated to 010, so **Stripe's shapes
+  stay behind 010's boundary** and never enter this feature's schema package. If 012 later calls an external API
+  directly, that client validates the raw upstream shape at the boundary with zod, may declare its own types,
+  and gets no OpenAPI document — `packages/clients/usda` is the reference implementation and must not be
+  "converged".
+
+Full bindings, including the HTML-fragment widget caveat, are in
+[`spec.md` → _Contract ownership (GR-015)_](./spec.md#contract-ownership-gr-015).
+
+### GR-016 — Input Validation at Every Boundary
+
+Rule reference: [`governance-rules.md#gr-016-input-validation-at-every-boundary`](../governance-rules.md#gr-016-input-validation-at-every-boundary)
+· normative source [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) · reasoning and rejected
+alternatives in [ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md).
+GR-015 decides **who authors** the zod; GR-016 decides **where it runs**.
+
+- **One mechanism, one `400`.** `@kitchensink/creator-profiles-service` validates every profile, handle,
+  collection, follow, analytics and widget input — body, path params (including the public `/@handle`
+  segment), query params — with its own `*.schema.ts` zod via `createZodDto` + **`nestjs-zod`'s**
+  `ZodValidationPipe`. A new service starts with **one** mechanism; do not introduce a `class-validator` DTO
+  alongside it. **Phase 1 wires the pipe with the schema package** — a service that ships without it is where
+  the drift and the missing-validation defects both start.
+- **⚠️ The handle is this feature's highest-risk input, and the schema is where its policy lives.** `handle`
+  writes a **uniqueness-constrained, bounded** column and is rendered into a **public URL**. Charset, length,
+  case-normalisation form and the reserved-word/blocklist policy belong in the authored zod (Phase 3's "policy
+  validation"), so a client sees the same rule the server enforces. **Uniqueness and reservation are separate
+  domain checks** — a `409`, not a `400` — and neither substitutes for the other.
+- **⛔ THE FLOOR.** Every input field writing a bounded column is validated at least as strictly as the column
+  can store: handle and display-name lengths, `creator_collection_recipes` ordering integers against their
+  `int4` ceiling (**2,147,483,647**), analytics window/limit integers, status enums, nullability. A value the
+  column cannot hold is a `400` at the boundary, never a failed `INSERT` — the measured failure mode elsewhere
+  in the portfolio.
+    - ⚠️ **Asserted, never derived**: no zod generated from Drizzle, no storage type imported into a
+      `*.schema.ts` (the constraint stated under GR-015 above is unchanged).
+    - ⚠️ **Bio/description text columns are unbounded**, so their limits are **product decisions 012 owns** —
+      and since profile text is publicly rendered, the limit is also a rendering and abuse control.
+- **Non-HTTP ingress is in scope.** The **analytics-snapshot scheduler** (Phase 2/3's
+  `creator_analytics_snapshots` cadence) is an invocation a pipe never sees: its event is **parsed against an
+  authored zod before it drives a write**. "The payload is ours" is an assumption about a deploy.
+- **Idempotent follow/unfollow still validates.** Idempotency makes a repeated **valid** request safe; it does
+  not make an invalid one acceptable. The target id is parsed, then authorised, then applied.
+- **Unknown keys are a stated choice per surface** (`z.object` strips silently, `z.strictObject` rejects). On
+  profile update a silently dropped field returns `200` for an edit that did not happen. (Portfolio default is
+  **OPEN** — GR-016 OPEN-GR-016-B.)
+- **No request-derived value reaches `sql.raw()`.** The analytics queries are the risk surface here: a
+  request-selected metric, interval or sort maps through a **validated enum to a closed allowlist of literals**
+  in code, never into a SQL fragment.
+- **⛔ Response validation is DEFERRED (GR-016 §16-g).** Do not add server-side response parsing; the widget's
+  HTML fragment is **output** and is governed by escaping/rendering rules, not by this rule.
+
 ### Additional cross-feature guardrails applied
 
 - Audience ownership boundaries respected: `public-profile` behavior is owned here; `circle` and `published-lesson` remain external scopes governed by GR-014.

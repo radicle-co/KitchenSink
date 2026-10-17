@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, create my own food: errors (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/1.5 var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                    }
+                    h2,
+                    p,
+                    ul,
+                    ol {
+                        margin: 0;
+                    }
+                    ul,
+                    ol {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .cap {
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fig {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        min-width: 0;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                    .muted {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .hint {
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .err {
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+
+                    .page {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 0 0 24px;
+                    }
+                    .fig {
+                        gap: 8px;
+                    }
+                    .cap {
+                        padding: 0 16px;
+                    }
+                    .stage {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: flex-end;
+                        width: 390px;
+                        background: var(--canvas);
+                        overflow: hidden;
+                    }
+                    .stage > .sh {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        min-height: 0;
+                        max-height: 100%;
+                    }
+                    .form {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .fld {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .macros {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 8px;
+                    }
+                    .macro {
+                        flex: 1 0 45%;
+                        min-width: 45%;
+                    }
+                    .legend {
+                        font: 600 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .stat {
+                        font: 400 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .alert {
+                        font: 400 13px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .note {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .acts {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 8px;
+                    }
+                    .lock {
+                        display: flex;
+                        align-items: center;
+                        min-height: 48px;
+                        border: 1px solid var(--line-control);
+                        border-radius: 12px;
+                        background: var(--surface-muted);
+                        padding: 0 12px;
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .dhead {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        padding: 0 16px 16px;
+                    }
+                    .food {
+                        font: 600 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .introrow {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                        justify-content: space-between;
+                        column-gap: 12px;
+                    }
+                    .intro {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .cur {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .cur b {
+                        font-weight: 600;
+                        color: var(--ink);
+                    }
+                    .opt {
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 12px;
+                        min-height: 48px;
+                        padding: 12px 16px;
+                    }
+                    .opt .chk {
+                        display: flex;
+                        width: 16px;
+                        flex-shrink: 0;
+                        padding-top: 4px;
+                        color: var(--action-text);
+                    }
+                    .opt .main {
+                        display: flex;
+                        flex: 1;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                        column-gap: 12px;
+                        min-width: 0;
+                    }
+                    .opt .parts {
+                        display: flex;
+                        flex: 1 1 192px;
+                        flex-direction: column;
+                        min-width: 0;
+                    }
+                    .opt .tag {
+                        font: 600 12px/1.4 var(--font-body);
+                        color: var(--action-text);
+                    }
+                    .opt .cal {
+                        margin-inline-start: auto;
+                        flex-shrink: 0;
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                        font-variant-numeric: tabular-nums;
+                    }
+                    .gh {
+                        padding: 20px 16px 8px;
+                        font: 600 14px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .gh.first {
+                        padding-top: 12px;
+                    }
+                    .slabel {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                        justify-content: space-between;
+                        column-gap: 12px;
+                    }
+                    .slabel b {
+                        font: 500 14px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .srch {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+                    .srch .box {
+                        display: flex;
+                        align-items: center;
+                        flex: 1;
+                        min-width: 0;
+                        min-height: 48px;
+                        border: 1px solid var(--line-control);
+                        border-radius: 12px;
+                        padding: 0 12px;
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .shim {
+                        height: 48px;
+                        border-radius: 12px;
+                        background: var(--surface-muted);
+                    }
+                    .block {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 12px;
+                        padding: 0 16px;
+                    }
+                    .body16 {
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .foot {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                </style></helmet
+            >
+            <div class="page">
+                <div class="fig">
+                    <p class="cap">Field errors after Create and add</p>
+                    <div class="stage" style="padding-top: 48px">
+                        <div class="scrim"></div>
+                        <div class="sh">
+                            <x-import
+                                component-from-global-scope="Commise.Native.BottomSheetPanel"
+                                title="Create “saffron threads”"
+                                close-label="Close new food form"
+                                size="content"
+                                focus-signal="{{v23}}"
+                                reduce-motion="{{v24}}"
+                                on-close="{{v25}}"
+                                ><div class="form">
+                                    <div class="fld">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.FieldLabel"
+                                            for-id="f-name-v11"
+                                            label="Food name"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Input"
+                                            id="f-name-v11"
+                                            value="saffron threads"
+                                            on-change-text="{{v12}}"
+                                            label="Food name"
+                                            input-mode="text"
+                                        ></x-import>
+                                    </div>
+                                    <p class="legend">Nutrition per 100 g</p>
+                                    <div class="macros">
+                                        <div class="fld macro">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="f-calories-v0"
+                                                label="Calories (kcal)"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Input"
+                                                id="f-calories-v0"
+                                                value=""
+                                                on-change-text="{{v1}}"
+                                                label="Calories (kcal)"
+                                                input-mode="decimal"
+                                                invalid="{{v2}}"
+                                                error="Required"
+                                            ></x-import>
+                                            <p class="err" style="font-size: 13px">Required</p>
+                                        </div>
+                                        <div class="fld macro">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="f-proteinG-v3"
+                                                label="Protein (g)"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Input"
+                                                id="f-proteinG-v3"
+                                                value="abc"
+                                                on-change-text="{{v4}}"
+                                                label="Protein (g)"
+                                                input-mode="decimal"
+                                                invalid="{{v5}}"
+                                                error="Enter a number"
+                                            ></x-import>
+                                            <p class="err" style="font-size: 13px">Enter a number</p>
+                                        </div>
+                                        <div class="fld macro">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="f-carbsG-v6"
+                                                label="Carbs (g)"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Input"
+                                                id="f-carbsG-v6"
+                                                value="120"
+                                                on-change-text="{{v7}}"
+                                                label="Carbs (g)"
+                                                input-mode="decimal"
+                                                invalid="{{v8}}"
+                                                error="Outside the allowed range"
+                                            ></x-import>
+                                            <p class="err" style="font-size: 13px">Outside the allowed range</p>
+                                        </div>
+                                        <div class="fld macro">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="f-fatG-v9"
+                                                label="Fat (g)"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Input"
+                                                id="f-fatG-v9"
+                                                value="5.9"
+                                                on-change-text="{{v10}}"
+                                                label="Fat (g)"
+                                                input-mode="decimal"
+                                            ></x-import>
+                                        </div>
+                                    </div>
+                                    <p class="stat">Only you can see foods you create.</p>
+                                    <div class="acts">
+                                        <x-import component-from-global-scope="Commise.Native.Button" icon="check"
+                                            >Create and add</x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Button"
+                                            variant="secondary"
+                                            icon="x"
+                                            >Cancel</x-import
+                                        >
+                                    </div>
+                                </div></x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="fig">
+                    <p class="cap">Save failed: the figures stay, the cook can try again</p>
+                    <div class="stage" style="padding-top: 48px">
+                        <div class="scrim"></div>
+                        <div class="sh">
+                            <x-import
+                                component-from-global-scope="Commise.Native.BottomSheetPanel"
+                                title="Create “saffron threads”"
+                                close-label="Close new food form"
+                                size="content"
+                                focus-signal="{{v26}}"
+                                reduce-motion="{{v27}}"
+                                on-close="{{v28}}"
+                                ><div class="form">
+                                    <div class="fld">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.FieldLabel"
+                                            for-id="f-name-v21"
+                                            label="Food name"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Input"
+                                            id="f-name-v21"
+                                            value="saffron threads"
+                                            on-change-text="{{v22}}"
+                                            label="Food name"
+                                            input-mode="text"
+                                        ></x-import>
+                                    </div>
+                                    <p class="legend">Nutrition per 100 g</p>
+                                    <div class="macros">
+                                        <div class="fld macro">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="f-calories-v13"
+                                                label="Calories (kcal)"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Input"
+                                                id="f-calories-v13"
+                                                value="310"
+                                                on-change-text="{{v14}}"
+                                                label="Calories (kcal)"
+                                                input-mode="decimal"
+                                            ></x-import>
+                                        </div>
+                                        <div class="fld macro">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="f-proteinG-v15"
+                                                label="Protein (g)"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Input"
+                                                id="f-proteinG-v15"
+                                                value="11.4"
+                                                on-change-text="{{v16}}"
+                                                label="Protein (g)"
+                                                input-mode="decimal"
+                                            ></x-import>
+                                        </div>
+                                        <div class="fld macro">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="f-carbsG-v17"
+                                                label="Carbs (g)"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Input"
+                                                id="f-carbsG-v17"
+                                                value="65.4"
+                                                on-change-text="{{v18}}"
+                                                label="Carbs (g)"
+                                                input-mode="decimal"
+                                            ></x-import>
+                                        </div>
+                                        <div class="fld macro">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="f-fatG-v19"
+                                                label="Fat (g)"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Input"
+                                                id="f-fatG-v19"
+                                                value="5.9"
+                                                on-change-text="{{v20}}"
+                                                label="Fat (g)"
+                                                input-mode="decimal"
+                                            ></x-import>
+                                        </div>
+                                    </div>
+                                    <p class="stat">Only you can see foods you create.</p>
+                                    <p class="alert" role="alert">
+                                        We couldn’t save that food. Your figures are still here — try again in a moment.
+                                    </p>
+                                    <div class="acts">
+                                        <x-import component-from-global-scope="Commise.Native.Button" icon="check"
+                                            >Create and add</x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Button"
+                                            variant="secondary"
+                                            icon="x"
+                                            >Cancel</x-import
+                                        >
+                                    </div>
+                                </div></x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1203}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement,C=window.Commise.Native,noop=()=>{},yes=true; return {noop,yes,v0:0,v1:noop,v2:yes,v3:0,v4:noop,v5:yes,v6:0,v7:noop,v8:yes,v9:0,v10:noop,v11:0,v12:noop,v13:0,v14:noop,v15:0,v16:noop,v17:0,v18:noop,v19:0,v20:noop,v21:0,v22:noop,v23:1,v24:yes,v25:noop,v26:1,v27:yes,v28:noop}; } }
+        </script>
+    </body>
+</html>

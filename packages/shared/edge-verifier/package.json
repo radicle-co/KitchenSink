@@ -1,0 +1,46 @@
+{
+    "name": "@kitchensink/edge-verifier",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "sideEffects": false,
+    "//": [
+        "The CloudFront viewer-request decision (ADR-0020) as its own package, so it adopts the shared CORS policy",
+        "as one artifact the bearer-only guard can scan (ADR-0047). `packages/infra/global` bundles `./verifier`",
+        "into the Lambda@Edge asset with esbuild; no image installs this package, so it has no prod.package.json.",
+        "`./routes` imports nothing, so `EdgeStack` can read it at synth without loading `@clerk/backend`.",
+        "`cors` is pinned to the version `@nestjs/platform-express` pins: the unit suite uses it as the oracle."
+    ],
+    "exports": {
+        "./routes": "./src/edgeRoutes.ts",
+        "./verifier": "./src/clerkEdgeVerifier.ts"
+    },
+    "dependencies": {
+        "@kitchensink/clerk-verify": "*"
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "test": "vitest run",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@types/aws-lambda": "^8.10.147",
+        "@types/cors": "^2.8.19",
+        "@types/node": "^24.13.3",
+        "cors": "2.8.6",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

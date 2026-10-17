@@ -42,12 +42,7 @@ Shared Vitest configuration with sensible defaults.
 import { defineConfig, mergeConfig } from 'vitest/config';
 import baseConfig from '@kitchensink/vitest';
 
-export default mergeConfig(
-    baseConfig,
-    defineConfig({
-        /* overrides */
-    }),
-);
+export default mergeConfig(baseConfig, defineConfig({/* overrides */}));
 ```
 
 ### `@kitchensink/esbuild`

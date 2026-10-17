@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Collection detail, add recipes: states (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                </style></helmet
+            >
+            <div style="display: flex; flex-direction: column; gap: 12px; padding: 12px 0 24px">
+                <p style="margin: 0; padding: 0 16px; font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                    Loading: six placeholder rows while your recipes load.
+                </p>
+                <div
+                    style="
+                        position: relative;
+                        width: 390px;
+                        height: 700px;
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: flex-end;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                        transform: translateZ(0);
+                    "
+                >
+                    <div style="position: absolute; inset: 0; background: var(--scrim)"></div>
+                    <div style="position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%">
+                        <x-import
+                            component-from-global-scope="Commise.Native.BottomSheetPanel"
+                            title="Add to Weeknight dinners"
+                            close-label="Close"
+                            size="full"
+                            toolbar="{{toolbar}}"
+                            footer="{{pFooter}}"
+                            focus-signal="{{one}}"
+                            reduce-motion="{{yes}}"
+                            on-close="{{noop}}"
+                            ><div
+                                role="status"
+                                aria-label="Loading your recipes"
+                                style="display: flex; flex-direction: column; gap: 8px"
+                            >
+                                <p style="margin: 0; font: 400 14px/1.4 var(--font-body); color: var(--ink-muted)">
+                                    Loading your recipes
+                                </p>
+                                <div aria-hidden="true" style="display: flex; flex-direction: column">
+                                    <div
+                                        style="
+                                            display: flex;
+                                            min-height: 64px;
+                                            align-items: center;
+                                            gap: 12px;
+                                            padding: 8px;
+                                            box-sizing: border-box;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                width: 48px;
+                                                height: 48px;
+                                                flex: none;
+                                                border-radius: var(--radius-md);
+                                                background: var(--line-divider);
+                                            "
+                                        ></div>
+                                        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px">
+                                            <div
+                                                style="
+                                                    height: 12px;
+                                                    width: 66%;
+                                                    border-radius: var(--radius-sm);
+                                                    background: var(--line-divider);
+                                                "
+                                            ></div>
+                                            <div
+                                                style="
+                                                    height: 12px;
+                                                    width: 33%;
+                                                    border-radius: var(--radius-sm);
+                                                    background: var(--line-divider);
+                                                "
+                                            ></div>
+                                        </div>
+                                        <div
+                                            style="
+                                                width: 28px;
+                                                height: 28px;
+                                                flex: none;
+                                                border-radius: 9999px;
+                                                background: var(--line-divider);
+                                            "
+                                        ></div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            min-height: 64px;
+                                            align-items: center;
+                                            gap: 12px;
+                                            padding: 8px;
+                                            box-sizing: border-box;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                width: 48px;
+                                                height: 48px;
+                                                flex: none;
+                                                border-radius: var(--radius-md);
+                                                background: var(--line-divider);
+                                            "
+                                        ></div>
+                                        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px">
+                                            <div
+                                                style="
+                                                    height: 12px;
+                                                    width: 66%;
+                                                    border-radius: var(--radius-sm);
+                                                    background: var(--line-divider);
+                                                "
+                                            ></div>
+                                            <div
+                                                style="
+                                                    height: 12px;
+                                                    width: 33%;
+                                                    border-radius: var(--radius-sm);
+                                                    background: var(--line-divider);
+                                                "
+                                            ></div>
+                                        </div>
+                                        <div
+                                            style="
+                                                width: 28px;
+                                                height: 28px;
+                                                flex: none;
+                                                border-radius: 9999px;
+                                                background: var(--line-divider);
+                                            "
+                                        ></div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            min-height: 64px;
+                                            align-items: center;
+                                            gap: 12px;
+                                            padding: 8px;
+                                            box-sizing: border-box;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                width: 48px;
+                                                height: 48px;
+                                                flex: none;
+                                                border-radius: var(--radius-md);
+                                                background: var(--line-divider);
+                                            "
+                                        ></div>
+                                        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px">
+                                            <div
+                                                style="
+                                                    height: 12px;
+                                                    width: 66%;
+                                                    border-radius: var(--radius-sm);
+                                                    background: var(--line-divider);
+                                                "
+                                            ></div>
+                                            <div
+                                                style="
+                                                    height: 12px;
+                                                    width: 33%;
+                                                    border-radius: var(--radius-sm);
+                                                    background: var(--line-divider);
+                                                "
+                                            ></div>
+                                        </div>
+                                        <div
+                                            style="
+                                                width: 28px;
+                                                height: 28px;
+                                                flex: none;
+                                                border-radius: 9999px;
+                                                background: var(--line-divider);
+                                            "
+                                        ></div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            min-height: 64px;
+                                            align-items: center;
+                                            gap: 12px;
+                                            padding: 8px;
+                                            box-sizing: border-box;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                width: 48px;
+                                                height: 48px;
+                                                flex: none;
+                                                border-radius: var(--radius-md);
+                                                background: var(--line-divider);
+                                            "
+                                        ></div>
+                                        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px">
+                                            <div
+                                                style="
+                                                    height: 12px;
+                                                    width: 66%;
+                                                    border-radius: var(--radius-sm);
+                                                    background: var(--line-divider);
+                                                "
+                                            ></div>
+                                            <div
+                                                style="
+                                                    height: 12px;
+                                                    width: 33%;
+                                                    border-radius: var(--radius-sm);
+                                                    background: var(--line-divider);
+                                                "
+                                            ></div>
+                                        </div>
+                                        <div
+                                            style="
+                                                width: 28px;
+                                                height: 28px;
+                                                flex: none;
+                                                border-radius: 9999px;
+                                                background: var(--line-divider);
+                                            "
+                                        ></div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            min-height: 64px;
+                                            align-items: center;
+                                            gap: 12px;
+                                            padding: 8px;
+                                            box-sizing: border-box;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                width: 48px;
+                                                height: 48px;
+                                                flex: none;
+                                                border-radius: var(--radius-md);
+                                                background: var(--line-divider);
+                                            "
+                                        ></div>
+                                        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px">
+                                            <div
+                                                style="
+                                                    height: 12px;
+                                                    width: 66%;
+                                                    border-radius: var(--radius-sm);
+                                                    background: var(--line-divider);
+                                                "
+                                            ></div>
+                                            <div
+                                                style="
+                                                    height: 12px;
+                                                    width: 33%;
+                                                    border-radius: var(--radius-sm);
+                                                    background: var(--line-divider);
+                                                "
+                                            ></div>
+                                        </div>
+                                        <div
+                                            style="
+                                                width: 28px;
+                                                height: 28px;
+                                                flex: none;
+                                                border-radius: 9999px;
+                                                background: var(--line-divider);
+                                            "
+                                        ></div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            min-height: 64px;
+                                            align-items: center;
+                                            gap: 12px;
+                                            padding: 8px;
+                                            box-sizing: border-box;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                width: 48px;
+                                                height: 48px;
+                                                flex: none;
+                                                border-radius: var(--radius-md);
+                                                background: var(--line-divider);
+                                            "
+                                        ></div>
+                                        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px">
+                                            <div
+                                                style="
+                                                    height: 12px;
+                                                    width: 66%;
+                                                    border-radius: var(--radius-sm);
+                                                    background: var(--line-divider);
+                                                "
+                                            ></div>
+                                            <div
+                                                style="
+                                                    height: 12px;
+                                                    width: 33%;
+                                                    border-radius: var(--radius-sm);
+                                                    background: var(--line-divider);
+                                                "
+                                            ></div>
+                                        </div>
+                                        <div
+                                            style="
+                                                width: 28px;
+                                                height: 28px;
+                                                flex: none;
+                                                border-radius: 9999px;
+                                                background: var(--line-divider);
+                                            "
+                                        ></div>
+                                    </div>
+                                </div></div
+                        ></x-import>
+                    </div>
+                </div>
+                <p style="margin: 0; padding: 0 16px; font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                    Could not load your recipes.
+                </p>
+                <div
+                    style="
+                        position: relative;
+                        width: 390px;
+                        height: 700px;
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: flex-end;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                        transform: translateZ(0);
+                    "
+                >
+                    <div style="position: absolute; inset: 0; background: var(--scrim)"></div>
+                    <div style="position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%">
+                        <x-import
+                            component-from-global-scope="Commise.Native.BottomSheetPanel"
+                            title="Add to Weeknight dinners"
+                            close-label="Close"
+                            size="full"
+                            toolbar="{{toolbar}}"
+                            footer="{{pFooter}}"
+                            focus-signal="{{one}}"
+                            reduce-motion="{{yes}}"
+                            on-close="{{noop}}"
+                            ><div
+                                role="alert"
+                                style="
+                                    display: flex;
+                                    flex-direction: column;
+                                    align-items: flex-start;
+                                    gap: 12px;
+                                    padding: 24px 0;
+                                "
+                            >
+                                <p style="margin: 0; font: 400 16px/1.5 var(--font-body); color: var(--ink)">
+                                    We couldn’t load your recipes.
+                                </p>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    icon="rotateCcw"
+                                    variant="secondary"
+                                    on-press="{{noop}}"
+                                    >Try again</x-import
+                                >
+                            </div></x-import
+                        >
+                    </div>
+                </div>
+                <p style="margin: 0; padding: 0 16px; font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                    No recipes yet.
+                </p>
+                <div
+                    style="
+                        position: relative;
+                        width: 390px;
+                        height: 700px;
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: flex-end;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                        transform: translateZ(0);
+                    "
+                >
+                    <div style="position: absolute; inset: 0; background: var(--scrim)"></div>
+                    <div style="position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%">
+                        <x-import
+                            component-from-global-scope="Commise.Native.BottomSheetPanel"
+                            title="Add to Weeknight dinners"
+                            close-label="Close"
+                            size="full"
+                            toolbar="{{toolbar}}"
+                            footer="{{pFooter}}"
+                            focus-signal="{{one}}"
+                            reduce-motion="{{yes}}"
+                            on-close="{{noop}}"
+                            ><div
+                                style="
+                                    display: flex;
+                                    flex-direction: column;
+                                    align-items: flex-start;
+                                    gap: 12px;
+                                    padding: 24px 0;
+                                "
+                            >
+                                <p style="margin: 0; font: 600 18px/1.25 var(--font-body); color: var(--ink)">
+                                    You have no recipes yet.
+                                </p>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    icon="plus"
+                                    on-press="{{noop}}"
+                                    >Add a recipe</x-import
+                                >
+                            </div></x-import
+                        >
+                    </div>
+                </div>
+                <p style="margin: 0; padding: 0 16px; font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                    Search with no match (the query is “kimchi”).
+                </p>
+                <div
+                    style="
+                        position: relative;
+                        width: 390px;
+                        height: 700px;
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: flex-end;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                        transform: translateZ(0);
+                    "
+                >
+                    <div style="position: absolute; inset: 0; background: var(--scrim)"></div>
+                    <div style="position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%">
+                        <x-import
+                            component-from-global-scope="Commise.Native.BottomSheetPanel"
+                            title="Add to Weeknight dinners"
+                            close-label="Close"
+                            size="full"
+                            toolbar="{{toolbarQ}}"
+                            footer="{{pFooter}}"
+                            focus-signal="{{one}}"
+                            reduce-motion="{{yes}}"
+                            on-close="{{noop}}"
+                            ><div
+                                style="
+                                    display: flex;
+                                    flex-direction: column;
+                                    align-items: flex-start;
+                                    gap: 12px;
+                                    padding: 24px 0;
+                                "
+                            >
+                                <p style="margin: 0; font: 600 18px/1.25 var(--font-body); color: var(--ink)">
+                                    No recipes match your search
+                                </p>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    icon="x"
+                                    variant="secondary"
+                                    on-press="{{noop}}"
+                                    >Clear search</x-import
+                                >
+                            </div></x-import
+                        >
+                    </div>
+                </div>
+                <p style="margin: 0; padding: 0 16px; font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                    A toggle failed: the row stays as it was and says why. Here the add failed.
+                </p>
+                <div
+                    style="
+                        position: relative;
+                        width: 390px;
+                        height: 700px;
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: flex-end;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                        transform: translateZ(0);
+                    "
+                >
+                    <div style="position: absolute; inset: 0; background: var(--scrim)"></div>
+                    <div style="position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%">
+                        <x-import
+                            component-from-global-scope="Commise.Native.BottomSheetPanel"
+                            title="Add to Weeknight dinners"
+                            close-label="Close"
+                            size="full"
+                            toolbar="{{toolbar}}"
+                            footer="{{pFooter}}"
+                            focus-signal="{{one}}"
+                            reduce-motion="{{yes}}"
+                            on-close="{{noop}}"
+                            ><ul role="list" style="margin: 0; padding: 0; display: flex; flex-direction: column">
+                                <li style="list-style: none">
+                                    <div style="display: flex; flex-direction: column; gap: 4px">
+                                        <div
+                                            role="checkbox"
+                                            aria-checked="true"
+                                            aria-label="Weeknight Chicken Cacciatore"
+                                            tabindex="0"
+                                            style="
+                                                display: flex;
+                                                min-height: 64px;
+                                                align-items: center;
+                                                gap: 12px;
+                                                padding: 8px;
+                                                box-sizing: border-box;
+                                                border-radius: var(--radius-md);
+                                            "
+                                        >
+                                            <span
+                                                aria-hidden="true"
+                                                style="
+                                                    position: relative;
+                                                    display: block;
+                                                    width: 48px;
+                                                    height: 48px;
+                                                    flex: none;
+                                                    overflow: hidden;
+                                                    border-radius: var(--radius-md);
+                                                "
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.RecipeCover"
+                                                    recipe-id="rcp_01j9chickencacc"
+                                                    title="Weeknight Chicken Cacciatore"
+                                                    cuisine="Italian"
+                                                    aspect="1:1"
+                                                ></x-import></span
+                                            ><span style="min-width: 0; flex: 1; display: flex; flex-direction: column"
+                                                ><span
+                                                    style="
+                                                        font: 600 16px/1.3 var(--font-body);
+                                                        color: var(--ink);
+                                                        display: -webkit-box;
+                                                        -webkit-line-clamp: 2;
+                                                        -webkit-box-orient: vertical;
+                                                        overflow: hidden;
+                                                    "
+                                                    >Weeknight Chicken Cacciatore</span
+                                                ><span
+                                                    style="
+                                                        font: 400 14px/1.4 var(--font-body);
+                                                        color: var(--ink-muted);
+                                                        white-space: nowrap;
+                                                        overflow: hidden;
+                                                        text-overflow: ellipsis;
+                                                    "
+                                                    >Italian · 55 min</span
+                                                ></span
+                                            ><span
+                                                aria-hidden="true"
+                                                style="
+                                                    width: 28px;
+                                                    height: 28px;
+                                                    flex: none;
+                                                    border-radius: 9999px;
+                                                    display: inline-flex;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    box-sizing: border-box;
+                                                    background: var(--action);
+                                                    color: var(--on-action);
+                                                "
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.Icon"
+                                                    name="check"
+                                                    size="16"
+                                                    tone="onAction"
+                                                ></x-import
+                                            ></span>
+                                        </div>
+                                    </div>
+                                </li>
+                                <li style="list-style: none">
+                                    <div style="display: flex; flex-direction: column; gap: 4px">
+                                        <div
+                                            role="checkbox"
+                                            aria-checked="false"
+                                            aria-label="Garlic Butter Pasta"
+                                            tabindex="0"
+                                            style="
+                                                display: flex;
+                                                min-height: 64px;
+                                                align-items: center;
+                                                gap: 12px;
+                                                padding: 8px;
+                                                box-sizing: border-box;
+                                                border-radius: var(--radius-md);
+                                            "
+                                        >
+                                            <span
+                                                aria-hidden="true"
+                                                style="
+                                                    position: relative;
+                                                    display: block;
+                                                    width: 48px;
+                                                    height: 48px;
+                                                    flex: none;
+                                                    overflow: hidden;
+                                                    border-radius: var(--radius-md);
+                                                "
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.RecipeCover"
+                                                    recipe-id="rcp_01j9garlicpasta"
+                                                    title="Garlic Butter Pasta"
+                                                    cuisine="Italian"
+                                                    aspect="1:1"
+                                                ></x-import></span
+                                            ><span style="min-width: 0; flex: 1; display: flex; flex-direction: column"
+                                                ><span
+                                                    style="
+                                                        font: 600 16px/1.3 var(--font-body);
+                                                        color: var(--ink);
+                                                        display: -webkit-box;
+                                                        -webkit-line-clamp: 2;
+                                                        -webkit-box-orient: vertical;
+                                                        overflow: hidden;
+                                                    "
+                                                    >Garlic Butter Pasta</span
+                                                ><span
+                                                    style="
+                                                        font: 400 14px/1.4 var(--font-body);
+                                                        color: var(--ink-muted);
+                                                        white-space: nowrap;
+                                                        overflow: hidden;
+                                                        text-overflow: ellipsis;
+                                                    "
+                                                    >Italian · 20 min</span
+                                                ></span
+                                            ><span
+                                                aria-hidden="true"
+                                                style="
+                                                    width: 28px;
+                                                    height: 28px;
+                                                    flex: none;
+                                                    border-radius: 9999px;
+                                                    display: inline-flex;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    box-sizing: border-box;
+                                                    border: 2px solid var(--line-control);
+                                                "
+                                            ></span>
+                                        </div>
+                                        <p
+                                            role="alert"
+                                            style="
+                                                margin: 0;
+                                                padding: 0 8px;
+                                                font: 400 14px/1.4 var(--font-body);
+                                                color: var(--danger-text);
+                                            "
+                                        >
+                                            Couldn’t add Garlic Butter Pasta. Try again.
+                                        </p>
+                                    </div>
+                                </li>
+                                <li style="list-style: none">
+                                    <div style="display: flex; flex-direction: column; gap: 4px">
+                                        <div
+                                            role="checkbox"
+                                            aria-checked="true"
+                                            aria-label="Pad Thai with Shrimp"
+                                            tabindex="0"
+                                            style="
+                                                display: flex;
+                                                min-height: 64px;
+                                                align-items: center;
+                                                gap: 12px;
+                                                padding: 8px;
+                                                box-sizing: border-box;
+                                                border-radius: var(--radius-md);
+                                            "
+                                        >
+                                            <span
+                                                aria-hidden="true"
+                                                style="
+                                                    position: relative;
+                                                    display: block;
+                                                    width: 48px;
+                                                    height: 48px;
+                                                    flex: none;
+                                                    overflow: hidden;
+                                                    border-radius: var(--radius-md);
+                                                "
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.RecipeCover"
+                                                    recipe-id="rcp_01j9padthai"
+                                                    title="Pad Thai with Shrimp"
+                                                    cuisine="Thai"
+                                                    aspect="1:1"
+                                                ></x-import></span
+                                            ><span style="min-width: 0; flex: 1; display: flex; flex-direction: column"
+                                                ><span
+                                                    style="
+                                                        font: 600 16px/1.3 var(--font-body);
+                                                        color: var(--ink);
+                                                        display: -webkit-box;
+                                                        -webkit-line-clamp: 2;
+                                                        -webkit-box-orient: vertical;
+                                                        overflow: hidden;
+                                                    "
+                                                    >Pad Thai with Shrimp</span
+                                                ><span
+                                                    style="
+                                                        font: 400 14px/1.4 var(--font-body);
+                                                        color: var(--ink-muted);
+                                                        white-space: nowrap;
+                                                        overflow: hidden;
+                                                        text-overflow: ellipsis;
+                                                    "
+                                                    >Thai · 35 min</span
+                                                ></span
+                                            ><span
+                                                aria-hidden="true"
+                                                style="
+                                                    width: 28px;
+                                                    height: 28px;
+                                                    flex: none;
+                                                    border-radius: 9999px;
+                                                    display: inline-flex;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    box-sizing: border-box;
+                                                    background: var(--action);
+                                                    color: var(--on-action);
+                                                "
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.Icon"
+                                                    name="check"
+                                                    size="16"
+                                                    tone="onAction"
+                                                ></x-import
+                                            ></span>
+                                        </div>
+                                    </div>
+                                </li></ul
+                        ></x-import>
+                    </div>
+                </div></div
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":3746}}'>
+            class Component extends DCLogic { renderVals(){ const h=window.React.createElement, C=window.Commise.Native, noop=function(){}; const ago=d=>new Date(Date.now()-d*864e5).toISOString();
+             return {
+              noop:noop, yes:true, one:1, toolbar:{heading:h('span',{style:{font:'600 11px/1.4 var(--font-body)',letterSpacing:'0.06em',textTransform:'uppercase',color:'var(--ink-muted)'}},'Your recipes'),controls:h(C.SearchField,{id:'psa',label:'Search your recipes',labelVisibility:'hidden',clearLabel:'Clear search',placeholder:'Search your recipes',value:'',onChangeText:noop})}, toolbarQ:{heading:h('span',{style:{font:'600 11px/1.4 var(--font-body)',letterSpacing:'0.06em',textTransform:'uppercase',color:'var(--ink-muted)'}},'Your recipes'),controls:h(C.SearchField,{id:'psb',label:'Search your recipes',labelVisibility:'hidden',clearLabel:'Clear search',placeholder:'Search your recipes',value:'kimchi',onChangeText:noop})}, pFooter:h(C.Button,{icon:'check',size:'lg',width:'fill',onPress:noop},'Done')
+             }; } }
+        </script>
+    </body>
+</html>

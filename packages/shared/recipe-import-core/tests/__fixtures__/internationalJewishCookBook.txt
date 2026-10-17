@@ -1,0 +1,104 @@
+Source: "The International Jewish Cook Book" by Florence Kreisler Greenbaum (1919).
+Project Gutenberg eBook #12350 -- https://www.gutenberg.org/ebooks/12350
+Release date: 2004-05-01. Most recently updated: 2024-10-28.
+
+PUBLIC DOMAIN. This work is in the public domain in the United States (published 1919,
+copyright expired) and is distributed by Project Gutenberg with no restrictions whatsoever
+within the United States. Reproduced here verbatim as an import-parser test corpus.
+
+Slice: lines 11896-11960 and 12024-12045 of the source file, copied verbatim. The ONLY change is
+line endings: the Gutenberg source is CRLF and this copy is LF, so the committed fixture does not
+carry mixed endings for git or prettier to rewrite underneath the test. The reader normalizes
+endings again at runtime, so a checkout with core.autocrlf=true still matches.
+The provenance block above is NOT part of the corpus; the loader takes everything after
+the marker line below.
+
+--- CORPUS BEGINS ---
+
+SPICE CAKE
+
+This spice cake is economical, easy to make and delicious, three
+qualities which must appeal to the housewife.
+
+Cream one cup of brown sugar and one-half cup of butter (or a little
+less of any butter substitute). Add one-half teaspoon of ground cloves
+and ground cinnamon, one cup of sour milk; one teaspoon of baking-soda,
+two cups of flour and one cup of raisins chopped. Have ready a warm oven
+and bake three-quarters of an hour.
+
+
+GREEN TREE LAYER CAKE AND ICING
+
+One cup of granulated sugar, one-half cup of butter, three eggs, one cup
+of milk, two and one-half scant cups of sifted flour, one teaspoon of
+vanilla extract, two teaspoons of baking-powder. Cream the butter and
+sugar together as usual, and then break in three eggs and beat until
+very creamy. Add the flour and milk alternately, reserving a little of
+the flour to add after the vanilla and baking-powder. Beat well and bake
+in layer cake tins. The entire success and lightness of this cake
+depends upon the beating of the sugar, butter and eggs. If these are
+beaten long enough they will become as creamy and fluffy as whipped
+cream.
+
+*Icing for This Cake.*--One and one-half cups of confectioner's sugar
+(not powdered), butter the size of a large egg, two tablespoons of
+cocoa, one teaspoon of vanilla, moisten to make the mixture the
+consistence of very thick cream. Cream or whipped cream may be used for
+the mixing, but many like this icing when made with lukewarm coffee. The
+sugar and butter are creamed together thoroughly and then the cocoa and
+vanilla are added, and lastly the cream or coffee. This is a good
+imitation of German tree cake. The icing on tree cake is an inch thick,
+and it is marked to represent the bark of a tree. The way it is served
+is with a little green candy on it, and it is really very delicious
+although extremely rich. The thicker or rather firmer this icing is, the
+better.
+
+
+EGGLESS, BUTTERLESS, MILKLESS CAKE
+
+One package of seeded raisins, two cups of sugar, two cups of boiling
+water, one teaspoon of cinnamon, one teaspoon of cloves, two tablespoons
+of Crisco, chicken schmalz or clarified drippings, one-half teaspoon of
+salt. Boil all together five minutes, cool, add one teaspoon of soda
+dissolved in water, three cups of flour. Bake forty-five minutes, make
+two cakes in layer pans.
+
+
+APPLE JELLY CAKE
+
+Rub one cup of butter and two cups of sugar to a cream, add four eggs,
+whites beaten separately, one cup of milk, two teaspoons of
+baking-powder and three and one-half cups of flour. Bake in layer tins.
+
+*Filling.*--Pare and grate three large apples ("Greenings" preferred),
+the juice and peel of a lemon, one cup of sugar and one well-beaten egg.
+Put in ingredients together and boil, stirring constantly until thick.
+Cool and fill in cake.
+
+
+CREAM LAYER CAKE
+
+Rub one cup of butter and two scant cups of sugar to a cream; the yolks
+
+straw, if it comes out clean, your cake is baked. This will keep fresh
+for a long while.
+
+
+CREAM PUFFS
+
+One cup of hot water, one-half cup of butter; boil together, and while
+boiling stir in one cup of sifted flour dry; take from the stove and
+stir to a thin paste, and after this cools add three eggs unbeaten, and
+stir vigorously for five minutes. Drop in tablespoonfuls on a buttered
+tin and bake in a quick oven twenty-five minutes, opening the oven door
+no oftener than is absolutely necessary, and being careful that they do
+not touch each other in the pan. This amount will make twelve puffs.
+Cream for puffs: one cup of milk, one cup of sugar, one egg, three
+tablespoons of flour, vanilla to flavor. Stir the flour in a little of
+the milk; boil the rest, turn this in and stir until the whole thickens.
+When both this and the puffs are cool open the puff a little way with a
+sharp knife and fill them with the cream.
+
+
+CHOCOLATE ECLAIRS
+

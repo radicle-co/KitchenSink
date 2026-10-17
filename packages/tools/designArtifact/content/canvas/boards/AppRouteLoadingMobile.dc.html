@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>App, loading a page (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                </style></helmet
+            >
+            <div
+                style="
+                    width: 390px;
+                    padding: 16px 0 8px;
+                    background: var(--canvas);
+                    color: var(--ink);
+                    font-family: var(--font-body);
+                "
+            >
+                <figure style="margin: 0 0 28px">
+                    <p
+                        style="
+                            margin: 0 0 8px;
+                            padding: 0 16px;
+                            font: 600 14px/1.4 var(--font-body);
+                            color: var(--ink-muted);
+                        "
+                    >
+                        No route loading on mobile
+                    </p>
+                    <div
+                        style="
+                            margin: 0 16px;
+                            padding: 20px 16px;
+                            border: 1px dashed var(--line-divider);
+                            border-radius: 12px;
+                            font: 400 16px/1.5 var(--font-body);
+                            color: var(--ink-muted);
+                        "
+                    >
+                        Mobile has no route-loading fallback, no sidebar rail and no Back to top button. A second tap on
+                        the active tab scrolls the screen to the top.
+                    </div>
+                </figure>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":220}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement, N=window.Commise.Native; const R=[["Weeknight Chicken Cacciatore", "Italian", 55, 4, 420, "medium", 4.6, 23, "public", "published", false, 48, 500], ["Brown Butter Chocolate Chip Cookies", "American", 40, 24, 210, "easy", 4.9, 112, "public", "published", false, 168, 900], ["Miso-Glazed Salmon with Sesame Greens", "Japanese", 25, 2, 480, "easy", 4.4, 9, "private", "published", false, 3, 400], ["Slow-Roasted Pork Shoulder", "American", 390, 8, null, "hard", null, 0, "private", "draft", false, 120, 120], ["Roasted Tomato Basil Soup", "Mediterranean", 50, 6, 180, "easy", 4.2, 15, "private", "published", false, 96, 600], ["Pad Thai with Shrimp", "Thai", 35, 3, 560, "medium", 4.7, 41, "public", "published", false, 336, 700], ["Overnight Sourdough Boule", "French", 870, 10, 150, "hard", 4.8, 63, "private", "published", true, 24, 800], ["Lemon Ricotta Pancakes", "American", 25, 4, 340, "easy", 4.5, 22, "public", "published", false, 504, 900], ["Smoky Black Bean Chili", "Mexican", 75, 6, 310, "easy", 4.3, 18, "private", "published", false, 144, 500]]; const K=[null, 2, 3, 1, 1, 1, 1, 1, 1, 1, 1];
+            const ago=(hrs)=>new Date(Date.now()-hrs*36e5).toISOString();
+            const out={unreadableTitle:"Some work on this device couldn’t be opened",unreadableBody:"We can’t show it or send it, and it can’t be recovered. Recipes saved to your account are safe. Check My recipes for your latest changes.",offlineTwo:{"kind": "offline", "title": "You’re offline", "body": "2 changes are saved on this device and will sync when you’re back online."},offlineNone:{"kind": "offline", "title": "You’re offline", "body": "Anything you change is saved on this device and syncs when you’re back online."},syncingTwo:{"kind": "syncing", "title": "Back online", "body": "Syncing 2 changes…"},hidden:{"kind": "hidden"},no:false,yes:true,n0:0,n2:2,n34:34,none:[],noop:()=>{},fill:{flex:1},
+            chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},
+            action:{kind:'avatar',avatar:h(N.Avatar,{status:'ready',initials:'SR',label:'Profile, Sam Rivera',onPress:()=>{}})},
+            segments:h(N.SegmentedControl,{form:'route',width:'adaptive',label:'Recipes',current:'mine',segments:[{id:'mine',label:'My recipes',href:'#recipes'},{id:'collections',label:'Collections',href:'#collections'}],onSelect:()=>{}}),
+            views:[{id:'list',label:'List view',icon:'list'},{id:'grid',label:'Grid view',icon:'layoutGrid'}]};
+            K.forEach((c,j)=>{out['k'+j]=c});
+            R.forEach(([title,cuisine,mins,servings,cal,level,rating,count,visibility,status,pro,u,c],i)=>{const r={id:'rcp_'+i,title,totalTimeMinutes:mins,servings,difficulty:level,ratingCount:count,usesPremiumCapability:pro,createdAt:ago(c),updatedAt:ago(u),cuisine,tags:[],currentVersion:1,visibility,status}; if(rating)r.averageRating=rating; out['c'+i]={recipe:r,cal:cal?h('span',{style:{fontSize:13,color:'var(--ink-muted)'}},cal+' cal'):null};});
+            return out; } }
+        </script>
+    </body>
+</html>

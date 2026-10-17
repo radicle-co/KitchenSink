@@ -10,6 +10,9 @@
  *    promise, on the property access itself. A lost search history is a lost convenience; it must never be
  *    an error the surface has to handle, so every failure degrades to "nothing stored"/"not written".
  *
+ * Keys are per signed-in user and the user's entries end with their session (owner ruling 2026-10-17, D23 in
+ * `docs/design/uiOverhaul/ownerDecisions.md`); this file only stores what it is handed.
+ *
  * Module-level singleton on purpose: the identity of the store is a `useEffect` dependency inside
  * `useRecentSearches`, so a fresh object per render would re-read storage on every render.
  */
@@ -56,6 +59,19 @@ export const webRecentSearchStore: RecentSearchStore = {
             localStorageOrUndefined()?.setItem(key, value);
         } catch {
             // Best-effort: a history we cannot persist is not an error worth surfacing.
+        }
+    },
+    /**
+     * Remove the history payload, silently doing nothing when storage is unavailable.
+     *
+     * @param key - The storage key.
+     * @sideEffect Removes the key from `window.localStorage`.
+     */
+    removeItem: async (key: string): Promise<void> => {
+        try {
+            localStorageOrUndefined()?.removeItem(key);
+        } catch {
+            // Best-effort, like the rest of this store: a failed removal leaves a key namespaced to the signed-out user.
         }
     },
 };

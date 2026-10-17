@@ -30,6 +30,17 @@ lives in this repository**:
 ## Decision
 
 1. **`/api/{version}/*` is the canonical path** for every versioned endpoint in every service.
+
+    One deliberate exception exists: the analytics ingest door is mounted at
+    `@Controller('ingest/v1/events')` (`packages/services/recipe-service/src/analytics/ingest.controller.ts`),
+    outside the `/api` namespace on purpose — [ADR-0030](0030-first-party-analytics-events.md) records why,
+    noting that the contract parity filter admits only `health` and `api/*`. It must not be "fixed" to
+    `/api/v1/*` without reading that ADR.
+
+    Endpoints created after this ADR carry the canonical path ONLY and no alias — e.g.
+    `@Controller('api/v1/recipe-parse-jobs')`. That is decision 4 working as intended, not a gap in
+    decision 2.
+
 2. **The bare `/{version}/*` path is retained as a DEPRECATED ALIAS.** It is not dead code and must not be
    "tidied away". Each alias site carries a comment saying so and pointing here.
 3. **`/health` and `/health/ready` stay at the origin root, unprefixed.** They are not API surface: the
@@ -56,8 +67,9 @@ lives in this repository**:
   erasure on whichever path the caller happened to use.
 
 - **The Clerk webhook's prefix lives in API Gateway, not the Lambda.** The public path is
-  (custom-domain base path) + (resource path `webhooks/users`). Two mappings now point at the same stage:
-  `api/v1` (canonical) and `v1` (alias). The canonical one is multi-level, which
+  (custom-domain base path) + (resource path `webhooks/users`). As originally shipped, two mappings pointed at
+  the same stage: `api/v1` (canonical) and `v1` (alias). **The `v1` alias was retired on 2026-08-07 — see the
+  Update below; only `api/v1` remains.** The canonical one is multi-level, which
   `AWS::ApiGateway::BasePathMapping` rejects, so it goes through `DomainName.addApiMapping` →
   `AWS::ApiGatewayV2::ApiMapping`. AWS permits that only on a **REGIONAL** domain with a **TLS 1.2+**
   security policy; both already hold and are asserted in the stack's tests.
@@ -81,7 +93,23 @@ lives in this repository**:
 
 ## Retiring the alias — the order is not optional
 
-Removing `/{version}/*` is a separate, later change. It **requires**, in this order:
+Removing `/{version}/*` is a separate, later change, and it is **not one batch**: the four deletions in
+step 4 do not share a consumer. The webhook half and the service half retire independently.
+
+**The webhook half has retired.** The `v1` base-path mapping on the webhook API is gone. Steps 2 and 3
+never applied to it: the webhook path's only caller is Clerk's svix sender, so "clients with inlined
+endpoints" — the reason those steps exist — cannot keep it alive. Step 1's precondition was measured
+rather than assumed, by adding `$context.path` and `$context.domainName` to the gateway stage's
+access-log format (`$context.resourcePath` is `/webhooks/users` for BOTH mappings, so a real delivery
+was unattributable) and then driving a `user.created`/`user.deleted` pair against each Clerk instance:
+3/3 deliveries on `/api/v1/webhooks/users` for both prod and sandbox, 0 on `/v1/...`. Svix posts to one
+configured URL per endpoint rather than distributing across paths, so 3/3 identifies the configured URL
+rather than sampling it. `WebhooksStack.test.ts` asserts exactly one base-path mapping.
+
+**The service half still stands.** The bare `/{version}/*` aliases on the identity, food and recipe
+services, the middleware exclusion's legacy entry, and the smoke's `LEGACY_FOOD_SEARCH_PATH` fallback all
+have in-the-wild clients with build-time-inlined endpoints, so steps 2 and 3 remain unsatisfied for them.
+Retiring those **requires**, in this order:
 
 1. **Repoint the Clerk dashboard webhook endpoint** to the `/api/v1/webhooks/users` URL and let in-flight
    svix retries drain. Until this is done, deleting the `v1` base-path mapping silently breaks user sync.
@@ -91,6 +119,19 @@ Removing `/{version}/*` is a separate, later change. It **requires**, in this or
    alias.
 4. Only then delete the alias paths, the `v1` base-path mapping, the middleware exclusion's legacy entry,
    and the smoke's `LEGACY_FOOD_SEARCH_PATH` fallback.
+
+## Consequences
+
+- Two paths serve every pre-existing versioned endpoint until the alias retires, and the alias is load-bearing
+  rather than dead code — an agent "tidying" it strands shipped mobile builds and cached web bundles.
+- **Residual risk on the retired webhook mapping:** a second, currently-idle svix endpoint configured at
+  `/v1` would have been invisible to the method above. If user sync stops, a `404` on `/v1/webhooks/users`
+  is the signature — check the Clerk dashboard's endpoint list first.
+- **A clean `cdk diff` is not proof that a stage's access-log format matches.** Against the un-instrumented
+  sandbox stack, `cdk diff` listed only Lambda code and `SENTRY_RELEASE` deltas and reported no
+  `AWS::ApiGateway::Stage` change, while the synthesized and deployed templates demonstrably differed on
+  `AccessLogSetting.Format` — and the deploy then applied it. Read the format from
+  `aws apigateway get-stage`, which is ground truth.
 
 ## Alternatives rejected
 

@@ -1,0 +1,19 @@
+classes with a label :   33706
+parent edges         :   41645
+classes with synonyms:   10856   (32241 strings)
+
+⛔ DO THE OVER-COARSE ROOTS HAVE CHILDREN IN FoodOn?
+
+  root                                USDA  direct  ≤3 deep
+  ---------------------------------- ----- ------- --------
+  ham (cured)                           90       0        0
+  beef (ground)                         36      14       21
+  potato (french-fried)                 17       2        2
+  beef strip steak (boneless, raw)      17       0        0
+  beef small end rib roast (raw)        13       0        0
+  turkey meat (ground)                  10       6        6
+  beef (ground, raw)                     9       0        0
+  sweet red bell pepper                  7       4        7
+
+  children of the worst root, if any:
+    (none — FoodOn treats `ham (cured)` as a leaf)

@@ -1,7 +1,9 @@
 import * as Sentry from '@sentry/aws-serverless';
 import type { Handler } from 'aws-lambda';
 
-import { scrubEvent, scrubLog } from './sentry-scrubbers.js';
+import { METRIC_STAGE_DIMENSION, metricStage } from '@kitchensink/metric-dimensions';
+
+import { scrubEvent, scrubLog } from '@kitchensink/observability-scrubbers';
 
 /**
  * Observability for the identity-webhooks Lambdas.
@@ -90,14 +92,26 @@ export const withObservability = <TEvent, TResult>(handler: Handler<TEvent, TRes
     return Sentry.wrapHandler(instrumented);
 };
 
+/** The dimensions every metric carries, which a caller's facet may neither displace nor repeat in the directive. */
+const RESERVED_DIMENSIONS: ReadonlySet<string> = new Set(['service', 'metric', METRIC_STAGE_DIMENSION]);
+
 /**
  * Emit a CloudWatch EMF custom metric. Written straight to stdout (not through the Sentry log
  * facade) so the metric reaches CloudWatch and is excluded from the log drain by the `_aws`
  * subscription-filter term (KTD5).
  *
+ * ⛔ EVERY METRIC IS DIMENSIONED BY `service`, `metric` AND `Stage` (ADR-0062), then by the caller's facets. The stage
+ * is read when the line is written, from the same `STAGE` the Sentry environment uses, so a preview Lambda publishes
+ * only its own series and an alarm selecting `Stage=prod` reads production alone.
+ *
+ * ⚠️ CloudWatch extracts a metric only when its NAME, and each dimension KEY, is a top-level member of the line. The
+ * value and the facets are therefore written at the top level beside the directive; before this they were nested under
+ * `dimensions` and absent from the root, so the directive named members the line did not have.
+ *
  * @sideEffect writes an EMF line to stdout.
  */
 export const emitMetric = (metricName: string, value: number, dimensions: Record<string, string> = {}): void => {
+    const facets = Object.entries(dimensions).filter(([key]) => !RESERVED_DIMENSIONS.has(key));
     const dimensionsJson = JSON.stringify(dimensions);
     const payload = {
         level: 'INFO',
@@ -111,13 +125,16 @@ export const emitMetric = (metricName: string, value: number, dimensions: Record
             CloudWatchMetrics: [
                 {
                     Namespace: 'KitchenSink/IdentityWebhooks',
-                    Dimensions: [['service', 'metric', ...Object.keys(dimensions)]],
+                    Dimensions: [['service', 'metric', METRIC_STAGE_DIMENSION, ...facets.map(([key]) => key)]],
                     Metrics: [{ Name: metricName, Unit: 'Count' }],
                 },
             ],
         },
+        ...Object.fromEntries(facets),
         service: 'identity-webhooks',
         metric: metricName,
+        [METRIC_STAGE_DIMENSION]: metricStage(process.env),
+        [metricName]: value,
         dimensionsJson,
     };
 

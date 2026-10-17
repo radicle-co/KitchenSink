@@ -1,16 +1,16 @@
 ---
 name: speckit.product-forge.backfill
 description: 'Brown-field entry point: reverse-engineer a Product Forge feature folder
-  from existing code. Reads a target module/directory, synthesises retro product-spec,
-  plan, and simplified tasks, then writes `.forge-status.yml` with all phases marked
-  `completed` and `backfilled: true`. Produces a gaps-report.md listing what a modern
-  Product Forge run would have required but is currently missing (tests, tracking,
-  ADRs). Use: "backfill module", "create feature from existing code", "/speckit.product-forge.backfill"'
+    from existing code. Reads a target module/directory, synthesises retro product-spec,
+    plan, and simplified tasks, then writes `.forge-status.yml` with all phases marked
+    `completed` and `backfilled: true`. Produces a gaps-report.md listing what a modern
+    Product Forge run would have required but is currently missing (tests, tracking,
+    ADRs). Use: "backfill module", "create feature from existing code", "/speckit.product-forge.backfill"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — Backfill
 
 You are the **Backfill Archaeologist** for Product Forge.
@@ -37,6 +37,7 @@ $ARGUMENTS
 ```
 
 Parse for:
+
 - `--source=<path>` — required. Path to the module/directory to backfill
   (e.g. `back/src/modules/core/users`, `apps/web/src/features/checkout`).
 - `--slug=<feature-slug>` — optional. Default: last path component of source.
@@ -47,6 +48,7 @@ Parse for:
 ## Step 0: Load Config
 
 Read `.product-forge/config.yml`:
+
 - `project_name`, `project_tech_stack`, `project_domain`, `codebase_path`,
   `features_dir`.
 
@@ -122,8 +124,8 @@ Sections:
 A flat list of tasks representing the **components that currently exist**:
 
 ```markdown
-- [x] T001 — {component name}  — {file path}
-- [x] T002 — {component name}  — {file path}
+- [x] T001 — {component name} — {file path}
+- [x] T002 — {component name} — {file path}
 ```
 
 All marked `[x]` because they are shipped. `task_log[]` on the status
@@ -132,9 +134,9 @@ or sizes to record. The gaps report flags this explicitly.
 
 ### 3D — `verify/digest.md` (skipped verification)
 
-Single paragraph: *"Verification was not run because this feature was
+Single paragraph: _"Verification was not run because this feature was
 backfilled from existing code. See gaps-report.md for what a modern
-verification would check."* Sets `phases.verify.digest_path` so the phase
+verification would check."_ Sets `phases.verify.digest_path` so the phase
 can be marked completed without bypassing the digest rule from
 [runtime.md §8](../docs/runtime.md#8-phase-digest-requirement-a4).
 
@@ -146,51 +148,51 @@ Produce a v3 status file:
 
 ```yaml
 schema_version: 3
-feature: "{slug}"
-created_at: "{today}"
-last_updated: "{now ISO}"
-feature_mode: "standard"
+feature: '{slug}'
+created_at: '{today}'
+last_updated: '{now ISO}'
+feature_mode: 'standard'
 backfilled: true
 phases:
-  # Phases that never ran — not skipped by choice, simply not applicable
-  # to a reverse-engineered feature. See docs/policy.md §3 — skip-reason
-  # policy does not apply to `not_applicable`.
-  problem_discovery:
-    status: "not_applicable"
-  research:
-    status: "not_applicable"
-  revalidation:
-    status: "not_applicable"
-  bridge:
-    status: "not_applicable"
-  # Phases where we inferred the artifact from code — digests required.
-  product_spec:
-    status: "completed"
-    digest_path: "product-spec/digest.md"
-  plan:
-    status: "completed"
-    digest_path: "plan/digest.md"
-  tasks:
-    status: "completed"
-    digest_path: "tasks/digest.md"
-  implement:
-    status: "completed"
-    digest_path: "implement/digest.md"
-  verify:
-    status: "completed"
-    digest_path: "verify/digest.md"
-  # Remaining phases are pending — the user may choose to run them
-  # retroactively, so they stay as real optional phases, not not_applicable.
-task_log: []     # optional population in a later run
+    # Phases that never ran — not skipped by choice, simply not applicable
+    # to a reverse-engineered feature. See docs/policy.md §3 — skip-reason
+    # policy does not apply to `not_applicable`.
+    problem_discovery:
+        status: 'not_applicable'
+    research:
+        status: 'not_applicable'
+    revalidation:
+        status: 'not_applicable'
+    bridge:
+        status: 'not_applicable'
+    # Phases where we inferred the artifact from code — digests required.
+    product_spec:
+        status: 'completed'
+        digest_path: 'product-spec/digest.md'
+    plan:
+        status: 'completed'
+        digest_path: 'plan/digest.md'
+    tasks:
+        status: 'completed'
+        digest_path: 'tasks/digest.md'
+    implement:
+        status: 'completed'
+        digest_path: 'implement/digest.md'
+    verify:
+        status: 'completed'
+        digest_path: 'verify/digest.md'
+    # Remaining phases are pending — the user may choose to run them
+    # retroactively, so they stay as real optional phases, not not_applicable.
+task_log: [] # optional population in a later run
 gates: []
 sync_runs:
-  last_run: ""
-  total_runs: 0
+    last_run: ''
+    total_runs: 0
 dependencies:
-  depends_on: []
-  depended_on_by: []
+    depends_on: []
+    depended_on_by: []
 role_approvals:
-  solo_mode: true
+    solo_mode: true
 ```
 
 Write atomically (temp-file + rename). Acquire the state lock per
@@ -211,18 +213,18 @@ Sections (required):
 
 1. **Summary verdict.** One of: "Low gap" / "Medium gap" / "High gap".
    Heuristic:
-   - Low: tests ≥70% coverage estimate, auth present, logging present.
-   - Medium: tests <70%, some observability present.
-   - High: tests absent, no tracking, no error handling evident.
+    - Low: tests ≥70% coverage estimate, auth present, logging present.
+    - Medium: tests <70%, some observability present.
+    - High: tests absent, no tracking, no error handling evident.
 2. **Missing artifacts.** List every artifact a modern Product Forge run
    would have produced but is absent:
-   - `research/` — competitor / UX / metrics research.
-   - `product-spec/` clarifications (NEEDS-CLARIFICATION items).
-   - ADRs in `plan.md`.
-   - Unit / integration / E2E tests below thresholds.
-   - Tracking plan entries.
-   - Feature flag registry entries.
-   - Release-readiness checklist evidence (monitoring dashboard, alerts).
+    - `research/` — competitor / UX / metrics research.
+    - `product-spec/` clarifications (NEEDS-CLARIFICATION items).
+    - ADRs in `plan.md`.
+    - Unit / integration / E2E tests below thresholds.
+    - Tracking plan entries.
+    - Feature flag registry entries.
+    - Release-readiness checklist evidence (monitoring dashboard, alerts).
 3. **Inferred vs observed.** Table listing each inferred claim in the
    retro-spec and the confidence level (HIGH / MEDIUM / LOW).
 4. **Recommended next actions.** Ordered, including the specific Product
@@ -252,7 +254,7 @@ Sections (required):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-Ask: *"Open the gaps report?"* — do not auto-open.
+Ask: _"Open the gaps report?"_ — do not auto-open.
 
 ---
 

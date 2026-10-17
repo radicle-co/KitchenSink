@@ -31,6 +31,17 @@ export interface UsdaLabelNutrientsBody {
     [labelKey: string]: { value?: number } | undefined;
 }
 
+/**
+ * A raw `foodAttributes[]` entry as it appears on a USDA food-detail body. The alias entries carry
+ * `foodAttributeType.name = 'Additional Description'` and a `rank`; the same array also holds WWEIA
+ * category attributes, which are NOT names for the food.
+ */
+export interface UsdaFoodAttributeBody {
+    value?: string;
+    rank?: number;
+    foodAttributeType?: { id?: number; name?: string };
+}
+
 /** A raw USDA food-detail body (`GET /v1/food/{fdcId}`). */
 export interface UsdaFoodDetailBody {
     fdcId: number;
@@ -41,10 +52,32 @@ export interface UsdaFoodDetailBody {
     brandName?: string;
     gtinUpc?: string;
     foodNutrients: UsdaNutrientBody[];
+    foodAttributes?: UsdaFoodAttributeBody[];
     foodPortions?: UsdaPortionBody[];
     servingSize?: number;
     servingSizeUnit?: string;
     labelNutrients?: UsdaLabelNutrientsBody;
+}
+
+/**
+ * Build the `foodAttributes` array USDA returns for a food with curated aliases, verbatim in shape:
+ * one WWEIA category attribute (which must be ignored) plus one alias attribute per supplied value,
+ * ranked in the order given but emitted in REVERSE so a test cannot pass by accident of array order.
+ *
+ * @param values - The alias values, in the rank order USDA would publish them.
+ * @returns The raw attribute array.
+ */
+export function makeUsdaAliasAttributes(values: readonly string[]): UsdaFoodAttributeBody[] {
+    const aliases = values.map((value, index) => ({
+        value,
+        rank: index + 1,
+        foodAttributeType: { id: 1001, name: 'Additional Description' },
+    }));
+
+    return [
+        { value: 'Cheese', foodAttributeType: { id: 999, name: 'WWEIA Category description' } },
+        ...aliases.reverse(),
+    ];
 }
 
 /** A raw USDA search hit. */
@@ -52,9 +85,11 @@ export interface UsdaSearchHitBody {
     fdcId: number;
     description: string;
     dataType?: string;
+    /** An integer on the live API, a string in USDA's spec. */
+    ndbNumber?: number | string;
 }
 
-/** A raw USDA search result envelope (`GET /v1/foods/search`). */
+/** A raw USDA search result envelope (`POST /v1/foods/search`). */
 export interface UsdaSearchResultBody {
     foods: UsdaSearchHitBody[];
     totalHits: number;
@@ -80,7 +115,8 @@ export function makeUsdaFoodDetailBody(overrides: Partial<UsdaFoodDetailBody> = 
             { nutrientId: 1008, nutrientName: 'Energy', unitName: 'KCAL', value: 34 },
             { nutrientId: 9999, nutrientName: 'Vitamin omitted', unitName: 'MG' },
         ],
-        foodPortions: [{ gramWeight: 91, amount: 1, modifier: '1 cup chopped' }],
+        // A Foundation portion, as USDA sends one: the measure in `measureUnit`, the qualifier in `modifier`.
+        foodPortions: [{ gramWeight: 91, amount: 1, measureUnit: { name: 'cup' }, modifier: 'chopped' }],
         ...overrides,
     };
 }

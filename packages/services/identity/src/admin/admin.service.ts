@@ -1,19 +1,39 @@
 import { Inject, Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { and, eq, ilike } from 'drizzle-orm';
+import { and, eq, ilike, sql } from 'drizzle-orm';
 
-import { users, lifecycleEvents, DrizzleProvider } from '../database/index.js';
-import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
+import { isUserId, lifecycleEvents, users, type UserId } from '@kitchensink/identity-db';
+import { DrizzleProvider } from '../database/database.module.js';
+import { containsPattern } from '../common/likePattern.js';
+import type { AuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
 import { SqsService } from '../queue/sqs.service.js';
-import { createServiceLogger } from '../observability/sentry-logging.js';
+import { createServiceLogger } from '@kitchensink/service-logging';
+import { reportDeletionEnqueueFailure } from '../queue/deletionEnqueue.error.js';
+
+/**
+ * The caller-named user as a {@link UserId}, or `404`. The controller has already checked the SHAPE of a path
+ * parameter (`adminUserIdParamSchema`); this narrows the type at the one boundary where a plain string meets
+ * `users.id`, and answers a string that is no user id exactly as the service answers an unknown one.
+ *
+ * @param raw - The id the admin named.
+ * @returns The id, branded.
+ * @throws NotFoundException when `raw` is not a well-formed user id.
+ */
+function userIdOrNotFound(raw: string): UserId {
+    if (!isUserId(raw)) {
+        throw new NotFoundException(`User ${raw} not found`);
+    }
+
+    return raw;
+}
 
 // Authorization (the `admin:users` scope check) is enforced declaratively by `ScopesGuard` +
 // `@RequireScopes('admin:users')` on `AdminController` — see that guard's JSDoc for the pattern. This
 // service therefore no longer performs its own `assertAdmin` check; a request cannot reach these methods
 // without having already satisfied the guard. `ctx: AuthorizerContext` is dropped from `listUsers` (its
-// only prior use was the authz check the guard now owns) but KEPT on the other four methods for ACTOR
-// identity — suspend/unsuspend log the acting admin's id for the audit trail, and impersonation also
-// needs it in the session id and response contract. None of these remaining uses are authorization.
+// only prior use was the authz check the guard now owns) but KEPT on the other three methods for ACTOR
+// identity — suspend/unsuspend/reactivate log the acting admin's id for the audit trail. None of these
+// remaining uses are authorization.
 @Injectable()
 export class AdminService {
     private readonly logger = createServiceLogger(AdminService.name);
@@ -23,11 +43,35 @@ export class AdminService {
         private readonly sqs: SqsService,
     ) {}
 
+    /**
+     * The target user's row, or a 404 when no user has that id.
+     *
+     * @param targetSub - The target user's id.
+     * @returns The user's row.
+     * @throws NotFoundException when no user has that id.
+     * @sideEffect Reads the `users` table.
+     */
+    private async requireUser(targetSub: string): Promise<typeof users.$inferSelect> {
+        const targetId = userIdOrNotFound(targetSub);
+        const [existing] = await this.db.select().from(users).where(eq(users.id, targetId)).limit(1);
+
+        if (!existing) {
+            throw new NotFoundException(`User ${targetSub} not found`);
+        }
+
+        return existing;
+    }
+
     async listUsers(filters: { email?: string; name?: string; sub?: string; limit?: number; offset?: number }) {
+        // `containsPattern`, not a template literal: `%` and `_` in the caller's filter are ILIKE SYNTAX, and
+        // they live inside the bound parameter's value where parameterisation cannot help. `?email=%` used to
+        // build `ILIKE '%%%'` — the filter silently became "match every user" — and `?email=a_b` over-matched
+        // addresses that do not contain `a_b`. See `common/likePattern.ts`.
         const predicates = [
-            filters.email ? ilike(users.email, `%${filters.email}%`) : undefined,
-            filters.name ? ilike(users.name, `%${filters.name}%`) : undefined,
-            filters.sub ? eq(users.id, filters.sub) : undefined,
+            filters.email ? ilike(users.email, containsPattern(filters.email)) : undefined,
+            filters.name ? ilike(users.name, containsPattern(filters.name)) : undefined,
+            // A `sub` that is no user id matches no user: the filter must stay on and match nothing, not fall away.
+            filters.sub ? (isUserId(filters.sub) ? eq(users.id, filters.sub) : sql`false`) : undefined,
         ].filter((predicate) => predicate !== undefined);
 
         const query = this.db
@@ -56,14 +100,20 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ sub: string; status: 'suspended'; suspendedAt: string }> {
-        const [existing] = await this.db.select().from(users).where(eq(users.id, targetSub)).limit(1);
+        const existing = await this.requireUser(targetSub);
 
-        if (!existing) {
-            throw new NotFoundException(`User ${targetSub} not found`);
+        if (existing.status !== 'active') {
+            // Suspending a closed or erased row would overwrite it out of R10's non-revivable states.
+            throw new ConflictException(
+                `User ${targetSub} is '${existing.status}', not 'active'; only an active account can be suspended`,
+            );
         }
 
         const now = new Date();
-        await this.db.update(users).set({ status: 'suspended', updatedAt: now }).where(eq(users.id, targetSub));
+        // No `status_version` bump on purpose: suspension is not a PROVIDER state. The deletion worker converges
+        // `shouldBeBanned = tombstoned`, so active and suspended are both unbanned and nothing would ever settle
+        // an advanced intent, which the queue check would then escalate as a lost trigger forever.
+        await this.db.update(users).set({ status: 'suspended', updatedAt: now }).where(eq(users.id, existing.id));
 
         this.logger.warn('user suspended', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 
@@ -74,14 +124,17 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ sub: string; status: 'active'; unsuspendedAt: string }> {
-        const [existing] = await this.db.select().from(users).where(eq(users.id, targetSub)).limit(1);
+        const existing = await this.requireUser(targetSub);
 
-        if (!existing) {
-            throw new NotFoundException(`User ${targetSub} not found`);
+        if (existing.status !== 'suspended') {
+            throw new ConflictException(
+                `User ${targetSub} is '${existing.status}', not 'suspended'; only a suspended account can be unsuspended`,
+            );
         }
 
         const now = new Date();
-        await this.db.update(users).set({ status: 'active', updatedAt: now }).where(eq(users.id, targetSub));
+        // No `status_version` bump: see `suspendUser`.
+        await this.db.update(users).set({ status: 'active', updatedAt: now }).where(eq(users.id, existing.id));
 
         this.logger.warn('user unsuspended', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 
@@ -103,11 +156,7 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ sub: string; status: 'active'; reactivatedAt: string }> {
-        const [existing] = await this.db.select().from(users).where(eq(users.id, targetSub)).limit(1);
-
-        if (!existing) {
-            throw new NotFoundException(`User ${targetSub} not found`);
-        }
+        const existing = await this.requireUser(targetSub);
 
         if (existing.status !== 'tombstoned') {
             // Only a closed (tombstoned) account is recoverable: an `active` user is not closed, and an
@@ -122,8 +171,13 @@ export class AdminService {
         await this.db.transaction(async (tx) => {
             await tx
                 .update(users)
-                .set({ status: 'active', deletedAt: null, updatedAt: now })
-                .where(eq(users.id, targetSub));
+                .set({
+                    status: 'active',
+                    deletedAt: null,
+                    updatedAt: now,
+                    statusVersion: sql`${users.statusVersion} + 1`,
+                })
+                .where(eq(users.id, existing.id));
 
             await tx.insert(lifecycleEvents).values({
                 userId: existing.id,
@@ -142,66 +196,20 @@ export class AdminService {
                 event: 'reactivation',
             });
         } catch (err) {
-            this.logger.warn('reactivation: failed to enqueue unban (tombstone already cleared)', {
-                targetSub,
-                error: String(err),
+            // ⛔ NOT a `warn`. The tombstone is already cleared and committed, so the database says `active`
+            // while Clerk still has the identity BANNED — the recovered user stays locked out, and the support
+            // agent who called this was told it worked. Announced through the ONE paging path in
+            // `deletionEnqueue.error.ts`.
+            reportDeletionEnqueueFailure({
+                event: 'reactivation',
+                userId: existing.id,
+                identityId: existing.identityId,
+                error: err,
             });
         }
 
         this.logger.warn('user reactivated', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 
         return { sub: targetSub, status: 'active', reactivatedAt: now.toISOString() };
-    }
-
-    async startImpersonation(
-        targetSub: string,
-        adminCtx: AuthorizerContext,
-    ): Promise<{ impersonatorSub: string; impersonatedSub: string; sessionId: string; startedAt: string }> {
-        const [existing] = await this.db.select().from(users).where(eq(users.id, targetSub)).limit(1);
-
-        if (!existing) {
-            throw new NotFoundException(`User ${targetSub} not found`);
-        }
-
-        const sessionId = `imp-${adminCtx.userId}-${targetSub}-${Date.now()}`;
-        const now = new Date();
-
-        this.logger.warn('impersonation started', {
-            impersonatorSub: adminCtx.userId,
-            impersonatedSub: targetSub,
-            sessionId,
-        });
-
-        return {
-            impersonatorSub: adminCtx.userId,
-            impersonatedSub: targetSub,
-            sessionId,
-            startedAt: now.toISOString(),
-        };
-    }
-
-    async stopImpersonation(
-        targetSub: string,
-        adminCtx: AuthorizerContext,
-    ): Promise<{ impersonatorSub: string; impersonatedSub: string; stoppedAt: string; message: string }> {
-        const [existing] = await this.db.select().from(users).where(eq(users.id, targetSub)).limit(1);
-
-        if (!existing) {
-            throw new NotFoundException(`User ${targetSub} not found`);
-        }
-
-        const now = new Date();
-
-        this.logger.warn('impersonation stopped', {
-            impersonatorSub: adminCtx.userId,
-            impersonatedSub: targetSub,
-        });
-
-        return {
-            impersonatorSub: adminCtx.userId,
-            impersonatedSub: targetSub,
-            stoppedAt: now.toISOString(),
-            message: 'Impersonation session ended',
-        };
     }
 }

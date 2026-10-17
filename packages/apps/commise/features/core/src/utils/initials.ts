@@ -6,34 +6,45 @@
  */
 
 /**
- * Derive the avatar initials for a display name — first letter of the first word plus first letter of the
- * last word (the mockup's "JD").
+ * A word's leading LETTER together with the combining marks that belong to it (`E` + U+0301 is one É).
  *
- * Iterates by **code point** (`[...word]`), not by code unit: `name[0]` on a name outside the BMP (an
- * astral-plane letter, an emoji) slices a surrogate pair in half and renders a replacement glyph. Names are
- * user data from Clerk and are not guaranteed ASCII.
+ * ⚠️ Deliberately a letter match, not a code-point or grapheme slice. A code point splits a flag (two regional
+ * indicators) and a ZWJ emoji sequence; a grapheme slice would keep them whole but still emit `(` for
+ * `(she/her)`. An initial is a letter, so a word that does not START with one contributes nothing.
  *
- * An absent, empty, or whitespace-only name yields `''` — the caller decides what to draw instead (a
- * name-less viewer is a real state: Clerk accounts created by email have no name until the user sets one).
+ * ⛔ Not `Intl.Segmenter`: Hermes does not ship it, and this module runs on mobile. Unicode property escapes
+ * are compiled by `hermesc` (verified against the repo's `hermes-compiler` binary).
+ */
+const LEADING_LETTER = /^\p{L}\p{M}*/u;
+
+/**
+ * Derive the avatar initials for a display name — the leading letter of the first and of the last word that
+ * starts with a letter (the mockup's "JD").
+ *
+ * Words that do not start with a letter are not name parts and are skipped: an emoji or flag in front of the
+ * name, a trailing `(she/her)`, a quoted `"Bob"`. Names are user data from Clerk and are not guaranteed
+ * ASCII, so the letter is matched by Unicode category — CJK, astral-plane and decomposed letters all count.
+ *
+ * An absent, empty, whitespace-only or letterless name yields `''` — the caller decides what to draw instead
+ * (a name-less viewer is a real state: Clerk accounts created by email have no name until the user sets one).
  *
  * @param displayName - The viewer's display name, if known.
  * @returns One or two upper-cased initials, or `''` when no letter can be derived. Pure.
  */
 export function initialsFor(displayName: string | undefined): string {
-    const words = (displayName ?? '')
+    const letters = (displayName ?? '')
         .trim()
         .split(/\s+/u)
-        .filter((word) => word.length > 0);
+        .map((word) => LEADING_LETTER.exec(word)?.[0])
+        .filter((letter): letter is string => letter !== undefined);
 
-    const first = words[0];
+    const first = letters[0];
 
     if (first === undefined) {
         return '';
     }
 
-    const last = words.length > 1 ? words[words.length - 1] : undefined;
-    const firstInitial = [...first][0] ?? '';
-    const lastInitial = last === undefined ? '' : ([...last][0] ?? '');
+    const last = letters.length > 1 ? letters[letters.length - 1] : '';
 
-    return `${firstInitial}${lastInitial}`.toUpperCase();
+    return `${first}${last}`.toUpperCase();
 }

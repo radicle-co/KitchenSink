@@ -48,7 +48,7 @@ The authentication platform space for SaaS/mobile products is dominated by manag
 | **Core Weaknesses** | Lifecycle controls for advanced backend policies may require additional adaptation in AWS-specific authorizer strategy |
 | **Session Model**   | Managed sessions with token support                                                                                    |
 | **Custom Claims**   | Supported, but architecture conventions differ from existing plan assumptions                                          |
-| **Fit to Feature**  | Medium — strong UX velocity, weaker alignment with existing Clerk user.created webhook and management workflows           |
+| **Fit to Feature**  | Medium — strong UX velocity, weaker alignment with existing Clerk user.created webhook and management workflows        |
 
 ---
 
@@ -109,12 +109,12 @@ Given those constraints, Clerk remains the best-fit platform for this feature.
 
 ## Risks and Mitigations
 
-| Risk                                                     | Impact                                  | Mitigation                                                                   |
-| -------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------- |
+| Risk                                                  | Impact                                  | Mitigation                                                                   |
+| ----------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------- |
 | Clerk Backend API rate limits during deletion/linking | Delayed lifecycle completion            | Async retry via SQS + DLQ + alarming (plan and FR-024 alignment)             |
-| Token/caching lag for suspension enforcement             | Short-lived authorization inconsistency | Short authorizer cache TTL + explicit 403 policy for suspended/blocked users |
-| Post-registration sync failures                          | Clerk-only user without local record    | Retry policy + nightly reconciliation (FR-016, FR-017)                       |
-| Vendor lock-in concerns                                  | Future migration cost                   | Preserve canonical local `User.id` and clear contract boundaries in services |
+| Token/caching lag for suspension enforcement          | Short-lived authorization inconsistency | Short authorizer cache TTL + explicit 403 policy for suspended/blocked users |
+| Post-registration sync failures                       | Clerk-only user without local record    | Retry policy + nightly reconciliation (FR-016, FR-017)                       |
+| Vendor lock-in concerns                               | Future migration cost                   | Preserve canonical local `User.id` and clear contract boundaries in services |
 
 ---
 

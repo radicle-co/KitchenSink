@@ -41,8 +41,11 @@ vi.mock('@clerk/expo', () => ({
             return clerkState.session;
         },
     }),
-    useAuth: () => ({ signOut: loadSafeSignOut }),
+    useAuth: () => ({ signOut: loadSafeSignOut, userId: 'user_cook' }),
 }));
+
+const { endDeviceSession } = vi.hoisted(() => ({ endDeviceSession: vi.fn(async () => undefined) }));
+vi.mock('../../src/storage/deviceSession.js', () => ({ endDeviceSession }));
 
 const { useSignOutAndVerify } = await import('../../src/hooks/useSignOutAndVerify.js');
 
@@ -55,6 +58,7 @@ beforeEach(() => {
     clerkState.loaded = true;
     clerkState.status = 'ready';
     clerkState.session = { id: 'sess_live' };
+    endDeviceSession.mockClear();
 });
 
 afterEach(cleanup);
@@ -117,5 +121,24 @@ describe('useSignOutAndVerify (mobile)', () => {
         await result.current.signOutAndVerify();
 
         expect(loadSafeSignOut).toHaveBeenCalledTimes(1);
+    });
+});
+
+/** ADR-0057: the cook's editor drafts and outbox on disk end with the session, once it is proven ended. */
+describe('useSignOutAndVerify — the device session end (ADR-0057)', () => {
+    it('clears the signed-in cook`s device state after the proof', async () => {
+        const { result } = renderHook(() => useSignOutAndVerify());
+
+        await result.current.signOutAndVerify();
+
+        expect(endDeviceSession).toHaveBeenCalledWith('user_cook');
+    });
+
+    it('keeps it when the sign-out could not be proven', async () => {
+        loadSafeSignOut.mockImplementationOnce(async () => undefined);
+        const { result } = renderHook(() => useSignOutAndVerify());
+
+        await expect(result.current.signOutAndVerify()).rejects.toBeInstanceOf(SignOutNotVerifiedError);
+        expect(endDeviceSession).not.toHaveBeenCalled();
     });
 });

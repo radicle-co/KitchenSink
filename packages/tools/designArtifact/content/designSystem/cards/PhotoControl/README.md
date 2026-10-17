@@ -1,0 +1,2 @@
+A round 44 px control that sits over a photo, such as the recipe hero's back and ⋯ buttons. On web it is a solid `photoChip` disc with an ink glyph and a visible focus ring, with no backdrop blur. It carries a glyph (`icon`) and never text, and `label` is its accessible name, localised by the caller. Use it only over photos, and name it for what it does, such as "Back" or "More actions".
+The native leaf is the same solid disc, drawn as a pressable.

@@ -1,0 +1,1106 @@
+R55b DETAIL-LABEL CLEAN-UP, measured. Baseline = kindExamples.kind_label (drift-checked against kindExamples.txt).
+
+==============================================================================================================
+POPULATION K: kindExamples grouping (USDA FoodOn name as root; what the owner reviewed)
+==============================================================================================================
+grouped roots: 721   detail labels (members): 2811
+
+labels CHANGED by the clean-up :  1501 of 2811 (53.4%)
+  before : non-empty n= 2796  median= 53.0  p90=  85  over 40 ch= 1916 (68.5%)
+  after  : non-empty n= 2778  median= 50.0  p90=  88  over 40 ch= 1779 (64.0%)
+  guarded: non-empty n= 2796  median= 50.0  p90=  88  over 40 ch= 1780 (63.7%)
+  labels LONGER after than before: 562; 560 of them because a mixed segment was kept whole and so keeps a root word the baseline cut out of the phrase
+
+THE OWNER'S FOUR DEFECT CLASSES, counted by detectors that do NOT use the rule's own classifier (labels holding one):
+  1 a segment that only restates the root (e.g. "onions")        before   587   after     0   guarded    14
+  2 USDA boilerplate ("includes foods for usda's ...", "n x 6.25") before    27   after     0   guarded     0
+  3 the owner's category words as a whole segment (beverages, ...) before   110   after    20   guarded    21
+  4 a dangling word: segment ends in a function word or starts "and"/"or" before   105   after    11   guarded    11
+  residual after clean-up, class 3 (20 labels):
+      coconut water: "beverages, ready-to-drink, unsweetened"
+      corn grits (quick): "cereals, quaker, instant, plain, dry"
+      corn grits (quick): "cereals, quaker, instant, plain, prepared microwaved or boiling water added, without salt"
+      corn grits (quick): "cereals, white, regular and quick, enriched, cooked with water, without salt"
+      european chestnut: "nuts, boiled and steamed"
+      european chestnut: "nuts, roasted"
+      european chestnut (dried): "nuts, peeled"
+      european chestnut (dried): "nuts, unpeeled"
+      european chestnut (raw): "nuts, peeled"
+      european chestnut (raw): "nuts, unpeeled"
+      tap water: "beverages, drinking"
+      tap water: "beverages, municipal"
+      tap water: "beverages, well"
+      white corn grits: "cereals, regular and quick, enriched, cooked with water, with salt"
+      white corn grits: "cereals, regular and quick, enriched, dry"
+      white hominy grits: "cereals, quaker, quick, dry"
+      white hominy grits: "cereals, quaker, regular, dry"
+      yellow corn grits: "cereals, regular and quick, enriched, cooked with water, without salt"
+      yellow corn grits: "cereals, regular and quick, unenriched, dry"
+      yellow corn grits: "cereals, regular, quick, enriched, cooked with water, with salt"
+  residual after clean-up, class 4 (11 labels):
+      apple juice (canned): "canned or bottled, unsweetened, with added ascorbic acid, calcium, and potassium"
+      brown mushroom (raw): "italian, or crimini"
+      brown mushroom (raw): "italian, or crimini, exposed to ultraviolet light"
+      cabbage head (raw): "common danish, domestic, and pointed types, freshly harvest"
+      cabbage head (raw): "common danish, domestic, and pointed types, stored"
+      piece of duck meat (with skin): "young duckling, domesticated, white pekin, leg, bone in, cooked, roasted"
+      pork retail cut (raw): "fresh, composite of trimmed leg, loin, shoulder, and spareribs, includes cuts to be cured, separable lean and fat"
+      spaghetti squash: "cooked, boiled, drained, or baked, with salt"
+      spaghetti squash: "cooked, boiled, drained, or baked, without salt"
+      yam: "cooked, boiled, drained, or baked, with salt"
+      yam: "cooked, boiled, drained, or baked, without salt"
+
+EMPTY labels before: 15   after: 33   NEWLY empty: 18
+  roots with >= 2 EMPTY labels: before 0, after 2: ['taro leaf (raw)', 'maple syrup']
+
+IDENTICAL labels within one root (two details a cook cannot tell apart), non-empty labels:
+  exact text            : labels in a collision  before    4   after    8   guarded    4
+  same words, any order : labels in a collision  before    4   after    8   guarded    4
+  already identical BEFORE (USDA rows the baseline cannot tell apart): "black turtle bean (mature)": Beans, black, mature seeds, cooked, boiled, without salt | Beans, black turtle, mature seeds, cooked, boiled, without salt
+  already identical BEFORE (USDA rows the baseline cannot tell apart): "black turtle bean (mature)": Beans, black, mature seeds, cooked, boiled, with salt | Beans, black turtle, mature seeds, cooked, boiled, with salt
+  NEW collisions caused by the clean-up: 2 groups, 4 labels; cause: root 2
+
+GUARD touches 20 of 2811 members (0.7%): would be empty 18, would merge with a sibling 2
+
+WHAT THE RULE DID (phrases; labels touched). "protected" = a category phrase the scope kept:
+  root                                      5926 phrases   2735 labels
+  category                                   416 phrases    408 labels
+  category-protected                          48 phrases     47 labels
+  boilerplate: USDA program note              23 phrases     23 labels
+  boilerplate: nitrogen factor                 2 phrases      2 labels
+  boilerplate: cooking-method note             2 phrases      2 labels
+
+LEFTOVER root words (independent suffix oracle): 789 labels still hold one inside a phrase kept whole (by design); 0 kept segments are made ONLY of root words (a lemmatiser miss).
+
+CATEGORY drops: 117 (root, phrase) pairs. Held by EVERY member (restates the root): 106. Held by only SOME (a first segment; may tell siblings apart, review each): 11
+      "beverages" under "non-carbonated water (bottled)"   in 4 of 5 members
+      "cereals" under "oat bran"   in 3 of 4 members
+      "game meat" under "piece of moose meat (raw)"   in 1 of 2 members
+      "game meat" under "piece of reindeer meat (raw)"   in 1 of 2 members
+      "nuts" under "coconut water"   in 1 of 2 members
+      "plums" under "prune"   in 3 of 4 members
+      "pork" under "bacon (cooked)"   in 4 of 5 members
+      "pork" under "bacon (whole cut or pieces)"   in 1 of 2 members
+      "pork" under "ham (cured)"   in 89 of 90 members
+      "sugars" under "maple syrup"   in 1 of 2 members
+      "tomato products" under "tomato (canned)"   in 3 of 6 members
+  distinct category segments dropped: 30 (one example each)
+       140  "pork"   e.g. bacon (cooked): "pork, cured, broiled, pan-fried or roasted, reduced sodium" -> "cured, broiled, pan-fried or roasted, reduced sodium"
+        66  "mature seeds"   e.g. kidney bean (mature): "beans, seeds, sprouted, cooked, boiled, drained, without salt" -> "sprouted, cooked, boiled, drained, without salt"
+        24  "nuts"   e.g. coconut meat (dried): "nuts, desiccated, creamed" -> "desiccated, creamed"
+        24  "cereals"   e.g. oat bran: "cereals, quaker, quaker/mother's, prepared with water, salt" -> "quaker, quaker/mother's oat bran, prepared with water, salt"
+        23  "fish"   e.g. king salmon (kippered): "fish, chinook, smoked and canned alaska native" -> "smoked and canned alaska native"
+        20  "meat and skin"   e.g. piece of chicken back (with skin): "broilers or fryers, meat and, cooked, roasted" -> "broilers or fryers, cooked, roasted"
+        18  "beverages"   e.g. coffee (instant): "beverages, regular, powder" -> "regular, powder"
+        15  "immature seeds"   e.g. lima bean (immature): "beans, seeds, frozen, fordhook, cooked, boiled, drained, with salt" -> "frozen, fordhook, cooked, boiled, drained, with salt"
+        14  "summer"   e.g. straightneck squash (raw): "summer, crookneck and" -> "crookneck and straightneck"
+        12  "winter"   e.g. hubbard squash: "winter, baked, without salt" -> "baked, without salt"
+         9  "seeds"   e.g. sesame butter: "seeds, tahini, from raw and stone ground kernels" -> "tahini, from raw and stone ground kernels"
+         8  "fruit"   e.g. chayote: "fruit, cooked, boiled, drained, with salt" -> "cooked, boiled, drained, with salt"
+         4  "alcoholic beverage"   e.g. Sauvignon blanc wine: "alcoholic beverage, table, white, fume" -> "table, fume blanc"
+         4  "white"   e.g. Sauvignon blanc wine: "alcoholic beverage, table, white, fume" -> "table, fume blanc"
+         3  "plums"   e.g. prune: "plums, dried prunes, stewed, without added sugar" -> "dried, stewed, without added sugar"
+         3  "radishes"   e.g. daikon: "radishes, oriental, cooked, boiled, drained, without salt" -> "oriental, cooked, boiled, drained, without salt"
+         3  "chopped or leaf"   e.g. spinach (chopped, frozen): "or leaf, unprepared includes foods for usda's food distribution program" -> "unprepared"
+         3  "tomato products"   e.g. tomato (canned): "products, paste, without salt added includes foods for usda's food distribution program" -> "paste, without salt added"
+         2  "game meat"   e.g. piece of moose meat (raw): "game" -> "(empty)"
+         2  "chinook"   e.g. king salmon (kippered): "fish, chinook, smoked and canned alaska native" -> "smoked and canned alaska native"
+         2  "ham"   e.g. pork leg (raw): "fresh, ham, whole, separable lean and fat" -> "fresh, whole, separable lean and fat"
+         2  "cowpeas"   e.g. blackeyed pea: "cowpeas blackeyes, immature seeds, frozen, unprepared" -> "blackeyes, immature seeds, frozen, unprepared"
+         2  "sprouted"   e.g. soybean sprout: "soybeans, mature seeds, sprouted, cooked, steamed" -> "mature seeds, cooked, steamed"
+         2  "noodles"   e.g. sōmen: "noodles, japanese, somen, dry" -> "japanese, somen, dry"
+         2  "gourd"   e.g. zucca melon: "gourd, white-flowered calabash, cooked, boiled, drained, without salt" -> "white-flowered calabash, cooked, boiled, drained, without salt"
+         2  "soybeans"   e.g. edamame: "soybeans, green, cooked, boiled, drained, without salt" -> "green, cooked, boiled, drained, without salt"
+         2  "meat"   e.g. ham: "babyfood, meat, strained" -> "babyfood, strained"
+         2  "vegetables"   e.g. squash puree: "babyfood, vegetables, strained" -> "babyfood, strained"
+         2  "cereal grain beverage"   e.g. cereal grain-based coffee substitute: "beverages, beverage, powder" -> "powder"
+         1  "sugars"   e.g. maple syrup: "sugars" -> "(empty)"
+
+CATEGORY SCOPE, every variant measured (the rule uses "first-or-all"):
+  first-or-all       labels with a category drop  408   held by only some  11   newly empty  18   new collision groups  2   guard touches  20
+  anywhere           labels with a category drop  448   held by only some  34   newly empty  19   new collision groups  2   guard touches  21
+  first only         labels with a category drop  262   held by only some  11   newly empty  15   new collision groups  2   guard touches  17
+  every member only  labels with a category drop  297   held by only some   0   newly empty  16   new collision groups  2   guard touches  18
+==============================================================================================================
+POPULATION P: foodOnMappingPatch.csv accepted + added (what seed:usda-bulk will group from)
+==============================================================================================================
+grouped roots: 693   detail labels (members): 2787
+
+labels CHANGED by the clean-up :  1388 of 2787 (49.8%)
+  before : non-empty n= 2768  median= 52.0  p90=  85  over 40 ch= 1867 (67.4%)
+  after  : non-empty n= 2758  median= 50.0  p90=  88  over 40 ch= 1721 (62.4%)
+  guarded: non-empty n= 2768  median= 50.0  p90=  88  over 40 ch= 1722 (62.2%)
+  labels LONGER after than before: 511; 511 of them because a mixed segment was kept whole and so keeps a root word the baseline cut out of the phrase
+
+THE OWNER'S FOUR DEFECT CLASSES, counted by detectors that do NOT use the rule's own classifier (labels holding one):
+  1 a segment that only restates the root (e.g. "onions")        before   552   after     0   guarded     7
+  2 USDA boilerplate ("includes foods for usda's ...", "n x 6.25") before    27   after     0   guarded     0
+  3 the owner's category words as a whole segment (beverages, ...) before    99   after    11   guarded    11
+  4 a dangling word: segment ends in a function word or starts "and"/"or" before   103   after    15   guarded    15
+  residual after clean-up, class 3 (11 labels):
+      coconut water: "beverages, ready-to-drink, unsweetened"
+      corn grits (quick): "cereals, quaker, instant, plain, dry"
+      corn grits (quick): "cereals, quaker, instant, plain, prepared microwaved or boiling water added, without salt"
+      corn grits (quick): "cereals, white, regular and quick, enriched, cooked with water, without salt"
+      white corn grits: "cereals, regular and quick, enriched, cooked with water, with salt"
+      white corn grits: "cereals, regular and quick, enriched, dry"
+      white hominy grits: "cereals, quaker, quick, dry"
+      white hominy grits: "cereals, quaker, regular, dry"
+      yellow corn grits: "cereals, regular and quick, enriched, cooked with water, without salt"
+      yellow corn grits: "cereals, regular and quick, unenriched, dry"
+      yellow corn grits: "cereals, regular, quick, enriched, cooked with water, with salt"
+  residual after clean-up, class 4 (15 labels):
+      apple juice (canned): "canned or bottled, unsweetened, with added ascorbic acid, calcium, and potassium"
+      beef frankfurter: "pork, and turkey, fat free"
+      brown mushroom (raw): "italian, or crimini"
+      brown mushroom (raw): "italian, or crimini, exposed to ultraviolet light"
+      cabbage head (raw): "common danish, domestic, and pointed types, freshly harvest"
+      cabbage head (raw): "common danish, domestic, and pointed types, stored"
+      corn oil: "peanut, and olive"
+      piece of duck meat (with skin): "young duckling, domesticated, white pekin, leg, bone in, cooked, roasted"
+      pork retail cut (raw): "fresh, composite of trimmed leg, loin, shoulder, and spareribs, includes cuts to be cured, separable lean and fat"
+      pork sausage: "turkey, and beef, reduced sodium"
+      spaghetti squash: "cooked, boiled, drained, or baked, with salt"
+      spaghetti squash: "cooked, boiled, drained, or baked, without salt"
+      turkey sausage: "pork, and beef, low fat, smoked"
+      yam: "cooked, boiled, drained, or baked, with salt"
+      yam: "cooked, boiled, drained, or baked, without salt"
+
+EMPTY labels before: 19   after: 29   NEWLY empty: 10
+  roots with >= 2 EMPTY labels: before 0, after 0: []
+
+IDENTICAL labels within one root (two details a cook cannot tell apart), non-empty labels:
+  exact text            : labels in a collision  before    4   after    6   guarded    4
+  same words, any order : labels in a collision  before    4   after    6   guarded    4
+  already identical BEFORE (USDA rows the baseline cannot tell apart): "black turtle bean (mature)": Beans, black, mature seeds, cooked, boiled, without salt | Beans, black turtle, mature seeds, cooked, boiled, without salt
+  already identical BEFORE (USDA rows the baseline cannot tell apart): "black turtle bean (mature)": Beans, black, mature seeds, cooked, boiled, with salt | Beans, black turtle, mature seeds, cooked, boiled, with salt
+  NEW collisions caused by the clean-up: 1 groups, 2 labels; cause: root 1
+
+GUARD touches 11 of 2787 members (0.4%): would be empty 10, would merge with a sibling 1
+
+WHAT THE RULE DID (phrases; labels touched). "protected" = a category phrase the scope kept:
+  root                                      6060 phrases   2770 labels
+  category                                   386 phrases    378 labels
+  category-protected                          48 phrases     47 labels
+  boilerplate: USDA program note              23 phrases     23 labels
+  boilerplate: nitrogen factor                 2 phrases      2 labels
+  boilerplate: cooking-method note             2 phrases      2 labels
+
+LEFTOVER root words (independent suffix oracle): 725 labels still hold one inside a phrase kept whole (by design); 0 kept segments are made ONLY of root words (a lemmatiser miss).
+
+CATEGORY drops: 105 (root, phrase) pairs. Held by EVERY member (restates the root): 98. Held by only SOME (a first segment; may tell siblings apart, review each): 7
+      "beverages" under "non-carbonated water (bottled)"   in 4 of 5 members
+      "cereals" under "oat bran"   in 3 of 4 members
+      "game meat" under "piece of moose meat (raw)"   in 1 of 2 members
+      "nuts" under "coconut water"   in 1 of 2 members
+      "plums" under "prune"   in 3 of 4 members
+      "pork" under "bacon (whole cut or pieces)"   in 1 of 2 members
+      "tomato products" under "tomato (canned)"   in 3 of 6 members
+  distinct category segments dropped: 22 (one example each)
+       138  "pork"   e.g. bacon (cooked): "pork, cured, broiled, pan-fried or roasted, reduced sodium" -> "cured, broiled, pan-fried or roasted, reduced sodium"
+        59  "mature seeds"   e.g. kidney bean (mature): "beans, seeds, sprouted, cooked, boiled, drained, without salt" -> "sprouted, cooked, boiled, drained, without salt"
+        26  "fish"   e.g. king salmon (kippered): "fish, chinook, smoked and canned alaska native" -> "smoked and canned alaska native"
+        26  "nuts"   e.g. piece of coconut meat (dried): "nuts, desiccated, creamed" -> "desiccated, creamed"
+        22  "cereals"   e.g. oat bran: "cereals, quaker, quaker/mother's, prepared with water, salt" -> "quaker, quaker/mother's oat bran, prepared with water, salt"
+        18  "meat and skin"   e.g. piece of chicken back (with skin): "broilers or fryers, meat and, cooked, roasted" -> "broilers or fryers, cooked, roasted"
+        18  "beverages"   e.g. coffee (instant): "beverages, regular, powder" -> "regular, powder"
+        13  "immature seeds"   e.g. lima bean (immature): "beans, seeds, frozen, fordhook, cooked, boiled, drained, with salt" -> "frozen, fordhook, cooked, boiled, drained, with salt"
+        12  "summer"   e.g. straightneck squash: "summer, crookneck and, cooked, boiled, drained, without salt" -> "crookneck and straightneck, cooked, boiled, drained, without salt"
+        12  "winter"   e.g. hubbard squash: "winter, baked, without salt" -> "baked, without salt"
+         8  "fruit"   e.g. chayote: "fruit, cooked, boiled, drained, with salt" -> "cooked, boiled, drained, with salt"
+         8  "seeds"   e.g. sesame butter: "seeds, tahini, from raw and stone ground kernels" -> "tahini, from raw and stone ground kernels"
+         4  "alcoholic beverage"   e.g. Sauvignon blanc wine: "alcoholic beverage, table, white, fume" -> "table, fume blanc"
+         4  "white"   e.g. Sauvignon blanc wine: "alcoholic beverage, table, white, fume" -> "table, fume blanc"
+         3  "plums"   e.g. prune: "plums, dried prunes, stewed, without added sugar" -> "dried, stewed, without added sugar"
+         3  "chopped or leaf"   e.g. spinach (chopped, frozen): "or leaf, unprepared includes foods for usda's food distribution program" -> "unprepared"
+         3  "tomato products"   e.g. tomato (canned): "products, paste, without salt added includes foods for usda's food distribution program" -> "paste, without salt added"
+         2  "chinook"   e.g. king salmon (kippered): "fish, chinook, smoked and canned alaska native" -> "smoked and canned alaska native"
+         2  "vegetables"   e.g. squash puree: "babyfood, vegetables, strained" -> "babyfood, strained"
+         2  "sausage"   e.g. Kielbasa: "sausage, polish, beef with chicken, hot" -> "polish, beef with chicken, hot"
+         2  "cereal grain beverage"   e.g. cereal grain-based coffee substitute: "beverages, beverage, powder" -> "powder"
+         1  "game meat"   e.g. piece of moose meat (raw): "game" -> "(empty)"
+
+CATEGORY SCOPE, every variant measured (the rule uses "first-or-all"):
+  first-or-all       labels with a category drop  378   held by only some   7   newly empty  10   new collision groups  1   guard touches  11
+  anywhere           labels with a category drop  419   held by only some  32   newly empty  11   new collision groups  1   guard touches  12
+  first only         labels with a category drop  251   held by only some   7   newly empty   8   new collision groups  1   guard touches   9
+  every member only  labels with a category drop  362   held by only some   0   newly empty   9   new collision groups  1   guard touches  10
+
+==============================================================================================================
+R55 RE-CHECK: the plain-member strip, exact words (R55 as written) vs plural-aware (this clean-up's matching)
+==============================================================================================================
+  exact words  : roots whose item matches the root: alone  153, in a group  15;  roots with >= 2 such items: 0
+      ⚠️ in a group, an "empty" item that names LESS than the root (a strict subset of its words): 9
+         "Taro, raw" under "taro leaf (raw)"
+         "Corn, sweet, white, raw" under "white sweet corn kernel (raw)"
+         "Broccoli, raw" under "broccoli floret (raw)"
+         "Cabbage, raw" under "cabbage head (raw)"
+         "Corn, sweet, yellow, raw" under "yellow sweet corn kernel (raw)"
+         "Egg, white, dried" under "chicken egg white (dried)"
+         "Turkey, Ground, raw" under "turkey meat (ground, raw)"
+         "Vanilla extract" under "vanilla bean extract"
+         "Lamb, ground, raw" under "lamb meat (ground, raw)"
+  plural-aware : roots whose item matches the root: alone  259, in a group  23;  roots with >= 2 such items: 1
+      taro leaf (raw): Taro leaves, raw | Taro, raw
+      ⚠️ in a group, an "empty" item that names LESS than the root (a strict subset of its words): 11
+         "Prickly pears, raw" under "prickly pear pad (raw)"
+         "Taro, raw" under "taro leaf (raw)"
+         "Corn, sweet, white, raw" under "white sweet corn kernel (raw)"
+         "Broccoli, raw" under "broccoli floret (raw)"
+         "Cabbage, raw" under "cabbage head (raw)"
+         "Corn, sweet, yellow, raw" under "yellow sweet corn kernel (raw)"
+         "Nuts, pine nuts, dried" under "pine nut kernel (dried)"
+         "Egg, white, dried" under "chicken egg white (dried)"
+         "Turkey, Ground, raw" under "turkey meat (ground, raw)"
+         "Vanilla extract" under "vanilla bean extract"
+         "Lamb, ground, raw" under "lamb meat (ground, raw)"
+
+==============================================================================================================
+EXAMPLES, population K. kcal/100 g  "before" -> "after"; GUARDED shows the guarded label where it differs
+==============================================================================================================
+
+[1] Every kind of the 36 roots the owner reviewed in kindExamples.txt, in calories order:
+  tap water
+       0  "beverages, drinking"
+       -> "beverages, drinking"  [R54b-flagged]
+       0  "beverages, well"
+       -> "beverages, well"  [R54b-flagged]
+       0  "beverages, municipal"
+       -> "beverages, municipal"  [R54b-flagged]
+  coffee beverage
+       0  "beverages, brewed, prepared with tap water, decaffeinated"
+       -> "brewed, prepared with tap water, decaffeinated"
+       1  "beverages, brewed, prepared with tap water"
+       -> "brewed, prepared with tap water"
+       2  "beverages, brewed, breakfast blend"
+       -> "brewed, breakfast blend"
+  white wheat flour (all purpose)
+     354  "all-purpose, self-rising, enriched"
+       -> "self-rising, enriched"
+     364  "all-purpose, enriched, bleached"
+       -> "enriched, bleached"
+     364  "all-purpose, enriched, calcium-fortified"
+       -> "enriched, calcium-fortified"
+     364  "all-purpose, unenriched"
+       -> "unenriched"
+  long-grain white rice (cooked)
+     123  "long-grain, parboiled, enriched"
+       -> "parboiled, enriched"
+     123  "long-grain, parboiled, unenriched"
+       -> "parboiled, unenriched"
+     130  "long-grain, regular, enriched"
+       -> "regular, enriched"
+     130  "long-grain, regular, unenriched, with salt"
+       -> "regular, unenriched, with salt"
+     130  "long-grain, regular, enriched, with salt"
+       -> "regular, enriched, with salt"
+     130  "long-grain, regular, unenriched, without salt"
+       -> "regular, unenriched, cooked without salt"
+  quick oats
+      71  "cereals, regular and, unenriched, cooked with water includes boiling and microwaving, without salt"
+       -> "regular and quick, unenriched, cooked with water, without salt"
+     371  "cereals, quaker, dry"
+       -> "quaker, dry"
+     379  "cereals, regular and, not fortified, dry"
+       -> "regular and quick, not fortified, dry"
+  pasta
+     131  "fresh-refrigerated, plain, cooked"
+       -> "fresh-refrigerated, plain, cooked"
+     157  "cooked, enriched, with added salt"
+       -> "cooked, enriched, with added salt"
+     157  "cooked, unenriched, with added salt"
+       -> "cooked, unenriched, with added salt"
+     158  "cooked, unenriched, without added salt"
+       -> "cooked, unenriched, without added salt"
+     158  "cooked, enriched, without added salt"
+       -> "cooked, enriched, without added salt"
+     288  "fresh-refrigerated, plain, as purchased"
+       -> "fresh-refrigerated, plain, as purchased"
+     371  "dry, enriched"
+       -> "dry, enriched"
+  black tea (steeped)
+       1  "beverages, brewed, prepared with tap water"
+       -> "brewed, prepared with tap water"
+       1  "beverages, brewed, prepared with distilled water"
+       -> "brewed, prepared with distilled water"
+  canola oil
+     884  "vegetable, natreon, high stability, non trans, high oleic 70%"
+       -> "vegetable, natreon canola, high stability, non trans, high oleic 70%"
+     884  "(same as the root)"
+       -> "(empty)"
+     884  "industrial, with antifoaming agent, principal uses salads, woks and light frying"
+       -> "industrial, canola with antifoaming agent, principal uses salads, woks and light frying"
+     884  "industrial, for salads, woks and light frying"
+       -> "industrial, canola for salads, woks and light frying"
+     900  "industrial, high oleic"
+       -> "industrial, high oleic"
+  potato (baked)
+      93  "potatoes, flesh, without salt"
+       -> "flesh, without salt"
+      93  "potatoes, flesh and skin, without salt"
+       -> "flesh and skin, without salt"
+      93  "potatoes, flesh and skin, with salt"
+       -> "flesh and skin, with salt"
+      93  "potatoes, flesh, with salt"
+       -> "flesh, with salt"
+     198  "potatoes, skin, without salt"
+       -> "skin, without salt"
+     198  "potatoes, skin only, with salt"
+       -> "skin only, with salt"
+  peanut butter (creamy)
+     588  "smooth includes foods for usda's food distribution program"
+       -> "smooth"
+     598  "smooth style, without salt"
+       -> "smooth style, without salt"
+     598  "smooth style, with salt includes foods for usda's food distribution program"
+       -> "smooth style, with salt"
+  beef (ground)
+      81  "babyfood, meat, junior"
+       -> "babyfood, meat, junior"
+      81  "babyfood, meat, strained"
+       -> "babyfood, meat, strained"
+     144  "97% lean meat 3% fat, patty, cooked, pan-broiled"
+       -> "97% lean meat 3% fat, patty, cooked, pan-broiled"
+     153  "97% lean meat 3% fat, patty, cooked, broiled"
+       -> "97% lean meat 3% fat, patty, cooked, broiled"
+     154  "97% lean meat 3% fat, loaf, cooked, baked"
+       -> "97% lean meat 3% fat, loaf, cooked, baked"
+     164  "95% lean meat 5% fat, patty, cooked, pan-broiled"
+       -> "95% lean meat 5% fat, patty, cooked, pan-broiled"
+     174  "95% lean meat 5% fat, patty, cooked, broiled"
+       -> "95% lean meat 5% fat, patty, cooked, broiled"
+     174  "95% lean meat 5% fat, loaf, cooked, baked"
+       -> "95% lean meat 5% fat, loaf, cooked, baked"
+     175  "97% lean meat 3% fat, crumbles, cooked, pan-browned"
+       -> "97% lean meat 3% fat, crumbles, cooked, pan-browned"
+     182  "93% lean meat 7% fat, patty, cooked, pan-broiled"
+       -> "93% lean meat 7% fat, patty, cooked, pan-broiled"
+     192  "93% lean meat 7% fat, loaf, cooked, baked"
+       -> "93% lean meat 7% fat, loaf, cooked, baked"
+     193  "95% lean meat 5% fat, crumbles, cooked, pan-browned"
+       -> "95% lean meat 5% fat, crumbles, cooked, pan-browned"
+     193  "93% lean meat 7% fat, patty, cooked, broiled"
+       -> "93% lean meat 7% fat, patty, cooked, broiled"
+     204  "90% lean meat 10% fat, patty, cooked, pan-broiled"
+       -> "90% lean meat 10% fat, patty, cooked, pan-broiled"
+     209  "93% lean meat 7% fat, crumbles, cooked, pan-browned"
+       -> "93% lean meat 7% fat, crumbles, cooked, pan-browned"
+     214  "90% lean meat 10% fat, loaf, cooked, baked"
+       -> "90% lean meat 10% fat, loaf, cooked, baked"
+     217  "90% lean meat 10% fat, patty, cooked, broiled"
+       -> "90% lean meat 10% fat, patty, cooked, broiled"
+     230  "90% lean meat 10% fat, crumbles, cooked, pan-browned"
+       -> "90% lean meat 10% fat, crumbles, cooked, pan-browned"
+     232  "85% lean meat 15% fat, patty, cooked, pan-broiled"
+       -> "85% lean meat 15% fat, patty, cooked, pan-broiled"
+     238  "70% lean meat 30% fat, patty cooked, pan-broiled"
+       -> "70% lean meat 30% fat, patty cooked, pan-broiled"
+     239  "australian, imported, grass-fed, 85% lean 15% fat, raw"
+       -> "australian, imported, grass-fed, 85% lean 15% fat, raw"
+     240  "unspecified fat content, cooked"
+       -> "unspecified fat content, cooked"
+     240  "85% lean meat 15% fat, loaf, cooked, baked"
+       -> "85% lean meat 15% fat, loaf, cooked, baked"
+     241  "70% lean meat 30% fat, loaf, cooked, baked"
+       -> "70% lean meat 30% fat, loaf, cooked, baked"
+     246  "80% lean meat 20% fat, patty, cooked, pan-broiled"
+       -> "80% lean meat 20% fat, patty, cooked, pan-broiled"
+     248  "75% lean meat 25% fat, patty, cooked, pan-broiled"
+       -> "75% lean meat 25% fat, patty, cooked, pan-broiled"
+     250  "85% lean meat 15% fat, patty, cooked, broiled"
+       -> "85% lean meat 15% fat, patty, cooked, broiled"
+     254  "80% lean meat 20% fat, loaf, cooked, baked"
+       -> "80% lean meat 20% fat, loaf, cooked, baked"
+     254  "75% lean meat 25% fat, loaf, cooked, baked"
+       -> "75% lean meat 25% fat, loaf, cooked, baked"
+     256  "85% lean meat 15% fat, crumbles, cooked, pan-browned"
+       -> "85% lean meat 15% fat, crumbles, cooked, pan-browned"
+     270  "70% lean meat 30% fat, crumbles, cooked, pan-browned"
+       -> "70% lean meat 30% fat, crumbles, cooked, pan-browned"
+     270  "80% lean meat 20% fat, patty, cooked, broiled"
+       -> "80% lean meat 20% fat, patty, cooked, broiled"
+     272  "80% lean meat 20% fat, crumbles, cooked, pan-browned"
+       -> "80% lean meat 20% fat, crumbles, cooked, pan-browned"
+     277  "70% lean meat 30% fat, patty, cooked, broiled"
+       -> "70% lean meat 30% fat, patty, cooked, broiled"
+     277  "75% lean meat 25% fat, crumbles, cooked, pan-browned"
+       -> "75% lean meat 25% fat, crumbles, cooked, pan-browned"
+     279  "75% lean meat 25% fat, patty, cooked, broiled"
+       -> "75% lean meat 25% fat, patty, cooked, broiled"
+  pork sausage link
+     217  "link/patty, reduced fat, unprepared"
+       -> "link/patty, reduced fat, unprepared"
+     267  "link/patty, reduced fat, cooked, pan-fried"
+       -> "link/patty, reduced fat, cooked, pan-fried"
+     288  "link/patty, unprepared"
+       -> "link/patty, unprepared"
+     309  "smoked"
+       -> "smoked link sausage"
+     325  "link/patty, cooked, pan-fried"
+       -> "link/patty, cooked, pan-fried"
+     392  "link/patty, fully cooked, unheated"
+       -> "link/patty, fully cooked, unheated"
+     438  "link/patty, fully cooked, microwaved"
+       -> "link/patty, fully cooked, microwaved"
+  avocado (raw)
+     120  "avocados, florida"
+       -> "florida"
+     160  "avocados, all commercial varieties"
+       -> "all commercial varieties"
+  almond
+     590  "nuts, almonds, blanched"
+       -> "blanched"
+     594  "nuts, almonds, honey roasted, unblanched"
+       -> "honey roasted, unblanched"
+     598  "nuts, almonds, dry roasted, without salt added"
+       -> "dry roasted, without salt added"
+     607  "nuts, almonds, oil roasted, with salt added"
+       -> "oil roasted, with salt added"
+     607  "nuts, almonds, oil roasted, with salt added, smoke flavor"
+       -> "oil roasted, with salt added, smoke flavor"
+     607  "nuts, almonds, oil roasted, without salt added"
+       -> "oil roasted, without salt added"
+  piece of turkey breast
+     106  "sliced, prepackaged"
+       -> "sliced, prepackaged"
+     109  "low salt, prepackaged or deli, luncheon meat"
+       -> "low salt, prepackaged or deli, luncheon meat"
+  lowfat cow milk (1% fat, vitamin a and d added)
+      42  "fluid, 1% milkfat, with"
+       -> "fluid, 1% milkfat"
+      48  "fluid, 1% milkfat, protein fortified, with"
+       -> "fluid, 1% milkfat, protein fortified"
+  yellow cornmeal
+     334  "self-rising, bolted, plain, enriched"
+       -> "self-rising, bolted, plain, enriched"
+     355  "self-rising, degermed, enriched"
+       -> "self-rising, degermed, enriched"
+     370  "degermed, unenriched"
+       -> "degermed, unenriched"
+     384  "navajo"
+       -> "navajo"
+  vanilla bean extract
+      56  "imitation, no alcohol"
+       -> "imitation, no alcohol"
+     237  "imitation, alcohol"
+       -> "imitation, alcohol"
+     288  "(same as the root)"
+       -> "(empty)"
+  tomato (canned)
+      16  "tomatoes, red, ripe, packed in juice"
+       -> "red, ripe, packed in tomato juice"
+      26  "tomatoes, red, ripe, stewed"
+       -> "red, ripe, stewed"
+      32  "tomatoes, crushed"
+       -> "crushed"
+      38  "products, puree, without salt added"
+       -> "puree, without salt added"
+      38  "products, puree, with salt added"
+       -> "puree, with salt added"
+      82  "products, paste, without salt added includes foods for usda's food distribution program"
+       -> "paste, without salt added"
+  refried beans (dish)
+      79  "canned, fat-free"
+       -> "canned, fat-free"
+      83  "canned, vegetarian"
+       -> "canned, vegetarian"
+      89  "canned, traditional, reduced sodium"
+       -> "canned, traditional, reduced sodium"
+      90  "canned, traditional style"
+       -> "canned, traditional style"
+     156  "restaurant, mexican"
+       -> "restaurant, mexican"  [R54b-flagged]
+  apple juice (canned)
+      46  "or bottled, unsweetened, without added ascorbic acid"
+       -> "canned or bottled, unsweetened, without added ascorbic acid"
+      48  "or bottled, unsweetened, with added ascorbic acid, calcium, and potassium"
+       -> "canned or bottled, unsweetened, with added ascorbic acid, calcium, and potassium"
+  coffee (instant)
+       2  "beverages, regular, prepared with water"
+       -> "regular, prepared with water"
+     352  "beverages, regular, half the caffeine"
+       -> "regular, half the caffeine"
+     353  "beverages, regular, powder"
+       -> "regular, powder"
+  onion
+      26  "onions, frozen, chopped, cooked, boiled, drained, with salt"
+       -> "frozen, chopped, cooked, boiled, drained, with salt"
+      28  "onions, frozen, whole, cooked, boiled, drained, without salt"
+       -> "frozen, whole, cooked, boiled, drained, without salt"
+      35  "onions, frozen, whole, unprepared"
+       -> "frozen, whole, unprepared"
+      42  "onions, cooked, boiled, drained, with salt"
+       -> "cooked, boiled, drained, with salt"
+      44  "onions, cooked, boiled, drained, without salt"
+       -> "cooked, boiled, drained, without salt"
+  piece of chicken meat (skinless)
+     134  "cornish game hens, only, cooked, roasted"
+       -> "cornish game hens, meat only, cooked, roasted"
+     167  "roasting, only, cooked, roasted"
+       -> "roasting, meat only, cooked, roasted"
+     172  "broiler, rotisserie, bbq, drumstick, only"
+       -> "broiler, rotisserie, bbq, drumstick, meat only"
+     177  "broilers or fryers, only, cooked, stewed"
+       -> "broilers or fryers, meat only, cooked, stewed"
+     190  "broilers or fryers, only, cooked, roasted"
+       -> "broilers or fryers, meat only, cooked, roasted"
+     193  "broiler, rotisserie, bbq, thigh, only"
+       -> "broiler, rotisserie, bbq, thigh, meat only"
+     219  "broilers or fryers, and skin, cooked, stewed"
+       -> "broilers or fryers, meat and skin, cooked, stewed"  [R54b-flagged]
+     219  "broilers or fryers, only, cooked, fried"
+       -> "broilers or fryers, meat only, cooked, fried"
+     237  "stewing, only, cooked, stewed"
+       -> "stewing, meat only, cooked, stewed"
+  orange (raw)
+      46  "oranges, florida"
+       -> "florida"
+      47  "oranges, all commercial varieties"
+       -> "all commercial varieties"
+      63  "oranges, with peel"
+       -> "with peel"
+  piece of chicken breast (skinless)
+     144  "broiler, rotisserie, bbq, meat only"
+       -> "broiler, rotisserie, bbq, meat only"
+     151  "broilers or fryers, meat only, cooked, stewed"
+       -> "broilers or fryers, meat only, cooked, stewed"
+     165  "broilers or fryers, meat only, cooked, roasted"
+       -> "broilers or fryers, meat only, cooked, roasted"
+     187  "broilers or fryers, meat only, cooked, fried"
+       -> "broilers or fryers, meat only, cooked, fried"
+  broccoli floret (raw)
+      28  "flower clusters"
+       -> "flower clusters"
+      34  "(same as the root)"
+       -> "(empty)"
+  broccoli floret
+      26  "frozen, chopped, unprepared"
+       -> "frozen, chopped, unprepared"
+      28  "frozen, chopped, cooked, boiled, drained, without salt"
+       -> "frozen, chopped, cooked, boiled, drained, without salt"
+      35  "cooked, boiled, drained, without salt"
+       -> "cooked, boiled, drained, without salt"
+  coconut oil
+     880  "industrial, hydrogenated, used for whipped toppings and coffee whiteners"
+       -> "industrial, hydrogenated, used for whipped toppings and coffee whiteners"
+     884  "industrial, confection fat, typical basis for ice cream coatings"
+       -> "industrial, confection fat, typical basis for ice cream coatings"
+     884  "industrial, principal uses candy coatings, sprays, roasting nuts"
+       -> "industrial, principal uses candy coatings, oil sprays, roasting nuts"
+     892  "(same as the root)"
+       -> "(empty)"
+  applesauce (canned)
+      42  "unsweetened, with added ascorbic acid"
+       -> "unsweetened, with added ascorbic acid"
+      42  "unsweetened, without added ascorbic acid includes foods for usda's food distribution program"
+       -> "unsweetened, without added ascorbic acid"
+      76  "sweetened, with salt"
+       -> "sweetened, with salt"
+  blueberry
+      51  "blueberries, frozen, unsweetened includes foods for usda's food distribution program"
+       -> "frozen, unsweetened"
+      57  "blueberries, wild, frozen includes foods for usda's food distribution program"
+       -> "wild, frozen"
+  carrot root
+      35  "carrots, cooked, boiled, drained, with salt"
+       -> "cooked, boiled, drained, with salt"
+      35  "carrots, cooked, boiled, drained, without salt"
+       -> "cooked, boiled, drained, without salt"
+      37  "carrots, frozen, cooked, boiled, drained, without salt"
+       -> "frozen, cooked, boiled, drained, without salt"
+     341  "dehydrated"
+       -> "dehydrated"
+  ham (cured)
+      91  "pork, water added, shank, bone-in, separable lean only, unheated"
+       -> "water added, shank, bone-in, separable lean only, unheated"
+      95  "pork, water added, rump, bone-in, separable lean only, unheated"
+       -> "water added, rump, bone-in, separable lean only, unheated"
+      95  "pork, water added, slice, bone-in, separable lean only, unheated"
+       -> "water added, slice, bone-in, separable lean only, unheated"
+     103  "pork, and water product, slice, bone-in, separable lean only, unheated"
+       -> "ham and water product, slice, bone-in, separable lean only, unheated"
+     106  "hormel, cure 81"
+       -> "hormel, cure 81 ham"  [R54b-flagged]
+     107  "pork, and water product, rump, bone-in, separable lean only, unheated"
+       -> "ham and water product, rump, bone-in, separable lean only, unheated"
+     109  "pork, with natural juices, spiral slice, boneless, separable lean only, unheated"
+       -> "ham with natural juices, spiral slice, boneless, separable lean only, unheated"
+     110  "pork, water added, whole, boneless, separable lean only, unheated"
+       -> "water added, whole, boneless, separable lean only, unheated"
+     111  "pork, with natural juices, whole, boneless, separable lean only, unheated"
+       -> "ham with natural juices, whole, boneless, separable lean only, unheated"
+     112  "pork, with natural juices, whole, boneless, separable lean and fat, unheated"
+       -> "ham with natural juices, whole, boneless, separable lean and fat, unheated"
+     113  "pork, with natural juices, whole, boneless, separable lean only, heated, roasted"
+       -> "ham with natural juices, whole, boneless, separable lean only, heated, roasted"
+     113  "pork, and water product, shank, bone-in, unheated, separable lean only"
+       -> "ham and water product, shank, bone-in, unheated, separable lean only"
+     114  "pork, with natural juices, whole, boneless, separable lean and fat, heated, roasted"
+       -> "ham with natural juices, whole, boneless, separable lean and fat, heated, roasted"
+     116  "pork, and water product, whole, boneless, separable lean only, unheated"
+       -> "ham and water product, whole, boneless, separable lean only, unheated"
+     116  "pork, with natural juices, slice, boneless, separable lean only, heated, pan-broil"
+       -> "ham with natural juices, slice, boneless, separable lean only, heated, pan-broil"
+     117  "pork, water added, whole, boneless, separable lean only, heated, roasted"
+       -> "water added, whole, boneless, separable lean only, heated, roasted"
+     117  "pork, and water product, whole, boneless, separable lean and fat, unheated"
+       -> "ham and water product, whole, boneless, separable lean and fat, unheated"
+     118  "pork, with natural juices, slice, boneless, separable lean and fat, heated, pan-broil"
+       -> "ham with natural juices, slice, boneless, separable lean and fat, heated, pan-broil"
+     119  "pork, water added, slice, boneless, separable lean only, heated, pan-broil"
+       -> "water added, slice, boneless, separable lean only, heated, pan-broil"
+     120  "pork, extra lean approximately 4% fat, canned, unheated"
+       -> "extra lean approximately 4% fat, canned, unheated"
+     121  "pork, water added, rump, bone-in, separable lean only, heated, roasted"
+       -> "water added, rump, bone-in, separable lean only, heated, roasted"
+     121  "pork, water added, whole, boneless, separable lean and fat, unheated"
+       -> "water added, whole, boneless, separable lean and fat, unheated"
+     122  "pork, and water product, slice, bone-in, separable lean only, heated, pan-broil"
+       -> "ham and water product, slice, bone-in, separable lean only, heated, pan-broil"
+     122  "pork, with natural juices, rump, bone-in, separable lean only, unheated"
+       -> "ham with natural juices, rump, bone-in, separable lean only, unheated"
+     123  "pork, and water product, slice, boneless, separable lean only, heated, pan-broil"
+       -> "ham and water product, slice, boneless, separable lean only, heated, pan-broil"
+     123  "pork, and water product, whole, boneless, separable lean only, heated, roasted"
+       -> "ham and water product, whole, boneless, separable lean only, heated, roasted"
+     123  "pork, with natural juices, slice, bone-in, separable lean only, unheated"
+       -> "ham with natural juices, slice, bone-in, separable lean only, unheated"
+     123  "pork, and water product, whole, boneless, separable lean and fat, heated, roasted"
+       -> "ham and water product, whole, boneless, separable lean and fat, heated, roasted"
+     124  "pork, and water product, slice, boneless, separable lean and fat, heated, pan-broil"
+       -> "ham and water product, slice, boneless, separable lean and fat, heated, pan-broil"
+     125  "pork, water added, slice, boneless, separable lean and fat, heated, pan-broil"
+       -> "water added, slice, boneless, separable lean and fat, heated, pan-broil"
+     125  "pork, rump, bone-in, separable lean only, unheated"
+       -> "rump, bone-in, separable lean only, unheated"
+     125  "pork, shank, bone-in, separable lean only, unheated"
+       -> "shank, bone-in, separable lean only, unheated"
+     126  "pork, with natural juices, spiral slice, meat only, boneless, separable lean only, heated, roasted"
+       -> "ham with natural juices, spiral slice, meat only, boneless, separable lean only, heated, roasted"
+     126  "pork, water added, whole, boneless, separable lean and fat, heated, roasted"
+       -> "water added, whole, boneless, separable lean and fat, heated, roasted"
+     128  "pork, water added, shank, bone-in, separable lean only, heated, roasted"
+       -> "water added, shank, bone-in, separable lean only, heated, roasted"
+     129  "pork, with natural juices, spiral slice, boneless, separable lean and fat, unheated"
+       -> "ham with natural juices, spiral slice, boneless, separable lean and fat, unheated"
+     130  "pork, with natural juices, shank, bone-in, separable lean only, unheated"
+       -> "ham with natural juices, shank, bone-in, separable lean only, unheated"
+     130  "pork, slice, bone-in, separable lean only, unheated"
+       -> "slice, bone-in, separable lean only, unheated"
+     131  "pork, water added, slice, bone-in, separable lean only, heated, pan-broil"
+       -> "water added, slice, bone-in, separable lean only, heated, pan-broil"
+     131  "pork, and water product, rump, bone-in, separable lean only, heated, roasted"
+       -> "ham and water product, rump, bone-in, separable lean only, heated, roasted"
+     132  "pork, and water product, shank, bone-in, separable lean only, heated, roasted"
+       -> "ham and water product, shank, bone-in, separable lean only, heated, roasted"
+     132  "pork, rump, bone-in, separable lean only, heated, roasted"
+       -> "rump, bone-in, separable lean only, heated, roasted"
+     136  "pork, extra lean approximately 4% fat, canned, roasted"
+       -> "extra lean approximately 4% fat, canned, roasted"
+     137  "pork, with natural juices, rump, bone-in, separable lean only, heated, roasted"
+       -> "ham with natural juices, rump, bone-in, separable lean only, heated, roasted"
+     139  "pork, with natural juices, spiral slice, boneless, separable lean and fat, heated, roasted"
+       -> "ham with natural juices, spiral slice, boneless, separable lean and fat, heated, roasted"
+     139  "pork, shank, bone-in, separable lean only, heated, roasted"
+       -> "shank, bone-in, separable lean only, heated, roasted"
+     144  "pork, extra lean and regular, canned, unheated"
+       -> "extra lean and regular, canned, unheated"
+     145  "pork, boneless, extra lean approximately 5% fat, roasted"
+       -> "boneless, extra lean approximately 5% fat, roasted"
+     145  "pork, with natural juices, shank, bone-in, separable lean only, heated, roasted"
+       -> "ham with natural juices, shank, bone-in, separable lean only, heated, roasted"
+     145  "pork, boneless, low sodium, extra lean approximately 5% fat, roasted"
+       -> "boneless, low sodium, extra lean approximately 5% fat, roasted"
+     147  "pork, whole, separable lean only, unheated"
+       -> "whole, separable lean only, unheated"
+     148  "pork, slice, bone-in, separable lean only, heated, pan-broil"
+       -> "slice, bone-in, separable lean only, heated, pan-broil"
+     149  "pork, and water product, slice, bone-in, separable lean and fat, unheated"
+       -> "ham and water product, slice, bone-in, separable lean and fat, unheated"
+     150  "pork, with natural juices, slice, bone-in, separable lean only, heated, pan-broil"
+       -> "ham with natural juices, slice, bone-in, separable lean only, heated, pan-broil"
+     155  "pork, and water product, slice, bone-in, separable lean and fat, heated, pan-broil"
+       -> "ham and water product, slice, bone-in, separable lean and fat, heated, pan-broil"
+     157  "pork, whole, separable lean only, roasted"
+       -> "whole, separable lean only, roasted"
+     159  "pork, with natural juices, slice, bone-in, separable lean and fat, unheated"
+       -> "ham with natural juices, slice, bone-in, separable lean and fat, unheated"
+     161  "pork, water added, rump, bone-in, separable lean and fat, heated, roasted"
+       -> "water added, rump, bone-in, separable lean and fat, heated, roasted"
+     162  "pork, boneless, extra lean and regular, unheated"
+       -> "boneless, extra lean and regular, unheated"
+     164  "pork, water added, slice, bone-in, separable lean and fat, unheated"
+       -> "water added, slice, bone-in, separable lean and fat, unheated"
+     165  "pork, boneless, extra lean and regular, roasted"
+       -> "boneless, extra lean and regular, roasted"
+     165  "pork, boneless, low sodium, extra lean and regular, roasted"
+       -> "boneless, low sodium, extra lean and regular, roasted"
+     166  "pork, water added, slice, bone-in, separable lean and fat, heated, pan-broil"
+       -> "water added, slice, bone-in, separable lean and fat, heated, pan-broil"
+     167  "pork, extra lean and regular, canned, roasted"
+       -> "extra lean and regular, canned, roasted"
+     167  "pork, water added, shank, bone-in, separable lean and fat, unheated"
+       -> "water added, shank, bone-in, separable lean and fat, unheated"
+     172  "pork, low sodium, lean and fat, cooked"
+       -> "low sodium, lean and fat, cooked"
+     172  "pork, water added, rump, bone-in, separable lean and fat, unheated"
+       -> "water added, rump, bone-in, separable lean and fat, unheated"
+     173  "pork, slice, bone-in, separable lean and fat, unheated"
+       -> "slice, bone-in, separable lean and fat, unheated"
+     176  "pork, rump, bone-in, separable lean and fat, unheated"
+       -> "rump, bone-in, separable lean and fat, unheated"
+     177  "pork, rump, bone-in, separable lean and fat, heated, roasted"
+       -> "rump, bone-in, separable lean and fat, heated, roasted"
+     177  "pork, shank, bone-in, separable lean and fat, unheated"
+       -> "shank, bone-in, separable lean and fat, unheated"
+     177  "pork, with natural juices, rump, bone-in, separable lean and fat, heated, roasted"
+       -> "ham with natural juices, rump, bone-in, separable lean and fat, heated, roasted"
+     178  "pork, boneless, regular approximately 11% fat, roasted"
+       -> "boneless, regular approximately 11% fat, roasted"
+     179  "pork, and water product, rump, bone-in, separable lean and fat, unheated"
+       -> "ham and water product, rump, bone-in, separable lean and fat, unheated"
+     180  "pork, with natural juices, slice, bone-in, separable lean and fat, heated, pan-broil"
+       -> "ham with natural juices, slice, bone-in, separable lean and fat, heated, pan-broil"
+     181  "pork, slice, bone-in, separable lean and fat, heated, pan-broil"
+       -> "slice, bone-in, separable lean and fat, heated, pan-broil"
+     186  "pork, and water product, rump, bone-in, separable lean and fat, heated, roasted"
+       -> "ham and water product, rump, bone-in, separable lean and fat, heated, roasted"
+     191  "pork, with natural juices, shank, bone-in, separable lean and fat, unheated"
+       -> "ham with natural juices, shank, bone-in, separable lean and fat, unheated"
+     191  "pork, shank, bone-in, separable lean and fat, heated, roasted"
+       -> "shank, bone-in, separable lean and fat, heated, roasted"
+     191  "pork, with natural juices, shank, bone-in, separable lean and fat, heated, roasted"
+       -> "ham with natural juices, shank, bone-in, separable lean and fat, heated, roasted"
+     200  "pork, with natural juices, rump, bone-in, separable lean and fat, unheated"
+       -> "ham with natural juices, rump, bone-in, separable lean and fat, unheated"
+     200  "pork, water added, shank, bone-in, separable lean and fat, heated, roasted"
+       -> "water added, shank, bone-in, separable lean and fat, heated, roasted"
+     226  "pork, regular approximately 13% fat, canned, roasted"
+       -> "regular approximately 13% fat, canned, roasted"
+     234  "pork, and water product, shank, bone-in, separable lean and fat, heated, roasted"
+       -> "ham and water product, shank, bone-in, separable lean and fat, heated, roasted"
+     243  "pork, and water product, shank, bone-in, separable lean and fat, unheated"
+       -> "ham and water product, shank, bone-in, separable lean and fat, unheated"
+     246  "pork, whole, separable lean and fat, unheated"
+       -> "whole, separable lean and fat, unheated"
+     507  "pork, separable fat, boneless, heated"
+       -> "separable fat, boneless, heated"
+     515  "pork, separable fat, boneless, unheated"
+       -> "separable fat, boneless, unheated"
+     579  "pork, separable fat from and arm picnic, unheated"
+       -> "separable fat from ham and arm picnic, unheated"
+     591  "pork, separable fat from and arm picnic, roasted"
+       -> "separable fat from ham and arm picnic, roasted"
+  olives (canned)
+      47  "orange juice, unsweetened"
+       -> "orange juice, unsweetened"  [R54b-flagged]
+      81  "ripe, jumbo-super colossal"
+       -> "ripe, jumbo-super colossal"
+     116  "ripe, small-extra large"
+       -> "ripe, small-extra large"
+     145  "pickled, or bottled, green"
+       -> "pickled, canned or bottled, green"
+  green tea (steeped)
+       0  "beverages, ready to drink, unsweetened"
+       -> "ready to drink, unsweetened"
+       1  "beverages, brewed, regular"
+       -> "brewed, regular"
+  sweet green bell pepper
+      16  "peppers, frozen, chopped, cooked, boiled, drained, with salt"
+       -> "frozen, chopped, cooked, boiled, drained, with salt"
+      18  "peppers, frozen, chopped, boiled, drained, without salt"
+       -> "frozen, chopped, boiled, drained, without salt"
+      18  "peppers, canned, solids and liquids"
+       -> "canned, solids and liquids"
+      20  "peppers, frozen, chopped, unprepared"
+       -> "frozen, chopped, unprepared"
+      26  "peppers, cooked, boiled, drained, with salt"
+       -> "cooked, boiled, drained, with salt"
+      28  "peppers, cooked, boiled, drained, without salt"
+       -> "cooked, boiled, drained, without salt"
+     116  "peppers, sauteed"
+       -> "sauteed"
+
+[2] EVERY new collision (2 groups): the worst output this rule produces
+  turnip greens (frozen)   cause: root
+      23  "turnips, cooked, boiled, drained, without salt"
+       -> "cooked, boiled, drained, without salt"   GUARDED -> "turnips, cooked, boiled, drained, without salt"
+      29  "cooked, boiled, drained, without salt"
+       -> "cooked, boiled, drained, without salt"
+  white cornmeal (self-rising)   cause: root
+     370  "degermed, enriched"
+       -> "degermed, enriched"  [R54b-flagged]
+     355  "self-rising, degermed, enriched"
+       -> "degermed, enriched"   GUARDED -> "self-rising, degermed, enriched"
+
+[3] EVERY newly empty label (18):
+  chinook salmon (raw)
+     179  "fish"
+       -> "(empty)"   GUARDED -> "fish"
+  chrysanthemum leaf (raw)
+      24  "leaves"
+       -> "(empty)"   GUARDED -> "leaves"
+  chum salmon (raw)
+     120  "fish"
+       -> "(empty)"   GUARDED -> "fish"
+  cranberry (raw)
+      46  "cranberries"
+       -> "(empty)"   GUARDED -> "cranberries"
+  fireweed leaf (raw)
+     103  "leaves"
+       -> "(empty)"   GUARDED -> "leaves"
+  hyacinth bean (raw, immature)
+      46  "hyacinth-beans, seeds"
+       -> "(empty)"   GUARDED -> "hyacinth-beans, seeds"
+  lingcod (raw)
+      85  "fish"
+       -> "(empty)"   GUARDED -> "fish"
+  lotus seed (dried)
+     332  "seeds, seeds"
+       -> "(empty)"   GUARDED -> "seeds, seeds"
+  maple syrup
+     354  "sugars"
+       -> "(empty)"   GUARDED -> "sugars"  [R54b-flagged]
+  maple syrup
+     260  "syrups"
+       -> "(empty)"   GUARDED -> "syrups"
+  piece of moose meat (raw)
+     102  "game"
+       -> "(empty)"   GUARDED -> "game"
+  pine nut kernel (dried)
+     673  "nuts, nuts"
+       -> "(empty)"   GUARDED -> "nuts, nuts"  [R54b-flagged]
+  prickly pear pad (raw)
+      41  "pears"
+       -> "(empty)"   GUARDED -> "pears"  [R54b-flagged]
+  red kidney bean (raw, mature)
+     337  "beans, seeds"
+       -> "(empty)"   GUARDED -> "beans, seeds"
+  sockeye salmon (raw)
+     131  "fish"
+       -> "(empty)"   GUARDED -> "fish"
+  taro leaf (raw)
+      42  "leaves"
+       -> "(empty)"   GUARDED -> "leaves"
+  white bean (raw, mature)
+     333  "beans, seeds"
+       -> "(empty)"   GUARDED -> "beans, seeds"
+  white mushroom (raw)
+      22  "mushrooms"
+       -> "(empty)"   GUARDED -> "mushrooms"
+
+[4] The 15 longest labels after clean-up:
+  beef denver steak  (124 ch)
+     227  "chuck, under blade center, boneless, cut, separable lean and fat, trimmed to 0 fat, all grades, cooked, grilled"
+       -> "chuck, under blade center steak, boneless, denver cut, separable lean and fat, trimmed to 0 fat, all grades, cooked, grilled"
+  beef top blade steak  (123 ch)
+     182  "chuck, shoulder clod, shoulder and center steaks, separable lean and fat, trimmed to 0 fat, all grades, cooked, grilled"
+       -> "chuck, shoulder clod, shoulder top and center steaks, separable lean and fat, trimmed to 0 fat, all grades, cooked, grilled"
+  beef denver steak  (121 ch)
+     220  "chuck, under blade center, boneless, cut, separable lean only, trimmed to 0 fat, all grades, cooked, grilled"
+       -> "chuck, under blade center steak, boneless, denver cut, separable lean only, trimmed to 0 fat, all grades, cooked, grilled"
+  rack of lamb  (121 ch)
+     193  "australian, imported, fresh, roast, frenched, denuded, bone-in, separable lean and fat, trimmed to 0 fat, cooked, roasted"
+       -> "australian, imported, fresh, roast, frenched, denuded, bone-in, separable lean and fat, trimmed to 0 fat, cooked, roasted"
+  beef denver steak  (120 ch)
+     236  "chuck, under blade center, boneless, cut, separable lean and fat, trimmed to 0 fat, choice, cooked, grilled"
+       -> "chuck, under blade center steak, boneless, denver cut, separable lean and fat, trimmed to 0 fat, choice, cooked, grilled"
+  beef denver steak  (120 ch)
+     215  "chuck, under blade center, boneless, cut, separable lean and fat, trimmed to 0 fat, select, cooked, grilled"
+       -> "chuck, under blade center steak, boneless, denver cut, separable lean and fat, trimmed to 0 fat, select, cooked, grilled"
+  beef top blade steak  (119 ch)
+     176  "chuck, shoulder clod, shoulder and center steaks, separable lean and fat, trimmed to 0 fat, select, cooked, grilled"
+       -> "chuck, shoulder clod, shoulder top and center steaks, separable lean and fat, trimmed to 0 fat, select, cooked, grilled"
+  beef top blade steak  (119 ch)
+     184  "chuck, shoulder clod, shoulder and center steaks, separable lean and fat, trimmed to 0 fat, choice, cooked, grilled"
+       -> "chuck, shoulder clod, shoulder top and center steaks, separable lean and fat, trimmed to 0 fat, choice, cooked, grilled"
+  rack of lamb  (118 ch)
+     175  "australian, imported, fresh, roast, frenched, denuded, bone-in, separable lean only, trimmed to 0 fat, cooked, roasted"
+       -> "australian, imported, fresh, roast, frenched, denuded, bone-in, separable lean only, trimmed to 0 fat, cooked, roasted"
+  beef denver steak  (117 ch)
+     228  "chuck, under blade center, boneless, cut, separable lean only, trimmed to 0 fat, choice, cooked, grilled"
+       -> "chuck, under blade center steak, boneless, denver cut, separable lean only, trimmed to 0 fat, choice, cooked, grilled"
+  beef denver steak  (117 ch)
+     209  "chuck, under blade center, boneless, cut, separable lean only, trimmed to 0 fat, select, cooked, grilled"
+       -> "chuck, under blade center steak, boneless, denver cut, separable lean only, trimmed to 0 fat, select, cooked, grilled"
+  lamb rib  (117 ch)
+     305  "australian, imported, fresh, chop, frenched, bone-in, separable lean and fat, trimmed to 1/8 fat, cooked, grilled"
+       -> "australian, imported, fresh, rib chop, frenched, bone-in, separable lean and fat, trimmed to 1/8 fat, cooked, grilled"
+  beef bottom round steak  (115 ch)
+     172  "chuck, shoulder clod, shoulder tender, medallion, separable lean and fat, trimmed to 0 fat, select, cooked, grilled"
+       -> "chuck, shoulder clod, shoulder tender, medallion, separable lean and fat, trimmed to 0 fat, select, cooked, grilled"
+  lamb retail cut  (115 ch)
+     270  "new zealand, imported, frozen, composite of trimmed cuts, separable lean and fat, trimmed to 1/8 fat, cooked"
+       -> "new zealand, imported, frozen, composite of trimmed retail cuts, separable lean and fat, trimmed to 1/8 fat, cooked"
+  lamb leg  (115 ch)
+     234  "new zealand, imported, frozen, whole shank and sirloin, separable lean and fat, trimmed to 1/8 fat, cooked, roasted"
+       -> "new zealand, imported, frozen, whole shank and sirloin, separable lean and fat, trimmed to 1/8 fat, cooked, roasted"
+
+[5] The 15 labels that GREW most:
+  chicken carcass (with giblets and neck, raw)  (+25 ch)
+     213  "broilers or fryers, meat skin"
+       -> "broilers or fryers, meat and skin and giblets and neck"  [R54b-flagged]
+  chicken carcass (with giblets and neck, raw)  (+25 ch)
+     213  "roasting, meat skin"
+       -> "roasting, meat and skin and giblets and neck"  [R54b-flagged]
+  chicken carcass (with giblets and neck, raw)  (+25 ch)
+     232  "capons, meat skin"
+       -> "capons, meat and skin and giblets and neck"  [R54b-flagged]
+  chicken carcass (with giblets and neck)  (+25 ch)
+     234  "broilers or fryers, meat skin, roasted"
+       -> "broilers or fryers, meat and skin and giblets and neck, roasted"  [R54b-flagged]
+  chicken carcass (with giblets and neck)  (+25 ch)
+     216  "broilers or fryers, meat skin, stewed"
+       -> "broilers or fryers, meat and skin and giblets and neck, stewed"  [R54b-flagged]
+  chicken carcass (with giblets and neck)  (+25 ch)
+     226  "capons, meat skin, cooked, roasted"
+       -> "capons, meat and skin and giblets and neck, cooked, roasted"  [R54b-flagged]
+  chicken carcass (with giblets and neck)  (+25 ch)
+     220  "roasting, meat skin, cooked, roasted"
+       -> "roasting, meat and skin and giblets and neck, cooked, roasted"  [R54b-flagged]
+  soybean oil (hydrogenated)  (+21 ch)
+     884  "shortening industrial, and cottonseed"
+       -> "shortening industrial, soybean hydrogenated and cottonseed"  [R54b-flagged]
+  beef top sirloin petite roast  (+19 ch)
+     132  "loin, roast/filet, boneless, separable lean only, trimmed to 0 fat, choice, raw"
+       -> "loin, top sirloin petite roast/filet, boneless, separable lean only, trimmed to 0 fat, choice, raw"
+  beef top sirloin petite roast (raw)  (+19 ch)
+     128  "loin, roast/filet, boneless, separable lean only, trimmed to 0 fat, all grades"
+       -> "loin, top sirloin petite roast/filet, boneless, separable lean only, trimmed to 0 fat, all grades"
+  beef top sirloin petite roast (raw)  (+19 ch)
+     122  "loin, roast/filet, boneless, separable lean only, trimmed to 0 fat, select"
+       -> "loin, top sirloin petite roast/filet, boneless, separable lean only, trimmed to 0 fat, select"
+  lemon juice (reconstituted)  (+18 ch)
+      17  "from concentrate, bottled, real"
+       -> "lemon juice from concentrate, bottled, real lemon"  [R54b-flagged]
+  beef top blade steak  (+16 ch)
+     196  "shoulder, boneless, separable lean only, trimmed to 0 fat, all grades, cooked, grilled"
+       -> "shoulder top blade steak, boneless, separable lean only, trimmed to 0 fat, all grades, cooked, grilled"
+  beef top blade steak  (+16 ch)
+     220  "shoulder, boneless, separable lean and fat, trimmed to 0 fat, choice, cooked, grilled"
+       -> "shoulder top blade steak, boneless, separable lean and fat, trimmed to 0 fat, choice, cooked, grilled"
+  beef top blade steak  (+16 ch)
+     194  "shoulder, boneless, separable lean and fat, trimmed to 0 fat, select, cooked, grilled"
+       -> "shoulder top blade steak, boneless, separable lean and fat, trimmed to 0 fat, select, cooked, grilled"
+
+[6] A seeded random sample of 40 changed labels (seed 20260922):
+  whole wheat pasta
+     149  "whole-wheat, cooked includes foods for usda's food distribution program"
+       -> "cooked"
+  sweet green bell pepper
+      18  "peppers, canned, solids and liquids"
+       -> "canned, solids and liquids"
+  yellow potato
+     162  "potatoes, fleshed, french fried, frozen, unprepared"
+       -> "yellow fleshed, french fried, frozen, unprepared"
+  ham (cured)
+     123  "pork, and water product, whole, boneless, separable lean only, heated, roasted"
+       -> "ham and water product, whole, boneless, separable lean only, heated, roasted"
+  beef chuck tender steak (raw)
+     122  "mock, boneless, separable lean and fat, trimmed to 0 fat, select"
+       -> "mock tender steak, boneless, separable lean and fat, trimmed to 0 fat, select"
+  piece of dark chicken meat (skinless)
+     258  "stewing, only, cooked, stewed"
+       -> "stewing, meat only, cooked, stewed"
+  New York roast (boneless)
+     173  "pork, fresh, loin, top loin roasts, separable lean only, cooked, roasted"
+       -> "fresh, loin, top loin, separable lean only, cooked, roasted"
+  piece of lamb meat (cubed)
+     223  "for stew or kabob leg and shoulder, separable lean only, trimmed to 1/4 fat, cooked, braised"
+       -> "cubed for stew or kabob leg and shoulder, separable lean only, trimmed to 1/4 fat, cooked, braised"
+  beef chuck arm roast
+     297  "pot, separable lean and fat, trimmed to 0 fat, all grades, cooked, braised"
+       -> "arm pot roast, separable lean and fat, trimmed to 0 fat, all grades, cooked, braised"
+  pork loin blade roast
+     254  "fresh, roasts, bone-in, separable lean and fat, cooked, roasted"
+       -> "fresh, bone-in, separable lean and fat, cooked, roasted"
+  soybean
+      81  "soybeans, mature seeds, sprouted, cooked, steamed, with salt"
+       -> "mature seeds, sprouted, cooked, steamed, with salt"  [R54b-flagged]
+  piece of turkey back (with skin, raw)
+     206  "from whole bird, meat and, added solution"
+       -> "from whole bird, with added solution"
+  bacon (cooked)
+     146  "canadian, pan-fried"
+       -> "canadian bacon, pan-fried"  [R54b-flagged]
+  beef bottom round steak (raw)
+     129  "outside, separable lean and fat, trimmed to 0 fat, select"
+       -> "outside round, separable lean and fat, trimmed to 0 fat, select"
+  zucchini squash
+      15  "summer, includes skin, cooked, boiled, drained, without salt"
+       -> "includes skin, cooked, boiled, drained, without salt"
+  tomato (canned)
+      26  "tomatoes, red, ripe, stewed"
+       -> "red, ripe, stewed"
+  prune
+     107  "plums, dried prunes, stewed, without added sugar"
+       -> "dried, stewed, without added sugar"
+  non-carbonated water (bottled)
+       0  "beverages, non-carbonated, calistoga"
+       -> "calistoga"
+  sweet green bell pepper
+      20  "peppers, frozen, chopped, unprepared"
+       -> "frozen, chopped, unprepared"
+  lamb retail cut (raw)
+     267  "composite of trimmed cuts, separable lean and fat, trimmed to 1/4 fat, choice"
+       -> "composite of trimmed retail cuts, separable lean and fat, trimmed to 1/4 fat, choice"
+  tomato (canned)
+      82  "products, paste, without salt added includes foods for usda's food distribution program"
+       -> "paste, without salt added"
+  beef blade chuck steak (raw)
+     140  "under pot roast or, boneless, separable lean only, trimmed to 0 fat, all grades"
+       -> "under blade pot roast or steak, boneless, separable lean only, trimmed to 0 fat, all grades"
+  piece of light chicken meat (skinless, raw)
+     137  "stewing, only"
+       -> "stewing, meat only"
+  potato (raw)
+      58  "potatoes, skin"
+       -> "skin"
+  beef tenderloin roast (raw)
+     191  "australian, imported, wagyu, loin, steak/roast, boneless, separable lean only, aust marble score 4/5"
+       -> "australian, imported, wagyu, loin, tenderloin steak/roast, boneless, separable lean only, aust marble score 4/5"
+  beef ribeye roast
+     292  "rib eye, boneless, lip-on, separable lean and fat, trimmed to 1/8 fat, all grades, cooked, roasted"
+       -> "rib eye roast, boneless, lip-on, separable lean and fat, trimmed to 1/8 fat, all grades, cooked, roasted"
+  pinto bean (mature)
+     117  "beans, seeds, canned, drained solids, rinsed in tap water"
+       -> "canned, drained solids, rinsed in tap water"
+  piece of turkey skin
+     482  "young hen, only, cooked, roasted"
+       -> "young hen, skin only, cooked, roasted"
+  beef culotte steak (raw)
+     199  "loin, top sirloin cap, boneless, separable lean and fat, trimmed to 1/8 fat, choice"
+       -> "loin, top sirloin cap steak, boneless, separable lean and fat, trimmed to 1/8 fat, choice"
+  pork arm roast
+     317  "fresh, shoulder, picnic, separable lean and fat, cooked, roasted"
+       -> "fresh, shoulder, arm picnic, separable lean and fat, cooked, roasted"
+  sweet cherry
+      54  "cherries, canned, juice pack, solids and liquids"
+       -> "canned, juice pack, solids and liquids"
+  beef strip steak (boneless)
+     223  "loin, top loin, lip off, separable lean and fat, trimmed to 0 fat, all grades, cooked, grilled"
+       -> "loin, top loin steak, lip off, separable lean and fat, trimmed to 0 fat, all grades, cooked, grilled"
+  ham (cured)
+     125  "pork, water added, slice, boneless, separable lean and fat, heated, pan-broil"
+       -> "water added, slice, boneless, separable lean and fat, heated, pan-broil"
+  beef shoulder roast
+     172  "chuck, clod, separable lean only, trimmed to 0 fat, select, cooked, roasted"
+       -> "chuck, clod roast, separable lean only, trimmed to 0 fat, select, cooked, roasted"
+  chum salmon (raw)
+     116  "fish, alaska native"
+       -> "alaska native"
+  brown mushroom (raw)
+      22  "mushrooms, italian, or crimini"
+       -> "italian, or crimini"
+  cream of wheat
+      56  "cereals, 1 minute cook time, cooked with water, stove-top, without salt"
+       -> "1 minute cook time, cooked with water, stove-top, without salt"
+  beef chuck tender steak (raw)
+     123  "mock, boneless, separable lean only, trimmed to 0 fat, all grades"
+       -> "mock tender steak, boneless, separable lean only, trimmed to 0 fat, all grades"
+  ham (cured)
+     139  "pork, shank, bone-in, separable lean only, heated, roasted"
+       -> "shank, bone-in, separable lean only, heated, roasted"
+  sesame butter
+     595  "seeds, tahini, from roasted and toasted kernels most common type"
+       -> "tahini, from roasted and toasted kernels most common type"

@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, who can see it (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/1.5 var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                    }
+                    h2,
+                    h3,
+                    p,
+                    ul {
+                        margin: 0;
+                    }
+                    ul {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .cap {
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                        margin-bottom: 8px;
+                    }
+                    .h3 {
+                        font: 600 14px/1.2 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .body {
+                        font: 400 14px/1.5 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .hint {
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .alert {
+                        font: 500 14px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .cluster {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .page {
+                        display: grid;
+                        grid-template-columns: repeat(2, 600px);
+                        column-gap: 40px;
+                        row-gap: 40px;
+                        padding: 32px 20px 40px;
+                        align-items: start;
+                    }
+                    .stage {
+                        width: 600px;
+                    }
+                    .pm-cont {
+                        container-type: inline-size;
+                    }
+                    .pm-grid {
+                        display: grid;
+                        grid-template-columns: repeat(2, minmax(0, 1fr));
+                        gap: 12px;
+                    }
+                    @container (min-width: 480px) {
+                        .pm-grid {
+                            grid-template-columns: repeat(3, minmax(0, 1fr));
+                        }
+                    }
+                    @container (min-width: 600px) {
+                        .pm-grid {
+                            grid-template-columns: repeat(4, minmax(0, 1fr));
+                        }
+                    }
+                    .pm-tile {
+                        position: relative;
+                        align-self: start;
+                    }
+                    .pm-img {
+                        position: relative;
+                        overflow: hidden;
+                        aspect-ratio: 1 / 1;
+                        border-radius: var(--radius-xl);
+                        box-shadow: 0 0 0 1px var(--line-divider);
+                    }
+                    .pm-q {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        overflow: hidden;
+                        aspect-ratio: 1 / 1;
+                        border-radius: var(--radius-xl);
+                        background: var(--surface-muted);
+                        box-shadow: 0 0 0 1px var(--line-divider);
+                    }
+                    .pm-fill {
+                        position: absolute;
+                        inset: 0;
+                    }
+                    .pm-menu {
+                        position: absolute;
+                        top: 4px;
+                        right: 4px;
+                    }
+                    .pm-cover {
+                        position: absolute;
+                        bottom: 8px;
+                        left: 8px;
+                        border-radius: 999px;
+                        background: var(--action);
+                        padding: 4px 8px;
+                        font: 600 12px/1.4 var(--font-body);
+                        color: var(--on-action);
+                    }
+                    .pm-removing {
+                        position: absolute;
+                        left: 8px;
+                        right: 8px;
+                        bottom: 8px;
+                        border-radius: 999px;
+                        background: var(--photo-chip);
+                        padding: 4px 8px;
+                        text-align: center;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .pm-status {
+                        position: relative;
+                        border-radius: 999px;
+                        padding: 4px 8px;
+                        font: 500 12px/1.4 var(--font-body);
+                        background: var(--photo-chip);
+                        color: var(--ink);
+                    }
+                    .pm-status.bad {
+                        background: var(--danger);
+                        color: var(--on-action);
+                    }
+                    .pm-retry {
+                        position: relative;
+                        width: 100%;
+                        padding: 0 8px;
+                    }
+                    .pm-err {
+                        padding: 0 4px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .pm-pop {
+                        position: absolute;
+                        top: 52px;
+                        right: 4px;
+                        z-index: 50;
+                        min-width: 12rem;
+                        padding: 4px;
+                        border-radius: var(--radius-lg);
+                        background: var(--paper-overlay);
+                        box-shadow: var(--shadow-lg);
+                    }
+                    .pm-mi {
+                        display: flex;
+                        min-height: 44px;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 0 12px;
+                        border-radius: var(--radius-md);
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                        white-space: nowrap;
+                    }
+                    .pm-mi.danger {
+                        color: var(--danger-text);
+                    }
+                    .pm-sep {
+                        height: 1px;
+                        margin: 4px 0;
+                        background: var(--line-divider);
+                    }
+                    .msgs {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .msg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        padding-top: 12px;
+                        border-top: 1px solid var(--line-divider);
+                    }
+                    .msg:first-child {
+                        padding-top: 0;
+                        border-top: 0;
+                    }
+                    .vl {
+                        font: 600 14px/1.2 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .vt {
+                        font: 600 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .vh,
+                    .vn {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                </style></helmet
+            >
+            <main class="page">
+                <section class="fig" aria-label="Premium offered: Private carries the badge">
+                    <p class="cap">Premium offered: Private carries the badge</p>
+                    <div class="stage">
+                        <fieldset
+                            style="
+                                border: 0;
+                                margin: 0;
+                                padding: 0;
+                                min-width: 0;
+                                display: flex;
+                                flex-direction: column;
+                                gap: 8px;
+                            "
+                        >
+                            <legend class="vl" style="margin-bottom: 8px; padding: 0">Who can see it</legend>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
+                                <label
+                                    style="
+                                        display: flex;
+                                        min-height: 56px;
+                                        align-items: center;
+                                        gap: 12px;
+                                        border: 1px solid var(--selected-edge);
+                                        border-radius: var(--radius-lg);
+                                        padding: 8px 16px;
+                                        background: var(--selected-fill);
+                                    "
+                                    ><input
+                                        type="radio"
+                                        name="vis-badge"
+                                        value="public"
+                                        checked
+                                        style="
+                                            width: 20px;
+                                            height: 20px;
+                                            flex-shrink: 0;
+                                            accent-color: var(--action);
+                                            margin: 0;
+                                        "
+                                    /><span style="display: flex; min-width: 0; flex: 1; flex-direction: column"
+                                        ><span class="vt">Public</span
+                                        ><span class="vh">Anyone can find it in Discover</span></span
+                                    ></label
+                                ><label
+                                    style="
+                                        display: flex;
+                                        min-height: 56px;
+                                        align-items: center;
+                                        gap: 12px;
+                                        border: 1px solid var(--line-control);
+                                        border-radius: var(--radius-lg);
+                                        padding: 8px 16px;
+                                        background: var(--paper);
+                                    "
+                                    ><input
+                                        type="radio"
+                                        name="vis-badge"
+                                        value="private"
+                                        style="
+                                            width: 20px;
+                                            height: 20px;
+                                            flex-shrink: 0;
+                                            accent-color: var(--action);
+                                            margin: 0;
+                                        "
+                                    /><span style="display: flex; min-width: 0; flex: 1; flex-direction: column"
+                                        ><span class="vt">Private</span
+                                        ><span class="vh">Only you can see it</span></span
+                                    ><span style="flex-shrink: 0"
+                                        ><x-import component-from-global-scope="Commise.StatusBadge" status="pro"
+                                            >Premium</x-import
+                                        ></span
+                                    ></label
+                                >
+                            </div>
+                        </fieldset>
+                    </div>
+                </section>
+                <section class="fig" aria-label="Premium offered, a kept Private draft the plan will not keep">
+                    <p class="cap">Premium offered, a kept Private draft the plan will not keep</p>
+                    <div class="stage">
+                        <fieldset
+                            style="
+                                border: 0;
+                                margin: 0;
+                                padding: 0;
+                                min-width: 0;
+                                display: flex;
+                                flex-direction: column;
+                                gap: 8px;
+                            "
+                        >
+                            <legend class="vl" style="margin-bottom: 8px; padding: 0">Who can see it</legend>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
+                                <label
+                                    style="
+                                        display: flex;
+                                        min-height: 56px;
+                                        align-items: center;
+                                        gap: 12px;
+                                        border: 1px solid var(--selected-edge);
+                                        border-radius: var(--radius-lg);
+                                        padding: 8px 16px;
+                                        background: var(--selected-fill);
+                                    "
+                                    ><input
+                                        type="radio"
+                                        name="vis-refusedUpsell"
+                                        value="public"
+                                        checked
+                                        style="
+                                            width: 20px;
+                                            height: 20px;
+                                            flex-shrink: 0;
+                                            accent-color: var(--action);
+                                            margin: 0;
+                                        "
+                                    /><span style="display: flex; min-width: 0; flex: 1; flex-direction: column"
+                                        ><span class="vt">Public</span
+                                        ><span class="vh">Anyone can find it in Discover</span
+                                        ><span class="vn"
+                                            >Private recipes are part of Premium, so this one will be public when you
+                                            publish.</span
+                                        ></span
+                                    ></label
+                                ><label
+                                    style="
+                                        display: flex;
+                                        min-height: 56px;
+                                        align-items: center;
+                                        gap: 12px;
+                                        border: 1px solid var(--line-control);
+                                        border-radius: var(--radius-lg);
+                                        padding: 8px 16px;
+                                        background: var(--paper);
+                                    "
+                                    ><input
+                                        type="radio"
+                                        name="vis-refusedUpsell"
+                                        value="private"
+                                        style="
+                                            width: 20px;
+                                            height: 20px;
+                                            flex-shrink: 0;
+                                            accent-color: var(--action);
+                                            margin: 0;
+                                        "
+                                    /><span style="display: flex; min-width: 0; flex: 1; flex-direction: column"
+                                        ><span class="vt">Private</span
+                                        ><span class="vh">Only you can see it</span></span
+                                    ><span style="flex-shrink: 0"
+                                        ><x-import component-from-global-scope="Commise.StatusBadge" status="pro"
+                                            >Premium</x-import
+                                        ></span
+                                    ></label
+                                >
+                            </div>
+                        </fieldset>
+                    </div>
+                </section>
+                <section class="fig" aria-label="Paid features hidden, a kept Private draft: a statement, not a choice">
+                    <p class="cap">Paid features hidden, a kept Private draft: a statement, not a choice</p>
+                    <div class="stage">
+                        <div style="display: flex; flex-direction: column; gap: 4px">
+                            <span class="vl">Who can see it</span><span class="vt">Public</span
+                            ><span class="vh">Anyone can find it in Discover</span
+                            ><span class="vh"
+                                >Private isn't available, so this recipe will be public when you publish.</span
+                            >
+                        </div>
+                    </div>
+                </section>
+                <section class="fig" aria-label="Private recipe, paid features hidden: Public is final">
+                    <p class="cap">Private recipe, paid features hidden: Public is final</p>
+                    <div class="stage">
+                        <fieldset
+                            style="
+                                border: 0;
+                                margin: 0;
+                                padding: 0;
+                                min-width: 0;
+                                display: flex;
+                                flex-direction: column;
+                                gap: 8px;
+                            "
+                        >
+                            <legend class="vl" style="margin-bottom: 8px; padding: 0">Who can see it</legend>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
+                                <label
+                                    style="
+                                        display: flex;
+                                        min-height: 56px;
+                                        align-items: center;
+                                        gap: 12px;
+                                        border: 1px solid var(--line-control);
+                                        border-radius: var(--radius-lg);
+                                        padding: 8px 16px;
+                                        background: var(--paper);
+                                    "
+                                    ><input
+                                        type="radio"
+                                        name="vis-finalHidden"
+                                        value="public"
+                                        style="
+                                            width: 20px;
+                                            height: 20px;
+                                            flex-shrink: 0;
+                                            accent-color: var(--action);
+                                            margin: 0;
+                                        "
+                                    /><span style="display: flex; min-width: 0; flex: 1; flex-direction: column"
+                                        ><span class="vt">Public</span
+                                        ><span class="vh">Anyone can find it in Discover</span
+                                        ><span class="vn">You won't be able to make it private again.</span></span
+                                    ></label
+                                ><label
+                                    style="
+                                        display: flex;
+                                        min-height: 56px;
+                                        align-items: center;
+                                        gap: 12px;
+                                        border: 1px solid var(--selected-edge);
+                                        border-radius: var(--radius-lg);
+                                        padding: 8px 16px;
+                                        background: var(--selected-fill);
+                                    "
+                                    ><input
+                                        type="radio"
+                                        name="vis-finalHidden"
+                                        value="private"
+                                        checked
+                                        style="
+                                            width: 20px;
+                                            height: 20px;
+                                            flex-shrink: 0;
+                                            accent-color: var(--action);
+                                            margin: 0;
+                                        "
+                                    /><span style="display: flex; min-width: 0; flex: 1; flex-direction: column"
+                                        ><span class="vt">Private</span
+                                        ><span class="vh">Only you can see it</span></span
+                                    ></label
+                                >
+                            </div>
+                        </fieldset>
+                    </div>
+                </section>
+                <section class="fig" aria-label="Private recipe, Premium offered: Public needs Premium to undo">
+                    <p class="cap">Private recipe, Premium offered: Public needs Premium to undo</p>
+                    <div class="stage">
+                        <fieldset
+                            style="
+                                border: 0;
+                                margin: 0;
+                                padding: 0;
+                                min-width: 0;
+                                display: flex;
+                                flex-direction: column;
+                                gap: 8px;
+                            "
+                        >
+                            <legend class="vl" style="margin-bottom: 8px; padding: 0">Who can see it</legend>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
+                                <label
+                                    style="
+                                        display: flex;
+                                        min-height: 56px;
+                                        align-items: center;
+                                        gap: 12px;
+                                        border: 1px solid var(--line-control);
+                                        border-radius: var(--radius-lg);
+                                        padding: 8px 16px;
+                                        background: var(--paper);
+                                    "
+                                    ><input
+                                        type="radio"
+                                        name="vis-finalUpsell"
+                                        value="public"
+                                        style="
+                                            width: 20px;
+                                            height: 20px;
+                                            flex-shrink: 0;
+                                            accent-color: var(--action);
+                                            margin: 0;
+                                        "
+                                    /><span style="display: flex; min-width: 0; flex: 1; flex-direction: column"
+                                        ><span class="vt">Public</span
+                                        ><span class="vh">Anyone can find it in Discover</span
+                                        ><span class="vn">To make it private again, you'll need Premium.</span></span
+                                    ></label
+                                ><label
+                                    style="
+                                        display: flex;
+                                        min-height: 56px;
+                                        align-items: center;
+                                        gap: 12px;
+                                        border: 1px solid var(--selected-edge);
+                                        border-radius: var(--radius-lg);
+                                        padding: 8px 16px;
+                                        background: var(--selected-fill);
+                                    "
+                                    ><input
+                                        type="radio"
+                                        name="vis-finalUpsell"
+                                        value="private"
+                                        checked
+                                        style="
+                                            width: 20px;
+                                            height: 20px;
+                                            flex-shrink: 0;
+                                            accent-color: var(--action);
+                                            margin: 0;
+                                        "
+                                    /><span style="display: flex; min-width: 0; flex: 1; flex-direction: column"
+                                        ><span class="vt">Private</span
+                                        ><span class="vh">Only you can see it</span></span
+                                    ></label
+                                >
+                            </div>
+                        </fieldset>
+                    </div>
+                </section>
+                <section class="fig" aria-label="Private recipe, plan still loading: Public may be final">
+                    <p class="cap">Private recipe, plan still loading: Public may be final</p>
+                    <div class="stage">
+                        <fieldset
+                            style="
+                                border: 0;
+                                margin: 0;
+                                padding: 0;
+                                min-width: 0;
+                                display: flex;
+                                flex-direction: column;
+                                gap: 8px;
+                            "
+                        >
+                            <legend class="vl" style="margin-bottom: 8px; padding: 0">Who can see it</legend>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
+                                <label
+                                    style="
+                                        display: flex;
+                                        min-height: 56px;
+                                        align-items: center;
+                                        gap: 12px;
+                                        border: 1px solid var(--line-control);
+                                        border-radius: var(--radius-lg);
+                                        padding: 8px 16px;
+                                        background: var(--paper);
+                                    "
+                                    ><input
+                                        type="radio"
+                                        name="vis-finalLoading"
+                                        value="public"
+                                        style="
+                                            width: 20px;
+                                            height: 20px;
+                                            flex-shrink: 0;
+                                            accent-color: var(--action);
+                                            margin: 0;
+                                        "
+                                    /><span style="display: flex; min-width: 0; flex: 1; flex-direction: column"
+                                        ><span class="vt">Public</span
+                                        ><span class="vh">Anyone can find it in Discover</span
+                                        ><span class="vn">You may not be able to make it private again.</span></span
+                                    ></label
+                                ><label
+                                    style="
+                                        display: flex;
+                                        min-height: 56px;
+                                        align-items: center;
+                                        gap: 12px;
+                                        border: 1px solid var(--selected-edge);
+                                        border-radius: var(--radius-lg);
+                                        padding: 8px 16px;
+                                        background: var(--selected-fill);
+                                    "
+                                    ><input
+                                        type="radio"
+                                        name="vis-finalLoading"
+                                        value="private"
+                                        checked
+                                        style="
+                                            width: 20px;
+                                            height: 20px;
+                                            flex-shrink: 0;
+                                            accent-color: var(--action);
+                                            margin: 0;
+                                        "
+                                    /><span style="display: flex; min-width: 0; flex: 1; flex-direction: column"
+                                        ><span class="vt">Private</span
+                                        ><span class="vh">Only you can see it</span></span
+                                    ></label
+                                >
+                            </div>
+                        </fieldset>
+                    </div>
+                </section>
+            </main>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":623}}'>
+            class Component extends DCLogic { renderVals(){ const noop=()=>{}; return {noop,yes:true,one:1,jItems:[{id:'setCover',label:"Set as cover",onSelect:noop},{id:'moveEarlier',label:"Move earlier",onSelect:noop},{id:'moveLater',label:"Move later",onSelect:noop},{id:'replace',label:"Replace",onSelect:noop}],jItemsCover:[{id:'setCover',label:"Set as cover",onSelect:noop,disabled:true},{id:'moveEarlier',label:"Move earlier",onSelect:noop,disabled:true},{id:'moveLater',label:"Move later",onSelect:noop},{id:'replace',label:"Replace",onSelect:noop}],jNone:[],jRemove:{id:'remove',label:"Remove",onSelect:noop},}; } }
+        </script>
+    </body>
+</html>

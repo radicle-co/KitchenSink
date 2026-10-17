@@ -1,0 +1,8 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "./tsconfig.json",
+    // The Node scripts (`scripts/`), with Node's types. Their own project, because the check project keeps `types: []`
+    // so no Node global can typecheck in web or native source.
+    "compilerOptions": { "types": ["node"] },
+    "include": ["scripts/**/*.ts"]
+}

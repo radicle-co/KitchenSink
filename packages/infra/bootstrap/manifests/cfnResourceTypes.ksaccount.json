@@ -1,0 +1,542 @@
+{
+    "qualifier": "ksaccount",
+    "resourceTypes": [
+        "AWS::Budgets::Budget",
+        "AWS::CE::AnomalyMonitor",
+        "AWS::CE::AnomalySubscription",
+        "AWS::IAM::OIDCProvider",
+        "AWS::IAM::Policy",
+        "AWS::IAM::Role",
+        "AWS::SNS::Subscription",
+        "AWS::SNS::Topic",
+        "AWS::SNS::TopicPolicy"
+    ],
+    "roleActions": [
+        "cloudformation:DeleteStack",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:DescribeStacks",
+        "cloudformation:GetTemplate",
+        "cloudformation:GetTemplateSummary",
+        "cloudformation:ListExports",
+        "cloudformation:ListStackResources",
+        "cloudformation:ListStacks",
+        "cloudfront-keyvaluestore:DeleteKey",
+        "cloudfront-keyvaluestore:DescribeKeyValueStore",
+        "cloudfront-keyvaluestore:GetKey",
+        "cloudfront-keyvaluestore:ListKeys",
+        "cloudfront-keyvaluestore:PutKey",
+        "cloudwatch:GetMetricStatistics",
+        "ec2:DescribeInstances",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:CompleteLayerUpload",
+        "ecr:CreateRepository",
+        "ecr:DeleteRepository",
+        "ecr:DescribeImages",
+        "ecr:DescribeRepositories",
+        "ecr:GetAuthorizationToken",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:InitiateLayerUpload",
+        "ecr:ListImages",
+        "ecr:PutImage",
+        "ecr:PutImageTagMutability",
+        "ecr:PutLifecyclePolicy",
+        "ecr:TagResource",
+        "ecr:UploadLayerPart",
+        "ecs:DeleteService",
+        "ecs:DescribeServices",
+        "ecs:DescribeTaskDefinition",
+        "ecs:DescribeTasks",
+        "ecs:ListClusters",
+        "ecs:ListServices",
+        "ecs:ListTasks",
+        "ecs:StopTask",
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion",
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies",
+        "lambda:GetFunctionConfiguration",
+        "lambda:GetFunctionUrlConfig",
+        "lambda:InvokeFunction",
+        "logs:DeleteLogGroup",
+        "logs:DescribeLogGroups",
+        "logs:DescribeSubscriptionFilters",
+        "rds:DescribeDBClusters",
+        "rds:DescribeDBInstances",
+        "route53:ChangeResourceRecordSets",
+        "route53:GetChange",
+        "route53:GetHostedZone",
+        "route53:ListHostedZones",
+        "route53:ListHostedZonesByName",
+        "route53:ListResourceRecordSets",
+        "s3:ListBucket",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:GetSecretValue",
+        "sns:GetTopicAttributes",
+        "sqs:GetQueueAttributes",
+        "sqs:GetQueueUrl",
+        "ssm:DeleteParameter",
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath",
+        "ssm:PutParameter",
+        "states:DescribeStateMachine",
+        "states:ListExecutions",
+        "sts:AssumeRole",
+        "tag:GetResources"
+    ],
+    "roleStatements": [
+        {
+            "actions": [
+                "cloudformation:DeleteStack"
+            ],
+            "resources": [
+                "arn:aws:cloudformation:us-east-1:123456789012:stack/kitchensink-*-pr-*/*"
+            ]
+        },
+        {
+            "actions": [
+                "cloudformation:DeleteStack"
+            ],
+            "resources": [
+                "arn:aws:cloudformation:us-east-1:123456789012:stack/kitchensink-alb-sandbox/*",
+                "arn:aws:cloudformation:us-east-1:123456789012:stack/kitchensink-identity-schema-sandbox/*",
+                "arn:aws:cloudformation:us-east-1:123456789012:stack/kitchensink-identity-service-sandbox/*"
+            ]
+        },
+        {
+            "actions": [
+                "cloudformation:DescribeStackEvents",
+                "cloudformation:DescribeStackResources",
+                "cloudformation:DescribeStacks",
+                "cloudformation:GetTemplate",
+                "cloudformation:GetTemplateSummary",
+                "cloudformation:ListStackResources"
+            ],
+            "resources": [
+                "arn:aws:cloudformation:us-east-1:123456789012:stack/kitchensink-*/*"
+            ]
+        },
+        {
+            "actions": [
+                "cloudformation:DescribeStacks",
+                "cloudformation:GetTemplate",
+                "cloudformation:ListStackResources"
+            ],
+            "resources": [
+                "arn:aws:cloudformation:us-east-1:123456789012:stack/kitchensink-*/*"
+            ]
+        },
+        {
+            "actions": [
+                "cloudformation:ListExports",
+                "cloudformation:ListStacks"
+            ],
+            "resources": [
+                "*"
+            ]
+        },
+        {
+            "actions": [
+                "cloudfront-keyvaluestore:DeleteKey",
+                "cloudfront-keyvaluestore:DescribeKeyValueStore",
+                "cloudfront-keyvaluestore:GetKey",
+                "cloudfront-keyvaluestore:ListKeys",
+                "cloudfront-keyvaluestore:PutKey"
+            ],
+            "resources": [
+                "arn:aws:cloudfront::123456789012:key-value-store/*"
+            ]
+        },
+        {
+            "actions": [
+                "cloudwatch:GetMetricStatistics"
+            ],
+            "resources": [
+                "*"
+            ]
+        },
+        {
+            "actions": [
+                "ec2:DescribeInstances"
+            ],
+            "resources": [
+                "*"
+            ]
+        },
+        {
+            "actions": [
+                "ecr:BatchCheckLayerAvailability",
+                "ecr:BatchGetImage",
+                "ecr:CompleteLayerUpload",
+                "ecr:CreateRepository",
+                "ecr:DescribeImages",
+                "ecr:DescribeRepositories",
+                "ecr:GetDownloadUrlForLayer",
+                "ecr:InitiateLayerUpload",
+                "ecr:ListImages",
+                "ecr:PutImage",
+                "ecr:PutLifecyclePolicy",
+                "ecr:TagResource",
+                "ecr:UploadLayerPart"
+            ],
+            "resources": [
+                "arn:aws:ecr:us-east-1:123456789012:repository/kitchensink-*"
+            ]
+        },
+        {
+            "actions": [
+                "ecr:DeleteRepository"
+            ],
+            "resources": [
+                "arn:aws:ecr:us-east-1:123456789012:repository/kitchensink-*-pr-*"
+            ]
+        },
+        {
+            "actions": [
+                "ecr:GetAuthorizationToken"
+            ],
+            "resources": [
+                "*"
+            ]
+        },
+        {
+            "actions": [
+                "ecr:PutImageTagMutability"
+            ],
+            "resources": [
+                "arn:aws:ecr:us-east-1:123456789012:repository/kitchensink-*"
+            ]
+        },
+        {
+            "actions": [
+                "ecs:DeleteService"
+            ],
+            "resources": [
+                "arn:aws:ecs:us-east-1:123456789012:service/kitchensink-*-pr-*/*"
+            ]
+        },
+        {
+            "actions": [
+                "ecs:DescribeServices"
+            ],
+            "resources": [
+                "arn:aws:ecs:us-east-1:123456789012:service/kitchensink-*/*"
+            ]
+        },
+        {
+            "actions": [
+                "ecs:DescribeTaskDefinition",
+                "ecs:ListClusters"
+            ],
+            "resources": [
+                "*"
+            ]
+        },
+        {
+            "actions": [
+                "ecs:DescribeTasks"
+            ],
+            "resources": [
+                "arn:aws:ecs:us-east-1:123456789012:task/kitchensink-*/*"
+            ]
+        },
+        {
+            "actions": [
+                "ecs:ListServices",
+                "ecs:ListTasks"
+            ],
+            "resources": [
+                "arn:aws:ecs:us-east-1:123456789012:cluster/kitchensink-*"
+            ]
+        },
+        {
+            "actions": [
+                "ecs:StopTask"
+            ],
+            "resources": [
+                "arn:aws:ecs:us-east-1:123456789012:task/kitchensink-*-pr-*/*"
+            ]
+        },
+        {
+            "actions": [
+                "iam:GetPolicy",
+                "iam:GetPolicyVersion"
+            ],
+            "resources": [
+                "arn:aws:iam::aws:policy/*"
+            ]
+        },
+        {
+            "actions": [
+                "iam:GetRolePolicy",
+                "iam:ListAttachedRolePolicies",
+                "iam:ListRolePolicies"
+            ],
+            "resources": [
+                "arn:aws:iam::123456789012:role/kitchensink-*QueueCheckRole*"
+            ]
+        },
+        {
+            "actions": [
+                "lambda:GetFunctionConfiguration",
+                "lambda:GetFunctionUrlConfig",
+                "lambda:InvokeFunction"
+            ],
+            "resources": [
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-*"
+            ]
+        },
+        {
+            "actions": [
+                "lambda:GetFunctionConfiguration",
+                "lambda:InvokeFunction"
+            ],
+            "resources": [
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-*"
+            ]
+        },
+        {
+            "actions": [
+                "lambda:GetFunctionUrlConfig"
+            ],
+            "resources": [
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-remote-search-prod"
+            ]
+        },
+        {
+            "actions": [
+                "logs:DeleteLogGroup"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:*kitchensink-*-pr-*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:DescribeLogGroups",
+                "logs:DescribeSubscriptionFilters"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:*"
+            ]
+        },
+        {
+            "actions": [
+                "rds:DescribeDBClusters"
+            ],
+            "resources": [
+                "arn:aws:rds:us-east-1:123456789012:cluster:*"
+            ]
+        },
+        {
+            "actions": [
+                "rds:DescribeDBInstances"
+            ],
+            "resources": [
+                "arn:aws:rds:us-east-1:123456789012:db:*"
+            ]
+        },
+        {
+            "actions": [
+                "route53:ChangeResourceRecordSets"
+            ],
+            "resources": [
+                "arn:aws:route53:::hostedzone/*"
+            ]
+        },
+        {
+            "actions": [
+                "route53:GetChange",
+                "route53:ListHostedZones",
+                "route53:ListHostedZonesByName"
+            ],
+            "resources": [
+                "*"
+            ]
+        },
+        {
+            "actions": [
+                "route53:GetHostedZone",
+                "route53:ListResourceRecordSets"
+            ],
+            "resources": [
+                "arn:aws:route53:::hostedzone/*"
+            ]
+        },
+        {
+            "actions": [
+                "s3:ListBucket"
+            ],
+            "resources": [
+                "arn:aws:s3:::kitchensink-*-pr-*",
+                "arn:aws:s3:::kitchensink-*-sandbox-*"
+            ]
+        },
+        {
+            "actions": [
+                "s3:ListBucket"
+            ],
+            "resources": [
+                "arn:aws:s3:::kitchensink-*-prod-*"
+            ]
+        },
+        {
+            "actions": [
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:GetSecretValue"
+            ],
+            "resources": [
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:kitchensink/prod/*"
+            ]
+        },
+        {
+            "actions": [
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:GetSecretValue"
+            ],
+            "resources": [
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:kitchensink/sandbox/*"
+            ]
+        },
+        {
+            "actions": [
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:GetSecretValue"
+            ],
+            "resources": [
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:SigningKey*"
+            ]
+        },
+        {
+            "actions": [
+                "secretsmanager:DescribeSecret"
+            ],
+            "resources": [
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:DatabaseCredentialsSecret*"
+            ]
+        },
+        {
+            "actions": [
+                "sns:GetTopicAttributes"
+            ],
+            "resources": [
+                "arn:aws:sns:us-east-1:123456789012:kitchensink-*"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-*"
+            ]
+        },
+        {
+            "actions": [
+                "ssm:DeleteParameter",
+                "ssm:PutParameter"
+            ],
+            "resources": [
+                "arn:aws:ssm:us-east-1:123456789012:parameter/kitchensink/sandbox/owed-per-pr-database-drops/*"
+            ]
+        },
+        {
+            "actions": [
+                "ssm:GetParameter",
+                "ssm:GetParameters",
+                "ssm:GetParametersByPath",
+                "ssm:PutParameter"
+            ],
+            "resources": [
+                "arn:aws:ssm:us-east-1:123456789012:parameter/kitchensink/prod/*"
+            ]
+        },
+        {
+            "actions": [
+                "ssm:GetParameter",
+                "ssm:GetParameters",
+                "ssm:GetParametersByPath"
+            ],
+            "resources": [
+                "arn:aws:ssm:us-east-1:123456789012:parameter/kitchensink/pr-*/*",
+                "arn:aws:ssm:us-east-1:123456789012:parameter/kitchensink/sandbox/*"
+            ]
+        },
+        {
+            "actions": [
+                "ssm:GetParameter",
+                "ssm:GetParameters",
+                "ssm:GetParametersByPath"
+            ],
+            "resources": [
+                "arn:aws:ssm:us-east-1:123456789012:parameter/kitchensink/prod/*"
+            ]
+        },
+        {
+            "actions": [
+                "states:DescribeStateMachine",
+                "states:ListExecutions"
+            ],
+            "resources": [
+                "arn:aws:states:us-east-1:123456789012:stateMachine:*"
+            ]
+        },
+        {
+            "actions": [
+                "sts:AssumeRole"
+            ],
+            "resources": [
+                "arn:aws:iam::123456789012:role/cdk-hnb659fds-deploy-role-123456789012-us-east-1",
+                "arn:aws:iam::123456789012:role/cdk-hnb659fds-file-publishing-role-123456789012-us-east-1",
+                "arn:aws:iam::123456789012:role/cdk-hnb659fds-lookup-role-123456789012-us-east-1",
+                "arn:aws:iam::123456789012:role/cdk-ksaccount-deploy-role-123456789012-us-east-1",
+                "arn:aws:iam::123456789012:role/cdk-ksaccount-file-publishing-role-123456789012-us-east-1",
+                "arn:aws:iam::123456789012:role/cdk-ksaccount-lookup-role-123456789012-us-east-1",
+                "arn:aws:iam::123456789012:role/cdk-ksprod-deploy-role-123456789012-us-east-1",
+                "arn:aws:iam::123456789012:role/cdk-ksprod-file-publishing-role-123456789012-us-east-1",
+                "arn:aws:iam::123456789012:role/cdk-ksprod-lookup-role-123456789012-us-east-1"
+            ]
+        },
+        {
+            "actions": [
+                "sts:AssumeRole"
+            ],
+            "resources": [
+                "arn:aws:iam::123456789012:role/cdk-hnb659fds-deploy-role-123456789012-us-east-1",
+                "arn:aws:iam::123456789012:role/cdk-hnb659fds-file-publishing-role-123456789012-us-east-1",
+                "arn:aws:iam::123456789012:role/cdk-hnb659fds-lookup-role-123456789012-us-east-1",
+                "arn:aws:iam::123456789012:role/cdk-ksnonprod-deploy-role-123456789012-us-east-1",
+                "arn:aws:iam::123456789012:role/cdk-ksnonprod-file-publishing-role-123456789012-us-east-1",
+                "arn:aws:iam::123456789012:role/cdk-ksnonprod-lookup-role-123456789012-us-east-1"
+            ]
+        },
+        {
+            "actions": [
+                "sts:AssumeRole"
+            ],
+            "resources": [
+                "arn:aws:iam::123456789012:role/cdk-hnb659fds-lookup-role-123456789012-us-east-1",
+                "arn:aws:iam::123456789012:role/cdk-ksprod-lookup-role-123456789012-us-east-1"
+            ]
+        },
+        {
+            "actions": [
+                "tag:GetResources"
+            ],
+            "resources": [
+                "*"
+            ]
+        }
+    ],
+    "rolePassedToServices": [],
+    "awsManagedPolicies": [],
+    "stackNames": [
+        "kitchensink-cost-guardrails",
+        "kitchensink-github-actions-access"
+    ],
+    "dockerImageAssets": false
+}

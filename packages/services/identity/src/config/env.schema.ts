@@ -16,18 +16,68 @@ const DatabaseConfigSchema = z.union([
     z.object({
         DATABASE_URL: z.string().url(),
     }),
+    // The deployed form: RDS IAM, so no password. `DB_USERNAME` defaults to `identity_service` in the pool
+    // config; `DB_PASSWORD` is read only when `STAGE=local` (docker Postgres) — see `@kitchensink/rds-iam-auth`.
     z.object({
         DB_HOST: z.string(),
         DB_PORT: z.string().transform(Number).pipe(z.number().int().positive()),
         DB_NAME: z.string(),
-        DB_USERNAME: z.string(),
-        DB_PASSWORD: z.string(),
+        DB_USERNAME: z.string().optional(),
+        DB_PASSWORD: z.string().optional(),
     }),
 ]);
 
 const QueueConfigSchema = z.object({
     DELETION_QUEUE_URL: z.string().url(),
 });
+
+/**
+ * ADR-0040 test-principal containment switch. `enforce` refuses a test principal's self-service ERASURE and
+ * CLOSURE (either would delete or ban a shared Clerk test-pool member, and R10 anti-resurrection then makes it
+ * unusable forever); `off` admits them. Owner ruling: `enforce` on prod, `off` on sandbox, `enforce` when unset.
+ *
+ * Validated here so a typo fails the BOOT rather than silently picking a mode; read at call time through
+ * {@link resolveTestPrincipalContainment}, which fails CLOSED.
+ */
+export const testPrincipalContainmentSchema = z.enum(['enforce', 'off']);
+
+/** The containment mode — see {@link testPrincipalContainmentSchema}. */
+export type TestPrincipalContainment = z.infer<typeof testPrincipalContainmentSchema>;
+
+/**
+ * The containment mode for a raw `TEST_PRINCIPAL_CONTAINMENT` value. Pure.
+ *
+ * ⛔ FAILS CLOSED: only a value the schema recognises is honoured, and anything else — unset, empty, a different
+ * casing — resolves to `enforce`. Boot validation already rejects an unrecognised value, so this branch is
+ * defence-in-depth; it must never be the thing that disarms containment.
+ *
+ * @param raw - The raw environment value, if any.
+ * @returns `off` only for exactly `off`; otherwise `enforce`.
+ */
+export function resolveTestPrincipalContainment(raw: string | undefined): TestPrincipalContainment {
+    const parsed = testPrincipalContainmentSchema.safeParse(raw);
+
+    return parsed.success ? parsed.data : 'enforce';
+}
+
+/**
+ * The paid-features gate's raw values (plan `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D8). The CDK
+ * stack always emits one of the two explicitly, from the owner's GitHub variable, so boot validation REJECTS anything
+ * else rather than guessing.
+ */
+const paidFeaturesGateSchema = z.enum(['true', 'false']);
+
+/**
+ * Whether this stage's paid-features gate is on, for a raw `PAID_FEATURES_GATE` value. Pure.
+ *
+ * ⛔ FAILS CLOSED: only exactly `true` is on. Off shows no upsell, and never takes a paid feature from an entitled
+ * role — the gate decides what a user without one is SHOWN, not who may use a paid feature.
+ *
+ * @param raw - The raw environment value, if any.
+ */
+export function resolvePaidFeaturesGate(raw: string | undefined): boolean {
+    return raw === 'true';
+}
 
 const AppConfigSchema = z.object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -38,6 +88,8 @@ const AppConfigSchema = z.object({
     SENTRY_DSN: z.string().url().optional(),
     SENTRY_TRACES_SAMPLE_RATE: z.string().optional(),
     SENTRY_RELEASE: z.string().optional(),
+    TEST_PRINCIPAL_CONTAINMENT: testPrincipalContainmentSchema.default('enforce'),
+    PAID_FEATURES_GATE: paidFeaturesGateSchema.default('false'),
 });
 
 // Clerk session-token verification (read-through auth). CLERK_JWT_KEY is the instance's *public*
@@ -60,7 +112,16 @@ const ClerkConfigSchema = z.object({
 // and unused locally). Every other STAGE is a deployed environment that must verify real tokens.
 const NON_DEPLOYED_STAGES = new Set(['dev', 'test', 'local']);
 
-function isDeployedStage(stage: string): boolean {
+/**
+ * Whether `stage` names a DEPLOYED environment (`prod`, `sandbox`, `pr-{N}`, …) as opposed to one of the
+ * local/test sentinels. Exported because three security-relevant decisions must agree on it — this schema's
+ * "Clerk config is required" refinement, `config/cors.ts`'s `deployed` input to the shared CORS policy, and
+ * `observability/authTrace.ts`'s sink selection. Each used to carry its own copy of the set. Pure.
+ *
+ * @param stage - The raw `STAGE` value.
+ * @returns `true` unless `stage` is one of `dev` / `test` / `local`.
+ */
+export function isDeployedStage(stage: string): boolean {
     return !NON_DEPLOYED_STAGES.has(stage);
 }
 

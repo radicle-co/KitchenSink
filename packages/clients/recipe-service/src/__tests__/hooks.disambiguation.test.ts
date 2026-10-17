@@ -1,18 +1,12 @@
 // @vitest-environment jsdom
 /**
- * Hook contract for the ingredient async-resolution hooks (T028/T029/T067 / data-model R5):
- * `useIngredientStatus` (the self-limiting poll), `useIngredientCandidates`, and `useResolveIngredient`.
+ * Hook contract for the ingredient async-resolution hooks (T028/T029/T067 / data-model R5): `useIngredientStatus`
+ * (the self-limiting poll) and the add-by hooks.
  *
- * The three behaviours only these hooks own, each pinned adversarially:
- *
- * 1. **The poll's stop condition.** `useIngredientStatus` refetches WHILE `PENDING` and stops the instant a
- *    non-`PENDING` state is seen. Proven both ways: a `PENDING → RESOLVED` transition keeps polling until it
- *    resolves and then goes quiet, and an `UNRESOLVED` result is polled exactly ONCE (a mutation that changed
- *    the predicate to "poll everything not RESOLVED" would spin forever on `UNRESOLVED` and redden this).
- * 2. **The candidate query** caches under its literal key, gates on a non-empty id, and forwards the id.
- * 3. **The resolve invalidation.** On success it stales EXACTLY the ingredient's status, its candidate set,
- *    and the ingredient-search namespace — and nothing else — asserted as seeded probes flipping to
- *    `isInvalidated`.
+ * **The poll's stop condition**, pinned adversarially: `useIngredientStatus` refetches WHILE `PENDING` and stops the
+ * instant a non-`PENDING` state is seen. Proven both ways: a `PENDING → RESOLVED` transition keeps polling until it
+ * resolves and then goes quiet, and an `UNRESOLVED` result is polled exactly ONCE (a mutation that changed the
+ * predicate to "poll everything not RESOLVED" would spin forever on `UNRESOLVED` and redden this).
  *
  * Client transport is stubbed at the client method (see `utils/hookHarness.ts`); no network, no fake timers
  * for the query cache — the poll uses a short real interval so the stop condition is observed, not simulated.
@@ -26,10 +20,9 @@ import { NotFoundError, UnauthorizedError } from '../errors.js';
 import {
     recipeServiceKeys,
     useAddIngredientByFood,
+    useAddIngredientByFoodVariant,
     useAddIngredientByName,
-    useIngredientCandidates,
     useIngredientStatus,
-    useResolveIngredient,
 } from '../hooks.js';
 import { makeIngredient } from '../__fixtures__/recipes.js';
 import { cachedQueryKeys, makeGuardedClient, makeTestQueryClient, renderRecipeHook } from './utils/hookHarness.js';
@@ -179,6 +172,27 @@ describe('useAddIngredientByName (the async-resolution vertical entry point)', (
     });
 });
 
+describe('useAddIngredientByFoodVariant (curated U9 — the details dialog’s pick)', () => {
+    it('binds the variant through the client and returns the ingredient with its root and parts', async () => {
+        const client = makeGuardedClient();
+        const flat = { id: '01J0VARIANT', parts: [{ attribute: 'cut', text: 'flat' }] };
+        const bound = makeIngredient({ id: ID, foodId: '01J0ROOT', variant: flat });
+        const byVariant = vi.spyOn(client, 'addIngredientByFoodVariant').mockResolvedValue(bound);
+        const byFood = vi.spyOn(client, 'addIngredientByFood');
+
+        const { result } = renderRecipeHook(() => useAddIngredientByFoodVariant(), { client });
+
+        await act(async () => {
+            await result.current.mutateAsync('01J0VARIANT');
+        });
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        expect(byVariant).toHaveBeenCalledWith('01J0VARIANT');
+        expect(byFood).not.toHaveBeenCalled();
+        expect(result.current.data?.variant).toStrictEqual(flat);
+    });
+});
+
 describe('useAddIngredientByFood (search Stage 2 — the catalog pick)', () => {
     const FOOD_ID = '01J0FOOD';
 
@@ -207,19 +221,14 @@ describe('useAddIngredientByFood (search Stage 2 — the catalog pick)', () => {
         expect(result.current.data?.caloriesPer100g).toBe(165);
     });
 
-    it('stales BOTH typeahead reads on success — the picked food moves from catalog to local', async () => {
+    it('stales the cached ingredient search on success — the picked food now has a binding', async () => {
         const client = makeGuardedClient();
         vi.spyOn(client, 'addIngredientByFood').mockResolvedValue(
             makeIngredient({ id: ID, foodId: FOOD_ID, foodResolutionStatus: FoodResolutionStatus.RESOLVED }),
         );
         const queryClient = makeTestQueryClient();
 
-        // Both cached typeahead reads render the pre-pick world: the blended one still lists this food as a
-        // `catalog` hit, and the local one does not list it at all. Both must go stale.
-        queryClient.setQueryData(recipeServiceKeys.ingredientSuggest('chick', 5), {
-            suggestions: [{ provenance: 'catalog', foodId: FOOD_ID, name: 'Chicken breast, raw', score: 0.9 }],
-            catalogAvailability: 'ok',
-        });
+        // The cached search renders the pre-pick world, where this food has no binding, so it must go stale.
         queryClient.setQueryData(recipeServiceKeys.ingredientSearch('chick', 5), []);
         // Scope guards: a catalog admit changes no recipe projection and no other ingredient's status.
         queryClient.setQueryData(recipeServiceKeys.recipeList({}), { data: [], page: 1, pageSize: 20, total: 0 });
@@ -232,7 +241,6 @@ describe('useAddIngredientByFood (search Stage 2 — the catalog pick)', () => {
         });
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-        expect(queryClient.getQueryState(recipeServiceKeys.ingredientSuggest('chick', 5))?.isInvalidated).toBe(true);
         expect(queryClient.getQueryState(recipeServiceKeys.ingredientSearch('chick', 5))?.isInvalidated).toBe(true);
         expect(queryClient.getQueryState(recipeServiceKeys.recipeList({}))?.isInvalidated).toBe(false);
         expect(queryClient.getQueryState(recipeServiceKeys.ingredientStatus(ID))?.isInvalidated).toBe(false);
@@ -242,10 +250,7 @@ describe('useAddIngredientByFood (search Stage 2 — the catalog pick)', () => {
         const client = makeGuardedClient();
         vi.spyOn(client, 'addIngredientByFood').mockRejectedValue(new UnauthorizedError('Unauthorized'));
         const queryClient = makeTestQueryClient();
-        queryClient.setQueryData(recipeServiceKeys.ingredientSuggest('chick', 5), {
-            suggestions: [],
-            catalogAvailability: 'ok',
-        });
+        queryClient.setQueryData(recipeServiceKeys.ingredientSearch('chick', 5), []);
 
         const { result } = renderRecipeHook(() => useAddIngredientByFood(), { client, queryClient });
 
@@ -253,97 +258,6 @@ describe('useAddIngredientByFood (search Stage 2 — the catalog pick)', () => {
             await expect(result.current.mutateAsync(FOOD_ID)).rejects.toBeInstanceOf(UnauthorizedError);
         });
 
-        expect(queryClient.getQueryState(recipeServiceKeys.ingredientSuggest('chick', 5))?.isInvalidated).toBe(false);
-    });
-});
-
-describe('useIngredientCandidates', () => {
-    it('caches the candidates under the literal candidates key and forwards the id', async () => {
-        const client = makeGuardedClient();
-        const candidates = [{ candidateId: 'c1', source: 'usda', externalKey: 'k1', name: 'Quinoa', summary: null }];
-        const spy = vi.spyOn(client, 'getIngredientCandidates').mockResolvedValue(candidates);
-
-        const { result, queryClient } = renderRecipeHook(() => useIngredientCandidates(ID), { client });
-
-        await waitFor(() => expect(result.current.isSuccess).toBe(true));
-        expect(spy).toHaveBeenCalledWith(ID);
-        expect(result.current.data).toEqual(candidates);
-        expect(cachedQueryKeys(queryClient)).toEqual([['recipe-service', 'ingredients', 'detail', ID, 'candidates']]);
-    });
-
-    it('stays idle for an empty id and when explicitly disabled', () => {
-        const client = makeGuardedClient();
-        const spy = vi.spyOn(client, 'getIngredientCandidates');
-
-        const empty = renderRecipeHook(() => useIngredientCandidates(''), { client });
-        expect(empty.result.current.fetchStatus).toBe('idle');
-
-        const disabled = renderRecipeHook(() => useIngredientCandidates(ID, { enabled: false }), { client });
-        expect(disabled.result.current.fetchStatus).toBe('idle');
-
-        expect(spy).not.toHaveBeenCalled();
-    });
-});
-
-describe('useResolveIngredient', () => {
-    it('forwards the id + picked candidate ids to the client, in order', async () => {
-        const client = makeGuardedClient();
-        const spy = vi
-            .spyOn(client, 'resolveIngredient')
-            .mockResolvedValue(makeIngredient({ id: ID, foodResolutionStatus: FoodResolutionStatus.RESOLVED }));
-
-        const { result } = renderRecipeHook(() => useResolveIngredient(), { client });
-
-        await act(async () => {
-            await result.current.mutateAsync({ id: ID, candidateIds: ['c2'] });
-        });
-
-        // Mutation guard: the EXACT id + pick must reach the client — a wrong candidate id fails here.
-        expect(spy).toHaveBeenCalledWith(ID, ['c2']);
-    });
-
-    it('stales exactly the ingredient status, its candidates, and the ingredient-search namespace on success', async () => {
-        const client = makeGuardedClient();
-        vi.spyOn(client, 'resolveIngredient').mockResolvedValue(
-            makeIngredient({ id: ID, foodResolutionStatus: FoodResolutionStatus.RESOLVED }),
-        );
-        const queryClient = makeTestQueryClient();
-
-        // Seed probes at the literal keys the resolve should (and should not) touch.
-        queryClient.setQueryData(recipeServiceKeys.ingredientStatus(ID), makeIngredient({ id: ID }));
-        queryClient.setQueryData(recipeServiceKeys.ingredientCandidates(ID), []);
-        queryClient.setQueryData(recipeServiceKeys.ingredientSearch('quin', 5), [makeIngredient({ id: ID })]);
-        // A different ingredient's status must NOT be invalidated (the write is keyed to ID).
-        queryClient.setQueryData(recipeServiceKeys.ingredientStatus('other'), makeIngredient({ id: 'other' }));
-
-        const { result } = renderRecipeHook(() => useResolveIngredient(), { client, queryClient });
-
-        await act(async () => {
-            await result.current.mutateAsync({ id: ID, candidateIds: ['c1'] });
-        });
-        await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-        expect(queryClient.getQueryState(recipeServiceKeys.ingredientStatus(ID))?.isInvalidated).toBe(true);
-        expect(queryClient.getQueryState(recipeServiceKeys.ingredientCandidates(ID))?.isInvalidated).toBe(true);
-        expect(queryClient.getQueryState(recipeServiceKeys.ingredientSearch('quin', 5))?.isInvalidated).toBe(true);
-        // Scope guard: a sibling ingredient's status stays fresh.
-        expect(queryClient.getQueryState(recipeServiceKeys.ingredientStatus('other'))?.isInvalidated).toBe(false);
-    });
-
-    it('surfaces a rejection as the typed error and invalidates nothing', async () => {
-        const client = makeGuardedClient();
-        vi.spyOn(client, 'resolveIngredient').mockRejectedValue(new UnauthorizedError('Unauthorized'));
-        const queryClient = makeTestQueryClient();
-        queryClient.setQueryData(recipeServiceKeys.ingredientStatus(ID), makeIngredient({ id: ID }));
-
-        const { result } = renderRecipeHook(() => useResolveIngredient(), { client, queryClient });
-
-        await act(async () => {
-            await expect(result.current.mutateAsync({ id: ID, candidateIds: ['c1'] })).rejects.toBeInstanceOf(
-                UnauthorizedError,
-            );
-        });
-
-        expect(queryClient.getQueryState(recipeServiceKeys.ingredientStatus(ID))?.isInvalidated).toBe(false);
+        expect(queryClient.getQueryState(recipeServiceKeys.ingredientSearch('chick', 5))?.isInvalidated).toBe(false);
     });
 });

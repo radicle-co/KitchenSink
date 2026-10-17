@@ -1,0 +1,121 @@
+appId: ${APP_ID}
+---
+# The first slice of 008 FR-035 on the recipe page (`docs/design/uiOverhaul/buildSpec.md` §6.3), on a device:
+#
+#   1. Tap-to-check — the WHOLE ingredient row is the checkbox, named with the full line, and a second tap unchecks it.
+#   2. One current step — the numeral is the step's own toggle; marking step 2 moves the marker off step 1.
+#   3. Screen on — a switch the cook turns on to keep the screen awake (`expo-keep-awake`), off by default.
+#
+# The checks are asserted by their `checked` state, which Maestro reads from the accessibility node, so a row that
+# merely highlighted fails here. The seeded lamb's lines and steps are fixed by the recipe-service seed.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_LAMB}'
+      direction: DOWN
+      timeout: 20000
+- tapOn: '${E2E_RECIPE_LAMB}'
+
+# ── SECTION SWITCH ── below a 720 pt body the page has a sticky bar of links, and Screen on lives in it as its glyph
+# (`docs/design/uiOverhaul/buildSpec.md` §6.2). The one-time hint says what the glyph is until the cook scrolls.
+- assertVisible: 'Keeps the screen awake while you cook.'
+- assertVisible: 'Steps'
+- tapOn: 'Nutrition'
+- assertVisible: 'Nutrition \(per serving\)'
+# The bar is STICKY: after jumping to the foot of the page it is still on screen, so the next jump needs no scrolling back.
+- assertVisible: 'Ingredients'
+- tapOn: 'Ingredients'
+- assertNotVisible: 'Keeps the screen awake while you cook.'
+
+# ── SCREEN ON ── icon-only in the section switch, off on each visit.
+- scrollUntilVisible:
+      element: 'Screen on'
+      direction: DOWN
+      timeout: 20000
+- assertVisible:
+      text: 'Screen on'
+      checked: false
+- tapOn: 'Screen on'
+- assertVisible:
+      text: 'Screen on'
+      checked: true
+- tapOn: 'Screen on'
+- assertVisible:
+      text: 'Screen on'
+      checked: false
+
+# ── TAP-TO-CHECK ── the row is one checkbox named with the whole line.
+- scrollUntilVisible:
+      element: '3 tbsp Olive oil.*'
+      direction: DOWN
+      timeout: 20000
+# iOS cannot read `checked` from a checkbox either (`visibility.yaml` says why; its phrase is `checkbox, checked`), so
+# iOS asserts the phrase on the row between its neighbours, the olive oil.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: '3 tbsp Olive oil.*'
+                checked: false
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'checkbox, unchecked'
+                below: '8 Lamb loin chops.*'
+                above: '3 cloves Garlic.*'
+- tapOn: '3 tbsp Olive oil.*'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: '3 tbsp Olive oil.*'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'checkbox, checked'
+                below: '8 Lamb loin chops.*'
+                above: '3 cloves Garlic.*'
+- tapOn: '3 tbsp Olive oil.*'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: '3 tbsp Olive oil.*'
+                checked: false
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'checkbox, unchecked'
+                below: '8 Lamb loin chops.*'
+                above: '3 cloves Garlic.*'
+
+# ── THE CURRENT STEP ── one at a time.
+# ⚠️ Centred: scrolled only just into view, step 2's numeral sits under the tab bar on the iOS Simulator, and the tap
+# lands on the Recipes tab (run 38973223138: the page jumped to the top and nothing was marked).
+- scrollUntilVisible:
+      element: 'Mark step 2 as current'
+      direction: DOWN
+      timeout: 20000
+      centerElement: true
+- tapOn: 'Mark step 1 as current'
+- assertVisible:
+      text: 'Mark step 1 as current'
+      selected: true
+- tapOn: 'Mark step 2 as current'
+- assertVisible:
+      text: 'Mark step 2 as current'
+      selected: true
+- assertVisible:
+      text: 'Mark step 1 as current'
+      selected: false

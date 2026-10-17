@@ -1,0 +1,26 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: choose "Italian" in the editor's Cuisine field. Called with
+# `runFlow: { file: common/chooseCuisine.yaml }`, straight after `common/typeTitle.yaml`. A cuisine is required to
+# publish (2026-10-13), and so is it for Save changes on a published recipe, so every flow that creates a recipe and
+# publishes it runs this first.
+#
+# Cuisine sits in Details, in the "Kind of dish" group after Time and servings, so it is a short scroll down. The list
+# is bounded to five and a half rows (`cuisineField.md` §3.4), so "Italian" is not on screen until the text narrows it:
+# type, then pick. A pick ends the entry (`typedText="isValue"`) and dismisses the keyboard; the tap on the group's plain
+# heading stays as a belt for iOS, for `typeTitle.yaml`'s reason. After the pick the field sits at the top of the page,
+# which can leave the heading above the screen (run 38835438945, six flows), so it is scrolled back into view first.
+- scrollUntilVisible:
+      element: 'Cuisine'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Cuisine'
+- inputText: 'Ital'
+- tapOn: 'Italian'
+- scrollUntilVisible:
+      element: 'Kind of dish'
+      direction: UP
+      timeout: 20000
+      # Centred, so the tap cannot land on the sticky Sections bar over the top of the page.
+      centerElement: true
+- tapOn: 'Kind of dish'

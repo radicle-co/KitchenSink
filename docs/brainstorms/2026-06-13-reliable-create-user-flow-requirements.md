@@ -13,15 +13,17 @@ A brand-new user, immediately after Clerk sign-up, can use the app — including
 The original question was whether to block the entire app behind a loading state until `user.created` lands in the database. The answer is **no** — and investigating it surfaced that the flow is currently broken in two ways a loading state could not fix.
 
 Today's flow:
+
 1. `packages/apps/commise/web/src/app/sign-up/[[...sign-up]]/page.tsx` renders Clerk `<SignUp>`; Clerk creates the user **in Clerk** and redirects to `/profile`.
 2. `packages/apps/commise/web/src/app/profile/page.tsx` (server component) calls `GET /v1/users/me` on the identity service (ALB → ECS).
 3. The `user.created` webhook (`packages/services/identity-webhooks/src/handlers/identityWebhook.ts` → `handleUserCreated`) is what writes the user/profile rows to RDS — **asynchronously** (svix delivery, eventually consistent; retries span seconds to minutes).
 
 Two verified gaps:
-- **Auth gap.** `packages/services/identity/src/auth/middleware/auth.middleware.ts` resolves the user *only* from an `x-authorizer-context` header produced by an API Gateway authorizer. That authorizer is not wired in front of the ALB (the dead copy was removed in the identity prod-hardening PR), so `/v1/users/me` throws `Missing authorizer context` (401) today regardless of webhook timing.
+
+- **Auth gap.** `packages/services/identity/src/auth/middleware/auth.middleware.ts` resolves the user _only_ from an `x-authorizer-context` header produced by an API Gateway authorizer. That authorizer is not wired in front of the ALB (the dead copy was removed in the identity prod-hardening PR), so `/v1/users/me` throws `Missing authorizer context` (401) today regardless of webhook timing.
 - **Race gap.** Even with auth, `getUserMe` → `resolveUser` (`packages/services/identity/src/users/resolveUser.ts`) reads the user by id and the `/profile` screen reads `status` (user) and `subscriptionTier` (account) — both DB-only. If the webhook hasn't landed, those rows don't exist yet.
 
-Clerk's own guidance matches the conclusion: webhooks are eventually-consistent and should not gate a synchronous flow like just-signed-up onboarding; read the user's own data from the session token / Backend API, and use webhooks to sync *other* data in the background.
+Clerk's own guidance matches the conclusion: webhooks are eventually-consistent and should not gate a synchronous flow like just-signed-up onboarding; read the user's own data from the session token / Backend API, and use webhooks to sync _other_ data in the background.
 
 ## Requirements
 
@@ -41,15 +43,18 @@ Clerk's own guidance matches the conclusion: webhooks are eventually-consistent 
 ## Scope boundaries
 
 **In scope**
+
 - Service-side Clerk JWT verification and read-through creation of user + account on first request.
 - Demoting the webhook to idempotent background sync.
 - Client rendering the immediate experience from the session (no blocking).
 
 **Deferred for later**
-- Broader API-gateway / edge-auth architecture (an edge authorizer was explicitly *not* chosen here — see Open Questions if revisited).
+
+- Broader API-gateway / edge-auth architecture (an edge authorizer was explicitly _not_ chosen here — see Open Questions if revisited).
 - Enriching profile data beyond what's needed to render `/profile` on first load.
 
 **Outside this change**
+
 - Adding an app-wide blocking loading state (rejected: Clerk anti-pattern; doesn't address the auth gap; fragile under webhook delay/failure).
 - Re-adding the gateway authorizer Lambda removed in the prod-hardening PR.
 

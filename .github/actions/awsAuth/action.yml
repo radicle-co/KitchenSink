@@ -1,0 +1,139 @@
+name: Sign in to AWS
+description: >-
+    The one way CI signs in to AWS (ADR-0063): assume the tier's GitHub OIDC role, prove the session is that role,
+    and report `authenticated`. A fork's pull request or a Dependabot run cannot hold a token and reports
+    `authenticated=false`; any other run without one is a red job, never a skip.
+
+# ⛔ WHY ONE ACTION
+#
+# The access key this replaces was readable by any job that named it, and a job that could not read it (a fork) and a
+# job that FORGOT to (a typo, a missing `secrets:` line) looked the same: an empty string, and a step that skipped
+# green. Here the two are told apart before anything asks AWS, by the `available` step below, and a job that forgot
+# `id-token: write` (or whose caller did) is red.
+#
+# The job must grant `id-token: write` at JOB level and state `timeout-minutes`, and the session must outlast the job;
+# `awsCredentialsFederated.test.ts` enforces all three, and `awsAuthPredicate.test.ts` runs this file's bash.
+#
+# @pattern Adapter over aws-actions/configure-aws-credentials
+# @pattern Specification — `available` is the rule for whether a run may sign in
+
+inputs:
+    tier:
+        description: >-
+            `nonprod` (pull requests, previews, the sandbox and its teardown), `prod-read` (a job on `main` bound to
+            no environment) or `prod` (a job bound to `Production`, on `main`). Each names one role.
+        required: true
+    account-id:
+        description: The AWS account id, `vars.AWS_ACCOUNT_ID` (a composite action cannot read `vars`).
+        required: true
+    region:
+        description: The AWS region, `vars.DEFAULT_AWS_REGION`.
+        required: true
+    session-minutes:
+        description: >-
+            How long the session lasts, 15 to 180. It must be at least the job's `timeout-minutes`: a deploy that
+            outlives its session loses its credentials while CloudFormation is still working.
+        required: false
+        default: '60'
+
+outputs:
+    authenticated:
+        description: >-
+            `true` once the session is proved to be the tier's role; `false` only for a fork's pull request or a
+            Dependabot run.
+        value: ${{ steps.verify.outputs.authenticated || steps.available.outputs.authenticated }}
+
+runs:
+    using: composite
+    steps:
+        - name: Resolve the role, and decide whether this run can sign in
+          id: available
+          shell: bash
+          env:
+              TIER: ${{ inputs.tier }}
+              ACCOUNT_ID: ${{ inputs.account-id }}
+              SESSION_MINUTES: ${{ inputs.session-minutes }}
+              EVENT_NAME: ${{ github.event_name }}
+              REPOSITORY: ${{ github.repository }}
+              HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+              ACTOR: ${{ github.actor }}
+          run: |
+              set -euo pipefail
+
+              # The tier names the role. Held equal to `GITHUB_ACTIONS_ROLE_NAMES` in `GithubActionsAccessStack.ts`.
+              case "${TIER}" in
+                  nonprod) role='kitchensink-gha-nonprod' ;;
+                  prod-read) role='kitchensink-gha-prod-read' ;;
+                  prod) role='kitchensink-gha-prod' ;;
+                  *)
+                      echo "::error::unknown tier '${TIER}' — expected nonprod, prod-read or prod"
+                      exit 1
+                      ;;
+              esac
+
+              # STS accepts 900 seconds at least, and the roles allow 3 hours at most.
+              if ! [[ "${SESSION_MINUTES}" =~ ^[0-9]+$ ]] || [ "${SESSION_MINUTES}" -lt 15 ] || [ "${SESSION_MINUTES}" -gt 180 ]; then
+                  echo "::error::session-minutes '${SESSION_MINUTES}' must be a whole number from 15 to 180"
+                  exit 1
+              fi
+
+              {
+                  echo "role=${role}"
+                  echo "session-seconds=$((SESSION_MINUTES * 60))"
+              } >>"$GITHUB_OUTPUT"
+
+              # GitHub sets this only when the job may mint a token. With it, the trust policy decides.
+              if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+                  if ! [[ "${ACCOUNT_ID}" =~ ^[0-9]{12}$ ]]; then
+                      echo "::error::account-id '${ACCOUNT_ID}' is not a 12-digit AWS account id (is vars.AWS_ACCOUNT_ID set?)"
+                      exit 1
+                  fi
+                  echo 'federate=true' >>"$GITHUB_OUTPUT"
+                  exit 0
+              fi
+
+              # GitHub withholds the token from a fork's pull request and from Dependabot by design. `github.actor` is
+              # the actor whose privileges the run has, and a re-run keeps it.
+              fork='false'
+              case "${EVENT_NAME}" in
+                  pull_request | pull_request_review | pull_request_review_comment)
+                      if [ "${HEAD_REPOSITORY}" != "${REPOSITORY}" ]; then
+                          fork='true'
+                      fi
+                      ;;
+              esac
+
+              if [ "${fork}" = 'true' ] || [ "${ACTOR}" = 'dependabot[bot]' ]; then
+                  echo "::notice::this run cannot hold an AWS token (a fork's pull request or a Dependabot run), so it is NOT signed in to AWS and the steps that need AWS are skipped"
+                  echo 'authenticated=false' >>"$GITHUB_OUTPUT"
+                  exit 0
+              fi
+
+              echo "::error::this job has no OIDC token to sign in to AWS with. Grant 'id-token: write' in this job's own permissions block, and in the permissions of every job that calls its workflow (a called workflow can only downgrade what its caller grants)."
+              exit 1
+
+        - name: Assume the tier's role
+          if: steps.available.outputs.federate == 'true'
+          uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+          with:
+              role-to-assume: arn:aws:iam::${{ inputs.account-id }}:role/${{ steps.available.outputs.role }}
+              role-session-name: gha-${{ github.run_id }}-${{ github.run_attempt }}
+              role-duration-seconds: ${{ steps.available.outputs.session-seconds }}
+              aws-region: ${{ inputs.region }}
+
+        # The WHOLE assumed-role ARN, never a prefix: `kitchensink-gha-prod` is a prefix of `kitchensink-gha-prod-read`.
+        - name: Prove the session is the tier's role
+          id: verify
+          if: steps.available.outputs.federate == 'true'
+          shell: bash
+          env:
+              EXPECTED_ARN: arn:aws:sts::${{ inputs.account-id }}:assumed-role/${{ steps.available.outputs.role }}/gha-${{ github.run_id }}-${{ github.run_attempt }}
+          run: |
+              set -euo pipefail
+              actual=$(aws sts get-caller-identity --query Arn --output text)
+              if [ "${actual}" != "${EXPECTED_ARN}" ]; then
+                  echo "::error::signed in as '${actual}', expected '${EXPECTED_ARN}'"
+                  exit 1
+              fi
+              echo "Signed in to AWS as ${actual}"
+              echo 'authenticated=true' >>"$GITHUB_OUTPUT"

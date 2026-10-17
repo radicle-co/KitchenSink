@@ -1,0 +1,1510 @@
+{
+    "qualifier": "ksnonprod",
+    "resourceTypes": [
+        "AWS::ApiGateway::Account",
+        "AWS::ApiGateway::Deployment",
+        "AWS::ApiGateway::DomainName",
+        "AWS::ApiGateway::GatewayResponse",
+        "AWS::ApiGateway::Method",
+        "AWS::ApiGateway::Resource",
+        "AWS::ApiGateway::RestApi",
+        "AWS::ApiGateway::Stage",
+        "AWS::ApiGatewayV2::ApiMapping",
+        "AWS::ApplicationAutoScaling::ScalableTarget",
+        "AWS::ApplicationAutoScaling::ScalingPolicy",
+        "AWS::CertificateManager::Certificate",
+        "AWS::CloudFormation::CustomResource",
+        "AWS::CloudFront::CachePolicy",
+        "AWS::CloudFront::Distribution",
+        "AWS::CloudFront::Function",
+        "AWS::CloudFront::KeyGroup",
+        "AWS::CloudFront::KeyValueStore",
+        "AWS::CloudFront::OriginAccessControl",
+        "AWS::CloudFront::OriginRequestPolicy",
+        "AWS::CloudFront::PublicKey",
+        "AWS::CloudFront::ResponseHeadersPolicy",
+        "AWS::CloudWatch::Alarm",
+        "AWS::CloudWatch::Dashboard",
+        "AWS::DynamoDB::Table",
+        "AWS::EC2::Instance",
+        "AWS::EC2::InternetGateway",
+        "AWS::EC2::Route",
+        "AWS::EC2::RouteTable",
+        "AWS::EC2::SecurityGroup",
+        "AWS::EC2::SecurityGroupEgress",
+        "AWS::EC2::SecurityGroupIngress",
+        "AWS::EC2::Subnet",
+        "AWS::EC2::SubnetRouteTableAssociation",
+        "AWS::EC2::VPC",
+        "AWS::EC2::VPCGatewayAttachment",
+        "AWS::ECS::Cluster",
+        "AWS::ECS::ClusterCapacityProviderAssociations",
+        "AWS::ECS::Service",
+        "AWS::ECS::TaskDefinition",
+        "AWS::ElasticLoadBalancingV2::Listener",
+        "AWS::ElasticLoadBalancingV2::ListenerRule",
+        "AWS::ElasticLoadBalancingV2::LoadBalancer",
+        "AWS::ElasticLoadBalancingV2::TargetGroup",
+        "AWS::Events::EventBus",
+        "AWS::Events::Rule",
+        "AWS::IAM::InstanceProfile",
+        "AWS::IAM::Policy",
+        "AWS::IAM::Role",
+        "AWS::Lambda::EventInvokeConfig",
+        "AWS::Lambda::EventSourceMapping",
+        "AWS::Lambda::Function",
+        "AWS::Lambda::Permission",
+        "AWS::Lambda::Url",
+        "AWS::Logs::LogGroup",
+        "AWS::Logs::SubscriptionFilter",
+        "AWS::RDS::DBInstance",
+        "AWS::RDS::DBSubnetGroup",
+        "AWS::Route53::RecordSet",
+        "AWS::S3::Bucket",
+        "AWS::S3::BucketPolicy",
+        "AWS::SNS::Subscription",
+        "AWS::SNS::Topic",
+        "AWS::SNS::TopicPolicy",
+        "AWS::SQS::Queue",
+        "AWS::SQS::QueuePolicy",
+        "AWS::SSM::Parameter",
+        "AWS::Scheduler::Schedule",
+        "AWS::SecretsManager::Secret",
+        "AWS::SecretsManager::SecretTargetAttachment",
+        "AWS::StepFunctions::StateMachine",
+        "Custom::CloudFrontSigningKey",
+        "Custom::S3AutoDeleteObjects"
+    ],
+    "roleActions": [
+        "bedrock:InvokeModel",
+        "cloudformation:DeleteStack",
+        "cloudformation:DescribeStacks",
+        "cloudformation:ListStacks",
+        "cloudfront:CreateInvalidation",
+        "dynamodb:PutItem",
+        "ec2:DescribeInstances",
+        "ec2:StartInstances",
+        "ec2:StopInstances",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:GetAuthorizationToken",
+        "ecr:GetDownloadUrlForLayer",
+        "ecs:DeleteService",
+        "ecs:DescribeClusters",
+        "ecs:DescribeServices",
+        "ecs:DescribeTasks",
+        "ecs:ListClusters",
+        "ecs:ListServices",
+        "ecs:ListTasks",
+        "ecs:RunTask",
+        "ecs:StopTask",
+        "ecs:TagResource",
+        "ecs:UpdateService",
+        "events:DisableRule",
+        "events:EnableRule",
+        "events:ListRules",
+        "events:ListTagsForResource",
+        "events:PutEvents",
+        "iam:PassRole",
+        "lambda:GetFunction",
+        "lambda:InvokeFunction",
+        "logs:CreateLogDelivery",
+        "logs:CreateLogStream",
+        "logs:DeleteLogDelivery",
+        "logs:DescribeLogGroups",
+        "logs:DescribeResourcePolicies",
+        "logs:GetLogDelivery",
+        "logs:ListLogDeliveries",
+        "logs:PutLogEvents",
+        "logs:PutResourcePolicy",
+        "logs:UpdateLogDelivery",
+        "rds-db:connect",
+        "rds:DescribeDBInstances",
+        "rds:StartDBInstance",
+        "rds:StopDBInstance",
+        "s3:Abort*",
+        "s3:DeleteObject",
+        "s3:DeleteObject*",
+        "s3:GetBucket*",
+        "s3:GetObject*",
+        "s3:List*",
+        "s3:ListBucket",
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:PutSecretValue",
+        "sns:Publish",
+        "sqs:ChangeMessageVisibility",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes",
+        "sqs:GetQueueUrl",
+        "sqs:ReceiveMessage",
+        "sqs:SendMessage",
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:PutParameter",
+        "states:StartExecution",
+        "xray:GetSamplingRules",
+        "xray:GetSamplingTargets",
+        "xray:PutTelemetryRecords",
+        "xray:PutTraceSegments"
+    ],
+    "roleStatements": [
+        {
+            "actions": [
+                "bedrock:InvokeModel"
+            ],
+            "resources": [
+                "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-2-lite-v1:0",
+                "arn:aws:bedrock:us-east-2::foundation-model/amazon.nova-2-lite-v1:0",
+                "arn:aws:bedrock:us-west-2::foundation-model/amazon.nova-2-lite-v1:0"
+            ]
+        },
+        {
+            "actions": [
+                "bedrock:InvokeModel"
+            ],
+            "resources": [
+                "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0",
+                "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-micro-v1:0",
+                "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0"
+            ]
+        },
+        {
+            "actions": [
+                "bedrock:InvokeModel"
+            ],
+            "resources": [
+                "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.amazon.nova-2-lite-v1:0"
+            ]
+        },
+        {
+            "actions": [
+                "cloudformation:DeleteStack"
+            ],
+            "resources": [
+                "arn:aws:cloudformation:us-east-1:123456789012:stack/kitchensink-*-pr-*/*"
+            ]
+        },
+        {
+            "actions": [
+                "cloudformation:DeleteStack"
+            ],
+            "resources": [
+                "arn:aws:cloudformation:us-east-1:123456789012:stack/kitchensink-alb-sandbox/*",
+                "arn:aws:cloudformation:us-east-1:123456789012:stack/kitchensink-identity-schema-sandbox/*",
+                "arn:aws:cloudformation:us-east-1:123456789012:stack/kitchensink-identity-service-sandbox/*"
+            ]
+        },
+        {
+            "actions": [
+                "cloudformation:DescribeStacks",
+                "cloudformation:ListStacks",
+                "ec2:DescribeInstances",
+                "ecs:DescribeClusters",
+                "ecs:DescribeServices",
+                "ecs:DescribeTasks",
+                "ecs:ListClusters",
+                "ecs:ListServices",
+                "ecs:ListTasks",
+                "rds:DescribeDBInstances"
+            ],
+            "resources": [
+                "*"
+            ]
+        },
+        {
+            "actions": [
+                "cloudfront:CreateInvalidation"
+            ],
+            "resources": [
+                "arn:aws:cloudfront::123456789012:distribution/MediaDeliveryMediaDistribution0B87BDD3-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "dynamodb:PutItem"
+            ],
+            "resources": [
+                "arn:aws:dynamodb:us-east-1:123456789012:table/kitchensink-messages-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "ec2:DescribeInstances",
+                "ecs:DescribeClusters",
+                "ecs:DescribeServices",
+                "ecs:ListClusters",
+                "ecs:ListServices",
+                "rds:DescribeDBInstances"
+            ],
+            "resources": [
+                "*"
+            ]
+        },
+        {
+            "actions": [
+                "ec2:StartInstances",
+                "ec2:StopInstances"
+            ],
+            "resources": [
+                "arn:aws:ec2:us-east-1:123456789012:instance/*"
+            ]
+        },
+        {
+            "actions": [
+                "ecr:BatchCheckLayerAvailability",
+                "ecr:BatchGetImage",
+                "ecr:GetDownloadUrlForLayer"
+            ],
+            "resources": [
+                "arn:aws:ecr:us-east-1:123456789012:repository/kitchensink-food"
+            ]
+        },
+        {
+            "actions": [
+                "ecr:BatchCheckLayerAvailability",
+                "ecr:BatchGetImage",
+                "ecr:GetDownloadUrlForLayer"
+            ],
+            "resources": [
+                "arn:aws:ecr:us-east-1:123456789012:repository/kitchensink-identity"
+            ]
+        },
+        {
+            "actions": [
+                "ecr:BatchCheckLayerAvailability",
+                "ecr:BatchGetImage",
+                "ecr:GetDownloadUrlForLayer"
+            ],
+            "resources": [
+                "arn:aws:ecr:us-east-1:123456789012:repository/kitchensink-recipes"
+            ]
+        },
+        {
+            "actions": [
+                "ecr:GetAuthorizationToken"
+            ],
+            "resources": [
+                "*"
+            ]
+        },
+        {
+            "actions": [
+                "ecs:DeleteService"
+            ],
+            "resources": [
+                "arn:aws:ecs:us-east-1:123456789012:service/kitchensink-*-pr-*/*"
+            ]
+        },
+        {
+            "actions": [
+                "ecs:RunTask"
+            ],
+            "resources": [
+                "arn:aws:ecs:us-east-1:123456789012:task-definition/FoodServicepr1FoodChangeRefreshTaskDefinition5D1328C5:1"
+            ]
+        },
+        {
+            "actions": [
+                "ecs:StopTask"
+            ],
+            "resources": [
+                "arn:aws:ecs:us-east-1:123456789012:task/kitchensink-*-pr-*/*"
+            ]
+        },
+        {
+            "actions": [
+                "ecs:TagResource"
+            ],
+            "resources": [
+                "arn:aws:ecs:us-east-1:*:task/kitchensink-food-service-pr-1-FoodServiceCluster442EDB29-GENERATED/*"
+            ]
+        },
+        {
+            "actions": [
+                "ecs:UpdateService"
+            ],
+            "resources": [
+                "arn:aws:ecs:us-east-1:123456789012:service/*sandbox*/*",
+                "arn:aws:ecs:us-east-1:123456789012:service/kitchensink-*-pr-*/*"
+            ]
+        },
+        {
+            "actions": [
+                "events:DisableRule",
+                "events:EnableRule"
+            ],
+            "resources": [
+                "arn:aws:events:us-east-1:123456789012:rule/kitchensink-*"
+            ]
+        },
+        {
+            "actions": [
+                "events:ListRules"
+            ],
+            "resources": [
+                "*"
+            ]
+        },
+        {
+            "actions": [
+                "events:ListTagsForResource"
+            ],
+            "resources": [
+                "arn:aws:events:us-east-1:123456789012:rule/kitchensink-*"
+            ]
+        },
+        {
+            "actions": [
+                "events:PutEvents"
+            ],
+            "resources": [
+                "arn:aws:events:us-east-1:123456789012:event-bus/kitchensink-food-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "iam:PassRole"
+            ],
+            "resources": [
+                "arn:aws:iam::123456789012:role/kitchensink-food-service-pr-1-FoodChangeRefreshTaskRoleA4825191-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "iam:PassRole"
+            ],
+            "resources": [
+                "arn:aws:iam::123456789012:role/kitchensink-food-service-pr-1-FoodTaskExecutionRole6B031F63-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "lambda:GetFunction"
+            ],
+            "resources": [
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-data-pr-1-DbBootstrapFunction9D7EB2AB-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "lambda:GetFunction"
+            ],
+            "resources": [
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-data-sandbox-DbBootstrapFunction9D7EB2AB-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "lambda:GetFunction"
+            ],
+            "resources": [
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-remote-search-shared-pr-1-SigningKeyProvisionerDAF8E697-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "lambda:GetFunction"
+            ],
+            "resources": [
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-remote-search-shared-sandbox-SigningKeyProvisionerDAF8E697-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "lambda:InvokeFunction"
+            ],
+            "resources": [
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-data-pr-1-DbBootstrapFunction9D7EB2AB-GENERATED",
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-data-pr-1-DbBootstrapFunction9D7EB2AB-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "lambda:InvokeFunction"
+            ],
+            "resources": [
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-data-sandbox-DbBootstrapFunction9D7EB2AB-GENERATED",
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-data-sandbox-DbBootstrapFunction9D7EB2AB-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "lambda:InvokeFunction"
+            ],
+            "resources": [
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-ingredient-parser-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "lambda:InvokeFunction"
+            ],
+            "resources": [
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-ingredient-parser-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "lambda:InvokeFunction"
+            ],
+            "resources": [
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-remote-search-shared-pr-1-SigningKeyProvisionerDAF8E697-GENERATED",
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-remote-search-shared-pr-1-SigningKeyProvisionerDAF8E697-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "lambda:InvokeFunction"
+            ],
+            "resources": [
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-remote-search-shared-sandbox-SigningKeyProvisionerDAF8E697-GENERATED",
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-remote-search-shared-sandbox-SigningKeyProvisionerDAF8E697-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "lambda:InvokeFunction"
+            ],
+            "resources": [
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-sandbox-scheduler-sandbox-SandboxReclaimFunctionAB38C016-GENERATED",
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-sandbox-scheduler-sandbox-SandboxReclaimFunctionAB38C016-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "lambda:InvokeFunction"
+            ],
+            "resources": [
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-sandbox-scheduler-sandbox-SandboxSchedulerFunction56CBE48E-GENERATED",
+                "arn:aws:lambda:us-east-1:123456789012:function:kitchensink-sandbox-scheduler-sandbox-SandboxSchedulerFunction56CBE48E-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogDelivery",
+                "logs:DeleteLogDelivery",
+                "logs:DescribeLogGroups",
+                "logs:DescribeResourcePolicies",
+                "logs:GetLogDelivery",
+                "logs:ListLogDeliveries",
+                "logs:PutResourcePolicy",
+                "logs:UpdateLogDelivery"
+            ],
+            "resources": [
+                "*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/kitchensink-ingredient-parser-pr-1:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/kitchensink-ingredient-parser-sandbox:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/kitchensink-recipe-workers-pr-1:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/kitchensink-recipe-workers-sandbox:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/kitchensink-remote-search-pr-1:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:/kitchensink/identity-service/pr-1:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:/kitchensink/identity-service/sandbox:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:kitchensink-alarm-relay-pr-1-AlarmRelayLogGroup5829D355-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:kitchensink-alarm-relay-sandbox-AlarmRelayLogGroup5829D355-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:kitchensink-food-service-pr-1-FoodApiLogGroup317D8769-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:kitchensink-food-service-pr-1-FoodChangeRefreshLogGroup462CB492-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:kitchensink-food-service-pr-1-FoodWorkerLogGroupCB1084A7-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:kitchensink-identity-webhooks-pr-1-LogForwarderLogGroup24B6CBD6-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:kitchensink-identity-webhooks-pr-1-WebhooksLogGroupA05F4FC6-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:kitchensink-identity-webhooks-sandbox-LogForwarderLogGroup24B6CBD6-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:kitchensink-identity-webhooks-sandbox-WebhooksLogGroupA05F4FC6-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:kitchensink-recipe-service-pr-1-RecipeApiLogGroupEBBCA156-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:kitchensink-remote-search-shared-pr-1-SigningKeyProvisionerLogGroupFD17740B-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "resources": [
+                "arn:aws:logs:us-east-1:123456789012:log-group:kitchensink-remote-search-shared-sandbox-SigningKeyProvisionerLogGroupFD17740B-GENERATED:*"
+            ]
+        },
+        {
+            "actions": [
+                "rds-db:connect"
+            ],
+            "resources": [
+                "arn:aws:rds-db:us-east-1:123456789012:dbuser:db-PLACEHOLDER/recipe_app"
+            ]
+        },
+        {
+            "actions": [
+                "rds-db:connect"
+            ],
+            "resources": [
+                "arn:aws:rds-db:us-east-1:123456789012:dbuser:kitchensink-data-pr-1-databaseb269d8bb-generated/identity_migrator"
+            ]
+        },
+        {
+            "actions": [
+                "rds-db:connect"
+            ],
+            "resources": [
+                "arn:aws:rds-db:us-east-1:123456789012:dbuser:kitchensink-data-pr-1-databaseb269d8bb-generated/identity_service"
+            ]
+        },
+        {
+            "actions": [
+                "rds-db:connect"
+            ],
+            "resources": [
+                "arn:aws:rds-db:us-east-1:123456789012:dbuser:kitchensink-data-sandbox-databaseb269d8bb-generated/food_app"
+            ]
+        },
+        {
+            "actions": [
+                "rds-db:connect"
+            ],
+            "resources": [
+                "arn:aws:rds-db:us-east-1:123456789012:dbuser:kitchensink-data-sandbox-databaseb269d8bb-generated/food_migrator"
+            ]
+        },
+        {
+            "actions": [
+                "rds-db:connect"
+            ],
+            "resources": [
+                "arn:aws:rds-db:us-east-1:123456789012:dbuser:kitchensink-data-sandbox-databaseb269d8bb-generated/food_seeder"
+            ]
+        },
+        {
+            "actions": [
+                "rds-db:connect"
+            ],
+            "resources": [
+                "arn:aws:rds-db:us-east-1:123456789012:dbuser:kitchensink-data-sandbox-databaseb269d8bb-generated/identity_migrator"
+            ]
+        },
+        {
+            "actions": [
+                "rds-db:connect"
+            ],
+            "resources": [
+                "arn:aws:rds-db:us-east-1:123456789012:dbuser:kitchensink-data-sandbox-databaseb269d8bb-generated/identity_service"
+            ]
+        },
+        {
+            "actions": [
+                "rds-db:connect"
+            ],
+            "resources": [
+                "arn:aws:rds-db:us-east-1:123456789012:dbuser:kitchensink-data-sandbox-databaseb269d8bb-generated/recipe_app"
+            ]
+        },
+        {
+            "actions": [
+                "rds-db:connect"
+            ],
+            "resources": [
+                "arn:aws:rds-db:us-east-1:123456789012:dbuser:kitchensink-data-sandbox-databaseb269d8bb-generated/recipe_migrator"
+            ]
+        },
+        {
+            "actions": [
+                "rds:StartDBInstance",
+                "rds:StopDBInstance"
+            ],
+            "resources": [
+                "arn:aws:rds:us-east-1:123456789012:db:*sandbox*"
+            ]
+        },
+        {
+            "actions": [
+                "s3:Abort*",
+                "s3:DeleteObject*",
+                "s3:GetBucket*",
+                "s3:GetObject*",
+                "s3:List*",
+                "s3:PutObject",
+                "s3:PutObjectLegalHold",
+                "s3:PutObjectRetention",
+                "s3:PutObjectTagging",
+                "s3:PutObjectVersionTagging"
+            ],
+            "resources": [
+                "arn:aws:s3:::kitchensink-data-pr-1-archivebucket9decbf5d-generated",
+                "arn:aws:s3:::kitchensink-data-pr-1-archivebucket9decbf5d-generated/*"
+            ]
+        },
+        {
+            "actions": [
+                "s3:Abort*",
+                "s3:DeleteObject*",
+                "s3:GetBucket*",
+                "s3:GetObject*",
+                "s3:List*",
+                "s3:PutObject",
+                "s3:PutObjectLegalHold",
+                "s3:PutObjectRetention",
+                "s3:PutObjectTagging",
+                "s3:PutObjectVersionTagging"
+            ],
+            "resources": [
+                "arn:aws:s3:::kitchensink-data-pr-1-mediabucketbcbb02ba-generated",
+                "arn:aws:s3:::kitchensink-data-pr-1-mediabucketbcbb02ba-generated/*"
+            ]
+        },
+        {
+            "actions": [
+                "s3:Abort*",
+                "s3:DeleteObject*",
+                "s3:GetBucket*",
+                "s3:GetObject*",
+                "s3:List*",
+                "s3:PutObject",
+                "s3:PutObjectLegalHold",
+                "s3:PutObjectRetention",
+                "s3:PutObjectTagging",
+                "s3:PutObjectVersionTagging"
+            ],
+            "resources": [
+                "arn:aws:s3:::kitchensink-data-sandbox-archivebucket9decbf5d-generated",
+                "arn:aws:s3:::kitchensink-data-sandbox-archivebucket9decbf5d-generated/*"
+            ]
+        },
+        {
+            "actions": [
+                "s3:Abort*",
+                "s3:DeleteObject*",
+                "s3:GetBucket*",
+                "s3:GetObject*",
+                "s3:List*",
+                "s3:PutObject",
+                "s3:PutObjectLegalHold",
+                "s3:PutObjectRetention",
+                "s3:PutObjectTagging",
+                "s3:PutObjectVersionTagging"
+            ],
+            "resources": [
+                "arn:aws:s3:::kitchensink-data-sandbox-mediabucketbcbb02ba-generated",
+                "arn:aws:s3:::kitchensink-data-sandbox-mediabucketbcbb02ba-generated/*"
+            ]
+        },
+        {
+            "actions": [
+                "s3:DeleteObject"
+            ],
+            "resources": [
+                "arn:aws:s3:::kitchensink-placeholder-archive/recipes/*",
+                "arn:aws:s3:::kitchensink-placeholder-media/recipes/*"
+            ]
+        },
+        {
+            "actions": [
+                "s3:ListBucket"
+            ],
+            "resources": [
+                "arn:aws:s3:::kitchensink-placeholder-archive",
+                "arn:aws:s3:::kitchensink-placeholder-media"
+            ]
+        },
+        {
+            "actions": [
+                "s3:PutObject"
+            ],
+            "resources": [
+                "arn:aws:s3:::kitchensink-placeholder-archive/recipes/*"
+            ]
+        },
+        {
+            "actions": [
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:GetSecretValue"
+            ],
+            "resources": [
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:DatabaseCredentialsSecret7483BC14-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:GetSecretValue"
+            ],
+            "resources": [
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:FoodRemoteReferenceKeyA0866FE7-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:GetSecretValue"
+            ],
+            "resources": [
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:kitchensink/pr-1/identity/keys-??????"
+            ]
+        },
+        {
+            "actions": [
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:GetSecretValue"
+            ],
+            "resources": [
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:kitchensink/sandbox/food/usda-api-key-??????"
+            ]
+        },
+        {
+            "actions": [
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:GetSecretValue"
+            ],
+            "resources": [
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:kitchensink/sandbox/identity/keys-??????"
+            ]
+        },
+        {
+            "actions": [
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:GetSecretValue"
+            ],
+            "resources": [
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:MigrationPlanSecretA0DF90AF-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:GetSecretValue"
+            ],
+            "resources": [
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:SigningKey1Secret95DF3295-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:PutSecretValue"
+            ],
+            "resources": [
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:SigningKey1Secret95DF3295-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "sns:Publish"
+            ],
+            "resources": [
+                "arn:aws:sns:us-east-1:123456789012:kitchensink-handle-sync-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sns:Publish"
+            ],
+            "resources": [
+                "arn:aws:sns:us-east-1:123456789012:kitchensink-handle-sync-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:ChangeMessageVisibility",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:ReceiveMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-data-pr-1-DeletionQueueFCF7C2CD-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:ChangeMessageVisibility",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:ReceiveMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-data-sandbox-DeletionQueueFCF7C2CD-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:ChangeMessageVisibility",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:ReceiveMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-account-erasure-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:ChangeMessageVisibility",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:ReceiveMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-account-erasure-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:ChangeMessageVisibility",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:ReceiveMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-archive-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:ChangeMessageVisibility",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:ReceiveMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-archive-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:ChangeMessageVisibility",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:ReceiveMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-handle-sync-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:ChangeMessageVisibility",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:ReceiveMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-handle-sync-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:ChangeMessageVisibility",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:ReceiveMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-parse-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:ChangeMessageVisibility",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:ReceiveMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-parse-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:ChangeMessageVisibility",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:ReceiveMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-verification-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:ChangeMessageVisibility",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:ReceiveMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-verification-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:SendMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-alarm-relay-pr-1-AlarmRelayFailureQueueEA0815DC-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:SendMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-alarm-relay-sandbox-AlarmRelayFailureQueueEA0815DC-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:SendMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-data-pr-1-DeletionQueueFCF7C2CD-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:SendMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-data-sandbox-DeletionQueueFCF7C2CD-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:SendMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-account-erasure-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:SendMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-account-erasure-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:SendMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-archive-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:SendMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-archive-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:SendMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-verification-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:SendMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-verification-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-data-pr-1-DeletionDlq0F1C9C83-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-data-pr-1-DeletionQueueFCF7C2CD-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-data-sandbox-DeletionDlq0F1C9C83-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-data-sandbox-DeletionQueueFCF7C2CD-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-account-erasure-dlq-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-account-erasure-dlq-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-account-erasure-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-account-erasure-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-archive-dlq-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-archive-dlq-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-archive-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-archive-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-handle-sync-dlq-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-handle-sync-dlq-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-handle-sync-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-handle-sync-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-parse-dlq-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-parse-dlq-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-parse-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-parse-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-verification-dlq-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-verification-dlq-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-verification-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:GetQueueAttributes"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-verification-sandbox"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:SendMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-account-erasure-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:SendMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-parse-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "sqs:SendMessage"
+            ],
+            "resources": [
+                "arn:aws:sqs:us-east-1:123456789012:kitchensink-recipe-verification-pr-1"
+            ]
+        },
+        {
+            "actions": [
+                "ssm:GetParameter",
+                "ssm:PutParameter"
+            ],
+            "resources": [
+                "arn:aws:ssm:us-east-1:123456789012:parameter/kitchensink/sandbox-scheduler/*"
+            ]
+        },
+        {
+            "actions": [
+                "ssm:GetParameters"
+            ],
+            "resources": [
+                "arn:aws:ssm:us-east-1:123456789012:parameter/kitchensink/pr-1/recipe/verification-ceiling-micros",
+                "arn:aws:ssm:us-east-1:123456789012:parameter/kitchensink/pr-1/recipe/verification-model-id"
+            ]
+        },
+        {
+            "actions": [
+                "ssm:GetParameters"
+            ],
+            "resources": [
+                "arn:aws:ssm:us-east-1:123456789012:parameter/kitchensink/sandbox/recipe/verification-ceiling-micros",
+                "arn:aws:ssm:us-east-1:123456789012:parameter/kitchensink/sandbox/recipe/verification-model-id"
+            ]
+        },
+        {
+            "actions": [
+                "states:StartExecution"
+            ],
+            "resources": [
+                "arn:aws:states:us-east-1:123456789012:stateMachine:ReclaimStateMachineE0C49477-GENERATED"
+            ]
+        },
+        {
+            "actions": [
+                "xray:GetSamplingRules",
+                "xray:GetSamplingTargets",
+                "xray:PutTelemetryRecords",
+                "xray:PutTraceSegments"
+            ],
+            "resources": [
+                "*"
+            ]
+        }
+    ],
+    "rolePassedToServices": [
+        "apigateway.amazonaws.com",
+        "ec2.amazonaws.com",
+        "ecs-tasks.amazonaws.com",
+        "events.amazonaws.com",
+        "lambda.amazonaws.com",
+        "scheduler.amazonaws.com",
+        "states.amazonaws.com"
+    ],
+    "awsManagedPolicies": [
+        "service-role/AWSLambdaBasicExecutionRole",
+        "service-role/AWSLambdaVPCAccessExecutionRole",
+        "service-role/AmazonAPIGatewayPushToCloudWatchLogs",
+        "service-role/AmazonECSTaskExecutionRolePolicy"
+    ],
+    "stackNames": [
+        "kitchensink-alarm-relay-pr-1",
+        "kitchensink-alarm-relay-sandbox",
+        "kitchensink-alb-pr-1",
+        "kitchensink-alb-sandbox",
+        "kitchensink-data-pr-1",
+        "kitchensink-data-sandbox",
+        "kitchensink-domain-pr-1",
+        "kitchensink-domain-sandbox",
+        "kitchensink-food-schema-pr-1",
+        "kitchensink-food-service-pr-1",
+        "kitchensink-global-pr-1",
+        "kitchensink-global-sandbox",
+        "kitchensink-identity-schema-pr-1",
+        "kitchensink-identity-schema-sandbox",
+        "kitchensink-identity-service-pr-1",
+        "kitchensink-identity-service-sandbox",
+        "kitchensink-identity-webhooks-pr-1",
+        "kitchensink-identity-webhooks-sandbox",
+        "kitchensink-ingredient-parser-pr-1",
+        "kitchensink-ingredient-parser-sandbox",
+        "kitchensink-messaging-pr-1",
+        "kitchensink-messaging-sandbox",
+        "kitchensink-network-pr-1",
+        "kitchensink-network-sandbox",
+        "kitchensink-recipe-schema-pr-1",
+        "kitchensink-recipe-service-pr-1",
+        "kitchensink-recipe-workers-pr-1",
+        "kitchensink-recipe-workers-sandbox",
+        "kitchensink-remote-search-pr-1",
+        "kitchensink-remote-search-shared-pr-1",
+        "kitchensink-remote-search-shared-sandbox",
+        "kitchensink-sandbox-router-pr-1",
+        "kitchensink-sandbox-router-sandbox",
+        "kitchensink-sandbox-scheduler-sandbox",
+        "kitchensink-service-logs-pr-1",
+        "kitchensink-service-logs-sandbox"
+    ],
+    "dockerImageAssets": false
+}

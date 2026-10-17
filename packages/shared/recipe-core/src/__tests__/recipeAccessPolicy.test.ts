@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { RecipeVisibility } from '../index.js';
 import { makeViewer } from '../viewer.js';
-import { isOwner, canClone, canRate, canGoPrivate } from '../recipeAccessPolicy.js';
+import { isOwner, canClone, canRate } from '../recipeAccessPolicy.js';
 
 const recipe = { ownerId: 'usr_owner', visibility: RecipeVisibility.PUBLIC } as const;
 
@@ -35,10 +35,5 @@ describe('recipeAccessPolicy (P4)', () => {
         expect(canRate(recipe, makeViewer({ id: 'usr_other' }))).toBe(true);
         expect(canRate(recipe, makeViewer({ id: 'usr_owner' }))).toBe(false);
         expect(canRate(recipe, makeViewer({}))).toBe(false);
-    });
-    it('gates private-visibility on the premium tier, failing closed when tier is unknown', () => {
-        expect(canGoPrivate(makeViewer({ id: 'u', subscriptionTier: 'premium' }))).toBe(true);
-        expect(canGoPrivate(makeViewer({ id: 'u', subscriptionTier: 'free' }))).toBe(false);
-        expect(canGoPrivate(makeViewer({ id: 'u' }))).toBe(false);
     });
 });

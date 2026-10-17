@@ -1,4 +1,16 @@
 /**
+ * ⛔ SUPERSEDED — HAND-WRITTEN, VERIFIED BY NOTHING. NOT THE CONTRACT AUTHORITY.
+ *
+ * Per GR-015 / `docs/CODING_STANDARDS.md` §15 / ADR-0014 the identity service AUTHORS its wire contract as
+ * zod in the `*.schema.ts` files under `packages/services/identity/src/`, copied to `packages/schemas/identity`
+ * (`@kitchensink/schema-identity`), from which the normative `openapi.yaml` is DERIVED. Where this file and
+ * the service's zod disagree, THE SERVICE'S ZOD WINS.
+ *
+ * ⛔ Do not extend this file, and do not import it into `packages/`. Author the zod in the service.
+ *
+ * Retained as the historical record while documents under `specs/` still cite it.
+ */
+/**
  * @module contracts/reconciliation
  * @description Types for the nightly IdP reconciliation job.
  * The reconciliation job detects IdP users without a corresponding Commise

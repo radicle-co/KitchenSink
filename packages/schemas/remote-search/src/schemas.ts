@@ -1,0 +1,11 @@
+/*
+ * ⚠️ GENERATED FILE — DO NOT EDIT.
+ *
+ * Copied verbatim from the remote search service, which AUTHORS the wire contract. Edit the
+ * source and regenerate: `npm run contract:generate --workspace=@kitchensink/remote-search-service`.
+ *
+ * CI fails on any difference between this directory and a fresh regeneration, so a hand-edit here is
+ * discarded rather than shipped.
+ */
+
+export * from './schemas/remoteSearch.schema.js';

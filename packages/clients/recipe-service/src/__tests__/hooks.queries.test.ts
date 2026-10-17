@@ -23,7 +23,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, waitFor } from '@testing-library/react';
 
-import { NotFoundError, UnauthorizedError } from '../errors.js';
+import { NotFoundError, SourceUnavailableError, UnauthorizedError } from '../errors.js';
 import {
     useAllOwnerRecipes,
     useCollection,
@@ -36,7 +36,6 @@ import {
     useRecipes,
     useSearchIngredients,
     useSearchRecipes,
-    useSuggestIngredients,
     useInfiniteSearchRecipes,
 } from '../hooks.js';
 import {
@@ -504,7 +503,10 @@ describe('useCollectionsInfinite', () => {
         expect(result.current.hasNextPage).toBe(false);
     });
 
-    it('caches under the SAME key as the flat useCollections list (one logical cache entry)', async () => {
+    // REWRITTEN (PR #91 review): this used to pin the infinite hook to the SAME key as the flat list. One key
+    // cannot hold both shapes — `queryKeyShapes.test.ts` reproduces the flat body being handed to an infinite
+    // reader — so the hook now caches under its own `'infinite'` segment, still inside the `collections` prefix.
+    it('caches under its OWN infinite key, inside the collections prefix the flat list shares', async () => {
         const client = makeGuardedClient();
         vi.spyOn(client, 'listCollections').mockResolvedValue(
             makePaginatedResponse([makeCollection()], { hasMore: false, page: 1 }),
@@ -513,7 +515,9 @@ describe('useCollectionsInfinite', () => {
         const { result, queryClient } = renderRecipeHook(() => useCollectionsInfinite({ pageSize: 10 }), { client });
 
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
-        expect(cachedQueryKeys(queryClient)).toEqual([['recipe-service', 'collections', 'list', { pageSize: 10 }]]);
+        expect(cachedQueryKeys(queryClient)).toEqual([
+            ['recipe-service', 'collections', 'list', 'infinite', { pageSize: 10 }],
+        ]);
     });
 });
 
@@ -675,117 +679,6 @@ describe('useInfiniteSearchRecipes', () => {
     });
 });
 
-describe('useSuggestIngredients (search Stage 2 — the blended picker read)', () => {
-    /** The blended envelope the endpoint returns. */
-    const envelope = {
-        suggestions: [
-            { provenance: 'local' as const, ingredient: makeIngredient({ id: 'ing_a' }) },
-            { provenance: 'catalog' as const, foodId: '01J0FOOD', name: 'Chicken breast, raw', score: 0.9 },
-        ],
-        catalogAvailability: 'ok' as const,
-    };
-
-    it('caches the envelope under the literal blended-suggest key, including the limit', async () => {
-        const client = makeGuardedClient();
-        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(envelope);
-
-        const { result, queryClient } = renderRecipeHook(() => useSuggestIngredients('chick', 5), { client });
-
-        await waitFor(() => expect(result.current.isSuccess).toBe(true));
-        expect(cachedQueryKeys(queryClient)).toEqual([
-            ['recipe-service', 'search', 'ingredients', 'suggest', 'chick', 5],
-        ]);
-    });
-
-    it('caches an unlimited suggest under a null limit segment', async () => {
-        const client = makeGuardedClient();
-        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(envelope);
-
-        const { result, queryClient } = renderRecipeHook(() => useSuggestIngredients('chick'), { client });
-
-        await waitFor(() => expect(result.current.isSuccess).toBe(true));
-        expect(cachedQueryKeys(queryClient)).toEqual([
-            ['recipe-service', 'search', 'ingredients', 'suggest', 'chick', null],
-        ]);
-    });
-
-    it('forwards BOTH the query and the limit to suggestIngredients, in order', async () => {
-        const client = makeGuardedClient();
-        const suggestIngredients = vi.spyOn(client, 'suggestIngredients').mockResolvedValue(envelope);
-
-        const { result } = renderRecipeHook(() => useSuggestIngredients('basil', 7), { client });
-
-        await waitFor(() => expect(result.current.isSuccess).toBe(true));
-        expect(suggestIngredients).toHaveBeenCalledWith('basil', 7);
-    });
-
-    it('does NOT call the local-only searchIngredients (mutation guard: the picker must stay blended)', async () => {
-        const client = makeGuardedClient();
-        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(envelope);
-        const searchIngredients = vi.spyOn(client, 'searchIngredients');
-
-        const { result } = renderRecipeHook(() => useSuggestIngredients('chick'), { client });
-
-        await waitFor(() => expect(result.current.isSuccess).toBe(true));
-        expect(searchIngredients).not.toHaveBeenCalled();
-    });
-
-    it('stays idle and issues no request for an empty query', () => {
-        const client = makeGuardedClient();
-        const suggestIngredients = vi.spyOn(client, 'suggestIngredients');
-
-        const { result } = renderRecipeHook(() => useSuggestIngredients(''), { client });
-
-        expect(result.current.fetchStatus).toBe('idle');
-        expect(suggestIngredients).not.toHaveBeenCalled();
-    });
-
-    it('stays idle and issues no request when explicitly disabled, even with a non-empty query', () => {
-        const client = makeGuardedClient();
-        const suggestIngredients = vi.spyOn(client, 'suggestIngredients');
-
-        const { result } = renderRecipeHook(() => useSuggestIngredients('chick', 5, { enabled: false }), { client });
-
-        expect(result.current.fetchStatus).toBe('idle');
-        expect(suggestIngredients).not.toHaveBeenCalled();
-    });
-
-    it('F2 — a degraded catalog resolves as SUCCESS carrying `unavailable`, never as isError', async () => {
-        const client = makeGuardedClient();
-        vi.spyOn(client, 'suggestIngredients').mockResolvedValue({
-            suggestions: [{ provenance: 'local', ingredient: makeIngredient({ id: 'ing_a' }) }],
-            catalogAvailability: 'unavailable',
-        });
-
-        const { result } = renderRecipeHook(() => useSuggestIngredients('chick'), { client });
-
-        await waitFor(() => expect(result.current.isSuccess).toBe(true));
-        expect(result.current.isError).toBe(false);
-        expect(result.current.data?.catalogAvailability).toBe('unavailable');
-        expect(result.current.data?.suggestions).toHaveLength(1);
-    });
-
-    it('returns an empty envelope as success (empty typeahead state)', async () => {
-        const client = makeGuardedClient();
-        vi.spyOn(client, 'suggestIngredients').mockResolvedValue({ suggestions: [], catalogAvailability: 'ok' });
-
-        const { result } = renderRecipeHook(() => useSuggestIngredients('zzz'), { client });
-
-        await waitFor(() => expect(result.current.isSuccess).toBe(true));
-        expect(result.current.data?.suggestions).toEqual([]);
-    });
-
-    it('propagates a recipe-service rejection as an error', async () => {
-        const client = makeGuardedClient();
-        vi.spyOn(client, 'suggestIngredients').mockRejectedValue(new UnauthorizedError('nope'));
-
-        const { result } = renderRecipeHook(() => useSuggestIngredients('chick'), { client });
-
-        await waitFor(() => expect(result.current.isError).toBe(true));
-        expect(result.current.error).toBeInstanceOf(UnauthorizedError);
-    });
-});
-
 describe('useSearchIngredients', () => {
     it('caches matches under the literal ingredient-search key, including the limit', async () => {
         const client = makeGuardedClient();
@@ -868,15 +761,20 @@ describe('useSearchIngredients', () => {
         expect(result.current.data).toEqual([]);
     });
 
-    it('propagates a client rejection as an error', async () => {
+    /**
+     * Rewritten: this used an `UnauthorizedError`, which the search query now retries once (its own `retry`
+     * replaces the harness default). The property worth pinning is the outage: it propagates at once.
+     */
+    it('⛔ propagates a food outage as an error after ONE call — the typeahead does not retry it', async () => {
         const client = makeGuardedClient();
-        const error = new UnauthorizedError('Unauthorized');
-        vi.spyOn(client, 'searchIngredients').mockRejectedValue(error);
+        const error = new SourceUnavailableError();
+        const search = vi.spyOn(client, 'searchIngredients').mockRejectedValue(error);
 
         const { result } = renderRecipeHook(() => useSearchIngredients('tom'), { client });
 
         await waitFor(() => expect(result.current.isError).toBe(true));
         expect(result.current.error).toBe(error);
+        expect(search).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -912,9 +810,11 @@ describe('useAllOwnerRecipes', () => {
 
         // After the first page resolves there is still a page owed → not complete, still loading.
         await waitFor(() => expect(result.current.recipes.length).toBeGreaterThan(0));
+
         if (!result.current.isComplete) {
             expect(result.current.isLoading).toBe(true);
         }
+
         await waitFor(() => expect(result.current.isComplete).toBe(true));
         expect(result.current.recipes).toHaveLength(2);
     });

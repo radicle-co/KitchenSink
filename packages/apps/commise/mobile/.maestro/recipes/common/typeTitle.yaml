@@ -1,0 +1,26 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: type `TITLE` into the editor's Title field, then close the keyboard. Called with
+# `runFlow: { file: common/typeTitle.yaml, env: { TITLE: '…' } }`.
+#
+# ⛔ THE KEYBOARD IS CLOSED BEFORE THE FLOW MOVES ON. On iOS a field left focused keeps the keyboard up while the flow
+# scrolls, and Maestro counts an element behind the keyboard as visible, so the next `tapOn` lands on a key: in run
+# 38433716728 `tapOn: 'Add an ingredient'` typed into the Title instead, on every iOS editor flow that went on to the
+# ingredients. It is closed by a tap on the Title's group heading: the editor's scroller keeps the keyboard only for a
+# tap a control handles (`keyboardShouldPersistTaps="handled"`), and a heading handles none. Not by the return key: the
+# Title is a multi-line field whose break becomes a space (`singleLine`), so Return adds a space and closes nothing.
+# Not by `hideKeyboard`: on Android it is a BACK event, and on iOS it failed in the same run (`newCollectionSheet.yaml`).
+#
+# The text is read back and typed once more, for the iOS Simulator's dropped keystrokes (`auth/signinHome.yaml`). The
+# read-back allows a tail, as the flows' own title checks do, for the Android emulator's doubled last key (`create.yaml`).
+- tapOn: 'Title'
+- inputText: ${TITLE}
+- runFlow: dismissKeyboardIntro.yaml
+- runFlow:
+      when:
+          notVisible: ${TITLE}.*
+      commands:
+          - eraseText: 64
+          - inputText: ${TITLE}
+- assertVisible: ${TITLE}.*
+- tapOn: 'About the recipe'

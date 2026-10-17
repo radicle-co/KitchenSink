@@ -38,7 +38,11 @@ describe('verifyWebhook', () => {
             data: { id: 'user_abc' },
             object: 'event',
         });
-        expect(result.data).toHaveProperty('id');
+        // `verifyWebhook` now returns `unknown` — deliberately, so a caller cannot read a field without first
+        // parsing it (the cast it used to return is what let an unvalidated shape reach the database). Reading
+        // `.data` here therefore requires narrowing, which is the boundary being enforced rather than a
+        // nuisance: `toMatchObject` above already pins the verified content.
+        expect(result).toHaveProperty('data.id', 'user_abc');
     });
 
     it('throws on tampered body', async () => {

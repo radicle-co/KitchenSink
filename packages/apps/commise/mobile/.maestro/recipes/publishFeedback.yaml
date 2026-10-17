@@ -1,0 +1,51 @@
+appId: ${APP_ID}
+---
+# E8 (UI walk 2026-10-13; build spec §7.8): the editor says how it finished. "Recipe published." over the recipe after a
+# publish, "Changes saved." over the recipe after Save changes. The snackbar host sits above the stack, so the message
+# survives the editor leaving. ("Add to a collection" waits for the chooser sheet, §6.4.)
+#
+# Every flow is reseeded before it runs, so the recipe this publishes does not outlive it.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Feedback Soup'
+
+# Cuisine is required to publish (2026-10-13).
+- runFlow: common/chooseCuisine.yaml
+
+# One ingredient declared as written (no food service needed) and one step: the least a recipe needs to publish.
+- runFlow: common/addTomatoAndStep.yaml
+
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Feedback Soup.*'
+      timeout: 40000
+- assertVisible: 'Recipe published.'
+
+# A published recipe's primary is Save changes.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Close editor'
+# ⚠️ A tap on a filled Android field puts the caret where the finger landed, not at the end (run 38973223138 read
+# "Maestro Feedback Sou twop"), so an append splits the title. Erase back from the caret and retype the whole title: the
+# saved title still starts with "Maestro Feedback Soup", and the edit is dirty whatever the caret was.
+- tapOn: 'Title'
+- eraseText: 64
+- inputText: 'Maestro Feedback Soup two'
+# Closes the keyboard before Save changes, for `common/typeTitle.yaml`'s reason.
+- tapOn: 'About the recipe'
+- tapOn: 'Save changes'
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Feedback Soup.*'
+      timeout: 40000
+- assertVisible: 'Changes saved.'

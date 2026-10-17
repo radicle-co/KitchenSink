@@ -13,9 +13,8 @@
  */
 import type { JSX } from 'react';
 
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
-
-import { webMessages } from '@/i18n/messages';
 
 import { PlaceholderWidgetCard } from './PlaceholderWidgetCard';
 
@@ -25,21 +24,21 @@ import { PlaceholderWidgetCard } from './PlaceholderWidgetCard';
  * @returns The resume-cooking strip's shape with no session data in it.
  */
 export function ResumeCookingWidgetSkeleton(): JSX.Element {
-    const { home } = useMessages(webMessages);
+    const home = useMessages(homeMessages);
 
     return (
         <PlaceholderWidgetCard title={home.roadmap.titles['resume-cooking']}>
             <div aria-hidden="true" className="flex items-center gap-4">
                 {/* The 64px recipe thumbnail. */}
-                <div className="size-16 shrink-0 rounded-xl bg-pearl" />
+                <div className="size-16 shrink-0 rounded-xl bg-surface-muted" />
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                     {/* The in-progress recipe's title, then its progress bar (an empty track — any filled
                         width would assert a real progress figure). */}
-                    <div className="h-4 w-3/4 rounded bg-pearl" />
-                    <div className="h-1 w-full rounded-full bg-pearl" />
+                    <div className="h-4 w-3/4 rounded bg-surface-muted" />
+                    <div className="h-1 w-full rounded-full bg-surface-muted" />
                 </div>
                 {/* The "Continue" action, as a shape. */}
-                <div className="h-9 w-24 shrink-0 rounded-full bg-pearl" />
+                <div className="h-9 w-24 shrink-0 rounded-full bg-surface-muted" />
             </div>
         </PlaceholderWidgetCard>
     );

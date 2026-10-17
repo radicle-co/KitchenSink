@@ -1,0 +1,37 @@
+/**
+ * `author_handles` — the recipe-DB read model for user display-names (W8-a.2 / owner decision 6).
+ *
+ * The recipe write path reads the CURRENT handle for a user LOCALLY from this table (no cross-service call
+ * — the rejected read-time-lookup alternative), falling back to the token claim only when no row exists yet.
+ * The handle-sync consumer maintains it MONOTONICALLY on `source_timestamp` (apply only a strictly-newer
+ * rename), then fans the denormalized name out to `recipes.author_handle` + `recipe_versions.editor_handle`.
+ *
+ * `user_id` is the app-user ULID — a user-keyed table, so it is the FOURTH GDPR erasure root (W8-a.10),
+ * swept by the erasure worker, which writes a TOMBSTONE (`erased_at`) rather than deleting the row; the handle-sync
+ * consumer writes live rows and never overwrites a tombstone. `source_timestamp` is `profiles.updatedAt` written in the SAME transaction
+ * as the displayName change (a single clock), so the monotonic guard is race-correct across both producer
+ * routes (the Clerk `user.updated` webhook and identity's `PATCH /api/v1/users/me`).
+ */
+import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
+import { pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+
+export const authorHandles = pgTable('author_handles', {
+    /** App-user ULID (identity's `users.id`) — no FK, no local users table (D2). GDPR erasure root. */
+    userId: varchar('user_id', { length: 255 }).primaryKey(),
+    /** The user's current display name (identity's `profiles.displayName`). */
+    displayName: text('display_name').notNull(),
+    /** The user's Clerk username — the public byline (0055) — or NULL when they have none. */
+    username: text('username'),
+    /** `profiles.updatedAt` at the rename (the single clock the monotonic guard compares). */
+    sourceTimestamp: timestamp('source_timestamp', { withTimezone: true }).notNull(),
+    /**
+     * Set by ERASURE only (0056): the row is a tombstone — `display_name` is the pseudonym kept recipes carry,
+     * `username` is NULL (a CHECK enforces it) — and the handle-sync upsert refuses to touch it. NULL = a live row.
+     */
+    erasedAt: timestamp('erased_at', { withTimezone: true }),
+});
+
+/** An `author_handles` row as selected. */
+export type AuthorHandleRow = InferSelectModel<typeof authorHandles>;
+/** An `author_handles` row for insert. */
+export type AuthorHandleInsert = InferInsertModel<typeof authorHandles>;

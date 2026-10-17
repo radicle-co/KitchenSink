@@ -1,0 +1,514 @@
+name: Mobile test apps (reusable)
+
+# BUILDS THE MOBILE TEST APPS — ONCE PER PLATFORM — for the deployed Maestro tier, and names each one by its content.
+#
+# ## Why this is a workflow of its own (owner, 2026-10-13: "Do all three", "Do 2 and 3", "Do item 1 too")
+#
+# Run 38322183404 built the app once PER SHARD: 18.4 and 14.3 minutes on Android, 17.5 and 26.2 on iOS, each iOS shard
+# after its own `npm ci`. The build needs the stage's origins and nothing the deploy produces, so it runs BESIDE the
+# deploy (36.6 minutes on that run) instead of inside every shard, and the shards download one artifact.
+# `_ci-heavy.yml`'s old note "the APK build is not hoisted" assumed a build inside the tier — a hoist that SERIALISED it
+# ahead of every shard. This one overlaps the deploy, so the premise no longer holds; that note is rewritten there.
+#
+# Three things are true of the result and none is optional:
+#
+#   - It is a TEST artifact. The Android APK is signed with the debug keystore and holds `x86_64` only (the CI emulator);
+#     the iOS app targets the Simulator SDK; both talk to sandbox origins. A shipping build is `eas.json`'s `production`
+#     profile, which no workflow runs. The recipe is `packages/apps/commise/mobile/scripts/buildTestApp.sh` — the only
+#     place it is written.
+#   - It is named by its CONTENT: `commise-test-app-<platform>-<key>`, where the key is turbo's own hash of the build's
+#     inputs (`turbo.json` in that package declares them; `testAppContentKey.test.ts` holds the declaration to turbo's
+#     resolved graph). An artifact of that name is reused instead of rebuilt.
+#   - It carries a manifest of what it was built FROM, and a shard REFUSES any app that is not exactly what its own run
+#     resolved (`buildTestApp.sh verify-manifest`). So a wrong binary is a red job, never a green one.
+#
+# ⛔ WHAT IS AND IS NOT CACHED, restated here because the old note moved with the build. The iOS shard used to say
+# "cache only what is content-addressed: CocoaPods' download cache — never DerivedData or the built app", and both halves
+# still hold. DerivedData stays REFUSED: a compiler cache that can partially hit is the one thing that could serve an object
+# built from stale inputs, and the build is what proves the app compiles. A built APP is reused, but only on an EXACT
+# content-key match — identical inputs that were already compiled — so the proof stands: the reused artifact IS the output of
+# a build of these inputs. Gradle's build cache and Android ccache are declined for now (after the hoist the Android build is
+# off the critical path, `setup-gradle` is read-only off the default branch, and a 1-2 GB entry would evict `node_modules`
+# from a cache already over its cap); so is an AVD snapshot (the boot is 1.3 minutes).
+#
+# ⚠️ A REUSED APP IS CHECKED AGAINST THE XCODE IT WAS BUILT WITH, BUT NOT KEYED ON IT. The iOS content key hashes
+# `DEVELOPER_DIR` — the Xcode PATH — because the plan job runs on Ubuntu and cannot ask a Mac which version lives there. A
+# runner-image update that changes the Xcode behind an unchanged path leaves the key alone, and the shard's manifest check
+# (`xcodeVersion`) then refuses the reused app: the red reads "manifest field xcodeVersion differs". THE FIX IS TO BUMP
+# `TEST_APP_CACHE_EPOCH` above, which is in both keys and so retires every existing artifact. (The alternative considered —
+# shards download straight from the ORIGINAL run with `run-id`, so a reused artifact really expires after its seven days
+# instead of being re-uploaded and refreshed — was declined: it adds `actions: read` to eight shard jobs and, because a
+# reusable workflow may only downgrade its caller's grant, to every caller of `_ci-heavy.yml` and `deployedE2eTiers.yml`
+# (including the k6 workflows), plus two more inputs through three workflows, and it makes every shard depend on another
+# run's artifact surviving. The epoch bump is one line and the failure is loud.)
+#
+# Called ONLY by `_ci.yml` (the pull-request pipeline) and `deployedE2e.yml` (the manual door), the two callers of
+# `deployedE2eTiers.yml`; `mobileTestAppBuild.test.ts` fails a caller that turns Maestro on without one.
+#
+# ⛔ NO AWS CREDENTIALS, or a stage that is not `sandbox`, is an ABSENCE: the plan says so and the builds are skipped.
+# Nothing here fails for it — the Maestro tier's own resolution has already skipped for the same reason, so no shard
+# is left holding an empty name.
+
+on:
+    workflow_call:
+        inputs:
+            stage:
+                description: >-
+                    The Clerk TENANT the apps authenticate against — `sandbox`. The same fact as `_ci-heavy.yml`'s
+                    `stage`; anything else is skipped, because this tier writes only to the sandbox tenant.
+                required: true
+                type: string
+            recipe_origin:
+                description: The recipe service origin to bake in (the stage's DEPLOYED origin).
+                required: true
+                type: string
+            food_origin:
+                description: The food service origin to bake in.
+                required: true
+                type: string
+            identity_origin:
+                description: The identity service origin to bake in.
+                required: true
+                type: string
+        # No secrets: each job signs in through `awsAuth` on the non-prod OIDC role (ADR-0063) to read the stage's
+        # Clerk publishable key, so a caller grants `id-token: write`.
+        outputs:
+            android_test_app:
+                description: >-
+                    The name of the artifact holding the Android test app (`commise-test-app-android-<key>`), whether
+                    this run built it or reused one. Empty when nothing was built — the shard then refuses.
+                value: ${{ jobs.plan.outputs.android_reused || jobs.android.outputs.artifact }}
+            ios_test_app:
+                description: >-
+                    The name of the artifact holding the iOS test app (`commise-test-app-ios-<key>`), built or reused.
+                    Empty when nothing was built.
+                value: ${{ jobs.plan.outputs.ios_reused || jobs.ios.outputs.artifact }}
+
+permissions:
+    contents: read
+
+env:
+    DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+    DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+    # ⛔ THE iOS TOOLCHAIN, AS A LITERAL — the same path `_ci-heavy.yml`'s iOS shard selects, asserted equal by
+    # `mobileTestAppBuild.test.ts`. It is in this workflow's env on EVERY job because turbo hashes it into the iOS content
+    # key (`turbo.json` in the mobile package): the plan job, which runs on Ubuntu where the directory does not exist,
+    # must compute the same key the macOS build job does. Bump it with `IOS_SIMULATOR_RUNTIME` and the shard's copy.
+    DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
+    # The manual flush of every reused build. Hashed into both keys: change the value and no existing artifact matches.
+    TEST_APP_CACHE_EPOCH: '1'
+
+jobs:
+    # ── PLAN: work out both content keys, and find an artifact that already holds them ──────────────────────────────
+    plan:
+        name: Plan the mobile test apps
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        permissions:
+            contents: read
+            actions: read # find and download a test app an earlier run built
+            id-token: write # awsAuth: the non-prod role, for the sandbox Clerk publishable key
+        outputs:
+            eligible: ${{ steps.eligible.outputs.eligible }}
+            android_key: ${{ steps.keys.outputs.android_key }}
+            ios_key: ${{ steps.keys.outputs.ios_key }}
+            android_name: ${{ steps.keys.outputs.android_name }}
+            ios_name: ${{ steps.keys.outputs.ios_name }}
+            android_reused: ${{ steps.reuseAndroid.outputs.name }}
+            ios_reused: ${{ steps.reuseIos.outputs.name }}
+        env:
+            EXPO_PUBLIC_RECIPE_API_URL: ${{ inputs.recipe_origin }}
+            EXPO_PUBLIC_FOOD_API_URL: ${{ inputs.food_origin }}
+            EXPO_PUBLIC_IDENTITY_API_URL: ${{ inputs.identity_origin }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            # ⛔ ABSENCE SKIPS, IT NEVER FAILS: a fork or Dependabot PR cannot sign in to AWS (`awsAuth` reports
+            # `authenticated=false` for exactly those runs, and is red for any other run that cannot), and this tier
+            # writes only to the sandbox tenant. Both are normal, and the Maestro tier's own resolution skips for the
+            # same two reasons, so no shard is left waiting on a name that will never come.
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Is there anything to build?
+              id: eligible
+              env:
+                  STAGE: ${{ inputs.stage }}
+                  AUTHENTICATED: ${{ steps.aws.outputs.authenticated }}
+              run: |
+                  if [ "${STAGE}" != 'sandbox' ]; then
+                      echo "::notice::the mobile test apps are sandbox-only — '${STAGE}' is not sandbox. NOT BUILDING (this is not a failure)."
+                      echo 'eligible=false' >>"$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+                  if [ "${AUTHENTICATED:-}" != 'true' ]; then
+                      echo "::notice::this run is not signed in to AWS (a fork or Dependabot run cannot be), so the stage's publishable key cannot be read. NOT BUILDING (this is not a failure)."
+                      echo 'eligible=false' >>"$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+                  echo 'eligible=true' >>"$GITHUB_OUTPUT"
+            # Every origin is baked into a binary that will send authenticated requests to it: vouch for them first.
+            - name: Confirm every resolved target is under this repository's own domain
+              if: steps.eligible.outputs.eligible == 'true'
+              env:
+                  RECIPE_ORIGIN: ${{ inputs.recipe_origin }}
+                  FOOD_ORIGIN: ${{ inputs.food_origin }}
+                  IDENTITY_ORIGIN: ${{ inputs.identity_origin }}
+              run: |
+                  set -euo pipefail
+                  . .github/scripts/targetScope.sh
+                  target_scope_assert "${DOMAIN_NAME}" "${RECIPE_ORIGIN}" "${IDENTITY_ORIGIN}" "${FOOD_ORIGIN}"
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              if: steps.eligible.outputs.eligible == 'true'
+              with:
+                  node-version: 24
+            # The key is turbo's hash, so turbo has to run: restore `node_modules`, and fall back to installing — a miss
+            # must be slow, never fatal.
+            - name: Restore dependencies
+              if: steps.eligible.outputs.eligible == 'true'
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            - name: Install dependencies if the cache missed
+              if: steps.eligible.outputs.eligible == 'true'
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
+            # The publishable key is part of both content keys (it is compiled into the bundle), so it is loaded BEFORE
+            # the keys are taken. `load-secrets` writes it to `$GITHUB_ENV`.
+            - name: Load ${{ inputs.stage }} Clerk secrets
+              if: steps.eligible.outputs.eligible == 'true'
+              uses: ./.github/actions/load-secrets
+              with:
+                  stage: ${{ inputs.stage }}
+            - name: Compute both content keys
+              id: keys
+              if: steps.eligible.outputs.eligible == 'true'
+              run: |
+                  set -euo pipefail
+                  script=packages/apps/commise/mobile/scripts/buildTestApp.sh
+                  android_key=$(bash "${script}" content-key android)
+                  ios_key=$(bash "${script}" content-key ios)
+                  {
+                      echo "android_key=${android_key}"
+                      echo "ios_key=${ios_key}"
+                      echo "android_name=$(bash "${script}" artifact-name android "${android_key}")"
+                      echo "ios_name=$(bash "${script}" artifact-name ios "${ios_key}")"
+                  } >>"$GITHUB_OUTPUT"
+                  echo "android ${android_key}, ios ${ios_key}"
+            # ── REUSE: an earlier run already built this CONTENT? ───────────────────────────────────────────────────────
+            # The artifact is named for the content key, so a name match IS the claim "these exact inputs were compiled". The
+            # selection rule is the script's (`select-reusable`) and is executed in `buildTestAppManifest.test.ts` over
+            # fixtures — most importantly a FORK's artifact, which is refused: its head repository is not this one. A lookup
+            # that cannot be made is a MISS with a warning, never a failure: reuse is an optimisation and a rebuild is
+            # always correct.
+            - name: Look for an earlier build of the Android test app
+              id: lookupAndroid
+              if: steps.eligible.outputs.eligible == 'true'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  NAME: ${{ steps.keys.outputs.android_name }}
+              run: |
+                  set -uo pipefail
+                  if ! response=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=${NAME}&per_page=100"); then
+                      echo "::warning::could not list artifacts for ${NAME} — treating it as a miss and building"
+                      echo 'run_id=' >>"$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+                  if ! run_id=$(printf '%s' "${response}" | bash packages/apps/commise/mobile/scripts/buildTestApp.sh select-reusable "${GITHUB_REPOSITORY_ID}" "${NAME}"); then
+                      echo "::warning::could not read the artifact listing for ${NAME} — treating it as a miss and building"
+                      echo 'run_id=' >>"$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+                  echo "run_id=${run_id}" >>"$GITHUB_OUTPUT"
+                  if [ -n "${run_id}" ]; then
+                      echo "::notice::reusing ${NAME} from run ${run_id} — no Android build needed"
+                  else
+                      echo "::notice::no reusable ${NAME} — the Android app will be built"
+                  fi
+            # Fetched from the run that made it (`run-id` + `github-token`), then re-uploaded into THIS run under the same
+            # name, so the shards fetch by name from their own run.
+            #
+            # ⛔ BOTH STEPS TOLERATE THEIR OWN FAILURE (`continue-on-error`) and the reuse answer below is published only when
+            # BOTH succeeded: reuse is an optimisation, so a fetch that lost a race with the artifact's expiry, or a failed
+            # re-upload, must cost a REBUILD, not the plan (a failed plan skips both builds and leaves every shard to refuse an
+            # empty name). Not silent: with no reuse answer the build job runs, which is visible in the run graph.
+            - name: Fetch the earlier Android test app
+              id: fetchAndroid
+              if: steps.eligible.outputs.eligible == 'true' && steps.lookupAndroid.outputs.run_id != ''
+              continue-on-error: true
+              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              with:
+                  name: ${{ steps.keys.outputs.android_name }}
+                  path: ${{ runner.temp }}/reuse/android
+                  run-id: ${{ steps.lookupAndroid.outputs.run_id }}
+                  github-token: ${{ github.token }}
+            - name: Re-upload the reused Android test app into this run
+              id: reuploadAndroid
+              if: steps.eligible.outputs.eligible == 'true' && steps.fetchAndroid.outcome == 'success'
+              continue-on-error: true
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: ${{ steps.keys.outputs.android_name }}
+                  path: ${{ runner.temp }}/reuse/android
+                  if-no-files-found: error
+                  retention-days: 7
+                  overwrite: true
+                  compression-level: 0
+            - name: Publish the reused Android test app
+              id: reuseAndroid
+              if: steps.fetchAndroid.outcome == 'success' && steps.reuploadAndroid.outcome == 'success'
+              env:
+                  ARTIFACT: ${{ steps.keys.outputs.android_name }}
+              run: echo "name=${ARTIFACT}" >>"$GITHUB_OUTPUT"
+            # ── REUSE: an earlier run already built this CONTENT? ───────────────────────────────────────────────────────
+            # The artifact is named for the content key, so a name match IS the claim "these exact inputs were compiled". The
+            # selection rule is the script's (`select-reusable`) and is executed in `buildTestAppManifest.test.ts` over
+            # fixtures — most importantly a FORK's artifact, which is refused: its head repository is not this one. A lookup
+            # that cannot be made is a MISS with a warning, never a failure: reuse is an optimisation and a rebuild is
+            # always correct.
+            - name: Look for an earlier build of the iOS test app
+              id: lookupIos
+              if: steps.eligible.outputs.eligible == 'true'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  NAME: ${{ steps.keys.outputs.ios_name }}
+              run: |
+                  set -uo pipefail
+                  if ! response=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=${NAME}&per_page=100"); then
+                      echo "::warning::could not list artifacts for ${NAME} — treating it as a miss and building"
+                      echo 'run_id=' >>"$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+                  if ! run_id=$(printf '%s' "${response}" | bash packages/apps/commise/mobile/scripts/buildTestApp.sh select-reusable "${GITHUB_REPOSITORY_ID}" "${NAME}"); then
+                      echo "::warning::could not read the artifact listing for ${NAME} — treating it as a miss and building"
+                      echo 'run_id=' >>"$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+                  echo "run_id=${run_id}" >>"$GITHUB_OUTPUT"
+                  if [ -n "${run_id}" ]; then
+                      echo "::notice::reusing ${NAME} from run ${run_id} — no iOS build needed"
+                  else
+                      echo "::notice::no reusable ${NAME} — the iOS app will be built"
+                  fi
+            # Fetched from the run that made it (`run-id` + `github-token`), then re-uploaded into THIS run under the same
+            # name, so the shards fetch by name from their own run and the artifact's seven days start again.
+            - name: Fetch the earlier iOS test app
+              id: fetchIos
+              if: steps.eligible.outputs.eligible == 'true' && steps.lookupIos.outputs.run_id != ''
+              continue-on-error: true
+              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              with:
+                  name: ${{ steps.keys.outputs.ios_name }}
+                  path: ${{ runner.temp }}/reuse/ios
+                  run-id: ${{ steps.lookupIos.outputs.run_id }}
+                  github-token: ${{ github.token }}
+            - name: Re-upload the reused iOS test app into this run
+              id: reuploadIos
+              if: steps.eligible.outputs.eligible == 'true' && steps.fetchIos.outcome == 'success'
+              continue-on-error: true
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: ${{ steps.keys.outputs.ios_name }}
+                  path: ${{ runner.temp }}/reuse/ios
+                  if-no-files-found: error
+                  retention-days: 7
+                  overwrite: true
+                  compression-level: 0
+            - name: Publish the reused iOS test app
+              id: reuseIos
+              if: steps.fetchIos.outcome == 'success' && steps.reuploadIos.outcome == 'success'
+              env:
+                  ARTIFACT: ${{ steps.keys.outputs.ios_name }}
+              run: echo "name=${ARTIFACT}" >>"$GITHUB_OUTPUT"
+
+    # ── ANDROID ────────────────────────────────────────────────────────────────────────────────────────────────────
+    android:
+        name: Build the Android test app
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role, for the sandbox Clerk publishable key
+        timeout-minutes: 45
+        needs: [plan]
+        if: ${{ needs.plan.outputs.eligible == 'true' && needs.plan.outputs.android_reused == '' }}
+        outputs:
+            artifact: ${{ steps.publish.outputs.artifact }}
+        env:
+            EXPO_PUBLIC_RECIPE_API_URL: ${{ inputs.recipe_origin }}
+            EXPO_PUBLIC_FOOD_API_URL: ${{ inputs.food_origin }}
+            EXPO_PUBLIC_IDENTITY_API_URL: ${{ inputs.identity_origin }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+            - name: Restore dependencies
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Load ${{ inputs.stage }} Clerk secrets
+              uses: ./.github/actions/load-secrets
+              with:
+                  stage: ${{ inputs.stage }}
+            - name: Set up JDK 17
+              uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+              with:
+                  distribution: temurin
+                  java-version: '17'
+            # ⛔ THE KEY THE PLAN NAMED, PROVED ON A CLEAN TREE — before `turbo build` writes anything into it. A build job
+            # whose tree hashes differently from the plan's would publish an artifact whose NAME is a lie, and every shard
+            # would then verify against the wrong key. Refusing here costs nothing; finding out at a shard costs a lane.
+            - name: Refuse to build if this tree’s content key is not the plan's
+              env:
+                  PLAN_KEY: ${{ needs.plan.outputs.android_key }}
+              run: |
+                  set -euo pipefail
+                  key=$(bash packages/apps/commise/mobile/scripts/buildTestApp.sh content-key android)
+                  if [ "${key}" != "${PLAN_KEY}" ]; then
+                      echo "::error::the Android content key computed here (${key}) is not the plan's (${PLAN_KEY}) — the plan and the build see different inputs, so an artifact named for one would hold the other. Not building. Diff the 'content key' log groups of this job and the plan job to see which input or variable differs."
+                      exit 1
+                  fi
+            - name: Build the mobile app's workspace dependencies
+              run: npx turbo run build --filter='@commise/mobile^...'
+            - name: Build the Android test app
+              env:
+                  TEST_APP_CONTENT_KEY: ${{ needs.plan.outputs.android_key }}
+              run: bash packages/apps/commise/mobile/scripts/buildTestApp.sh android
+            # An APK is already compressed, so the upload does not compress it again.
+            - name: Upload the Android test app
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: ${{ needs.plan.outputs.android_name }}
+                  path: packages/apps/commise/mobile/dist-testApp/android
+                  if-no-files-found: error
+                  retention-days: 7
+                  overwrite: true
+                  compression-level: 0
+            - name: Publish the artifact name
+              id: publish
+              env:
+                  ARTIFACT: ${{ needs.plan.outputs.android_name }}
+              run: echo "artifact=${ARTIFACT}" >>"$GITHUB_OUTPUT"
+
+    # ── iOS ────────────────────────────────────────────────────────────────────────────────────────────────────────
+    ios:
+        name: Build the iOS test app
+        # ⛔ A STANDARD macOS runner, named by version: standard runners are free on a public repository and every
+        # `-large`/`-xlarge` label is billed. GitHub Free allows five concurrent macOS jobs, and this is one of them (four
+        # iOS shards are the others).
+        runs-on: macos-26
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role, for the sandbox Clerk publishable key
+        timeout-minutes: 60
+        needs: [plan]
+        if: ${{ needs.plan.outputs.eligible == 'true' && needs.plan.outputs.ios_reused == '' }}
+        outputs:
+            artifact: ${{ steps.publish.outputs.artifact }}
+        env:
+            EXPO_PUBLIC_RECIPE_API_URL: ${{ inputs.recipe_origin }}
+            EXPO_PUBLIC_FOOD_API_URL: ${{ inputs.food_origin }}
+            EXPO_PUBLIC_IDENTITY_API_URL: ${{ inputs.identity_origin }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            # ⛔ THE PINNED XCODE MUST BE THE ONE IN USE. `DEVELOPER_DIR` (workflow env) selects it for every step; this
+            # fails the job, with the reason, if the image no longer carries that path — rather than letting `xcodebuild`
+            # resolve some other Xcode and bake a binary the shards' manifest check cannot place.
+            - name: Confirm the pinned Xcode is the one in use
+              run: |
+                  set -euo pipefail
+                  if [ ! -d "${DEVELOPER_DIR}" ]; then
+                      echo "::error::the pinned Xcode (${DEVELOPER_DIR}) is not on this runner image — bump DEVELOPER_DIR here and in _ci-heavy.yml, with IOS_SIMULATOR_RUNTIME and IOS_SIMULATOR_DEVICE"
+                      ls -d /Applications/Xcode_*.app
+                      exit 1
+                  fi
+                  xcodebuild -version
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+            # A plain `npm ci`: the Linux `node_modules` entry cannot hit on macOS, and saving a second multi-GB entry per
+            # lockfile would crowd the repository's shared cache cap.
+            - name: Install dependencies
+              run: npm ci
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Load ${{ inputs.stage }} Clerk secrets
+              uses: ./.github/actions/load-secrets
+              with:
+                  stage: ${{ inputs.stage }}
+            - name: Refuse to build if this tree’s content key is not the plan's
+              env:
+                  PLAN_KEY: ${{ needs.plan.outputs.ios_key }}
+              run: |
+                  set -euo pipefail
+                  key=$(bash packages/apps/commise/mobile/scripts/buildTestApp.sh content-key ios)
+                  if [ "${key}" != "${PLAN_KEY}" ]; then
+                      echo "::error::the iOS content key computed here (${key}) is not the plan's (${PLAN_KEY}) — the plan (Ubuntu) and the build (macOS) see different inputs, so an artifact named for one would hold the other. Not building. Diff the 'content key' log groups of this job and the plan job to see which input or variable differs."
+                      exit 1
+                  fi
+            - name: Build the mobile app's workspace dependencies
+              run: npx turbo run build --filter='@commise/mobile^...'
+            - name: Build the iOS test app
+              env:
+                  TEST_APP_CONTENT_KEY: ${{ needs.plan.outputs.ios_key }}
+              run: bash packages/apps/commise/mobile/scripts/buildTestApp.sh ios
+            # The app is a tarball because `upload-artifact` drops the executable bit and an .app is full of executables;
+            # the tarball is already compressed.
+            - name: Upload the iOS test app
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: ${{ needs.plan.outputs.ios_name }}
+                  path: packages/apps/commise/mobile/dist-testApp/ios
+                  if-no-files-found: error
+                  retention-days: 7
+                  overwrite: true
+                  compression-level: 0
+            - name: Publish the artifact name
+              id: publish
+              env:
+                  ARTIFACT: ${{ needs.plan.outputs.ios_name }}
+              run: echo "artifact=${ARTIFACT}" >>"$GITHUB_OUTPUT"

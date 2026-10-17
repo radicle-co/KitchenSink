@@ -6,7 +6,7 @@
 
 ## Product strategy stack
 
-| Layer            | Commise definition                                                                                                     |
+| Layer            | Commise definition                                                                                                      |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Company mission  | Help households cook better, waste less, and feel confident in the kitchen.                                             |
 | Company strategy | Build the trusted consumer platform for recipe-centered cooking workflows.                                              |
@@ -77,7 +77,7 @@ AI discovery should specifically test:
 
 ## Growth model
 
-| Growth component | Commise approach                                                                                                    |
+| Growth component | Commise approach                                                                                                     |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Engine           | Retained households create/import recipes, plan meals, generate lists, cook, and share outcomes.                     |
 | Fuel             | Recipes, creator content, user household data, AI-assisted imports, and grocery/nutrition integrations.              |

@@ -1,0 +1,215 @@
+name: Sandbox Reap Closed
+
+# The backstop for a PR-close cleanup that failed: tear down every `pr-{N}` whose PR is CLOSED, or OPEN and idle for
+# longer than STALE_DAYS (ADR-0005). By hand only — Actions → Sandbox Reap Closed → Run workflow.
+#
+# ⚠️  DELIBERATE — MOVED, not copied, from `sandbox-deploy.yml`'s `reap-abandoned` job (ADR-0060). That job ran on a
+#     daily cron; the owner ruled on 2026-10-12 that no scheduled job runs except the midnight sandbox stop, and
+#     disabled `sandbox-deploy.yml`. Removing the cron left the job unreachable, so it moved here with a manual
+#     door. Its sweep is unchanged and runs the SAME `teardownSandboxPr.sh` as every other reclamation path.
+#
+# ⚠️ WHAT IS LOST, stated rather than hidden: nothing retries a failed close on its own any more. The midnight stop
+#     still scales a leaked preview's ECS to zero, so what a leak costs now is its idle resources (log groups, ECR,
+#     its ALB rule), not its compute.
+on:
+    # ⛔ A REGISTRATION TRIGGER, NOT A WORK TRIGGER — see `sandboxDown.yml`. Pushing this one file creates a run
+    # whose only job is skipped, which is what registers the workflow so it can be dispatched from a branch.
+    push:
+        paths:
+            - .github/workflows/sandboxReapClosed.yml
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: sandbox-reap-closed
+    cancel-in-progress: false
+
+jobs:
+    # Reaps resources whose PR is CLOSED (a close-cleanup that failed/hung) or long-abandoned (OPEN but
+    # no activity in STALE_DAYS). Uses the SAME teardown script → scoped to pr-{N}; the shared
+    # global/identity/data infra never matches. Only reaps on a confirmed PR state (skips on API error).
+    reap-abandoned:
+        name: Reap abandoned sandbox previews
+        runs-on: ubuntu-latest
+        timeout-minutes: 180
+        # ⛔ The press is the only thing that reaps. The `push:` above is a registration trigger.
+        if: github.event_name == 'workflow_dispatch'
+        # ⛔ DELIBERATELY UNBOUND — reclamation is never gated (see `sandboxCleanup.yml`). This sweep is the
+        # ONLY retry a stack that failed to delete on close ever gets, so putting it behind anything that can
+        # WAIT is how per-PR infrastructure becomes a permanent bill.
+        permissions:
+            contents: read
+            pull-requests: read # read each candidate's PR state, so only a CONFIRMED-closed PR is reaped
+            id-token: write # awsAuth: the non-prod role, the only tier that holds teardownGrants
+        env:
+            REGION: ${{ vars.DEFAULT_AWS_REGION }}
+            GH_TOKEN: ${{ github.token }}
+            STALE_DAYS: '30'
+            # Grace period before a still-standing stack for a CLOSED PR is treated as a cleanup failure
+            # rather than a close still in flight. One day would be enough for the on-close job itself; two
+            # absorbs a same-day close whose stack delete was legitimately still running.
+            STALE_ORPHAN_DAYS: '2'
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+                  cache: npm
+            - run: npm ci
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            # ⚠️ DELIBERATE — must not abort, for exactly the reason spelled out on `sandboxCleanup.yml`'s
+            # copy of this step. The reaper is the ONLY retry left for a stack that failed to delete on
+            # close, so a step that aborts here disables the entire safety net: pr-57 and pr-59 sat in
+            # DELETE_FAILED from 2026-07-05 and were never retried, because this step failed on all 11
+            # scheduled runs the reaper ever had. `--optional`; never re-add an `exit` here.
+            - name: Resolve the sandbox hosted zone
+              id: zone
+              run: |
+                  set -euo pipefail
+                  # Resolved through the shared helper: ListExports PAGES, and `--query` is applied per page,
+                  # so the inline form returns "VALUE\nNone" or "None\nVALUE" depending on which page holds
+                  # the export — the two-line value GitHub rejects with `Invalid format 'None'`.
+                  # See .github/scripts/cfnExport.sh.
+                  ZONE=$(bash .github/scripts/cfnExport.sh --optional 'kitchensink-domain-sandbox:HostedZoneId' "$REGION")
+                  if [ -z "$ZONE" ]; then
+                    echo "::error::CloudFormation export 'kitchensink-domain-sandbox:HostedZoneId' not found — dangling preview DNS records cannot be reaped; the rest of the sweep still runs and the job will fail"
+                  fi
+                  echo "hosted_zone_id=$ZONE" >> "$GITHUB_OUTPUT"
+            # Second protection, for the reason given on `sandboxCleanup.yml`'s teardown step.
+            - name: Reap pr-{N} resources whose PR is closed or long-stale
+              if: ${{ !cancelled() }}
+              env:
+                  REPOSITORY: ${{ github.repository }}
+                  PREVIEW_ZONE: sandbox.${{ vars.DOMAIN_NAME }}
+                  PREVIEW_HOSTED_ZONE_ID: ${{ steps.zone.outputs.hosted_zone_id }}
+                  # Two jobs in one variable. It lets the sweep (a) DISCOVER a legacy
+                  # `sandbox-preview/pr-{N}` environment — see the source list in the script below, where it
+                  # is the only signal left once a PR's AWS resources are gone — and (b) DELETE it via
+                  # teardown §0b. This is the backstop for a close whose §0b failed; the on-close `cleanup`
+                  # job is the mechanism. Nothing creates these names any more (`c86f3e09`), so a
+                  # steady-state sweep finds none and this is expected to become a no-op.
+                  GH_ENVIRONMENT_ADMIN_TOKEN: ${{ secrets.GH_ENVIRONMENT_ADMIN_TOKEN }}
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+                  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+                  VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+              run: |
+                  set -uo pipefail
+                  chmod +x .github/scripts/teardownSandboxPr.sh
+
+                  # Distinct pr-{N} tokens from CFN stack names, ECR repos, log groups, Route 53 record
+                  # names, and legacy GitHub Environments. Route 53 is load-bearing, not belt-and-braces:
+                  # a PR that only ever had a WEB preview owns no stack, repo or log group, so without
+                  # this source its dangling `pr-{N}.sandbox.<domain>` CNAME would be invisible to the
+                  # reaper forever. This is only CANDIDATE discovery — the teardown script re-applies the
+                  # anchored pr-{N} match (and the DNS half re-checks the exact record label), so an
+                  # incidental "pr-5" substring can never widen the blast radius.
+                  #
+                  # ⚠️ THE SOURCE LIST MUST COVER EVERY RESOURCE CLASS THE TEARDOWN DELETES, or the class
+                  # it cannot see becomes unreclaimable the moment the others are gone. That asymmetry was
+                  # real: teardown §0b deletes the legacy `sandbox-preview/pr-{N}` GitHub Environment, but
+                  # nothing here enumerated environments, so a close whose §0b failed (expired token, API
+                  # 403) stranded that name PERMANENTLY — by the next sweep the stacks, ECR repos and the
+                  # CNAME were already reclaimed, leaving no token to rediscover the PR by. Same defect
+                  # shape as the log-group sweep that matched nothing for two years, and cheap to close.
+                  # Asserted by `packages/tools/repoGuards/__tests__/reaperDiscoveryCoversTeardown.test.ts`.
+                  stacks=$(aws cloudformation list-stacks --region "$REGION" \
+                      --stack-status-filter CREATE_COMPLETE CREATE_FAILED ROLLBACK_COMPLETE ROLLBACK_FAILED UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE UPDATE_ROLLBACK_FAILED IMPORT_COMPLETE IMPORT_ROLLBACK_COMPLETE IMPORT_ROLLBACK_FAILED DELETE_FAILED \
+                      --query 'StackSummaries[].StackName' --output text 2>/dev/null | tr '\t' '\n')
+                  tokens=$(
+                      {
+                          printf '%s\n' "$stacks"
+                          aws ecr describe-repositories --region "$REGION" \
+                              --query 'repositories[].repositoryName' --output text 2>/dev/null | tr '\t' '\n'
+                          aws logs describe-log-groups --region "$REGION" \
+                              --query 'logGroups[].logGroupName' --output text 2>/dev/null | tr '\t' '\n'
+                          aws route53 list-resource-record-sets --hosted-zone-id "$PREVIEW_HOSTED_ZONE_ID" \
+                              --query 'ResourceRecordSets[].Name' --output text 2>/dev/null | tr '\t' '\n'
+                          # Gated on the admin token because that token is ALSO what §0b needs to delete
+                          # what this finds: without it, discovering the token would only produce a
+                          # candidate the teardown must then warn-and-skip on. `--paginate` for the same
+                          # reason as §0b (default page size 30). The shared `sandbox-preview`, `Sandbox`,
+                          # `Production`, `Preview` and `copilot` names carry no `pr-{N}`, so they yield no
+                          # token here — and §0b refuses them twice over regardless.
+                          if [ -n "${GH_ENVIRONMENT_ADMIN_TOKEN:-}" ]; then
+                              GH_TOKEN="$GH_ENVIRONMENT_ADMIN_TOKEN" gh api --paginate \
+                                  "repos/${REPOSITORY}/environments" --jq '.environments[].name' 2>/dev/null
+                          fi
+                      } | grep -oE 'pr-[0-9]+' | sort -u
+                  )
+                  # Tokens that still own a STACK. A long-closed PR appearing here is direct evidence the
+                  # on-close `cleanup` job did not do its job — see the stale-orphan check in the loop.
+                  stack_tokens=$(printf '%s\n' "$stacks" | grep -oE 'pr-[0-9]+' | sort -u)
+                  if [ -z "$tokens" ]; then echo "No pr-{N} sandbox resources found."; exit 0; fi
+                  echo "Candidate previews: $(echo "$tokens" | tr '\n' ' ')"
+
+                  now=$(date -u +%s)
+                  reaper_failed=0
+                  # Set when this sweep had to repair something the on-close path owed us. Reported as a
+                  # FAILURE at the end even though the reap itself succeeded — see the rationale there.
+                  stale_orphans=''
+                  for pr in $tokens; do
+                      n="${pr#pr-}"
+                      pr_json=$(gh api "repos/${REPOSITORY}/pulls/$n" 2>/dev/null) || pr_json=""
+                      if [ -z "$pr_json" ]; then
+                          echo "::warning::could not resolve PR #$n for $pr — skipping (verify manually)"
+                          continue
+                      fi
+                      state=$(printf '%s' "$pr_json" | jq -r '.state // "unknown"')
+                      updated=$(printf '%s' "$pr_json" | jq -r '.updated_at // empty')
+                      reason=""
+                      if [ "$state" = "closed" ]; then
+                          reason="PR #$n is closed"
+                          # ── Silent-success guard ──────────────────────────────────────────────────
+                          # A stack for a PR that closed days ago should not exist: the on-close cleanup
+                          # owned it. When it does, this sweep is a REPAIR, not a routine no-op, and the
+                          # distinction has to leave the runner — "the reaper found nothing to do" and
+                          # "the reaper never ran" are otherwise indistinguishable from outside, which is
+                          # exactly how a broken cleanup stayed invisible while 9 merged PRs kept 27
+                          # Fargate tasks running. Keyed on a STACK (not on any leftover token) so it
+                          # reports real un-reclaimed infrastructure and stays silent in steady state.
+                          closed=$(printf '%s' "$pr_json" | jq -r '.closed_at // empty')
+                          closed_at=$(date -u -d "${closed:-@0}" +%s 2>/dev/null || echo 0)
+                          if printf '%s\n' "$stack_tokens" | grep -qxF "$pr" &&
+                              [ "$closed_at" -gt 0 ] &&
+                              [ "$(( (now - closed_at) / 86400 ))" -ge "$STALE_ORPHAN_DAYS" ]; then
+                              stale_orphans="$stale_orphans $pr"
+                          fi
+                      elif [ "$state" = "open" ] && [ -n "$updated" ]; then
+                          upd=$(date -u -d "$updated" +%s 2>/dev/null || echo 0)
+                          if [ "$upd" -gt 0 ] && [ "$(( (now - upd) / 86400 ))" -ge "$STALE_DAYS" ]; then
+                              reason="PR #$n open but stale (no activity since $updated, >${STALE_DAYS}d)"
+                          fi
+                      fi
+                      if [ -n "$reason" ]; then
+                          echo "::notice::reaping $pr — $reason"
+                          # A failed reap is an ERROR, not a warning: this job is the only thing left
+                          # that will notice a dangling `pr-{N}.sandbox.<domain>` CNAME, and a warning
+                          # keeps the run green so nobody looks. Keep sweeping the other tokens first.
+                          if ! .github/scripts/teardownSandboxPr.sh "$pr" "$REGION"; then
+                              echo "::error::teardown of $pr reported errors — inspect it by hand"
+                              reaper_failed=1
+                          fi
+                      else
+                          echo "keeping $pr (state=$state)"
+                      fi
+                  done
+                  if [ -n "$stale_orphans" ]; then
+                      echo "::error::on-close cleanup did NOT reclaim:${stale_orphans} — each still owned a CloudFormation stack ${STALE_ORPHAN_DAYS}+ days after its PR closed. This sweep repaired it; fix the cleanup job, because the reaper is the backstop, not the mechanism."
+                      reaper_failed=1
+                  fi
+                  if [ "$reaper_failed" -ne 0 ]; then
+                      echo "::error::Reaper sweep finished with failures."
+                      exit 1
+                  fi
+                  echo "Reaper sweep complete — nothing was owed by the on-close cleanup."

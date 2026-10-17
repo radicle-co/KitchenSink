@@ -1,0 +1,3 @@
+Combobox is a labelled text field with a suggestion list below it that the host fills and the person chooses from explicitly. It follows the APG combobox model via downshift, and the list is placed by floating-ui, flipping above or to the side when it does not fit. Only a press or Enter on the active option chooses; Tab, blur or Enter with nothing active never do. Always give a label and a countAnnouncement string, since the polite live region is how screen-reader users hear the result count.
+
+On native the list sits in the page flow below the field, options are 48 dp buttons chosen by a tap, and a Cancel and a clear button sit at the field's trailing end.

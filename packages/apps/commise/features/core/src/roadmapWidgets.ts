@@ -4,7 +4,7 @@
  * ## Why this module exists, and why it is the one exception to the "no central registry" rule
  *
  * The Home surface's discovery layer is deliberately decentralized: a feature owns its
- * {@link HomeWidgetDescriptor} next to its own code, so shipping a feature package makes its widget eligible
+ * `HomeWidgetDescriptor` next to its own code, so shipping a feature package makes its widget eligible
  * without anyone editing a shared list. That works precisely because the feature package exists.
  *
  * CR-001 (amending FR-046 / R6) requires Home to show a **skeleton placeholder** for widgets whose feature
@@ -41,7 +41,7 @@ import type { HomeWidgetLoader, PlaceholderHomeWidgetDescriptor } from './contra
  *
  * It is a literal, not an import, because the dependency runs the other way — `@commise/features-recipes`
  * depends on this package, so importing back would be a cycle. The two are pinned together by a test
- * (`ROADMAP_WIDGET_SPECS` weights must exceed it), so a drift is caught rather than silently reordering Home.
+ * (`ROADMAP_WIDGET_SPECS` weights must stay below it), so a drift is caught rather than silently reordering Home.
  */
 export const RECIPE_WIDGET_DEFAULT_WEIGHT_REFERENCE = 1000;
 
@@ -59,7 +59,7 @@ export interface RoadmapWidgetSpec {
      * in the host's `liveCapabilities`. Must match the string the real feature declares.
      */
     readonly capability: string;
-    /** Ordering weight; higher sorts earlier. Chosen to reproduce the Home mockup's top-to-bottom order. */
+    /** Ordering weight; higher sorts earlier. Below the recipe widget's, so recent recipes lead Home. */
     readonly defaultWeight: number;
 }
 
@@ -70,17 +70,17 @@ export interface RoadmapWidgetSpec {
 export type RoadmapWidgetId = 'nutrition' | 'resume-cooking' | 'meal-plan';
 
 /**
- * The roadmap widgets, in mockup order (top to bottom): Today's Nutrition, Resume cooking, This Week's Meals.
- * All weigh MORE than {@link RECIPE_WIDGET_DEFAULT_WEIGHT_REFERENCE} so the live recipe widget trails them,
- * as it does in the mockup ("Recent Recipes" is last).
+ * The roadmap widgets, in the order of Home's "Coming soon" group: Today's nutrition, Resume cooking, This week's
+ * meals. All weigh LESS than {@link RECIPE_WIDGET_DEFAULT_WEIGHT_REFERENCE}: the owner ruled that Home shows recent
+ * recipes first and the placeholders after them (`docs/design/uiOverhaul/ownerDecisions.md`, buildSpec §4.2).
  *
  * **To retire an entry:** when its feature ships, delete its line here and its skeleton in each app. Nothing
  * else needs to change — the feature's own descriptor takes over by id.
  */
 export const ROADMAP_WIDGET_SPECS: readonly RoadmapWidgetSpec[] = [
-    { id: 'nutrition', capability: ROADMAP_CAPABILITIES.nutrition, defaultWeight: 1400 },
-    { id: 'resume-cooking', capability: ROADMAP_CAPABILITIES.cookingSession, defaultWeight: 1300 },
-    { id: 'meal-plan', capability: ROADMAP_CAPABILITIES.mealPlanning, defaultWeight: 1200 },
+    { id: 'nutrition', capability: ROADMAP_CAPABILITIES.nutrition, defaultWeight: 900 },
+    { id: 'resume-cooking', capability: ROADMAP_CAPABILITIES.cookingSession, defaultWeight: 800 },
+    { id: 'meal-plan', capability: ROADMAP_CAPABILITIES.mealPlanning, defaultWeight: 700 },
 ];
 
 /** The roadmap ids, in spec order — the keys each app's skeleton map is keyed by. */

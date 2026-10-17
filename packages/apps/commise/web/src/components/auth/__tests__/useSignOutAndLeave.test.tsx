@@ -40,12 +40,15 @@ vi.mock('@clerk/nextjs', () => ({
             return clerkState.session;
         },
     }),
-    useAuth: () => ({ signOut: loadSafeSignOut }),
+    useAuth: () => ({ signOut: loadSafeSignOut, userId: 'user_cook' }),
 }));
 vi.mock('@/lib/basePath', () => ({ withBasePath: (p: string) => p }));
 
 const { navigateTo } = vi.hoisted(() => ({ navigateTo: vi.fn() }));
 vi.mock('@/lib/navigation', () => ({ navigateTo }));
+
+const { endDeviceSession } = vi.hoisted(() => ({ endDeviceSession: vi.fn(async () => undefined) }));
+vi.mock('@/components/recipes/deviceSession', () => ({ endDeviceSession }));
 
 const { useSignOutAndLeave } = await import('../useSignOutAndLeave');
 
@@ -57,6 +60,7 @@ beforeEach(() => {
         clerkState.session = null;
     });
     navigateTo.mockReset();
+    endDeviceSession.mockClear();
     clerkState.loaded = true;
     clerkState.status = 'ready';
     clerkState.session = { id: 'sess_live' };
@@ -163,5 +167,35 @@ describe('useSignOutAndLeave (U3 / B23)', () => {
             expect(loadSafeSignOut).toHaveBeenCalledTimes(1);
             expect(navigateTo).toHaveBeenCalledWith('/');
         });
+    });
+});
+
+/**
+ * ADR-0057: the cook's editor drafts and outbox end with the session — after the sign-out is proven, before leaving, and
+ * for the cook who was signed in.
+ */
+describe('useSignOutAndLeave — the device session end (ADR-0057)', () => {
+    it('clears the signed-in cook`s device state after the proof and before the navigation', async () => {
+        const order: string[] = [];
+        endDeviceSession.mockImplementationOnce(async () => {
+            order.push('endDeviceSession');
+        });
+        navigateTo.mockImplementationOnce(() => {
+            order.push('navigate');
+        });
+        const { result } = renderHook(() => useSignOutAndLeave());
+
+        await result.current.signOutAndLeave();
+
+        expect(endDeviceSession).toHaveBeenCalledWith('user_cook');
+        expect(order).toEqual(['endDeviceSession', 'navigate']);
+    });
+
+    it('keeps the device state when the sign-out could not be proven', async () => {
+        loadSafeSignOut.mockImplementationOnce(async () => undefined);
+        const { result } = renderHook(() => useSignOutAndLeave());
+
+        await expect(result.current.signOutAndLeave()).rejects.toBeInstanceOf(SignOutNotVerifiedError);
+        expect(endDeviceSession).not.toHaveBeenCalled();
     });
 });

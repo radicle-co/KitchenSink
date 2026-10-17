@@ -1,23 +1,23 @@
 ---
 description: Build a release audit report from V-Model artifacts with waiver cross-referencing
-  and compliance gating (100% deterministic, no AI).
+    and compliance gating (100% deterministic, no AI).
 handoffs:
-- label: View Traceability Matrix
-  agent: speckit.v-model.trace
-  prompt: Build the full traceability matrix to see current coverage
-  send: true
-- label: Ingest Test Results
-  agent: speckit.v-model.test-results
-  prompt: Ingest CI test results before generating the audit report
-  send: true
+    - label: View Traceability Matrix
+      agent: speckit.v-model.trace
+      prompt: Build the full traceability matrix to see current coverage
+      send: true
+    - label: Ingest Test Results
+      agent: speckit.v-model.test-results
+      prompt: Ingest CI test results before generating the audit report
+      send: true
 scripts:
-  sh: .specify/scripts/bash/build-audit-report.sh
-  ps: .specify/scripts/powershell/Build-Audit-Report.ps1
+    sh: .specify/scripts/bash/build-audit-report.sh
+    ps: .specify/scripts/powershell/Build-Audit-Report.ps1
 ---
-
 
 <!-- Extension: v-model -->
 <!-- Config: .specify/extensions/v-model/ -->
+
 ## User Input
 
 ```text
@@ -35,6 +35,7 @@ The audit report constitutes both a **Functional Configuration Audit (FCA)** —
 This command is invoked directly via the script, not through AI generation:
 
 ### Bash
+
 ```bash
 # Basic: generate audit report from V-Model directory
 .specify/scripts/bash/build-audit-report.sh specs/<feature>/v-model
@@ -54,6 +55,7 @@ This command is invoked directly via the script, not through AI generation:
 ```
 
 ### PowerShell
+
 ```powershell
 # Basic: generate audit report
 .specify/scripts/powershell/Build-Audit-Report.ps1 -VModelDir specs/<feature>/v-model
@@ -71,13 +73,14 @@ This command is invoked directly via the script, not through AI generation:
 
 ## Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| 0 | ✅ RELEASE READY (no anomalies, no unresolved suspects) or ✅ RELEASE CANDIDATE (all anomalies and suspects waived) |
-| 1 | ❌ NOT READY (unwaived anomalies or unresolved suspect items detected — blocks CI pipeline) |
-| 2 | Error — required artifacts missing (requirements.md or traceability-matrix.md) |
+| Code | Meaning                                                                                                             |
+| ---- | ------------------------------------------------------------------------------------------------------------------- |
+| 0    | ✅ RELEASE READY (no anomalies, no unresolved suspects) or ✅ RELEASE CANDIDATE (all anomalies and suspects waived) |
+| 1    | ❌ NOT READY (unwaived anomalies or unresolved suspect items detected — blocks CI pipeline)                         |
+| 2    | Error — required artifacts missing (requirements.md or traceability-matrix.md)                                      |
 
 Per **ISO 19011:2018 §6.4.9** (Audit Conclusions), findings in the generated report are classified as:
+
 - **Major Nonconformity**: Unwaived anomaly or unresolved suspect item — blocks release (exit code 1)
 - **Minor Nonconformity**: Waived anomaly or lifecycle warning — noted but does not block release
 - **Observation**: Coverage metric below threshold or advisory finding — informational only
@@ -89,23 +92,23 @@ The audit report includes a **Lifecycle Status Summary** section (§3.1) that pr
 ```markdown
 ## 3.1 Lifecycle Status Summary
 
-| Artifact | Active | Deprecated | Suspect | Total |
-|----------|--------|------------|---------|-------|
-| Requirements (REQ) | 42 | 3 | 0 | 45 |
-| Acceptance Tests (ATP) | 38 | 3 | 2 | 43 |
-| System Components (SYS) | 18 | 1 | 1 | 20 |
-| System Tests (STP) | 16 | 1 | 1 | 18 |
-| Architecture Modules (ARCH) | 12 | 0 | 1 | 13 |
-| Integration Tests (ITP) | 10 | 0 | 1 | 11 |
-| Module Designs (MOD) | 8 | 0 | 0 | 8 |
-| Unit Tests (UTP) | 15 | 0 | 0 | 15 |
-| Hazards (HAZ) | 6 | 0 | 0 | 6 |
+| Artifact                    | Active | Deprecated | Suspect | Total |
+| --------------------------- | ------ | ---------- | ------- | ----- |
+| Requirements (REQ)          | 42     | 3          | 0       | 45    |
+| Acceptance Tests (ATP)      | 38     | 3          | 2       | 43    |
+| System Components (SYS)     | 18     | 1          | 1       | 20    |
+| System Tests (STP)          | 16     | 1          | 1       | 18    |
+| Architecture Modules (ARCH) | 12     | 0          | 1       | 13    |
+| Integration Tests (ITP)     | 10     | 0          | 1       | 11    |
+| Module Designs (MOD)        | 8      | 0          | 0       | 8     |
+| Unit Tests (UTP)            | 15     | 0          | 0       | 15    |
+| Hazards (HAZ)               | 6      | 0          | 0       | 6     |
 
 ### Unresolved Suspects
 
-| ID | Suspect Reason | Artifact |
-|----|---------------|----------|
-| SYS-005 | Parent REQ-003 deprecated | system-design.md |
+| ID        | Suspect Reason            | Artifact           |
+| --------- | ------------------------- | ------------------ |
+| SYS-005   | Parent REQ-003 deprecated | system-design.md   |
 | ATP-003-A | Parent REQ-003 deprecated | acceptance-plan.md |
 ```
 
@@ -161,10 +164,10 @@ Each `### WAV-NNN` entry must include an `**Artifact**:` field matching the anom
 
 This command is governed by the following standards for audit reporting:
 
-| Standard | Full Name | Role in this Command |
-|----------|-----------|----------------------|
-| **IEEE 828-2012** | IEEE Standard for Configuration Management in Systems and Software Engineering | Configuration audit baseline: defines Functional Configuration Audit (FCA — verify software functions per requirements) and Physical Configuration Audit (PCA — verify software matches its documentation). Governs the audit scope and finding classification in this command. |
-| **ISO 19011:2018** | Guidelines for Auditing Management Systems | Audit methodology and evidence evaluation: audit planning, objective evidence collection, audit finding classification (major nonconformity, minor nonconformity, observation), auditor competence, and audit report structure. Provides the process rigor that makes this command's outputs credible to external auditors. |
-| **ISO/IEC/IEEE 15289:2019** | Systems and Software Engineering — Content of Life-Cycle Information Items | Audit report content requirements: specifies the minimum content required in compliance information items. Ensures this command produces audit reports that satisfy the documentation completeness requirements of both open-source and regulated-industry contexts. |
+| Standard                    | Full Name                                                                      | Role in this Command                                                                                                                                                                                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **IEEE 828-2012**           | IEEE Standard for Configuration Management in Systems and Software Engineering | Configuration audit baseline: defines Functional Configuration Audit (FCA — verify software functions per requirements) and Physical Configuration Audit (PCA — verify software matches its documentation). Governs the audit scope and finding classification in this command.                                             |
+| **ISO 19011:2018**          | Guidelines for Auditing Management Systems                                     | Audit methodology and evidence evaluation: audit planning, objective evidence collection, audit finding classification (major nonconformity, minor nonconformity, observation), auditor competence, and audit report structure. Provides the process rigor that makes this command's outputs credible to external auditors. |
+| **ISO/IEC/IEEE 15289:2019** | Systems and Software Engineering — Content of Life-Cycle Information Items     | Audit report content requirements: specifies the minimum content required in compliance information items. Ensures this command produces audit reports that satisfy the documentation completeness requirements of both open-source and regulated-industry contexts.                                                        |
 
 > **Domain extensions:** If a domain overlay is loaded, additional domain-specific audit requirements apply (e.g., ISO 26262-2 §6 Functional Safety Audit and Confirmation Measures, DO-178C §8 SQA and SOI-1–SOI-4 certification liaison, IEC 62304 §8 Configuration Management and §9 Problem Resolution). These are defined in the domain overlay files.

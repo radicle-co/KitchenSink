@@ -6,28 +6,52 @@
     "main": "./src/index.ts",
     "types": "./src/index.ts",
     "exports": {
-        ".": "./src/index.ts"
+        ".": "./src/index.ts",
+        "./offline": "./src/offline/messages.ts",
+        "./home": "./src/home/index.ts",
+        "./boundary": "./src/boundary/index.ts",
+        "./boundary/messages": "./src/boundary/messages.ts",
+        "./config/stageCoherence": "./src/config/stageCoherence.ts",
+        "./config/envScaffolding": "./src/config/envScaffolding.ts"
     },
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
-        "test": "vitest run",
-        "lint": "eslint 'src/**/*.ts' --ignore-pattern '**/*.test.ts'",
+        "test": "vitest run && vitest run --config vitest.native.config.ts --passWithNoTests",
+        "lint": "eslint .",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
     },
     "dependencies": {
+        "@commise/i18n": "*",
+        "@commise/ui": "*",
         "ditox": "^3.3.0",
         "zod": "^4.4.3"
+    },
+    "peerDependencies": {
+        "react": "^19.0.0",
+        "react-native": ">=0.79.0"
+    },
+    "peerDependenciesMeta": {
+        "react-native": {
+            "optional": true
+        }
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
+        "@testing-library/react": "^16.3.0",
+        "@types/react": "^19.0.0",
         "eslint": "^10.0.3",
+        "jsdom": "^30.0.1",
         "prettier": "^3.0.0",
-        "typescript": "^5.9.3",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+        "react-native": "0.86.0",
+        "react-native-web": "^0.21.2",
+        "typescript": "^6.0.3",
         "vitest": "^4.0.0"
     },
     "engines": {

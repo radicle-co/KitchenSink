@@ -2,14 +2,12 @@
  * @module @commise/features-recipes — recipe-action model layer.
  *
  * Pure, platform-agnostic prop contracts shared by the web (`*.tsx`) and native (`*.native.tsx`) leaves of
- * the recipe-action building blocks (T068 delete dialog, T074 visibility toggle, T075 clone action), so the
- * two platform renders can never drift on shape. No React, no platform APIs — just the controlled,
+ * the recipe-action building blocks (the T068 delete dialog), so the two platform renders can never drift on
+ * shape. No React, no platform APIs — just the controlled,
  * presentational prop types. Each component fetches nothing and derives no remote state; the composing app
  * owns the mutations and feeds these props.
  */
-import type { ReactNode } from 'react';
-
-import type { RecipeVisibility } from '@kitchensink/recipe-core';
+import type { MakePublicConsequence } from './privateGate.js';
 
 /**
  * Props for the delete-confirmation dialog (T068) — a controlled, presentational modal. Visibility is owned
@@ -25,6 +23,8 @@ export interface RecipeDeleteDialogProps {
     readonly deleting?: boolean;
     /** When true, a localized "couldn't delete" alert is shown in the dialog — the last delete failed (B17). */
     readonly error?: boolean;
+    /** Why Delete cannot be used now ("Saving…"): the confirm is disabled and the reason is said (owner ruling 2026-10-17). */
+    readonly unavailable?: string;
     /** Invoked when the user confirms the deletion. */
     readonly onConfirm: () => void;
     /** Invoked when the user dismisses the dialog without deleting. */
@@ -32,47 +32,33 @@ export interface RecipeDeleteDialogProps {
 }
 
 /**
- * Props for the public/private visibility toggle (T074). Tier-gated per C-004: free-tier recipes are
- * public-only, so when `canGoPrivate` is false the private option is disabled and `disabledReason` (already
- * localized by the composing app) explains why. State is conveyed by the option's checked/disabled
- * semantics and text — never by colour alone.
+ * Props for the make-public confirm (UX SPECIFY 2026-10-15) — controlled and presentational. The editor applies Public
+ * to the draft and closes it at once; the recipe page keeps it up, busy, while its change is in flight, and shows a
+ * failure inside it.
  */
-export interface RecipeVisibilityToggleProps {
-    /** The recipe's current visibility — the checked option. */
-    readonly visibility: RecipeVisibility;
-    /** Whether the viewer's tier permits a private recipe (C-004). */
-    readonly canGoPrivate: boolean;
-    /** Localized explanation shown when the private option is gated off (rendered only when `!canGoPrivate`). */
-    readonly disabledReason?: string;
-    /** When true, a localized "couldn't change visibility" alert is shown — the last change failed (B17). */
+export interface RecipeMakePublicDialogProps {
+    /** Whether the dialog is shown. When `false` the component renders nothing. */
+    readonly open: boolean;
+    /** Why going public costs the cook something: the body's words (`makePublicConsequence`, never `none` here). */
+    readonly consequence: Exclude<MakePublicConsequence, 'none'>;
+    /** The change is in flight: the confirm spins and cannot fire again. */
+    readonly busy?: boolean;
+    /** When true, the last change failed: a localized alert inside the dialog. */
     readonly error?: boolean;
-    /** Invoked with the requested next visibility when the user selects an enabled option. */
-    readonly onChange: (next: RecipeVisibility) => void;
+    /** Make public: the cook accepted the cost. */
+    readonly onConfirm: () => void;
+    /** Keep private, Escape, and the Android Back button. */
+    readonly onKeep: () => void;
 }
 
 /**
- * Props for the clone action (T075) — a clone button plus optional source attribution. `canClone` gates the
- * action off (e.g. the viewer cannot clone this recipe) and `cloning` reflects the in-flight clone mutation;
- * either disables the button. The attribution line renders only when `sourceAttribution` is present.
+ * Props for the Premium sheet a free-tier cook gets for "Private" in the recipe editor (build spec §6.4, §7.7 item 2):
+ * controlled and presentational, like the collection twin (`CollectionUpsellSheetProps`).
  */
-export interface RecipeCloneActionProps {
-    /** Whether the viewer may clone this recipe — gates the action off when false. */
-    readonly canClone: boolean;
-    /** Source attribution for a cloned/imported recipe — its line renders only when present. */
-    readonly sourceAttribution?: string;
-    /** Whether the clone mutation is in flight — disables and marks the action busy. */
-    readonly cloning?: boolean;
-    /** Invoked when the user requests a clone. */
-    readonly onClone: () => void;
-}
-
-/**
- * Props for the "More" overflow menu (C4 wireframe parity) that groups the detail header's SECONDARY owner
- * actions — version history, delete, visibility — behind one disclosure, leaving Edit as the sole primary
- * control (`[Edit] [More]`). A pure Composite/slot shell: `children` is whatever secondary actions the
- * composing app supplies; the menu owns no business logic, only its own open/closed UI state.
- */
-export interface MoreActionsMenuProps {
-    /** The secondary actions rendered inside the menu panel while it is open. */
-    readonly children: ReactNode;
+export interface RecipeUpsellSheetProps {
+    readonly open: boolean;
+    /** Every close route calls this with `false`. */
+    readonly onOpenChange: (open: boolean) => void;
+    /** "See Premium". The subscription surface is not built yet (010), so the host closes the sheet. */
+    readonly onSeePremium: () => void;
 }

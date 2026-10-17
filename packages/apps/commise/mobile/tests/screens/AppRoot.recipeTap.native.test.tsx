@@ -16,8 +16,9 @@
  * The chain is `RecipeWidgetSlot` → `HomeWidgetSurface` → `HomeScreen` → `AppRoot`'s destination state →
  * `RecipesScreen`'s seeded stack, which is what these assertions walk.
  */
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 
 import { renderWithProviders } from '@commise/test-utils';
 
@@ -25,23 +26,40 @@ import { makeRecipeDetail, makeRecipePage, makeRecipe } from '../__fixtures__/re
 
 vi.mock('@sentry/react-native', () => ({ captureException: vi.fn() }));
 
-vi.mock('react-native-safe-area-context', () => ({
+vi.mock('react-native-safe-area-context', async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
     useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
     SafeAreaProvider: ({ children }: { readonly children?: unknown }) => children,
 }));
 
 vi.mock('../../src/hooks/useUserProfile.js', () => ({
-    useUserProfile: () => ({ data: { account: { subscriptionTier: 'free' }, user: { displayName: 'Jane Doe' } } }),
+    useUserProfile: () => ({ data: { account: { paidFeatures: 'hidden' }, user: { displayName: 'Jane Doe' } } }),
+}));
+
+vi.mock('../../src/hooks/useDeleteAccount.js', () => ({
     useDeleteAccount: () => ({ mutate: () => undefined, isPending: false }),
 }));
 vi.mock('@clerk/expo', () => ({ useAuth: () => ({ signOut: () => undefined }) }));
 
 /** The recipe the Home widget lists and the detail then resolves — ONE id threaded through the whole chain. */
+
+// The screens under test now START the deferred calorie batch (ADR-0021 §6) through this shared hook, which
+// reaches the real recipe-service client and query cache. This file is not about nutrition, so the lookup is
+// stubbed to "no batch covers this recipe" — the branch that renders no nutrition line at all, leaving every
+// assertion below unchanged. The wiring itself is covered by `tests/screens/screenNutrition.native.test.tsx`.
+vi.mock('@commise/features-recipes/hooks', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/features-recipes/hooks')>()),
+    useRecipeNutritionBatches: () => () => null,
+}));
+
 const TAPPED = makeRecipe({ id: 'rec_home_tap', title: 'Weeknight Pasta' });
 /** A second recipe, so a chain that hardcoded "the first card" cannot pass. */
 const OTHER = makeRecipe({ id: 'rec_other', title: 'Herb Risotto' });
 
-const { useRecipeSpy } = vi.hoisted(() => ({ useRecipeSpy: vi.fn() }));
+const { getRecipeByIdMock, listRecipesMock } = vi.hoisted(() => ({
+    getRecipeByIdMock: vi.fn(),
+    listRecipesMock: vi.fn(),
+}));
 
 // `AppRoot` statically imports every screen, so the recipe-service hook surface must cover both the Home
 // widget's list query and the detail screen's single-recipe query (plus the mutations the detail composes).
@@ -49,18 +67,17 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => {
     const idle = { mutate: () => undefined, mutateAsync: async () => undefined, isPending: false, isError: false };
 
     return {
-        useRecipes: () => ({ isLoading: false, isError: false, data: undefined }),
-        useRecipe: (id: string) => {
-            useRecipeSpy(id);
-
-            return { isLoading: false, isError: false, data: makeRecipeDetail({ id, title: 'Weeknight Pasta' }) };
-        },
+        // The Home widget reads its recent recipes through the client's `listRecipes`, and the detail screen its recipe
+        // through `getRecipeById`, both via the query cache.
+        useRecipeServiceClient: () => ({ listRecipes: listRecipesMock, getRecipeById: getRecipeByIdMock }),
         useInfiniteSearchRecipes: () => ({ isLoading: false, isError: false, data: undefined }),
         useCollectionsInfinite: () => ({ isLoading: false, isError: false, data: undefined }),
         useSearchIngredients: () => ({ isLoading: false, data: undefined }),
         useAllOwnerRecipes: () => ({ recipes: [], isLoading: false, isError: false }),
         useDeleteRecipe: () => idle,
         useSetRecipeVisibility: () => idle,
+        // The detail screen reads a refused visibility write from the mutation cache under this key.
+        RECIPE_VISIBILITY_MUTATION_KEY: ['recipe-service', 'mutations', 'recipeVisibility'],
         useSetRecipeRating: () => idle,
         useDeleteRecipeRating: () => idle,
         useCloneRecipe: () => idle,
@@ -78,26 +95,41 @@ afterEach(() => {
 
 describe('Home → recipe detail (mobile, end to end)', () => {
     it('opens the tapped recipe’s detail from a Home "Recent recipes" card', async () => {
-        const hooks = await import('@kitchensink/recipe-service-client/hooks');
-        vi.spyOn(hooks, 'useRecipes').mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipePage([TAPPED, OTHER]),
-        } as unknown as ReturnType<typeof hooks.useRecipes>);
+        listRecipesMock.mockResolvedValue(makeRecipePage([TAPPED, OTHER]));
+        getRecipeByIdMock.mockImplementation(async (id: string) => makeRecipeDetail({ id, title: 'Weeknight Pasta' }));
 
         const { AppRoot } = await import('../../src/screens/AppRoot.js');
-        renderWithProviders(<AppRoot />);
+        const { CookMarksProvider } = await import('@commise/features-recipes');
+        // The app's providers mount the cook-marks store above the root (`RecipeServiceGate`); so does this render.
+        renderWithProviders(
+            <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+                <CookMarksProvider subject="user_1">
+                    <AppRoot />
+                </CookMarksProvider>
+            </QueryClientProvider>,
+        );
 
         // The Home widget chunk loads lazily, so wait for the real card to appear.
-        const card = await screen.findByRole('button', { name: 'Weeknight Pasta' });
+        const card = await screen.findByRole('link', { name: 'Weeknight Pasta' });
         fireEvent.click(card);
 
         // The recipes surface opened on the TAPPED recipe — the id survived every hop.
-        expect(useRecipeSpy).toHaveBeenCalledWith('rec_home_tap');
-        expect(useRecipeSpy).not.toHaveBeenCalledWith('rec_other');
-        // And we really left Home: the greeting is gone, a recipe detail heading is present.
-        expect(screen.queryByText(/Chef/u)).toBeNull();
-        expect(await screen.findByRole('heading', { name: 'Weeknight Pasta' })).toBeTruthy();
+        const readIds = () => getRecipeByIdMock.mock.calls.map(([id]: readonly unknown[]) => id);
+        await vi.waitFor(() => expect(readIds()).toContain('rec_home_tap'));
+        expect(readIds()).not.toContain('rec_other');
+        // And we really left Home for the detail, pushed onto the Home tab: a recipe detail heading is present.
+        // ⛔ Wait on a CHEAP signal, then make the role assertion ONCE. A `findByRole` polls an accessible-role query
+        // over the whole document, and the hidden Home screen stays mounted beneath the detail; profiled, those polls
+        // were ~220 ms of the ~400 ms between the tap and the heading, against ~35 ms of React rendering. On a saturated
+        // CI runner that query work grows by an order of magnitude and runs on the same thread as the render it waits
+        // for, so it used up the 5 s budget with the heading committed or about to be (CI, "Unable to find
+        // role=heading"; reproduced locally with the test's core oversubscribed). Only the detail renders this title as
+        // a heading (the hidden Home card shows it as plain text), and the detail commits in one go when its boundary
+        // settles, so one match means the heading is there. The `getByRole` below is the same assertion as before.
+        await waitFor(() =>
+            expect(screen.queryAllByText('Weeknight Pasta', { selector: '[role="heading"]' })).toHaveLength(1),
+        );
+        expect(screen.getByRole('heading', { name: 'Weeknight Pasta' })).toBeTruthy();
         // 20s, not the 5s default. This is the heaviest test in the monorepo — the ONLY one that exceeds
         // 2s — because it deliberately renders the REAL `AppRoot` + REAL `HomeScreen`, waits for the
         // lazily-loaded widget chunk, and then drives a second screen. That integration depth IS the

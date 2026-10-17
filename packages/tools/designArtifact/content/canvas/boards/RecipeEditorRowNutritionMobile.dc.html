@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, an ingredient's nutrition (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                        scrollbar-width: none;
+                    }
+                    *::-webkit-scrollbar {
+                        display: none;
+                    }
+                    h1,
+                    h2,
+                    p,
+                    ul,
+                    dl,
+                    dd {
+                        margin: 0;
+                    }
+                    ul {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .page {
+                        width: 390px;
+                        padding: 16px 0 24px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 32px;
+                    }
+                    .cap {
+                        padding: 0 16px 8px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .rowpad {
+                        position: relative;
+                        padding: 0 16px;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0 0 -8px;
+                        background: var(--scrim);
+                        pointer-events: none;
+                    }
+                    .sheet {
+                        margin-top: 8px;
+                        border-radius: 20px 20px 0 0;
+                        background: var(--paper-overlay);
+                        box-shadow: var(--shadow-lg);
+                    }
+                    .sh {
+                        display: flex;
+                        align-items: flex-start;
+                        padding: 4px 4px 0 16px;
+                    }
+                    .sm {
+                        min-width: 0;
+                        flex: 1;
+                        padding-top: 12px;
+                    }
+                    .st2 {
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                        font: 600 17px/1.2 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .sc {
+                        display: flex;
+                        min-width: 48px;
+                        min-height: 48px;
+                        align-items: center;
+                        justify-content: center;
+                        border: 0;
+                        background: transparent;
+                        font: 400 24px/24px var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .sb2 {
+                        padding: 8px 16px 16px;
+                    }
+                    .nmi {
+                        display: flex;
+                        min-height: 48px;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 0 8px;
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .nsep {
+                        height: 1px;
+                        margin: 4px 0;
+                        background: var(--line-divider);
+                    }
+                    .dngc {
+                        color: var(--danger-text);
+                    }
+                    .cb {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 8px;
+                    }
+                    .tx {
+                        font: 400 14px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .grp {
+                        width: 100%;
+                    }
+                    .ol {
+                        width: 100%;
+                    }
+                    .gh {
+                        padding: 8px 12px 0;
+                        font: 600 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .op {
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
+                        width: 100%;
+                        min-height: 48px;
+                        border: 0;
+                        border-radius: 12px;
+                        background: transparent;
+                        padding: 8px 12px;
+                        text-align: left;
+                        font: 400 14px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .os {
+                        font: 400 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .hint {
+                        font: 400 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .dng {
+                        color: var(--danger-text);
+                    }
+                    .nb {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .fl {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .fr {
+                        display: flex;
+                        flex-wrap: wrap;
+                        column-gap: 16px;
+                    }
+                    .fk {
+                        font: 400 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fv {
+                        font: 400 14px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                </style></helmet
+            >
+            <main class="page">
+                <section>
+                    <p class="cap">
+                        Food details: figures per 100 g. A figure the food does not publish is an em dash.
+                    </p>
+                    <div class="rowpad" id="stage0">
+                        <div role="list">
+                            <x-import
+                                component-from-global-scope="Commise.Native.IngredientRow"
+                                row="{{r0}}"
+                                m="{{mm}}"
+                                entry-copy="{{entry}}"
+                                speak="{{speak}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                                amount-column="{{col}}"
+                            ></x-import>
+                        </div>
+                        <div class="scrim"></div>
+                    </div>
+                    <div class="sheet" role="dialog" aria-modal="true" aria-label="olive oil">
+                        <div class="sh">
+                            <div class="sm"><h2 class="st2">olive oil</h2></div>
+                            <button type="button" class="sc" aria-label="Close details for olive oil">
+                                <span aria-hidden="true">×</span>
+                            </button>
+                        </div>
+                        <div class="sb2">
+                            <div class="nb">
+                                <p class="hint">Per 100 g</p>
+                                <dl class="fl">
+                                    <div class="fr">
+                                        <dt class="fk">Calories</dt>
+                                        <dd class="fv">52</dd>
+                                    </div>
+                                    <div class="fr">
+                                        <dt class="fk">Protein</dt>
+                                        <dd class="fv">0.3 g</dd>
+                                    </div>
+                                    <div class="fr">
+                                        <dt class="fk">Carbs</dt>
+                                        <dd class="fv">—</dd>
+                                    </div>
+                                    <div class="fr">
+                                        <dt class="fk">Fat</dt>
+                                        <dd class="fv">0.2 g</dd>
+                                    </div>
+                                </dl>
+                                <p class="hint nt">— means this figure isn’t published for this food.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <p class="cap">Food details: the figures the cook entered for the line.</p>
+                    <div class="rowpad" id="stage1">
+                        <div role="list">
+                            <x-import
+                                component-from-global-scope="Commise.Native.IngredientRow"
+                                row="{{r1}}"
+                                m="{{mm}}"
+                                entry-copy="{{entry}}"
+                                speak="{{speak}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                                amount-column="{{col}}"
+                            ></x-import>
+                        </div>
+                        <div class="scrim"></div>
+                    </div>
+                    <div class="sheet" role="dialog" aria-modal="true" aria-label="grandma’s spice mix">
+                        <div class="sh">
+                            <div class="sm"><h2 class="st2">grandma’s spice mix</h2></div>
+                            <button type="button" class="sc" aria-label="Close details for grandma’s spice mix">
+                                <span aria-hidden="true">×</span>
+                            </button>
+                        </div>
+                        <div class="sb2">
+                            <div class="nb">
+                                <p class="tx">These are the figures you entered for this line.</p>
+                                <dl class="fl">
+                                    <div class="fr">
+                                        <dt class="fk">Calories</dt>
+                                        <dd class="fv">120</dd>
+                                    </div>
+                                    <div class="fr">
+                                        <dt class="fk">Protein</dt>
+                                        <dd class="fv">4 g</dd>
+                                    </div>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <p class="cap">Food details: the cook’s own wording, with no figures.</p>
+                    <div class="rowpad" id="stage2">
+                        <div role="list">
+                            <x-import
+                                component-from-global-scope="Commise.Native.IngredientRow"
+                                row="{{r2}}"
+                                m="{{mm}}"
+                                entry-copy="{{entry}}"
+                                speak="{{speak}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                                amount-column="{{col}}"
+                            ></x-import>
+                        </div>
+                        <div class="scrim"></div>
+                    </div>
+                    <div class="sheet" role="dialog" aria-modal="true" aria-label="grandma’s spice mix">
+                        <div class="sh">
+                            <div class="sm"><h2 class="st2">grandma’s spice mix</h2></div>
+                            <button type="button" class="sc" aria-label="Close details for grandma’s spice mix">
+                                <span aria-hidden="true">×</span>
+                            </button>
+                        </div>
+                        <div class="sb2"><p class="tx">No nutritional data available</p></div>
+                    </div>
+                </section>
+                <section>
+                    <p class="cap">Food details: the read is still running.</p>
+                    <div class="rowpad" id="stage3">
+                        <div role="list">
+                            <x-import
+                                component-from-global-scope="Commise.Native.IngredientRow"
+                                row="{{r3}}"
+                                m="{{mm}}"
+                                entry-copy="{{entry}}"
+                                speak="{{speak}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                                amount-column="{{col}}"
+                            ></x-import>
+                        </div>
+                        <div class="scrim"></div>
+                    </div>
+                    <div class="sheet" role="dialog" aria-modal="true" aria-label="olive oil">
+                        <div class="sh">
+                            <div class="sm"><h2 class="st2">olive oil</h2></div>
+                            <button type="button" class="sc" aria-label="Close details for olive oil">
+                                <span aria-hidden="true">×</span>
+                            </button>
+                        </div>
+                        <div class="sb2"><p role="status" class="tx">Loading nutrition…</p></div>
+                    </div>
+                </section>
+                <section>
+                    <p class="cap">Food details: the read failed.</p>
+                    <div class="rowpad" id="stage4">
+                        <div role="list">
+                            <x-import
+                                component-from-global-scope="Commise.Native.IngredientRow"
+                                row="{{r4}}"
+                                m="{{mm}}"
+                                entry-copy="{{entry}}"
+                                speak="{{speak}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                                amount-column="{{col}}"
+                            ></x-import>
+                        </div>
+                        <div class="scrim"></div>
+                    </div>
+                    <div class="sheet" role="dialog" aria-modal="true" aria-label="olive oil">
+                        <div class="sh">
+                            <div class="sm"><h2 class="st2">olive oil</h2></div>
+                            <button type="button" class="sc" aria-label="Close details for olive oil">
+                                <span aria-hidden="true">×</span>
+                            </button>
+                        </div>
+                        <div class="sb2">
+                            <div class="cb">
+                                <p class="tx">We couldn’t load the nutrition just now. Try again.</p>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="refreshCw"
+                                    accessibility-label="Try again"
+                                    >Try again</x-import
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <p class="cap">Food details: someone else’s private food.</p>
+                    <div class="rowpad" id="stage5">
+                        <div role="list">
+                            <x-import
+                                component-from-global-scope="Commise.Native.IngredientRow"
+                                row="{{r5}}"
+                                m="{{mm}}"
+                                entry-copy="{{entry}}"
+                                speak="{{speak}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                                amount-column="{{col}}"
+                            ></x-import>
+                        </div>
+                        <div class="scrim"></div>
+                    </div>
+                    <div class="sheet" role="dialog" aria-modal="true" aria-label="Private ingredient">
+                        <div class="sh">
+                            <div class="sm"><h2 class="st2">Private ingredient</h2></div>
+                            <button type="button" class="sc" aria-label="Close details for Private ingredient">
+                                <span aria-hidden="true">×</span>
+                            </button>
+                        </div>
+                        <div class="sb2">
+                            <p class="tx">
+                                This is matched to someone else’s private food, so its details aren’t shown. Your recipe
+                                is fine as it is.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <p class="cap">Food details: the food could not be loaded.</p>
+                    <div class="rowpad" id="stage6">
+                        <div role="list">
+                            <x-import
+                                component-from-global-scope="Commise.Native.IngredientRow"
+                                row="{{r6}}"
+                                m="{{mm}}"
+                                entry-copy="{{entry}}"
+                                speak="{{speak}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                                amount-column="{{col}}"
+                            ></x-import>
+                        </div>
+                        <div class="scrim"></div>
+                    </div>
+                    <div class="sheet" role="dialog" aria-modal="true" aria-label="Ingredient not loaded">
+                        <div class="sh">
+                            <div class="sm"><h2 class="st2">Ingredient not loaded</h2></div>
+                            <button type="button" class="sc" aria-label="Close details for Ingredient not loaded">
+                                <span aria-hidden="true">×</span>
+                            </button>
+                        </div>
+                        <div class="sb2">
+                            <p class="tx">
+                                We couldn’t load this ingredient’s name and nutrition just now. It’s still linked to its
+                                food, and saving keeps that link.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            </main></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1794}}'>
+            class Component extends DCLogic { renderVals(){ const noop=()=>{}; const fx=(r)=>({...r,actions:r.actions.map(a=>({...a,onSelect:noop})),destructiveAction:r.destructiveAction&&{...r.destructiveAction,onSelect:noop},openFocus:{requested:false,onHandled:noop},actionsFocus:{requested:false,onHandled:noop},shortlist:()=>({}),onRemove:noop,onRetryLookup:noop,onOpen:noop,onBeginEntry:noop,onLeaveEntry:noop,onFocusLeft:noop,edit:{},lineEditor:{},entryField:{}}); return {entry:{form:{}},panel:()=>null,nothing:null,mm:{},speak:x=>x,col:72,r0:fx({"line": {"key": "k1"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "nutrition"}, "standIn": false, "displayName": "olive oil", "triggerFood": "olive oil", "amountText": "1 tbsp", "openLabel": "Edit 1 tbsp olive oil", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for olive oil", "actionsTrigger": "Actions for olive oil", "actionsClose": "Close actions for olive oil"}, "actions": [{"id": "edit", "label": "Edit"}, {"id": "foodDetails", "label": "Food details"}, {"id": "changeFood", "label": "Change food"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}}),r1:fx({"line": {"key": "k2"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "nutrition"}, "standIn": false, "displayName": "grandma’s spice mix", "triggerFood": "grandma’s spice mix", "amountText": "1 tbsp", "openLabel": "Edit 1 tbsp grandma’s spice mix", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for grandma’s spice mix", "actionsTrigger": "Actions for grandma’s spice mix", "actionsClose": "Close actions for grandma’s spice mix"}, "actions": [{"id": "edit", "label": "Edit"}, {"id": "foodDetails", "label": "Food details"}, {"id": "findFood", "label": "Find a food for this"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}}),r2:fx({"line": {"key": "k3"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "nutrition"}, "standIn": false, "displayName": "grandma’s spice mix", "triggerFood": "grandma’s spice mix", "amountText": "1 tbsp", "openLabel": "Edit 1 tbsp grandma’s spice mix", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for grandma’s spice mix", "actionsTrigger": "Actions for grandma’s spice mix", "actionsClose": "Close actions for grandma’s spice mix"}, "actions": [{"id": "edit", "label": "Edit"}, {"id": "foodDetails", "label": "Food details"}, {"id": "findFood", "label": "Find a food for this"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}}),r3:fx({"line": {"key": "k4"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "nutrition"}, "standIn": false, "displayName": "olive oil", "triggerFood": "olive oil", "amountText": "1 tbsp", "openLabel": "Edit 1 tbsp olive oil", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for olive oil", "actionsTrigger": "Actions for olive oil", "actionsClose": "Close actions for olive oil"}, "actions": [{"id": "edit", "label": "Edit"}, {"id": "foodDetails", "label": "Food details"}, {"id": "changeFood", "label": "Change food"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}}),r4:fx({"line": {"key": "k5"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "nutrition"}, "standIn": false, "displayName": "olive oil", "triggerFood": "olive oil", "amountText": "1 tbsp", "openLabel": "Edit 1 tbsp olive oil", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for olive oil", "actionsTrigger": "Actions for olive oil", "actionsClose": "Close actions for olive oil"}, "actions": [{"id": "edit", "label": "Edit"}, {"id": "foodDetails", "label": "Food details"}, {"id": "changeFood", "label": "Change food"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}}),r5:fx({"line": {"key": "k6"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "explanation", "key": "nutritionNoneUnavailable"}, "standIn": true, "displayName": "Private ingredient", "triggerFood": "tbsp Private ingredient", "amountText": "1 tbsp", "openLabel": "Edit tbsp Private ingredient", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for Private ingredient", "actionsTrigger": "Actions for tbsp Private ingredient", "actionsClose": "Close actions for tbsp Private ingredient"}, "actions": [{"id": "edit", "label": "Edit"}, {"id": "foodDetails", "label": "Food details"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}}),r6:fx({"line": {"key": "k7"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "explanation", "key": "statusExplainFoodUnreachable"}, "standIn": true, "displayName": "Ingredient not loaded", "triggerFood": "3 Ingredient not loaded", "amountText": "3", "openLabel": "Edit 3 Ingredient not loaded", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for Ingredient not loaded", "actionsTrigger": "Actions for 3 Ingredient not loaded", "actionsClose": "Close actions for 3 Ingredient not loaded"}, "actions": [{"id": "edit", "label": "Edit"}, {"id": "foodDetails", "label": "Food details"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}})}; } }
+        </script>
+    </body>
+</html>

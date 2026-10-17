@@ -1,20 +1,11 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
+import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
 import { accounts, profiles, users } from '@kitchensink/identity-db';
+import { rdsPoolConfigFromEnv } from '@kitchensink/rds-iam-auth';
 
 import { getConfig } from '../config/env.js';
-import { getJsonSecret } from './secrets.js';
-
-/** @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-IF-008 REQ-IF-010 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012 */
-type DbSecret = {
-    username: string;
-    password: string;
-    host: string;
-    port: number | string;
-    dbname?: string;
-    database?: string;
-};
 
 /** @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-IF-008 REQ-IF-010 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012 */
 type IdentityDb = ReturnType<
@@ -27,28 +18,29 @@ let pool: Pool | null = null;
 /** @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-IF-008 REQ-IF-010 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012 */
 let dbInstance: IdentityDb | null = null;
 
-/** @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-IF-008 REQ-IF-010 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012 */
-export const getDb = async (dbSecretArn: string) => {
+/**
+ * The warm-cached drizzle handle every handler shares, connected as `identity_service` by RDS IAM.
+ *
+ * ⛔ Not the RDS master (`identity_app`, a member of `rds_superuser`), and no secret read (the role split,
+ * `docs/plans/2026-09-11-database-role-split.md`): each new physical
+ * connection gets a fresh IAM token from `@kitchensink/rds-iam-auth`, and `STAGE=local` / `DATABASE_URL` keep the
+ * password forms for docker Postgres.
+ *
+ * @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-IF-008 REQ-IF-010 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012
+ * @returns The memoized drizzle instance.
+ * @throws {ConfigError} when the environment names no database location.
+ * @sideEffect Creates the module-level pool on the first call.
+ */
+export const getDb = async () => {
     if (dbInstance) {
         return dbInstance;
     }
 
-    const secret = (await getJsonSecret(dbSecretArn)) as unknown as DbSecret;
-    const database = secret.dbname ?? secret.database;
-
-    if (!database) {
-        throw new Error(`Database secret '${dbSecretArn}' missing dbname/database`);
-    }
-
-    const { STAGE, DB_POOL_MAX } = getConfig();
+    // Validate first, so a missing location is the coded cold-start ConfigError rather than a bare Error.
+    const { DB_POOL_MAX } = getConfig();
 
     pool = new Pool({
-        user: secret.username,
-        password: secret.password,
-        host: secret.host,
-        port: Number(secret.port),
-        database,
-        ssl: STAGE === 'local' ? false : { rejectUnauthorized: false },
+        ...rdsPoolConfigFromEnv({ username: DATABASE_ROLES.identity.app }),
         max: DB_POOL_MAX,
     });
 
@@ -62,4 +54,25 @@ export const getDb = async (dbSecretArn: string) => {
     });
 
     return dbInstance;
+};
+
+/**
+ * The underlying `pg` pool.
+ *
+ * ⛔ Exposed for ONE caller: the queue backstop, which opens a `READ ONLY` transaction and issues raw
+ * statements against tables (`users`, `profiles`) whose owed-work columns are not part of the Drizzle schema
+ * this module builds. Drizzle's own handle cannot express `BEGIN TRANSACTION READ ONLY` — and that
+ * transaction is the enforcement that keeps a backstop from writing, so it is not something to work around.
+ *
+ * @returns The pool, initialising it if needed.
+ * @sideEffect Creates the module-level pool on the first call.
+ */
+export const getIdentityPool = async (): Promise<Pool> => {
+    await getDb();
+
+    if (pool === null) {
+        throw new Error('identity database pool failed to initialise');
+    }
+
+    return pool;
 };

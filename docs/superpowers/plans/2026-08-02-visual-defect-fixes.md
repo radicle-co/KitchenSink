@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fix the two visual defects that ship on `main` today — the recipe form's selected Difficulty chip renders white-on-white (invisible), and the production CSS bundle drops the webfont `@import` so no brand font ever loads — and add regression tests that would have caught each.
+**Goal:** Fix the visual defects that ship on `main` today — the recipe form's selected Difficulty chip renders white-on-white (invisible), and the production CSS bundle drops the webfont `@import` so no brand font ever loads — and add regression tests that would have caught each.
 
-**Architecture:** Both are one-line-class / one-line-ordering bugs with no logic change. The value of this plan is in the **tests**, because both defects sailed through 6,675 unit tests and 30 Playwright specs. Task 1 replaces a layered `base + conditional-override` class pattern with a mutually-exclusive branch, and asserts it with the repo's existing `utilityContrast` helper — which *throws* on exactly the ambiguity that caused the bug. Task 2 moves a CSS `@import` above the Tailwind `@source` rules and adds a file-shape guard alongside the existing `tests/nextConfig.test.ts` config-guard tests.
+**Architecture:** Both are one-line-class / one-line-ordering bugs with no logic change. The value of this plan is in the **tests**, because both defects sailed through 6,675 unit tests and 30 Playwright specs. Task 1 replaces a layered `base + conditional-override` class pattern with a mutually-exclusive branch, and asserts it with the repo's existing `utilityContrast` helper — which _throws_ on exactly the ambiguity that caused the bug. Task 2 moves a CSS `@import` above the Tailwind `@source` rules and adds a file-shape guard alongside the existing `tests/nextConfig.test.ts` config-guard tests.
 
 **Tech Stack:** TypeScript, React 19, Tailwind CSS v4, Next.js 15 (App Router), Vitest 4 + React Testing Library, `@commise/test-utils` (WCAG contrast helpers).
 
@@ -36,18 +36,26 @@ Because "Not stated" has `value: undefined`, `values.difficulty === option.value
 
 The label is intact as `aria-label`, so `getByRole('radio', { name: 'Not stated' })` passes over a broken control. There is already a difficulty test in `RecipeForm.test.tsx` (~line 303) — but it only measures the **focus ring**, never the text-against-fill.
 
-**Defect 2 — no webfonts in production.** `globals.css` puts the Google Fonts `@import` on line 11, *after* the Tailwind v4 `@source` at-rules on lines 6 and 9. CSS requires `@import` to precede all rules except `@charset` and `@layer` statements, so the optimizer drops it. `next build` says so, but only as a soft note. Verified: the built stylesheet contains **0** occurrences of `fonts.googleapis.com`, and a real browser on the production server issues **no** googleapis/gstatic/woff requests. There is no `next/font` usage anywhere in the web app, so that `@import` was the only webfont mechanism. Production renders Georgia (not Playfair Display) and system-ui (not Inter).
+**Defect 2 — no webfonts in production.** `globals.css` puts the Google Fonts `@import` on line 11, _after_ the Tailwind v4 `@source` at-rules on lines 6 and 9. CSS requires `@import` to precede all rules except `@charset` and `@layer` statements, so the optimizer drops it. `next build` says so, but only as a soft note. Verified: the built stylesheet contains **0** occurrences of `fonts.googleapis.com`, and a real browser on the production server issues **no** googleapis/gstatic/woff requests. There is no `next/font` usage anywhere in the web app, so that `@import` was the only webfont mechanism. Production renders Georgia (not Playfair Display) and system-ui (not Inter).
 
 ---
 
 ## File Structure
 
-| File | Responsibility | Task |
-|---|---|---|
-| `packages/apps/commise/features/recipes/src/form/RecipeFormSections.tsx` | Web recipe form fields. Owns the difficulty chip class strings (lines 63–70) and their application (line ~203). | 1 |
-| `packages/apps/commise/features/recipes/src/form/__tests__/RecipeForm.test.tsx` | Existing web form component tests. Gains the contrast regression test. | 1 |
-| `packages/apps/commise/web/src/app/globals.css` | Web app global stylesheet. Owns the `@import` ordering. | 2 |
-| `packages/apps/commise/web/tests/globalsCss.test.ts` | **New.** File-shape guard for `globals.css`, alongside the existing `nextConfig.test.ts` / `mockupContrast.test.ts` config-guard tests. | 2 |
+| File                                                                                                     | Responsibility                                                                                                                                                     | Task |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- |
+| `packages/apps/commise/features/recipes/src/form/RecipeFormSections.tsx`                                 | Web recipe form fields. Owns the difficulty chip class strings (lines 63–70) and their application (line ~203).                                                    | 1    |
+| `packages/apps/commise/features/recipes/src/form/__tests__/RecipeForm.test.tsx`                          | Existing web form component tests. Gains the contrast regression test.                                                                                             | 1    |
+| `packages/apps/commise/web/src/app/globals.css`                                                          | Web app global stylesheet. Owns the `@import` ordering.                                                                                                            | 2    |
+| `packages/apps/commise/web/tests/globalsCss.test.ts`                                                     | **New.** File-shape guard for `globals.css`, alongside the existing `nextConfig.test.ts` / `mockupContrast.test.ts` config-guard tests.                            | 2    |
+| `packages/apps/commise/ui/src/starPip/`                                                                  | **New.** The star pip primitive (`StarPip.tsx`, `.native.tsx`, `index.ts`), exported as `@commise/ui/star-pip`. Owns `STAR_PATH` and the two tone decisions, once. |
+| `packages/apps/commise/ui/src/tokens/colors.ts`                                                          | Palette. Owns `warning-dark` (`#966400`) and the FOREGROUND-position rule the pip now cites.                                                                       |
+| `packages/apps/commise/ui/src/tokens/__tests__/colors.test.ts`                                           | Token-level contrast suite. Gains the `GRAPHIC_TOKENS` table and the inversion assertion.                                                                          |
+| `packages/apps/commise/features/recipes/src/rating/StarShape.tsx` + `.native.tsx`                        | The two rating pip leaves. Re-pointed at the primitive; the native leaf's stale U4 comment is rewritten.                                                           |
+| `packages/apps/commise/features/recipes/src/card/RecipeCard.tsx` + `.native.tsx`                         | Card pips — the duplicate `STAR_PATH` and the fourth, still-wrong tone. `fe-1`'s to delete.                                                                        |
+| `packages/apps/commise/features/recipes/src/rating/RecipeRatingInput.tsx`                                | The star radiogroup. Owns the `<label>` class list that has no focus indicator.                                                                                    |
+| `packages/apps/commise/features/recipes/src/rating/__tests__/recipeRating.test.tsx` + `.native.test.tsx` | Rating component tests. Already assert 4.5:1 on the EMPTY pip — that assertion is why the floor here is 4.5, not 3.                                                |
+| `packages/tools/test-utils/src/renderedContrast.ts`                                                      | ⚠️ **Read, not modified.** Its `COLOR_UTILITY` regex matches `text                                                                                                 | bg   | border | ring`and NOT`fill`, which is why Task 4 needs a non-ratio assertion. |
 
 `RecipeFormSections.native.tsx` is **not** affected — the native leaf styles its chips with React Native `StyleSheet` objects, not Tailwind class strings, so it has no cascade-order ambiguity. Do not change it.
 
@@ -56,10 +64,12 @@ The label is intact as `aria-label`, so `getByRole('radio', { name: 'Not stated'
 ### Task 1: Make the selected Difficulty chip legible
 
 **Files:**
+
 - Modify: `packages/apps/commise/features/recipes/src/form/RecipeFormSections.tsx:63-70` (class consts) and `:203` (application)
 - Test: `packages/apps/commise/features/recipes/src/form/__tests__/RecipeForm.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `utilityContrast` from `@commise/test-utils` — signature `utilityContrast(className: string, options?: { surface?: string; variant?: string; foreground?: 'text' | 'border' }): number`, returns a WCAG ratio 1..21. It **throws** if the class list contains more than one palette-coloured `text-*` (or `bg-*`) utility at the same variant level, with the message ``Expected exactly ONE palette-coloured `text-*` utility in "…", found 2.``
 - Consumes: `semantic.card` from the UI tokens (already imported in this test file as `CARD`), and `renderForm` / `filledValues` (already defined in this test file).
 - Produces: three exported-in-module class consts `difficultyChipBase`, `difficultyChipResting`, `difficultyChipSelected` (module-private; no other file imports them).
@@ -71,40 +81,41 @@ Open `packages/apps/commise/features/recipes/src/form/__tests__/RecipeForm.test.
 `CARD` cannot be reused from the focus-ring describe at line 271 — it is declared inside that block (line 273) and goes out of scope when it closes at line 353. `semantic` and `utilityContrast` are both module-scope imports (lines 13–14), so only the one const is needed:
 
 ```tsx
-    /** The difficulty chips sit inside a `bg-card` section, so that is the surface behind them. */
-    const CARD = semantic.card;
+/** The difficulty chips sit inside a `bg-card` section, so that is the surface behind them. */
+const CARD = semantic.card;
 ```
 
 Then, inside the same describe:
 
 ```tsx
-    // REGRESSION: the selected chip layered `bg-seafoam text-white` on top of a base that already set
-    // `bg-white text-charcoal`. Tailwind emits `.bg-white` AFTER `.bg-seafoam` and `.text-white` AFTER
-    // `.text-charcoal`, so the background resolved to white while the text resolved to white — the label
-    // was invisible in every browser, in dev and in prod. `utilityContrast` throws on exactly that
-    // ambiguity (two palette-coloured utilities of the same role), so this goes red on the shipped code
-    // before it ever gets as far as measuring a ratio.
-    it.each([
-        ['Not stated', undefined],
-        ['Easy', 'easy'],
-        ['Medium', 'medium'],
-        ['Hard', 'hard'],
-    ])('renders the selected %s chip legibly (its own fill, not the card behind it)', (label, value) => {
-        renderForm({
-            values: value === undefined ? filledValues() : filledValues({ difficulty: value as 'easy' | 'medium' | 'hard' }),
-        });
-
-        const chip = screen.getByRole('radio', { name: label }).parentElement;
-
-        if (chip === null) {
-            throw new Error(`Expected the "${label}" radio to sit inside its chip label.`);
-        }
-
-        // The chip text is `text-body-sm`, i.e. normal-size body copy — WCAG AA is 4.5:1, not the 3:1
-        // large-text allowance. Seafoam-on-white measures ~4.67, so this threshold has real teeth.
-        expect(utilityContrast(chip.className, { surface: CARD }), `${label} selected chip label`) //
-            .toBeGreaterThanOrEqual(4.5);
+// REGRESSION: the selected chip layered `bg-seafoam text-white` on top of a base that already set
+// `bg-white text-charcoal`. Tailwind emits `.bg-white` AFTER `.bg-seafoam` and `.text-white` AFTER
+// `.text-charcoal`, so the background resolved to white while the text resolved to white — the label
+// was invisible in every browser, in dev and in prod. `utilityContrast` throws on exactly that
+// ambiguity (two palette-coloured utilities of the same role), so this goes red on the shipped code
+// before it ever gets as far as measuring a ratio.
+it.each([
+    ['Not stated', undefined],
+    ['Easy', 'easy'],
+    ['Medium', 'medium'],
+    ['Hard', 'hard'],
+])('renders the selected %s chip legibly (its own fill, not the card behind it)', (label, value) => {
+    renderForm({
+        values:
+            value === undefined ? filledValues() : filledValues({ difficulty: value as 'easy' | 'medium' | 'hard' }),
     });
+
+    const chip = screen.getByRole('radio', { name: label }).parentElement;
+
+    if (chip === null) {
+        throw new Error(`Expected the "${label}" radio to sit inside its chip label.`);
+    }
+
+    // The chip text is `text-body-sm`, i.e. normal-size body copy — WCAG AA is 4.5:1, not the 3:1
+    // large-text allowance. Seafoam-on-white measures ~4.67, so this threshold has real teeth.
+    expect(utilityContrast(chip.className, { surface: CARD }), `${label} selected chip label`) //
+        .toBeGreaterThanOrEqual(4.5);
+});
 ```
 
 `filledValues` with no argument leaves `difficulty` unset, which is what selects the "Not stated" chip.
@@ -225,10 +236,12 @@ git commit -m "fix(recipes): make the selected difficulty chip legible (was whit
 ### Task 2: Restore webfonts in the production CSS bundle
 
 **Files:**
+
 - Modify: `packages/apps/commise/web/src/app/globals.css:1-11`
 - Create: `packages/apps/commise/web/tests/globalsCss.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing from Task 1. This task is independent and may be done first.
 - Produces: nothing other tasks rely on.
 
@@ -345,7 +358,7 @@ Expected: **2 passed**.
 
 - [ ] **Step 5: Prove the fix empirically against a real production build**
 
-The unit test guards the *file shape*. It does not prove the optimizer kept the import — that needs a real build. This step is the actual verification of the defect being fixed, so do not skip it.
+The unit test guards the _file shape_. It does not prove the optimizer kept the import — that needs a real build. This step is the actual verification of the defect being fixed, so do not skip it.
 
 From `packages/apps/commise/web`:
 
@@ -382,7 +395,13 @@ git commit -m "fix(web): keep the webfont @import in the preamble so it survives
 **Files:** none modified — this task is a gate.
 
 **Interfaces:**
-- Consumes: the working tree after Tasks 1 and 2.
+
+- Consumes: the working tree after every preceding task.
+
+⚠️ **This gate is numbered 3 but RUNS LAST.** Tasks 4 and 5 were added after it and sit below it in this
+document; the numbering is kept so existing references stay valid. Re-run this whole gate once everything
+that is going to land has landed — running it after Task 2 and never again is how a later task ships
+ungated.
 
 - [ ] **Step 1: Typecheck the whole workspace**
 
@@ -408,7 +427,7 @@ Expected: all tasks successful, `Cached: 0 cached`.
 npm run test -- --force
 ```
 
-Expected: 0 failures. For reference, `main` at `50d5a1fb` ran **6,675 passed / 0 failed / 21 skipped** across 41 tasks; your run should be that plus the 6 tests this plan adds.
+Expected: 0 failures. For reference, `main` at `50d5a1fb` ran **6,675 passed / 0 failed / 21 skipped** across 41 tasks; your run should be that plus whatever this plan's tasks added.
 
 - [ ] **Step 4: Confirm the web Playwright contract is untouched**
 
@@ -428,6 +447,183 @@ git push -u origin HEAD
 ```
 
 Open a PR. Confirm the `ci / E2E (web — Playwright)` job goes green there rather than running it locally.
+
+---
+
+### Task 4: Make the FILLED star pip legible, and stop the pip existing in four places
+
+⛔ **THE BINDING FLOOR IS 4.5:1 ON `pearl`, NOT THE 3:1 THAT SC 1.4.11 STATES.** This is the one fact
+that must not be lost. WCAG 2.2 SC 1.4.11 asks 3:1 for a graphical object, and its state clause is what
+binds here — filled-vs-empty _is_ the state, and the fill is the only thing carrying it. But
+`rating/__tests__/recipeRating.test.tsx` already asserts `toBeGreaterThanOrEqual(4.5)` on the **EMPTY**
+pip, on the stated grounds that the pip "is drawn at body-text weight beside the summary". Specifying 3:1
+for the pip that carries the SCORE while the pip six pixels away that carries the SCALE is held to 4.5
+rebuilds the defect at smaller scale. `CLAUDE.md`'s stricter-rule-wins settles it.
+
+⛔ **AND THE SURFACE IS `pearl`, NOT `white`.** `pearl` is the strictest of the three real backdrops, so it
+is what the assertion names.
+
+**The defect, measured** (`culori`'s `wcagContrast`, the same function `@kitchensink/test-utils` uses):
+
+| token                            | hex       | vs `white` | vs `sand` | vs `pearl` | ≥ 4.5 |
+| -------------------------------- | --------- | ---------: | --------: | ---------: | :---: |
+| `warning` — the FILLED pip today | `#F5B041` |       1.88 |      1.75 |       1.72 |   ✗   |
+| `slate` — the EMPTY pip          | `#636E72` |       5.24 |           |            |   ✓   |
+| **`warning-dark`** — the fix     | `#966400` |   **5.10** |  **4.74** |   **4.68** | **✓** |
+
+⛔ **THE INVERSION IS THE DEFECT, NOT THE LOW NUMBER.** The empty pip that states the scale has ~2.8×
+the contrast of the filled pip that carries the score, so a 4-star and a 5-star readout are hard to tell
+apart. An earlier U4 pass fixed the empty pip from `mist` (1.9:1) to `slate` and never looked at the
+filled half.
+
+**Files:**
+
+- Create: `packages/apps/commise/ui/src/starPip/` — `StarPip.tsx`, `StarPip.native.tsx`, `index.ts`, exported as `@commise/ui/star-pip` (one more entry in the `exports` map beside `./surface` and `./button`, matching the per-folder convention).
+- Create: `packages/apps/commise/ui/src/starPip/__tests__/starPip.test.tsx` and `starPip.native.test.tsx`.
+- Modify: `packages/apps/commise/features/recipes/src/rating/StarShape.tsx` and `StarShape.native.tsx` — re-point at the primitive.
+- Modify: `packages/apps/commise/features/recipes/src/card/RecipeCard.tsx:137` and `RecipeCard.native.tsx:442` — delete the duplicates. ⚠️ **`fe-1`'s, in the SAME change** (see the boundary note below).
+- Modify: `packages/apps/commise/ui/src/tokens/colors.ts` — widen the `warning-dark` bullet's example list.
+- Modify: `packages/apps/commise/ui/src/tokens/__tests__/colors.test.ts` — the token-level table.
+- Modify: `packages/apps/commise/features/recipes/src/rating/__tests__/recipeRating.test.tsx` and `recipeRating.native.test.tsx`.
+
+**Interfaces:**
+
+- The contract is **two named tones, not two style strings**: `filled → palette['warning-dark']` (the score), `empty → palette['slate']` (the scale).
+- Web (SVG) realises it as `fill-warning-dark text-warning-dark` / `text-slate`, keeping `fill={filled ? 'currentColor' : 'none'}` and `stroke="currentColor"`.
+- Native (glyph) realises it as `color: filled ? palette['warning-dark'] : palette.slate`. One `color` paints the whole glyph, which is why native cannot express the drift web can.
+
+⛔ **THE PIP EXISTS IN FOUR PLACES AND `STAR_PATH` IS BYTE-IDENTICAL IN TWO OF THEM** — verified by
+checksum: `rating/StarShape.tsx` and `card/RecipeCard.tsx` carry the same 346-character path string. That
+is why this task moves the primitive rather than editing two leaves; the U4 pass fixed three of four sites
+and the fourth is still wrong, which is the argument made concrete.
+
+⚠️ **Boundary (`CLAUDE.md` §9).** The `@commise/ui` primitive, the token doc and `colors.test.ts` are
+design-system work. **Deleting the `RecipeCard` duplicates and re-pointing them at the primitive is
+feature code and goes to `fe-1`** — in the same change, so the class closes instead of shrinking to three.
+
+- [ ] **Step 1: Write the failing tests**
+
+⛔ **A RATIO TEST ALONE CANNOT HOLD THIS, AND THAT IS THE MOST IMPORTANT LINE IN THIS TASK.**
+`packages/tools/test-utils/src/renderedContrast.ts:48` is
+
+```ts
+const COLOR_UTILITY = /^(?:([a-z-]+):)?(text|bg|border|ring)-([a-z-]+?)(?:\/(\d{1,3}))?$/;
+```
+
+It matches `text`, `bg`, `border` and `ring` — and **not `fill`**. So `fill-warning text-warning-dark`
+scores 5.10:1 off the `text-*` utility and **passes green while painting a 1.88:1 interior**. The fix
+therefore needs two assertions, and only one of them is a ratio:
+
+1. `contrastRatio(palette['warning-dark'], palette.pearl) >= 4.5` — at the token, in `colors.test.ts`.
+2. **`fill-*` and `text-*` on a filled pip name the SAME palette key** — a class-list equality check, because the ratio reader is structurally blind to the fill.
+
+In `colors.test.ts`, a `GRAPHIC_TOKENS` table — `[{ token: 'warning-dark', role: 'score pip' }, { token: 'slate', role: 'scale pip' }]` × `['white', 'sand', 'pearl']`, each `>= 4.5`.
+
+⛔ Also assert the **inversion** directly: `contrast(warning-dark, pearl)` and `contrast(slate, pearl)`
+within ~0.3 of each other. "Both pass" was already true of one of them; the ratio ORDERING is the actual
+regression to catch, and a pair of independent floors does not catch it.
+
+In `recipeRating.test.tsx`, mirror the existing empty-pip pair exactly — `average: 4, ratingCount: 3` and
+`selectedStars: 4`, take `pips.slice(0, 4)`, assert
+`utilityContrast(classListOf(pip), { surface: palette.pearl }) >= 4.5`. Then the **discrimination** test
+the defect is actually about: at `average: 4` the 5th pip's tone differs from the 1st–4th, so a 4-star and
+a 5-star readout are distinguishable. Native uses `computedContrast(pip, { surface: SCREEN })`, keeping
+the suite's existing `SCREEN = palette.sand`.
+
+- [ ] **Step 2: Run them and watch them fail**
+
+```bash
+npx vitest run --root packages/apps/commise/features/recipes src/rating
+npx vitest run --root packages/apps/commise/ui src/tokens
+```
+
+Expected: the new filled-pip, inversion and key-equality assertions fail; every pre-existing empty-pip
+assertion still passes. ⛔ If an empty-pip test fails, stop — the change has regressed the half that was
+already fixed.
+
+- [ ] **Step 3: Build the `@commise/ui` primitive and point both leaves at it**
+
+`STAR_PATH` and the two tone decisions move into `starPip/`, once. The two `StarShape` leaves become thin
+re-exports or are deleted in favour of the primitive at their call sites.
+
+- [ ] **Step 4: Widen the `warning-dark` bullet in `colors.ts`**
+
+`colors.ts:48-53` already defines `warning-dark` as _"the amber in FOREGROUND position… measured against
+the near-white surface BENEATH it"_ — a star glyph on a card is exactly that, so **no rename and no new
+token is needed**. The bullet currently lists only caution copy as its example; add the rating pip, so the
+next reader finds the score use where the rule lives instead of re-deriving it.
+
+⚠️ `warning-dark` is the **same amber**, not a neutral: OKLCH hue 74.8° against `warning`'s 75.3°, moved
+in lightness only (0.804 → 0.543), an invariant `colors.test.ts:189` already pins. It reads as burnished
+gold rather than bright gold. That is a real visual shift and it is deliberate — it is the only tone in
+the family that carries the score at the bar the scale already meets.
+
+- [ ] **Step 5: Rewrite — do not extend — the stale U4 comment**
+
+⛔ `StarShape.native.tsx:29-30` currently records only that the EMPTY half was wrong and that this leaf
+was missed. After this task that comment is half a truth. **Rewrite it** to record that the filled half
+was the second miss. Leaving the old sentence and appending a new one is the stale-quote failure — delete
+the stale claim, never update it around it.
+
+- [ ] **Step 6: Green, then the package suites**
+
+```bash
+npx vitest run --root packages/apps/commise/ui
+npx vitest run --root packages/apps/commise/features/recipes
+```
+
+- [ ] **Step 7: Re-run Task 3's gate**
+
+---
+
+### Task 5: Give the rating radiogroup a focus indicator
+
+⛔ **A SEPARATE DEFECT, FOUND WHILE MEASURING TASK 4, AND IT FAILS SC 2.4.7 OUTRIGHT.**
+`RecipeRatingInput.tsx` renders each radio as `absolute inset-0 cursor-pointer opacity-0` inside a
+`<label>` whose class list is `relative rounded p-0.5 transition motion-reduce:transition-none` plus a
+cursor branch — **verified: neither element carries any `focus` or `focus-visible` style**. CSS
+`opacity: 0` erases the user-agent focus ring along with the control it hides, so a keyboard rater moving
+through the five options gets **no position cue at all**.
+
+⚠️ This is not a contrast shortfall to raise; it is an indicator that does not exist.
+
+**Files:**
+
+- Modify: `packages/apps/commise/features/recipes/src/rating/RecipeRatingInput.tsx` (the `<label>` class list) and `RecipeRatingInput.native.tsx` if the native leaf shares the shape.
+- Modify: `packages/apps/commise/features/recipes/src/rating/__tests__/recipeRating.test.tsx` / `.native.test.tsx`.
+
+**Interfaces:**
+
+- The indicator goes on the `<label>` via `has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-seafoam`. ⚠️ **`has-[…]`, not `peer-*`** — the label WRAPS the input, so there is no sibling to select.
+
+⛔ **DO NOT REACH FOR `semantic.ring`.** It resolves to `palette['seafoam-light']` at **2.78:1** on white —
+itself under 3:1 — which is precisely why `RecipeDiscoveryFrame.test.tsx:409` asserts the search ring
+out-measures it. Use `ring-seafoam`: **4.67** on white, **4.34** on `sand`, **4.28** on `pearl`.
+
+- [ ] **Step 1: Write the failing test**
+
+Assert the label's class list contains `has-[:focus-visible]:ring-seafoam`, and that
+`ringContrast(label.className, { surface: PEARL }) >= 3`.
+
+⚠️ A ring is measured against the backdrop it is painted OVER, never the control's own fill —
+`renderedContrast.ts:29` says so in its own words, and scoring a ring against the element it surrounds is
+how a focus indicator measures "fine" while being invisible.
+
+- [ ] **Step 2: Run it and watch it fail**
+
+```bash
+npx vitest run --root packages/apps/commise/features/recipes src/rating
+```
+
+- [ ] **Step 3: Add the indicator to the label**
+
+- [ ] **Step 4: Green, then the package suite, then re-run Task 3's gate**
+
+⚠️ **Not an independent 1.4.1 failure, and this is why Task 4 must land with it.** Filled-vs-empty is
+solid-vs-hollow — a FORM difference — plus luminance, and selection additionally rides on `checked` and
+the accessible name. `warning-dark` against `slate` is **1.03:1**, near-isoluminant, so hue does no
+luminance work _between_ the two pips. ⛔ Solid-vs-hollow must therefore stay the primary cue: do not
+later "improve" the empty pip by giving it a light fill.
 
 ---
 

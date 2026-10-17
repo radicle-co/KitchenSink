@@ -1,7 +1,7 @@
 /**
  * Real Clerk-compatible RS256 JWT minting for the food-service e2e suite (T-190).
  *
- * The e2e boots the real Nest app with the REAL {@link FoodAuthGuard} → `@kitchensink/clerk-verify`
+ * The e2e boots the real Nest app with the REAL `FoodAuthGuard` → `@kitchensink/clerk-verify`
  * (no mock), so it needs genuinely-signed tokens that `@clerk/backend`'s networkless `verifyToken`
  * accepts against a pinned PEM public key. We generate a throwaway 2048-bit RSA keypair: Clerk's local
  * JWK loader strips the fixed SPKI prefix `MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA` and assumes
@@ -38,6 +38,15 @@ export interface MintTokenOptions {
     readonly scopes?: readonly string[];
     /** Authorization permissions embedded in `public_metadata`. */
     readonly permissions?: readonly string[];
+    /** Roles embedded in `public_metadata.roles`; omitted leaves the key out entirely. */
+    readonly roles?: readonly string[];
+    /**
+     * The Clerk impersonation marker (`act`: the impersonator). Omitted leaves the claim out entirely — the shape
+     * of every ordinary session token; present, the shared verifier refuses the token (owner ruling 2026-10-15).
+     */
+    readonly act?: { readonly sub: string };
+    /** The signed test-principal marker (`public_metadata.testPrincipal`, ADR-0040); omitted leaves the key out. */
+    readonly testPrincipal?: boolean;
     /** Seconds until expiry (default 3600). Use a negative value to mint an already-expired token. */
     readonly expiresInSeconds?: number;
 }
@@ -80,12 +89,15 @@ export function mintToken(privateKeyPem: string, options: MintTokenOptions): str
         sub: options.sub,
         ...(options.externalId !== undefined ? { external_id: options.externalId } : {}),
         azp: options.azp,
+        ...(options.act !== undefined ? { act: options.act } : {}),
         iat: nowSeconds,
         nbf: nowSeconds - 5,
         exp: nowSeconds + (options.expiresInSeconds ?? 3600),
         public_metadata: {
             scopes: [...(options.scopes ?? [])],
             permissions: [...(options.permissions ?? [])],
+            ...(options.roles !== undefined ? { roles: [...options.roles] } : {}),
+            ...(options.testPrincipal !== undefined ? { testPrincipal: options.testPrincipal } : {}),
         },
     };
 

@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, add details: loading and problems (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/1.5 var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                    }
+                    h2,
+                    p,
+                    ul,
+                    ol {
+                        margin: 0;
+                    }
+                    ul,
+                    ol {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .cap {
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fig {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        min-width: 0;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                    .muted {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .hint {
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .err {
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+
+                    .page {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: flex-start;
+                        gap: 32px;
+                        padding: 32px;
+                    }
+                    .fig {
+                        width: 560px;
+                    }
+                    .stage {
+                        position: relative;
+                        display: flex;
+                        justify-content: center;
+                        align-items: flex-start;
+                        padding: 24px;
+                        background: var(--canvas);
+                        overflow: hidden;
+                    }
+                    .sheet {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        width: 100%;
+                        max-width: 512px;
+                        background: var(--paper-overlay);
+                        border-radius: 16px;
+                        box-shadow: var(--shadow-lg);
+                    }
+                    .trow {
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 8px;
+                        padding: 8px 8px 0 24px;
+                    }
+                    .ttl {
+                        flex: 1;
+                        min-width: 0;
+                        padding-top: 12px;
+                        font: 600 17px/1.2 var(--font-body);
+                        color: var(--ink);
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+                    .cls {
+                        display: flex;
+                        flex-shrink: 0;
+                        align-items: center;
+                        justify-content: center;
+                        width: 48px;
+                        height: 48px;
+                        border-radius: 9999px;
+                        color: var(--ink-muted);
+                    }
+                    .sbody {
+                        padding: 16px 24px;
+                        min-height: 0;
+                        flex: 1 1 auto;
+                        overflow: hidden;
+                    }
+                    .foot {
+                        flex-shrink: 0;
+                        border-top: 1px solid var(--line-divider);
+                        padding: 16px 24px;
+                    }
+                    .toolbar {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        padding: 8px 24px 0;
+                    }
+                    .form {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .fld {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .lbl {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .inp {
+                        width: 100%;
+                        border: 1px solid var(--line-control);
+                        border-radius: 8px;
+                        background: var(--paper);
+                        padding: 8px 12px;
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink);
+                        min-height: 40px;
+                    }
+                    .inp[aria-invalid='true'] {
+                        border-color: var(--danger);
+                    }
+                    .inp[readonly] {
+                        opacity: 0.6;
+                    }
+                    fieldset {
+                        margin: 0;
+                        padding: 0;
+                        border: 0;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        min-width: 0;
+                    }
+                    legend {
+                        padding: 0;
+                        font: 600 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                        margin-bottom: 8px;
+                    }
+                    .grid2 {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 8px;
+                    }
+                    .acts {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: center;
+                        gap: 8px;
+                    }
+                    .stat {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .alert {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .note {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .dhead {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        padding: 0 16px 16px;
+                    }
+                    .food {
+                        font: 600 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .food::first-letter {
+                        text-transform: uppercase;
+                    }
+                    .introrow {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                        justify-content: space-between;
+                        column-gap: 12px;
+                    }
+                    .intro {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .cur {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .cur b {
+                        font-weight: 600;
+                        color: var(--ink);
+                    }
+                    .opt {
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 12px;
+                        min-height: 48px;
+                        padding: 12px 16px;
+                    }
+                    .opt .chk {
+                        display: flex;
+                        width: 16px;
+                        flex-shrink: 0;
+                        padding-top: 4px;
+                        color: var(--action-text);
+                    }
+                    .opt .main {
+                        display: flex;
+                        flex: 1 1 12rem;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                        justify-content: space-between;
+                        column-gap: 12px;
+                        min-width: 0;
+                    }
+                    .opt .parts {
+                        display: flex;
+                        flex: 1 1 12rem;
+                        flex-direction: column;
+                        min-width: 0;
+                    }
+                    .opt .tag {
+                        font: 600 12px/1.4 var(--font-body);
+                        color: var(--action-text);
+                    }
+                    .opt .cal {
+                        margin-inline-start: auto;
+                        flex-shrink: 0;
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                        font-variant-numeric: tabular-nums;
+                    }
+                    .gh {
+                        padding: 24px 16px 8px;
+                        font: 600 14px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .gh:first-child {
+                        padding-top: 12px;
+                    }
+                    .gh::first-letter {
+                        text-transform: uppercase;
+                    }
+                    .srch {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+                    .srch .box {
+                        display: flex;
+                        align-items: center;
+                        flex: 1;
+                        min-width: 0;
+                        height: 48px;
+                        border: 1px solid var(--line-control);
+                        border-radius: 6px;
+                        padding: 0 12px;
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .slabel {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                        justify-content: space-between;
+                        column-gap: 12px;
+                    }
+                    .slabel b {
+                        font: 500 14px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .pad16 {
+                        padding: 0 16px;
+                    }
+                    .shim {
+                        height: 48px;
+                        border-radius: 6px;
+                        background: var(--surface-muted);
+                    }
+                    .block {
+                        padding: 0 16px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 12px;
+                    }
+                    .body16 {
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .foot .row {
+                        display: flex;
+                        justify-content: flex-end;
+                        gap: 12px;
+                    }
+                </style></helmet
+            >
+            <div class="page">
+                <div class="fig">
+                    <p class="cap">Loading</p>
+                    <div class="stage" style="">
+                        <div class="scrim"></div>
+                        <div class="sheet" role="dialog" aria-label="Add details" style="">
+                            <div class="trow">
+                                <h2 class="ttl">Add details</h2>
+                                <span class="cls" aria-label="Close details"
+                                    ><x-import component-from-global-scope="Commise.Icon" name="x" size="20"></x-import
+                                ></span>
+                            </div>
+                            <div class="sbody">
+                                <div class="dhead">
+                                    <p class="food">garlic</p>
+                                    <div class="introrow"><p class="intro">Nutrition uses the one you pick.</p></div>
+                                </div>
+                                <div class="block" style="align-items: stretch">
+                                    <p class="intro" style="font-size: 14px">Loading details…</p>
+                                    <div class="shim" aria-hidden="true"></div>
+                                    <div class="shim" aria-hidden="true"></div>
+                                    <div class="shim" aria-hidden="true"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fig">
+                    <p class="cap">Could not load</p>
+                    <div class="stage" style="">
+                        <div class="scrim"></div>
+                        <div class="sheet" role="dialog" aria-label="Add details" style="">
+                            <div class="trow">
+                                <h2 class="ttl">Add details</h2>
+                                <span class="cls" aria-label="Close details"
+                                    ><x-import component-from-global-scope="Commise.Icon" name="x" size="20"></x-import
+                                ></span>
+                            </div>
+                            <div class="sbody">
+                                <div class="dhead">
+                                    <p class="food">garlic</p>
+                                    <div class="introrow"><p class="intro">Nutrition uses the one you pick.</p></div>
+                                </div>
+                                <div class="block">
+                                    <p class="body16" role="alert">
+                                        We couldn’t load the details. Your ingredient hasn’t changed.
+                                    </p>
+                                    <x-import
+                                        component-from-global-scope="Commise.Button"
+                                        variant="secondary"
+                                        icon="refreshCw"
+                                        >Try again</x-import
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fig">
+                    <p class="cap">Offline</p>
+                    <div class="stage" style="">
+                        <div class="scrim"></div>
+                        <div class="sheet" role="dialog" aria-label="Add details" style="">
+                            <div class="trow">
+                                <h2 class="ttl">Add details</h2>
+                                <span class="cls" aria-label="Close details"
+                                    ><x-import component-from-global-scope="Commise.Icon" name="x" size="20"></x-import
+                                ></span>
+                            </div>
+                            <div class="sbody">
+                                <div class="dhead">
+                                    <p class="food">garlic</p>
+                                    <div class="introrow"><p class="intro">Nutrition uses the one you pick.</p></div>
+                                </div>
+                                <div class="block" style="align-items: stretch">
+                                    <x-import
+                                        component-from-global-scope="Commise.OfflineReadSlot"
+                                        message="Waiting for a connection. This loads on its own."
+                                    ></x-import>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fig">
+                    <p class="cap">No details to pick</p>
+                    <div class="stage" style="">
+                        <div class="scrim"></div>
+                        <div class="sheet" role="dialog" aria-label="Add details" style="">
+                            <div class="trow">
+                                <h2 class="ttl">Add details</h2>
+                                <span class="cls" aria-label="Close details"
+                                    ><x-import component-from-global-scope="Commise.Icon" name="x" size="20"></x-import
+                                ></span>
+                            </div>
+                            <div class="sbody">
+                                <div class="dhead">
+                                    <p class="food">garlic</p>
+                                    <div class="introrow"><p class="intro">Nutrition uses the one you pick.</p></div>
+                                </div>
+                                <div class="block">
+                                    <p class="body16">
+                                        There are no details to pick for garlic right now. Your ingredient hasn’t
+                                        changed.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fig">
+                    <p class="cap">Edit details: no other details left</p>
+                    <div class="stage" style="">
+                        <div class="scrim"></div>
+                        <div class="sheet" role="dialog" aria-label="Edit details" style="">
+                            <div class="trow">
+                                <h2 class="ttl">Edit details</h2>
+                                <span class="cls" aria-label="Close details"
+                                    ><x-import component-from-global-scope="Commise.Icon" name="x" size="20"></x-import
+                                ></span>
+                            </div>
+                            <div class="sbody">
+                                <div class="dhead">
+                                    <p class="food">garlic</p>
+                                    <div class="introrow"><p class="intro">Nutrition uses the one you pick.</p></div>
+                                    <p class="cur">
+                                        <b>Current: </b
+                                        ><x-import
+                                            component-from-global-scope="Commise.VariantPartsLine"
+                                            parts="{{v0}}"
+                                            tone="secondary"
+                                        ></x-import>
+                                    </p>
+                                </div>
+                                <div class="block">
+                                    <p class="body16">
+                                        There are no other details for garlic now. Your recipe keeps these numbers. If
+                                        you remove the details, you can’t add them back.
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="foot">
+                                <div class="row">
+                                    <x-import component-from-global-scope="Commise.Button" variant="secondary" icon="x"
+                                        >Close</x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Button"
+                                        variant="secondary"
+                                        icon="minus"
+                                        >Remove details</x-import
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1258}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement,C=window.Commise,noop=()=>{},yes=true; return {noop,yes,v0:["roasted"]}; } }
+        </script>
+    </body>
+</html>

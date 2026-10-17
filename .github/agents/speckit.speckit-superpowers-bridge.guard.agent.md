@@ -1,11 +1,11 @@
 ---
 description: Guard Spec Kit and Superpowers commands from crossing bridge ownership
-  boundaries
+    boundaries
 ---
-
 
 <!-- Extension: speckit-superpowers-bridge -->
 <!-- Config: .specify/extensions/speckit-superpowers-bridge/ -->
+
 # Superpowers Bridge Guard
 
 Block commands that would overlap Spec Kit / Superpowers responsibilities. The guard reads `.specify/superpowers-handoff.json` and (when needed) the active feature directory, then evaluates a small fixed rule set.

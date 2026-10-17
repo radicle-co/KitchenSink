@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, unsaved changes found (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <script>
+            (function () {
+                const d = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollHeight');
+                Object.defineProperty(HTMLTextAreaElement.prototype, 'scrollHeight', {
+                    configurable: true,
+                    get() {
+                        const s = this.style.height;
+                        this.style.height = '0px';
+                        const v = d.get.call(this);
+                        this.style.height = s;
+                        const cs = getComputedStyle(this);
+                        return v - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+                    },
+                });
+            })();
+        </script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    [role='radiogroup'] > div,
+                    [role='group'] > div {
+                        max-width: 100%;
+                    }
+                    body {
+                        margin: 0;
+                    }
+                    /* A phone shows a scroll indicator only while it scrolls, so the frame and the text areas show no
+                       scrollbar. A classic scrollbar would also take width from the 390 px screen and cover its right edge. */
+                    * {
+                        scrollbar-width: none;
+                    }
+                    *::-webkit-scrollbar {
+                        display: none;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                </style></helmet
+            >
+            <x-import
+                component-from-global-scope="Commise.Native.ScrollFrame"
+                sections="{{scrollSections}}"
+                activation-offset="{{scrollOffset}}"
+                ><div style="width: 390px; background: var(--canvas); color: var(--ink); font-family: var(--font-body)">
+                    <div
+                        style="
+                            display: flex;
+                            flex-direction: column;
+                            min-width: 0;
+                            background: var(--canvas);
+                            width: 390px;
+                            padding-top: 47px;
+                            position: relative;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.EditorHeader"
+                            title="Edit recipe"
+                            status="Changes saved on this device"
+                            close-label="Close editor"
+                            on-close="{{p143}}"
+                            menu="{{menuChanges}}"
+                        ></x-import
+                        ><x-import
+                            component-from-global-scope="Commise.Native.SectionIndex"
+                            label="Recipe sections"
+                            sheet-title="Sections"
+                            sheet-close-label="Close sections"
+                            items="{{p145}}"
+                            current-id="details"
+                            bar-name="Sections. Current: Details. 4 of 4 done."
+                            bar-suffix=" · 4 of 4 done"
+                            on-jump="{{p146}}"
+                        ></x-import>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                min-width: 0;
+                                gap: 24px;
+                                padding: 16px 16px 28px;
+                            "
+                        >
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: 12px;
+                                    border-radius: var(--radius-md);
+                                    background: var(--surface-muted);
+                                    padding: 16px;
+                                "
+                            >
+                                <div style="font: 400 14px/1.4 var(--font-body); color: var(--ink)">
+                                    You have changes from Oct 16, 2026, 9:41 AM that aren't saved to your recipe.
+                                </div>
+                                <div style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px">
+                                    <x-import component-from-global-scope="Commise.Native.Button" size="sm" icon="check"
+                                        >Save changes</x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.Button"
+                                        variant="ghost"
+                                        size="sm"
+                                        >Discard</x-import
+                                    >
+                                </div>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Native.EditorSection"
+                                id="details"
+                                title="Details"
+                                current="{{p147}}"
+                                ><div style="display: flex; flex-direction: column; min-width: 0; gap: 32px">
+                                    <div style="display: flex; flex-direction: column; min-width: 0; gap: 16px">
+                                        <div role="heading">
+                                            <div
+                                                style="
+                                                    font-family: var(--font-body);
+                                                    font: 600 14px/1.4 var(--font-body);
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                About the recipe
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; flex-direction: column; min-width: 0; gap: 4px">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="title"
+                                                label="Title"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.TextArea"
+                                                id="title"
+                                                value="Brown Butter Lemon Chicken"
+                                                min-rows="{{p0}}"
+                                                max-rows="{{p1}}"
+                                                label="Title"
+                                                on-change-text="{{p2}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="display: flex; flex-direction: column; min-width: 0; gap: 4px">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="description"
+                                                label="Description"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.TextArea"
+                                                id="description"
+                                                value="A fast skillet dinner: crisp-skinned chicken thighs in a lemony brown butter sauce with capers. Ready in about 40 minutes and good over rice or orzo."
+                                                min-rows="{{p3}}"
+                                                label="Description"
+                                                on-change-text="{{p4}}"
+                                            ></x-import>
+                                        </div>
+                                    </div></div
+                            ></x-import>
+                        </div>
+                        <x-import
+                            component-from-global-scope="Commise.Native.EditorActionBar"
+                            label="Recipe actions"
+                            preview-label="Preview"
+                            on-preview="{{p153}}"
+                            primary-label="Save changes"
+                            on-primary="{{p154}}"
+                            primary-disabled="{{p155}}"
+                            busy="{{p156}}"
+                        ></x-import>
+                    </div></div></x-import
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":778}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement, C=window.Commise.Native, noop=()=>{}; return {p0:1,p1:3,p2:noop,p3:4,p4:noop,p143:noop,menuChanges:{triggerLabel:'More editor actions',closeLabel:'Keep editing',discardLabel:'Discard changes',onDiscard:noop},p145:[{"id":"details","label":"Details","tone":"complete","spokenStatus":"Complete"},{"id":"ingredients","label":"Ingredients","tone":"complete","spokenStatus":"Complete"},{"id":"steps","label":"Steps","tone":"complete","spokenStatus":"Complete"},{"id":"photos","label":"Photos & publish","shortLabel":"Photos","tone":"complete","reason":"Ready to publish"}],p146:noop,p147:true,p153:noop,p154:noop,p155:false,p156:false,scrollSections:['details','ingredients','steps','photos'],scrollOffset:96}; } }
+        </script>
+    </body>
+</html>

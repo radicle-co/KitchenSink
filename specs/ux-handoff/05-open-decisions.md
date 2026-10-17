@@ -20,7 +20,7 @@
 | UX-W002 | Instacart integration               | Deferred behind partner agreement. Do not make Instacart the default store connection in v1 mockups.                                           |
 | UX-W003 | Trainer/client nutrition workflows  | Premium workflow exists, but can be lower fidelity unless v1 scope confirms trainer role launch.                                               |
 | UX-W004 | Creator profiles and cooking school | Specs 012/013 exist but are not part of the core handoff package unless leadership pulls them into v1.                                         |
-| UX-W005 | AI provider setup                   | BYOK is the documented direction; keep provider setup transparent and avoid implying Commise pays for provider usage unless product changes. |
+| UX-W005 | AI provider setup                   | BYOK is the documented direction; keep provider setup transparent and avoid implying Commise pays for provider usage unless product changes.   |
 
 ## Ready-for-UX checklist
 

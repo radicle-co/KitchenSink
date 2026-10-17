@@ -1,7 +1,7 @@
 /**
  * Drizzle client proxy for `@kitchensink/recipe-service` (T015). Wraps a `pg.Pool` with the full recipe
  * schema so every table + inferred type is available on the client. Mirrors the food service's typed
- * `drizzle(pool, { schema })` client. The pool itself (RDS-IAM auth) is built in `pool-config.ts` and
+ * `drizzle(pool, { schema })` client. The pool itself (RDS-IAM auth) is built in `poolConfig.ts` and
  * provided by `database.module.ts`.
  */
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -12,7 +12,7 @@ import * as schema from './schema/index.js';
 /** The full recipe schema object (every table + relation) passed to Drizzle. */
 export type RecipeSchema = typeof schema;
 
-/** The Drizzle client type exported by {@link DatabaseModule}, including the recipe schema. */
+/** The Drizzle client type exported by `DatabaseModule`, including the recipe schema. */
 export type RecipeDrizzle = ReturnType<typeof drizzle<RecipeSchema>>;
 
 /**

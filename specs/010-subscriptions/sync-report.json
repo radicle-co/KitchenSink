@@ -1,127 +1,127 @@
 {
-  "featureSlug": "010-subscriptions",
-  "scanDate": "2026-06-02",
-  "scanType": "pre-implementation",
-  "layersScanned": ["L1", "L2", "L3", "L4", "L7"],
-  "layersSkipped": ["L5"],
-  "layersInfo": ["L6"],
-  "overallVerdict": "PASS",
-  "summary": {
-    "totalFindings": 1,
-    "critical": 0,
-    "warning": 1,
-    "info": 1,
-    "pass": 6
-  },
-  "layers": [
-    {
-      "layerId": "L1",
-      "name": "spec ↔ product-spec",
-      "status": "PASS",
-      "severity": null,
-      "description": "All FRs, NFRs, Decisions, and SCs in spec.md are mirrored in product-spec artifacts.",
-      "evidence": [
-        "FR-040 → product-spec.md Core principle #1 (free tier) and US-010-001",
-        "FR-041 → product-spec.md Core principle #2 (premium tier), US-010-002, pricing table ($6.99/mo, $59.99/yr)",
-        "FR-042 → product-spec.md Core principle #3 (upgrade prompts), US-010-003, paywall hierarchy",
-        "FR-043 → product-spec.md Core principle #4 (data retention), US-010-004, D-3 7-day grace",
-        "NFR-001..NFR-004 → Referenced implicitly in wireframe a11y notes and TypeScript strict compliance in codebase-analysis.md",
-        "D-1..D-8 → Closed Decisions table in product-spec.md and full rationale in review.md Revision 1",
-        "SC-005, SC-006 → product-spec/metrics.md MET-010-001..MET-010-003 and conversion KPIs"
-      ],
-      "findings": []
+    "featureSlug": "010-subscriptions",
+    "scanDate": "2026-06-02",
+    "scanType": "pre-implementation",
+    "layersScanned": ["L1", "L2", "L3", "L4", "L7"],
+    "layersSkipped": ["L5"],
+    "layersInfo": ["L6"],
+    "overallVerdict": "PASS",
+    "summary": {
+        "totalFindings": 1,
+        "critical": 0,
+        "warning": 1,
+        "info": 1,
+        "pass": 6
     },
-    {
-      "layerId": "L2",
-      "name": "spec Must-Have ↔ plan",
-      "status": "PASS",
-      "severity": null,
-      "description": "All Must-Have FRs (FR-040..FR-043) and closed decisions are addressed by plan.md architecture.",
-      "evidence": [
-        "FR-040 → plan.md §2 Account Entity Additions (default free), §4 Feature Gating Map (no gating on free endpoints), §7 Subscription States",
-        "FR-041 → plan.md §3 API Contracts (checkout/portal), §4 Feature Gating Map (gated endpoints), §5 Stripe Billing Stack, pricing ($6.99/mo, $59.99/yr), trial_period_days: 14",
-        "FR-042 → plan.md §8 Upgrade Prompts (three-tier hierarchy), TASK-022 web components, TASK-024 mobile components",
-        "FR-043 → plan.md §2 Data Model (retain on lapse), §7 Subscription States (canceled→free), TASK-026 data retention, TASK-027 read-only, D-3 7-day grace",
-        "OQ-1..OQ-5 → plan.md §6 Open Questions table (all answered)"
-      ],
-      "findings": []
-    },
-    {
-      "layerId": "L3",
-      "name": "plan ↔ tasks",
-      "status": "PASS",
-      "severity": null,
-      "description": "28 tasks cover all plan sections with minor naming drift.",
-      "evidence": [
-        "TASK-001 covers plan.md §5 Stripe Billing Stack (StripeModule config)",
-        "TASK-002, TASK-003 cover plan.md §2 Data Model (Account columns + webhook_events table)",
-        "TASK-004..TASK-007 cover plan.md §4 Feature Gating Map (decorator, guard, unit tests)",
-        "TASK-008..TASK-013 cover plan.md §3 API Contracts (Billing endpoints)",
-        "TASK-014..TASK-020 cover plan.md §3 API Contracts (Webhook endpoint) and §5 Webhook handling",
-        "TASK-021..TASK-024 cover plan.md §8 Upgrade Prompts (interceptor, web/mobile UI)",
-        "TASK-025 covers plan.md §9 Testing (E2E upgrade flow)",
-        "TASK-026, TASK-027 cover plan.md §2 Data Model / FR-043 (retention + read-only)",
-        "TASK-028 covers plan.md §8 Mobile parity (status + deep-link)"
-      ],
-      "findings": [
+    "layers": [
         {
-          "findingId": "W-001",
-          "severity": "WARNING",
-          "description": "Task naming drift: TASK-020 is labeled 'Integration tests for webhook handlers' but plan.md does not explicitly map a dedicated integration-test module for webhooks; closest is §9 Testing 'E2E upgrade flow'.",
-          "action": "Reconcile during implementation whether TASK-020 executes as integration tests or E2E tests."
+            "layerId": "L1",
+            "name": "spec ↔ product-spec",
+            "status": "PASS",
+            "severity": null,
+            "description": "All FRs, NFRs, Decisions, and SCs in spec.md are mirrored in product-spec artifacts.",
+            "evidence": [
+                "FR-040 → product-spec.md Core principle #1 (free tier) and US-010-001",
+                "FR-041 → product-spec.md Core principle #2 (premium tier), US-010-002, pricing table ($6.99/mo, $59.99/yr)",
+                "FR-042 → product-spec.md Core principle #3 (upgrade prompts), US-010-003, paywall hierarchy",
+                "FR-043 → product-spec.md Core principle #4 (data retention), US-010-004, D-3 7-day grace",
+                "NFR-001..NFR-004 → Referenced implicitly in wireframe a11y notes and TypeScript strict compliance in codebase-analysis.md",
+                "D-1..D-8 → Closed Decisions table in product-spec.md and full rationale in review.md Revision 1",
+                "SC-005, SC-006 → product-spec/metrics.md MET-010-001..MET-010-003 and conversion KPIs"
+            ],
+            "findings": []
+        },
+        {
+            "layerId": "L2",
+            "name": "spec Must-Have ↔ plan",
+            "status": "PASS",
+            "severity": null,
+            "description": "All Must-Have FRs (FR-040..FR-043) and closed decisions are addressed by plan.md architecture.",
+            "evidence": [
+                "FR-040 → plan.md §2 Account Entity Additions (default free), §4 Feature Gating Map (no gating on free endpoints), §7 Subscription States",
+                "FR-041 → plan.md §3 API Contracts (checkout/portal), §4 Feature Gating Map (gated endpoints), §5 Stripe Billing Stack, pricing ($6.99/mo, $59.99/yr), trial_period_days: 14",
+                "FR-042 → plan.md §8 Upgrade Prompts (three-tier hierarchy), TASK-022 web components, TASK-024 mobile components",
+                "FR-043 → plan.md §2 Data Model (retain on lapse), §7 Subscription States (canceled→free), TASK-026 data retention, TASK-027 read-only, D-3 7-day grace",
+                "OQ-1..OQ-5 → plan.md §6 Open Questions table (all answered)"
+            ],
+            "findings": []
+        },
+        {
+            "layerId": "L3",
+            "name": "plan ↔ tasks",
+            "status": "PASS",
+            "severity": null,
+            "description": "28 tasks cover all plan sections with minor naming drift.",
+            "evidence": [
+                "TASK-001 covers plan.md §5 Stripe Billing Stack (StripeModule config)",
+                "TASK-002, TASK-003 cover plan.md §2 Data Model (Account columns + stripe_webhook_events table; renamed from webhook_events 2026-08-12 per ADR-0018)",
+                "TASK-004..TASK-007 cover plan.md §4 Feature Gating Map (decorator, guard, unit tests)",
+                "TASK-008..TASK-013 cover plan.md §3 API Contracts (Billing endpoints)",
+                "TASK-014..TASK-020 cover plan.md §3 API Contracts (Webhook endpoint) and §5 Webhook handling",
+                "TASK-021..TASK-024 cover plan.md §8 Upgrade Prompts (interceptor, web/mobile UI)",
+                "TASK-025 covers plan.md §9 Testing (E2E upgrade flow)",
+                "TASK-026, TASK-027 cover plan.md §2 Data Model / FR-043 (retention + read-only)",
+                "TASK-028 covers plan.md §8 Mobile parity (status + deep-link)"
+            ],
+            "findings": [
+                {
+                    "findingId": "W-001",
+                    "severity": "WARNING",
+                    "description": "Task naming drift: TASK-020 is labeled 'Integration tests for webhook handlers' but plan.md does not explicitly map a dedicated integration-test module for webhooks; closest is §9 Testing 'E2E upgrade flow'.",
+                    "action": "Reconcile during implementation whether TASK-020 executes as integration tests or E2E tests."
+                }
+            ]
+        },
+        {
+            "layerId": "L4",
+            "name": "spec ↔ V-Model",
+            "status": "PASS",
+            "severity": null,
+            "description": "V-Model requirements REQ-001..REQ-031 map bidirectionally to FR-040..FR-043 and closed decisions.",
+            "evidence": [
+                "FR-040 ↔ REQ-001..REQ-007 (free tier entitlements and default assignment)",
+                "FR-041 ↔ REQ-008..REQ-018 (premium features), REQ-026 (pricing), REQ-027 (14-day trial)",
+                "FR-042 ↔ REQ-029 (three-tier prompt hierarchy), REQ-030 (clear CTA), REQ-031 (respectful non-intrusive)",
+                "FR-043 ↔ REQ-019..REQ-025 (data retention, lapse behavior), REQ-028 (7-day grace)",
+                "NFR-001..NFR-004 ↔ Referenced across V-Model peer-review files and system-design accessibility notes",
+                "Traceability Matrix (traceability-matrix.md) covers REQ-001..REQ-031 mapped to AC-001..AC-027"
+            ],
+            "findings": []
+        },
+        {
+            "layerId": "L5",
+            "name": "code ↔ tasks",
+            "status": "SKIP",
+            "severity": null,
+            "description": "Skipped per instruction.",
+            "evidence": [],
+            "findings": []
+        },
+        {
+            "layerId": "L6",
+            "name": "missing impl",
+            "status": "INFO",
+            "severity": null,
+            "description": "Implementation has not started (.forge-status.yml implement: not-started). No source files for billing, subscription, or webhook modules exist in packages/apps/commise/.",
+            "evidence": [
+                ".forge-status.yml line 71: implement: not-started",
+                "0/28 tasks have checked execution markers",
+                "No src/billing/, no tests for PlanGuard/BillingService, no Drizzle migrations for subscription columns"
+            ],
+            "findings": []
+        },
+        {
+            "layerId": "L7",
+            "name": "cross-feature deps",
+            "status": "PASS",
+            "severity": null,
+            "description": "All cross-feature dependency references are valid; no broken apps/X links.",
+            "evidence": [
+                "spec.md Dependencies table references 002-user-auth (required), 001-commise-recipe-app, 004-recipe-importing, 005-ai-integration, 006-meal-planning, 007-grocery-lists, 009-nutrition-planning — all present in sibling spec directories",
+                "codebase-analysis.md references packages/apps/commise/web and packages/apps/commise/mobile as valid monorepo workspace paths",
+                "No stray 'apps/X' path references found in artifact body text"
+            ],
+            "findings": []
         }
-      ]
-    },
-    {
-      "layerId": "L4",
-      "name": "spec ↔ V-Model",
-      "status": "PASS",
-      "severity": null,
-      "description": "V-Model requirements REQ-001..REQ-031 map bidirectionally to FR-040..FR-043 and closed decisions.",
-      "evidence": [
-        "FR-040 ↔ REQ-001..REQ-007 (free tier entitlements and default assignment)",
-        "FR-041 ↔ REQ-008..REQ-018 (premium features), REQ-026 (pricing), REQ-027 (14-day trial)",
-        "FR-042 ↔ REQ-029 (three-tier prompt hierarchy), REQ-030 (clear CTA), REQ-031 (respectful non-intrusive)",
-        "FR-043 ↔ REQ-019..REQ-025 (data retention, lapse behavior), REQ-028 (7-day grace)",
-        "NFR-001..NFR-004 ↔ Referenced across V-Model peer-review files and system-design accessibility notes",
-        "Traceability Matrix (traceability-matrix.md) covers REQ-001..REQ-031 mapped to AC-001..AC-027"
-      ],
-      "findings": []
-    },
-    {
-      "layerId": "L5",
-      "name": "code ↔ tasks",
-      "status": "SKIP",
-      "severity": null,
-      "description": "Skipped per instruction.",
-      "evidence": [],
-      "findings": []
-    },
-    {
-      "layerId": "L6",
-      "name": "missing impl",
-      "status": "INFO",
-      "severity": null,
-      "description": "Implementation has not started (.forge-status.yml implement: not-started). No source files for billing, subscription, or webhook modules exist in packages/apps/commise/.",
-      "evidence": [
-        ".forge-status.yml line 71: implement: not-started",
-        "0/28 tasks have checked execution markers",
-        "No src/billing/, no tests for PlanGuard/BillingService, no Drizzle migrations for subscription columns"
-      ],
-      "findings": []
-    },
-    {
-      "layerId": "L7",
-      "name": "cross-feature deps",
-      "status": "PASS",
-      "severity": null,
-      "description": "All cross-feature dependency references are valid; no broken apps/X links.",
-      "evidence": [
-        "spec.md Dependencies table references 002-user-auth (required), 001-commise-recipe-app, 004-recipe-importing, 005-ai-integration, 006-meal-planning, 007-grocery-lists, 009-nutrition-planning — all present in sibling spec directories",
-        "codebase-analysis.md references packages/apps/commise/web and packages/apps/commise/mobile as valid monorepo workspace paths",
-        "No stray 'apps/X' path references found in artifact body text"
-      ],
-      "findings": []
-    }
-  ]
+    ]
 }

@@ -1,0 +1,1363 @@
+openapi: 3.1.0
+info:
+    title: Commise Meal Planning API
+    version: 1.0.0
+    description: |
+        Contract-first OpenAPI document for `@kitchensink/meal-plan-service` (feature 006). Written BEFORE any
+        handler, per `ENGINEERING_EXCELLENCE.md` → Backend §1: handlers derive from this document and the e2e
+        suite asserts against it.
+
+        ## Path convention (ADR-0011)
+
+        Every versioned endpoint is served at `/api/v1/...` and **only** there. The bare `/v1/*` alias that the
+        shipped services carried during the transition was retired on 2026-08-05, and ADR-0011 states the alias
+        set "only ever shrinks" — so a service born after that date is canonical-only, and no endpoint in this
+        document may ever gain a bare spelling.
+
+        `/health` is the one unprefixed path. It is an operational probe, not API surface: the shared-ALB target
+        group (`HealthCheckPath: '/health'`), the ECS container check and `infra/smoke/deployedSmoke.ts` all dial
+        it at the origin root. Moving it under the prefix drains the target group to zero healthy hosts.
+
+        There is deliberately **no** `/health/ready` in this service, unlike identity/food/recipe: nothing in the
+        meal-plan stack dials one, and 006 specifies `/health` as *the only* unauthenticated route
+        (REQ-IF-003, ITS-009-A4, STS-001-A3). Adding readiness is a three-part change — controller, auth
+        exclusion, and the target group's `HealthCheckPath` — not a route added on its own.
+
+        ## Error envelope
+
+        Every non-2xx response from every endpoint is the single envelope `{ code, message, details? }`, emitted
+        by one `apiException.filter.ts` (ARCH-017 / MOD-017). Status semantics, all inherited rather than
+        invented:
+
+        | Status | Meaning                                                                                       |
+        | ------ | --------------------------------------------------------------------------------------------- |
+        | `401`  | No or invalid Clerk session token.                                                            |
+        | `404`  | Absent **or not owned** — byte-identical for both (FR-029 / REQ-CN-002). Never `403`.         |
+        | `409`  | Genuine conflict (e.g. a range change that would strand existing entries).                    |
+        | `422`  | Semantically invalid — Zod edge-parse failures and domain rule violations.                    |
+        | `503`  | The recipe gateway is unavailable **and** the request cannot be served degraded.              |
+
+        ## Schema strictness
+
+        Every schema is closed (`additionalProperties: false`) — on requests so a typo'd field is rejected
+        rather than silently dropped, and on responses so the e2e suite catches the service leaking a field
+        it never declared. The two exceptions, `MealPlanSummary` and `MealPlanDetail`, are forced by `allOf`
+        composition and carry the reason inline.
+
+        ## Owner scoping
+
+        Ownership is the `sub`-derived app-user ULID taken from the verified Clerk session token. There is no
+        local users table and no sharing model: a plan, entry or template belonging to another user is
+        indistinguishable from one that does not exist.
+
+        ## Deliberately out of scope for this document
+
+        The **internal account-erasure route** (`POST /api/v1/internal/account/erasure`, FR-039 / ARCH-018 /
+        T038) is not described here. It is a machine-to-machine surface authenticated by a service token rather
+        than a Clerk session, mirroring `recipe-service`'s `ServiceErasureController`, and it is absent from
+        `plan.md` §API Contracts. Its absence from this document is a recorded gap, not evidence that no such
+        route exists — T038 must add it here when it lands.
+
+        Schema field names for response payloads follow `@kitchensink/meal-plan-core` (`nutritionRollup.ts`,
+        `groceryProjection.ts`, `templateProjection.ts`), which are shipped and authoritative. Where the
+        V-Model artefacts do not pin a wire detail (noted inline), the shape here is the contract's proposal and
+        the implementing task must either honour it or amend this document.
+servers:
+    - url: http://localhost:3000
+      description: Local development
+    - url: https://meal-plan.commise.app
+      description: Production
+    - url: https://meal-plan.sandbox.commise.app
+      description: Sandbox
+security:
+    - bearerAuth: []
+tags:
+    - name: Health
+      description: Unauthenticated operational probes at the origin root.
+    - name: Meal plans
+    - name: Entries
+    - name: Templates
+    - name: Projections
+paths:
+    /health:
+        get:
+            tags: [Health]
+            summary: Liveness probe
+            description: |
+                Static liveness. Performs no dependency checks — a database blip must never make ECS kill an
+                otherwise-healthy container. UNPREFIXED by design (ADR-0011); the target group grades only the
+                status code, but `service` identifies the origin that answered, which is how a mis-pointed
+                host rule on the shared ALB (ADR-0003) is told apart from a healthy service.
+            operationId: getHealth
+            security: []
+            responses:
+                '200':
+                    description: The process is up.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/HealthStatus'
+
+    /api/v1/meal-plans:
+        get:
+            tags: [Meal plans]
+            summary: List the caller's meal plans
+            description: |
+                Keyset (cursor) paginated on `(created_at DESC, id DESC)`, backed by
+                `meal_plans_owner_created_idx`. Deliberately not offset paging: offsets drift under concurrent
+                inserts and degrade on deep pages. `nextCursor` is absent on the last page.
+            operationId: listMealPlans
+            parameters:
+                - $ref: '#/components/parameters/Cursor'
+                - $ref: '#/components/parameters/Limit'
+            responses:
+                '200':
+                    description: A page of the caller's plans, newest first.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MealPlanPage'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '422':
+                    $ref: '#/components/responses/UnprocessableEntity'
+        post:
+            tags: [Meal plans]
+            summary: Create a meal plan
+            description: |
+                Creates an empty plan over an inclusive calendar range with a caller-selected subset of meal
+                slots (FR-022). `422` when the range is inverted, spans more than 90 days, or the slot set is
+                empty, duplicated or unknown.
+            operationId: createMealPlan
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateMealPlanRequest'
+            responses:
+                '201':
+                    description: The created plan, with its (empty) entry list and nutrition summary.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MealPlanDetail'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '422':
+                    $ref: '#/components/responses/UnprocessableEntity'
+
+    /api/v1/meal-plans/{planId}:
+        parameters:
+            - $ref: '#/components/parameters/PlanId'
+        get:
+            tags: [Meal plans]
+            summary: Read a plan with its entries and nutrition
+            description: |
+                Returns the plan, every entry, and the per-day plus whole-plan nutrition rollup in **one**
+                response (NFR-006) — the client never fans out per entry. Nutrition comes from a single batch
+                call to the recipe service; when that call fails or partially fails the affected days and the
+                plan total report `isComplete: false` rather than erroring.
+            operationId: getMealPlan
+            responses:
+                '200':
+                    description: The plan, its entries and its nutrition rollup.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MealPlanDetail'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '404':
+                    $ref: '#/components/responses/NotFound'
+        patch:
+            tags: [Meal plans]
+            summary: Rename a plan or adjust its range
+            description: |
+                Partial update. Narrowing the plan so that existing entries would fall outside it is refused
+                with the affected count — a user's placements are never silently discarded. Both axes of the
+                board are guarded: narrowing the DATE range answers `409 ENTRIES_OUTSIDE_NEW_RANGE`,
+                deselecting a MEAL SLOT that still holds entries answers `409 ENTRIES_IN_DESELECTED_SLOT`
+                (REQ-CN-013). Each refusal is enforced by a database trigger as well as the service, so a
+                future caller cannot talk past it.
+            operationId: updateMealPlan
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateMealPlanRequest'
+            responses:
+                '200':
+                    description: The updated plan.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MealPlanDetail'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '404':
+                    $ref: '#/components/responses/NotFound'
+                '409':
+                    $ref: '#/components/responses/Conflict'
+                '422':
+                    $ref: '#/components/responses/UnprocessableEntity'
+        delete:
+            tags: [Meal plans]
+            summary: Delete a plan
+            description: |
+                Cascades to the plan's entries. Idempotent: a repeat, and a plan that is absent or owned by
+                someone else, all answer `204` — which is also what keeps the response from disclosing whether
+                the plan existed (FR-029).
+            operationId: deleteMealPlan
+            responses:
+                '204':
+                    description: The plan no longer exists.
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+
+    /api/v1/meal-plans/{planId}/entries:
+        parameters:
+            - $ref: '#/components/parameters/PlanId'
+        post:
+            tags: [Entries]
+            summary: Assign a recipe to a (date, slot) cell
+            description: |
+                `Idempotency-Key` is **required** (FR-032): a repeated key within 24 hours replays the original
+                response rather than creating a second entry.
+
+                A cell holds at most one entry, enforced by a deferrable unique constraint on
+                `(meal_plan_id, entry_date, meal_slot)`. Because a deferrable constraint cannot serve as an
+                `ON CONFLICT` arbiter, a lost race surfaces as `409` rather than an upsert — a silent upsert
+                would overwrite the entry that won.
+
+                The recipe must be readable by the caller at assignment time, checked against the recipe
+                service. An unreadable recipe and a non-existent one produce an **identical** `404` disclosing
+                nothing. If the recipe service cannot be reached the request fails closed with `503` — never
+                "assume readable".
+            operationId: createMealPlanEntry
+            parameters:
+                - $ref: '#/components/parameters/IdempotencyKey'
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateMealPlanEntryRequest'
+            responses:
+                '201':
+                    description: The created entry, or the replayed response for a repeated `Idempotency-Key`.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MealPlanEntry'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '404':
+                    $ref: '#/components/responses/NotFound'
+                '409':
+                    $ref: '#/components/responses/Conflict'
+                '422':
+                    $ref: '#/components/responses/UnprocessableEntity'
+                '503':
+                    $ref: '#/components/responses/DependencyUnavailable'
+
+    /api/v1/meal-plans/{planId}/entries/{entryId}:
+        parameters:
+            - $ref: '#/components/parameters/PlanId'
+            - $ref: '#/components/parameters/EntryId'
+        patch:
+            tags: [Entries]
+            summary: Move an entry, or change its servings or note
+            description: |
+                Moving onto an **occupied** cell swaps the two entries in one transaction with the cell
+                constraint deferred (REQ-021 / FR-023a) — both keep their own servings and note. Moving onto an
+                empty cell is a single update. A move is never rejected for occupancy and never overwrites, so
+                a drag always has an outcome the grid can show.
+
+                The target cell is re-validated against the plan's range and selected slot set, so a move
+                outside either is `422`.
+            operationId: updateMealPlanEntry
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateMealPlanEntryRequest'
+            responses:
+                '200':
+                    description: The updated entry. A swap returns the moved entry; its partner is re-read with the plan.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MealPlanEntry'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '404':
+                    $ref: '#/components/responses/NotFound'
+                '422':
+                    $ref: '#/components/responses/UnprocessableEntity'
+        delete:
+            tags: [Entries]
+            summary: Remove an entry
+            description: |
+                Idempotent — removing an entry that is already gone, or one that is not the caller's, answers
+                `204` all the same. An orphaned entry (FR-033) remains removable by design.
+            operationId: deleteMealPlanEntry
+            responses:
+                '204':
+                    description: The entry no longer exists.
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+
+    /api/v1/meal-plans/{planId}/grocery-projection:
+        parameters:
+            - $ref: '#/components/parameters/PlanId'
+        get:
+            tags: [Projections]
+            summary: Read the versioned grocery/nutrition projection of a plan
+            description: |
+                The stable read projection features 007 (grocery lists) and 009 consume (FR-036). It
+                **generates nothing**: no ingredient aggregation, no deduplication, no merging — two meals of
+                the same recipe stay two entries, each with its own servings, because how they combine is
+                007's rule to make.
+
+                Orphaned entries are excluded (an unreadable recipe cannot be shopped for) and notes are never
+                projected. Versioned additively: branch on `version`, never on field presence.
+            operationId: getMealPlanGroceryProjection
+            responses:
+                '200':
+                    description: The `v1` projection of the plan.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GroceryProjectionV1'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '404':
+                    $ref: '#/components/responses/NotFound'
+
+    /api/v1/meal-plan-templates:
+        get:
+            tags: [Templates]
+            summary: List the caller's templates
+            description: |
+                Templates are private to their owner. Unpaginated: `plan.md` §API Contracts marks only
+                `/api/v1/meal-plans` as cursor-paginated, and a template set is bounded by how many a user
+                chooses to save.
+            operationId: listMealPlanTemplates
+            responses:
+                '200':
+                    description: The caller's templates.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MealPlanTemplateList'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+        post:
+            tags: [Templates]
+            summary: Save an existing plan as a template
+            description: |
+                Derives a template from a plan the caller owns. Entries are recorded by **relative day offset
+                and slot**, never by absolute date (FR-028), so the template survives being applied to any
+                start date.
+            operationId: createMealPlanTemplate
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateMealPlanTemplateRequest'
+            responses:
+                '201':
+                    description: The saved template.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MealPlanTemplate'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '404':
+                    $ref: '#/components/responses/NotFound'
+                '422':
+                    $ref: '#/components/responses/UnprocessableEntity'
+
+    /api/v1/meal-plan-templates/{templateId}/apply:
+        parameters:
+            - $ref: '#/components/parameters/TemplateId'
+        post:
+            tags: [Templates]
+            summary: Apply a template to a new start date
+            description: |
+                Produces an **independent** new plan; the template is unchanged and the plan does not track it.
+                `Idempotency-Key` is **required** (FR-032) — a repeat replays the original response rather than
+                creating a second plan.
+
+                Entries that cannot be placed are skipped and counted by reason (FR-028): the recipe is no
+                longer readable, the offset falls outside the target range, the slot is not one the new plan
+                renders, or the cell was already taken by an earlier template entry. If the recipe service is
+                unavailable every recipe reads as unreadable, so the result is an empty plan with an honest
+                skip report rather than a plan silently missing meals.
+            operationId: applyMealPlanTemplate
+            parameters:
+                - $ref: '#/components/parameters/IdempotencyKey'
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ApplyMealPlanTemplateRequest'
+            responses:
+                '201':
+                    description: The new plan and the per-reason skip report.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AppliedTemplate'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '404':
+                    $ref: '#/components/responses/NotFound'
+                '422':
+                    $ref: '#/components/responses/UnprocessableEntity'
+
+    /api/v1/meal-plan-templates/{templateId}:
+        parameters:
+            - $ref: '#/components/parameters/TemplateId'
+        delete:
+            tags: [Templates]
+            summary: Delete a template
+            description: |
+                Cascades to the template's entries. Idempotent, and answers `204` for an absent or not-owned
+                template so the response discloses nothing. Plans previously created from the template are
+                independent and are unaffected.
+            operationId: deleteMealPlanTemplate
+            responses:
+                '204':
+                    description: The template no longer exists.
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+
+    /api/v1/internal/account/erasure:
+        post:
+            tags: [Internal]
+            summary: Erase every trace of one account (service-to-service)
+            description: |
+                The account-erasure participant (FR-039 · ARCH-018 · HAZ-040). Called by the identity
+                deletion worker, never by a browser or an app.
+
+                **This route is authenticated differently from every other route in this document**, and the
+                difference is structural rather than a variation. It is EXCLUDED from the global Clerk
+                middleware and protected instead by `ServiceErasureGuard`, which verifies an Ed25519-signed
+                service-principal token: algorithm pinned, issuer pinned to the deletion worker, audience
+                pinned to `urn:commise:meal-plan-service:account-erasure`, and the `exp − iat` window capped.
+                A token minted for the recipe or food leg is rejected here — the distinct audience is what
+                stops one captured token erasing a user across the whole platform.
+
+                **It takes no input.** The owner erased is read from the token's signed `sub` and from
+                nowhere else: no body, no query, no path parameter. A caller-supplied target is the entire
+                vulnerability this shape removes, so the absence of a request body is a security property,
+                not an omission.
+
+                **Idempotent.** An owner with nothing left answers `202` with all-zero counts, never `404`:
+                both entry points retry (SQS redelivery and the nightly reconciliation sweep), and reporting
+                a failure for a completed erasure would turn it into a permanent alarm.
+
+                Erasure is atomic across all five tables. A partial erasure is worse than none — the user has
+                been told their data is gone and an operator believes it — so the whole thing commits or none
+                of it does, and a failure propagates rather than reporting a success it did not achieve.
+            operationId: eraseAccount
+            security:
+                - servicePrincipalAuth: []
+            responses:
+                '202':
+                    description: |
+                        The erasure completed. The counts are the audit record — what was actually removed,
+                        per table — and are returned so an operator can answer a regulator without querying
+                        a database that no longer holds the rows.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AccountErasureResult'
+                '401':
+                    description: |
+                        No token, or a token that failed ANY check. The reason is deliberately never
+                        disclosed: distinguishing "wrong audience" from "bad signature" hands an attacker a
+                        probe for which part of a forged token to fix next. A stage with no verification key
+                        provisioned answers `401` to everything rather than accepting anything.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ApiError'
+
+components:
+    securitySchemes:
+        bearerAuth:
+            type: http
+            scheme: bearer
+            bearerFormat: JWT
+            description: |
+                A Clerk session token, verified in-process by `AuthMiddleware` over `@kitchensink/clerk-verify`
+                (networkless, `azp` enforced). The owner id is the app-user ULID derived from the verified
+                `sub` claim — there is no local users table. Every route except `/health` and the internal
+                erasure route requires it.
+
+        servicePrincipalAuth:
+            type: http
+            scheme: bearer
+            bearerFormat: JWT
+            description: |
+                An **Ed25519-signed service-principal token** minted by the identity deletion worker — NOT a
+                Clerk session, and not interchangeable with one. Verified in-process by
+                `MealPlanServiceErasureAuthService` with the algorithm pinned (`EdDSA`), the issuer pinned to
+                the deletion worker, the audience pinned to
+                `urn:commise:meal-plan-service:account-erasure`, and the `exp − iat` window capped on top of
+                the ordinary expiry check.
+
+                The **audience is this service's own**, deliberately: recipe and food each pin their own, so
+                a token captured from one leg cannot be replayed against the other two. Sharing one audience
+                would make a single leaked token total erasure across the platform, with every signature
+                check still passing.
+
+                The verification key is a PUBLIC SPKI PEM (`MEAL_PLAN_SERVICE_PRINCIPAL_JWT_KEY`), so
+                verification is a local signature check with no network call. A stage that has not been
+                given the key rejects every token rather than accepting any — it erases nothing rather than
+                erasing anything.
+
+    parameters:
+        PlanId:
+            name: planId
+            in: path
+            required: true
+            description: The plan's identifier.
+            schema:
+                $ref: '#/components/schemas/Uuid'
+        EntryId:
+            name: entryId
+            in: path
+            required: true
+            description: The entry's identifier.
+            schema:
+                $ref: '#/components/schemas/Uuid'
+        TemplateId:
+            name: templateId
+            in: path
+            required: true
+            description: The template's identifier.
+            schema:
+                $ref: '#/components/schemas/Uuid'
+        Cursor:
+            name: cursor
+            in: query
+            required: false
+            description: |
+                An opaque keyset cursor from a previous page's `nextCursor`. Omit for the first page. Callers
+                must treat it as opaque — its encoding is not part of this contract.
+            schema:
+                type: string
+                minLength: 1
+                maxLength: 256
+        Limit:
+            name: limit
+            in: query
+            required: false
+            description: |
+                Maximum items to return.
+
+                **`maximum` is CLAMPED, not rejected** (ITS-011-B3, restated here 2026-08-07 because the bare
+                `maximum: 100` read as a `422`): a `limit` above 100 returns 100 items and a `nextCursor`,
+                rather than an error. The bound is a server-side resource guard, not a semantic property of
+                the request — a client that guesses high has asked for something the service can satisfy, and
+                the paged response is already self-describing, so the client simply keeps following the
+                cursor. `limit=0` and a non-integer ARE rejected (`422`): those are not over-asking, they are
+                malformed.
+            schema:
+                type: integer
+                minimum: 1
+                maximum: 100
+                default: 20
+        IdempotencyKey:
+            name: Idempotency-Key
+            in: header
+            required: true
+            description: |
+                A caller-generated key making the write safe to retry. Scoped to `(owner, endpoint, key)`, so
+                one user's key can never replay another's response. Replayable for **24 hours** from first
+                use; beyond that window the request is treated as new.
+            schema:
+                type: string
+                minLength: 1
+                maxLength: 255
+
+    responses:
+        Unauthorized:
+            description: No or invalid Clerk session token.
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/ApiError'
+        NotFound:
+            description: |
+                The resource is absent **or** belongs to another user — byte-identical in both cases, and never
+                `403`, which would disclose existence (FR-029 / REQ-CN-002). An unreadable recipe returns the
+                same `MEAL_PLAN_NOT_FOUND` code as an absent one for the same reason.
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/ApiError'
+        Conflict:
+            description: A genuine conflict with the resource's current state.
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/ApiError'
+        UnprocessableEntity:
+            description: |
+                The request parsed but is semantically invalid — a Zod edge-parse failure (field-bound
+                `details`) or a domain rule violation.
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/ApiError'
+        DependencyUnavailable:
+            description: |
+                The recipe service could not be reached and the request cannot be served degraded. Fails
+                closed: readability is never assumed. Reads that *can* degrade do not use this status — they
+                return `200` with `isComplete: false`.
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/ApiError'
+
+    schemas:
+        ApiError:
+            type: object
+            description: |
+                The single error envelope for every non-2xx response in this service, emitted by one
+                `apiException.filter.ts`.
+            required: [code, message]
+            additionalProperties: false
+            properties:
+                code:
+                    type: string
+                    description: |
+                        A stable, machine-readable identifier. Clients branch on this, never on `message`.
+                        Known values, all emitted by the shipped `MealPlanErrorCode` table
+                        (`src/common/meal-plan.error.ts`): `MEAL_PLAN_NOT_FOUND`, `ENTRY_NOT_FOUND`,
+                        `TEMPLATE_NOT_FOUND`, `VALIDATION_FAILED`, `INVALID_DATE_RANGE`,
+                        `INVALID_MEAL_SLOTS`, `DATE_OUTSIDE_PLAN_RANGE`, `SLOT_NOT_IN_PLAN`,
+                        `INVALID_SERVINGS`, `NOTE_TOO_LONG`, `IDEMPOTENCY_KEY_MISMATCH`, `CELL_OCCUPIED`,
+                        `ENTRIES_OUTSIDE_NEW_RANGE`, `ENTRIES_IN_DESELECTED_SLOT`,
+                        `DEPENDENCY_UNAVAILABLE`, `IDENTITY_SYNC_PENDING` — plus two the domain table does
+                        NOT own, both derived by the exception filter rather than thrown: `UNAUTHORIZED`
+                        (its canonical name for a framework `401`) and `INTERNAL_ERROR` (the "we do not
+                        know" bucket, deliberately not constructible as a domain error — a factory for it
+                        would be a way to lie).
+
+                        `IDENTITY_SYNC_PENDING` **is** a domain code as of 2026-08-07, and the move was a
+                        bug fix, not bookkeeping: `AuthMiddleware` used to raise it as a
+                        `UnauthorizedException`, and the filter's framework branch rewrites such a code to
+                        its status's canonical name — so it reached the wire as a bare `UNAUTHORIZED` and
+                        the client's first-token-race retry could never fire. Only domain codes pass through
+                        verbatim, which is why any signal a client must branch on has to be one.
+
+                        Not declared as an `enum` here: the set is owned by MOD-017's table, and half of it
+                        is *derived* rather than declared anywhere at all, so an `enum` would be a third
+                        authority. `__tests__/contract/error-code-parity.contract.test.ts` holds the service,
+                        the typed client and the message catalogue to one observed set instead.
+                    examples: [MEAL_PLAN_NOT_FOUND]
+                message:
+                    type: string
+                    description: |
+                        A human-readable explanation for developers and logs. Not localized — user-facing copy
+                        is selected client-side from `code` via `@commise/i18n` (FR-038).
+                    examples: [Meal plan not found]
+                details:
+                    type: object
+                    description: |
+                        Structured, client-safe context — an OBJECT keyed by concern, not a list.
+
+                        Corrected 2026-08-07 (T029): this was declared as an `array` of `ApiErrorDetail`,
+                        which the shipped error module (T025) has never emitted and cannot. A bare array
+                        carries no room for the scalar an actionable failure has to return —
+                        `ENTRIES_OUTSIDE_NEW_RANGE`'s `affectedCount` is the whole point of that refusal
+                        (HAZ-029: the owner decides, the service never silently deletes) and has nowhere to
+                        live in a list of `{ path, message }`. The document follows the shipped shape.
+
+                        The keys are per-`code` and deliberately open-ended, so this schema does NOT set
+                        `additionalProperties: false`: adding a key to one code's context is additive, and
+                        pinning the set here would make it a breaking change in two places at once. The
+                        properties below are the ones a client may rely on today.
+                    properties:
+                        issues:
+                            type: array
+                            description: Field-bound failures. `VALIDATION_FAILED` only.
+                            items:
+                                $ref: '#/components/schemas/ApiErrorDetail'
+                        affectedCount:
+                            type: integer
+                            minimum: 1
+                            description: |
+                                How many entries the refused edit would have stranded —
+                                `ENTRIES_OUTSIDE_NEW_RANGE` and `ENTRIES_IN_DESELECTED_SLOT`. Returned so
+                                the client can tell the owner what they are about to lose.
+                        date:
+                            $ref: '#/components/schemas/IsoDate'
+                        mealSlot:
+                            $ref: '#/components/schemas/MealSlot'
+                        mealSlots:
+                            type: array
+                            items:
+                                $ref: '#/components/schemas/MealSlot'
+                        planSlots:
+                            type: array
+                            description: The slots the plan actually selected. `SLOT_NOT_IN_PLAN` only.
+                            items:
+                                $ref: '#/components/schemas/MealSlot'
+                        startDate:
+                            $ref: '#/components/schemas/IsoDate'
+                        endDate:
+                            $ref: '#/components/schemas/IsoDate'
+                        servings:
+                            type: integer
+                        length:
+                            type: integer
+                            description: |
+                                The rejected note's length. `NOTE_TOO_LONG` only — the note itself is
+                                NEVER echoed back (REQ-CN-012: untrusted verbatim user text).
+                        reason:
+                            type: string
+                            enum: [EMPTY, DUPLICATE, UNKNOWN]
+                            description: Why a slot set was rejected. `INVALID_MEAL_SLOTS` only.
+                        dependency:
+                            type: string
+                            description: Which upstream failed. `DEPENDENCY_UNAVAILABLE` only.
+                            examples: [recipe-service]
+
+        ApiErrorDetail:
+            type: object
+            required: [message]
+            additionalProperties: false
+            properties:
+                path:
+                    type: string
+                    description: Dotted path to the offending field, when the failure is field-bound.
+                    examples: [mealSlots.0]
+                message:
+                    type: string
+                    examples: [Unknown meal slot]
+
+        AccountErasureResult:
+            type: object
+            description: |
+                What an erasure removed. Counts only — never the erased content, which is the data being
+                deleted and must not be echoed back through the application or into any log.
+            required: [ownerId, deleted]
+            additionalProperties: false
+            properties:
+                ownerId:
+                    type: string
+                    description: The owner erased, echoed from the token's signed `sub`.
+                deleted:
+                    type: object
+                    description: Rows removed per table, in the order the statements run (children first).
+                    required: [mealPlanTemplateEntries, mealPlanTemplates, mealPlanEntries, mealPlans, idempotencyKeys]
+                    additionalProperties: false
+                    properties:
+                        mealPlanTemplateEntries:
+                            type: integer
+                            minimum: 0
+                        mealPlanTemplates:
+                            type: integer
+                            minimum: 0
+                        mealPlanEntries:
+                            type: integer
+                            minimum: 0
+                        mealPlans:
+                            type: integer
+                            minimum: 0
+                        idempotencyKeys:
+                            type: integer
+                            minimum: 0
+                            description: |
+                                The ledger holds REPLAYED RESPONSE BODIES — a saved plan, its entries, its
+                                notes. It is the owner's own data, not bookkeeping, so leaving it behind
+                                would keep a 24-hour readable copy of exactly what was just erased.
+
+        HealthStatus:
+            type: object
+            required: [status, service]
+            additionalProperties: false
+            properties:
+                status:
+                    type: string
+                    examples: [ok]
+                service:
+                    type: string
+                    description: Identifies the origin that answered, so a mis-pointed ALB host rule is detectable.
+                    examples: [meal-plan]
+
+        Uuid:
+            type: string
+            format: uuid
+            description: A version-agnostic UUID, as generated by `gen_random_uuid()`.
+            examples: [6f1b0f5e-0f5a-4b3e-9c2a-1f2d3e4a5b6c]
+
+        IsoDate:
+            type: string
+            format: date
+            description: |
+                A calendar date, never an instant (FR-037). A plan's day count must be unaffected by time zone
+                or daylight-saving transitions, so dates are compared and iterated as calendar days.
+            examples: ['2026-08-10']
+
+        MealSlot:
+            type: string
+            description: A slot within a day. Canonical display order is the order declared here.
+            enum: [breakfast, lunch, dinner, snack]
+
+        MealSlotSet:
+            type: array
+            description: The slots a plan renders — non-empty, no duplicates, at most one of each.
+            minItems: 1
+            maxItems: 4
+            uniqueItems: true
+            items:
+                $ref: '#/components/schemas/MealSlot'
+
+        Servings:
+            type: integer
+            description: |
+                How many servings the meal is planned for. The feature's family-sizing mechanism (FR-030): it
+                multiplies the entry's nutrition contribution and the downstream grocery projection. There is
+                no separate household-size model.
+            minimum: 1
+            maximum: 99
+            default: 1
+
+        EntryNote:
+            type: string
+            description: |
+                An optional free-text note, stored and returned verbatim and never interpreted as instructions
+                by any downstream process (FR-031). Never included in the grocery projection.
+            maxLength: 500
+
+        Macros:
+            type: object
+            description: |
+                A summed nutrition figure — absolute, already multiplied by servings, never per-serving. Fibre
+                is deliberately absent: the shipped `RecipeNutrition` carries calories/protein/carbs/fat only.
+            required: [calories, proteinG, carbsG, fatG]
+            additionalProperties: false
+            properties:
+                calories:
+                    type: number
+                proteinG:
+                    type: number
+                carbsG:
+                    type: number
+                fatG:
+                    type: number
+
+        DayTotal:
+            type: object
+            description: |
+                One calendar day of the plan. `totals` is **absent** when no entry on this day contributed
+                nutrition — never a zeroed object, which would read as a genuine zero-calorie day. A day with
+                no entries and a day whose entries were all orphaned both report no totals and differ only in
+                `isComplete`.
+            required: [date, isComplete]
+            additionalProperties: false
+            properties:
+                date:
+                    $ref: '#/components/schemas/IsoDate'
+                totals:
+                    $ref: '#/components/schemas/Macros'
+                isComplete:
+                    type: boolean
+                    description: |
+                        `false` when any contributing entry could not be fully accounted for — an unreadable
+                        recipe, or a recipe whose own nutrition is incomplete. The UI must present an
+                        incomplete total as a partial estimate, never as a fact.
+
+        PlanTotal:
+            type: object
+            description: The whole-plan fold. `isComplete` is `false` when ANY day of the range is incomplete.
+            required: [isComplete]
+            additionalProperties: false
+            properties:
+                totals:
+                    $ref: '#/components/schemas/Macros'
+                isComplete:
+                    type: boolean
+
+        PlanNutritionSummary:
+            type: object
+            description: One entry per day of the plan's range in ascending date order, plus the plan total.
+            required: [perDay, planTotal]
+            additionalProperties: false
+            properties:
+                perDay:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DayTotal'
+                planTotal:
+                    $ref: '#/components/schemas/PlanTotal'
+
+        MealPlanSummary:
+            type: object
+            description: |
+                A plan without its entries — the list-page shape, and the `allOf` base of `MealPlanDetail`.
+
+                Deliberately **not** `additionalProperties: false`, unlike every other schema here. In JSON
+                Schema each `allOf` branch validates the whole object independently, so a closed base rejects
+                the sibling branch's `entries` and `nutrition` and makes `MealPlanDetail` unsatisfiable. This
+                schema and `MealPlanDetail` are the only two open ones; the exemption is a consequence of
+                composition, not a licence to return undeclared fields — the owner id in particular is never
+                on the wire.
+            required: [id, name, startDate, endDate, mealSlots, createdAt, updatedAt]
+            properties:
+                id:
+                    $ref: '#/components/schemas/Uuid'
+                name:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+                startDate:
+                    $ref: '#/components/schemas/IsoDate'
+                endDate:
+                    $ref: '#/components/schemas/IsoDate'
+                mealSlots:
+                    $ref: '#/components/schemas/MealSlotSet'
+                createdAt:
+                    type: string
+                    format: date-time
+                updatedAt:
+                    type: string
+                    format: date-time
+
+        MealPlanDetail:
+            allOf:
+                - $ref: '#/components/schemas/MealPlanSummary'
+                - type: object
+                  description: The plan, its entries and its nutrition rollup — one round trip (NFR-006).
+                  required: [entries, nutrition, recipeAvailability]
+                  properties:
+                      entries:
+                          type: array
+                          items:
+                              $ref: '#/components/schemas/MealPlanEntry'
+                      nutrition:
+                          $ref: '#/components/schemas/PlanNutritionSummary'
+                      recipeAvailability:
+                          type: string
+                          enum: [available, degraded, unavailable]
+                          description: |
+                              Whether the recipe read behind this response fully succeeded — i.e. **how far
+                              `nutrition` can be trusted**. Added 2026-08-07 alongside `MealPlanEntry.recipeState`.
+
+                              - `available` — every recipe answered. The totals are complete.
+                              - `degraded` — some batches answered, some did not. The totals are a
+                                LOWER BOUND: the entries whose `recipeState` is `unknown` contributed
+                                nothing.
+                              - `unavailable` — nothing answered. `nutrition` carries structure (one row per
+                                day of the range) but no contributions.
+
+                              Required, not optional, and a three-state enum rather than a boolean, because
+                              the gateway has three genuinely different outcomes and a boolean rounds
+                              `degraded` to either "fine" (a silently short total presented as authoritative)
+                              or "broken" (a needlessly blank plan). A day's totals are `undefined` rather
+                              than zeroed for the same reason — HAZ-032: a zero reads as a genuine
+                              zero-calorie day, which is a factual lie about the plan.
+
+        MealPlanPage:
+            type: object
+            description: A keyset page. `nextCursor` is absent on the last page — never `null`, never an empty string.
+            required: [items]
+            additionalProperties: false
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/MealPlanSummary'
+                nextCursor:
+                    type: string
+                    description: Opaque; pass back as `cursor` to fetch the next page.
+
+        MealPlanEntry:
+            type: object
+            description: |
+                One recipe assigned to one (date, slot) cell.
+
+                `recipe` is `null` when the referenced recipe is no longer readable by the caller — the
+                **orphan** signal (FR-033). Orphan state is derived at read time from the recipe service's
+                response; it is never stored, and no deletion notification exists to store it from. An
+                orphaned entry persists, stays visible and stays removable, is excluded from nutrition totals,
+                and marks its day partial. `null` deliberately does not distinguish "deleted" from "no longer
+                shared with you": that distinction would be the disclosure FR-029 forbids.
+
+                ⚠️ **`recipe: null` alone is NOT enough, which is why `recipeState` exists** (added
+                2026-08-07 at the join). `null` was carrying two facts that must never be conflated: *this
+                recipe is gone* and *we could not reach the recipe service to ask*. The gateway has always
+                distinguished them — a recipe id **present with `null` nutrition** is unreadable, an id
+                **absent from the batch response** is unknown — and that distinction was being discarded at
+                this boundary. The consequence is not subtle: during any recipe-service blip a board would
+                render every entry as an orphan chip, telling the viewer their recipes had been deleted when
+                nothing had happened to them. `unknown` is a transient, retryable state; `orphaned` is a
+                durable fact about the user's data. A client must render them differently.
+
+                This resolves the shape note that used to sit here ("the V-Model artefacts pin the client's
+                view state `assigned | orphaned | pending` but not this wire field … T029/T031 must honour it
+                or amend this document"). `recipeState` IS that client view state, now carried on the wire
+                rather than re-derived, so the two cannot drift. `pending` is named `unknown` here because on
+                the wire it describes what the server could not determine, not a client-side loading state.
+            required: [id, mealPlanId, recipeId, date, mealSlot, servings, recipe, recipeState, createdAt, updatedAt]
+            additionalProperties: false
+            properties:
+                id:
+                    $ref: '#/components/schemas/Uuid'
+                mealPlanId:
+                    $ref: '#/components/schemas/Uuid'
+                recipeId:
+                    $ref: '#/components/schemas/Uuid'
+                date:
+                    $ref: '#/components/schemas/IsoDate'
+                mealSlot:
+                    $ref: '#/components/schemas/MealSlot'
+                servings:
+                    $ref: '#/components/schemas/Servings'
+                note:
+                    $ref: '#/components/schemas/EntryNote'
+                recipe:
+                    description: |
+                        The readable recipe's display data, or `null` when it is not available — read
+                        `recipeState` to learn WHY it is null.
+                    oneOf:
+                        - $ref: '#/components/schemas/RecipeRef'
+                        - type: 'null'
+                recipeState:
+                    type: string
+                    enum: [assigned, orphaned, unknown]
+                    description: |
+                        Why `recipe` is or is not populated. Total over every entry — never absent.
+
+                        - `assigned` — the recipe was read; `recipe` is populated.
+                        - `orphaned` — the recipe service answered and the caller **cannot read** this
+                          recipe. A durable fact (FR-033): the entry persists, stays visible and removable,
+                          is excluded from nutrition totals, and marks its day partial. Deliberately does not
+                          distinguish "deleted" from "no longer shared with you" — that is the disclosure
+                          FR-029 forbids.
+                        - `unknown` — the recipe service did **not answer** for this id. Transient and
+                          retryable. `recipe` is `null` but nothing is known about the recipe, and the entry
+                          must NOT be presented as orphaned. Excluded from totals for the same
+                          fail-closed reason (HAZ-032: a missing contribution must never read as a zero).
+                createdAt:
+                    type: string
+                    format: date-time
+                updatedAt:
+                    type: string
+                    format: date-time
+
+        RecipeRef:
+            type: object
+            description: |
+                The minimum a planner cell needs to render a recipe. Deliberately narrow: 006 must not
+                replicate recipe state, so anything beyond identity and display is fetched from 001 on demand.
+            required: [id, title]
+            additionalProperties: false
+            properties:
+                id:
+                    $ref: '#/components/schemas/Uuid'
+                title:
+                    type: string
+                caloriesPerServing:
+                    type: number
+                    description: Absent when the recipe's own nutrition is incomplete.
+
+        CreateMealPlanRequest:
+            type: object
+            required: [name, startDate, endDate, mealSlots]
+            additionalProperties: false
+            properties:
+                name:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+                startDate:
+                    $ref: '#/components/schemas/IsoDate'
+                endDate:
+                    $ref: '#/components/schemas/IsoDate'
+                mealSlots:
+                    $ref: '#/components/schemas/MealSlotSet'
+            description: |
+                `endDate` must be on or after `startDate`, and the inclusive span must not exceed **90 days**
+                (FR-022). Both bounds are also database CHECK constraints, so a bound that lives only above the
+                database is not the only thing enforcing them.
+
+        UpdateMealPlanRequest:
+            type: object
+            description: |
+                Partial update — at least one property must be present. Narrowing the plan below existing
+                entries is `409`, not a silent truncation, on either axis (see the `PATCH` operation).
+
+                A partial update validates the MERGED plan, not the patch: sending `endDate` alone is checked
+                against the stored `startDate`, so a one-field edit cannot slip past the range rules
+                (REQ-CN-005) that a create has to satisfy.
+            minProperties: 1
+            additionalProperties: false
+            properties:
+                name:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+                startDate:
+                    $ref: '#/components/schemas/IsoDate'
+                endDate:
+                    $ref: '#/components/schemas/IsoDate'
+                mealSlots:
+                    $ref: '#/components/schemas/MealSlotSet'
+                    description: |
+                        Added 2026-08-07 (T029). Its absence made REQ-CN-013 unreachable from the API: the
+                        `meal_plan_entries_in_range_trg` trigger, the `ENTRIES_IN_DESELECTED_SLOT` error
+                        factory and the filter's `409` mapping were all shipped and all dead, because no
+                        request could deselect a slot. A plan's slot set was effectively immutable after
+                        creation, which no requirement asks for and the UI (which offers the slot toggles on
+                        an existing plan) contradicts.
+
+        CreateMealPlanEntryRequest:
+            type: object
+            required: [recipeId, date, mealSlot]
+            additionalProperties: false
+            properties:
+                recipeId:
+                    $ref: '#/components/schemas/Uuid'
+                date:
+                    $ref: '#/components/schemas/IsoDate'
+                mealSlot:
+                    $ref: '#/components/schemas/MealSlot'
+                servings:
+                    $ref: '#/components/schemas/Servings'
+                note:
+                    $ref: '#/components/schemas/EntryNote'
+            description: |
+                `date` must fall inside the plan's range and `mealSlot` must be one the plan renders —
+                otherwise `422`. Assigning the same recipe to more than one cell is permitted (FR-023), which
+                is exactly why idempotency needs a key rather than a natural key.
+
+        UpdateMealPlanEntryRequest:
+            type: object
+            description: |
+                Partial update — at least one property must be present. Supplying `date` and/or `mealSlot` is a
+                move; supplying both a move and a `servings`/`note` change in one request is permitted.
+            minProperties: 1
+            additionalProperties: false
+            properties:
+                date:
+                    $ref: '#/components/schemas/IsoDate'
+                mealSlot:
+                    $ref: '#/components/schemas/MealSlot'
+                servings:
+                    $ref: '#/components/schemas/Servings'
+                note:
+                    description: Send `null` to clear the note.
+                    oneOf:
+                        - $ref: '#/components/schemas/EntryNote'
+                        - type: 'null'
+
+        GroceryProjectionV1:
+            type: object
+            description: |
+                The versioned read projection consumed by 007 and 009 (FR-036). Mirrors
+                `GroceryProjectionV1` in `@kitchensink/meal-plan-core/groceryProjection`, which is the
+                authoritative definition.
+            required: [version, planId, dateRange, entries]
+            additionalProperties: false
+            properties:
+                version:
+                    type: string
+                    description: Branch on this, never on field presence. Additive versioning only.
+                    enum: [v1]
+                planId:
+                    $ref: '#/components/schemas/Uuid'
+                dateRange:
+                    type: object
+                    required: [start, end]
+                    additionalProperties: false
+                    properties:
+                        start:
+                            $ref: '#/components/schemas/IsoDate'
+                        end:
+                            $ref: '#/components/schemas/IsoDate'
+                entries:
+                    type: array
+                    description: Empty (never absent) when nothing projects. Orphaned entries are excluded.
+                    items:
+                        $ref: '#/components/schemas/GroceryProjectionEntryV1'
+
+        GroceryProjectionEntryV1:
+            type: object
+            description: Exactly four fields, by contract. Notes and entry ids are deliberately never projected.
+            required: [recipeId, date, mealSlot, servings]
+            additionalProperties: false
+            properties:
+                recipeId:
+                    $ref: '#/components/schemas/Uuid'
+                date:
+                    $ref: '#/components/schemas/IsoDate'
+                mealSlot:
+                    $ref: '#/components/schemas/MealSlot'
+                servings:
+                    $ref: '#/components/schemas/Servings'
+
+        MealPlanTemplate:
+            type: object
+            description: |
+                A reusable plan shape. Entries carry a **relative** `dayOffset`, never an absolute date
+                (FR-028), which is what lets one template be applied to any start date.
+            required: [id, name, spanDays, mealSlots, entries, createdAt]
+            additionalProperties: false
+            properties:
+                id:
+                    $ref: '#/components/schemas/Uuid'
+                name:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+                spanDays:
+                    type: integer
+                    description: The inclusive number of days the template covers.
+                    minimum: 1
+                    maximum: 90
+                mealSlots:
+                    $ref: '#/components/schemas/MealSlotSet'
+                entries:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/MealPlanTemplateEntry'
+                createdAt:
+                    type: string
+                    format: date-time
+
+        MealPlanTemplateEntry:
+            type: object
+            required: [id, recipeId, dayOffset, mealSlot, servings]
+            additionalProperties: false
+            properties:
+                id:
+                    $ref: '#/components/schemas/Uuid'
+                recipeId:
+                    $ref: '#/components/schemas/Uuid'
+                dayOffset:
+                    type: integer
+                    description: Whole days after the plan's first day; `0` is the first day.
+                    minimum: 0
+                mealSlot:
+                    $ref: '#/components/schemas/MealSlot'
+                servings:
+                    $ref: '#/components/schemas/Servings'
+
+        MealPlanTemplateList:
+            type: object
+            required: [items]
+            additionalProperties: false
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/MealPlanTemplate'
+
+        CreateMealPlanTemplateRequest:
+            type: object
+            required: [planId, name]
+            additionalProperties: false
+            properties:
+                planId:
+                    $ref: '#/components/schemas/Uuid'
+                    description: The plan to derive the template from. Must be owned by the caller.
+                name:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+
+        ApplyMealPlanTemplateRequest:
+            type: object
+            required: [startDate]
+            additionalProperties: false
+            properties:
+                startDate:
+                    $ref: '#/components/schemas/IsoDate'
+                    description: The new plan's first day; the template's `dayOffset` 0 lands here.
+                name:
+                    type: string
+                    description: The new plan's name. Defaults to the template's name when omitted.
+                    minLength: 1
+                    maxLength: 200
+
+        AppliedTemplate:
+            type: object
+            description: The new plan plus what could not be placed, so the skip is always explained.
+            required: [plan, skipped, recipeAvailability]
+            additionalProperties: false
+            properties:
+                plan:
+                    $ref: '#/components/schemas/MealPlanSummary'
+                    description: |
+                        **A summary, not a `MealPlanDetail`** (corrected 2026-08-07). This response is stored
+                        in the idempotency ledger and replayed verbatim for 24 hours (REQ-015), and
+                        `MealPlanDetail` requires `nutrition` — which REQ-CN-004 / STS-003-A6 say must never
+                        be snapshotted. Declaring the detail here would therefore have served a **stale
+                        rollup** from every replay, and would additionally have forced either a second
+                        gateway round trip on a write path or a dependency from the templates vertical onto
+                        the nutrition one. The shipped service already returns a summary; the contract was
+                        the thing that was wrong. Clients fetch the detail with `GET /api/v1/meal-plans/{id}`.
+                skipped:
+                    $ref: '#/components/schemas/TemplateSkipReport'
+                recipeAvailability:
+                    type: string
+                    enum: [available, degraded, unavailable]
+                    description: |
+                        Whether the readability check behind `skipped.unreadableRecipe` actually completed
+                        (added 2026-08-07 — FR-028a / REQ-024).
+
+                        Without it a recipe-service **outage** is indistinguishable from **mass recipe
+                        deletion**: both arrive as a large `unreadableRecipe` count, and the two call for
+                        opposite user actions — *retry in a minute* versus *rebuild this template, those
+                        recipes are gone*. The service has always known which it was (it logs the true
+                        availability at `warn`); the caller could not see it.
+
+                        `unavailable` or `degraded` means `unreadableRecipe` is an UPPER bound on genuine
+                        orphans and the apply is worth retrying. `available` means the count is exact.
+
+                        ⚠️ The apply response is decoded from the idempotency ledger by a `.strict()` schema,
+                        so a replay of a row written before this field existed must be handled deliberately
+                        rather than defaulted — a missing value is "we do not know what we knew", which is
+                        not the same as `available`.
+
+        TemplateSkipReport:
+            type: object
+            description: |
+                Per-reason skip counts (FR-028). Every skipped entry is counted in exactly one place, so the
+                four values sum to the number skipped.
+            required: [unreadableRecipe, outOfRange, slotNotSelected, occupied]
+            additionalProperties: false
+            properties:
+                unreadableRecipe:
+                    type: integer
+                    minimum: 0
+                    description: |
+                        Entries whose recipe the caller cannot read — including ids the recipe service never
+                        answered for, which is why an outage yields an empty plan with an honest report rather
+                        than a plan quietly missing meals.
+                outOfRange:
+                    type: integer
+                    minimum: 0
+                    description: Entries whose offset does not land on a calendar day of the target range.
+                slotNotSelected:
+                    type: integer
+                    minimum: 0
+                    description: Entries whose slot the target plan does not render — unstorable, and invisible if stored.
+                occupied:
+                    type: integer
+                    minimum: 0
+                    description: Entries whose cell was already taken by an entry earlier in the template.

@@ -12,55 +12,66 @@ import type { FC } from 'react';
 
 import type { Recipe } from '@kitchensink/recipe-core';
 
+import type { CardVariant } from '../card/cardVariant.js';
 import { recipeMessages } from '../messages.js';
+import type { RenderRecipeNutrition } from '../nutrition/model.js';
+import { RecentRecipeGrid } from '../components/RecentRecipeGrid.native.js';
+import { RecipeWidgetCard } from '../components/RecipeWidgetCard.native.js';
+import { RecipeWidgetEmptyState } from '../components/RecipeWidgetEmptyState.native.js';
 import {
     MAX_RECENT_RECIPES,
-    RecentRecipeGrid,
-    RecipeWidgetCard,
-    RecipeWidgetEmptyState,
-    RecipeWidgetSkeleton,
     toRecipeSummary,
-} from '../components/index.js';
+    type RecipeWidgetFirstRun,
+    type RecipeWidgetSeeAll,
+} from '../components/props.js';
 
 /**
- * Props for the recipe Home widget (native). The data contract is prop-driven rather than promise-driven
- * (React Native has no Suspense-for-data streaming), but the NAVIGATION contract is identical to the web
- * entry's: the widget reports the activated recipe's id and the host routes.
+ * Props for the recipe Home widget (native).
+ *
+ * The RECIPES arrive as settled props while the web entry takes a promise: the host slot reads them with
+ * `useSuspenseQuery` under its own `QueryBoundary`, which owns the loading and failure states.
  */
 export interface RecipeHomeWidgetProps {
-    recipes?: readonly Recipe[];
-    isLoading?: boolean;
-    /**
-     * Navigation seam for a card activation — the mirror of the web entry's prop, so the two platforms expose
-     * the same capability. Absent ⇒ the cards render inert.
-     */
+    readonly recipes?: readonly Recipe[];
+    /** The card variant the host decided (`cardVariantOf(containerClass, …, 'home')`, owner ruling D8). */
+    readonly variant: CardVariant;
+    /** A card activation. Absent ⇒ the cards render inert. */
     readonly onSelectRecipe?: (id: string) => void;
+    /** "See all" at the end of the heading row, while the cook has recipes. */
+    readonly seeAll?: RecipeWidgetSeeAll;
+    /** The first run's ways in. */
+    readonly firstRun?: RecipeWidgetFirstRun;
+    /** Render one recipe's deferred per-serving calorie figure (see {@link RenderRecipeNutrition}). */
+    readonly renderNutrition?: RenderRecipeNutrition;
 }
 
-const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipes = [], isLoading = false, onSelectRecipe }) => {
+const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({
+    recipes = [],
+    variant,
+    onSelectRecipe,
+    seeAll,
+    firstRun,
+    renderNutrition,
+}) => {
     const { widgetTitle } = useMessages(recipeMessages);
-
-    if (isLoading) {
-        return (
-            <RecipeWidgetCard title={widgetTitle}>
-                <RecipeWidgetSkeleton itemCount={MAX_RECENT_RECIPES} />
-            </RecipeWidgetCard>
-        );
-    }
-
     const recent = recipes.slice(0, MAX_RECENT_RECIPES).map(toRecipeSummary);
 
     if (recent.length === 0) {
         return (
             <RecipeWidgetCard title={widgetTitle}>
-                <RecipeWidgetEmptyState />
+                <RecipeWidgetEmptyState {...(firstRun === undefined ? {} : { firstRun })} />
             </RecipeWidgetCard>
         );
     }
 
     return (
-        <RecipeWidgetCard title={widgetTitle}>
-            <RecentRecipeGrid recipes={recent} onSelectRecipe={onSelectRecipe} />
+        <RecipeWidgetCard title={widgetTitle} {...(seeAll === undefined ? {} : { seeAll })}>
+            <RecentRecipeGrid
+                recipes={recent}
+                variant={variant}
+                {...(onSelectRecipe === undefined ? {} : { onSelectRecipe })}
+                {...(renderNutrition === undefined ? {} : { renderNutrition })}
+            />
         </RecipeWidgetCard>
     );
 };

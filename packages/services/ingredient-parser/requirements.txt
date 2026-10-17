@@ -1,0 +1,27 @@
+# The CRF ingredient-parse engine, pinned EXACTLY.
+#
+# ⛔ The pin is load-bearing three times over:
+#   1. The model artifact ships INSIDE the distribution, so a floating version silently changes what this
+#      service parses with — and every cached parse keyed by the engine version would be wrong.
+#   2. `packages/tools/cookbook-import` measured the CRF-vs-LLM agreement rates in
+#      docs/reports/2026-08-23/ingredientParseModelComparison.md against THIS version, and
+#      .github/workflows/_ci.yml installs the same one. Three places, one number.
+#   3. `infra/lib/assetContents.ts` derives the dist-info directory it reads pip's RECORD from out of this
+#      line, so an unpinned requirement has no manifest to check the packaged asset against and is refused.
+#
+# ⚠️ This distribution declares `Requires-Python: <3.14,>=3.10`, which is why
+# `@kitchensink/infra-security`'s PYTHON_LAMBDA_RUNTIME is python3.13 and not the newer runtime CDK
+# already knows about. Raising this pin is the ONLY thing that may raise ENGINE_PYTHON_CEILING.
+ingredient-parser-nlp==2.3.0
+
+# Sentry, pinned EXACTLY for the same reason the engine is (plan U21).
+#
+# ⛔ Without it the CRF engine's own tracebacks reached nobody. An exception inside `parse_ingredient` is
+# per-LINE by design — the handler catches it and reports `status` so one bad sentence does not lose the
+# other 199 — so the CALLER sees "that line failed" and never sees WHY. The Python traceback, which is the
+# only thing that names the cause, was written to a log group that (before plan U15) had no drain at all.
+#
+# ⚠️ `infra/lib/assetContents.ts` reads pip's RECORD for every pinned requirement, so this line is checked
+# into the shipped asset like the engine's: a wheel that failed to install is a build failure, not a
+# runtime ImportError on the first invocation.
+sentry-sdk==2.69.2

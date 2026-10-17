@@ -1,105 +1,112 @@
 /**
- * @module home/chrome/HomeTabBar — the bottom tab bar (mobile; US-000 / FR-046 / FR-044).
+ * @module home/chrome/HomeTabBar — the native bottom tab bar (`docs/design/uiOverhaul/buildSpec.md` §3.2; ownerDecisions
+ * D6, D14). The reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a
+ * 24 pt glyph over a `caption` label, on every phone and tablet, iPad included in both orientations.
  *
- * The native rendering of the SHARED six-destination nav model (`resolveHomeNav`) — the same model the web
- * sidebar/tab bar render, so the platforms cannot list different destinations. Reachable destinations are
- * real tabs (`accessibilityRole="tab"`, selected state); gated destinations are non-interactive and announced
- * as "…, coming soon" (never a tab that navigates nowhere). The active destination is the selected tab.
+ * It is our own bar, with real Liquid Glass BEHIND it on iOS 26 and a solid `paperRaised` surface elsewhere
+ * (`@commise/ui/chrome-surface`); native system tabs wait until React Navigation marks them stable (D14).
  *
- * Each tab pairs the mockup's glyph (the shared {@link NAV_ICONS} registry, drawn from Feather) with its text
- * label — icon AND label, as the mockup's bottom bar has it. The glyph is decorative: the label alone owns the
- * accessible name. The bottom safe-area inset is padded so the bar clears the home indicator.
+ * - The active tab: `ink` glyph and label at weight 600, a 32 × 3 pt `hereBar` above the glyph, and
+ *   `accessibilityState.selected`. Inactive: `inkMuted`. (No filled glyph: Lucide has none, and a filled compass hides
+ *   its needle — the blueprint's Q6, awaiting `staff-ux-engineer`.)
+ * - Targets: at least 48 dp tall on Android, 44 pt on iOS. The bar pads its foot by the bottom safe-area inset.
+ * - Compact height (owner 2026-10-13; the window under 480 dp, which is every phone held sideways): the label sits
+ *   BESIDE the glyph and the bar is 48 dp (44 pt on iOS). Both sides pad their safe-area inset, so a cutout or the
+ *   3-button navigation bar never covers a tab. The label stays the tab's accessible name.
+ *
+ * Presentational: props → JSX. `AppTabBar` adapts React Navigation's tab state to it.
  */
-import { resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
-import { palette } from '@commise/ui';
+import { NAV_ITEM_GLYPH, resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import type { HomeChromeMessages } from '@commise/features-core/home';
+import { ChromeSurface } from '@commise/ui/chrome-surface';
+import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-
-import { ChromeIcon, NAV_ICONS } from './icons.js';
-import type { MobileMessages } from '../../../i18n/messages.js';
-
-/** The chrome copy slice this bar renders. */
-type ChromeMessages = MobileMessages['home']['chrome'];
-
-/**
- * Tab glyph size. Smaller than the 24pt chrome default: a tab stacks a glyph AND its label inside the 44pt
- * touch target, so the icon takes the compact end of the mockup's bottom-bar sizing.
- */
-const TAB_ICON_SIZE = 20;
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 /** Props for {@link HomeTabBar}. */
 export interface HomeTabBarProps {
-    /** The chrome copy (labels + accessible names), resolved for the active locale. */
-    readonly chrome: ChromeMessages;
-    /** Capabilities whose backing service is live — decides which tabs are reachable. */
+    /** The chrome copy, resolved for the active locale. */
+    readonly chrome: HomeChromeMessages;
+    /** Capabilities whose backing service is live — which destinations show. */
     readonly liveCapabilities: readonly string[];
-    /** The currently active (selected) destination. */
+    /** The active destination. */
     readonly activeId: HomeNavItemId;
-    /** Activate a reachable destination. The parent routes the id (home is a no-op — already here). */
-    readonly onSelect: (id: HomeNavItemId) => void;
+    /** A tab was pressed — the active one too (its second tap goes to the root, then the top). */
+    readonly onPress: (id: HomeNavItemId) => void;
+    /** A tab was long-pressed (React Navigation's `tabLongPress`). */
+    readonly onLongPress?: (id: HomeNavItemId) => void;
     /** The bottom safe-area inset, so the bar clears the home indicator. */
     readonly bottomInset: number;
+    /** The window is compact in height (under 480 dp): the label sits beside the glyph and the bar is shorter. */
+    readonly compact: boolean;
+    /** The left safe-area inset (a cutout, or the 3-button navigation bar held sideways). */
+    readonly leftInset: number;
+    /** The right safe-area inset. */
+    readonly rightInset: number;
 }
 
 /**
- * The mobile bottom tab bar.
+ * The native bottom tab bar.
  *
- * @param props - The chrome copy, live capabilities, active destination, select handler, and bottom inset.
- * @returns The bottom navigation with one tab per shared destination.
+ * @param props - The copy, live capabilities, active destination, press handlers and bottom inset.
+ * @returns The tab bar.
  */
 export function HomeTabBar({
     chrome,
     liveCapabilities,
     activeId,
-    onSelect,
+    onPress,
+    onLongPress,
     bottomInset,
+    compact,
+    leftInset,
+    rightInset,
 }: HomeTabBarProps): JSX.Element {
-    const destinations = resolveHomeNav(liveCapabilities);
+    const { colors } = useTheme();
 
     return (
         <View
+            collapsable={false}
             accessibilityRole="tablist"
             accessibilityLabel={chrome.tabNavLabel}
-            style={[styles.bar, { paddingBottom: bottomInset }]}
+            style={[
+                styles.bar,
+                {
+                    paddingBottom: bottomInset,
+                    paddingLeft: SIDE_PADDING + leftInset,
+                    paddingRight: SIDE_PADDING + rightInset,
+                },
+            ]}
         >
-            {destinations.map((item) => {
-                const label = chrome.destinations[item.id];
-
-                if (!item.reachable) {
-                    return (
-                        <View
-                            key={item.id}
-                            accessibilityRole="tab"
-                            aria-disabled
-                            accessibilityLabel={`${label}, ${chrome.comingSoonSuffix}`}
-                            style={styles.tab}
-                        >
-                            <ChromeIcon name={NAV_ICONS[item.id]} color={palette.slate} size={TAB_ICON_SIZE} />
-                            <Text style={styles.labelDisabled}>{label}</Text>
-                        </View>
-                    );
-                }
-
+            <ChromeSurface edge="top" />
+            {resolveHomeNav(liveCapabilities).map((item) => {
                 const selected = item.id === activeId;
+                const label = chrome.destinations[item.id];
 
                 return (
                     <Pressable
                         key={item.id}
                         accessibilityRole="tab"
-                        aria-selected={selected}
                         accessibilityLabel={label}
-                        onPress={() => onSelect(item.id)}
-                        style={styles.tab}
+                        accessibilityState={{ selected }}
+                        aria-selected={selected}
+                        onPress={() => onPress(item.id)}
+                        onLongPress={onLongPress === undefined ? undefined : () => onLongPress(item.id)}
+                        style={compact ? styles.tabCompact : styles.tab}
                     >
-                        <ChromeIcon
-                            name={NAV_ICONS[item.id]}
-                            // The glyph shares the active tab with its LABEL, so it shares the label's
-                            // text-grade colour rather than drifting to a second green.
-                            color={selected ? palette['ocean-dark'] : palette.slate}
-                            size={TAB_ICON_SIZE}
-                        />
-                        <Text style={selected ? styles.labelActive : styles.label}>{label}</Text>
+                        <View style={[styles.hereBar, selected ? { backgroundColor: colors.hereBar } : null]} />
+                        <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} tone={selected ? 'ink' : 'inkMuted'} />
+                        <Text
+                            style={[
+                                nativeTokens.type.caption,
+                                selected ? styles.labelActive : null,
+                                { color: selected ? colors.ink : colors.inkMuted },
+                            ]}
+                        >
+                            {label}
+                        </Text>
                     </Pressable>
                 );
             })}
@@ -107,33 +114,29 @@ export function HomeTabBar({
     );
 }
 
+/** The bar's own side padding; the safe-area inset is added to it. */
+const SIDE_PADDING = nativeTokens.spacing[1];
+
 const styles = StyleSheet.create({
-    bar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-around',
-        paddingTop: nativeTokens.spacing[2],
-        paddingHorizontal: nativeTokens.spacing[1],
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-        borderTopWidth: 1,
-        borderTopColor: nativeTokens.borderSubtle,
-    },
-    // Each tab is a 44pt touch target (RC-3) — reachable Pressables and the non-interactive "coming soon"
-    // Views share this style, so every destination clears the minimum. `gap` sets the glyph-to-label rhythm.
-    tab: {
+    bar: { flexDirection: 'row', justifyContent: 'space-around' },
+    // 48 dp covers Android's floor and iOS's 44 pt; 64 tall with the label, like the web bar.
+    tab: { flex: 1, minHeight: 64, alignItems: 'center', justifyContent: 'center', gap: nativeTokens.spacing[1] },
+    // Compact height: the label beside the glyph. 48 dp on Android, 44 pt on iOS (each platform's own floor).
+    tabCompact: {
         flex: 1,
+        flexDirection: 'row',
+        minHeight: Platform.select({ ios: 44, default: 48 }),
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 44,
-        paddingVertical: 6,
-        gap: nativeTokens.spacing[1],
+        gap: nativeTokens.spacing[2],
     },
-    label: { fontSize: nativeTokens.fontSize.caption, color: palette.slate },
-    // The selected label is real text, and seafoam is 3.99:1 on the bar's glass — under the 4.5:1 body floor.
-    // `ocean-dark` keeps the hue and clears it (see the palette JSDoc in `@commise/ui`).
-    labelActive: { fontSize: nativeTokens.fontSize.caption, fontWeight: '600', color: palette['ocean-dark'] },
-    // Contrast (U4 / WCAG AA): the "coming soon" label is real text — mist is 1.9:1, slate is 5:1. The
-    // non-interactivity (a View, not a Pressable) and the "…, coming soon" accessible name carry the disabled
-    // meaning, not a sub-legible colour.
-    labelDisabled: { fontSize: nativeTokens.fontSize.caption, color: palette.slate },
+    hereBar: {
+        position: 'absolute',
+        top: 0,
+        width: 32,
+        height: 3,
+        borderBottomLeftRadius: 2,
+        borderBottomRightRadius: 2,
+    },
+    labelActive: { fontFamily: nativeTokens.fontFace.body.semibold },
 });

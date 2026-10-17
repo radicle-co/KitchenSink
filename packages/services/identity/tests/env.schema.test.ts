@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { EnvironmentSchema } from '../src/config/env.schema.js';
+import {
+    EnvironmentSchema,
+    resolvePaidFeaturesGate,
+    resolveTestPrincipalContainment,
+} from '../src/config/env.schema.js';
 
 const base = {
     DATABASE_URL: 'postgres://user:pass@host:5432/db',
@@ -105,5 +109,63 @@ describe('EnvironmentSchema', () => {
     it('does not require Clerk vars on dev/test stages', () => {
         expect(() => EnvironmentSchema.parse({ ...base, STAGE: 'test' })).not.toThrow();
         expect(() => EnvironmentSchema.parse({ ...base, STAGE: 'dev' })).not.toThrow();
+    });
+});
+
+/**
+ * ADR-0040 containment switch. The boot-time schema REJECTS a typo (a deploy that meant `off` and wrote `Off` must
+ * not boot silently enforcing, nor silently open), while the call-time resolver FAILS CLOSED: anything that is not
+ * exactly `off` resolves to `enforce`, so a value that slipped past validation can never disarm containment.
+ */
+describe('TEST_PRINCIPAL_CONTAINMENT', () => {
+    it('defaults to enforce when unset', () => {
+        expect(EnvironmentSchema.parse(base).TEST_PRINCIPAL_CONTAINMENT).toBe('enforce');
+    });
+
+    it.each(['enforce', 'off'] as const)('accepts %s', (mode) => {
+        expect(EnvironmentSchema.parse({ ...base, TEST_PRINCIPAL_CONTAINMENT: mode }).TEST_PRINCIPAL_CONTAINMENT).toBe(
+            mode,
+        );
+    });
+
+    it.each(['Off', 'OFF', 'false', '', 'disabled'])('rejects the unrecognised value %j at boot', (value) => {
+        expect(() => EnvironmentSchema.parse({ ...base, TEST_PRINCIPAL_CONTAINMENT: value })).toThrow();
+    });
+
+    it('resolves exactly `off` to off at call time', () => {
+        expect(resolveTestPrincipalContainment('off')).toBe('off');
+    });
+
+    it.each([undefined, 'enforce', 'Off', 'OFF', 'false', '', ' off'])(
+        'fails CLOSED: %j resolves to enforce',
+        (raw) => {
+            expect(resolveTestPrincipalContainment(raw)).toBe('enforce');
+        },
+    );
+});
+
+/**
+ * The paid-features gate (plan 2026-10-14-009 D8). Boot validation rejects a typo; the resolver turns the parsed value
+ * into the boolean the users module injects, and only the exact string `true` turns it on.
+ */
+describe('PAID_FEATURES_GATE', () => {
+    it('defaults to false when unset', () => {
+        expect(EnvironmentSchema.parse(base).PAID_FEATURES_GATE).toBe('false');
+    });
+
+    it.each(['true', 'false'] as const)('accepts %s', (value) => {
+        expect(EnvironmentSchema.parse({ ...base, PAID_FEATURES_GATE: value }).PAID_FEATURES_GATE).toBe(value);
+    });
+
+    it.each(['TRUE', 'True', '1', 'yes', '', ' true'])('rejects the unrecognised value %j at boot', (value) => {
+        expect(() => EnvironmentSchema.parse({ ...base, PAID_FEATURES_GATE: value })).toThrow();
+    });
+
+    it('resolves exactly `true` to on', () => {
+        expect(resolvePaidFeaturesGate('true')).toBe(true);
+    });
+
+    it.each([undefined, 'false', 'TRUE', '1', '', ' true'])('fails CLOSED: %j resolves to off', (raw) => {
+        expect(resolvePaidFeaturesGate(raw)).toBe(false);
     });
 });

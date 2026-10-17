@@ -1,0 +1,12 @@
+=== PLAIN-LABEL SHARE, from the OWL (supersedes foodOnStructure.txt's TSV figure) ===
+  live edible classes          :   27651
+  ... label free of jargon     :   25850  (93%)
+
+=== THE STRIP RULE over 2036 roots ===
+  roots where EXACTLY ONE member strips empty :   168  (8%)
+  roots where NO member strips empty          :  1868  (92%)
+  ⛔ roots where 2+ members strip empty        :     0  (0%)
+
+  ⛔ THE FIGURE R55 QUOTED WITHOUT A SCRIPT is the last line above.
+     It reproduces: the ambiguous "which one is the root" case does not occur,
+     so R55 needs no tie-break rule. The claim was right and unsourced; now sourced.

@@ -17,27 +17,38 @@
  * the self-limiting poll cadence is entirely owned by `useIngredientStatus`.
  */
 import { useIngredientStatus } from '@kitchensink/recipe-service-client/hooks';
-import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { useEffect } from 'react';
+
+import type { ObservedIngredientStatus } from '../form/ingredientStatus.js';
 
 /**
  * Poll one pending food-backed line to resolution.
  *
- * @param ingredientId - The catalog ingredient id of the pending line to poll.
- * @param onStatus - Called with the ingredient id + the latest observed resolution status whenever a
- *   status is known. Must be idempotent — the caller is responsible for only patching state when the
- *   status actually changed, so the repeated callback fires cannot loop.
+ * @param ingredientId - The binding of the pending line to poll.
+ * @param onStatus - Called with the polled id and what the poll observed — the binding the server answered with
+ *   (a DIFFERENT id when the poll settled the line, plan 002) and its status — whenever a status is known. Must be
+ *   idempotent: the caller patches state only when something changed, so repeated fires cannot loop.
  */
 export function usePollIngredientStatus(
     ingredientId: string,
-    onStatus: (ingredientId: string, status: FoodResolutionStatus) => void,
+    onStatus: (polledId: string, observed: ObservedIngredientStatus) => void,
 ): void {
     const status = useIngredientStatus(ingredientId);
+    const answeredId = status.data?.id;
     const observed = status.data?.foodResolutionStatus;
+    // The food the answered binding names: a line that resolves here needs it, or its nutrition never counts. Its root,
+    // and its variant when it has one (curated U9). The variant is the query's own object, stable while its data is.
+    const foodId = status.data?.foodId;
+    const variant = status.data?.variant;
 
     useEffect(() => {
-        if (observed !== undefined) {
-            onStatus(ingredientId, observed);
+        if (answeredId !== undefined && observed !== undefined) {
+            onStatus(ingredientId, {
+                id: answeredId,
+                status: observed,
+                ...(foodId === undefined ? {} : { foodId }),
+                ...(variant === undefined ? {} : { variant }),
+            });
         }
-    }, [ingredientId, observed, onStatus]);
+    }, [ingredientId, answeredId, observed, foodId, variant, onStatus]);
 }

@@ -1,0 +1,2 @@
+The explicit "Load more" control for a server-paged list, with no infinite scroll. It has idle, busy (`loading`) and failed states over one button that is never swapped, so focus stays on it. A failure shows its message in an alert above a retry label, while the pages already loaded stay on screen. `loading` wins over `failed`, and the control renders nothing once `hasMore` is false. All four strings come from the caller in `labels`.
+The native leaf has the same three states over one pressable button.

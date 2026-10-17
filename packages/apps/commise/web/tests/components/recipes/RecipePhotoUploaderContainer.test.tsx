@@ -67,11 +67,24 @@ function stubFetch(ok: boolean): ReturnType<typeof vi.fn> {
     return fetchMock;
 }
 
+/** Open a photo tile's ⋯ menu and choose an item (2026-10-17: every photo action lives in that menu). */
+async function chooseFromTile(user: ReturnType<typeof userEvent.setup>, trigger: string, item: string): Promise<void> {
+    await user.click(await screen.findByRole('button', { name: trigger }));
+    await user.click(await screen.findByRole('menuitem', { name: item }));
+}
+
 afterEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
     vi.unstubAllGlobals();
 });
+
+/**
+ * The polite live region announcing an upload in flight. It stays mounted empty so a screen reader hears the change, and
+ * a `status` role takes no name from its content, so it is found by what it says rather than by an accessible name.
+ */
+const uploadingStatus = (): HTMLElement | undefined =>
+    screen.queryAllByRole('status').find((region) => region.textContent === 'Uploading photo');
 
 describe('RecipePhotoUploaderContainer', () => {
     it('renders the recipe photos from the query', async () => {
@@ -81,7 +94,7 @@ describe('RecipePhotoUploaderContainer', () => {
         renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
         expect(await screen.findByRole('img', { name: 'Recipe photo 1' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Remove photo 1' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Actions for photo 1, the cover' })).toBeInTheDocument();
     });
 
     it('runs presign → PUT → confirm in order with the right args when a file is selected', async () => {
@@ -199,7 +212,7 @@ describe('RecipePhotoUploaderContainer', () => {
         // A failed direct upload never confirms.
         expect(confirm).not.toHaveBeenCalled();
         // The uploading busy status is cleared.
-        expect(screen.queryByRole('status', { name: 'Uploading photo' })).not.toBeInTheDocument();
+        expect(uploadingStatus()).toBeUndefined();
     });
 
     it('retries only the failed file, flipping it to uploading then folding it into the confirmed photos', async () => {
@@ -242,7 +255,7 @@ describe('RecipePhotoUploaderContainer', () => {
         await user.upload(await screen.findByLabelText('Add photo'), file);
         await screen.findByRole('alert', { name: 'Upload failed' });
 
-        await user.click(screen.getByRole('button', { name: 'Remove dinner.png' }));
+        await chooseFromTile(user, 'Actions for dinner.png', 'Remove');
 
         expect(screen.queryByRole('alert', { name: 'Upload failed' })).not.toBeInTheDocument();
         expect(del).not.toHaveBeenCalled();
@@ -267,11 +280,11 @@ describe('RecipePhotoUploaderContainer', () => {
         await user.upload(await screen.findByLabelText('Add photo'), file);
 
         // Presign is still pending → the block shows its uploading busy status.
-        expect(await screen.findByRole('status', { name: 'Uploading photo' })).toBeInTheDocument();
+        await waitFor(() => expect(uploadingStatus()).toBeDefined());
 
         resolvePresign(makeUploadUrlResponse());
 
-        await waitFor(() => expect(screen.queryByRole('status', { name: 'Uploading photo' })).not.toBeInTheDocument());
+        await waitFor(() => expect(uploadingStatus()).toBeUndefined());
         expect(presign).toHaveBeenCalledTimes(1);
     });
 
@@ -332,12 +345,30 @@ describe('RecipePhotoUploaderContainer', () => {
 
         renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
-        await user.click(await screen.findByRole('button', { name: 'Remove photo 1' }));
+        await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
         expect(del).toHaveBeenCalledWith('rec_1', 'photo_42');
     });
 
-    it('busies the removing photo row from the delete mutation’s in-flight variables', async () => {
+    it('says so when the delete fails — the same sentence mobile shows, and a later removal retires it', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([makeRecipePhoto({ id: 'photo_42', order: 1 })]);
+        const del = vi.spyOn(client, 'deleteRecipePhoto').mockRejectedValueOnce(new Error('boom'));
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+        await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t remove this photo. Please try again.');
+
+        del.mockReturnValue(new Promise(() => {}));
+        await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
+
+        await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    });
+
+    it('makes the removing photo’s menu unavailable from the delete mutation’s in-flight variables', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([makeRecipePhoto({ id: 'photo_42', order: 1 })]);
@@ -345,9 +376,104 @@ describe('RecipePhotoUploaderContainer', () => {
 
         renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
-        await user.click(await screen.findByRole('button', { name: 'Remove photo 1' }));
+        await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
-        expect(await screen.findByRole('button', { name: 'Remove photo 1' })).toHaveAttribute('aria-busy', 'true');
+        // The tile whose removal is in flight cannot open its menu again, and says "Removing…".
+        expect(await screen.findByRole('button', { name: 'Actions for photo 1, the cover' })).toHaveAttribute(
+            'aria-disabled',
+            'true',
+        );
+        expect(screen.getByText('Removing…')).toBeInTheDocument();
+    });
+
+    /**
+     * 2026-10-17: Move earlier / Move later / Set as cover are all ONE `PATCH …/photos/reorder` carrying the WHOLE new
+     * order (the server accepts only an exact reordering), through the real mutation hook over the fake client.
+     */
+    describe('reordering from the tile’s menu', () => {
+        const threeStored = () => [
+            makeRecipePhoto({ id: 'photo_1', order: 1 }),
+            makeRecipePhoto({ id: 'photo_2', order: 2 }),
+            makeRecipePhoto({ id: 'photo_3', order: 3 }),
+        ];
+
+        it('Move later sends the whole order with the photo swapped one place later', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(threeStored());
+            const reorder = vi.spyOn(client, 'reorderRecipePhotos').mockResolvedValue(threeStored());
+
+            renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+            await chooseFromTile(user, 'Actions for photo 2', 'Move later');
+
+            await waitFor(() => expect(reorder).toHaveBeenCalledWith('rec_1', ['photo_1', 'photo_3', 'photo_2']));
+        });
+
+        it('Set as cover sends the chosen photo first and the rest in order', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(threeStored());
+            const reorder = vi.spyOn(client, 'reorderRecipePhotos').mockResolvedValue(threeStored());
+
+            renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+            await chooseFromTile(user, 'Actions for photo 3', 'Set as cover');
+
+            await waitFor(() => expect(reorder).toHaveBeenCalledWith('rec_1', ['photo_3', 'photo_1', 'photo_2']));
+        });
+
+        it('says so when the reorder fails', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(threeStored());
+            vi.spyOn(client, 'reorderRecipePhotos').mockRejectedValue(new Error('boom'));
+
+            renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+            await chooseFromTile(user, 'Actions for photo 2', 'Move earlier');
+
+            expect(await screen.findByRole('alert')).toHaveTextContent(
+                'We couldn’t move that photo. Please try again.',
+            );
+        });
+
+        it('offers no way off either end: the cover cannot go earlier and the last photo cannot go later', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(threeStored());
+
+            renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+            await user.click(await screen.findByRole('button', { name: 'Actions for photo 1, the cover' }));
+            expect(screen.getByRole('menuitem', { name: 'Move earlier' })).toHaveAttribute('aria-disabled', 'true');
+        });
+    });
+
+    it('refuses a pick larger than the remaining slots WHOLE — no presign for any file, and says how many fit', async () => {
+        // `<input multiple>` cannot bound a pick, and the add control is hidden only AT the cap, so eight held
+        // photos plus a three-file pick is reachable. The queue used to upload two and drop the third silently.
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        const photos = Array.from({ length: 8 }, (_unused, index) =>
+            makeRecipePhoto({ id: `photo_${index + 1}`, order: index + 1 }),
+        );
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(photos);
+        const presign = vi.spyOn(client, 'createPhotoUploadUrl').mockResolvedValue(makeUploadUrlResponse());
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+        expect(await screen.findByRole('img', { name: 'Recipe photo 8' })).toBeInTheDocument();
+        await user.upload(await screen.findByLabelText('Add photo'), [
+            new File(['a'], 'a.png', { type: 'image/png' }),
+            new File(['b'], 'b.png', { type: 'image/png' }),
+            new File(['c'], 'c.png', { type: 'image/png' }),
+        ]);
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+            'That’s more photos than this recipe can hold — you can add 2 more.',
+        );
+        expect(presign).not.toHaveBeenCalled();
     });
 
     it('hides the add control at the 10-photo cap', async () => {
@@ -361,5 +487,115 @@ describe('RecipePhotoUploaderContainer', () => {
 
         expect(await screen.findByText(/maximum of 10 photos reached/i)).toBeInTheDocument();
         expect(screen.queryByLabelText('Add photo')).not.toBeInTheDocument();
+    });
+});
+
+/**
+ * A-010 (buildSpec §7.7, SC 2.1.1): the add control was a `<label>` around a hidden input — no tab stop, no button
+ * chrome, so a keyboard user could not add a photo at all. It is a real secondary button now; the hidden input keeps
+ * the name "Add photo" (it is how a file is handed to the page, and what the specs upload through), and the button
+ * reaches it by clicking it.
+ */
+describe('RecipePhotoUploaderContainer — the Add photos button (A-010)', () => {
+    it('is a button by role, named "Add photos"', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+        const button = await screen.findByRole('button', { name: 'Add photos' });
+        expect(button).toBeVisible();
+        // A secondary Button draws its glyph beside the label: the glyph is decorative and never the name.
+        expect(button.querySelector('svg')).not.toBeNull();
+    });
+
+    it('is reached by Tab', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        const button = await screen.findByRole('button', { name: 'Add photos' });
+
+        await user.tab();
+
+        expect(button).toHaveFocus();
+    });
+
+    it('opens the file picker — it clicks the hidden multi-select input', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        const input = await screen.findByLabelText('Add photo');
+        const opened = vi.spyOn(input as HTMLInputElement, 'click');
+
+        await user.click(screen.getByRole('button', { name: 'Add photos' }));
+
+        expect(opened).toHaveBeenCalledTimes(1);
+        expect(input).toHaveAttribute('type', 'file');
+        expect(input).toHaveAttribute('multiple');
+    });
+
+    it('opens the picker from the keyboard (Enter and Space)', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        const opened = vi.spyOn((await screen.findByLabelText('Add photo')) as HTMLInputElement, 'click');
+
+        await user.tab();
+        await user.keyboard('{Enter}');
+        await user.keyboard(' ');
+
+        expect(opened).toHaveBeenCalledTimes(2);
+    });
+
+    it('is not offered at the photo cap, and the hidden input goes with it', async () => {
+        const client = createFakeRecipeServiceClient();
+        const full = Array.from({ length: 10 }, (_, index) =>
+            makeRecipePhoto({ id: `photo_${index + 1}`, order: index + 1 }),
+        );
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(full);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        await screen.findByRole('img', { name: 'Recipe photo 10' });
+
+        expect(screen.queryByRole('button', { name: 'Add photos' })).not.toBeInTheDocument();
+    });
+});
+
+/** A-010 (§7.7): with no photo the section previews this recipe's own cover and says what happens. */
+describe('RecipePhotoUploaderContainer — the empty state (A-010)', () => {
+    it('says the cover is used instead, with the recipe’s cover beside it', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" title="Lemon tart" />, client);
+
+        expect(await screen.findByText('No photo? This cover is used instead. Add one any time.')).toBeInTheDocument();
+        expect(screen.getByText('L')).toBeInTheDocument();
+    });
+
+    it('still previews a cover — its tint — before the title is known', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+
+        const { container } = renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        await screen.findByText('No photo? This cover is used instead. Add one any time.');
+
+        expect(container.querySelector('[class*="bg-cover-"]')).not.toBeNull();
+    });
+
+    it('shows no empty state when the recipe has a photo', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([makeRecipePhoto()]);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" title="Lemon tart" />, client);
+        await screen.findByRole('img', { name: 'Recipe photo 1' });
+
+        expect(screen.queryByText('No photo? This cover is used instead. Add one any time.')).not.toBeInTheDocument();
     });
 });

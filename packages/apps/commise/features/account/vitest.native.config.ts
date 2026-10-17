@@ -1,38 +1,9 @@
-import { existsSync } from 'node:fs';
-import path from 'node:path';
+import { jsdomPolyfillsSetup } from '@kitchensink/vitest';
+import { preferNativeLeaves } from '@kitchensink/vitest/preferNativeLeaves';
+import { fileURLToPath } from 'node:url';
 
-import { defineConfig, type Plugin } from 'vitest/config';
-
-/**
- * Metro-style `.native.*` resolution for Vitest (copied from `@commise/features-recipes`). Metro prefers a
- * `Foo.native.tsx` leaf over `Foo.tsx`; Vite/Vitest does not, and `resolve.extensionAlias` is unreliable for
- * the compound `.native.tsx` extension. This `pre` resolver redirects any RELATIVE import to its
- * `.native.tsx`/`.native.ts` sibling when one exists, so the danger-zone barrel composes the real native
- * leaves under the native run. An explicit `.native.js` specifier (used by the native tests so `tsc`
- * resolves the native props too) maps back to its own `.tsx`/`.ts`.
- */
-function preferNativeLeaves(): Plugin {
-    return {
-        name: 'prefer-native-leaves',
-        enforce: 'pre',
-        resolveId(source, importer) {
-            if (importer === undefined || !(source.startsWith('./') || source.startsWith('../'))) {
-                return null;
-            }
-            const noExt = source.replace(/\.(js|jsx|ts|tsx)$/, '');
-            const base = path.resolve(path.dirname(importer), noExt);
-            const candidates = noExt.endsWith('.native')
-                ? [`${base}.tsx`, `${base}.ts`]
-                : [`${base}.native.tsx`, `${base}.native.ts`];
-            for (const candidate of candidates) {
-                if (existsSync(candidate)) {
-                    return candidate;
-                }
-            }
-            return null;
-        },
-    };
-}
+import { lucideNativeStub } from '@commise/ui/testing/lucide-native';
+import { defineConfig } from 'vitest/config';
 
 /**
  * Native component-test config. No RN runtime under Vitest, so `react-native` is aliased to
@@ -40,16 +11,25 @@ function preferNativeLeaves(): Plugin {
  * Native specs are named `*.native.test.tsx` and owned by this config; the default (web) run excludes them.
  */
 export default defineConfig({
-    plugins: [preferNativeLeaves()],
+    // `lucide-react-native/icons/*` draws through `react-native-svg`, which has no jsdom runtime.
+    plugins: [preferNativeLeaves(), lucideNativeStub()],
     test: {
         globals: true,
         environment: 'jsdom',
+        // jsdom implements neither AnimationEvent nor TransitionEvent — see jsdomPolyfills.js.
+        setupFiles: [jsdomPolyfillsSetup, '@commise/ui/testing/screen-reader-shim'],
         include: ['**/__tests__/**/*.native.test.tsx'],
         exclude: ['node_modules', 'dist'],
     },
     resolve: {
         alias: {
             'react-native': 'react-native-web',
+            // `react-native-safe-area-context` reports the device's window insets from a native module with no jsdom
+            // runtime; the erase dialog reads them through `@commise/ui/dialog-frame`. The design system's stub serves
+            // fixed NON-ZERO insets, so an inset assertion stays falsifiable.
+            'react-native-safe-area-context': fileURLToPath(
+                import.meta.resolve('@commise/ui/testing/safe-area-context'),
+            ),
         },
     },
 });

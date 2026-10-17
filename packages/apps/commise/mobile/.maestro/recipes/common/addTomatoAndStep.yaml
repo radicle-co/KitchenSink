@@ -1,0 +1,30 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: from the editor with a title set, add one ingredient declared as written ("Tomato", no food service
+# needed) and one step, the least a recipe needs to publish but its cuisine. Called with
+# `runFlow: common/addTomatoAndStep.yaml`; it ends with the keyboard closed and the action bar reachable.
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Tomato'
+- runFlow:
+      file: scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Tomato.* as written.*'
+- tapOn:
+      text: 'Use .*Tomato.* as written.*'
+- scrollUntilVisible:
+      element: 'Edit Tomato'
+      direction: UP
+      timeout: 30000
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add step'
+- inputText: 'Simmer.'
+# The step field keeps the soft keyboard up over the action bar on both platforms; a tap on the section heading closes it
+# (`common/typeTitle.yaml` says why a heading, and why not Return or `hideKeyboard`).
+- tapOn: 'Steps'

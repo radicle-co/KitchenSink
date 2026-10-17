@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Home, Pro offer (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                </style></helmet
+            >
+            <div
+                style="
+                    width: 390px;
+                    position: relative;
+                    display: flex;
+                    flex-direction: column;
+                    background: var(--canvas);
+                    overflow: hidden;
+                "
+            >
+                <x-import component-from-global-scope="Commise.Native.GradientSurface" gradient="hero" style="{{fill}}"
+                    ><div style="flex: 1; position: relative; display: flex; flex-direction: column; min-height: 0">
+                        <div
+                            style="
+                                flex: 1;
+                                display: flex;
+                                flex-direction: column;
+                                gap: 16px;
+                                padding: 8px 16px 88px;
+                                overflow: hidden;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                heading-id="home-title"
+                                title="Good morning, Eliza Ramirez"
+                                subtitle="Friday, October 16, 2026"
+                                action="{{action}}"
+                            ></x-import>
+                            <div style="display: flex; flex-direction: column; gap: 16px">
+                                <div
+                                    style="
+                                        display: flex;
+                                        flex-direction: row;
+                                        align-items: center;
+                                        justify-content: space-between;
+                                        gap: 12px;
+                                    "
+                                >
+                                    <div
+                                        style="flex-shrink: 1; font: 600 18px/1.25 var(--font-body); color: var(--ink)"
+                                    >
+                                        Recent recipes
+                                    </div>
+                                    <div
+                                        style="
+                                            min-height: 48px;
+                                            display: flex;
+                                            align-items: center;
+                                            padding: 0 12px;
+                                            font: 600 14px/1.2 var(--font-body);
+                                            color: var(--action-text);
+                                        "
+                                    >
+                                        See all
+                                    </div>
+                                </div>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.RecentRecipeGrid"
+                                    recipes="{{recipes}}"
+                                    variant="compact"
+                                    on-select-recipe="{{noop}}"
+                                ></x-import>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 16px">
+                                <div style="font: 600 18px/1.25 var(--font-body); color: var(--ink)">Coming soon</div>
+                                <div
+                                    style="
+                                        margin-top: -12px;
+                                        font: 400 16px/1.5 var(--font-body);
+                                        color: var(--ink-muted);
+                                    "
+                                >
+                                    Meal plans, a grocery list and daily nutrition are on the way.
+                                </div>
+                                <div
+                                    style="
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: 16px;
+                                        border-radius: 12px;
+                                        border: 0.5px solid var(--line-divider);
+                                        background: var(--paper);
+                                        padding: 16px;
+                                        box-shadow: var(--shadow-sm);
+                                    "
+                                >
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                            gap: 12px;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                flex-shrink: 1;
+                                                font: 600 16px/1.3 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                        >
+                                            Today’s nutrition
+                                        </div>
+                                        <div
+                                            style="
+                                                border-radius: 6px;
+                                                border: 0.5px solid var(--line-divider);
+                                                padding: 2px 8px;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            Soon
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; align-items: center; gap: 20px">
+                                        <div
+                                            style="
+                                                width: 64px;
+                                                height: 64px;
+                                                border-radius: 32px;
+                                                border: 4px solid var(--surface-muted);
+                                                flex: none;
+                                            "
+                                        ></div>
+                                        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px">
+                                            <div
+                                                style="
+                                                    background: var(--surface-muted);
+                                                    height: 12px;
+                                                    width: 80px;
+                                                    border-radius: 4px;
+                                                "
+                                            ></div>
+                                            <div
+                                                style="
+                                                    background: var(--surface-muted);
+                                                    height: 28px;
+                                                    width: 112px;
+                                                    border-radius: 4px;
+                                                "
+                                            ></div>
+                                            <div
+                                                style="
+                                                    background: var(--surface-muted);
+                                                    height: 12px;
+                                                    width: 96px;
+                                                    border-radius: 4px;
+                                                "
+                                            ></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div
+                                    style="
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: 16px;
+                                        border-radius: 12px;
+                                        border: 0.5px solid var(--line-divider);
+                                        background: var(--paper);
+                                        padding: 16px;
+                                        box-shadow: var(--shadow-sm);
+                                    "
+                                >
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                            gap: 12px;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                flex-shrink: 1;
+                                                font: 600 16px/1.3 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                        >
+                                            Resume cooking
+                                        </div>
+                                        <div
+                                            style="
+                                                border-radius: 6px;
+                                                border: 0.5px solid var(--line-divider);
+                                                padding: 2px 8px;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            Soon
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; align-items: center; gap: 16px">
+                                        <div
+                                            style="
+                                                background: var(--surface-muted);
+                                                width: 64px;
+                                                height: 64px;
+                                                flex: none;
+                                                border-radius: 12px;
+                                            "
+                                        ></div>
+                                        <div
+                                            style="
+                                                flex: 1;
+                                                min-width: 0;
+                                                display: flex;
+                                                flex-direction: column;
+                                                gap: 8px;
+                                            "
+                                        >
+                                            <div
+                                                style="
+                                                    background: var(--surface-muted);
+                                                    height: 16px;
+                                                    width: 75%;
+                                                    border-radius: 4px;
+                                                "
+                                            ></div>
+                                            <div
+                                                style="
+                                                    background: var(--surface-muted);
+                                                    height: 4px;
+                                                    width: 100%;
+                                                    border-radius: 9999px;
+                                                "
+                                            ></div>
+                                        </div>
+                                        <div
+                                            style="
+                                                background: var(--surface-muted);
+                                                height: 36px;
+                                                width: 96px;
+                                                flex: none;
+                                                border-radius: 9999px;
+                                            "
+                                        ></div>
+                                    </div>
+                                </div>
+                                <div
+                                    style="
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: 16px;
+                                        border-radius: 12px;
+                                        border: 0.5px solid var(--line-divider);
+                                        background: var(--paper);
+                                        padding: 16px;
+                                        box-shadow: var(--shadow-sm);
+                                    "
+                                >
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                            gap: 12px;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                flex-shrink: 1;
+                                                font: 600 16px/1.3 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                        >
+                                            This week’s meals
+                                        </div>
+                                        <div
+                                            style="
+                                                border-radius: 6px;
+                                                border: 0.5px solid var(--line-divider);
+                                                padding: 2px 8px;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            Soon
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; flex-direction: row; gap: 2px; margin: 0 -4px">
+                                        <div
+                                            style="
+                                                flex: 1;
+                                                min-width: 0;
+                                                display: flex;
+                                                flex-direction: column;
+                                                align-items: center;
+                                                gap: 8px;
+                                                border-radius: 6px;
+                                                border: 0.5px solid var(--line-divider);
+                                                padding: 8px 2px;
+                                            "
+                                        >
+                                            <div style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                                                M
+                                            </div>
+                                            <div
+                                                style="
+                                                    background: var(--surface-muted);
+                                                    aspect-ratio: 1;
+                                                    width: 100%;
+                                                    max-width: 48px;
+                                                    border-radius: 6px;
+                                                "
+                                            ></div>
+                                        </div>
+                                        <div
+                                            style="
+                                                flex: 1;
+                                                min-width: 0;
+                                                display: flex;
+                                                flex-direction: column;
+                                                align-items: center;
+                                                gap: 8px;
+                                                border-radius: 6px;
+                                                border: 0.5px solid var(--line-divider);
+                                                padding: 8px 2px;
+                                            "
+                                        >
+                                            <div style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                                                T
+                                            </div>
+                                            <div
+                                                style="
+                                                    background: var(--surface-muted);
+                                                    aspect-ratio: 1;
+                                                    width: 100%;
+                                                    max-width: 48px;
+                                                    border-radius: 6px;
+                                                "
+                                            ></div>
+                                        </div>
+                                        <div
+                                            style="
+                                                flex: 1;
+                                                min-width: 0;
+                                                display: flex;
+                                                flex-direction: column;
+                                                align-items: center;
+                                                gap: 8px;
+                                                border-radius: 6px;
+                                                border: 0.5px solid var(--line-divider);
+                                                padding: 8px 2px;
+                                            "
+                                        >
+                                            <div style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                                                W
+                                            </div>
+                                            <div
+                                                style="
+                                                    background: var(--surface-muted);
+                                                    aspect-ratio: 1;
+                                                    width: 100%;
+                                                    max-width: 48px;
+                                                    border-radius: 6px;
+                                                "
+                                            ></div>
+                                        </div>
+                                        <div
+                                            style="
+                                                flex: 1;
+                                                min-width: 0;
+                                                display: flex;
+                                                flex-direction: column;
+                                                align-items: center;
+                                                gap: 8px;
+                                                border-radius: 6px;
+                                                border: 0.5px solid var(--line-divider);
+                                                padding: 8px 2px;
+                                            "
+                                        >
+                                            <div style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                                                T
+                                            </div>
+                                            <div
+                                                style="
+                                                    background: var(--surface-muted);
+                                                    aspect-ratio: 1;
+                                                    width: 100%;
+                                                    max-width: 48px;
+                                                    border-radius: 6px;
+                                                "
+                                            ></div>
+                                        </div>
+                                        <div
+                                            style="
+                                                flex: 1;
+                                                min-width: 0;
+                                                display: flex;
+                                                flex-direction: column;
+                                                align-items: center;
+                                                gap: 8px;
+                                                border-radius: 6px;
+                                                border: 0.5px solid var(--line-divider);
+                                                padding: 8px 2px;
+                                            "
+                                        >
+                                            <div style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                                                F
+                                            </div>
+                                            <div
+                                                style="
+                                                    background: var(--surface-muted);
+                                                    aspect-ratio: 1;
+                                                    width: 100%;
+                                                    max-width: 48px;
+                                                    border-radius: 6px;
+                                                "
+                                            ></div>
+                                        </div>
+                                        <div
+                                            style="
+                                                flex: 1;
+                                                min-width: 0;
+                                                display: flex;
+                                                flex-direction: column;
+                                                align-items: center;
+                                                gap: 8px;
+                                                border-radius: 6px;
+                                                border: 0.5px solid var(--line-divider);
+                                                padding: 8px 2px;
+                                            "
+                                        >
+                                            <div style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                                                S
+                                            </div>
+                                            <div
+                                                style="
+                                                    background: var(--surface-muted);
+                                                    aspect-ratio: 1;
+                                                    width: 100%;
+                                                    max-width: 48px;
+                                                    border-radius: 6px;
+                                                "
+                                            ></div>
+                                        </div>
+                                        <div
+                                            style="
+                                                flex: 1;
+                                                min-width: 0;
+                                                display: flex;
+                                                flex-direction: column;
+                                                align-items: center;
+                                                gap: 8px;
+                                                border-radius: 6px;
+                                                border: 0.5px solid var(--line-divider);
+                                                padding: 8px 2px;
+                                            "
+                                        >
+                                            <div style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                                                S
+                                            </div>
+                                            <div
+                                                style="
+                                                    background: var(--surface-muted);
+                                                    aspect-ratio: 1;
+                                                    width: 100%;
+                                                    max-width: 48px;
+                                                    border-radius: 6px;
+                                                "
+                                            ></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <x-import
+                            component-from-global-scope="Commise.Native.CreateFab"
+                            label="New recipe"
+                            icon="plus"
+                            on-press="{{noop}}"
+                        ></x-import>
+                    </div>
+                    <x-import
+                        component-from-global-scope="Commise.Native.HomeTabBar"
+                        chrome="{{chrome}}"
+                        live-capabilities="{{none}}"
+                        active-id="home"
+                        on-press="{{noop}}"
+                        bottom-inset="{{n34}}"
+                        compact="{{no}}"
+                        left-inset="{{n0}}"
+                        right-inset="{{n0}}"
+                    ></x-import> </x-import
+                ><x-import
+                    component-from-global-scope="Commise.Native.Sheet"
+                    open="{{yes}}"
+                    on-open-change="{{noop}}"
+                    title="Unlock Commise Pro"
+                    close-label="Close upgrade offer"
+                    size="content"
+                    footer="{{footer}}"
+                    ><div style="font: 400 14px/1.5 var(--font-body); color: var(--ink-muted)">
+                        Upgrade to Commise Pro to use this feature.
+                    </div></x-import
+                >
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1388}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement; const mk=(id,title,o)=>({id,title,totalTimeMinutes:45,servings:4,ratingCount:0,usesPremiumCapability:false,updatedAt:'2026-10-14T18:00:00.000Z',createdAt:'2026-10-01T18:00:00.000Z',tags:[],currentVersion:1,visibility:'public',status:'published',...o});
+            return {no:false,yes:true,n0:0,n20:20,n34:34,none:[],noop:()=>{},fill:{flex:1},
+            chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},
+            footer:h('div',{style:{display:'flex',flexDirection:'row',flexWrap:'wrap',gap:12}},h('div',{style:{display:'flex',flexDirection:'column',flexGrow:1}},h(window.Commise.Native.Button,{variant:'secondary',icon:'clock',onPress:()=>{}},'Maybe later')),h('div',{style:{display:'flex',flexDirection:'column',flexGrow:1}},h(window.Commise.Native.Button,{icon:'chevronRight',onPress:()=>{}},'See plans'))),
+            recipes:[mk('r-pancakes','Lemon ricotta pancakes',{totalTimeMinutes:35,cuisine:'American'}),mk('r-padthai','Weeknight pad thai',{totalTimeMinutes:30,cuisine:'Thai',visibility:'private'}),mk('r-tomato','Roast tomato soup',{totalTimeMinutes:70,cuisine:'Italian',status:'draft'}),mk('r-focaccia','Sunday rosemary focaccia',{totalTimeMinutes:195,cuisine:'Italian',usesPremiumCapability:true})],
+            action:{kind:'avatar',avatar:h(window.Commise.Native.Avatar,{status:'ready',initials:'ER',label:'Profile, Eliza Ramirez',onPress:()=>{}})}}; } }
+        </script>
+    </body>
+</html>

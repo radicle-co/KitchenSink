@@ -1,0 +1,22 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: search Discover for `QUERY`, then close the keyboard. Called with
+# `runFlow: { file: common/searchDiscover.yaml, env: { QUERY: '…' } }`.
+#
+# The keyboard is closed by the field's search key, for `common/typeTitle.yaml`'s reason: on iOS a result card behind
+# the keyboard counts as visible, so a tap meant for it typed a key instead (run 38433716728: `Risottoj`). The query is
+# read back and typed once more, for the iOS Simulator's dropped keystrokes (the same run searched `Risott`).
+#
+# ⚠️ A search for a recipe's NAME BASE answers every run's copy on the shared preview (eight at four Android and four iOS
+# shards), so a caller scrolls to its own run-keyed title rather than waiting for it on the first screen.
+- tapOn: 'Search recipes'
+- inputText: ${QUERY}
+- runFlow: dismissKeyboardIntro.yaml
+- runFlow:
+      when:
+          notVisible: ${QUERY}
+      commands:
+          - eraseText: 40
+          - inputText: ${QUERY}
+- assertVisible: ${QUERY}
+- pressKey: Enter

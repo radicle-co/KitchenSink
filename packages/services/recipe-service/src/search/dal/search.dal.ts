@@ -18,27 +18,38 @@
  * already mapped to the canonical `@kitchensink/recipe-core` `Recipe` shape; `search_vector` is never
  * projected.
  *
- * @sideEffect Every `search` call reads `recipes` (and `recipe_ingredients` when filtering by ingredient).
+ * @sideEffect Every `search` call reads `recipes` (and `ingredients` + `food_lookups` when filtering by food).
  */
 import { sql, type SQL } from 'drizzle-orm';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import type { Recipe, RecipeFacetCount, RecipeSearchResult } from '@kitchensink/recipe-core';
 
+// The CONTRACT owns this shape (it is a public response-body field); the DAL merely computes a value of
+// it. It used to be declared and exported here, which made a data-access internal define the public API.
+import type { RecipeSearchFacets, RecipeSearchQuery } from '../search.schema.js';
+
 import type { RecipeDrizzle } from '../../database/client.js';
-import { clampPage, clampPageSize, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../../common/pagination.js';
-import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipe-predicates.js';
-import { recipeRowToDomain, type RecipeRowInput } from '../../recipes/mappers/recipe-row-to-domain.js';
-import { resolveCdnUrl } from '../../photos/photo-view.js';
+import { clampPage, clampPageSize, DEFAULT_PAGE_SIZE } from '../../common/pagination.js';
+import { coverPhotoLateral } from '../../recipes/dal/coverPhotoSql.js';
+import { communityOf, readableBy } from '../../recipes/dal/recipePredicates.js';
+import { recipeRowToDomain, type RecipeRowInput } from '../../recipes/mappers/recipeRowToDomain.js';
+import { resolveCdnUrl } from '../../photos/photoView.js';
+import type { FoodFilter } from '../foodFilterExpansion.gateway.js';
 
 /** Default page size when the caller does not specify one — the shared S-R8 default (20). */
 export const DEFAULT_SEARCH_PAGE_SIZE = DEFAULT_PAGE_SIZE;
 
-/** Hard ceiling on page size (mirrors the OpenAPI `pageSize` maximum for search) — the shared S-R8 ceiling (50). */
-export const MAX_SEARCH_PAGE_SIZE = MAX_PAGE_SIZE;
+// ⛔ `MAX_SEARCH_PAGE_SIZE` IS NOT DECLARED HERE ANY MORE. It is a WIRE bound — `recipeSearchQuerySchema`
+// publishes it and rejects above it — and it lived here as `export const MAX_SEARCH_PAGE_SIZE = MAX_PAGE_SIZE`
+// with the query DTO importing it, which made a data-access module the source of a published constraint. That is
+// the same backwards dependency `../search.schema.ts`'s header records for `RecipeSearchFacets`, and the fix is
+// the same one: the bound lives in `@kitchensink/recipe-core` and this module consumes it like any other reader.
+// `MAX_PAGE_SIZE` below remains the INTERNAL clamp shared with the collections and recipes lists; the two are
+// asserted equal in `../__tests__/pageSizeBound.test.ts`.
 
-// Re-exported so existing importers (this module's own `search()`, the query DTO, and this module's
-// tests) keep resolving `clampPage`/`clampPageSize` from `search.dal.js` unchanged — the S-R8 clamps
-// themselves now live once, in `../../common/pagination.js`.
+// Re-exported so existing importers (this module's own `search()` and this module's tests) keep resolving
+// `clampPage`/`clampPageSize` from `search.dal.js` unchanged — the S-R8 clamps themselves now live once, in
+// `../../common/pagination.js`.
 export { clampPage, clampPageSize };
 
 /**
@@ -49,17 +60,32 @@ export { clampPage, clampPageSize };
 export const FACET_SAMPLE_SIZE = 200;
 
 /**
+ * The largest facet sample the {@link SearchDal} constructor will accept.
+ *
+ * A ceiling rather than an exact equality check, because the size is deliberately injectable (tests drive the
+ * sampling boundary with a handful of rows). What it rules out is the value that would make every search scan
+ * the table — the facet CTE runs on EVERY search request, so an absurd sample here is a whole-service
+ * performance fault, not a slow query in one place. Set well above {@link FACET_SAMPLE_SIZE} so tuning the
+ * default upward stays possible without touching this bound.
+ */
+export const MAX_FACET_SAMPLE_SIZE = 10_000;
+
+/**
  * The explicit `recipes` projection returned by the page read — deliberately excludes `search_vector`.
  * Every name is qualified `recipes.` because the page read joins a cover-photo LATERAL (see below), so a
  * bare column list would be ambiguous once another relation is in scope.
  */
 const RECIPE_COLUMNS = sql`
     recipes.id, recipes.owner_id, recipes.title, recipes.description, recipes.prep_time_minutes,
-    recipes.cook_time_minutes, recipes.total_time_minutes, recipes.servings, recipes.difficulty,
-    recipes.average_rating, recipes.rating_count, recipes.visibility, recipes.status, recipes.source_type,
+    recipes.cook_time_minutes, recipes.total_time_minutes, recipes.servings, recipes.difficulty, recipes.meal_type,
+    recipes.average_rating, recipes.rating_count, recipes.visibility, recipes.status, recipes.first_published_at,
+    recipes.source_type,
     recipes.source_url, recipes.source_attribution, recipes.cloned_from_id, recipes.has_substantive_edit,
-    recipes.cuisine, recipes.dietary_flags, recipes.tags, recipes.has_partial_nutrition,
-    recipes.lead_calories_per_serving, recipes.author_handle, recipes.current_version, recipes.ingredient_names_text,
+    recipes.cuisine, recipes.dietary_flags, recipes.tags,
+    -- ⛔ NO has_partial_nutrition / lead_calories_per_serving (U10, migration 0019). Selecting a dropped
+    -- column does not fail a type-check or a mocked unit test — it 500s every search and list request at
+    -- runtime, which is exactly how this was found (searchContract.integration.test.ts).
+    recipes.author_handle, recipes.author_username, recipes.current_version, recipes.ingredient_names_text,
     recipes.deleted_at, recipes.created_at, recipes.updated_at`;
 
 /** Everything the DAL needs to build one ranked, filtered, paginated search. */
@@ -71,38 +97,32 @@ export interface RecipeSearchFilters {
     /** Exact cuisine filter. */
     readonly cuisine?: string;
     /** Require ALL of these dietary flags (array containment). */
-    readonly dietaryFlags?: string[];
+    readonly dietaryFlags?: readonly string[];
     /** Require ALL of these tags (array containment). */
-    readonly tags?: string[];
-    /** Upper bound on `prep_time_minutes` (rows with unknown prep time are excluded). */
+    readonly tags?: readonly string[];
+    /** Upper bound on `prep_time_minutes` (rows with no stated prep time — stored as 0 — are excluded). */
     readonly maxPrepTime?: number;
-    /** Upper bound on `cook_time_minutes` (rows with unknown cook time are excluded). */
+    /** Upper bound on `cook_time_minutes` (rows with no stated cook time — stored as 0 — are excluded). */
     readonly maxCookTime?: number;
-    /** Upper bound on `total_time_minutes` (rows with unknown total time are excluded). */
+    /** Upper bound on `total_time_minutes` (rows with no stated total time — stored as 0 — are excluded). */
     readonly maxTotalTime?: number;
-    /** Require the recipe to contain ANY of these ingredient ids (via `recipe_ingredients`). */
-    readonly ingredientIds?: string[];
+    /**
+     * Require the recipe to have a line bound to ANY of these ROOT food ids, or to any of these VARIANT ids — the
+     * roots' live variants, expanded by the service (curated U9) — via `ingredients` → `food_lookups`. A private
+     * food matches only for its author, so the filter cannot confirm another cook's private food.
+     */
+    readonly foodFilter?: FoodFilter;
     /** 1-based page number. */
     readonly page: number;
-    /** Page size (clamped to `[1, MAX_SEARCH_PAGE_SIZE]`). */
+    /** Page size (clamped to `[1, MAX_PAGE_SIZE]`). */
     readonly pageSize: number;
     /** Result ordering. */
     readonly sortBy: RecipeSearchSortBy;
-}
-
-/** Facet aggregations returned alongside a page of results. Buckets are the canonical `RecipeFacetCount`. */
-export interface RecipeSearchFacets {
-    readonly dietaryFlags: RecipeFacetCount[];
-    readonly tags: RecipeFacetCount[];
-    /** Distinct cuisines in the match sample (W8-a.9), most-common first. NULL cuisines are excluded. */
-    readonly cuisine: RecipeFacetCount[];
     /**
-     * Total-time buckets over the match sample (W8-a.9), keyed by the stable bucket ids in
-     * {@link TOTAL_TIME_BUCKETS} (`0-15` | `16-30` | `31-60` | `61+`) — mutually exclusive so the counts
-     * sum to the sample size. The `totalTime` dimension is the one the `quickest` sort and the `maxTotalTime`
-     * filter also key on; the client maps each id to display copy ("Under 15 min", …).
+     * `community` narrows to other cooks' public, published recipes (the viewer's own are excluded) in place of the
+     * viewer-widened default. Absent keeps the default.
      */
-    readonly totalTime: RecipeFacetCount[];
+    readonly scope?: RecipeSearchQuery['scope'];
 }
 
 /** What {@link SearchDal.search} returns: the ranked page, its facets, and the unpaged total. */
@@ -128,10 +148,12 @@ interface RawRecipeSearchRow {
     total_time_minutes: number | null;
     servings: number;
     difficulty: string | null;
+    meal_type: string | null;
     average_rating: string | null;
     rating_count: number;
     visibility: string;
     status: string;
+    first_published_at: Date | string | null;
     source_type: string;
     source_url: string | null;
     source_attribution: string | null;
@@ -140,9 +162,8 @@ interface RawRecipeSearchRow {
     cuisine: string | null;
     dietary_flags: string[];
     tags: string[];
-    has_partial_nutrition: boolean;
-    lead_calories_per_serving: string | null;
     author_handle: string | null;
+    author_username: string | null;
     current_version: number;
     ingredient_names_text: string;
     deleted_at: Date | string | null;
@@ -156,7 +177,8 @@ interface RawRecipeSearchRow {
 interface RawFacetRow {
     [column: string]: unknown;
     facet: string;
-    value: string;
+    /** `null` for the total-time group an untimed recipe forms; {@link groupFacets} drops it. */
+    value: string | null;
     count: number | string;
 }
 
@@ -182,8 +204,10 @@ function toRecipeRowInput(row: RawRecipeSearchRow): RecipeRowInput {
         totalTimeMinutes: row.total_time_minutes,
         servings: row.servings,
         difficulty: row.difficulty,
+        mealType: row.meal_type,
         visibility: row.visibility,
         status: row.status,
+        firstPublishedAt: row.first_published_at,
         sourceType: row.source_type,
         sourceUrl: row.source_url,
         sourceAttribution: row.source_attribution,
@@ -192,9 +216,8 @@ function toRecipeRowInput(row: RawRecipeSearchRow): RecipeRowInput {
         cuisine: row.cuisine,
         dietaryFlags: row.dietary_flags,
         tags: row.tags,
-        hasPartialNutrition: row.has_partial_nutrition,
-        leadCaloriesPerServing: row.lead_calories_per_serving,
-        authorHandle: row.author_handle,
+        authorDisplayName: row.author_handle,
+        authorUsername: row.author_username,
         currentVersion: row.current_version,
         averageRating: row.average_rating,
         ratingCount: row.rating_count,
@@ -211,27 +234,39 @@ function toRecipeRowInput(row: RawRecipeSearchRow): RecipeRowInput {
  * `averageRating`/`ratingCount` (average omitted when unrated — never `0`), and the derived
  * `usesPremiumCapability` (via the ONE authoritative `recipe-core` rule) — to the canonical
  * {@link recipeRowToDomain} Data Mapper, via {@link toRecipeRowInput}'s cheap snake_case→camelCase
- * adapter. Only `coverPhotoUrl` (resolved from the cover LATERAL's key against `cloudfrontUrl`) is
+ * adapter. Only `coverPhotoUrl` (resolved from the cover LATERAL's key against `mediaCdnUrl`) is
  * search-specific and layered on top here: emitted only when both a key and a CDN base are present, so a
  * caller without the CDN base simply omits it rather than emitting a malformed URL.
  *
  * @param row - The raw snake_case page row.
- * @param cloudfrontUrl - CDN base used to resolve the cover-photo key to an absolute URL. When absent,
+ * @param mediaCdnUrl - CDN base used to resolve the cover-photo key to an absolute URL. When absent,
  *   `coverPhotoUrl` is omitted.
  */
-export function rowToRecipe(row: RawRecipeSearchRow, cloudfrontUrl?: string): Recipe {
+export function rowToRecipe(row: RawRecipeSearchRow, mediaCdnUrl?: string): Recipe {
+    // ⛔ SEARCH AND LIST REPORT NUTRITION AS UNKNOWN, NOT AS COMPLETE (plan U10).
+    //
+    // These figures used to come from denormalized columns written at recipe-save time, which is exactly
+    // the duplicate KTD-3 deletes — a value frozen at its last write while food's own data moved on. They
+    // are now derived from food's live data, and this projection deliberately does NOT fetch it: a search
+    // page would issue one food lookup per hit, which is the N+1 the columns existed to avoid.
+    //
+    // So this projection emits NO nutrition at all — no figure, and no flag ABOUT the figure. It used to
+    // pin `hasPartialNutrition: true` to mean "we have not accounted for this recipe's nutrition on this
+    // path", which is not what that field meant ("some line could not be accounted for"): one field, two
+    // meanings, no discriminant. A caller that needs the numbers asks
+    // `POST /api/v1/recipes/nutrition-batch`, which answers with a discriminated state per recipe.
     const recipe = recipeRowToDomain(toRecipeRowInput(row));
 
     return {
         ...recipe,
-        ...(row.cover_photo_key !== null && cloudfrontUrl !== undefined
-            ? { coverPhotoUrl: resolveCdnUrl(cloudfrontUrl, row.cover_photo_key) }
+        ...(row.cover_photo_key !== null && mediaCdnUrl !== undefined
+            ? { coverPhotoUrl: resolveCdnUrl(mediaCdnUrl, row.cover_photo_key) }
             : {}),
     };
 }
 
 /** Build a `text[]` array literal from JS strings, each bound as its own param. Pure. */
-function textArray(values: string[]): SQL {
+function textArray(values: readonly string[]): SQL {
     return sql`ARRAY[${sql.join(
         values.map((value) => sql`${value}`),
         sql`, `,
@@ -239,7 +274,7 @@ function textArray(values: string[]): SQL {
 }
 
 /** Build a comma-separated bound-param list (for an `IN (...)` clause). Pure. */
-function paramList(values: string[]): SQL {
+function paramList(values: readonly string[]): SQL {
     return sql.join(
         values.map((value) => sql`${value}`),
         sql`, `,
@@ -249,6 +284,37 @@ function paramList(values: string[]): SQL {
 /** The relevance-ranking expression: `ts_rank` when a query is present, else a constant `0`. Pure. */
 function rankExpr(query: string | undefined): SQL {
     return query === undefined ? sql`0` : sql`ts_rank(search_vector, plainto_tsquery('english', ${query}))`;
+}
+
+/** The three duration columns of `recipes`. */
+type TimeColumn = 'prep_time_minutes' | 'cook_time_minutes' | 'total_time_minutes';
+
+/** Each duration column as a fixed SQL fragment: a closed set of literals, so nothing is ever spliced from a value. */
+const TIME_COLUMN_SQL: Readonly<Record<TimeColumn, SQL>> = {
+    prep_time_minutes: sql`prep_time_minutes`,
+    cook_time_minutes: sql`cook_time_minutes`,
+    total_time_minutes: sql`total_time_minutes`,
+};
+
+/**
+ * The stored value meaning "no time stated". The column is NOT NULL and the editor writes 0 for an unset duration
+ * (buildSpec §6.1: a missing time hides its cell, never "0 min"), so 0 is the one sentinel every time rule below
+ * reads — a bound ("under 30 min"), a facet bucket and the Quickest order — rather than each spelling it. It is a
+ * LITERAL and not a bound parameter: the facet's `CASE` sits in both the SELECT and the GROUP BY, where two bound
+ * parameters are two different expressions to Postgres.
+ */
+const UNSTATED_TIME_SQL: SQL = sql`0`;
+
+/** `column = 0`: the recipe stated no such time. Pure. */
+function isUnstatedTime(column: TimeColumn): SQL {
+    return sql`${TIME_COLUMN_SQL[column]} = ${UNSTATED_TIME_SQL}`;
+}
+
+/** `column > 0 AND column <= max`: a STATED time within the bound — an untimed recipe is never "quick". Pure. */
+function withinStatedTime(column: TimeColumn, max: number): SQL {
+    const name = TIME_COLUMN_SQL[column];
+
+    return sql`${name} > ${UNSTATED_TIME_SQL} AND ${name} <= ${max}`;
 }
 
 /**
@@ -263,8 +329,11 @@ const SORT_ORDER_BUILDERS: Record<RecipeSearchSortBy, (query: string | undefined
     // Relevance (default): rank-first when a query is present, otherwise newest-first.
     [RecipeSearchSortBy.RELEVANCE]: (query) =>
         query === undefined ? sql`created_at DESC` : sql`rank DESC, created_at DESC`,
-    // Quickest (W8-a.9): ascending total time; NULLS never occur (total_time is NOT NULL), created_at tiebreak.
-    [RecipeSearchSortBy.QUICKEST]: () => sql`total_time_minutes ASC, created_at DESC`,
+    // Quickest (W8-a.9): ascending total time, created_at tiebreak. The column is NOT NULL and the editor stores 0
+    // for "no time stated", so the untimed rows are sorted LAST by an explicit leading key (A-017) — a 0 is not
+    // the quickest recipe, it is the one that never said.
+    [RecipeSearchSortBy.QUICKEST]: () =>
+        sql`(${isUnstatedTime('total_time_minutes')}) ASC, total_time_minutes ASC, created_at DESC`,
     // Most-cloned (W8-a.9): order by the number of recipes cloned FROM this one — a correlated COUNT over
     // `cloned_from_id` (already indexed by idx_recipes_cloned_from). created_at is the tiebreak so the common
     // all-zero case (nothing cloned yet) still pages deterministically newest-first.
@@ -272,9 +341,18 @@ const SORT_ORDER_BUILDERS: Record<RecipeSearchSortBy, (query: string | undefined
         sql`(SELECT count(*) FROM recipes clones WHERE clones.cloned_from_id = recipes.id) DESC, created_at DESC`,
 };
 
-/** The page-ordering expression for a given sort key (references the `rank` alias for relevance). Pure. */
+/**
+ * The page-ordering expression for a given sort key (references the `rank` alias for relevance). Pure.
+ *
+ * `Object.hasOwn` rather than `??`: an inherited key like `toString` resolves to a TRUTHY function, so the
+ * fallback would never fire and the caller would splice `Object.prototype.toString`'s return — a string, not a
+ * `SQL` — straight into an ORDER BY. The wire schema does validate `sortBy` as a zod enum, but a DAL that
+ * builds SQL should not inherit its safety from a caller's validation.
+ */
 function orderByExpr(sortBy: RecipeSearchSortBy, query: string | undefined): SQL {
-    const builder = SORT_ORDER_BUILDERS[sortBy] ?? SORT_ORDER_BUILDERS[RecipeSearchSortBy.RELEVANCE];
+    const builder = Object.hasOwn(SORT_ORDER_BUILDERS, sortBy)
+        ? SORT_ORDER_BUILDERS[sortBy]
+        : SORT_ORDER_BUILDERS[RecipeSearchSortBy.RELEVANCE];
 
     return builder(query);
 }
@@ -285,9 +363,11 @@ export const TOTAL_TIME_BUCKETS = ['0-15', '16-30', '31-60', '61+'] as const;
 /**
  * The SQL `CASE` mapping `total_time_minutes` → a {@link TOTAL_TIME_BUCKETS} id — the SINGLE source for the
  * bucket boundaries, embedded in both the facet SELECT and its GROUP BY so they cannot drift. Mutually
- * exclusive (each row lands in exactly one bucket), so the bucket counts sum to the sample size.
+ * exclusive: each row lands in exactly one bucket, and an untimed recipe (A-017) lands in the NULL one, which
+ * {@link groupFacets} drops — so the counts sum to the number of recipes that STATED a time.
  */
 const totalTimeBucketExpr = sql`CASE
+    WHEN ${isUnstatedTime('total_time_minutes')} THEN NULL
     WHEN total_time_minutes <= 15 THEN '0-15'
     WHEN total_time_minutes <= 30 THEN '16-30'
     WHEN total_time_minutes <= 60 THEN '31-60'
@@ -302,6 +382,11 @@ function groupFacets(rows: RawFacetRow[]): RecipeSearchFacets {
     const totalTime: RecipeFacetCount[] = [];
 
     for (const row of rows) {
+        // The untimed recipes' NULL total-time group is not a bucket (A-017).
+        if (row.value === null) {
+            continue;
+        }
+
         const bucket: RecipeFacetCount = { value: row.value, count: Number(row.count) };
 
         if (row.facet === 'dietary_flags') {
@@ -332,15 +417,28 @@ export class SearchDal {
         // Optional so existing test constructions (`new SearchDal(db)` / `new SearchDal(db, 2)`) keep
         // compiling; `SearchModule` always supplies it in production, so cover URLs are always resolved
         // there. When absent, `coverPhotoUrl` is simply omitted (never a malformed URL).
-        private readonly cloudfrontUrl?: string,
-    ) {}
+        private readonly mediaCdnUrl?: string,
+    ) {
+        // FAIL CLOSED ON THE FACET SAMPLE SIZE. This value is the one number in this DAL that reaches a
+        // statement without passing through the request schema, so it is bounded HERE rather than trusted.
+        // It used to be interpolated via `sql.raw(String(...))`, where a non-integer would have produced
+        // `LIMIT 1e21` / `LIMIT NaN` — a syntax error at best — and a request-derived value would have been
+        // raw SQL. It is now a bound parameter, so the remaining risk is not injection but an absurd sample
+        // (`LIMIT 2000000000` scans the table on every search); refusing it at construction turns a silent
+        // production pathology into an immediate, un-missable boot failure.
+        if (!Number.isSafeInteger(facetSampleSize) || facetSampleSize < 1 || facetSampleSize > MAX_FACET_SAMPLE_SIZE) {
+            throw new RangeError(
+                `facetSampleSize must be an integer in 1..${MAX_FACET_SAMPLE_SIZE}, received ${String(facetSampleSize)}`,
+            );
+        }
+    }
 
     /**
      * Run one ranked, filtered, paginated search and aggregate its facets.
      *
      * @param filters - Query text, structured filters, visibility owner key, pagination, and sort.
      * @returns The ranked page, the grouped facet counts, and the unpaged total.
-     * @sideEffect Reads `recipes` (and `recipe_ingredients` when `ingredientIds` is set).
+     * @sideEffect Reads `recipes` (and `ingredients` + `food_lookups` when `foodFilter` is set).
      */
     public async search(filters: RecipeSearchFilters): Promise<RecipeSearchDalResult> {
         const query = filters.query !== undefined && filters.query.trim().length > 0 ? filters.query.trim() : undefined;
@@ -354,15 +452,7 @@ export class SearchDal {
         const pageResult = await this.db.execute<RawRecipeSearchRow>(sql`
             SELECT ${RECIPE_COLUMNS}, cp.cover_photo_key, ${rank} AS rank
             FROM recipes
-            LEFT JOIN LATERAL (
-                -- Serve the small thumbnail rendition when present, else the full-size original
-                -- (FOLLOW-UP-CR-001-A). Pre-thumbnail rows have thumbnail_key NULL → fall back to s3_key.
-                SELECT COALESCE(p.thumbnail_key, p.s3_key) AS cover_photo_key
-                FROM recipe_photos p
-                WHERE p.recipe_id = recipes.id
-                ORDER BY p.sort_order, p.created_at, p.id
-                LIMIT 1
-            ) cp ON true
+            LEFT JOIN ${coverPhotoLateral()} ON true
             WHERE ${where}
             ORDER BY ${orderBy}
             LIMIT ${pageSize} OFFSET ${offset}
@@ -386,7 +476,15 @@ export class SearchDal {
                 -- created_at (newest-first, matching the page) then the unique id makes the sample
                 -- deterministic and stable.
                 ORDER BY rank DESC, created_at DESC, id
-                LIMIT ${sql.raw(String(this.facetSampleSize))}
+                -- A BOUND PARAMETER, not a spliced sql.raw(String(...)). The raw form put this value into the
+                -- statement TEXT, which is unnecessary here (the page query two statements up passes its own
+                -- LIMIT as a parameter) and it made the DAL's injection-safety a property of whoever happened
+                -- to construct it. Parameterised, a bad value can only ever be a rejected parameter, never
+                -- new SQL. The constructor additionally rejects a non-integer/out-of-range size, so the two
+                -- together make this safe by construction rather than by convention.
+                -- NB: no backticks and no dollar-brace in this comment — it lives inside a JS template
+                -- literal, so a backtick would END the statement and a dollar-brace would INTERPOLATE.
+                LIMIT ${this.facetSampleSize}
             )
             SELECT 'dietary_flags' AS facet, flag AS value, count(*)::int AS count
             FROM matched, unnest(matched.dietary_flags) AS flag
@@ -418,7 +516,7 @@ export class SearchDal {
 
     /** Map a raw row + query into a ranked {@link RecipeSearchResult} (rank omitted in browse mode). */
     private toSearchResult(row: RawRecipeSearchRow, query: string | undefined): RecipeSearchResult {
-        const recipe = rowToRecipe(row, this.cloudfrontUrl);
+        const recipe = rowToRecipe(row, this.mediaCdnUrl);
 
         if (query === undefined) {
             return { recipe };
@@ -431,8 +529,11 @@ export class SearchDal {
 
     /** Build the AND-joined visibility + filter predicate shared by all three reads. */
     private buildWhere(filters: RecipeSearchFilters): SQL {
-        // W8-a.3 draft boundary: a public DRAFT must not surface in search to anyone but its owner.
-        const conditions: SQL[] = [activeRecipe(), viewableBy(filters.ownerId), publishedOrOwnedBy(filters.ownerId)];
+        // W8-a.3 draft boundary: a public DRAFT must not surface in search to anyone but its owner. The community
+        // scope is strictly narrower (no owner widening at all), and replaces — never adds to — the default terms.
+        const conditions: SQL[] = [
+            filters.scope === 'community' ? communityOf(filters.ownerId) : readableBy(filters.ownerId),
+        ];
 
         if (filters.query !== undefined) {
             conditions.push(sql`search_vector @@ plainto_tsquery('english', ${filters.query})`);
@@ -451,21 +552,36 @@ export class SearchDal {
         }
 
         if (filters.maxPrepTime !== undefined) {
-            conditions.push(sql`prep_time_minutes <= ${filters.maxPrepTime}`);
+            conditions.push(withinStatedTime('prep_time_minutes', filters.maxPrepTime));
         }
 
         if (filters.maxCookTime !== undefined) {
-            conditions.push(sql`cook_time_minutes <= ${filters.maxCookTime}`);
+            conditions.push(withinStatedTime('cook_time_minutes', filters.maxCookTime));
         }
 
         if (filters.maxTotalTime !== undefined) {
-            conditions.push(sql`total_time_minutes <= ${filters.maxTotalTime}`);
+            conditions.push(withinStatedTime('total_time_minutes', filters.maxTotalTime));
         }
 
-        if (filters.ingredientIds !== undefined && filters.ingredientIds.length > 0) {
+        const { foodFilter } = filters;
+
+        if (foodFilter !== undefined && foodFilter.rootIds.length + foodFilter.variantIds.length > 0) {
+            // ⛔ The owner predicate is the privacy rule of plan 002 R9 applied to a filter: without it, a stranger
+            // could learn whether a public recipe uses someone's private food by filtering on that food's id.
+            // Curated U9: a root also matches its live variants' lines — each arm on its own column, never a join
+            // into food (ADR-0006). An empty arm contributes FALSE rather than an `IN ()`, which is invalid SQL.
+            const roots =
+                foodFilter.rootIds.length === 0 ? sql`FALSE` : sql`fl.food_id IN (${paramList(foodFilter.rootIds)})`;
+            const variants =
+                foodFilter.variantIds.length === 0
+                    ? sql`FALSE`
+                    : sql`fl.food_variant_id IN (${paramList(foodFilter.variantIds)})`;
+
             conditions.push(
-                sql`EXISTS (SELECT 1 FROM recipe_ingredients ri
-                    WHERE ri.recipe_id = recipes.id AND ri.ingredient_id IN (${paramList(filters.ingredientIds)}))`,
+                sql`EXISTS (SELECT 1 FROM ingredients i JOIN food_lookups fl ON fl.id = i.food_lookup_id
+                    WHERE i.recipe_id = recipes.id
+                      AND (${roots} OR ${variants})
+                      AND (fl.food_owner_id IS NULL OR fl.food_owner_id = ${filters.ownerId}))`,
             );
         }
 

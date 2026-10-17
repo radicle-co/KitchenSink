@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Sign in, errors (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                        width: 390px;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .cap {
+                        margin: 0;
+                        padding: 0 16px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .pg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 12px 0 24px;
+                    }
+                    .fg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .pagef {
+                        position: relative;
+                        width: 390px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        transform: translateZ(0);
+                    }
+                    .wash {
+                        width: 390px;
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 20px;
+                    }
+                    .crop {
+                        width: 390px;
+                        padding: 16px 20px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .fld {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .fields {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .foot {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        padding: 12px 0;
+                    }
+                    .err {
+                        margin: 0;
+                        font-size: 14px;
+                        line-height: 1.4;
+                        color: var(--danger-text);
+                    }
+                    .status {
+                        margin: 0;
+                        font-size: 14px;
+                        line-height: 1.4;
+                        color: var(--ink-muted);
+                    }
+                </style></helmet
+            >
+            <div class="pg">
+                <div class="fg">
+                    <p class="cap">
+                        Sign in, email left empty. Every sign-in failure is this one line above Sign in, never under a
+                        field.
+                    </p>
+                    <div class="crop">
+                        <div class="fields">
+                            <div class="fld">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.FieldLabel"
+                                    for-id="e1-email"
+                                    label="Email"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Input"
+                                    id="e1-email"
+                                    label="Email"
+                                    value=""
+                                    on-change-text="{{noop}}"
+                                    placeholder="you@example.com"
+                                    auto-complete="email"
+                                    input-mode="email"
+                                ></x-import>
+                            </div>
+                            <div class="fld">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.FieldLabel"
+                                    for-id="e1-pw"
+                                    label="Password"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Input"
+                                    id="e1-pw"
+                                    label="Password"
+                                    value=""
+                                    on-change-text="{{noop}}"
+                                    placeholder="Your password"
+                                    secret="{{yes}}"
+                                    auto-complete="current-password"
+                                ></x-import>
+                            </div>
+                        </div>
+                        <div class="foot">
+                            <p class="err" role="alert" style="min-height: 20px">Enter your email address.</p>
+                            <x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                size="lg"
+                                width="fill"
+                                icon="logIn"
+                                on-press="{{noop}}"
+                                >Sign in</x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Sign in, email is not an address.</p>
+                    <div class="crop">
+                        <div class="foot">
+                            <p class="err" role="alert" style="min-height: 20px">Enter a valid email address.</p>
+                            <x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                size="lg"
+                                width="fill"
+                                icon="logIn"
+                                on-press="{{noop}}"
+                                >Sign in</x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Sign in, service not reachable.</p>
+                    <div class="crop">
+                        <div class="foot">
+                            <p class="err" role="alert" style="min-height: 20px">
+                                We couldn’t reach the sign-in service. Check your connection and try again.
+                            </p>
+                            <x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                size="lg"
+                                width="fill"
+                                icon="logIn"
+                                on-press="{{noop}}"
+                                >Sign in</x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Sign in, a failure with no words of its own. A wrong password shows Clerk’s own message in this
+                        same line.
+                    </p>
+                    <div class="crop">
+                        <div class="foot">
+                            <p class="err" role="alert" style="min-height: 20px">
+                                We couldn’t sign you in. Please try again.
+                            </p>
+                            <x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                size="lg"
+                                width="fill"
+                                icon="logIn"
+                                on-press="{{noop}}"
+                                >Sign in</x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Sign in, the account needs a factor this form does not offer.</p>
+                    <div class="crop">
+                        <div class="foot">
+                            <p class="err" role="alert" style="min-height: 20px">
+                                Additional verification is required to finish signing in.
+                            </p>
+                            <x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                size="lg"
+                                width="fill"
+                                icon="logIn"
+                                on-press="{{noop}}"
+                                >Sign in</x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Code step, code refused. Sign-up says the same.</p>
+                    <div class="crop">
+                        <div class="foot">
+                            <p class="err" role="alert" style="min-height: 20px">
+                                We couldn’t verify that code. Please try again.
+                            </p>
+                            <x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                size="lg"
+                                width="fill"
+                                icon="check"
+                                on-press="{{noop}}"
+                                >Verify</x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Code step, a new code could not be sent. Sign-up says the same.</p>
+                    <div class="crop">
+                        <div class="foot">
+                            <p class="err" role="alert" style="min-height: 20px">
+                                We couldn’t send a verification code. Please try again.
+                            </p>
+                            <x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                size="lg"
+                                width="fill"
+                                icon="check"
+                                on-press="{{noop}}"
+                                >Verify</x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Sign up, every field left empty. Each message sits under its field and repeats as the field’s
+                        error.
+                    </p>
+                    <div class="crop">
+                        <div class="fields">
+                            <div class="fld">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.FieldLabel"
+                                    for-id="s1-first"
+                                    label="First name"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Input"
+                                    id="s1-first"
+                                    label="First name"
+                                    value=""
+                                    on-change-text="{{noop}}"
+                                    error="Enter your first name."
+                                    auto-complete="given-name"
+                                ></x-import>
+                                <p class="err">Enter your first name.</p>
+                            </div>
+                            <div class="fld">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.FieldLabel"
+                                    for-id="s1-last"
+                                    label="Last name"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Input"
+                                    id="s1-last"
+                                    label="Last name"
+                                    value=""
+                                    on-change-text="{{noop}}"
+                                    error="Enter your last name."
+                                    auto-complete="family-name"
+                                ></x-import>
+                                <p class="err">Enter your last name.</p>
+                            </div>
+                            <div class="fld">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.FieldLabel"
+                                    for-id="s1-user"
+                                    label="Username"
+                                    hint="Your public name on recipes you publish."
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Input"
+                                    id="s1-user"
+                                    label="Username"
+                                    value=""
+                                    on-change-text="{{noop}}"
+                                    error="Choose a username."
+                                    hint="Your public name on recipes you publish."
+                                    auto-complete="username"
+                                ></x-import>
+                                <p class="err">Choose a username.</p>
+                            </div>
+                            <div class="fld">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.FieldLabel"
+                                    for-id="s1-mail"
+                                    label="Email"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Input"
+                                    id="s1-mail"
+                                    label="Email"
+                                    value=""
+                                    on-change-text="{{noop}}"
+                                    placeholder="you@example.com"
+                                    error="Enter your email address."
+                                    auto-complete="email"
+                                    input-mode="email"
+                                ></x-import>
+                                <p class="err">Enter your email address.</p>
+                            </div>
+                            <div class="fld">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.FieldLabel"
+                                    for-id="s1-pw"
+                                    label="Password"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Input"
+                                    id="s1-pw"
+                                    label="Password"
+                                    value=""
+                                    on-change-text="{{noop}}"
+                                    placeholder="Your password"
+                                    secret="{{yes}}"
+                                    error="Enter a password."
+                                    auto-complete="new-password"
+                                ></x-import>
+                                <p class="err">Enter a password.</p>
+                            </div>
+                        </div>
+                        <div class="foot">
+                            <span style="min-height: 20px" aria-live="assertive"></span
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                size="lg"
+                                width="fill"
+                                icon="userPlus"
+                                on-press="{{noop}}"
+                                >Create account</x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Sign up, email is not an address. A taken username or a weak password shows Clerk’s own message
+                        under its field.
+                    </p>
+                    <div class="crop">
+                        <div class="fields">
+                            <div class="fld">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.FieldLabel"
+                                    for-id="s2-mail"
+                                    label="Email"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Input"
+                                    id="s2-mail"
+                                    label="Email"
+                                    value="ana@"
+                                    on-change-text="{{noop}}"
+                                    placeholder="you@example.com"
+                                    error="Enter a valid email address."
+                                    auto-complete="email"
+                                    input-mode="email"
+                                ></x-import>
+                                <p class="err">Enter a valid email address.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Sign up, a failure with no words of its own.</p>
+                    <div class="crop">
+                        <div class="foot">
+                            <p class="err" role="alert" style="min-height: 20px">
+                                We couldn’t create your account. Please try again.
+                            </p>
+                            <x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                size="lg"
+                                width="fill"
+                                icon="userPlus"
+                                on-press="{{noop}}"
+                                >Create account</x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Sign up, the instance asks for something the app has no field for.</p>
+                    <div class="crop">
+                        <div class="foot">
+                            <p class="err" role="alert" style="min-height: 20px">
+                                We can’t finish creating your account in the app. Try again on the Commise website.
+                            </p>
+                            <x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                size="lg"
+                                width="fill"
+                                icon="userPlus"
+                                on-press="{{noop}}"
+                                >Create account</x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":3400}}'>
+            class Component extends DCLogic { renderVals(){ return { noop: function(){}, yes: true, no: false }; } }
+        </script>
+    </body>
+</html>

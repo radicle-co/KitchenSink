@@ -1,0 +1,23 @@
+# The Clerk username on Profile (owner ruling 2026-10-13; plan 2026-10-15-010 D12) — the mobile twin of the web
+# Playwright `bylineUsername.spec.ts` profile case. A signed-in cook opens Profile and finds their "@username" in the
+# header, read-only: Clerk owns it, so there is no control to change it.
+#
+# It assumes the signed-in pool user's identity profile carries its Clerk username, which holds for every user
+# provisioned after identity migration 0016 and for any older one once a Clerk `user.updated` has synced it. Pool
+# users always have one (`poolAdmin.ts` writes `username` on create). Selectors are visible text only.
+
+appId: ${APP_ID}
+---
+- runFlow: auth/signinHome.yaml
+
+- tapOn: 'Profile.*'
+
+# The header's username line: "@" then the username. Anchored at the start so the email in the header cannot match.
+- extendedWaitUntil:
+      visible: '^@.+'
+      timeout: 40000
+- assertVisible: '^@.+'
+
+# Read-only: no row or control offers to change it.
+- assertNotVisible: 'Username'
+- assertNotVisible: 'Change username'

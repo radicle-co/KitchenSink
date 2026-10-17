@@ -1,0 +1,12 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "@kitchensink/typescript/base.json",
+    "compilerOptions": {
+        "outDir": "dist",
+        "rootDir": "."
+    },
+    // Typecheck/editor/eslint project; it never emits (`build` uses tsconfig.build.json). Tests are INCLUDED, because
+    // vitest transpiles without typechecking.
+    "include": ["src/**/*.ts", "tests/**/*.ts", "contract/**/*.ts"],
+    "exclude": ["node_modules", "dist"]
+}

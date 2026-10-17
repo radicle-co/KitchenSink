@@ -1,0 +1,508 @@
+/**
+ * THE SEEDED WORLD FOR ONE DEPLOYED RUN — its titles scoped by the run key, its identities the Maestro tier's
+ * fixed pool slots, created through the product's own APIs.
+ *
+ * ## Why this is not `recipe-service`'s `seed.ts`
+ *
+ * `seed.ts` is a SCHEMA-level fixture and says so: it is "the ONE authoritative definition of the seeded
+ * world" *for `tests/globalSetup.ts` and the recipe-service's own specs*. It writes rows an HTTP caller
+ * cannot produce — two owners, fixed UUIDs, an ingredient line with `unit: ''` ("the one shape the wire
+ * INPUT schema would reject, so seeding it keeps the read path honest"), and a hand-maintained
+ * `ingredient_names_text` mirroring a trigger's input. No package can import it: `recipe-service` declares no
+ * `exports`, deliberately. Only repo guards read it, by path (`maestroFixtureWorld.test.ts`).
+ *
+ * This module is a DIFFERENT thing with the same shape: the world a deployed run creates for itself, over
+ * HTTP, as pool identities it LEASES (owner ruling 2026-09-13: no test run creates a Clerk user) and whose data
+ * `resetPool` empties before and after the run. Its reason to change is what the Maestro flows assert and what
+ * the API permits — not the recipe database's schema.
+ *
+ * ⚠️ The two must agree on every scalar the flows read, because the flows were written against `seed.ts`
+ * and cite it by name (`servingScale.yaml` asserts 2 servings and 10/10/20 minutes "per
+ * packages/services/recipe-service/src/database/seed.ts"). That agreement is ASSERTED, by
+ * `packages/tools/repoGuards/__tests__/maestroFixtureWorld.test.ts`: every `SEED_WORLD` recipe matches the `seed.ts`
+ * recipe of the same title on every field its definition declares but `key`, and no other `seed.ts` recipe is the
+ * signer's.
+ * Changing the asparagus's servings in one place is a red test naming both files.
+ *
+ * ## The two things the API changes about the world
+ *
+ * ⛔ `unit` is OMITTED where `seed.ts` writes `''`. The read projection turns an empty unit back into an
+ * absent one, so the rendered detail is identical — but the write schema rejects the empty string, which is
+ * exactly the asymmetry `seed.ts` exists to exercise from the other side.
+ *
+ * ⛔ Pan-Seared Duck is NOT reproduced. It is seeded to the PRO owner and no flow references it — grepped
+ * across the whole `.maestro` corpus, zero hits — so creating it would be a fixture nothing reads.
+ */
+import {
+    DOWNGRADED_OWNER_LANE_ID,
+    MAESTRO_ERASURE_SHARD,
+    maestroErasureSlots,
+    maestroSlotForShard,
+    POOL_PASSWORD,
+    ROLE_LANE_IDS,
+    slotFor,
+    type MaestroPlatform,
+} from '@kitchensink/e2e-fixtures/testPool';
+import { MAX_SEARCH_FOOD_FILTERS } from '@kitchensink/schema-recipe';
+
+/**
+ * The FOOD every run authors as the signer (`ensureProbeFood`) and NO seeded recipe uses.
+ *
+ * `recipes/searchNavigation.yaml` picks it in the discovery filter by this exact name and asserts the feed
+ * collapses to "No matching recipes". The filter keys on food ids (plan 002 R45), and every seeded line is a
+ * DECLARED name, which has no food id — so no seeded recipe can match it, and the food is private to the signer,
+ * so no other user's recipe can either. `seed.ts` records the same invariant about its own pinned trio —
+ * "attaching any of the three to a seed recipe turns that flow red" — and it is the one piece of knowledge
+ * genuinely shared between the two worlds, so it is stated here ONCE and threaded to the flow rather than
+ * restated in YAML.
+ */
+export const UNATTACHED_PROBE_INGREDIENT = 'Flour';
+
+/**
+ * The words in front of every CAP food's name: `<base> <runKey> N`, for N = 1 to `MAX_SEARCH_FOOD_FILTERS`.
+ *
+ * `recipes/discoverIngredientCap.yaml` fills the discovery filter to its cap with these, so they are foods the
+ * SIGNER authors, for the reason `ensureProbeFood` gives. A bound food is the whole fixture: the filter's search
+ * lists a food once the caller can see a binding of it (`IngredientsService.search`), with no recipe involved.
+ *
+ * ⚠️ Every other flow's ingredient search runs as the signer and so can see these six too. The food search
+ * matches a name by substring, by trigram, and by the query's LAST word (`foodSearch.dao.ts`), so the base must
+ * share no word with any text a flow types into a food search. It must be letters only (a run key is `[a-z0-9-]`),
+ * because the flow puts the prefix inside a Maestro pattern.
+ */
+export const CAP_FOOD_BASE_NAME = 'Cap Probe';
+
+/** Which identity owns a seeded recipe. */
+export type FixtureOwner = 'signer' | 'coAuthor' | 'downgradedOwner';
+
+/** One ingredient line. `unit` absent is the unitless line ("1 lemon", "8 lamb chops"). */
+export interface FixtureIngredientLine {
+    readonly name: string;
+    readonly quantity: number;
+    readonly unit?: string | undefined;
+}
+
+/** One step. `timerSeconds` absent is a step with no timer. */
+export interface FixtureStep {
+    readonly instruction: string;
+    readonly timerSeconds?: number | undefined;
+}
+
+/** A recipe in the seeded world, before its title is scoped to a run. */
+export interface FixtureRecipeDefinition {
+    readonly key: FixtureRecipeKey;
+    readonly owner: FixtureOwner;
+    readonly baseTitle: string;
+    /** A `CUISINES` entry, spelled exactly as the list spells it: the service refuses to publish a recipe without one. */
+    readonly cuisine: string;
+    readonly description: string;
+    readonly visibility: 'public' | 'private';
+    readonly servings: number;
+    readonly prepTimeMinutes: number;
+    readonly cookTimeMinutes: number;
+    readonly totalTimeMinutes: number;
+    readonly ingredients: readonly FixtureIngredientLine[];
+    readonly steps: readonly FixtureStep[];
+}
+
+/** The recipes a run seeds, keyed the way the flows refer to them. */
+export type FixtureRecipeKey = 'lamb' | 'asparagus' | 'salad' | 'risotto' | 'privateFood' | 'downgradedStew';
+
+/**
+ * The world, before run-scoping.
+ *
+ * ⚠️ OWNERSHIP IS LOAD-BEARING, not an arbitrary split. `risotto` belongs to the co-author because
+ * `discoverDetailSaveCopy` saves a copy of it and then lands in the COPY's editor, which only its owner can open, and
+ * `rating`'s docblock says it uses a recipe the signer does not own "so the own-recipe gate, Sc8, is NOT
+ * engaged". No amount of seeding under one identity produces "a recipe you do not own". The other three are
+ * the signer's, which is what makes `searchNavigation`'s "3 recipes" true.
+ */
+export const SEED_WORLD: readonly FixtureRecipeDefinition[] = [
+    {
+        key: 'lamb',
+        owner: 'signer',
+        baseTitle: 'Mediterranean Grilled Lamb',
+        cuisine: 'Greek',
+        description: 'Herb-marinated grilled lamb.',
+        visibility: 'private',
+        servings: 4,
+        prepTimeMinutes: 15,
+        cookTimeMinutes: 30,
+        totalTimeMinutes: 45,
+        ingredients: [
+            { name: 'Lamb loin chops', quantity: 8, unit: undefined },
+            { name: 'Olive oil', quantity: 3, unit: 'tbsp' },
+            { name: 'Garlic', quantity: 3, unit: 'clove' },
+            { name: 'Fresh oregano', quantity: 2, unit: 'tbsp' },
+            { name: 'Lemon', quantity: 1, unit: undefined },
+        ],
+        steps: [
+            {
+                instruction:
+                    'Whisk the olive oil, crushed garlic, chopped oregano and the juice of the lemon into a marinade.',
+                timerSeconds: undefined,
+            },
+            {
+                instruction: 'Coat the chops in the marinade and leave them to stand at room temperature.',
+                timerSeconds: 1800,
+            },
+            {
+                instruction:
+                    'Grill the chops over high heat, turning once, until charred outside and pink at the bone.',
+                timerSeconds: 480,
+            },
+            { instruction: 'Rest the chops loosely covered before serving.', timerSeconds: 300 },
+        ],
+    },
+    {
+        key: 'asparagus',
+        owner: 'signer',
+        baseTitle: 'Asparagus with Green Sauce',
+        cuisine: 'Italian',
+        description: 'Blanched asparagus, herb sauce.',
+        visibility: 'private',
+        servings: 2,
+        prepTimeMinutes: 10,
+        cookTimeMinutes: 10,
+        totalTimeMinutes: 20,
+        ingredients: [
+            { name: 'Asparagus', quantity: 500, unit: 'g' },
+            { name: 'Flat-leaf parsley', quantity: 30, unit: 'g' },
+            { name: 'Capers', quantity: 1, unit: 'tbsp' },
+            { name: 'Olive oil', quantity: 4, unit: 'tbsp' },
+            { name: 'Lemon', quantity: 1, unit: undefined },
+        ],
+        steps: [
+            { instruction: 'Snap the woody ends off the asparagus spears and discard them.', timerSeconds: undefined },
+            {
+                instruction: 'Blanch the spears in salted boiling water, then drop them straight into iced water.',
+                timerSeconds: 180,
+            },
+            {
+                instruction: 'Blend the parsley, capers, olive oil and lemon juice into a loose green sauce.',
+                timerSeconds: undefined,
+            },
+            { instruction: 'Drain the spears well and spoon the green sauce over them.', timerSeconds: undefined },
+        ],
+    },
+    {
+        key: 'salad',
+        owner: 'signer',
+        baseTitle: 'Gourmet Garden Salad',
+        cuisine: 'Mediterranean',
+        description: 'Seasonal greens, vinaigrette.',
+        visibility: 'public',
+        servings: 2,
+        prepTimeMinutes: 15,
+        cookTimeMinutes: 0,
+        totalTimeMinutes: 15,
+        ingredients: [
+            { name: 'Mixed salad greens', quantity: 150, unit: 'g' },
+            { name: 'Cucumber', quantity: 1, unit: undefined },
+            { name: 'Red wine vinegar', quantity: 1, unit: 'tbsp' },
+            { name: 'Olive oil', quantity: 3, unit: 'tbsp' },
+            { name: 'Sea salt', quantity: 1, unit: 'tsp' },
+        ],
+        steps: [
+            {
+                instruction: 'Wash and dry the salad greens, then tear them into a wide serving bowl.',
+                timerSeconds: undefined,
+            },
+            {
+                instruction: 'Shave the cucumber into ribbons and scatter them over the greens.',
+                timerSeconds: undefined,
+            },
+            {
+                instruction:
+                    'Whisk the olive oil, red wine vinegar and sea salt into a vinaigrette and dress the salad just before serving.',
+                timerSeconds: undefined,
+            },
+        ],
+    },
+    {
+        key: 'risotto',
+        owner: 'coAuthor',
+        baseTitle: 'Herb Risotto',
+        cuisine: 'Italian',
+        description: 'Creamy risotto with fresh herbs.',
+        visibility: 'public',
+        servings: 4,
+        prepTimeMinutes: 10,
+        cookTimeMinutes: 25,
+        totalTimeMinutes: 35,
+        ingredients: [
+            { name: 'Arborio rice', quantity: 320, unit: 'g' },
+            { name: 'Vegetable stock', quantity: 1.2, unit: 'l' },
+            { name: 'Parmesan cheese', quantity: 60, unit: 'g' },
+            { name: 'Fresh chives', quantity: 2, unit: 'tbsp' },
+            { name: 'Olive oil', quantity: 2, unit: 'tbsp' },
+        ],
+        steps: [
+            {
+                instruction: 'Bring the vegetable stock to a bare simmer and keep it beside the pan.',
+                timerSeconds: undefined,
+            },
+            {
+                instruction: 'Toast the arborio rice in the olive oil until the grains turn translucent at the edges.',
+                timerSeconds: 120,
+            },
+            {
+                instruction: 'Add the stock a ladle at a time, stirring, until the rice is creamy and just al dente.',
+                timerSeconds: 1080,
+            },
+            {
+                instruction:
+                    'Beat in the parmesan and chives off the heat, then let the risotto settle before serving.',
+                timerSeconds: 120,
+            },
+        ],
+    },
+];
+
+/**
+ * The co-author's PRIVATE food. The one line of {@link PRIVATE_FOOD_RECIPE} is bound to it.
+ *
+ * An authored food is private to its author until a human promotes it (ADR-0029), and a pool slot cannot promote.
+ * So when the SIGNER reads the co-author's recipe, this line reaches them with no name and the status
+ * `RESOLVED_UNAVAILABLE` (plan 002 R9), and the app shows its stand-in in the name's place.
+ *
+ * `recipes/privateFoodStandIn.yaml` also checks that this name never appears on the signer's screen. So it must not
+ * appear in the recipe's own title, description or steps, and it must be plain letters, because the flow puts it
+ * inside a Maestro pattern.
+ */
+export const PRIVATE_FOOD_NAME = 'Smoked Chili Oil';
+
+/**
+ * The co-author's PUBLIC recipe whose one line — 2 tbsp — is bound to {@link PRIVATE_FOOD_NAME}.
+ *
+ * ⛔ NOT IN {@link SEED_WORLD}. Everything there is either reconciled by the signer's per-flow reset or created by
+ * `provision`'s DECLARED-name loop. A declared name has no food, so that loop would publish a line every viewer can
+ * read — the opposite of what this recipe exists to show. `ensurePrivateFoodRecipe` creates it instead, together
+ * with its food, and the line's `name` here is the FOOD's name, which is how `toCreateRequest` finds its binding.
+ *
+ * ⚠️ Its times are longer than the risotto's on purpose. `recipes/accessibility.yaml` waits for the risotto in the
+ * Discover rails with no search, so this recipe must sort behind it in every rail: behind it in "Quick" by total
+ * time, and in "New" (and "Trending" on a tie) because `provision` publishes this recipe first.
+ */
+export const PRIVATE_FOOD_RECIPE: FixtureRecipeDefinition = {
+    key: 'privateFood',
+    owner: 'coAuthor',
+    baseTitle: 'Secret Recipe Crostini',
+    cuisine: 'Italian',
+    description: 'Toasted bread with a drizzle.',
+    visibility: 'public',
+    servings: 2,
+    prepTimeMinutes: 10,
+    cookTimeMinutes: 30,
+    totalTimeMinutes: 40,
+    ingredients: [{ name: PRIVATE_FOOD_NAME, quantity: 2, unit: 'tbsp' }],
+    steps: [
+        { instruction: 'Toast the bread slices until crisp.', timerSeconds: undefined },
+        { instruction: 'Drizzle each slice before serving.', timerSeconds: undefined },
+    ],
+};
+
+/**
+ * The fixed world. The names are plain letters and spaces, because the Maestro flow puts them inside a pattern, and they
+ * share no word with any text another flow types.
+ */
+export const DOWNGRADED_OWNER_WORLD: {
+    readonly recipe: FixtureRecipe;
+    readonly collectionName: string;
+} = Object.freeze({
+    recipe: Object.freeze({
+        key: 'downgradedStew',
+        owner: 'downgradedOwner',
+        baseTitle: 'Secret Stew',
+        title: 'Secret Stew',
+        cuisine: 'American',
+        description: 'A stew only its cook may see.',
+        visibility: 'private',
+        servings: 4,
+        prepTimeMinutes: 15,
+        cookTimeMinutes: 45,
+        totalTimeMinutes: 60,
+        ingredients: [{ name: 'beef chuck', quantity: 1, unit: 'lb' }],
+        steps: [
+            { instruction: 'Brown the beef in a heavy pot.', timerSeconds: undefined },
+            { instruction: 'Simmer until tender.', timerSeconds: undefined },
+        ],
+    } as const),
+    collectionName: 'Secret Dinners',
+});
+
+/**
+ * The env contract between this package, `runMaestroFlows.sh` and the flow YAML — ONE registry, so the
+ * producer and the consumers cannot drift.
+ *
+ * `packages/tools/repoGuards/__tests__/maestroFixtureVariables.test.ts` asserts SET EQUALITY in both
+ * directions: every `${E2E_…}` a flow interpolates is a key here, and every key here is referenced by at
+ * least one flow. A variable nothing reads is a fixture nothing needs; a variable nothing supplies renders
+ * as the literal text `${E2E_RECIPE_LAMB}` on screen and fails a flow for a reason that reads like an app
+ * defect.
+ */
+export const FIXTURE_ENV_KEYS = {
+    signInEmail: 'E2E_SIGNIN_EMAIL',
+    signInPassword: 'E2E_SIGNIN_PASSWORD',
+    coAuthorEmail: 'E2E_COAUTHOR_EMAIL',
+    erasureEmail: 'E2E_ERASURE_EMAIL',
+    probeIngredient: 'E2E_PROBE_INGREDIENT',
+    lamb: 'E2E_RECIPE_LAMB',
+    asparagus: 'E2E_RECIPE_ASPARAGUS',
+    salad: 'E2E_RECIPE_SALAD',
+    risotto: 'E2E_RECIPE_RISOTTO',
+    privateFoodRecipe: 'E2E_RECIPE_PRIVATE_FOOD',
+    privateFoodName: 'E2E_PRIVATE_FOOD_NAME',
+    capFoodPrefix: 'E2E_CAP_FOOD_PREFIX',
+    // The `roles` tier's users (plan 2026-10-14-009 D12), for `recipes/paidFeaturesByRole.yaml`. Read-only users with
+    // no lease, so the same address on every run and shard; it comes from the roster, never a literal.
+    roleDefaultEmail: 'E2E_ROLE_DEFAULT_EMAIL',
+    roleAdminEmail: 'E2E_ROLE_ADMIN_EMAIL',
+    rolePremiumEmail: 'E2E_ROLE_PREMIUM_EMAIL',
+    roleVipEmail: 'E2E_ROLE_VIP_EMAIL',
+    roleSuperuserEmail: 'E2E_ROLE_SUPERUSER_EMAIL',
+    // The DOWNGRADED OWNER (plan 2026-10-14-009 T2), for `recipes/makePublicConfirm.yaml`: its address and the fixed names
+    // of its private recipe and collection. Not run-scoped — it is seeded once and never reset.
+    roleDowngradedEmail: 'E2E_ROLE_DOWNGRADED_EMAIL',
+    downgradedRecipe: 'E2E_DOWNGRADED_RECIPE',
+    downgradedCollection: 'E2E_DOWNGRADED_COLLECTION',
+} as const;
+
+/** A key of {@link FIXTURE_ENV_KEYS}. */
+export type FixtureEnvKey = (typeof FIXTURE_ENV_KEYS)[keyof typeof FIXTURE_ENV_KEYS];
+
+/** A recipe with its run-scoped title resolved. */
+export interface FixtureRecipe extends FixtureRecipeDefinition {
+    /** `<baseTitle> <runKey>` — unique to this run, so no anchored selector can match another run's row. */
+    readonly title: string;
+}
+
+/** Everything one run's world is. Frozen: a manifest a caller can edit is a manifest that drifts. */
+export interface FixtureManifest {
+    readonly runKey: string;
+    /** The Maestro platform whose pool lanes this manifest names; it scopes which erasure subjects may be written out. */
+    readonly platform: MaestroPlatform;
+    readonly signInEmail: string;
+    readonly coAuthorEmail: string;
+    readonly password: string;
+    readonly probeIngredient: string;
+    readonly recipes: readonly FixtureRecipe[];
+    /** The co-author's public recipe bound to a private food. Kept apart from `recipes` — see {@link PRIVATE_FOOD_RECIPE}. */
+    readonly privateFoodRecipe: FixtureRecipe;
+    readonly privateFoodName: string;
+    /** `<CAP_FOOD_BASE_NAME> <runKey>` — what the cap flow types, and the start of every name in `capFoodNames`. */
+    readonly capFoodPrefix: string;
+    /** The signer's cap foods, `<capFoodPrefix> N` — see {@link CAP_FOOD_BASE_NAME}. */
+    readonly capFoodNames: readonly string[];
+}
+
+/**
+ * The run-scoped name of a fixture: a seeded recipe's title, or the cap foods' prefix.
+ *
+ * ⚠️ The run key goes at the END, not the front. Every flow that matches a title unanchored does so as a
+ * SUBSTRING, and several scroll to a row by its leading words — a prefix would break every one of them,
+ * while a suffix leaves the base title matchable and still makes the full string unique to this run. Pure.
+ */
+export function runScopedTitle(baseTitle: string, runKey: string): string {
+    return `${baseTitle} ${runKey}`;
+}
+
+/**
+ * Derive this run's world. Pure and deterministic: the same run key produces a byte-identical manifest in
+ * `provision` and in each of the ~35 `reset` processes, which is what lets separate commands agree on what the
+ * world should be without passing it between them.
+ *
+ * ⚠️ The ERASURE subject is deliberately not part of it. Each real erasure destroys its pool slot for good, so
+ * which slot a run erases is decided at lease time by what still exists (`firstAvailableSlot`), not derivable
+ * from anything a reset process knows — see {@link manifestToEnvLines}.
+ *
+ * ⛔ `platform` AND `shard` ARE REQUIRED, and neither may acquire a default. `signInEmail` is the address the DEVICE types into
+ * the login form, so a shard whose manifest named another shard's signer would drive its emulator as that
+ * shard's user while its API session was its own — the two shards would then delete each other's recipes
+ * through the per-flow reset. A default is a decision made silently for every caller that had not thought
+ * about it; a required parameter turns every call site into a place where somebody did.
+ *
+ * @param runKey - This run's fixture scope (already shard-scoped by `deriveRunKey`).
+ * @param platform - The Maestro platform whose pool lanes the manifest names (they are separate per platform).
+ * @param shard - The 1-based Maestro shard whose identities the manifest names.
+ */
+export function deriveFixtureManifest(runKey: string, platform: MaestroPlatform, shard: number): FixtureManifest {
+    const capFoodPrefix = runScopedTitle(CAP_FOOD_BASE_NAME, runKey);
+
+    return Object.freeze({
+        runKey,
+        platform,
+        signInEmail: maestroSlotForShard('signer', platform, shard).email,
+        coAuthorEmail: maestroSlotForShard('coauthor', platform, shard).email,
+        // The pool's password-bearing slots are created with it; the flows type it.
+        password: POOL_PASSWORD,
+        probeIngredient: UNATTACHED_PROBE_INGREDIENT,
+        privateFoodRecipe: Object.freeze({
+            ...PRIVATE_FOOD_RECIPE,
+            title: runScopedTitle(PRIVATE_FOOD_RECIPE.baseTitle, runKey),
+        }),
+        privateFoodName: PRIVATE_FOOD_NAME,
+        capFoodPrefix,
+        capFoodNames: Object.freeze(
+            Array.from({ length: MAX_SEARCH_FOOD_FILTERS }, (_, index) => `${capFoodPrefix} ${index + 1}`),
+        ),
+        recipes: Object.freeze(
+            SEED_WORLD.map((definition) =>
+                Object.freeze({ ...definition, title: runScopedTitle(definition.baseTitle, runKey) }),
+            ),
+        ),
+    });
+}
+
+/**
+ * The manifest as `KEY=VALUE` lines — the same stdout contract the retired `provisionSignInFixture` established, reused
+ * rather than replaced by a JSON one, so a shell reads it with `IFS='=' read` and nothing parses prose.
+ *
+ * Pure, and the ONLY place a manifest becomes environment: a second formatter would be a second answer to
+ * "what does the flow see".
+ *
+ * @param manifest - This run's world.
+ * @param erasureEmail - The subject `provision` leased, or `null` on a shard that leases none — only a platform's erasure
+ *     shard does (`maestroErasureSlots`). REQUIRED, with no default: `null` omits the key, and a default would decide
+ *     that silently for a caller that had not thought about which shard it is.
+ */
+export function manifestToEnvLines(manifest: FixtureManifest, erasureEmail: string | null): readonly string[] {
+    // ⛔ `accountErasure.yaml` REALLY erases whoever this names. Anything but a consumable pool slot of THIS manifest's
+    // platform — the signer every later flow signs in as, an address off the roster, or the OTHER platform's subject,
+    // which a different job holds the lane for — is refused here, before it reaches a flow.
+    if (
+        erasureEmail !== null &&
+        !maestroErasureSlots(manifest.platform, MAESTRO_ERASURE_SHARD).some(
+            (slot) => slot.email === erasureEmail.toLowerCase(),
+        )
+    ) {
+        throw new Error(
+            `${erasureEmail} is not a consumable maestro pool slot of this platform (${manifest.platform}), so no flow may erase it`,
+        );
+    }
+
+    const byKey = new Map(manifest.recipes.map((recipe) => [recipe.key, recipe.title]));
+
+    return [
+        `${FIXTURE_ENV_KEYS.signInEmail}=${manifest.signInEmail}`,
+        `${FIXTURE_ENV_KEYS.signInPassword}=${manifest.password}`,
+        `${FIXTURE_ENV_KEYS.coAuthorEmail}=${manifest.coAuthorEmail}`,
+        ...(erasureEmail === null ? [] : [`${FIXTURE_ENV_KEYS.erasureEmail}=${erasureEmail}`]),
+        `${FIXTURE_ENV_KEYS.probeIngredient}=${manifest.probeIngredient}`,
+        `${FIXTURE_ENV_KEYS.lamb}=${byKey.get('lamb') ?? ''}`,
+        `${FIXTURE_ENV_KEYS.asparagus}=${byKey.get('asparagus') ?? ''}`,
+        `${FIXTURE_ENV_KEYS.salad}=${byKey.get('salad') ?? ''}`,
+        `${FIXTURE_ENV_KEYS.risotto}=${byKey.get('risotto') ?? ''}`,
+        `${FIXTURE_ENV_KEYS.privateFoodRecipe}=${manifest.privateFoodRecipe.title}`,
+        `${FIXTURE_ENV_KEYS.privateFoodName}=${manifest.privateFoodName}`,
+        `${FIXTURE_ENV_KEYS.capFoodPrefix}=${manifest.capFoodPrefix}`,
+        `${FIXTURE_ENV_KEYS.roleDefaultEmail}=${slotFor('roles', ROLE_LANE_IDS.default).email}`,
+        `${FIXTURE_ENV_KEYS.roleAdminEmail}=${slotFor('roles', ROLE_LANE_IDS.admin).email}`,
+        `${FIXTURE_ENV_KEYS.rolePremiumEmail}=${slotFor('roles', ROLE_LANE_IDS.premium).email}`,
+        `${FIXTURE_ENV_KEYS.roleVipEmail}=${slotFor('roles', ROLE_LANE_IDS.vip).email}`,
+        `${FIXTURE_ENV_KEYS.roleSuperuserEmail}=${slotFor('roles', ROLE_LANE_IDS.superuser).email}`,
+        `${FIXTURE_ENV_KEYS.roleDowngradedEmail}=${slotFor('roles', DOWNGRADED_OWNER_LANE_ID).email}`,
+        `${FIXTURE_ENV_KEYS.downgradedRecipe}=${DOWNGRADED_OWNER_WORLD.recipe.title}`,
+        `${FIXTURE_ENV_KEYS.downgradedCollection}=${DOWNGRADED_OWNER_WORLD.collectionName}`,
+    ];
+}

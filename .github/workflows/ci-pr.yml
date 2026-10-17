@@ -5,13 +5,39 @@ on:
     pull_request:
         branches: [main]
 
-concurrency:
-    group: ci-pr-${{ github.ref }}
-    cancel-in-progress: true
+# Declared rather than inherited: with no `permissions:` block a workflow gets the repository's DEFAULT
+# token scope, which for a public repo can be read-all and is set OUTSIDE this file — so the pipeline's
+# privilege would change without a diff here.
+permissions:
+    contents: read
 
 jobs:
     ci:
         uses: ./.github/workflows/_ci.yml
+        # A called workflow can only DOWNGRADE what its caller grants, so `id-token: write` has to be
+        # granted here: `_ci.yml`'s jobs sign in to AWS through `awsAuth` on the non-prod OIDC role (ADR-0063), and
+        # the web shards exchange the same kind of token for their secretless Argos credential. Scoped to this job
+        # (not the workflow) so it is not ambiently available. `contents: read` is restated because a job-level
+        # block REPLACES the workflow default.
+        permissions:
+            contents: read
+            id-token: write # awsAuth and Argos in _ci.yml (a callee only downgrades)
+            # ⛔ A callee can only downgrade, so omitting this rejects the whole run (`startup_failure`).
+            actions: read # mobile-app-build reuses an earlier run's test app artifact
+            # ⛔ Granted for `_ci.yml`'s `infra-shared` job, which publishes the shared CDK constructs as a
+            # prerelease when they change. Without it that job cannot write to GitHub Packages and every CDK
+            # app in the run silently compiles against the LAST PUBLISHED construct instead of this branch's.
+            # Same rule as `id-token` above: a callee can only downgrade, so it has to be granted here.
+            packages: write # zizmor: ignore[use-trusted-publishing]
         with:
             stage: sandbox
-        secrets: inherit
+        # Explicit, not `inherit`: pass ONLY what a pull request's run uses, instead of exposing every repository
+        # secret to the called workflow. ⛔ NO AWS KEY: every job signs in through `awsAuth`.
+        secrets:
+            # Forwarded because `_ci.yml`'s queue-guarantee tier reads the cron monitor. Declaring it there
+            # without passing it here would leave the reference resolving to an empty string — the tier
+            # would skip, and the job would stay green while proving nothing.
+            SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+            # Forwarded because the deployed web tier refuses a preview it cannot prove current, and without the token
+            # it cannot ask Vercel (`webPreviewCurrencyGate.test.ts` checks this hop).
+            VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

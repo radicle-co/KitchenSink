@@ -92,12 +92,12 @@ N/A — Stateless
 
 #### Error Handling & Return Codes
 
-| Error               | Code | Trigger                              | Recovery Action                  |
-| ------------------- | ---- | ------------------------------------ | -------------------------------- |
-| `AuthCallbackError` | 400  | Invalid or missing `code` parameter  | Show error page, link to login   |
-| `AuthCallbackError` | 400  | State mismatch (CSRF)                | Log suspected attack, show error |
-| `AuthCallbackError` | 500  | Token exchange fails (network/IdP)   | Show generic error, retry link   |
-| `AuthCallbackError` | 500  | JWT decode fails                     | Clear session, redirect to login |
+| Error               | Code | Trigger                             | Recovery Action                  |
+| ------------------- | ---- | ----------------------------------- | -------------------------------- |
+| `AuthCallbackError` | 400  | Invalid or missing `code` parameter | Show error page, link to login   |
+| `AuthCallbackError` | 400  | State mismatch (CSRF)               | Log suspected attack, show error |
+| `AuthCallbackError` | 500  | Token exchange fails (network/IdP)  | Show generic error, retry link   |
+| `AuthCallbackError` | 500  | JWT decode fails                    | Clear session, redirect to login |
 
 ---
 
@@ -344,12 +344,12 @@ N/A — Stateless
 
 #### Internal Data Structures
 
-| Field                | Type   | Size/Constraints             | Initialization      | Lifecycle              |
-| -------------------- | ------ | ---------------------------- | ------------------- | ---------------------- |
-| `KEYS.ACCESS_TOKEN`  | string | const "access_token"         | Static              | Immutable              |
-| `KEYS.REFRESH_TOKEN` | string | const "refresh_token"        | Static              | Immutable              |
-| `SERVICE`            | string | const "com.ourcommise.auth" | Static              | Immutable              |
-| `value`              | string | JWT (variable)               | From IdP callback   | Written once per login |
+| Field                | Type   | Size/Constraints            | Initialization    | Lifecycle              |
+| -------------------- | ------ | --------------------------- | ----------------- | ---------------------- |
+| `KEYS.ACCESS_TOKEN`  | string | const "access_token"        | Static            | Immutable              |
+| `KEYS.REFRESH_TOKEN` | string | const "refresh_token"       | Static            | Immutable              |
+| `SERVICE`            | string | const "com.ourcommise.auth" | Static            | Immutable              |
+| `value`              | string | JWT (variable)              | From IdP callback | Written once per login |
 
 #### Error Handling & Return Codes
 
@@ -414,11 +414,11 @@ N/A — Stateless
 
 #### Error Handling & Return Codes
 
-| Error       | Code | Trigger                           | Recovery Action                 |
-| ----------- | ---- | --------------------------------- | ------------------------------- |
-| `AuthError` | 400  | IdP returns `error` param in URL  | Show error, allow retry         |
-| `AuthError` | 400  | State mismatch                    | Log CSRF attempt, show error    |
-| `AuthError` | 500  | Token exchange fails              | Show error, link to retry login |
+| Error       | Code | Trigger                          | Recovery Action                 |
+| ----------- | ---- | -------------------------------- | ------------------------------- |
+| `AuthError` | 400  | IdP returns `error` param in URL | Show error, allow retry         |
+| `AuthError` | 400  | State mismatch                   | Log CSRF attempt, show error    |
+| `AuthError` | 500  | Token exchange fails             | Show error, link to retry login |
 
 ---
 
@@ -463,18 +463,18 @@ N/A — Stateless
 
 #### Internal Data Structures
 
-| Field           | Type       | Size/Constraints            | Initialization             | Lifecycle      |
-| --------------- | ---------- | --------------------------- | -------------------------- | -------------- |
-| `providers`     | Provider[] | Array of { id, name, icon } | Static config              | Immutable      |
-| `idpLoginUrl`   | string     | IdP hosted login URL        | Built per request          | One-time use   |
-| `auth_state`    | string     | 32-byte hex CSRF            | Generated per social login | Validated once |
+| Field         | Type       | Size/Constraints            | Initialization             | Lifecycle      |
+| ------------- | ---------- | --------------------------- | -------------------------- | -------------- |
+| `providers`   | Provider[] | Array of { id, name, icon } | Static config              | Immutable      |
+| `idpLoginUrl` | string     | IdP hosted login URL        | Built per request          | One-time use   |
+| `auth_state`  | string     | 32-byte hex CSRF            | Generated per social login | Validated once |
 
 #### Error Handling & Return Codes
 
-| Error       | Code | Trigger                              | Recovery Action                      |
-| ----------- | ---- | ------------------------------------ | ------------------------------------ |
-| `AuthError` | —    | IdP returns error in callback        | Show error message                   |
-| `AuthError` | —    | Provider not configured in tenant    | Log config issue, show generic error |
+| Error       | Code | Trigger                           | Recovery Action                      |
+| ----------- | ---- | --------------------------------- | ------------------------------------ |
+| `AuthError` | —    | IdP returns error in callback     | Show error message                   |
+| `AuthError` | —    | Provider not configured in tenant | Log config issue, show generic error |
 
 ---
 
@@ -536,11 +536,11 @@ LoggedOut --> [*]
 
 #### Error Handling & Return Codes
 
-| Error                     | Code | Trigger                              | Recovery Action                   |
-| ------------------------- | ---- | ------------------------------------ | --------------------------------- |
-| `AuthSessionExpiredError` | 401  | Refresh token revoked or expired     | clearSession(), redirect to login |
-| `AuthError`               | —    | IdP token endpoint fails (non-401)   | Retry with backoff (max 3)        |
-| `TypeError`               | —    | Network failure                      | Retry with exponential backoff    |
+| Error                     | Code | Trigger                            | Recovery Action                   |
+| ------------------------- | ---- | ---------------------------------- | --------------------------------- |
+| `AuthSessionExpiredError` | 401  | Refresh token revoked or expired   | clearSession(), redirect to login |
+| `AuthError`               | —    | IdP token endpoint fails (non-401) | Retry with backoff (max 3)        |
+| `TypeError`               | —    | Network failure                    | Retry with exponential backoff    |
 
 ---
 
@@ -587,17 +587,17 @@ LoggedOut --> [*]
 
 #### Internal Data Structures
 
-| Field          | Type   | Size/Constraints                | Initialization      | Lifecycle               |
-| -------------- | ------ | ------------------------------- | ------------------- | ----------------------- |
-| `refreshToken` | string | Opaque token from IdP           | Stored in Keychain  | Rotated on each refresh |
-| `newTokens`    | Tokens | `{ accessToken, refreshToken }` | From IdP response   | Stored in Keychain      |
+| Field          | Type   | Size/Constraints                | Initialization     | Lifecycle               |
+| -------------- | ------ | ------------------------------- | ------------------ | ----------------------- |
+| `refreshToken` | string | Opaque token from IdP           | Stored in Keychain | Rotated on each refresh |
+| `newTokens`    | Tokens | `{ accessToken, refreshToken }` | From IdP response  | Stored in Keychain      |
 
 #### Error Handling & Return Codes
 
-| Error                     | Code | Trigger                    | Recovery Action                        |
-| ------------------------- | ---- | -------------------------- | -------------------------------------- |
-| `AuthSessionExpiredError` | —    | `invalid_grant` from IdP   | clearTokens(), navigate to login       |
-| `AuthError`               | —    | Network failure            | Retry with exponential backoff (max 3) |
+| Error                     | Code | Trigger                  | Recovery Action                        |
+| ------------------------- | ---- | ------------------------ | -------------------------------------- |
+| `AuthSessionExpiredError` | —    | `invalid_grant` from IdP | clearTokens(), navigate to login       |
+| `AuthError`               | —    | Network failure          | Retry with exponential backoff (max 3) |
 
 ---
 
@@ -660,19 +660,19 @@ UpdatingAppMetadata --> [*]: Error — logged to Sentry, IdP retries handler
 
 #### Internal Data Structures
 
-| Field             | Type   | Size/Constraints                       | Initialization           | Lifecycle               |
-| ----------------- | ------ | -------------------------------------- | ------------------------ | ----------------------- |
-| `identityUserId`  | string | IdP user ID (sub claim)                | From `event.user.id`     | Immutable               |
-| `userId`          | string | UUIDv4                                 | `crypto.randomUUID()`    | Written to app_metadata |
-| `app_metadata`    | object | `{ userId: string }`                   | Set on IdP user record   | Persisted to IdP        |
+| Field            | Type   | Size/Constraints        | Initialization         | Lifecycle               |
+| ---------------- | ------ | ----------------------- | ---------------------- | ----------------------- |
+| `identityUserId` | string | IdP user ID (sub claim) | From `event.user.id`   | Immutable               |
+| `userId`         | string | UUIDv4                  | `crypto.randomUUID()`  | Written to app_metadata |
+| `app_metadata`   | object | `{ userId: string }`    | Set on IdP user record | Persisted to IdP        |
 
 #### Error Handling & Return Codes
 
-| Error         | Code | Trigger                            | Recovery Action                      |
-| ------------- | ---- | ---------------------------------- | ------------------------------------ |
-| `ActionError` | —    | Lambda unreachable after 3 retries | IdP retries handler (built-in)       |
-| `ActionError` | —    | Lambda returns non-200 non-5xx     | Sentry capture, no retry        |
-| `ActionError` | —    | UUID write to app_metadata fails   | IdP retries handler             |
+| Error         | Code | Trigger                            | Recovery Action                |
+| ------------- | ---- | ---------------------------------- | ------------------------------ |
+| `ActionError` | —    | Lambda unreachable after 3 retries | IdP retries handler (built-in) |
+| `ActionError` | —    | Lambda returns non-200 non-5xx     | Sentry capture, no retry       |
+| `ActionError` | —    | UUID write to app_metadata fails   | IdP retries handler            |
 
 ---
 
@@ -720,12 +720,12 @@ N/A — Stateless (Lambda invocation model)
 
 #### Internal Data Structures
 
-| Field                 | Type   | Size/Constraints     | Initialization        | Lifecycle                  |
-| --------------------- | ------ | -------------------- | --------------------- | -------------------------- |
-| `users.id`            | UUIDv4 | Primary key          | Generated by Lambda   | Permanent                  |
-| `users.identity_id`   | string | Unique constraint    | From event payload    | Maps IdP ↔ Commise       |
-| `accounts.id`         | UUIDv4 | Primary key          | Generated per account | Permanent                  |
-| `accounts.user_id`    | UUIDv4 | Foreign key to users | Set on insert         | Immutable                  |
+| Field               | Type   | Size/Constraints     | Initialization        | Lifecycle          |
+| ------------------- | ------ | -------------------- | --------------------- | ------------------ |
+| `users.id`          | UUIDv4 | Primary key          | Generated by Lambda   | Permanent          |
+| `users.identity_id` | string | Unique constraint    | From event payload    | Maps IdP ↔ Commise |
+| `accounts.id`       | UUIDv4 | Primary key          | Generated per account | Permanent          |
+| `accounts.user_id`  | UUIDv4 | Foreign key to users | Set on insert         | Immutable          |
 
 #### Error Handling & Return Codes
 
@@ -795,11 +795,11 @@ N/A — Stateless
 
 #### Internal Data Structures
 
-| Field               | Type        | Size/Constraints              | Initialization               | Lifecycle |
-| ------------------- | ----------- | ----------------------------- | ---------------------------- | --------- |
-| `idpIdSet`          | Set<string> | IdP user IDs                  | Built from IdP API response  | Per run   |
-| `dbIdentityIdSet`   | Set<string> | DB identity_id values         | Built from PostgreSQL query  | Per run   |
-| `missingInDb`       | IdpUser[]   | IdP users without DB record   | Computed set difference      | Per run   |
+| Field             | Type        | Size/Constraints            | Initialization              | Lifecycle |
+| ----------------- | ----------- | --------------------------- | --------------------------- | --------- |
+| `idpIdSet`        | Set<string> | IdP user IDs                | Built from IdP API response | Per run   |
+| `dbIdentityIdSet` | Set<string> | DB identity_id values       | Built from PostgreSQL query | Per run   |
+| `missingInDb`     | IdpUser[]   | IdP users without DB record | Computed set difference     | Per run   |
 
 #### Error Handling & Return Codes
 
@@ -1178,18 +1178,18 @@ Failed --> [*]
 
 #### Internal Data Structures
 
-| Field        | Type   | Size/Constraints                | Initialization       | Lifecycle                |
-| ------------ | ------ | ------------------------------- | -------------------- | ------------------------ |
-| `userId`     | string | UUIDv4                          | From JWT `sub` claim | Permanent record         |
-| `idpToken`   | string | OAuth2 client credentials token | Fetched per request  | Cached until near-expiry |
+| Field      | Type   | Size/Constraints                | Initialization       | Lifecycle                |
+| ---------- | ------ | ------------------------------- | -------------------- | ------------------------ |
+| `userId`   | string | UUIDv4                          | From JWT `sub` claim | Permanent record         |
+| `idpToken` | string | OAuth2 client credentials token | Fetched per request  | Cached until near-expiry |
 
 #### Error Handling & Return Codes
 
-| Error           | Code | Trigger                    | Recovery Action                                          |
-| --------------- | ---- | -------------------------- | -------------------------------------------------------- |
-| `DeletionError` | 500  | PostgreSQL delete fails    | Return 500, data may be partially deleted                |
-| `DeletionError` | 500  | IdP Backend API fails      | Log to Sentry, return 500. IdP may have orphaned user.   |
-| `Error`         | 500  | Network failure            | Lambda retries via SQS DLQ                               |
+| Error           | Code | Trigger                 | Recovery Action                                        |
+| --------------- | ---- | ----------------------- | ------------------------------------------------------ |
+| `DeletionError` | 500  | PostgreSQL delete fails | Return 500, data may be partially deleted              |
+| `DeletionError` | 500  | IdP Backend API fails   | Log to Sentry, return 500. IdP may have orphaned user. |
+| `Error`         | 500  | Network failure         | Lambda retries via SQS DLQ                             |
 
 ---
 
@@ -1218,9 +1218,9 @@ N/A — Stateless (static component, no state)
 
 #### Internal Data Structures
 
-| Field           | Type   | Size/Constraints       | Initialization | Lifecycle |
-| --------------- | ------ | ---------------------- | -------------- | --------- |
-| `idpResetUrl`   | string | IdP hosted reset URL   | Static const   | Immutable |
+| Field         | Type   | Size/Constraints     | Initialization | Lifecycle |
+| ------------- | ------ | -------------------- | -------------- | --------- |
+| `idpResetUrl` | string | IdP hosted reset URL | Static const   | Immutable |
 
 #### Error Handling & Return Codes
 
@@ -1278,9 +1278,9 @@ N/A — Stateless (React component)
 
 #### Internal Data Structures
 
-| Field    | Type   | Size/Constraints         | Initialization   | Lifecycle                |
-| -------- | ------ | ------------------------ | ---------------- | ------------------------ |
-| `mfaUrl` | string | IdP MFA enrollment URL   | Fetched from API | Used once per enrollment |
+| Field    | Type   | Size/Constraints       | Initialization   | Lifecycle                |
+| -------- | ------ | ---------------------- | ---------------- | ------------------------ |
+| `mfaUrl` | string | IdP MFA enrollment URL | Fetched from API | Used once per enrollment |
 
 #### Error Handling & Return Codes
 
@@ -1343,7 +1343,7 @@ N/A — Stateless
 | Field             | Type     | Size/Constraints | Initialization                       | Lifecycle                 |
 | ----------------- | -------- | ---------------- | ------------------------------------ | ------------------------- |
 | `linkedProviders` | string[] | From DB          | Fetched per request                  | Updated after link/unlink |
-| `idpUserId`       | string   | IdP user ID   | Looked up from users table by userId | Immutable                 |
+| `idpUserId`       | string   | IdP user ID      | Looked up from users table by userId | Immutable                 |
 
 #### Error Handling & Return Codes
 
@@ -1690,19 +1690,19 @@ N/A — Stateless
 
 #### Internal Data Structures
 
-| Field               | Type    | Size/Constraints                                  | Initialization              | Lifecycle          |
-| ------------------- | ------- | ------------------------------------------------- | --------------------------- | ------------------ |
-| `idpUser.blocked`   | boolean | From IdP Backend API                           | Fetched per check           | Real-time          |
-| `dbStatus`          | string  | "active" \| "suspended"                           | From users table            | Cached at DB level |
-| `reason`            | string  | One of: idp_blocked, db_suspended, check_failed   | Set on suspension detection | Per check          |
+| Field             | Type    | Size/Constraints                                | Initialization              | Lifecycle          |
+| ----------------- | ------- | ----------------------------------------------- | --------------------------- | ------------------ |
+| `idpUser.blocked` | boolean | From IdP Backend API                            | Fetched per check           | Real-time          |
+| `dbStatus`        | string  | "active" \| "suspended"                         | From users table            | Cached at DB level |
+| `reason`          | string  | One of: idp_blocked, db_suspended, check_failed | Set on suspension detection | Per check          |
 
 #### Error Handling & Return Codes
 
-| Error   | Code | Trigger                          | Recovery Action                         |
-| ------- | ---- | -------------------------------- | --------------------------------------- |
-| `Error` | —    | IdP Backend API unreachable   | Fail-secure: return `isSuspended: true` |
-| `Error` | —    | PostgreSQL unreachable           | Fail-secure: return `isSuspended: true` |
-| `Error` | —    | User not found in DB             | Fail-secure: return `isSuspended: true` |
+| Error   | Code | Trigger                     | Recovery Action                         |
+| ------- | ---- | --------------------------- | --------------------------------------- |
+| `Error` | —    | IdP Backend API unreachable | Fail-secure: return `isSuspended: true` |
+| `Error` | —    | PostgreSQL unreachable      | Fail-secure: return `isSuspended: true` |
+| `Error` | —    | User not found in DB        | Fail-secure: return `isSuspended: true` |
 
 ---
 
@@ -1760,11 +1760,11 @@ N/A — Stateless
 
 #### Internal Data Structures
 
-| Field         | Type   | Size/Constraints          | Initialization             | Lifecycle                    |
-| ------------- | ------ | ------------------------- | -------------------------- | ---------------------------- |
-| `userId`      | string | UUIDv4                    | From path parameter        | Looked up in DB              |
-| `action`      | string | "suspend" \| "reactivate" | From path parameter        | Determines IdP + DB update   |
-| `idpUserId`   | string | IdP user ID               | Looked up from users table | Immutable                    |
+| Field       | Type   | Size/Constraints          | Initialization             | Lifecycle                  |
+| ----------- | ------ | ------------------------- | -------------------------- | -------------------------- |
+| `userId`    | string | UUIDv4                    | From path parameter        | Looked up in DB            |
+| `action`    | string | "suspend" \| "reactivate" | From path parameter        | Determines IdP + DB update |
+| `idpUserId` | string | IdP user ID               | Looked up from users table | Immutable                  |
 
 #### Error Handling & Return Codes
 

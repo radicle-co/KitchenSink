@@ -12,6 +12,8 @@ import type { LocalizedMessages } from '@commise/i18n';
 export interface AccountCloseMessages {
     /** Label of the danger-zone control that opens the close confirmation. */
     readonly trigger: string;
+    /** The hint under the Profile row (`buildSpec.md` §9.1): what closing does, in one line. */
+    readonly rowHint: string;
     /** Confirmation title / accessible name. */
     readonly title: string;
     /** Body copy — MUST convey that this is recoverable and NOT permanent deletion. */
@@ -24,12 +26,18 @@ export interface AccountCloseMessages {
     readonly busyLabel: string;
     /** Error shown when closing fails, so it never silently stops (B17). */
     readonly error: string;
+    /** The row's label once the account is closed but the sign-out failed (`buildSpec.md` §9.1). */
+    readonly closedLabel: string;
+    /** Alert under the group when the account IS closed and only the sign-out failed: never invites a second close. */
+    readonly signOutFailed: string;
 }
 
 /** Copy for account ERASURE — the IRREVERSIBLE action (GDPR erasure + Clerk delete; data destroyed). */
 export interface AccountEraseMessages {
     /** Label of the danger-zone control that opens the erasure dialog. */
     readonly trigger: string;
+    /** The hint under the Profile row (`buildSpec.md` §9.1): what erasing does, in one line. */
+    readonly rowHint: string;
     /** Dialog title / accessible name. */
     readonly title: string;
     /** The primary irreversibility warning. */
@@ -58,6 +66,12 @@ export interface AccountEraseMessages {
     readonly busyLabel: string;
     /** Error shown when starting the erasure fails, so it never silently stops (B17). */
     readonly error: string;
+    /**
+     * Alert under the row when the erasure WAS accepted (202) and only the sign-out failed (B17). It never invites a
+     * retry of the erasure, which would be a lie: the only outstanding action is leaving the session. Both apps render
+     * it beside their sign-out control; it used to be authored in each app's own dictionary.
+     */
+    readonly signOutFailed: string;
 }
 
 /** The shape of the account danger-zone's shared copy. */
@@ -72,6 +86,7 @@ export const accountDangerMessages: LocalizedMessages<AccountDangerMessages> = {
     en: {
         close: {
             trigger: 'Close account',
+            rowHint: 'Signs you out and deactivates your account. Support can restore it.',
             title: 'Close account?',
             description:
                 'Closing signs you out and deactivates your account. Your recipes and data are kept, and you ' +
@@ -81,13 +96,18 @@ export const accountDangerMessages: LocalizedMessages<AccountDangerMessages> = {
             cancel: 'Cancel',
             busyLabel: 'Closing…',
             error: 'We couldn’t close your account. Please try again.',
+            closedLabel: 'Account closed',
+            signOutFailed:
+                'Your account is closed, but we couldn’t sign you out. Sign out to finish leaving this account.',
         },
         erase: {
             trigger: 'Erase my data',
+            rowHint: 'Permanently deletes your account and personal data.',
             title: 'Erase my data',
             warning:
-                'This permanently erases your account and personal data, including your private recipes, ' +
-                'ratings, and collections. It cannot be undone.',
+                'This permanently deletes your account and erases your personal data everywhere we hold it — ' +
+                'your sign-in, your profile and photo, and your private recipes, ratings and collections. ' +
+                'You will be signed out and will not be able to sign in again. It cannot be undone.',
             distinction:
                 'This is not the same as closing your account: closing is recoverable, but erasing destroys ' +
                 'your data for good and cannot be reversed.',
@@ -106,6 +126,8 @@ export const accountDangerMessages: LocalizedMessages<AccountDangerMessages> = {
             cancel: 'Cancel',
             busyLabel: 'Erasing…',
             error: 'We couldn’t start erasing your data. Please try again.',
+            signOutFailed:
+                'Your data is being erased, but we couldn’t sign you out. Sign out to finish leaving this account.',
         },
     },
 };

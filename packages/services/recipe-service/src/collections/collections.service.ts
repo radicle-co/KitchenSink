@@ -11,47 +11,67 @@
  * never the recipes themselves — a recipe in multiple collections survives the delete of any one.
  */
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { RecipeCollectionAddedVia, type PaginatedResponse } from '@kitchensink/recipe-core';
+import { RecipeCollectionAddedVia, recipeVisibilitySchema, type RecipeVisibility } from '@kitchensink/recipe-core';
 
+import { assertNotContained } from '../common/containment.error.js';
+import type { ActingPrincipal, TieredActingPrincipal } from '../auth/principal.js';
 import { toPageEnvelope } from '../common/pagination.js';
-import {
-    COLLECTION_VISIBILITIES,
-    type CollectionRow,
-    type CollectionVisibility,
-} from '../database/schema/collections.js';
-import { AuthorHandlesDal } from '../authors/dal/author-handles.dal.js';
+import { resolveCdnUrl } from '../photos/photoView.js';
+import { RECIPE_PHOTOS_CDN_URL } from '../recipes/recipes.tokens.js';
+import type { CollectionRow } from '../database/schema/collections.js';
+import { AuthorHandlesDal } from '../authors/dal/authorHandles.dal.js';
+import { AnalyticsService } from '../analytics/analytics.service.js';
 import { CollectionsDal } from './dal/collections.dal.js';
-import { isRecipeViewableBy } from '../recipes/domain/recipe-visibility.js';
-import { recipeRowToDomain } from '../recipes/mappers/recipe-row-to-domain.js';
+import { isRecipeViewableBy } from '../recipes/domain/recipeVisibility.js';
+import { recipeRowToDomain } from '../recipes/mappers/recipeRowToDomain.js';
 import {
     collectionNotClonedError,
     collectionNotOwnedError,
     invalidVisibilityError,
+    privateCollectionNotPermittedError,
     pullDriftError,
     recipeNotFoundError,
 } from './collections.errors.js';
-import { computePullDiff, pullDiffsAgree, type PullDiff } from './domain/pull-diff.js';
+import { defaultCollectionVisibility, evaluateCollectionVisibility } from './domain/collectionVisibilityPolicy.js';
+import { computePullDiff, pullDiffsAgree } from './domain/pullDiff.js';
+import { COLLECTION_COVER_LIMIT } from './collections.schema.js';
 import type {
-    CloneCollectionInput,
+    CloneCollectionRequest,
+    CollectionListItem,
+    CollectionListResponse,
     CollectionRecipeMembershipResponse,
     CollectionResponse,
     CollectionWithRecipesResponse,
-    CreateCollectionInput,
-    PageParams,
-    PullFromSourceResult,
-    UpdateCollectionInput,
-} from './collections.types.js';
+    CreateCollectionRequest,
+    ListCollectionsQuery,
+    PullDiff,
+    PullFromSourceResponse,
+    UpdateCollectionRequest,
+} from './collections.schema.js';
 
 /** REQ-049b — the hard cap on collections a single owner may hold, enforced by {@link CollectionsService.createCollection}. */
 export const MAX_COLLECTIONS_PER_OWNER = 50;
 
-/** Map a `collections` row to the `Collection` wire shape (ISO dates; nulls → absent). */
-function toCollectionResponse(row: CollectionRow, recipeCount?: number): CollectionResponse {
+/**
+ * Map a `collections` row to the `Collection` wire shape (ISO dates; nulls → absent).
+ *
+ * The `visibility` cast crosses the STORAGE→WIRE boundary deliberately and in one direction: the column is
+ * `text` (guarded by a DB `CHECK`), and the wire type is `recipe-core`'s `RecipeVisibility`. It is cast to
+ * the WIRE type, never to drizzle's `CollectionVisibility` — a storage type must not be what the contract
+ * says (the drift this vertical's schema settled). The two value sets are tied together by
+ * `COLLECTION_VISIBILITIES … satisfies readonly RecipeVisibility[]` in the drizzle schema, so a divergence
+ * fails the build there rather than silently here.
+ */
+function toCollectionResponse(
+    row: CollectionRow,
+    sourceOwnerUsernames: ReadonlyMap<string, string>,
+    recipeCount?: number,
+): CollectionResponse {
     const response: CollectionResponse = {
         id: row.id,
         ownerId: row.ownerId,
         name: row.name,
-        visibility: row.visibility as CollectionVisibility,
+        visibility: row.visibility as RecipeVisibility,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
     };
@@ -60,11 +80,19 @@ function toCollectionResponse(row: CollectionRow, recipeCount?: number): Collect
         ...response,
         ...(row.description !== null ? { description: row.description } : {}),
         ...(row.sourceCollectionId !== null ? { sourceCollectionId: row.sourceCollectionId } : {}),
-        ...(row.sourceOwnerHandle !== null ? { sourceOwnerHandle: row.sourceOwnerHandle } : {}),
+        ...(row.sourceOwnerDisplayName !== null ? { sourceOwnerDisplayName: row.sourceOwnerDisplayName } : {}),
+        ...usernameOf(row, sourceOwnerUsernames),
         ...(row.sourceCollectionName !== null ? { sourceCollectionName: row.sourceCollectionName } : {}),
         ...(row.lastPulledAt !== null ? { lastPulledAt: row.lastPulledAt.toISOString() } : {}),
         ...(recipeCount !== undefined ? { recipeCount } : {}),
     };
+}
+
+/** The `sourceOwnerUsername` field for one row, when its source owner has one. Pure. */
+function usernameOf(row: CollectionRow, usernames: ReadonlyMap<string, string>): { sourceOwnerUsername?: string } {
+    const username = row.sourceCollectionId === null ? undefined : usernames.get(row.sourceCollectionId);
+
+    return username === undefined ? {} : { sourceOwnerUsername: username };
 }
 
 @Injectable()
@@ -72,10 +100,17 @@ export class CollectionsService {
     public constructor(
         @Inject(CollectionsDal) private readonly dal: CollectionsDal,
         @Inject(AuthorHandlesDal) private readonly authorHandles: AuthorHandlesDal,
+        // Required, not optional: every construction site must decide what analytics receives (the
+        // 015 plan's compile-error philosophy for load-bearing new collaborators).
+        @Inject(AnalyticsService) private readonly analytics: AnalyticsService,
+        // The CDN base a member's cover key resolves against — the one the recipe reads use (`RECIPE_PHOTOS_CDN_URL`).
+        @Inject(RECIPE_PHOTOS_CDN_URL) private readonly photosCdnUrl: string,
     ) {}
 
     /**
-     * Create a collection owned by `ownerId`. Visibility defaults to `private` (FR-010).
+     * Create a collection owned by `owner`. Visibility defaults by tier (owner 2026-10-13): `private` for a premium cook
+     * (FR-010), `public` for a free-tier one, who may not hold a private collection at all — see
+     * {@link evaluateCollectionVisibility}.
      *
      * REQ-049b: an owner may hold at most {@link MAX_COLLECTIONS_PER_OWNER} collections. Delegates to
      * {@link CollectionsDal.createIfUnderCap}, which enforces the cap ATOMICALLY (COUNT + INSERT in one
@@ -85,28 +120,69 @@ export class CollectionsService {
      * @throws `COLLECTION_LIMIT_REACHED` when the owner already holds {@link MAX_COLLECTIONS_PER_OWNER}
      *   collections.
      */
-    public async createCollection(ownerId: string, input: CreateCollectionInput): Promise<CollectionResponse> {
+    public async createCollection(
+        owner: TieredActingPrincipal,
+        input: CreateCollectionRequest,
+    ): Promise<CollectionResponse> {
+        const visibility = input.visibility ?? defaultCollectionVisibility(owner);
+
+        assertTierAllows(owner, visibility);
+
+        // ADR-0040: a public collection enters community discovery — refused for a contained test principal.
+        assertMayPublish(owner, visibility);
+
         const row = await this.dal.createIfUnderCap(
             {
-                ownerId,
+                ownerId: owner.userId,
                 name: input.name,
                 description: input.description,
-                visibility: input.visibility ?? 'private',
+                visibility,
             },
             MAX_COLLECTIONS_PER_OWNER,
         );
 
-        return toCollectionResponse(row);
+        return toCollectionResponse(row, await this.sourceUsernamesOf([row]));
+    }
+
+    /**
+     * The source owners' current usernames for the clones among `rows`, in ONE lookup — and none at all when no row
+     * is a clone, which is every collection a cook made themselves.
+     *
+     * @sideEffect Reads the database through the DAL when any row has a source.
+     */
+    private async sourceUsernamesOf(rows: readonly CollectionRow[]): Promise<ReadonlyMap<string, string>> {
+        const sourceIds = [
+            ...new Set(rows.flatMap((row) => (row.sourceCollectionId === null ? [] : [row.sourceCollectionId]))),
+        ];
+
+        return sourceIds.length === 0 ? new Map() : this.dal.sourceOwnerUsernames(sourceIds);
     }
 
     /** List the caller's own collections as a paginated envelope (newest first). */
-    public async listCollections(ownerId: string, page: PageParams): Promise<PaginatedResponse<CollectionResponse>> {
+    public async listCollections(ownerId: string, page: ListCollectionsQuery): Promise<CollectionListResponse> {
         const limit = page.pageSize;
         const offset = (page.page - 1) * page.pageSize;
         const { rows, total } = await this.dal.listByOwner(ownerId, limit, offset);
+        // The caller owns every collection listed, so they are the viewer the member summary is scoped to.
+        const summaries = await this.dal.memberSummaries(
+            rows.map((row) => row.id),
+            ownerId,
+        );
+        const usernames = await this.sourceUsernamesOf(rows);
+        const data = rows.map((row): CollectionListItem => {
+            const summary = summaries.get(row.id);
+
+            return {
+                ...toCollectionResponse(row, usernames),
+                recipeCount: summary?.recipeCount ?? 0,
+                coverPhotoUrls: (summary?.coverKeys ?? [])
+                    .slice(0, COLLECTION_COVER_LIMIT)
+                    .map((key) => resolveCdnUrl(this.photosCdnUrl, key)),
+            };
+        });
 
         return {
-            data: rows.map((row) => toCollectionResponse(row)),
+            data,
             ...toPageEnvelope({ total, page: page.page, pageSize: page.pageSize, rowCount: rows.length }),
         };
     }
@@ -121,45 +197,67 @@ export class CollectionsService {
         // checkbox, C3) — the canonical `Recipe` Data Mapper (S-R4) plus the DAL row's `addedVia`, nothing
         // more. `coverPhotoUrl` is deliberately NOT resolved here — no cover LATERAL runs on this embed —
         // so it stays absent; the collection card owns its no-image visual until a cover path is added.
-        const recipes = recipeRows.map((row) => ({ ...recipeRowToDomain(row), addedVia: row.addedVia }));
+        // This embed emits NO nutrition — see `rowToRecipe` in search.dal.ts for why a pinned "partial"
+        // flag was the wrong lie. Fetching it per member would be an N+1 on a collection page; a caller that
+        // needs the numbers asks `POST /api/v1/recipes/nutrition-batch` for the page's ids in one call.
+        const recipes = recipeRows.map((row) => ({
+            ...recipeRowToDomain(row),
+            addedVia: row.addedVia,
+        }));
 
-        return { ...toCollectionResponse(collection, recipes.length), recipes };
+        return {
+            ...toCollectionResponse(collection, await this.sourceUsernamesOf([collection]), recipes.length),
+            recipes,
+        };
     }
 
     /** Update an owned collection (name/description/visibility). Rejects an invalid visibility (FR-010). */
     public async updateCollection(
-        ownerId: string,
+        owner: TieredActingPrincipal,
         id: string,
-        patch: UpdateCollectionInput,
+        patch: UpdateCollectionRequest,
     ): Promise<CollectionResponse> {
         if (patch.visibility !== undefined) {
             this.assertVisibility(patch.visibility);
+            assertMayPublish(owner, patch.visibility);
         }
 
-        await this.requireOwned(ownerId, id);
+        const existing = await this.requireOwned(owner.userId, id);
+
+        if (patch.visibility !== undefined) {
+            assertTierAllows(owner, patch.visibility, existing.visibility as RecipeVisibility);
+        }
+
         const row = await this.dal.update(id, patch);
 
         if (!row) {
             throw new NotFoundException('Collection not found');
         }
 
-        return toCollectionResponse(row);
+        return toCollectionResponse(row, await this.sourceUsernamesOf([row]));
     }
 
     /**
      * Set a collection's visibility (FR-010 / T140): a `public`↔`private` toggle, ownership-enforced,
      * with an invalid value rejected as INVALID_VISIBILITY (→ 400).
      */
-    public async setVisibility(ownerId: string, id: string, visibility: string): Promise<CollectionResponse> {
+    public async setVisibility(
+        owner: TieredActingPrincipal,
+        id: string,
+        visibility: string,
+    ): Promise<CollectionResponse> {
         this.assertVisibility(visibility);
-        await this.requireOwned(ownerId, id);
+        assertMayPublish(owner, visibility);
+        const existing = await this.requireOwned(owner.userId, id);
+
+        assertTierAllows(owner, visibility, existing.visibility as RecipeVisibility);
         const row = await this.dal.update(id, { visibility });
 
         if (!row) {
             throw new NotFoundException('Collection not found');
         }
 
-        return toCollectionResponse(row);
+        return toCollectionResponse(row, await this.sourceUsernamesOf([row]));
     }
 
     /** Delete an owned collection. No-cascade: the collection's recipes are not deleted. */
@@ -170,10 +268,12 @@ export class CollectionsService {
 
     /** Add an active recipe to an owned collection (idempotent). */
     public async addRecipe(
-        ownerId: string,
+        owner: ActingPrincipal,
         collectionId: string,
         recipeId: string,
     ): Promise<CollectionRecipeMembershipResponse> {
+        const ownerId = owner.userId;
+
         await this.requireOwned(ownerId, collectionId);
 
         const recipe = await this.dal.findActiveRecipe(recipeId);
@@ -187,7 +287,19 @@ export class CollectionsService {
             throw recipeNotFoundError(recipeId);
         }
 
-        const membership = await this.dal.addRecipe(collectionId, recipeId, RecipeCollectionAddedVia.MANUAL);
+        const { row: membership, created } = await this.dal.addRecipe(
+            collectionId,
+            recipeId,
+            RecipeCollectionAddedVia.MANUAL,
+        );
+
+        // U3 save capture — only a genuinely NEW membership is a save event. A replayed add minting
+        // credit would diverge save_count from this table permanently (R11) and let a user farm 015's
+        // recognition by re-adding the same recipe. Pull/clone paths correctly don't pass through here.
+        if (created) {
+            // ADR-0040: the ACTING principal, not a bare ULID — the analytics seam decides containment.
+            this.analytics.capture({ type: 'recipe_saved', actor: owner, recipeId });
+        }
 
         return {
             collectionId: membership.collectionId,
@@ -216,7 +328,7 @@ export class CollectionsService {
      * source edits reach it only through an explicit {@link pullFromSource}.
      *
      * **Source attribution is FROZEN at clone time** (W5 Task 2): the source's name and its owner's
-     * CURRENT display handle (resolved once, here, via {@link AuthorHandlesDal.findHandle}) are copied
+     * CURRENT display name (resolved once, here, via {@link AuthorHandlesDal.findByline}) are copied
      * onto the clone row and never resynced — a later rename of the source owner does NOT propagate
      * (CR-003: this is deliberate, not a missed sync). When the handle cannot be resolved yet (no
      * `author_handles` row for that owner), attribution degrades gracefully to the name only.
@@ -231,10 +343,11 @@ export class CollectionsService {
      * @sideEffect Inserts a `collections` row plus one `recipe_collections` row per seeded recipe.
      */
     public async cloneCollection(
-        clonerId: string,
+        cloner: TieredActingPrincipal,
         sourceId: string,
-        overrides: CloneCollectionInput = {},
+        overrides: CloneCollectionRequest = {},
     ): Promise<CollectionResponse> {
+        const clonerId = cloner.userId;
         const source = await this.dal.findById(sourceId);
 
         // 404 (not 403) for someone else's private collection: FR-011 clones PUBLIC collections, and a
@@ -243,10 +356,17 @@ export class CollectionsService {
             throw new NotFoundException('Collection not found');
         }
 
+        // ADR-0040 — AFTER the 404, so containment never confirms a private collection exists: a contained test
+        // principal may clone only its own. A foreign clone freezes a real user's handle onto a test row and ties it
+        // into that user's erasure (which rewrites every clone's source handle).
+        if (source.ownerId !== clonerId) {
+            assertNotContained(cloner, 'cloneForeign');
+        }
+
         const seedRecipes = await this.dal.listRecipes(sourceId, clonerId);
         // Frozen attribution (W5 Task 2): resolved ONCE, at clone time, from the CURRENT read model —
         // never re-read on a later source-owner rename (CR-003).
-        const sourceOwnerHandle = await this.authorHandles.findHandle(source.ownerId);
+        const sourceOwnerDisplayName = (await this.authorHandles.findByline(source.ownerId))?.displayName;
 
         // S-R1: the create + the bulk membership seed run in ONE transaction — a mid-seed failure (a
         // constraint violation, a dropped connection) must roll back the collection insert too, never
@@ -257,11 +377,12 @@ export class CollectionsService {
                     ownerId: clonerId,
                     name: overrides.name ?? source.name,
                     description: overrides.description ?? source.description ?? undefined,
-                    // A clone starts private regardless of the source's visibility — publishing is the
-                    // cloner's own, separate decision (FR-010).
-                    visibility: 'private',
+                    // A clone takes the cloner's tier default regardless of the source's visibility: private for a
+                    // premium cook (publishing is their own, separate decision, FR-010), public for a free-tier
+                    // one, who cannot hold a private collection (owner 2026-10-13).
+                    visibility: defaultCollectionVisibility(cloner),
                     sourceCollectionId: sourceId,
-                    sourceOwnerHandle: sourceOwnerHandle ?? null,
+                    sourceOwnerDisplayName: sourceOwnerDisplayName ?? null,
                     sourceCollectionName: source.name,
                 },
                 tx,
@@ -277,7 +398,7 @@ export class CollectionsService {
             return created;
         });
 
-        return toCollectionResponse(clone, seedRecipes.length);
+        return toCollectionResponse(clone, await this.sourceUsernamesOf([clone]), seedRecipes.length);
     }
 
     /**
@@ -298,7 +419,8 @@ export class CollectionsService {
      * @param ownerId - The app-user ULID of the clone's owner.
      * @param collectionId - The clone to reconcile.
      * @returns The resulting collection plus the recipe ids this pull added (empty when the source has
-     *   nothing new) — the `PullFromSourceResponse` shape fixed by `contracts/api.openapi.yaml`.
+     *   nothing new) — the `PullFromSourceResponse` shape fixed by `collections.schema.ts`, this
+     *   service's authored zod.
      * @throws NotFoundException when the collection is missing; NOT_OWNER (403) when not the caller's;
      *   COLLECTION_NOT_CLONED (400) when it has no source, or its source no longer exists.
      * @sideEffect Inserts `recipe_collections` rows for newly-pulled recipes.
@@ -307,7 +429,7 @@ export class CollectionsService {
         ownerId: string,
         collectionId: string,
         previewedDiff?: PullDiff,
-    ): Promise<PullFromSourceResult> {
+    ): Promise<PullFromSourceResponse> {
         const { sourceCollectionId } = await this.resolvePullContext(ownerId, collectionId);
 
         // Read BOTH memberships in one read-only, coherent snapshot and derive the diff via the SAME pure fn
@@ -336,7 +458,11 @@ export class CollectionsService {
         });
 
         return {
-            collection: toCollectionResponse(touched, cloneIds.length + diff.added.length),
+            collection: toCollectionResponse(
+                touched,
+                await this.sourceUsernamesOf([touched]),
+                cloneIds.length + diff.added.length,
+            ),
             addedRecipeIds: diff.added,
         };
     }
@@ -398,10 +524,65 @@ export class CollectionsService {
         return collection;
     }
 
-    /** Throw INVALID_VISIBILITY unless `value` is one of the allowed `public` | `private` values. */
-    private assertVisibility(value: string): void {
-        if (!(COLLECTION_VISIBILITIES as readonly string[]).includes(value)) {
+    /**
+     * Throw INVALID_VISIBILITY unless `value` is one of the allowed `public` | `private` values.
+     *
+     * WRITTEN AS A TYPE ASSERTION, and that is the point. The wire schema now narrows `visibility` to the
+     * enum, so it is tempting to read this check as dead — it is not: it is the service's INDEPENDENT
+     * enforcement of FR-010 / T140, and it is what keeps a caller that bypasses the validation pipe (a
+     * direct service call, a future internal path) from writing an unchecked value. Declaring it `asserts`
+     * means the runtime guard INFORMS the type system instead of contradicting it, which is what the old
+     * raw-`string` input type was really reaching for.
+     *
+     * The value set comes from `recipe-core`'s `recipeVisibilitySchema` rather than the drizzle
+     * `COLLECTION_VISIBILITIES` array: the domain owns the enum, and the drizzle constant already defers to
+     * it via `satisfies`.
+     */
+    private assertVisibility(value: string): asserts value is RecipeVisibility {
+        if (!recipeVisibilitySchema.safeParse(value).success) {
             throw invalidVisibilityError(value);
         }
+    }
+}
+
+/**
+ * Refuse a contained test principal's PUBLIC collection (ADR-0040). A no-op for any other visibility or principal.
+ *
+ * @param owner - The acting principal.
+ * @param visibility - The visibility being set.
+ * @throws {HttpException} `TEST_PRINCIPAL_CONTAINED` (403) when a contained test principal requests `public`.
+ */
+function assertMayPublish(owner: ActingPrincipal, visibility: string): void {
+    if (visibility !== 'public') {
+        return;
+    }
+
+    assertNotContained(owner, 'publish');
+}
+
+/**
+ * Refuse a visibility the cook's tier does not allow (owner 2026-10-13: a private collection is Premium). The rule is
+ * `evaluateCollectionVisibility`; this only turns its refusal into the 400.
+ *
+ * @param owner - The acting principal and its tier.
+ * @param visibility - The visibility being set.
+ * @param current - The collection's current visibility, on an update.
+ * @throws `INVALID_VISIBILITY` (400) carrying `requiredEntitlement: 'premium'` when the tier forbids it.
+ */
+function assertTierAllows(
+    owner: TieredActingPrincipal,
+    visibility: RecipeVisibility,
+    current?: RecipeVisibility,
+): void {
+    const decision = evaluateCollectionVisibility({
+        principalKind: owner.principalKind,
+        containment: owner.containment,
+        isPremium: owner.isPremium,
+        requested: visibility,
+        ...(current !== undefined ? { current } : {}),
+    });
+
+    if (!decision.allowed) {
+        throw privateCollectionNotPermittedError(decision.reason);
     }
 }

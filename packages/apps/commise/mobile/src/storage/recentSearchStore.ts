@@ -11,6 +11,9 @@
  * dev client that has not been rebuilt since this dependency was added) the recent-search shortcut is simply
  * absent, and search itself still works exactly as before.
  *
+ * Keys are per signed-in user and the user's entries end with their session (owner ruling 2026-10-17, D23 in
+ * `docs/design/uiOverhaul/ownerDecisions.md`); this file only stores what it is handed.
+ *
  * Module-level singleton on purpose: the store's identity is a `useEffect` dependency inside
  * `useRecentSearches`, so a fresh object per render would re-read storage on every render.
  */
@@ -45,6 +48,19 @@ export const nativeRecentSearchStore: RecentSearchStore = {
             await AsyncStorage.setItem(key, value);
         } catch {
             // Best-effort: a history we cannot persist is not an error worth surfacing.
+        }
+    },
+    /**
+     * Remove the history payload, silently doing nothing when the removal fails.
+     *
+     * @param key - The storage key.
+     * @sideEffect Removes the key from `AsyncStorage`.
+     */
+    removeItem: async (key: string): Promise<void> => {
+        try {
+            await AsyncStorage.removeItem(key);
+        } catch {
+            // Best-effort, like the rest of this store: a failed removal leaves a key namespaced to the signed-out user.
         }
     },
 };

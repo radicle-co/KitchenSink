@@ -1,0 +1,51 @@
+appId: ${APP_ID}
+---
+# The recipe list's grid/list choice is an ACCOUNT setting (owner ruling 2026-10-17, ADR-0059): the cook chooses a view,
+# the app saves it to the identity service, and a fresh launch reads it back. It used to be kept per device in
+# AsyncStorage under `recipes.viewMode`.
+#
+# A phone's width picks the LIST view until the cook chooses (nothing is stored for that default), so the flow chooses the
+# other one, GRID, to make the choice visible. Assumes the seeded library of the other list flows (3 recipes).
+#
+# ⚠️ WHAT THIS DOES NOT PROVE. It restarts the app but does not clear its state, so a device-side store would pass it too.
+# Clearing state forces a UI sign-in, which spends a shared Clerk email-code verification, and
+# `maestroFlowSelection.test.ts` holds that budget to the flows that test sign-in. That the choice is NOT kept on the
+# device is asserted where it can be: `tests/hooks/useRecipeViewSetting.native.test.tsx` (the choice is read from and
+# written to the identity service, and nothing else) and the repo guard that finds no device store for it.
+#
+# ⚠️ The setting belongs to the signer's account and outlives this flow, and the per-flow reset restores the recipe seed, not
+# the settings. The last step therefore chooses LIST again, which is the phone default's own layout, so later flows on
+# the same account see the view they expect.
+- runFlow: ../auth/signin.yaml
+
+- extendedWaitUntil:
+      visible:
+          text: '^3 recipes$'
+      timeout: 40000
+
+# Chosen: the switch shows the choice at once, and no failure is reported.
+- tapOn: 'Grid view'
+- runFlow:
+      file: common/assertViewChecked.yaml
+      env:
+          VIEW: 'Grid view'
+- assertNotVisible: 'We couldn’t save your view. Try choosing it again.'
+
+# A fresh launch of the app: the setting is read back from the account.
+- launchApp
+- runFlow: ../auth/signin.yaml
+- extendedWaitUntil:
+      visible:
+          text: '^3 recipes$'
+      timeout: 40000
+- runFlow:
+      file: common/assertViewChecked.yaml
+      env:
+          VIEW: 'Grid view'
+
+# Put the account back on the layout a phone shows by default.
+- tapOn: 'List view'
+- runFlow:
+      file: common/assertViewChecked.yaml
+      env:
+          VIEW: 'List view'

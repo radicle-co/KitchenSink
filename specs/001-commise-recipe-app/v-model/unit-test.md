@@ -38,7 +38,7 @@ isolation, and state transitions where applicable). They do not verify user jour
 ### Module: MOD-001 (Clerk Auth Service)
 
 **Parent Architecture Modules**: ARCH-001
-**Target Source File(s)**: `packages/services/recipe-service/src/auth/clerk-auth.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/auth/clerkAuth.service.ts`
 
 #### Test Case: UTP-001-A (session token verification branch paths)
 
@@ -47,10 +47,11 @@ isolation, and state transitions where applicable). They do not verify user jour
 **Description**: Covers missing token, bad signature / unauthorized `azp`, expired token, invalid tier claim, and success return path.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency                     | Source                   | Mock/Stub Strategy           | Rationale                                          |
+| ------------------------------ | ------------------------ | ---------------------------- | -------------------------------------------------- |
 | `@clerk/backend` `verifyToken` | MOD-001 Algorithmic View | Stub verified claims / throw | Exercise signature/`azp`/expiry and claim branches |
-| `config.clerkJwtKey` | MOD-001 Interface View | In-memory fake PEM key | Deterministic networkless verification |
+| `config.clerkJwtKey`           | MOD-001 Interface View   | In-memory fake PEM key       | Deterministic networkless verification             |
 
 - **Unit Scenario: UTS-001-A1**
     - **Arrange**: Set `bearerToken` to empty string and initialize the service with a fake `CLERK_JWT_KEY`.
@@ -64,8 +65,9 @@ isolation, and state transitions where applicable). They do not verify user jour
 **Description**: Partitions `public_metadata.tier` claim values: `free`, `premium`, and invalid claim.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency           | Source                                           | Mock/Stub Strategy  | Rationale                  |
+| -------------------- | ------------------------------------------------ | ------------------- | -------------------------- |
 | `verifyToken` claims | Internal Data Structures (`VerifiedClerkClaims`) | Stub claim variants | Validate enum partitioning |
 
 - **Unit Scenario: UTS-001-B1**
@@ -80,11 +82,12 @@ isolation, and state transitions where applicable). They do not verify user jour
 **Description**: Verifies that token verification is networkless — it uses only the local `CLERK_JWT_KEY` public key and never performs any outbound network I/O (no JWKS fetch, no Backend API round trip).
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `@clerk/backend` `verifyToken` | ARCH-001 Interface View | Spy + stub verified claims | Verify invocation contract |
-| `config.clerkJwtKey` | MOD-001 Algorithmic View | In-memory fake PEM key | Deterministic local verification |
-| outbound HTTP transport | ARCH-001 Interface View | Spy on network function | Block + assert zero network I/O |
+
+| Dependency                     | Source                   | Mock/Stub Strategy         | Rationale                        |
+| ------------------------------ | ------------------------ | -------------------------- | -------------------------------- |
+| `@clerk/backend` `verifyToken` | ARCH-001 Interface View  | Spy + stub verified claims | Verify invocation contract       |
+| `config.clerkJwtKey`           | MOD-001 Algorithmic View | In-memory fake PEM key     | Deterministic local verification |
+| outbound HTTP transport        | ARCH-001 Interface View  | Spy on network function    | Block + assert zero network I/O  |
 
 - **Unit Scenario: UTS-001-C1**
     - **Arrange**: Inject the fake `CLERK_JWT_KEY` and spy on the outbound HTTP function.
@@ -105,8 +108,9 @@ isolation, and state transitions where applicable). They do not verify user jour
 **Description**: Covers write/delete owner check, read owner/public check, clone public check, tier check, allow path.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency              | Source                   | Mock/Stub Strategy | Rationale                          |
+| ----------------------- | ------------------------ | ------------------ | ---------------------------------- |
 | `repository.loadByKind` | MOD-002 Algorithmic View | Stub resource rows | Drive owner/public/action branches |
 
 - **Unit Scenario: UTS-002-A1**
@@ -121,8 +125,9 @@ isolation, and state transitions where applicable). They do not verify user jour
 **Description**: Partitions `action` enum and `tier` enum combinations for required tier checks.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency              | Source                   | Mock/Stub Strategy                 | Rationale                                                     |
+| ----------------------- | ------------------------ | ---------------------------------- | ------------------------------------------------------------- |
 | `repository.loadByKind` | MOD-002 Algorithmic View | Stub deterministic resource object | Ensure unit isolation while exercising action/tier partitions |
 
 - **Unit Scenario: UTS-002-B1**
@@ -137,9 +142,10 @@ isolation, and state transitions where applicable). They do not verify user jour
 **Description**: Isolates repository loading and verifies no external persistence access beyond mocked repository.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Resource repository | ARCH-002 Interface View | Stub `loadByKind` | Prevent live DB usage |
+
+| Dependency          | Source                  | Mock/Stub Strategy | Rationale             |
+| ------------------- | ----------------------- | ------------------ | --------------------- |
+| Resource repository | ARCH-002 Interface View | Stub `loadByKind`  | Prevent live DB usage |
 
 - **Unit Scenario: UTS-002-C1**
     - **Arrange**: Inject stub repository that returns deterministic resource object.
@@ -153,8 +159,9 @@ isolation, and state transitions where applicable). They do not verify user jour
 **Description**: Probes `resourceRef.id` length and action/kind boundary partitions used by `TIER_REQUIREMENTS`.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency              | Source                   | Mock/Stub Strategy                                     | Rationale                                      |
+| ----------------------- | ------------------------ | ------------------------------------------------------ | ---------------------------------------------- |
 | `repository.loadByKind` | MOD-002 Algorithmic View | Stub deterministic resource for each action/kind probe | Keep boundary probes isolated from persistence |
 
 - **Unit Scenario: UTS-002-D1**
@@ -176,11 +183,12 @@ isolation, and state transitions where applicable). They do not verify user jour
 **Description**: Covers create, update, delete, clone, and list route handlers with command/query construction.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency                      | Source                   | Mock/Stub Strategy          | Rationale                        |
+| ------------------------------- | ------------------------ | --------------------------- | -------------------------------- |
 | `MOD-005.validateCreate/Update` | MOD-003 Algorithmic View | Stub DTO validation outputs | Isolate controller orchestration |
-| `MOD-004.execute` | MOD-003 Algorithmic View | Spy + stub command results | Verify command payload shape |
-| `MOD-010.search` | MOD-003 Algorithmic View | Stub page result | Verify header calculation |
+| `MOD-004.execute`               | MOD-003 Algorithmic View | Spy + stub command results  | Verify command payload shape     |
+| `MOD-010.search`                | MOD-003 Algorithmic View | Stub page result            | Verify header calculation        |
 
 - **Unit Scenario: UTS-003-A1**
     - **Arrange**: Set `id="r42"`, `rowVersion="v3"`, and validator stub returning `dto`.
@@ -194,11 +202,12 @@ isolation, and state transitions where applicable). They do not verify user jour
 **Description**: Partitions command kinds delegated by each route (`create/update/delete/clone/list`).
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-005.validateCreate/Update` | MOD-003 Algorithmic View | Stub validator outputs | Keep routing-partition tests at controller unit scope |
-| `MOD-004.execute` | MOD-003 Algorithmic View | Spy + stub command result | Verify command-kind delegation only |
-| `MOD-010.search` | MOD-003 Algorithmic View | Stub paged search result | Avoid repository/network behavior in unit test |
+
+| Dependency                      | Source                   | Mock/Stub Strategy        | Rationale                                             |
+| ------------------------------- | ------------------------ | ------------------------- | ----------------------------------------------------- |
+| `MOD-005.validateCreate/Update` | MOD-003 Algorithmic View | Stub validator outputs    | Keep routing-partition tests at controller unit scope |
+| `MOD-004.execute`               | MOD-003 Algorithmic View | Spy + stub command result | Verify command-kind delegation only                   |
+| `MOD-010.search`                | MOD-003 Algorithmic View | Stub paged search result  | Avoid repository/network behavior in unit test        |
 
 - **Unit Scenario: UTS-003-B1**
     - **Arrange**: Prepare clone route parameter `id="r9"`.
@@ -212,11 +221,12 @@ isolation, and state transitions where applicable). They do not verify user jour
 **Description**: Ensures controller unit tests run with all collaborator services mocked.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| DTO validator module | ARCH-003 Interface View | Stub class methods | Avoid validation library internals |
-| Recipe command service | ARCH-003 Interface View | Spy object | Validate delegation only |
-| Recipe search service | ARCH-003 Interface View | Stub paged response | No repository/network calls |
+
+| Dependency             | Source                  | Mock/Stub Strategy  | Rationale                          |
+| ---------------------- | ----------------------- | ------------------- | ---------------------------------- |
+| DTO validator module   | ARCH-003 Interface View | Stub class methods  | Avoid validation library internals |
+| Recipe command service | ARCH-003 Interface View | Spy object          | Validate delegation only           |
+| Recipe search service  | ARCH-003 Interface View | Stub paged response | No repository/network calls        |
 
 - **Unit Scenario: UTS-003-C1**
     - **Arrange**: Inject all collaborators as jest mocks into controller constructor.
@@ -237,16 +247,17 @@ isolation, and state transitions where applicable). They do not verify user jour
 **Description**: Covers `create/update/delete/clone` branches, policy deny, concurrency conflict, and success transaction paths.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| MOD-002 authorize | MOD-004 Algorithmic View | Stub allow/deny | Drive authorization branches |
-| MOD-006 evaluate | MOD-004 Algorithmic View | Stub decision object | Drive `POLICY_DENIED` path |
-| MOD-007 detect | MOD-004 Algorithmic View | Stub substantive edit result | Update flow branch control |
-| MOD-008 resolve | MOD-004 Algorithmic View | Stub resolved ingredients | Isolate resolver logic |
-| MOD-009 calculate | MOD-004 Algorithmic View | Stub nutrition totals | Isolate nutrition logic |
-| MOD-015 write | MOD-004 Algorithmic View | Stub version results | Verify version chaining |
-| MOD-016 guard | MOD-004 Algorithmic View | Stub pass/conflict throw | Drive concurrency branch |
-| MOD-024 repositories | MOD-004 Algorithmic View | Fake transaction wrapper | Avoid DB side effects |
+
+| Dependency           | Source                   | Mock/Stub Strategy           | Rationale                    |
+| -------------------- | ------------------------ | ---------------------------- | ---------------------------- |
+| MOD-002 authorize    | MOD-004 Algorithmic View | Stub allow/deny              | Drive authorization branches |
+| MOD-006 evaluate     | MOD-004 Algorithmic View | Stub decision object         | Drive `POLICY_DENIED` path   |
+| MOD-007 detect       | MOD-004 Algorithmic View | Stub substantive edit result | Update flow branch control   |
+| MOD-008 resolve      | MOD-004 Algorithmic View | Stub resolved ingredients    | Isolate resolver logic       |
+| MOD-009 calculate    | MOD-004 Algorithmic View | Stub nutrition totals        | Isolate nutrition logic      |
+| MOD-015 write        | MOD-004 Algorithmic View | Stub version results         | Verify version chaining      |
+| MOD-016 guard        | MOD-004 Algorithmic View | Stub pass/conflict throw     | Drive concurrency branch     |
+| MOD-024 repositories | MOD-004 Algorithmic View | Fake transaction wrapper     | Avoid DB side effects        |
 
 - **Unit Scenario: UTS-004-A1**
     - **Arrange**: Set `command.kind="update"`; stub policy allow and `guard` throw `CONCURRENCY_CONFLICT`.
@@ -274,15 +285,16 @@ None — module is self-contained
 **Description**: Enforces complete mocking for all collaborating modules in command orchestration.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Authorization guard | ARCH-004 Interface View | Stub function | No guard integration testing |
-| Visibility policy engine | ARCH-004 Interface View | Stub decision return | Isolated policy control |
-| Ingredient resolver | ARCH-004 Interface View | Stub array return | Isolate ingredient module |
-| Nutrition calculator | ARCH-004 Interface View | Stub totals return | Isolate nutrition module |
-| Version snapshot writer | ARCH-004 Interface View | Stub version result | Isolate versioning |
-| Concurrency guard | ARCH-004 Interface View | Stub pass/fail | Isolate CAS logic |
-| Repository layer | ARCH-004 Interface View | Fake transaction + repository spies | Prevent live DB I/O |
+
+| Dependency               | Source                  | Mock/Stub Strategy                  | Rationale                    |
+| ------------------------ | ----------------------- | ----------------------------------- | ---------------------------- |
+| Authorization guard      | ARCH-004 Interface View | Stub function                       | No guard integration testing |
+| Visibility policy engine | ARCH-004 Interface View | Stub decision return                | Isolated policy control      |
+| Ingredient resolver      | ARCH-004 Interface View | Stub array return                   | Isolate ingredient module    |
+| Nutrition calculator     | ARCH-004 Interface View | Stub totals return                  | Isolate nutrition module     |
+| Version snapshot writer  | ARCH-004 Interface View | Stub version result                 | Isolate versioning           |
+| Concurrency guard        | ARCH-004 Interface View | Stub pass/fail                      | Isolate CAS logic            |
+| Repository layer         | ARCH-004 Interface View | Fake transaction + repository spies | Prevent live DB I/O          |
 
 - **Unit Scenario: UTS-004-C1**
     - **Arrange**: Inject stubs for every collaborator and spy on unexpected imports.
@@ -296,11 +308,12 @@ None — module is self-contained
 **Description**: Injects high-risk fault combinations to verify normalization/propagation of `POLICY_DENIED`, `CONCURRENCY_CONFLICT`, and `VERSION_WRITE_FAILED`.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-006.evaluate` | MOD-004 Error Handling View | Stub deny decision with `ruleId` | Assert deterministic `POLICY_DENIED` mapping |
-| `MOD-016.guard` | MOD-004 Error Handling View | Stub `CONCURRENCY_CONFLICT` throw | Verify conflict propagation contract |
-| `MOD-015.write` | MOD-004 Error Handling View | Stub storage exception on write | Verify `VERSION_WRITE_FAILED` defensive path |
+
+| Dependency         | Source                      | Mock/Stub Strategy                | Rationale                                    |
+| ------------------ | --------------------------- | --------------------------------- | -------------------------------------------- |
+| `MOD-006.evaluate` | MOD-004 Error Handling View | Stub deny decision with `ruleId`  | Assert deterministic `POLICY_DENIED` mapping |
+| `MOD-016.guard`    | MOD-004 Error Handling View | Stub `CONCURRENCY_CONFLICT` throw | Verify conflict propagation contract         |
+| `MOD-015.write`    | MOD-004 Error Handling View | Stub storage exception on write   | Verify `VERSION_WRITE_FAILED` defensive path |
 
 - **Unit Scenario: UTS-004-D1**
     - **Arrange**: Run three fault-injection subcases (policy deny, guard conflict, writer failure) with all other collaborators stubbed success.
@@ -321,10 +334,11 @@ None — module is self-contained
 **Description**: Covers validation success path and aggregated `VALIDATION_FAILED` throw path.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `plainToInstance` | MOD-005 Algorithmic View | Stub DTO conversion | Isolate transformer behavior |
-| `validateSync` | MOD-005 Algorithmic View | Stub errors/no errors | Drive branch coverage |
+
+| Dependency        | Source                   | Mock/Stub Strategy    | Rationale                    |
+| ----------------- | ------------------------ | --------------------- | ---------------------------- |
+| `plainToInstance` | MOD-005 Algorithmic View | Stub DTO conversion   | Isolate transformer behavior |
+| `validateSync`    | MOD-005 Algorithmic View | Stub errors/no errors | Drive branch coverage        |
 
 - **Unit Scenario: UTS-005-A1**
     - **Arrange**: Stub `validateSync` to return two field errors.
@@ -352,10 +366,11 @@ None — module is self-contained
 **Description**: Confirms validator unit tests run with mocked class-validator/class-transformer APIs only.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency          | Source                  | Mock/Stub Strategy     | Rationale                       |
+| ------------------- | ----------------------- | ---------------------- | ------------------------------- |
 | `class-transformer` | ARCH-005 Interface View | Stub `plainToInstance` | Deterministic instance creation |
-| `class-validator` | ARCH-005 Interface View | Stub `validateSync` | No library internals under test |
+| `class-validator`   | ARCH-005 Interface View | Stub `validateSync`    | No library internals under test |
 
 - **Unit Scenario: UTS-005-C1**
     - **Arrange**: Replace validator and transformer imports with test doubles.
@@ -488,10 +503,11 @@ None — module is self-contained
 **Description**: Covers linked-hit, linked-miss throw, freeform path, and loop ordering behavior.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-024.ingredients.loadByIds` | MOD-008 Algorithmic View | Stub catalog map | Control linked lookup results |
-| `normalize(...)` conversion | MOD-008 Algorithmic View | Stub normalize function | Isolate unit conversion logic |
+
+| Dependency                      | Source                   | Mock/Stub Strategy      | Rationale                     |
+| ------------------------------- | ------------------------ | ----------------------- | ----------------------------- |
+| `MOD-024.ingredients.loadByIds` | MOD-008 Algorithmic View | Stub catalog map        | Control linked lookup results |
+| `normalize(...)` conversion     | MOD-008 Algorithmic View | Stub normalize function | Isolate unit conversion logic |
 
 - **Unit Scenario: UTS-008-A1**
     - **Arrange**: Provide one linked item whose id is absent in catalog map.
@@ -524,10 +540,11 @@ None — module is self-contained
 **Description**: Ensures resolver uses only mocked repository and conversion helpers.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Ingredients repository | ARCH-008 Interface View | Stub `loadByIds` | Prevent live DB access |
-| Unit normalizer | MOD-008 Algorithmic View | Stub deterministic output | Isolate algorithm branches |
+
+| Dependency             | Source                   | Mock/Stub Strategy        | Rationale                  |
+| ---------------------- | ------------------------ | ------------------------- | -------------------------- |
+| Ingredients repository | ARCH-008 Interface View  | Stub `loadByIds`          | Prevent live DB access     |
+| Unit normalizer        | MOD-008 Algorithmic View | Stub deterministic output | Isolate algorithm branches |
 
 - **Unit Scenario: UTS-008-C1**
     - **Arrange**: Inject repository stub and normalize stub.
@@ -541,10 +558,11 @@ None — module is self-contained
 **Description**: Exercises malformed mixed payload paths to ensure deterministic `INGREDIENT_NOT_FOUND` and validation error behavior.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-024.ingredients.loadByIds` | MOD-008 Error Handling View | Stub partial catalog misses | Force unresolved linked-id error path |
-| `normalize(...)` conversion | MOD-008 Error Handling View | Stub converter throw on invalid unit tuple | Verify defensive fallback/propagation path |
+
+| Dependency                      | Source                      | Mock/Stub Strategy                         | Rationale                                  |
+| ------------------------------- | --------------------------- | ------------------------------------------ | ------------------------------------------ |
+| `MOD-024.ingredients.loadByIds` | MOD-008 Error Handling View | Stub partial catalog misses                | Force unresolved linked-id error path      |
+| `normalize(...)` conversion     | MOD-008 Error Handling View | Stub converter throw on invalid unit tuple | Verify defensive fallback/propagation path |
 
 - **Unit Scenario: UTS-008-D1**
     - **Arrange**: Provide linked payload with one missing ingredient id and one invalid unit conversion tuple.
@@ -565,10 +583,11 @@ None — module is self-contained
 **Description**: Covers freeform skip, missing fact skip, convertible fact accumulation, rounding path.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-024.nutritionFacts.loadByIds` | MOD-009 Algorithmic View | Stub facts map | Control hit/miss conditions |
-| `convertToGrams` | MOD-009 Algorithmic View | Stub conversions | Isolate conversion behavior |
+
+| Dependency                         | Source                   | Mock/Stub Strategy | Rationale                   |
+| ---------------------------------- | ------------------------ | ------------------ | --------------------------- |
+| `MOD-024.nutritionFacts.loadByIds` | MOD-009 Algorithmic View | Stub facts map     | Control hit/miss conditions |
+| `convertToGrams`                   | MOD-009 Algorithmic View | Stub conversions   | Isolate conversion behavior |
 
 - **Unit Scenario: UTS-009-A1**
     - **Arrange**: Provide one freeform item and one linked item without facts.
@@ -596,10 +615,11 @@ None — module is self-contained
 **Description**: Isolates repository lookup and converter calls.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Nutrition facts repository | ARCH-009 Interface View | Stub `loadByIds` | Avoid DB access |
-| Unit converter | MOD-009 Algorithmic View | Stub deterministic values | Repeatable arithmetic assertions |
+
+| Dependency                 | Source                   | Mock/Stub Strategy        | Rationale                        |
+| -------------------------- | ------------------------ | ------------------------- | -------------------------------- |
+| Nutrition facts repository | ARCH-009 Interface View  | Stub `loadByIds`          | Avoid DB access                  |
+| Unit converter             | MOD-009 Algorithmic View | Stub deterministic values | Repeatable arithmetic assertions |
 
 - **Unit Scenario: UTS-009-C1**
     - **Arrange**: Mock repository and converter to deterministic outputs.
@@ -620,11 +640,12 @@ None — module is self-contained
 **Description**: Covers bad query rejection and successful page computation path.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-011.build` | MOD-010 Algorithmic View | Stub `spec` object | Isolate query builder behavior |
-| `MOD-024.recipes.searchPage` | MOD-010 Algorithmic View | Stub rows | Deterministic item mapping |
-| `MOD-024.recipes.searchCount` | MOD-010 Algorithmic View | Stub total count | Deterministic totalPages |
+
+| Dependency                    | Source                   | Mock/Stub Strategy | Rationale                      |
+| ----------------------------- | ------------------------ | ------------------ | ------------------------------ |
+| `MOD-011.build`               | MOD-010 Algorithmic View | Stub `spec` object | Isolate query builder behavior |
+| `MOD-024.recipes.searchPage`  | MOD-010 Algorithmic View | Stub rows          | Deterministic item mapping     |
+| `MOD-024.recipes.searchCount` | MOD-010 Algorithmic View | Stub total count   | Deterministic totalPages       |
 
 - **Unit Scenario: UTS-010-A1**
     - **Arrange**: Set `query.page=0` and `pageSize=10`.
@@ -652,10 +673,11 @@ None — module is self-contained
 **Description**: Ensures search logic uses only mocked builder/repository collaborators.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Search query builder | ARCH-010 Interface View | Stub `build` | Isolate service logic |
-| Recipes repository page/count methods | ARCH-010 Interface View | Stub rows/count | Avoid real DB scans |
+
+| Dependency                            | Source                  | Mock/Stub Strategy | Rationale             |
+| ------------------------------------- | ----------------------- | ------------------ | --------------------- |
+| Search query builder                  | ARCH-010 Interface View | Stub `build`       | Isolate service logic |
+| Recipes repository page/count methods | ARCH-010 Interface View | Stub rows/count    | Avoid real DB scans   |
 
 - **Unit Scenario: UTS-010-C1**
     - **Arrange**: Inject stubs returning fixed rows and total `25`.
@@ -669,8 +691,9 @@ None — module is self-contained
 **Description**: Verifies robust handling of malformed query parameters that bypass basic validation but trigger edge cases in query construction.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency      | Source                      | Mock/Stub Strategy                                            | Rationale                                       |
+| --------------- | --------------------------- | ------------------------------------------------------------- | ----------------------------------------------- |
 | `MOD-011.build` | MOD-010 Error Handling View | Stub query construction with edge-case parameter combinations | Validate defensive handling of malformed inputs |
 
 - **Unit Scenario: UTS-010-D1**
@@ -729,12 +752,13 @@ None — module is self-contained
 **Description**: Covers validate failure, authorization failure, presign success, and pending-row insert path.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `validate(req)` | MOD-012 Algorithmic View | Stub pass/fail | Drive input validation branch |
-| `MOD-002.authorize` | MOD-012 Algorithmic View | Stub allow/deny | Drive authorization path |
-| `MOD-025.getPresignedPutUrl` | MOD-012 Algorithmic View | Stub URL output | Avoid AWS signing calls |
-| `MOD-024.photoUploads.insertPending` | MOD-012 Algorithmic View | Spy insert call | Verify persistence payload |
+
+| Dependency                           | Source                   | Mock/Stub Strategy | Rationale                     |
+| ------------------------------------ | ------------------------ | ------------------ | ----------------------------- |
+| `validate(req)`                      | MOD-012 Algorithmic View | Stub pass/fail     | Drive input validation branch |
+| `MOD-002.authorize`                  | MOD-012 Algorithmic View | Stub allow/deny    | Drive authorization path      |
+| `MOD-025.getPresignedPutUrl`         | MOD-012 Algorithmic View | Stub URL output    | Avoid AWS signing calls       |
+| `MOD-024.photoUploads.insertPending` | MOD-012 Algorithmic View | Spy insert call    | Verify persistence payload    |
 
 - **Unit Scenario: UTS-012-A1**
     - **Arrange**: Set valid request with `contentType="image/jpeg"`, `byteSize=1024` and stubs for authorize/sign/insert.
@@ -762,11 +786,12 @@ None — module is self-contained
 **Description**: Ensures photo presign unit tests run with mocked auth, S3 adapter, and repository.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Owner/tier guard | ARCH-012 Interface View | Stub authorize | No guard integration |
-| S3 adapter presign call | ARCH-012 Interface View | Stub signed URL | No AWS SDK/network |
-| Photo upload repository | ARCH-012 Interface View | Spy insertPending | No live DB writes |
+
+| Dependency              | Source                  | Mock/Stub Strategy | Rationale            |
+| ----------------------- | ----------------------- | ------------------ | -------------------- |
+| Owner/tier guard        | ARCH-012 Interface View | Stub authorize     | No guard integration |
+| S3 adapter presign call | ARCH-012 Interface View | Stub signed URL    | No AWS SDK/network   |
+| Photo upload repository | ARCH-012 Interface View | Spy insertPending  | No live DB writes    |
 
 - **Unit Scenario: UTS-012-C1**
     - **Arrange**: Inject stubs for all collaborators.
@@ -780,8 +805,9 @@ None — module is self-contained
 **Description**: Verifies graceful handling when S3 presign adapter throws unexpected errors during URL generation.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency                   | Source                      | Mock/Stub Strategy          | Rationale                            |
+| ---------------------------- | --------------------------- | --------------------------- | ------------------------------------ |
 | `MOD-025.getPresignedPutUrl` | MOD-012 Error Handling View | Stub unexpected error throw | Validate defensive error propagation |
 
 - **Unit Scenario: UTS-012-D1**
@@ -803,12 +829,13 @@ None — module is self-contained
 **Description**: Covers pending-missing, owner mismatch, object missing, etag mismatch, and transaction success.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-024.photoUploads.findPendingByKey` | MOD-013 Algorithmic View | Stub row/null | Drive not-found branch |
-| `MOD-025.headObject` | MOD-013 Algorithmic View | Stub metadata/null | Drive S3 missing branch |
-| `MOD-024.photos.insert` | MOD-013 Algorithmic View | Stub inserted photo | Verify output mapping |
-| `MOD-024.photoUploads.markConfirmed` | MOD-013 Algorithmic View | Spy call | Verify state transition |
+
+| Dependency                              | Source                   | Mock/Stub Strategy  | Rationale               |
+| --------------------------------------- | ------------------------ | ------------------- | ----------------------- |
+| `MOD-024.photoUploads.findPendingByKey` | MOD-013 Algorithmic View | Stub row/null       | Drive not-found branch  |
+| `MOD-025.headObject`                    | MOD-013 Algorithmic View | Stub metadata/null  | Drive S3 missing branch |
+| `MOD-024.photos.insert`                 | MOD-013 Algorithmic View | Stub inserted photo | Verify output mapping   |
+| `MOD-024.photoUploads.markConfirmed`    | MOD-013 Algorithmic View | Spy call            | Verify state transition |
 
 - **Unit Scenario: UTS-013-A1**
     - **Arrange**: Stub pending row exists; headObject returns `etag="abc"`; input etag `"xyz"`.
@@ -836,11 +863,12 @@ None — module is self-contained
 **Description**: Confirms isolation of repository and S3 adapter dependencies.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Photo upload repository | ARCH-013 Interface View | Stub/spy methods | Avoid DB I/O |
-| Photos repository | ARCH-013 Interface View | Stub insert | Isolate persistence logic |
-| S3 adapter `headObject` | ARCH-013 Interface View | Stub metadata | Avoid real S3 HEAD |
+
+| Dependency              | Source                  | Mock/Stub Strategy | Rationale                 |
+| ----------------------- | ----------------------- | ------------------ | ------------------------- |
+| Photo upload repository | ARCH-013 Interface View | Stub/spy methods   | Avoid DB I/O              |
+| Photos repository       | ARCH-013 Interface View | Stub insert        | Isolate persistence logic |
+| S3 adapter `headObject` | ARCH-013 Interface View | Stub metadata      | Avoid real S3 HEAD        |
 
 - **Unit Scenario: UTS-013-C1**
     - **Arrange**: Inject repository and S3 stubs.
@@ -854,10 +882,11 @@ None — module is self-contained
 **Description**: Verifies `pending_processing → ready | failed` transition behavior, including invalid transition guard.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-024.photoUploads.markConfirmed` | MOD-013 State Machine View | Spy success/failure writes | Assert pending→ready transition side effects |
-| `MOD-025.headObject` | MOD-013 State Machine View | Stub success and mismatch metadata | Drive ready vs failed transition outcomes |
+
+| Dependency                           | Source                     | Mock/Stub Strategy                 | Rationale                                    |
+| ------------------------------------ | -------------------------- | ---------------------------------- | -------------------------------------------- |
+| `MOD-024.photoUploads.markConfirmed` | MOD-013 State Machine View | Spy success/failure writes         | Assert pending→ready transition side effects |
+| `MOD-025.headObject`                 | MOD-013 State Machine View | Stub success and mismatch metadata | Drive ready vs failed transition outcomes    |
 
 - **Unit Scenario: UTS-013-E1**
     - **Arrange**: Start from pending upload row; run one valid etag confirmation and one invalid/mismatch confirmation path.
@@ -878,12 +907,13 @@ None — module is self-contained
 **Description**: Covers photo missing no-op, ready idempotent no-op, success rendition path, catch/fail path.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-024.photos.findByObjectKey` | MOD-014 Algorithmic View | Stub photo/null/ready | Drive branch outcomes |
-| Sharp pipeline | MOD-014 Algorithmic View | Stub chain methods | Avoid image processing runtime |
-| `MOD-025.getObject/putObject` | MOD-014 Algorithmic View | Stub buffers + spy puts | Avoid S3 I/O |
-| `MOD-024.photos.markReady/markFailed` | MOD-014 Algorithmic View | Spy updates | Verify status transitions |
+
+| Dependency                            | Source                   | Mock/Stub Strategy      | Rationale                      |
+| ------------------------------------- | ------------------------ | ----------------------- | ------------------------------ |
+| `MOD-024.photos.findByObjectKey`      | MOD-014 Algorithmic View | Stub photo/null/ready   | Drive branch outcomes          |
+| Sharp pipeline                        | MOD-014 Algorithmic View | Stub chain methods      | Avoid image processing runtime |
+| `MOD-025.getObject/putObject`         | MOD-014 Algorithmic View | Stub buffers + spy puts | Avoid S3 I/O                   |
+| `MOD-024.photos.markReady/markFailed` | MOD-014 Algorithmic View | Spy updates             | Verify status transitions      |
 
 - **Unit Scenario: UTS-014-A1**
     - **Arrange**: Set `photo.status="pending_processing"` and force `putObject` to throw.
@@ -911,11 +941,12 @@ None — module is self-contained
 **Description**: Ensures all storage/image/persistence dependencies are mocked in unit tests.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| S3 adapter (`getObject`, `putObject`) | ARCH-014 Interface View | Stub object/buffer methods | Prevent external storage calls |
-| Photos repository | ARCH-014 Interface View | Stub find/update methods | Prevent DB writes |
-| Sharp image processor | MOD-014 Algorithmic View | Mock fluent API object | Deterministic image pipeline |
+
+| Dependency                            | Source                   | Mock/Stub Strategy         | Rationale                      |
+| ------------------------------------- | ------------------------ | -------------------------- | ------------------------------ |
+| S3 adapter (`getObject`, `putObject`) | ARCH-014 Interface View  | Stub object/buffer methods | Prevent external storage calls |
+| Photos repository                     | ARCH-014 Interface View  | Stub find/update methods   | Prevent DB writes              |
+| Sharp image processor                 | MOD-014 Algorithmic View | Mock fluent API object     | Deterministic image pipeline   |
 
 - **Unit Scenario: UTS-014-C1**
     - **Arrange**: Inject mocked S3, Sharp, and repository modules.
@@ -929,8 +960,9 @@ None — module is self-contained
 **Description**: Verifies robust handling when Sharp image processor throws unexpected errors during rendition generation.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency     | Source                      | Mock/Stub Strategy                            | Rationale                         |
+| -------------- | --------------------------- | --------------------------------------------- | --------------------------------- |
 | Sharp pipeline | MOD-014 Error Handling View | Stub unexpected error during image processing | Validate defensive error handling |
 
 - **Unit Scenario: UTS-014-D1**
@@ -952,10 +984,11 @@ None — module is self-contained
 **Description**: Covers successful next-number+insert path and insert failure propagation.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-024.recipeVersions.nextNumber` | MOD-015 Algorithmic View | Stub number | Control version increment path |
-| `MOD-024.recipeVersions.insert` | MOD-015 Algorithmic View | Stub row/throw | Cover success/failure branches |
+
+| Dependency                          | Source                   | Mock/Stub Strategy | Rationale                      |
+| ----------------------------------- | ------------------------ | ------------------ | ------------------------------ |
+| `MOD-024.recipeVersions.nextNumber` | MOD-015 Algorithmic View | Stub number        | Control version increment path |
+| `MOD-024.recipeVersions.insert`     | MOD-015 Algorithmic View | Stub row/throw     | Cover success/failure branches |
 
 - **Unit Scenario: UTS-015-A1**
     - **Arrange**: Stub `nextNumber=11` and insert returning `{id:"ver_11"}`.
@@ -983,10 +1016,11 @@ None — module is self-contained
 **Description**: Isolates writer from repository transaction internals.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Recipe versions repository | ARCH-015 Interface View | Stub `nextNumber` and `insert` | No DB access |
-| Transaction handle | MOD-015 Interface View | Fake txn token | Deterministic call signatures |
+
+| Dependency                 | Source                  | Mock/Stub Strategy             | Rationale                     |
+| -------------------------- | ----------------------- | ------------------------------ | ----------------------------- |
+| Recipe versions repository | ARCH-015 Interface View | Stub `nextNumber` and `insert` | No DB access                  |
+| Transaction handle         | MOD-015 Interface View  | Fake txn token                 | Deterministic call signatures |
 
 - **Unit Scenario: UTS-015-C1**
     - **Arrange**: Inject fake tx object and repository stubs.
@@ -1007,10 +1041,11 @@ None — module is self-contained
 **Description**: Covers row missing path, stale rowVersion conflict path, and success match path.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-024[table].loadRowVersion` | MOD-016 Algorithmic View | Stub row/null | Control existence/match branches |
-| `MOD-024[table].loadById` | MOD-016 Algorithmic View | Stub snapshot | Populate conflict payload |
+
+| Dependency                      | Source                   | Mock/Stub Strategy | Rationale                        |
+| ------------------------------- | ------------------------ | ------------------ | -------------------------------- |
+| `MOD-024[table].loadRowVersion` | MOD-016 Algorithmic View | Stub row/null      | Control existence/match branches |
+| `MOD-024[table].loadById`       | MOD-016 Algorithmic View | Stub snapshot      | Populate conflict payload        |
 
 - **Unit Scenario: UTS-016-A1**
     - **Arrange**: Stub current row version `"v5"`; set expected `"v4"`.
@@ -1038,8 +1073,9 @@ None — module is self-contained
 **Description**: Confirms all table repository access is mocked.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency                                      | Source                  | Mock/Stub Strategy     | Rationale      |
+| ----------------------------------------------- | ----------------------- | ---------------------- | -------------- |
 | Table repositories (recipes/collections/photos) | ARCH-016 Interface View | Stub per-table methods | Avoid DB reads |
 
 - **Unit Scenario: UTS-016-C1**
@@ -1054,10 +1090,11 @@ None — module is self-contained
 **Description**: Injects race conditions where row exists during version read but disappears before snapshot load to validate deterministic `NOT_FOUND`/conflict handling.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-024[table].loadRowVersion` | MOD-016 Error Handling View | Stub value then mismatch | Simulate stale optimistic-lock comparison |
-| `MOD-024[table].loadById` | MOD-016 Error Handling View | Stub `null` on follow-up read | Reproduce deleted-row race fault |
+
+| Dependency                      | Source                      | Mock/Stub Strategy            | Rationale                                 |
+| ------------------------------- | --------------------------- | ----------------------------- | ----------------------------------------- |
+| `MOD-024[table].loadRowVersion` | MOD-016 Error Handling View | Stub value then mismatch      | Simulate stale optimistic-lock comparison |
+| `MOD-024[table].loadById`       | MOD-016 Error Handling View | Stub `null` on follow-up read | Reproduce deleted-row race fault          |
 
 - **Unit Scenario: UTS-016-D1**
     - **Arrange**: Configure race sequence where expected row version is stale and subsequent snapshot lookup returns missing row.
@@ -1078,9 +1115,10 @@ None — module is self-contained
 **Description**: Covers send success, transient retry path leading to `QUEUE_UNAVAILABLE`, and non-transient throw path.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-025.sqs.sendMessage` | MOD-017 Algorithmic View | Stub resolve/reject | Control branch outcomes |
+
+| Dependency                   | Source                   | Mock/Stub Strategy            | Rationale                  |
+| ---------------------------- | ------------------------ | ----------------------------- | -------------------------- |
+| `MOD-025.sqs.sendMessage`    | MOD-017 Algorithmic View | Stub resolve/reject           | Control branch outcomes    |
 | `isTransient`/`backoffRetry` | MOD-017 Algorithmic View | Stub transient classification | Deterministic retry branch |
 
 - **Unit Scenario: UTS-017-A1**
@@ -1109,10 +1147,11 @@ None — module is self-contained
 **Description**: Ensures queue producer uses mocked SQS adapter and no live AWS interactions.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency              | Source                  | Mock/Stub Strategy | Rationale                         |
+| ----------------------- | ----------------------- | ------------------ | --------------------------------- |
 | SQS adapter via MOD-025 | ARCH-017 Interface View | Stub `sendMessage` | Prevent external queue operations |
-| Archive queue config | MOD-017 Interface View | Stub config object | Deterministic queue URL |
+| Archive queue config    | MOD-017 Interface View  | Stub config object | Deterministic queue URL           |
 
 - **Unit Scenario: UTS-017-C1**
     - **Arrange**: Inject fake queue URL and SQS stub.
@@ -1126,10 +1165,11 @@ None — module is self-contained
 **Description**: Verifies non-transient SQS provider errors bypass retry and preserve deterministic failure classification.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-025.sqs.sendMessage` | MOD-017 Error Handling View | Stub provider error with non-retryable code | Exercise non-transient branch explicitly |
-| `isTransient`/`backoffRetry` | MOD-017 Error Handling View | Stub `isTransient=false` | Assert no retry scheduling occurs |
+
+| Dependency                   | Source                      | Mock/Stub Strategy                          | Rationale                                |
+| ---------------------------- | --------------------------- | ------------------------------------------- | ---------------------------------------- |
+| `MOD-025.sqs.sendMessage`    | MOD-017 Error Handling View | Stub provider error with non-retryable code | Exercise non-transient branch explicitly |
+| `isTransient`/`backoffRetry` | MOD-017 Error Handling View | Stub `isTransient=false`                    | Assert no retry scheduling occurs        |
 
 - **Unit Scenario: UTS-017-D1**
     - **Arrange**: Stub `sendMessage` to throw non-transient provider error and classifier to return false.
@@ -1150,13 +1190,14 @@ None — module is self-contained
 **Description**: Covers already-archived skip, successful archive path, failure recording and `batchItemFailures` population.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-024.archiveJobs.isAlreadyArchived` | MOD-018 Algorithmic View | Stub bool | Idempotency branch coverage |
-| `MOD-024.recipeVersions.loadSnapshot` | MOD-018 Algorithmic View | Stub snapshot | Control payload source |
-| `MOD-025.putObject` | MOD-018 Algorithmic View | Stub success/failure | Drive failure branch |
-| `MOD-024.recipeVersions.markArchived` | MOD-018 Algorithmic View | Spy method | Verify archived transition |
-| `MOD-024.archiveJobs.markCompleted/recordFailure` | MOD-018 Algorithmic View | Spy methods | Verify completion/failure bookkeeping |
+
+| Dependency                                        | Source                   | Mock/Stub Strategy   | Rationale                             |
+| ------------------------------------------------- | ------------------------ | -------------------- | ------------------------------------- |
+| `MOD-024.archiveJobs.isAlreadyArchived`           | MOD-018 Algorithmic View | Stub bool            | Idempotency branch coverage           |
+| `MOD-024.recipeVersions.loadSnapshot`             | MOD-018 Algorithmic View | Stub snapshot        | Control payload source                |
+| `MOD-025.putObject`                               | MOD-018 Algorithmic View | Stub success/failure | Drive failure branch                  |
+| `MOD-024.recipeVersions.markArchived`             | MOD-018 Algorithmic View | Spy method           | Verify archived transition            |
+| `MOD-024.archiveJobs.markCompleted/recordFailure` | MOD-018 Algorithmic View | Spy methods          | Verify completion/failure bookkeeping |
 
 - **Unit Scenario: UTS-018-A1**
     - **Arrange**: Create one SQS record; stub `putObject` to throw.
@@ -1184,11 +1225,12 @@ None — module is self-contained
 **Description**: Isolates worker from AWS S3 and repository persistence.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| S3 adapter (`putObject`) | ARCH-018 Interface View | Stub write call | Avoid real S3 |
-| Archive job repository | ARCH-018 Interface View | Stub status calls | Avoid DB access |
-| Version repository | ARCH-018 Interface View | Stub snapshot load | Deterministic inputs |
+
+| Dependency               | Source                  | Mock/Stub Strategy | Rationale            |
+| ------------------------ | ----------------------- | ------------------ | -------------------- |
+| S3 adapter (`putObject`) | ARCH-018 Interface View | Stub write call    | Avoid real S3        |
+| Archive job repository   | ARCH-018 Interface View | Stub status calls  | Avoid DB access      |
+| Version repository       | ARCH-018 Interface View | Stub snapshot load | Deterministic inputs |
 
 - **Unit Scenario: UTS-018-C1**
     - **Arrange**: Replace all adapter/repository imports with fakes.
@@ -1202,10 +1244,11 @@ None — module is self-contained
 **Description**: Injects malformed queue payload and downstream bookkeeping failures to verify deterministic `batchItemFailures` handling.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| SQS record parser | MOD-018 Error Handling View | Stub parse throw for malformed JSON/body | Validate malformed-message defensive path |
-| `MOD-024.archiveJobs.recordFailure` | MOD-018 Error Handling View | Stub secondary failure on bookkeeping | Ensure worker still returns failed message ids |
+
+| Dependency                          | Source                      | Mock/Stub Strategy                       | Rationale                                      |
+| ----------------------------------- | --------------------------- | ---------------------------------------- | ---------------------------------------------- |
+| SQS record parser                   | MOD-018 Error Handling View | Stub parse throw for malformed JSON/body | Validate malformed-message defensive path      |
+| `MOD-024.archiveJobs.recordFailure` | MOD-018 Error Handling View | Stub secondary failure on bookkeeping    | Ensure worker still returns failed message ids |
 
 - **Unit Scenario: UTS-018-D1**
     - **Arrange**: Provide malformed SQS record body and failure recorder that also throws once.
@@ -1226,12 +1269,13 @@ None — module is self-contained
 **Description**: Covers dead-letter branch (`attempt >= MAX_ATTEMPTS`), successful requeue path, and requeue catch/log path.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-024.archiveJobs.findPending` | MOD-019 Algorithmic View | Stub pending rows | Control loop content |
-| `MOD-017.enqueue` | MOD-019 Algorithmic View | Stub success/failure | Drive requeue/catch branch |
-| `MOD-024.archiveJobs.markDeadLettered/bumpAttempt` | MOD-019 Algorithmic View | Spy methods | Verify state transitions |
-| `MOD-030.warn/metric` | MOD-019 Algorithmic View | Spy logger/metric | Verify observability calls |
+
+| Dependency                                         | Source                   | Mock/Stub Strategy   | Rationale                  |
+| -------------------------------------------------- | ------------------------ | -------------------- | -------------------------- |
+| `MOD-024.archiveJobs.findPending`                  | MOD-019 Algorithmic View | Stub pending rows    | Control loop content       |
+| `MOD-017.enqueue`                                  | MOD-019 Algorithmic View | Stub success/failure | Drive requeue/catch branch |
+| `MOD-024.archiveJobs.markDeadLettered/bumpAttempt` | MOD-019 Algorithmic View | Spy methods          | Verify state transitions   |
+| `MOD-030.warn/metric`                              | MOD-019 Algorithmic View | Spy logger/metric    | Verify observability calls |
 
 - **Unit Scenario: UTS-019-A1**
     - **Arrange**: Pending row with `attempt=8` and `MAX_ATTEMPTS=8`.
@@ -1259,11 +1303,12 @@ None — module is self-contained
 **Description**: Ensures reconciler unit tests isolate queue producer, repository, and telemetry.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Archive job repository | ARCH-019 Interface View | Stub pending/state methods | Avoid DB interactions |
-| Archive queue producer | ARCH-019 Interface View | Stub enqueue | Avoid SQS calls |
-| Telemetry/logger module | ARCH-019 Interface View | Spy metric/warn | Validate side effects only |
+
+| Dependency              | Source                  | Mock/Stub Strategy         | Rationale                  |
+| ----------------------- | ----------------------- | -------------------------- | -------------------------- |
+| Archive job repository  | ARCH-019 Interface View | Stub pending/state methods | Avoid DB interactions      |
+| Archive queue producer  | ARCH-019 Interface View | Stub enqueue               | Avoid SQS calls            |
+| Telemetry/logger module | ARCH-019 Interface View | Spy metric/warn            | Validate side effects only |
 
 - **Unit Scenario: UTS-019-C1**
     - **Arrange**: Inject stubs for repository, producer, and telemetry.
@@ -1277,8 +1322,9 @@ None — module is self-contained
 **Description**: Verifies robust handling when archive queue producer throws unexpected errors during requeue operations.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency        | Source                      | Mock/Stub Strategy                   | Rationale                            |
+| ----------------- | --------------------------- | ------------------------------------ | ------------------------------------ |
 | `MOD-017.enqueue` | MOD-019 Error Handling View | Stub unexpected error during requeue | Validate defensive error propagation |
 
 - **Unit Scenario: UTS-019-D1**
@@ -1300,11 +1346,12 @@ None — module is self-contained
 **Description**: Covers `create/update/delete/addItem/removeItem` branches and concurrency/authorization paths.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-002.authorize` | MOD-020 Algorithmic View | Stub allow/deny | Drive guard branches |
-| `MOD-016.guard` | MOD-020 Algorithmic View | Stub pass/fail | Drive conflict handling |
-| `MOD-024.collections/recipes` | MOD-020 Algorithmic View | Fake repository methods | Isolate persistence |
+
+| Dependency                    | Source                   | Mock/Stub Strategy      | Rationale               |
+| ----------------------------- | ------------------------ | ----------------------- | ----------------------- |
+| `MOD-002.authorize`           | MOD-020 Algorithmic View | Stub allow/deny         | Drive guard branches    |
+| `MOD-016.guard`               | MOD-020 Algorithmic View | Stub pass/fail          | Drive conflict handling |
+| `MOD-024.collections/recipes` | MOD-020 Algorithmic View | Fake repository methods | Isolate persistence     |
 
 - **Unit Scenario: UTS-020-A1**
     - **Arrange**: Update command with stale `expectedRowVersion`; stub `MOD-016.guard` to throw conflict.
@@ -1332,12 +1379,13 @@ None — module is self-contained
 **Description**: Confirms all collaborators are mocked.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Authorization guard | ARCH-020 Interface View | Stub authorize | No guard integration |
-| Concurrency guard | ARCH-020 Interface View | Stub guard | No CAS integration |
-| Collections repository | ARCH-020 Interface View | Stub CRUD methods | No live DB |
-| Recipes repository | ARCH-020 Interface View | Stub `loadById` | No live DB |
+
+| Dependency             | Source                  | Mock/Stub Strategy | Rationale            |
+| ---------------------- | ----------------------- | ------------------ | -------------------- |
+| Authorization guard    | ARCH-020 Interface View | Stub authorize     | No guard integration |
+| Concurrency guard      | ARCH-020 Interface View | Stub guard         | No CAS integration   |
+| Collections repository | ARCH-020 Interface View | Stub CRUD methods  | No live DB           |
+| Recipes repository     | ARCH-020 Interface View | Stub `loadById`    | No live DB           |
 
 - **Unit Scenario: UTS-020-C1**
     - **Arrange**: Inject full mocked repository/guards.
@@ -1351,8 +1399,9 @@ None — module is self-contained
 **Description**: Verifies robust handling when repository throws duplicate constraint violations during addItem operations.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency             | Source                      | Mock/Stub Strategy              | Rationale                         |
+| ---------------------- | --------------------------- | ------------------------------- | --------------------------------- |
 | Collections repository | MOD-020 Error Handling View | Stub duplicate constraint error | Validate defensive error handling |
 
 - **Unit Scenario: UTS-020-D1**
@@ -1374,12 +1423,13 @@ None — module is self-contained
 **Description**: Covers source missing, clone branch, pull branch, non-public skip, already-cloned skip, and add path.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-024.collections` methods | MOD-021 Algorithmic View | Stub source/target/member operations | Control list/diff behavior |
-| `MOD-024.recipes` methods | MOD-021 Algorithmic View | Stub visibility and cloned-from checks | Drive skip/add branches |
-| `MOD-002.authorize` | MOD-021 Algorithmic View | Stub allow/deny | Control permissions |
-| `MOD-004.execute` | MOD-021 Algorithmic View | Stub clone command result | Isolate recipe cloning service |
+
+| Dependency                    | Source                   | Mock/Stub Strategy                     | Rationale                      |
+| ----------------------------- | ------------------------ | -------------------------------------- | ------------------------------ |
+| `MOD-024.collections` methods | MOD-021 Algorithmic View | Stub source/target/member operations   | Control list/diff behavior     |
+| `MOD-024.recipes` methods     | MOD-021 Algorithmic View | Stub visibility and cloned-from checks | Drive skip/add branches        |
+| `MOD-002.authorize`           | MOD-021 Algorithmic View | Stub allow/deny                        | Control permissions            |
+| `MOD-004.execute`             | MOD-021 Algorithmic View | Stub clone command result              | Isolate recipe cloning service |
 
 - **Unit Scenario: UTS-021-A1**
     - **Arrange**: Provide source with one private recipe entry.
@@ -1407,12 +1457,13 @@ None — module is self-contained
 **Description**: Isolates clone/pull orchestration from repositories and command service.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Collection repository | ARCH-021 Interface View | Stub load/insert/list/add methods | No DB integration |
-| Recipe repository | ARCH-021 Interface View | Stub visibility/clone-check methods | Deterministic branch control |
-| Authorization guard | ARCH-021 Interface View | Stub authorize | Isolated policy enforcement |
-| Recipe command service | ARCH-021 Interface View | Stub `execute` clone command | No nested service integration |
+
+| Dependency             | Source                  | Mock/Stub Strategy                  | Rationale                     |
+| ---------------------- | ----------------------- | ----------------------------------- | ----------------------------- |
+| Collection repository  | ARCH-021 Interface View | Stub load/insert/list/add methods   | No DB integration             |
+| Recipe repository      | ARCH-021 Interface View | Stub visibility/clone-check methods | Deterministic branch control  |
+| Authorization guard    | ARCH-021 Interface View | Stub authorize                      | Isolated policy enforcement   |
+| Recipe command service | ARCH-021 Interface View | Stub `execute` clone command        | No nested service integration |
 
 - **Unit Scenario: UTS-021-C1**
     - **Arrange**: Inject all dependencies as stubs.
@@ -1426,8 +1477,9 @@ None — module is self-contained
 **Description**: Verifies robust handling when recipe repository indicates a recipe was already cloned into the target collection.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency        | Source                      | Mock/Stub Strategy            | Rationale                        |
+| ----------------- | --------------------------- | ----------------------------- | -------------------------------- |
 | Recipe repository | MOD-021 Error Handling View | Stub already-cloned detection | Validate defensive skip behavior |
 
 - **Unit Scenario: UTS-021-D1**
@@ -1449,13 +1501,14 @@ None — module is self-contained
 **Description**: Covers requester authorization check, in-flight erasure conflict, and successful transaction orchestration.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `isAdmin` check | MOD-022 Algorithmic View | Stub bool outcome | Drive owner/admin branch |
-| `MOD-024.erasures.*` | MOD-022 Algorithmic View | Stub ledger methods | Isolate persistence state machine |
-| `MOD-024.photos.collectKeysForUser` | MOD-022 Algorithmic View | Stub key list | Deterministic output |
-| `MOD-024.applyErasureMutations` | MOD-022 Algorithmic View | Stub counts | Isolate mutation details |
-| `MOD-023.purge` | MOD-022 Algorithmic View | Spy async call | Verify storage phase handoff |
+
+| Dependency                          | Source                   | Mock/Stub Strategy  | Rationale                         |
+| ----------------------------------- | ------------------------ | ------------------- | --------------------------------- |
+| `isAdmin` check                     | MOD-022 Algorithmic View | Stub bool outcome   | Drive owner/admin branch          |
+| `MOD-024.erasures.*`                | MOD-022 Algorithmic View | Stub ledger methods | Isolate persistence state machine |
+| `MOD-024.photos.collectKeysForUser` | MOD-022 Algorithmic View | Stub key list       | Deterministic output              |
+| `MOD-024.applyErasureMutations`     | MOD-022 Algorithmic View | Stub counts         | Isolate mutation details          |
+| `MOD-023.purge`                     | MOD-022 Algorithmic View | Spy async call      | Verify storage phase handoff      |
 
 - **Unit Scenario: UTS-022-A1**
     - **Arrange**: Set `requestedBy` different from subject and `isAdmin=false`.
@@ -1483,11 +1536,12 @@ None — module is self-contained
 **Description**: Ensures orchestrator tests mock repositories and storage purger.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Erasures/photos repository methods | ARCH-022 Interface View | Stub all called methods | Avoid DB transactions |
-| Storage purger service | ARCH-022 Interface View | Spy stub | Avoid external deletion operations |
-| Transaction wrapper | MOD-022 Algorithmic View | Fake transaction context | Deterministic orchestration |
+
+| Dependency                         | Source                   | Mock/Stub Strategy       | Rationale                          |
+| ---------------------------------- | ------------------------ | ------------------------ | ---------------------------------- |
+| Erasures/photos repository methods | ARCH-022 Interface View  | Stub all called methods  | Avoid DB transactions              |
+| Storage purger service             | ARCH-022 Interface View  | Spy stub                 | Avoid external deletion operations |
+| Transaction wrapper                | MOD-022 Algorithmic View | Fake transaction context | Deterministic orchestration        |
 
 - **Unit Scenario: UTS-022-C1**
     - **Arrange**: Inject fake tx wrapper and stubs.
@@ -1501,8 +1555,9 @@ None — module is self-contained
 **Description**: Probes `findInFlight` count boundary at `0` vs `1` existing erasure records.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency                      | Source                                | Mock/Stub Strategy                           | Rationale                                      |
+| ------------------------------- | ------------------------------------- | -------------------------------------------- | ---------------------------------------------- |
 | `MOD-024.erasures.findInFlight` | MOD-022 Internal Data Structures View | Stub empty list then single existing erasure | Assert boundary behavior for concurrency guard |
 
 - **Unit Scenario: UTS-022-D1**
@@ -1517,10 +1572,11 @@ None — module is self-contained
 **Description**: Verifies `requested → db_done → storage_done → completed | failed` transition graph including invalid/skipped transitions.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency                          | Source                     | Mock/Stub Strategy                              | Rationale                                              |
+| ----------------------------------- | -------------------------- | ----------------------------------------------- | ------------------------------------------------------ |
 | `MOD-024.erasures.*` ledger methods | MOD-022 State Machine View | Stateful fake ledger with transition assertions | Deterministically assert allowed/forbidden transitions |
-| `MOD-023.purge` | MOD-022 State Machine View | Stub success/failure variants | Drive terminal completed vs failed states |
+| `MOD-023.purge`                     | MOD-022 State Machine View | Stub success/failure variants                   | Drive terminal completed vs failed states              |
 
 - **Unit Scenario: UTS-022-E1**
     - **Arrange**: Start erasure in `requested`; run success path through db/storage completion and failure path during storage stage.
@@ -1534,10 +1590,11 @@ None — module is self-contained
 **Description**: Injects mutation and purge faults to validate robust `ERASURE_IN_PROGRESS`/failure reporting behavior.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-024.applyErasureMutations` | MOD-022 Error Handling View | Stub partial mutation failure | Exercise defensive rollback/failure branch |
-| `MOD-023.purge` | MOD-022 Error Handling View | Stub storage purge failure | Validate error propagation and ledger consistency |
+
+| Dependency                      | Source                      | Mock/Stub Strategy            | Rationale                                         |
+| ------------------------------- | --------------------------- | ----------------------------- | ------------------------------------------------- |
+| `MOD-024.applyErasureMutations` | MOD-022 Error Handling View | Stub partial mutation failure | Exercise defensive rollback/failure branch        |
+| `MOD-023.purge`                 | MOD-022 Error Handling View | Stub storage purge failure    | Validate error propagation and ledger consistency |
 
 - **Unit Scenario: UTS-022-F1**
     - **Arrange**: Inject mutation fault and purge fault in separate subcases with deterministic stubs.
@@ -1558,12 +1615,13 @@ None — module is self-contained
 **Description**: Covers all-success path (`markStorageDone`) and partial-failure path (`recordPartial`).
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `chunk(...)` | MOD-023 Algorithmic View | Stub chunk outputs | Control batching behavior |
-| `MOD-025.deleteObjects` | MOD-023 Algorithmic View | Stub Deleted/Errors arrays | Drive success vs partial branch |
-| `MOD-025.cloudFront.invalidate` | MOD-023 Algorithmic View | Spy invalidate call | Verify CDN purge behavior |
-| `MOD-024.erasures.markStorageDone/recordPartial` | MOD-023 Algorithmic View | Spy methods | Verify state update |
+
+| Dependency                                       | Source                   | Mock/Stub Strategy         | Rationale                       |
+| ------------------------------------------------ | ------------------------ | -------------------------- | ------------------------------- |
+| `chunk(...)`                                     | MOD-023 Algorithmic View | Stub chunk outputs         | Control batching behavior       |
+| `MOD-025.deleteObjects`                          | MOD-023 Algorithmic View | Stub Deleted/Errors arrays | Drive success vs partial branch |
+| `MOD-025.cloudFront.invalidate`                  | MOD-023 Algorithmic View | Spy invalidate call        | Verify CDN purge behavior       |
+| `MOD-024.erasures.markStorageDone/recordPartial` | MOD-023 Algorithmic View | Spy methods                | Verify state update             |
 
 - **Unit Scenario: UTS-023-A1**
     - **Arrange**: Stub one delete batch with `Errors=[{Key:"k1"}]`.
@@ -1591,11 +1649,12 @@ None — module is self-contained
 **Description**: Isolates purger from S3/CloudFront and repository services.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| S3 delete adapter | ARCH-023 Interface View | Stub `deleteObjects` | Avoid object store writes |
-| CloudFront adapter | ARCH-023 Interface View | Stub `invalidate` | Avoid CDN API calls |
-| Erasure repository | ARCH-023 Interface View | Spy status update methods | Avoid DB I/O |
+
+| Dependency         | Source                  | Mock/Stub Strategy        | Rationale                 |
+| ------------------ | ----------------------- | ------------------------- | ------------------------- |
+| S3 delete adapter  | ARCH-023 Interface View | Stub `deleteObjects`      | Avoid object store writes |
+| CloudFront adapter | ARCH-023 Interface View | Stub `invalidate`         | Avoid CDN API calls       |
+| Erasure repository | ARCH-023 Interface View | Spy status update methods | Avoid DB I/O              |
 
 - **Unit Scenario: UTS-023-C1**
     - **Arrange**: Inject all external adapters as stubs.
@@ -1609,8 +1668,9 @@ None — module is self-contained
 **Description**: Verifies robust handling when CloudFront invalidation API throws unexpected errors during purge operations.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency         | Source                      | Mock/Stub Strategy                        | Rationale                         |
+| ------------------ | --------------------------- | ----------------------------------------- | --------------------------------- |
 | CloudFront adapter | MOD-023 Error Handling View | Stub unexpected error during invalidation | Validate defensive error handling |
 
 - **Unit Scenario: UTS-023-D1**
@@ -1632,10 +1692,11 @@ None — module is self-contained
 **Description**: Covers `loadById` miss path, insert/update success, transaction commit and rollback branches.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Drizzle db client/pool | MOD-024 Algorithmic View | Fake pool + query stubs | Control DB responses/errors |
-| UUID generator for row_version | MOD-024 Algorithmic View | Stub UUID values | Deterministic update assertions |
+
+| Dependency                     | Source                   | Mock/Stub Strategy      | Rationale                       |
+| ------------------------------ | ------------------------ | ----------------------- | ------------------------------- |
+| Drizzle db client/pool         | MOD-024 Algorithmic View | Fake pool + query stubs | Control DB responses/errors     |
+| UUID generator for row_version | MOD-024 Algorithmic View | Stub UUID values        | Deterministic update assertions |
 
 - **Unit Scenario: UTS-024-A1**
     - **Arrange**: Stub `loadById` query to return empty rows.
@@ -1649,10 +1710,11 @@ None — module is self-contained
 **Description**: Partitions key repository methods (`loadById`,`insert`,`update`,`softDelete`,`searchPage`).
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Drizzle db client/pool | MOD-024 Algorithmic View | Reuse fake pool from UTP-024-A | Maintain strict isolation across all repository partition scenarios |
-| UUID generator for row_version | MOD-024 Algorithmic View | Reuse UUID stub from UTP-024-A | Deterministic update assertions across partitions |
+
+| Dependency                     | Source                   | Mock/Stub Strategy             | Rationale                                                           |
+| ------------------------------ | ------------------------ | ------------------------------ | ------------------------------------------------------------------- |
+| Drizzle db client/pool         | MOD-024 Algorithmic View | Reuse fake pool from UTP-024-A | Maintain strict isolation across all repository partition scenarios |
+| UUID generator for row_version | MOD-024 Algorithmic View | Reuse UUID stub from UTP-024-A | Deterministic update assertions across partitions                   |
 
 - **Unit Scenario: UTS-024-B1**
     - **Arrange**: Execute `update` with valid row and deterministic UUID stub.
@@ -1666,10 +1728,11 @@ None — module is self-contained
 **Description**: Ensures all repository tests use mocked DB driver/pool only.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Drizzle ORM query executor | ARCH-024 Interface View | Stub query builder/execute | Avoid real DB |
-| PostgreSQL connection pool | ARCH-024 Interface View | Fake pool object | Isolate transaction behavior |
+
+| Dependency                 | Source                  | Mock/Stub Strategy         | Rationale                    |
+| -------------------------- | ----------------------- | -------------------------- | ---------------------------- |
+| Drizzle ORM query executor | ARCH-024 Interface View | Stub query builder/execute | Avoid real DB                |
+| PostgreSQL connection pool | ARCH-024 Interface View | Fake pool object           | Isolate transaction behavior |
 
 - **Unit Scenario: UTS-024-C1**
     - **Arrange**: Inject fake pool and fake drizzle adapter.
@@ -1690,10 +1753,11 @@ None — module is self-contained
 **Description**: Covers save success, 409 conflict branch, upload pipeline branch, and auth redirect branch.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `fetch` API client | MOD-026 Algorithmic View | Stub response codes/bodies | Control network outcomes |
-| Clerk session provider (`@clerk/nextjs`) | MOD-026 Interface View | Stub authenticated/unauthenticated | Drive redirect branch |
+
+| Dependency                               | Source                   | Mock/Stub Strategy                 | Rationale                |
+| ---------------------------------------- | ------------------------ | ---------------------------------- | ------------------------ |
+| `fetch` API client                       | MOD-026 Algorithmic View | Stub response codes/bodies         | Control network outcomes |
+| Clerk session provider (`@clerk/nextjs`) | MOD-026 Interface View   | Stub authenticated/unauthenticated | Drive redirect branch    |
 
 - **Unit Scenario: UTS-026-A1**
     - **Arrange**: Stub PATCH response `409` with conflict payload and local `rowVersion`.
@@ -1721,10 +1785,11 @@ None — module is self-contained
 **Description**: Ensures web UI unit tests mock auth/session, API client, and upload endpoints.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `@clerk/nextjs` SDK | ARCH-026 Interface View | Stub session hook | No live auth interactions |
-| API fetch layer | ARCH-026 Interface View | Stub fetch responses | No real HTTP calls |
+
+| Dependency                | Source                   | Mock/Stub Strategy           | Rationale                    |
+| ------------------------- | ------------------------ | ---------------------------- | ---------------------------- |
+| `@clerk/nextjs` SDK       | ARCH-026 Interface View  | Stub session hook            | No live auth interactions    |
+| API fetch layer           | ARCH-026 Interface View  | Stub fetch responses         | No real HTTP calls           |
 | Presign/confirm endpoints | MOD-026 Algorithmic View | Stub deterministic responses | Isolate upload state machine |
 
 - **Unit Scenario: UTS-026-C1**
@@ -1739,8 +1804,9 @@ None — module is self-contained
 **Description**: Verifies photo widget and conflict resolver transitions `idle → presigning → uploading → confirming → processing → ready | failed` and `clean → editing → conflict_detected → resolved`.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency                       | Source                     | Mock/Stub Strategy                                    | Rationale                                                |
+| -------------------------------- | -------------------------- | ----------------------------------------------------- | -------------------------------------------------------- |
 | Presign/upload/confirm API calls | MOD-026 State Machine View | Stub deterministic success/failure responses by stage | Assert valid/invalid transition behavior without network |
 
 - **Unit Scenario: UTS-026-D1**
@@ -1763,11 +1829,12 @@ None — module is self-contained
 **Description**: Covers token bootstrap success/failure, photo capture upload flow, and invalid token recovery branch.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `SecureStore.getItem` | MOD-027 Algorithmic View | Stub token/empty | Drive auth bootstrap branches |
-| `@clerk/expo` login | MOD-027 Algorithmic View | Stub login result | Avoid auth network |
-| API fetch client | MOD-027 Algorithmic View | Stub responses | Control flow outcomes |
+
+| Dependency            | Source                   | Mock/Stub Strategy | Rationale                     |
+| --------------------- | ------------------------ | ------------------ | ----------------------------- |
+| `SecureStore.getItem` | MOD-027 Algorithmic View | Stub token/empty   | Drive auth bootstrap branches |
+| `@clerk/expo` login   | MOD-027 Algorithmic View | Stub login result  | Avoid auth network            |
+| API fetch client      | MOD-027 Algorithmic View | Stub responses     | Control flow outcomes         |
 
 - **Unit Scenario: UTS-027-A1**
     - **Arrange**: Stub secure-store token as expired and login function as success.
@@ -1795,11 +1862,12 @@ None — module is self-contained
 **Description**: Ensures mobile unit tests fully mock SecureStore, Clerk SDK (`@clerk/expo`), and network adapter.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Expo SecureStore | ARCH-027 Interface View | Stub get/set/remove | No device keychain access |
-| `@clerk/expo` | ARCH-027 Interface View | Stub login/token methods | No OAuth network |
-| API fetch layer | ARCH-027 Interface View | Stub HTTP client | No backend calls |
+
+| Dependency       | Source                  | Mock/Stub Strategy       | Rationale                 |
+| ---------------- | ----------------------- | ------------------------ | ------------------------- |
+| Expo SecureStore | ARCH-027 Interface View | Stub get/set/remove      | No device keychain access |
+| `@clerk/expo`    | ARCH-027 Interface View | Stub login/token methods | No OAuth network          |
+| API fetch layer  | ARCH-027 Interface View | Stub HTTP client         | No backend calls          |
 
 - **Unit Scenario: UTS-027-C1**
     - **Arrange**: Inject mocked storage/auth/network modules.
@@ -1813,8 +1881,9 @@ None — module is self-contained
 **Description**: Verifies auth state transitions `bootstrapping → authenticated | needs_login` including invalid transition handling.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency                                               | Source                     | Mock/Stub Strategy                                    | Rationale                                     |
+| -------------------------------------------------------- | -------------------------- | ----------------------------------------------------- | --------------------------------------------- |
 | SecureStore/Clerk (`@clerk/expo`) bootstrap dependencies | MOD-027 State Machine View | Stub token present/expired/missing and login outcomes | Deterministically drive auth transition graph |
 
 - **Unit Scenario: UTS-027-D1**
@@ -1837,10 +1906,11 @@ None — module is self-contained
 **Description**: Covers DomainError mapping, HttpException mapping, unknown error fallback to INTERNAL.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency                            | Source                   | Mock/Stub Strategy   | Rationale                         |
+| ------------------------------------- | ------------------------ | -------------------- | --------------------------------- |
 | Nest `ArgumentsHost` response objects | MOD-028 Algorithmic View | Fake req/res objects | Deterministic response assertions |
-| `MOD-030.error` logger | MOD-028 Algorithmic View | Spy logger call | Verify unknown-error logging |
+| `MOD-030.error` logger                | MOD-028 Algorithmic View | Spy logger call      | Verify unknown-error logging      |
 
 - **Unit Scenario: UTS-028-A1**
     - **Arrange**: Pass unknown `Error("boom")` and request without `x-request-id`.
@@ -1868,10 +1938,11 @@ None — module is self-contained
 **Description**: Confirms mapper is tested with mocked HTTP host and logger only.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency                   | Source                  | Mock/Stub Strategy                 | Rationale                 |
+| ---------------------------- | ----------------------- | ---------------------------------- | ------------------------- |
 | NestJS host/request/response | ARCH-028 Interface View | Fakes for `getRequest/getResponse` | No framework runtime boot |
-| Telemetry logger | ARCH-028 Interface View | Spy `error` method | Verify side effects |
+| Telemetry logger             | ARCH-028 Interface View | Spy `error` method                 | Verify side effects       |
 
 - **Unit Scenario: UTS-028-C1**
     - **Arrange**: Inject fake host and logger stubs.
@@ -1885,10 +1956,11 @@ None — module is self-contained
 **Description**: Exercises uncommon HttpException payload shapes to ensure mapper emits stable fallback contracts.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency                  | Source                      | Mock/Stub Strategy                                           | Rationale                                    |
+| --------------------------- | --------------------------- | ------------------------------------------------------------ | -------------------------------------------- |
 | Nest `HttpException` object | MOD-028 Error Handling View | Stub atypical response payloads (string/object/missing code) | Validate defensive mapping branch robustness |
-| `MOD-030.error` logger | MOD-028 Error Handling View | Spy logging for malformed exception payloads | Ensure observability on fallback branches |
+| `MOD-030.error` logger      | MOD-028 Error Handling View | Spy logging for malformed exception payloads                 | Ensure observability on fallback branches    |
 
 - **Unit Scenario: UTS-028-D1**
     - **Arrange**: Feed mapper HttpException variants with missing/malformed response bodies.
@@ -1909,10 +1981,11 @@ None — module is self-contained
 **Description**: Covers parse success freeze path and parse failure path with process exit.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `schema.safeParse` | MOD-029 Algorithmic View | Stub success/failure results | Drive both branches |
-| `process.exit` | MOD-029 Algorithmic View | Spy/stub exit | Prevent real process termination |
+
+| Dependency         | Source                   | Mock/Stub Strategy           | Rationale                        |
+| ------------------ | ------------------------ | ---------------------------- | -------------------------------- |
+| `schema.safeParse` | MOD-029 Algorithmic View | Stub success/failure results | Drive both branches              |
+| `process.exit`     | MOD-029 Algorithmic View | Spy/stub exit                | Prevent real process termination |
 
 - **Unit Scenario: UTS-029-A1**
     - **Arrange**: Stub `safeParse` with `{success:false,error:...}`.
@@ -1940,10 +2013,11 @@ None — module is self-contained
 **Description**: Ensures tests isolate environment and process globals.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `process.env` | ARCH-029 Interface View | Inject cloned env map | Avoid host-environment coupling |
-| `process.exit`/`console` | ARCH-029 Interface View | Stub side-effect functions | Safe failure-path verification |
+
+| Dependency               | Source                  | Mock/Stub Strategy         | Rationale                       |
+| ------------------------ | ----------------------- | -------------------------- | ------------------------------- |
+| `process.env`            | ARCH-029 Interface View | Inject cloned env map      | Avoid host-environment coupling |
+| `process.exit`/`console` | ARCH-029 Interface View | Stub side-effect functions | Safe failure-path verification  |
 
 - **Unit Scenario: UTS-029-C1**
     - **Arrange**: Provide isolated env object and process stubs.
@@ -1964,10 +2038,11 @@ None — module is self-contained
 **Description**: Covers redaction path, correlation attachment path, and swallowed internal logger error path.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Powertools logger | MOD-030 Interface View | Stub emit methods | Isolate logging backend |
-| Sentry emitter | MOD-030 Interface View | Stub breadcrumb/capture | Avoid external telemetry network |
+
+| Dependency        | Source                 | Mock/Stub Strategy      | Rationale                        |
+| ----------------- | ---------------------- | ----------------------- | -------------------------------- |
+| Powertools logger | MOD-030 Interface View | Stub emit methods       | Isolate logging backend          |
+| Sentry emitter    | MOD-030 Interface View | Stub breadcrumb/capture | Avoid external telemetry network |
 
 - **Unit Scenario: UTS-030-A1**
     - **Arrange**: Input fields include `email`, `token`, and `presignedUrl` keys.
@@ -1995,11 +2070,12 @@ None — module is self-contained
 **Description**: Ensures all telemetry sinks are mocked.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Powertools logger backend | ARCH-030 Interface View | Stub logger object | No stdout/cloud side effects |
-| Sentry SDK | ARCH-030 Interface View | Stub capture functions | No outbound telemetry |
-| CloudWatch EMF metrics sink | ARCH-030 Interface View | Stub metric publisher | Isolate metric serialization |
+
+| Dependency                  | Source                  | Mock/Stub Strategy     | Rationale                    |
+| --------------------------- | ----------------------- | ---------------------- | ---------------------------- |
+| Powertools logger backend   | ARCH-030 Interface View | Stub logger object     | No stdout/cloud side effects |
+| Sentry SDK                  | ARCH-030 Interface View | Stub capture functions | No outbound telemetry        |
+| CloudWatch EMF metrics sink | ARCH-030 Interface View | Stub metric publisher  | Isolate metric serialization |
 
 - **Unit Scenario: UTS-030-C1**
     - **Arrange**: Inject mocked sink implementations.
@@ -2020,10 +2096,11 @@ None — module is self-contained
 **Description**: Covers all three alarm definitions and SNS action attachments.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency            | Source                   | Mock/Stub Strategy     | Rationale                             |
+| --------------------- | ------------------------ | ---------------------- | ------------------------------------- |
 | CDK `Alarm` construct | MOD-031 Algorithmic View | Stub construct factory | Verify threshold config without synth |
-| SNS action wrapper | MOD-031 Algorithmic View | Spy action assignment | Validate wiring behavior |
+| SNS action wrapper    | MOD-031 Algorithmic View | Spy action assignment  | Validate wiring behavior              |
 
 - **Unit Scenario: UTS-031-A1**
     - **Arrange**: Instantiate construct with fake queue/dlq/topic resources.
@@ -2051,10 +2128,11 @@ None — module is self-contained
 **Description**: Ensures CDK resources are represented by fakes only.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency                | Source                  | Mock/Stub Strategy     | Rationale                    |
+| ------------------------- | ----------------------- | ---------------------- | ---------------------------- |
 | CloudWatch CDK constructs | ARCH-031 Interface View | Fake construct classes | No AWS deploy/synth required |
-| SNS action construct | ARCH-031 Interface View | Stub action class | Verify attachment calls only |
+| SNS action construct      | ARCH-031 Interface View | Stub action class      | Verify attachment calls only |
 
 - **Unit Scenario: UTS-031-C1**
     - **Arrange**: Provide fake CDK scope/resources.
@@ -2075,10 +2153,11 @@ None — module is self-contained
 **Description**: Covers governance script pass path, check-failure path, and traceability-gate failure path in TypeScript harness logic.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Turbo command runner | MOD-032 Algorithmic View | Stub exit codes | Drive pipeline outcomes |
-| Coverage/traceability scripts | MOD-032 Algorithmic View | Stub pass/fail outputs | Validate gate behavior |
+
+| Dependency                    | Source                   | Mock/Stub Strategy     | Rationale               |
+| ----------------------------- | ------------------------ | ---------------------- | ----------------------- |
+| Turbo command runner          | MOD-032 Algorithmic View | Stub exit codes        | Drive pipeline outcomes |
+| Coverage/traceability scripts | MOD-032 Algorithmic View | Stub pass/fail outputs | Validate gate behavior  |
 
 - **Unit Scenario: UTS-032-A1**
     - **Arrange**: Stub `validate-module-coverage.sh` result as failure.
@@ -2108,11 +2187,12 @@ None — module is self-contained
 **Description**: Ensures CI governance tests isolate shell/process execution dependencies.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Shell command executor | ARCH-032 Interface View | Stub process runner | No real CI command execution |
-| File-system readers for workflow files | ARCH-032 Interface View | Stub in-memory fixtures | Deterministic parsing |
-| Coverage validators | ARCH-032 Interface View | Stub script outputs | Control gate branching |
+
+| Dependency                             | Source                  | Mock/Stub Strategy      | Rationale                    |
+| -------------------------------------- | ----------------------- | ----------------------- | ---------------------------- |
+| Shell command executor                 | ARCH-032 Interface View | Stub process runner     | No real CI command execution |
+| File-system readers for workflow files | ARCH-032 Interface View | Stub in-memory fixtures | Deterministic parsing        |
+| Coverage validators                    | ARCH-032 Interface View | Stub script outputs     | Control gate branching       |
 
 - **Unit Scenario: UTS-032-C1**
     - **Arrange**: Inject fake runner and fixture files.
@@ -2133,11 +2213,12 @@ None — module is self-contained
 **Description**: Covers successful app creation/listen path and bootstrap failure path.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `NestFactory.create` | MOD-033 Algorithmic View | Stub app instance/throw | Drive success/failure branches |
-| App logger (MOD-030) | MOD-033 Algorithmic View | Stub logger object | Verify wiring call |
-| Config loader (MOD-029) | MOD-033 Algorithmic View | Stub config values | Deterministic port binding |
+
+| Dependency              | Source                   | Mock/Stub Strategy      | Rationale                      |
+| ----------------------- | ------------------------ | ----------------------- | ------------------------------ |
+| `NestFactory.create`    | MOD-033 Algorithmic View | Stub app instance/throw | Drive success/failure branches |
+| App logger (MOD-030)    | MOD-033 Algorithmic View | Stub logger object      | Verify wiring call             |
+| Config loader (MOD-029) | MOD-033 Algorithmic View | Stub config values      | Deterministic port binding     |
 
 - **Unit Scenario: UTS-033-A1**
     - **Arrange**: Stub `NestFactory.create` returning fake app with spies for `useLogger`, `listen`.
@@ -2165,11 +2246,12 @@ None — module is self-contained
 **Description**: Ensures module wiring tests use only mocked Nest factory and DI tokens.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| NestFactory/bootstrap runtime | ARCH-033 Interface View | Stub create/listen methods | No real server startup |
-| Feature modules/providers | ARCH-033 Interface View | Stub DI token registry | Isolate composition behavior |
-| Observability logger | ARCH-033 Interface View | Stub logger sink | Avoid real logging side effects |
+
+| Dependency                    | Source                  | Mock/Stub Strategy         | Rationale                       |
+| ----------------------------- | ----------------------- | -------------------------- | ------------------------------- |
+| NestFactory/bootstrap runtime | ARCH-033 Interface View | Stub create/listen methods | No real server startup          |
+| Feature modules/providers     | ARCH-033 Interface View | Stub DI token registry     | Isolate composition behavior    |
+| Observability logger          | ARCH-033 Interface View | Stub logger sink           | Avoid real logging side effects |
 
 - **Unit Scenario: UTS-033-C1**
     - **Arrange**: Replace Nest runtime and module imports with fakes.
@@ -2183,10 +2265,11 @@ None — module is self-contained
 **Description**: Verifies app lifecycle transitions `bootstrapping → listening → draining → stopped` and rejects invalid transition ordering.
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `NestFactory.create` app hooks | MOD-033 State Machine View | Stateful fake app with lifecycle guards | Explicitly assert allowed transition edges |
-| Process signal handlers | MOD-033 State Machine View | Stub signal dispatch callbacks | Deterministically trigger draining/stopped transitions |
+
+| Dependency                     | Source                     | Mock/Stub Strategy                      | Rationale                                              |
+| ------------------------------ | -------------------------- | --------------------------------------- | ------------------------------------------------------ |
+| `NestFactory.create` app hooks | MOD-033 State Machine View | Stateful fake app with lifecycle guards | Explicitly assert allowed transition edges             |
+| Process signal handlers        | MOD-033 State Machine View | Stub signal dispatch callbacks          | Deterministically trigger draining/stopped transitions |
 
 - **Unit Scenario: UTS-033-D1**
     - **Arrange**: Initialize fake app in `bootstrapping`, then trigger listen and SIGTERM callbacks.
@@ -2204,9 +2287,10 @@ None — module is self-contained
 **Description**: Verifies defensive handling when a token's protected header is malformed, so networkless signature verification against the local `CLERK_JWT_KEY` cannot proceed and the verifier fails closed. (Closes: MOD-001 error-guessing gap)
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `jose.decodeProtectedHeader` | MOD-001 Algorithmic View | Stub malformed header `{}` | Simulate real-world malformed token metadata |
+
+| Dependency                   | Source                   | Mock/Stub Strategy                          | Rationale                                                |
+| ---------------------------- | ------------------------ | ------------------------------------------- | -------------------------------------------------------- |
+| `jose.decodeProtectedHeader` | MOD-001 Algorithmic View | Stub malformed header `{}`                  | Simulate real-world malformed token metadata             |
 | `@clerk/backend.verifyToken` | MOD-001 Algorithmic View | Stub reject on malformed/unverifiable token | Drive networkless fail-closed `INVALID_TOKEN` error path |
 
 - **Unit Scenario: UTS-001-D1**
@@ -2221,8 +2305,9 @@ None — module is self-contained
 **Description**: Ensures unexpected `null` array member in `ingredients[]` is flattened into deterministic `VALIDATION_FAILED` output. (Closes: MOD-005 error-guessing gap)
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency     | Source                   | Mock/Stub Strategy                                | Rationale                                    |
+| -------------- | ------------------------ | ------------------------------------------------- | -------------------------------------------- |
 | `validateSync` | MOD-005 Algorithmic View | Stub nested validation error for `ingredients[1]` | Reproduce malformed client payload edge case |
 
 - **Unit Scenario: UTS-005-D1**
@@ -2237,10 +2322,11 @@ None — module is self-contained
 **Description**: Verifies confirm flow rejects object metadata missing required `etag` despite object presence. (Closes: MOD-013 error-guessing gap)
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| `MOD-024.photoUploads.findPendingByKey` | MOD-013 Algorithmic View | Stub valid pending row | Reach metadata checks |
-| `MOD-025.headObject` | MOD-013 Algorithmic View | Stub object metadata with empty `etag` | Model inconsistent provider response |
+
+| Dependency                              | Source                   | Mock/Stub Strategy                     | Rationale                            |
+| --------------------------------------- | ------------------------ | -------------------------------------- | ------------------------------------ |
+| `MOD-024.photoUploads.findPendingByKey` | MOD-013 Algorithmic View | Stub valid pending row                 | Reach metadata checks                |
+| `MOD-025.headObject`                    | MOD-013 Algorithmic View | Stub object metadata with empty `etag` | Model inconsistent provider response |
 
 - **Unit Scenario: UTS-013-D1**
     - **Arrange**: Stub pending upload row owned by principal; stub headObject result with `contentLength/contentType` but missing `etag` value.
@@ -2254,8 +2340,9 @@ None — module is self-contained
 **Description**: Confirms Postgres `23505` is normalized to domain-level `UNIQUE_VIOLATION` with constraint context. (Closes: MOD-024 error-guessing gap)
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
+
+| Dependency             | Source                   | Mock/Stub Strategy                                                          | Rationale                                |
+| ---------------------- | ------------------------ | --------------------------------------------------------------------------- | ---------------------------------------- |
 | Drizzle query executor | MOD-024 Algorithmic View | Stub insert reject `{ code:"23505", constraint:"recipes_owner_title_key" }` | Validate error-code translation contract |
 
 - **Unit Scenario: UTS-024-D1**
@@ -2270,9 +2357,10 @@ None — module is self-contained
 **Description**: Validates that networkless verification holds no key cache and performs no key-refresh state transitions — there is no `EMPTY → POPULATED → STALE → REFRESHING` lifecycle because the verifier reads the local `CLERK_JWT_KEY` directly. Key rotation is handled by configuration (overlapping old/new key acceptance during cutover) and boot-time key validation, not by a runtime cache. (Closes: MOD-001 state-transition gap)
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| Network I/O (fetch) | MOD-001 Algorithmic View | Spy/assert no outbound calls | Prove verification is networkless (no JWKS round trip) |
+
+| Dependency             | Source                   | Mock/Stub Strategy                      | Rationale                                                     |
+| ---------------------- | ------------------------ | --------------------------------------- | ------------------------------------------------------------- |
+| Network I/O (fetch)    | MOD-001 Algorithmic View | Spy/assert no outbound calls            | Prove verification is networkless (no JWKS round trip)        |
 | `CLERK_JWT_KEY` config | MOD-001 Algorithmic View | Provide valid then rotated key fixtures | Verify rotation handled at config/boot, not via runtime cache |
 
 - **Unit Scenario: UTS-001-E1**
@@ -2292,10 +2380,11 @@ None — module is self-contained
 **Description**: Verifies pool lifecycle `idle → in_use → broken → recreated → idle` when transaction branch experiences connection failure and recovery. (Closes: MOD-024 state-transition gap)
 
 **Dependency & Mock Registry:**
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-| --- | --- | --- | --- |
-| PostgreSQL pool client | MOD-024 State Machine View | Fake pool stateful test double | Explicitly assert pool-state transitions |
-| `transaction(fn)` wrapper | MOD-024 Algorithmic View | Stub closure throw then subsequent success | Exercise broken/recreated recovery path |
+
+| Dependency                | Source                     | Mock/Stub Strategy                         | Rationale                                |
+| ------------------------- | -------------------------- | ------------------------------------------ | ---------------------------------------- |
+| PostgreSQL pool client    | MOD-024 State Machine View | Fake pool stateful test double             | Explicitly assert pool-state transitions |
+| `transaction(fn)` wrapper | MOD-024 Algorithmic View   | Stub closure throw then subsequent success | Exercise broken/recreated recovery path  |
 
 - **Unit Scenario: UTS-024-E1**
     - **Arrange**: Start fake pool in `idle`, make first `transaction(fn)` acquire client and throw simulated connection reset during `BEGIN`.

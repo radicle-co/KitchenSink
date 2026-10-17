@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Data sources (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                        width: 1194px;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .cap {
+                        margin: 0;
+                        padding: 0 16px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .pg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 12px 0 24px;
+                    }
+                    .fg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .pagef {
+                        position: relative;
+                        width: 1194px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        transform: translateZ(0);
+                    }
+                    .wash {
+                        width: 1194px;
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 20px;
+                    }
+                    .crop {
+                        width: 1194px;
+                        padding: 16px 20px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .fld {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .fields {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .foot {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        padding: 12px 0;
+                    }
+                    .err {
+                        margin: 0;
+                        font-size: 14px;
+                        line-height: 1.4;
+                        color: var(--danger-text);
+                    }
+                    .status {
+                        margin: 0;
+                        font-size: 14px;
+                        line-height: 1.4;
+                        color: var(--ink-muted);
+                    }
+                </style></helmet
+            >
+            <!-- BREAKPOINT BOARD, 1194 px (tablet landscape): DataSourcesPushedPage keeps its own 16 pt side padding at every width and has no maximum width, so the cards span the window and each dt stays stacked above its dd (native has no row form). The page sits in the Profile stack above AppTabBar, which shows on a pushed route. -->
+            <div
+                style="
+                    width: 1194px;
+                    min-height: 834px;
+                    display: flex;
+                    flex-direction: column;
+                    background: var(--canvas);
+                    background-image: var(--background-image-hero);
+                    --bottom-chrome: 64px;
+                "
+            >
+                <main class="wash" style="flex: 1; padding: 8px 16px 24px; gap: 12px; background: transparent">
+                    <x-import
+                        component-from-global-scope="Commise.Native.LargeTitleHeader"
+                        heading-id="sources-h1"
+                        title="Data sources"
+                        back="{{back}}"
+                    ></x-import>
+                    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink)">
+                        The nutrition figures in this app come from these public food databases.
+                    </p>
+                    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink-muted)">
+                        When no database lists a food exactly, we use the figures for a similar or more general food.
+                    </p>
+                    <div style="display: flex; flex-direction: column; gap: 12px">
+                        <section
+                            aria-labelledby="src-1"
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                gap: 8px;
+                                border-radius: var(--radius-lg);
+                                border: 1px solid var(--line-divider);
+                                background: var(--surface-muted);
+                                padding: 16px;
+                            "
+                        >
+                            <h2
+                                id="src-1"
+                                style="
+                                    margin: 0;
+                                    font-size: 18px;
+                                    font-weight: 600;
+                                    line-height: 1.25;
+                                    color: var(--ink);
+                                "
+                            >
+                                U.S. Department of Agriculture, Agricultural Research Service
+                            </h2>
+                            <span style="font-size: 16px; font-weight: 600; line-height: 1.5; color: var(--ink)"
+                                >FoodData Central</span
+                            >
+                            <div style="display: flex; flex-direction: column; gap: 4px">
+                                <span style="font-size: 12px; line-height: 1.4; color: var(--ink-muted)">Edition</span
+                                ><span
+                                    style="
+                                        font-size: 14px;
+                                        line-height: 1.4;
+                                        color: var(--ink);
+                                        overflow-wrap: anywhere;
+                                    "
+                                    >SR Legacy 2018-04, Foundation 2026-04-30, FNDDS 2021-2023, Branded 2026-04-30</span
+                                >
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 4px">
+                                <span style="font-size: 12px; line-height: 1.4; color: var(--ink-muted)">License</span>
+                                <div
+                                    role="link"
+                                    aria-label="CC0 1.0 Universal, license for USDA (opens in a new tab)"
+                                    style="
+                                        display: flex;
+                                        min-height: 48px;
+                                        align-items: center;
+                                        align-self: flex-start;
+                                        font-size: 14px;
+                                        line-height: 1.4;
+                                        color: var(--action-text);
+                                        text-decoration: underline;
+                                    "
+                                >
+                                    CC0 1.0 Universal<span aria-hidden="true">&nbsp;↗</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 4px">
+                                <span style="font-size: 12px; line-height: 1.4; color: var(--ink-muted)">Credit</span
+                                ><span
+                                    lang="en"
+                                    style="
+                                        font-size: 14px;
+                                        line-height: 1.4;
+                                        color: var(--ink);
+                                        overflow-wrap: anywhere;
+                                    "
+                                    >U.S. Department of Agriculture, Agricultural Research Service, Beltsville Human
+                                    Nutrition Research Center. FoodData Central.</span
+                                >
+                            </div>
+
+                            <div
+                                role="link"
+                                aria-label="Source website, USDA (opens in a new tab)"
+                                style="
+                                    display: flex;
+                                    min-height: 48px;
+                                    align-items: center;
+                                    align-self: flex-start;
+                                    font-size: 14px;
+                                    line-height: 1.4;
+                                    color: var(--action-text);
+                                    text-decoration: underline;
+                                "
+                            >
+                                Source website<span aria-hidden="true">&nbsp;↗</span>
+                            </div>
+                        </section>
+                        <section
+                            aria-labelledby="src-2"
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                gap: 8px;
+                                border-radius: var(--radius-lg);
+                                border: 1px solid var(--line-divider);
+                                background: var(--surface-muted);
+                                padding: 16px;
+                            "
+                        >
+                            <h2
+                                id="src-2"
+                                style="
+                                    margin: 0;
+                                    font-size: 18px;
+                                    font-weight: 600;
+                                    line-height: 1.25;
+                                    color: var(--ink);
+                                "
+                            >
+                                Anses
+                            </h2>
+                            <span style="font-size: 16px; font-weight: 600; line-height: 1.5; color: var(--ink)"
+                                >Ciqual French food composition table</span
+                            >
+                            <div style="display: flex; flex-direction: column; gap: 4px">
+                                <span style="font-size: 12px; line-height: 1.4; color: var(--ink-muted)">Edition</span
+                                ><span
+                                    style="
+                                        font-size: 14px;
+                                        line-height: 1.4;
+                                        color: var(--ink);
+                                        overflow-wrap: anywhere;
+                                    "
+                                    >2025</span
+                                >
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 4px">
+                                <span style="font-size: 12px; line-height: 1.4; color: var(--ink-muted)">License</span>
+                                <div
+                                    role="link"
+                                    aria-label="Licence Ouverte / Open Licence 2.0, license for Ciqual (opens in a new tab)"
+                                    style="
+                                        display: flex;
+                                        min-height: 48px;
+                                        align-items: center;
+                                        align-self: flex-start;
+                                        font-size: 14px;
+                                        line-height: 1.4;
+                                        color: var(--action-text);
+                                        text-decoration: underline;
+                                    "
+                                >
+                                    Licence Ouverte / Open Licence 2.0<span aria-hidden="true">&nbsp;↗</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 4px">
+                                <span style="font-size: 12px; line-height: 1.4; color: var(--ink-muted)">Credit</span
+                                ><span
+                                    lang="fr"
+                                    style="
+                                        font-size: 14px;
+                                        line-height: 1.4;
+                                        color: var(--ink);
+                                        overflow-wrap: anywhere;
+                                    "
+                                    >Anses. 2025. Table de composition nutritionnelle des aliments Ciqual.</span
+                                >
+                            </div>
+                            <span style="font-size: 14px; line-height: 1.4; color: var(--ink-muted)"
+                                >We converted some of its values to the units this app uses.</span
+                            >
+                            <div
+                                role="link"
+                                aria-label="Source website, Ciqual (opens in a new tab)"
+                                style="
+                                    display: flex;
+                                    min-height: 48px;
+                                    align-items: center;
+                                    align-self: flex-start;
+                                    font-size: 14px;
+                                    line-height: 1.4;
+                                    color: var(--action-text);
+                                    text-decoration: underline;
+                                "
+                            >
+                                Source website<span aria-hidden="true">&nbsp;↗</span>
+                            </div>
+                        </section>
+                    </div>
+                </main>
+                <x-import
+                    component-from-global-scope="Commise.Native.HomeTabBar"
+                    chrome="{{chrome}}"
+                    live-capabilities="{{none}}"
+                    active-id="home"
+                    on-press="{{noop}}"
+                    bottom-inset="{{inset}}"
+                    compact="{{no}}"
+                    left-inset="{{zero}}"
+                    right-inset="{{zero}}"
+                ></x-import>
+            </div>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1194,"height":974}}'>
+            class Component extends DCLogic { renderVals(){ return { chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'}, none:[], no:false, zero:0, inset:20, noop: function(){}, back: { label: 'Back to Profile', parent: 'Profile', onPress: function(){} } }; } }
+        </script>
+    </body>
+</html>

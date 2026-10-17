@@ -1,0 +1,28 @@
+{
+    "srLegacy": {
+        "upstream": "FoodData_Central_sr_legacy_food_csv_2018-04.zip",
+        "upstreamSha256": "b80817294b8850530aaedf2e515c02593b1824f763a0ff356e5c2081643e6fd0",
+        "file": "srLegacy201804.zip"
+    },
+    "foundation": {
+        "upstream": "FoodData_Central_foundation_food_csv_2026-04-30.zip",
+        "upstreamSha256": "70457ee9d9342f43bda2010318c85f04210c689fdeb9cd2da4c513b0e8dbc655",
+        "file": "foundation20260430.zip"
+    },
+    "brandedFoods": {
+        "upstream": "FoodData_Central_branded_food_csv_2026-04-30.zip",
+        "upstreamSha256": "26050a5d03197469813754743a21ee0fad4ccf22b6aac2a995846a987719fc49",
+        "extract": "brandedExtract20260430.jsonl",
+        "extractSha256": "7a9d35d71b4535beadee71fce678ae3de5b1678b502117b6d6597ca84ac8a6ad"
+    },
+    "fndds": {
+        "upstreams": {
+            "survey": {
+                "upstream": "FoodData_Central_survey_food_csv_2024-10-31.zip",
+                "upstreamSha256": "5ccc25ec2777a8982fbb61378a42f415316173eb11e48c9a8ba4cb19f5a4f29c"
+            }
+        },
+        "extract": "fnddsExtract20241031.jsonl",
+        "extractSha256": "f31a0c25df417af98b9b57b8202f6918105605650a300e9d8d045c9c868402c8"
+    }
+}

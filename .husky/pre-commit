@@ -1,2 +1,2 @@
-node scripts/check-node-version.mjs || exit 1
+node scripts/checkNodeVersion.mjs || exit 1
 npx lint-staged

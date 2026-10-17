@@ -3,21 +3,21 @@
 **Generated**: 2026-06-02  
 **Worktree**: `<repo root>`  
 **Scope**: Pre-implementation 7-layer scan (L1–L4, L6, L7; L5 skipped)  
-**Mode**: READ-ONLY — no code changes  
+**Mode**: READ-ONLY — no code changes
 
 ---
 
 ## Executive Summary
 
-| Layer | Direction | Status | Key Finding |
-|-------|-----------|--------|-------------|
-| L1 | research ↔ product-spec | ✅ PASS | Personas, problems, and competitive analysis align with Must Have stories. |
-| L2 | product-spec ↔ spec.md | ❌ CRITICAL | `spec.md` only defines 6 high-level FRs; `product-spec` has 30 FRs. Detail loss on Must Have requirements. |
-| L3 | spec.md ↔ plan.md | ⚠️ WARNING | `plan.md` references 30 FRs from product-spec/V-model against `spec.md`'s 6 FRs. Forward drift. |
-| L4 | plan.md ↔ tasks.md | ✅ PASS | 60 tasks across 7 phases map to plan phases and cover all 6 Must Have stories. |
-| L5 | tasks.md ↔ code | ⏭️ SKIP | Per instructions. |
-| L6 | code ↔ spec.md | ℹ️ INFO | No implementation exists yet. Missing-impl is expected for pre-implementation. |
-| L7 | spec.md ↔ research.md | ✅ PASS | Full circuit: vision, personas, and monetization delegation align end-to-end. |
+| Layer | Direction               | Status      | Key Finding                                                                                                |
+| ----- | ----------------------- | ----------- | ---------------------------------------------------------------------------------------------------------- |
+| L1    | research ↔ product-spec | ✅ PASS     | Personas, problems, and competitive analysis align with Must Have stories.                                 |
+| L2    | product-spec ↔ spec.md  | ❌ CRITICAL | `spec.md` only defines 6 high-level FRs; `product-spec` has 30 FRs. Detail loss on Must Have requirements. |
+| L3    | spec.md ↔ plan.md       | ⚠️ WARNING  | `plan.md` references 30 FRs from product-spec/V-model against `spec.md`'s 6 FRs. Forward drift.            |
+| L4    | plan.md ↔ tasks.md      | ✅ PASS     | 60 tasks across 7 phases map to plan phases and cover all 6 Must Have stories.                             |
+| L5    | tasks.md ↔ code         | ⏭️ SKIP     | Per instructions.                                                                                          |
+| L6    | code ↔ spec.md          | ℹ️ INFO     | No implementation exists yet. Missing-impl is expected for pre-implementation.                             |
+| L7    | spec.md ↔ research.md   | ✅ PASS     | Full circuit: vision, personas, and monetization delegation align end-to-end.                              |
 
 **Overall Gate**: ❌ **BLOCKED** — L2 CRITICAL prevents clean traceability chain. L3 WARNING compounds the drift.
 
@@ -44,26 +44,26 @@
 
 - `product-spec/product-spec.md` enumerates **30 FRs** (`FR-001..FR-030`) across Profile Creation, Public Profile URL & Discovery, Recipe Attribution, Follow/Subscribe, Content Publishing, Embed Widget, Analytics, Moderation, and NFRs.
 - `spec.md` defines only **6 high-level FRs** (`FR-001..FR-006`):
-  - `FR-001` — @handle Profile Pages
-  - `FR-002` — Follow / Unfollow
-  - `FR-003` — Public Collections
-  - `FR-004` — Embed Widgets
-  - `FR-005` — Basic Creator Analytics
-  - `FR-006` — Monetization Surface (extends 010)
+    - `FR-001` — @handle Profile Pages
+    - `FR-002` — Follow / Unfollow
+    - `FR-003` — Public Collections
+    - `FR-004` — Embed Widgets
+    - `FR-005` — Basic Creator Analytics
+    - `FR-006` — Monetization Surface (extends 010)
 
 ### Missing Must Have Detail in spec.md
 
-| product-spec FR | Must Have Story | Concern in spec.md |
-|-------------------|-----------------|-------------------|
-| `FR-003` (handle uniqueness <100ms) | US-001 | Covered under `FR-001` generically; latency requirement not explicit. |
-| `FR-005` (handle change cooldown 30d/14d) | US-001 | Not mentioned in `FR-001`. |
-| `FR-007` (SSR with `<title>`, `<meta>`, OG tags) | US-004 | Not in spec.md FRs. |
-| `FR-008` (public profile page display rules) | US-004 | Not in spec.md FRs. |
-| `FR-009` (follower lists NOT public) | US-003/US-004 | Not in spec.md FRs. |
-| `FR-013` (idempotent follow/unfollow) | US-003 | Covered under `FR-002` at high level. |
-| `FR-015` (counter consistency ≤5s) | US-003 | Not in spec.md FRs. |
-| `FR-017`–`FR-019` (collection limits, ordering, constraints) | US-002 | Not in spec.md FRs. |
-| `FR-023`–`FR-025` (analytics aggregation, scheduler, snapshots) | US-006 | Covered under `FR-005` at high level. |
+| product-spec FR                                                 | Must Have Story | Concern in spec.md                                                    |
+| --------------------------------------------------------------- | --------------- | --------------------------------------------------------------------- |
+| `FR-003` (handle uniqueness <100ms)                             | US-001          | Covered under `FR-001` generically; latency requirement not explicit. |
+| `FR-005` (handle change cooldown 30d/14d)                       | US-001          | Not mentioned in `FR-001`.                                            |
+| `FR-007` (SSR with `<title>`, `<meta>`, OG tags)                | US-004          | Not in spec.md FRs.                                                   |
+| `FR-008` (public profile page display rules)                    | US-004          | Not in spec.md FRs.                                                   |
+| `FR-009` (follower lists NOT public)                            | US-003/US-004   | Not in spec.md FRs.                                                   |
+| `FR-013` (idempotent follow/unfollow)                           | US-003          | Covered under `FR-002` at high level.                                 |
+| `FR-015` (counter consistency ≤5s)                              | US-003          | Not in spec.md FRs.                                                   |
+| `FR-017`–`FR-019` (collection limits, ordering, constraints)    | US-002          | Not in spec.md FRs.                                                   |
+| `FR-023`–`FR-025` (analytics aggregation, scheduler, snapshots) | US-006          | Covered under `FR-005` at high level.                                 |
 
 ### spec.md Acknowledges Drift
 
@@ -105,12 +105,12 @@ This confirms the gap is known but unresolved.
 - **Task count**: 60 tasks (`T001..T060`), all unchecked (expected for pre-impl).
 - **Phase alignment**: `tasks.md` phases 1–7 map 1:1 to `plan.md` phases 1–7.
 - **Must Have coverage**:
-  - `US-001` (claim handle): `T002`, `T007`, `T012`, `T015`
-  - `US-002` (collections): `T009`, `T010`, `T021`, `T022`, `T023`
-  - `US-003` (follow): `T008`, `T024`, `T025`, `T026`
-  - `US-004` (browse public profile): `T019`, `T020`, `T028`
-  - `US-005` (embed widget): `T029`, `T030`
-  - `US-006` (analytics): `T011`, `T035`, `T036`, `T038`
+    - `US-001` (claim handle): `T002`, `T007`, `T012`, `T015`
+    - `US-002` (collections): `T009`, `T010`, `T021`, `T022`, `T023`
+    - `US-003` (follow): `T008`, `T024`, `T025`, `T026`
+    - `US-004` (browse public profile): `T019`, `T020`, `T028`
+    - `US-005` (embed widget): `T029`, `T030`
+    - `US-006` (analytics): `T011`, `T035`, `T036`, `T038`
 
 - **Dependency graph**: `tasks.md` dependency chains (`T001 → T002 → T003...`) are internally consistent and match `plan.md` sequencing.
 
@@ -143,14 +143,14 @@ This confirms the gap is known but unresolved.
 
 ### Evidence
 
-| research.md Element | spec.md Coverage | Match |
-|--------------------|------------------|-------|
-| P11 Robin needs shareable `/@handle` URL | `FR-001` — @handle Profile Pages | ✅ |
-| P5 Morgan needs profile browsing without login | `FR-001` — unauthenticated visitors can view public content | ✅ |
-| P9 Drew needs embed widget for restaurant site | `FR-004` — Embed Widgets | ✅ |
-| Problem: "no public identity" / "recipes in isolation" | Vision: "public identity on KitchenSink" | ✅ |
-| Monetization tip jar delegated to 010 | `FR-006` — Monetization Surface (extends 010) | ✅ |
-| Verified badge deferred / internal ops | Out of Scope | ✅ |
+| research.md Element                                    | spec.md Coverage                                            | Match |
+| ------------------------------------------------------ | ----------------------------------------------------------- | ----- |
+| P11 Robin needs shareable `/@handle` URL               | `FR-001` — @handle Profile Pages                            | ✅    |
+| P5 Morgan needs profile browsing without login         | `FR-001` — unauthenticated visitors can view public content | ✅    |
+| P9 Drew needs embed widget for restaurant site         | `FR-004` — Embed Widgets                                    | ✅    |
+| Problem: "no public identity" / "recipes in isolation" | Vision: "public identity on KitchenSink"                    | ✅    |
+| Monetization tip jar delegated to 010                  | `FR-006` — Monetization Surface (extends 010)               | ✅    |
+| Verified badge deferred / internal ops                 | Out of Scope                                                | ✅    |
 
 ---
 
@@ -158,11 +158,11 @@ This confirms the gap is known but unresolved.
 
 ### Governance Compliance
 
-| Rule | Status | Evidence |
-|------|--------|----------|
-| GR-002 API URL Prefix Standard | ✅ PASS | `spec.md` §67: "All endpoints under `/api/v1/`"; `tasks.md` `T005`, `T015`, `T019`, etc. all use `/api/v1/*`. |
-| GR-007 Shared Type Library Ownership | ✅ PASS | `tasks.md` `T004` requires imports from `@kitchensink/recipe-core` and forbids local duplicates. |
-| GR-014 Audience and Sharing Model | ✅ PASS | `spec.md` §31 correctly scopes `public-profile` vs `circle` (011) and `published-lesson` (013). |
+| Rule                                 | Status  | Evidence                                                                                                      |
+| ------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------- |
+| GR-002 API URL Prefix Standard       | ✅ PASS | `spec.md` §67: "All endpoints under `/api/v1/`"; `tasks.md` `T005`, `T015`, `T019`, etc. all use `/api/v1/*`. |
+| GR-007 Shared Type Library Ownership | ✅ PASS | `tasks.md` `T004` requires imports from `@kitchensink/recipe-core` and forbids local duplicates.              |
+| GR-014 Audience and Sharing Model    | ✅ PASS | `spec.md` §31 correctly scopes `public-profile` vs `circle` (011) and `published-lesson` (013).               |
 
 ### Monorepo Path References
 
@@ -181,13 +181,13 @@ This confirms the gap is known but unresolved.
 
 ## Appendix: Artifact Inventory
 
-| Artifact | Absolute Path | Status |
-|----------|---------------|--------|
-| spec.md | `specs/012-creator-profiles/spec.md` | Read |
-| product-spec/product-spec.md | `specs/012-creator-profiles/product-spec/product-spec.md` | Read |
-| plan.md | `specs/012-creator-profiles/plan.md` | Read |
-| tasks.md | `specs/012-creator-profiles/tasks.md` | Read |
-| research.md | `specs/012-creator-profiles/research.md` | Read |
-| v-model/requirements.md | `specs/012-creator-profiles/v-model/requirements.md` | Read |
-| v-model/release-audit-report.md | `specs/012-creator-profiles/v-model/release-audit-report.md` | Read |
-| verify-report.md | `specs/012-creator-profiles/verify-report.md` | Read |
+| Artifact                        | Absolute Path                                                | Status |
+| ------------------------------- | ------------------------------------------------------------ | ------ |
+| spec.md                         | `specs/012-creator-profiles/spec.md`                         | Read   |
+| product-spec/product-spec.md    | `specs/012-creator-profiles/product-spec/product-spec.md`    | Read   |
+| plan.md                         | `specs/012-creator-profiles/plan.md`                         | Read   |
+| tasks.md                        | `specs/012-creator-profiles/tasks.md`                        | Read   |
+| research.md                     | `specs/012-creator-profiles/research.md`                     | Read   |
+| v-model/requirements.md         | `specs/012-creator-profiles/v-model/requirements.md`         | Read   |
+| v-model/release-audit-report.md | `specs/012-creator-profiles/v-model/release-audit-report.md` | Read   |
+| verify-report.md                | `specs/012-creator-profiles/verify-report.md`                | Read   |

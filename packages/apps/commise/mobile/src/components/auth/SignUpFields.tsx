@@ -1,0 +1,140 @@
+/**
+ * @module components/auth/SignUpFields — the labelled profile fields a sign-up asks for (plan 012 D8): the typed
+ * sign-up form shows all of `SIGN_UP_FIELDS`; the finish step after a Google / Apple sign-up shows only those
+ * Clerk still lists as missing. Each field carries its registry autofill and keyboard hints, and its error (ours for an
+ * empty field, Clerk's for a rejected one) sits UNDER it and is repeated as the field's `error`, which leads its accessibility hint (WCAG 2.2 SC 3.3.1; React
+ * Native has no `aria-describedby`).
+ * The host names the one field that takes focus: the first in error, or the one the return key moved on to.
+ * The return key chains the fields in order (`next`), and the last one either submits (`go`) or hands on (`end`).
+ *
+ * Presentational: props → JSX.
+ */
+import { FieldLabel, Input } from '@commise/ui/input';
+import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
+import { useMessages } from '@commise/i18n/react';
+import type { JSX } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+
+import type { SignUpFieldName, SignUpFieldSpec } from '../../auth/signUpFields.js';
+import { mobileMessages } from '../../i18n/messages.js';
+
+/** Each field's value, by Clerk field name. */
+export type SignUpValues = Readonly<Partial<Record<SignUpFieldName, string>>>;
+
+/** Each field's error, by Clerk field name. */
+export type SignUpErrors = Readonly<Partial<Record<SignUpFieldName, string>>>;
+
+/**
+ * What the return key does on the LAST field here (`buildSpec.md` §8.1): `go` submits the form it ends, `next` hands
+ * focus to a field the host renders after these (the typed form's password).
+ */
+export type SignUpFieldsEnd =
+    { readonly key: 'go'; readonly onSubmit: () => void } | { readonly key: 'next'; readonly onNext: () => void };
+
+/** Props for {@link SignUpFields}. */
+export interface SignUpFieldsProps {
+    /** The fields to show, in order. */
+    readonly fields: readonly SignUpFieldSpec[];
+    /** Prefixes each field id, so two forms on one screen cannot collide. */
+    readonly idPrefix: string;
+    /** What each field holds. */
+    readonly values: SignUpValues;
+    /** Each field's error, shown under it. */
+    readonly errors: SignUpErrors;
+    /** Called with the field and its new text on every change. */
+    readonly onChange: (field: SignUpFieldName, text: string) => void;
+    /** Locks every field while a request is in flight. */
+    readonly busy: boolean;
+    /** The field asked to take focus (the first in error), or `null`. */
+    readonly focusField: SignUpFieldName | null;
+    /** Called once that field has taken focus; the host clears its request. */
+    readonly onFocusHandled: () => void;
+    /** Called with the following field when the return key is pressed on any field but the last: the host sets `focusField`. */
+    readonly onNext: (field: SignUpFieldName) => void;
+    /** What the return key does on the last field. */
+    readonly end: SignUpFieldsEnd;
+}
+
+/**
+ * The labelled profile fields, in registry order.
+ *
+ * @param props - The fields, their values and errors, and the change handler.
+ * @returns The labelled fields, each with its error under it.
+ */
+export function SignUpFields({
+    fields,
+    idPrefix,
+    values,
+    errors,
+    onChange,
+    busy,
+    focusField,
+    onFocusHandled,
+    onNext,
+    end,
+}: SignUpFieldsProps): JSX.Element {
+    const { auth: t } = useMessages(mobileMessages);
+    const { colors } = useTheme();
+    const labels: Readonly<Record<SignUpFieldName, string>> = {
+        first_name: t.firstNameLabel,
+        last_name: t.lastNameLabel,
+        username: t.usernameLabel,
+        email_address: t.emailLabel,
+    };
+    const hints: Readonly<Partial<Record<SignUpFieldName, string>>> = { username: t.usernameHint };
+
+    return (
+        <View style={styles.fields}>
+            {fields.map((field, at) => {
+                const following = fields[at + 1];
+                const submitsHere = following === undefined && end.key === 'go';
+                const id = `${idPrefix}-${field.name}`;
+                const hint = hints[field.name];
+                const error = errors[field.name];
+
+                return (
+                    <View key={field.name} style={styles.field}>
+                        <FieldLabel forId={id} label={labels[field.name]} {...(hint === undefined ? {} : { hint })} />
+                        <Input
+                            id={id}
+                            value={values[field.name] ?? ''}
+                            onChangeText={(text) => onChange(field.name, text)}
+                            inputMode={field.inputMode}
+                            autoComplete={field.autoComplete}
+                            autoCapitalize={field.autoCapitalize}
+                            autoCorrect={field.autoCorrect}
+                            enterKeyHint={submitsHere ? 'go' : 'next'}
+                            label={labels[field.name]}
+                            {...(hint === undefined ? {} : { hint })}
+                            {...(error === undefined ? {} : { error })}
+                            {...(field.name === 'email_address' ? { placeholder: t.emailPlaceholder } : {})}
+                            disabled={busy}
+                            focusRequested={focusField === field.name}
+                            onFocusRequestHandled={onFocusHandled}
+                            onSubmit={() => {
+                                if (following !== undefined) {
+                                    onNext(following.name);
+                                } else if (end.key === 'go') {
+                                    end.onSubmit();
+                                } else {
+                                    end.onNext();
+                                }
+                            }}
+                        />
+                        {error === undefined ? null : (
+                            <Text style={[styles.error, { color: colors.dangerText }]}>{error}</Text>
+                        )}
+                    </View>
+                );
+            })}
+        </View>
+    );
+}
+
+const styles = StyleSheet.create({
+    // A label and its field are one group: closer to each other than to the next field (spec §1.6).
+    field: { gap: nativeTokens.spacing[1] },
+    fields: { gap: nativeTokens.spacing[3] },
+    error: { ...nativeTokens.type.meta },
+});

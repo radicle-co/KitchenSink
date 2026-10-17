@@ -1,9 +1,9 @@
-import type { Route } from 'next';
-import { auth } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 
+import { requireSignedIn } from '@/lib/requireSignedIn';
 import { AppShell } from '@/components/app/AppShell';
 import { RecipeVersionsContainer } from '@/components/recipes/RecipeVersionsContainer';
+import { isRecipeRouteId } from '@/lib/recipeRouteId';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,11 +22,14 @@ export default async function RecipeVersionsPage({
     params: Promise<{ locale: string; id: string }>;
 }): Promise<React.ReactElement> {
     const { locale, id } = await params;
-    const { userId } = await auth();
 
-    if (!userId) {
-        redirect(`/${locale}/sign-in` as Route);
+    // Before auth and any request: a segment that is not a recipe id names nothing (the middleware has already
+    // answered it with the 404 — this keeps the page from ever asking the service about one).
+    if (!isRecipeRouteId(id)) {
+        notFound();
     }
+
+    await requireSignedIn(locale, `/${locale}/recipes/${encodeURIComponent(id)}/versions`);
 
     return (
         <AppShell activeId="recipes" titleId="recipeVersions">

@@ -1,15 +1,15 @@
 ---
 name: speckit.product-forge.retrospective
 description: 'Post-launch retrospective comparing predicted metrics from research/metrics-roi.md
-  against real data pulled from connected MCPs (PostHog / Amplitude product analytics,
-  Sentry error tracking, NewRelic APM) or manual input. Closes the loop on the full
-  product lifecycle. Run 2+ weeks after shipping. Use: "retrospective", "/speckit.product-forge.retrospective
-  {feature-slug}"'
+    against real data pulled from connected MCPs (PostHog / Amplitude product analytics,
+    Sentry error tracking, NewRelic APM) or manual input. Closes the loop on the full
+    product lifecycle. Run 2+ weeks after shipping. Use: "retrospective", "/speckit.product-forge.retrospective
+    {feature-slug}"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — Post-Launch Retrospective
 
 You are the **Post-Launch Analyst** for Product Forge.
@@ -40,11 +40,13 @@ update `.forge-status.yml`, and emit a `DRY-RUN-REPORT.md` of what would change.
 5. Check `tracking/tracking-plan.md` (if exists) — know which events to query
 
 If `research/metrics-roi.md` is missing:
+
 > ⚠️ No predicted metrics found (research/metrics-roi.md missing or metrics-roi phase was skipped).
 > The retrospective will still work — enter real data and identify lessons learned.
 > Predicted vs actual comparison will be marked as N/A.
 
 Ask the user:
+
 ```
 Retrospective for: {feature-slug}
 Shipped: {date from .forge-status.yml}
@@ -133,6 +135,7 @@ SINCE '{launch_date}' FACET dateOf(timestamp)
 
 When `telemetry.product_analytics` is `posthog` or `amplitude`, query the connected
 MCP directly for the feature's `EVT-*` events (resolve real event names first):
+
 - adoption — unique users on `{feature}_viewed`;
 - completion — `{feature}_completed` / `{feature}_viewed`;
 - a funnel across the journey steps (`JRN`/`STEP` → events) with drop-off;
@@ -150,6 +153,7 @@ new vs resolved), and feed them into the Error Analysis table.
 ### 3D: Manual Entry
 
 If no integrations:
+
 ```
 Please provide the following metrics for the period since launch ({launch_date} → today):
 
@@ -192,24 +196,27 @@ Total time: research → ship = {N} days
 
 ## Predicted vs Actual
 
-| Metric | Predicted | Actual | Delta | Status |
-|--------|-----------|--------|-------|--------|
-| Adoption (30-day) | {N}% | {N}% | {+/-N}% | {✅ On target / ⚠️ Below / 🚀 Exceeded} |
-| Completion rate | {N}% | {N}% | {+/-N}% | |
-| P95 response time | <{N}ms | {N}ms | {+/-N}ms | |
-| Error rate | <{N}% | {N}% | {+/-N}% | |
-| {Business metric} | {target} | {actual} | {delta} | |
-| ROI payback | {N} months | {estimate} | | |
+| Metric            | Predicted  | Actual     | Delta    | Status                                  |
+| ----------------- | ---------- | ---------- | -------- | --------------------------------------- |
+| Adoption (30-day) | {N}%       | {N}%       | {+/-N}%  | {✅ On target / ⚠️ Below / 🚀 Exceeded} |
+| Completion rate   | {N}%       | {N}%       | {+/-N}%  |                                         |
+| P95 response time | <{N}ms     | {N}ms      | {+/-N}ms |                                         |
+| Error rate        | <{N}%      | {N}%       | {+/-N}%  |                                         |
+| {Business metric} | {target}   | {actual}   | {delta}  |                                         |
+| ROI payback       | {N} months | {estimate} |          |                                         |
 
 ## Performance Data ({apm_provider})
 
 ### Request Volume
+
 {chart or table of daily requests since launch}
 
 ### Error Rate
+
 {error rate trend — target vs actual}
 
 ### P95 Response Time
+
 {latency trend}
 
 ## Analytics Funnel
@@ -227,9 +234,9 @@ Abandonment rate: {N}%
 
 ## Error Analysis
 
-| Error Code | Count | % of Sessions | Root Cause | Status |
-|------------|-------|--------------|------------|--------|
-| {error_code} | {N} | {N}% | {cause} | {fixed / known / investigating} |
+| Error Code   | Count | % of Sessions | Root Cause | Status                          |
+| ------------ | ----- | ------------- | ---------- | ------------------------------- |
+| {error_code} | {N}   | {N}%          | {cause}    | {fixed / known / investigating} |
 
 ## What Went Right ✅
 
@@ -240,33 +247,33 @@ Abandonment rate: {N}%
 ## What Could Be Better ⚠️
 
 1. **{aspect}** — {what didn't go as expected}
-   *Root cause:* {why}
-   *Fix for next time:* {improvement}
+   _Root cause:_ {why}
+   _Fix for next time:_ {improvement}
 
 2. **{aspect}** — {what didn't go as expected}
-   *Root cause:* {why}
-   *Fix for next time:* {improvement}
+   _Root cause:_ {why}
+   _Fix for next time:_ {improvement}
 
 ## Research Accuracy Audit
 
-*How well did Phase 1 research predict reality?*
+_How well did Phase 1 research predict reality?_
 
-| Research Prediction | Actual | Accuracy |
-|--------------------|--------|----------|
-| {competitor had this feature} | {confirmed/wrong} | ✅/❌ |
-| {user pain point assumed} | {validated/invalidated} | ✅/❌ |
-| {tech complexity estimate} | {vs actual} | ✅/❌ |
-| {adoption metric predicted} | {vs actual} | ✅/❌ |
+| Research Prediction           | Actual                  | Accuracy |
+| ----------------------------- | ----------------------- | -------- |
+| {competitor had this feature} | {confirmed/wrong}       | ✅/❌    |
+| {user pain point assumed}     | {validated/invalidated} | ✅/❌    |
+| {tech complexity estimate}    | {vs actual}             | ✅/❌    |
+| {adoption metric predicted}   | {vs actual}             | ✅/❌    |
 
 Research accuracy score: {N}/10
 
 ## Open Issues & Follow-up
 
-| ID | Type | Description | Priority | Owner |
-|----|------|-------------|----------|-------|
-| {ID} | Bug | {description} | {P0-P4} | {owner} |
-| {ID} | Enhancement | {description} | {High/Med/Low} | |
-| {ID} | Tech debt | {description} | | |
+| ID   | Type        | Description   | Priority       | Owner   |
+| ---- | ----------- | ------------- | -------------- | ------- |
+| {ID} | Bug         | {description} | {P0-P4}        | {owner} |
+| {ID} | Enhancement | {description} | {High/Med/Low} |         |
+| {ID} | Tech debt   | {description} |                |         |
 
 ## Next Steps
 
@@ -276,9 +283,9 @@ Based on the data:
 2. **{action}** — {rationale from data}
 3. **{action}** — {rationale from data}
 
-*If adoption < target:* {specific recommendation — onboarding, push notification, A/B test}
-*If completion < target:* {specific recommendation — UX improvement, step simplification}
-*If error rate > target:* {specific recommendation — fix list, monitoring alert}
+_If adoption < target:_ {specific recommendation — onboarding, push notification, A/B test}
+_If completion < target:_ {specific recommendation — UX improvement, step simplification}
+_If error rate > target:_ {specific recommendation — fix list, monitoring alert}
 
 ## Lessons Learned for Future Features
 
@@ -304,26 +311,26 @@ for the cross-feature learning log.
    the source artifact path as its evidence** (Step 3's rejection filter requires
    project evidence — this satisfies it by construction):
 
-   | Source artifact (read if present) | Read for | Lesson type it feeds |
-   |---|---|---|
-   | `{FEATURE_DIR}/implement/digest.md` (deviations / manual-edits section) | Where generated artifacts had to be hand-corrected during build | **Implementation** |
-   | `{FEATURE_DIR}/gate-review.md` (single `F-NNN` namespace) + `{FEATURE_DIR}/code-review.md` | Recurring finding themes across the consolidated review surface | **Process / Implementation** |
-   | `{FEATURE_DIR}/verify-report.md` + `{FEATURE_DIR}/sync-report.md` (drift items) | Where downstream artifacts diverged from upstream intent | **Research / spec-accuracy** |
-   | the **"Suggested canonical-spec updates"** carrier inside `verify-report.md` / `code-review.md` (Theme G, CF-5) | Spec language that reality proved wrong/imprecise | **Research / spec-accuracy** |
-   | Large deltas in the **Predicted vs Actual** table above (Step 4) + post-launch incidents/bugs tracked to root cause | Where Phase-1 prediction missed | **Research** |
-   | Rules of thumb stated in §4 "Lessons Learned for Future Features" of the report above | Team-stated process/testing takeaways | **Process / Testing** |
+    | Source artifact (read if present)                                                                                   | Read for                                                        | Lesson type it feeds         |
+    | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------- |
+    | `{FEATURE_DIR}/implement/digest.md` (deviations / manual-edits section)                                             | Where generated artifacts had to be hand-corrected during build | **Implementation**           |
+    | `{FEATURE_DIR}/gate-review.md` (single `F-NNN` namespace) + `{FEATURE_DIR}/code-review.md`                          | Recurring finding themes across the consolidated review surface | **Process / Implementation** |
+    | `{FEATURE_DIR}/verify-report.md` + `{FEATURE_DIR}/sync-report.md` (drift items)                                     | Where downstream artifacts diverged from upstream intent        | **Research / spec-accuracy** |
+    | the **"Suggested canonical-spec updates"** carrier inside `verify-report.md` / `code-review.md` (Theme G, CF-5)     | Spec language that reality proved wrong/imprecise               | **Research / spec-accuracy** |
+    | Large deltas in the **Predicted vs Actual** table above (Step 4) + post-launch incidents/bugs tracked to root cause | Where Phase-1 prediction missed                                 | **Research**                 |
+    | Rules of thumb stated in §4 "Lessons Learned for Future Features" of the report above                               | Team-stated process/testing takeaways                           | **Process / Testing**        |
 
-   This extends the same prompt-side learning loop that `research.md` already uses
-   to read `.product-forge/lessons.md` — it sources lessons from produced signals
-   rather than a free-form "think about what went wrong" prompt.
+    This extends the same prompt-side learning loop that `research.md` already uses
+    to read `.product-forge/lessons.md` — it sources lessons from produced signals
+    rather than a free-form "think about what went wrong" prompt.
 
 2. For each candidate, draft a block in the format described in
    [`docs/lessons-format.md`](../docs/lessons-format.md) §2.
 3. Show the drafted blocks to the user and ask for confirmation or edits.
    Reject blocks that are:
-   - Project-specific trivia with no general applicability.
-   - Restatements of published best practices with no project evidence.
-   - Negative assessments of individuals (policy: no blame).
+    - Project-specific trivia with no general applicability.
+    - Restatements of published best practices with no project evidence.
+    - Negative assessments of individuals (policy: no blame).
 4. Append confirmed blocks to `.product-forge/lessons.md`. Create the file
    if it does not exist. Never overwrite existing blocks.
 5. Record the count on `.forge-status.yml` under
@@ -335,7 +342,7 @@ for the cross-feature learning log.
 
 `lessons.md` is flat and **per-project**. The biggest force-multiplier of running
 Product Forge inside **Hermes** (or any host exposing `skill_manage`) is turning a
-*recurring* lesson into a reusable **skill** — procedural memory that carries
+_recurring_ lesson into a reusable **skill** — procedural memory that carries
 across projects and sessions and is cheaper on every later run. This step is the
 PF→Hermes learning bridge.
 
@@ -353,7 +360,7 @@ the only output. When `true` AND `skill_manage` is available in the host:
    body: a trigger ("when building a feature that touches {tags/domain}…"),
    numbered steps capturing the pattern (the constraint, the check, the recipe),
    and a pitfalls section sourced from the lessons' "What happened". Keep it
-   generalizable — the skill is the *rule*, not the original feature's specifics.
+   generalizable — the skill is the _rule_, not the original feature's specifics.
 3. **Confirm before writing.** When `learning.require_confirmation` is `true`
    (default), show the drafted `SKILL.md` and ask the user to confirm or edit
    before any write. Never write a skill silently.
@@ -383,19 +390,19 @@ Update `.forge-status.yml`:
 
 ```yaml
 phases:
-  retrospective: completed
+    retrospective: completed
 retrospective:
-  date: "{today}"
-  days_post_launch: {N}
-  adoption_actual: "{N}%"
-  adoption_predicted: "{N}%"
-  completion_rate: "{N}%"
-  error_rate: "{N}%"
-  open_issues: {N}
-  research_accuracy: "{N}/10"
-  lessons_added: {N}                  # number of blocks appended to lessons.md in Step 5
-  skills_promoted: []                 # v1.7 — Hermes skill names created/patched in Step 5B (empty unless learning.promote_to_skills)
-last_updated: "{ISO timestamp}"
+    date: '{today}'
+    days_post_launch: { N }
+    adoption_actual: '{N}%'
+    adoption_predicted: '{N}%'
+    completion_rate: '{N}%'
+    error_rate: '{N}%'
+    open_issues: { N }
+    research_accuracy: '{N}/10'
+    lessons_added: { N } # number of blocks appended to lessons.md in Step 5
+    skills_promoted: [] # v1.7 — Hermes skill names created/patched in Step 5B (empty unless learning.promote_to_skills)
+last_updated: '{ISO timestamp}'
 ```
 
 ---

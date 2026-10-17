@@ -219,7 +219,7 @@
 | 9   | [NEEDS CLARIFICATION] Markers  | PASS   |
 | 10  | Internal Consistency           | PASS   |
 | 11  | Prose Quality and Formatting   | PASS   |
-| 12  | Commise Integration          | PASS   |
+| 12  | Commise Integration            | PASS   |
 | 13  | Architecture Alignment         | PASS   |
 | 14  | No Unresolved Ambiguities      | PASS   |
 | 15  | Traceability                   | PASS   |
@@ -245,7 +245,7 @@
 - [ ] CHK004 Are IdP user.created webhook Action requirements complete for UUID generation, User creation, Account creation, `app_metadata` persistence, retry behavior, and reconciliation fallback? [Completeness, Spec §FR-013–FR-017]
 - [ ] CHK005 Are account lifecycle requirements complete for profile display, editable fields, read-only email boundaries, avatar constraints, deletion confirmation, cascade deletion, and post-deletion session cleanup? [Completeness, Spec §FR-018–FR-026]
 - [ ] CHK006 Are social-provider linking and unlinking requirements complete enough to preserve the canonical Commise user ID and prevent duplicate User/Account records? [Completeness, Spec §FR-032–FR-034]
-- [ ] CHK007 Are impersonation requirements complete for authorization boundaries, audit fields, and prohibited privileged actions during impersonation? [Completeness, Spec §FR-035–FR-037]
+- [ ] CHK007 Are impersonation requirements complete for authorization boundaries, audit fields, and prohibited privileged actions during impersonation? [Completeness, Spec §FR-035–FR-037] _(Moot: impersonation withdrawn by owner ruling 2026-10-15.)_
 - [ ] CHK008 Are suspension/reactivation requirements complete for dual IdP/database state changes, denied API access, login messaging, and active-state restoration? [Completeness, Spec §FR-041–FR-044]
 
 ## Requirement Clarity
@@ -256,7 +256,7 @@
 - [ ] CHK012 Is the custom claim containing the Commise user ID named and namespaced consistently across the spec, plan, tasks, and IdP Action requirements? [Clarity, Spec §FR-015, Spec §FR-040]
 - [ ] CHK013 Is "clear message" for suspended users and IdP outage cases specified with enough content requirements to avoid vague or misleading error states? [Clarity, Spec §FR-043, Spec §Edge Cases]
 - [ ] CHK014 Are avatar image constraints quantified with supported formats, maximum file size, validation failure behavior, and storage ownership assumptions? [Clarity, Spec §FR-021]
-- [ ] CHK015 Is "authorized support/engineering personnel" for impersonation defined with role, approval, or policy criteria rather than an ambiguous audience label? [Ambiguity, Spec §FR-035]
+- [ ] CHK015 Is "authorized support/engineering personnel" for impersonation defined with role, approval, or policy criteria rather than an ambiguous audience label? [Ambiguity, Spec §FR-035] _(Moot: impersonation withdrawn by owner ruling 2026-10-15.)_
 - [ ] CHK016 Is "performance degradation" in the 10,000-concurrent-user success criterion quantified with concrete latency, error-rate, or throughput thresholds? [Clarity, Spec §SC-007]
 
 ## Requirement Consistency

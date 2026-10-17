@@ -1,13 +1,17 @@
 /**
  * Drizzle definition for `account_erasure_jobs` (T122). Tracks each `POST /api/v1/account/erasure` enqueue
- * so the endpoint is idempotent per C-007 (NOT a 409). This table is the SINGLE authoritative source
- * for the erasure job status enum. Mirrors data-model.md EXACTLY.
+ * so the endpoint is idempotent per C-007 (NOT a 409). Mirrors data-model.md EXACTLY.
+ *
+ * The job-status ENUM is no longer declared here — see {@link ERASURE_JOB_STATUSES} for why the authority moved
+ * to the published contract while the literal array stayed for the DB `CHECK`.
  *
  * D2 (no local `users` table): `owner_id` stores the app-user ULID (from token claim) of the user whose
  * data is being erased directly as `VARCHAR(255) NOT NULL` — no FK, no user replication.
  */
 import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
 import { ERASURE_TRIGGER_SOURCES } from '@kitchensink/recipe-core';
+
+import type { ActiveErasureJobStatus, ErasureJobStatus } from '../../account/account.schema.js';
 import {
     check,
     index,
@@ -21,11 +25,27 @@ import {
     varchar,
 } from 'drizzle-orm/pg-core';
 
-/** Canonical erasure job status enum (authoritative source for every artifact). */
-export const ERASURE_JOB_STATUSES = ['queued', 'running', 'completed', 'failed'] as const;
-
-/** An erasure job status value. */
-export type ErasureJobStatus = (typeof ERASURE_JOB_STATUSES)[number];
+/**
+ * The erasure job status values, as an array the DB `CHECK` and the partial index can consume.
+ *
+ * ⚠️ THE TYPE IS NO LONGER DECLARED HERE — THE DEPENDENCY WAS POINTING THE WRONG WAY (CODING_STANDARDS §15).
+ * This file used to be "the SINGLE authoritative source for the erasure job status enum", and the `202`
+ * response DTOs imported {@link ActiveErasureJobStatus} FROM IT — a STORAGE type deciding a wire contract.
+ * That is precisely the leak `@kitchensink/contract-gen`'s import guard exists to catch: the wire shape is
+ * copied into a package `@commise/web` and `@commise/mobile` depend on, where this module does not resolve and
+ * `drizzle-orm` must never arrive.
+ *
+ * So `account/account.schema.ts` now DECLARES the enum (as zod, which is what the contract publishes) and these
+ * arrays are tied to it with `satisfies`. The array still lives here because a `CHECK` constraint needs literal
+ * values; only the authority moved. A status renamed in the contract fails the build HERE, which is the
+ * direction that keeps storage and wire in step without letting storage lead.
+ */
+export const ERASURE_JOB_STATUSES = [
+    'queued',
+    'running',
+    'completed',
+    'failed',
+] as const satisfies readonly ErasureJobStatus[];
 
 /**
  * The statuses that make a job "in flight". This is ONE piece of knowledge wearing three hats, so it is
@@ -34,15 +54,15 @@ export type ErasureJobStatus = (typeof ERASURE_JOB_STATUSES)[number];
  *  1. the predicate of the `idx_erasure_jobs_active_owner` partial unique index below (which is what
  *     makes `POST /api/v1/account/erasure` idempotent),
  *  2. the set `ErasureJobsDal.findActiveJob` reads, and
- *  3. the `202` response's `status` enum in `api.openapi.yaml`.
+ *  3. the `202` response's `status` enum — now published from `account/account.schema.ts`.
  *
- * `satisfies readonly ErasureJobStatus[]` ties it to the authoritative {@link ERASURE_JOB_STATUSES}: a
- * status renamed there fails the build here instead of silently narrowing to nothing at runtime.
+ * `satisfies readonly ActiveErasureJobStatus[]` ties it to the contract's narrowed enum, so a status renamed
+ * there fails the build here instead of silently narrowing to nothing at runtime.
  */
-export const ACTIVE_ERASURE_JOB_STATUSES = ['queued', 'running'] as const satisfies readonly ErasureJobStatus[];
+export const ACTIVE_ERASURE_JOB_STATUSES = ['queued', 'running'] as const satisfies readonly ActiveErasureJobStatus[];
 
-/** A status of an in-flight (`queued`/`running`) erasure job — the `202` response's `status` enum. */
-export type ActiveErasureJobStatus = (typeof ACTIVE_ERASURE_JOB_STATUSES)[number];
+/** An erasure job status value — the contract's type, re-exported so this file's importers are unaffected. */
+export type { ActiveErasureJobStatus, ErasureJobStatus };
 
 export const accountErasureJobs = pgTable(
     'account_erasure_jobs',

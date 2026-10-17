@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { palette } from '../colors.js';
 import {
     borderSubtle,
+    dimmedOpacity,
     elevation,
     fontFamily,
     fontSize,
@@ -101,5 +102,13 @@ describe('scale — elevation', () => {
 describe('scale — borderSubtle', () => {
     it('is the single source for the subtle border colour', () => {
         expect(borderSubtle).toBe('rgba(178, 190, 195, 0.3)');
+    });
+});
+
+describe('scale — dimmedOpacity', () => {
+    // The design system's "40%" for a locked, unavailable or disabled control (§1.10). Every native control that dims
+    // reads it, so a change here moves them all together; this pin is what makes that change a decision.
+    it('is 40%', () => {
+        expect(dimmedOpacity).toBe(0.4);
     });
 });

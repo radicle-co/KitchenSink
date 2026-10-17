@@ -29,6 +29,7 @@
 import { shouldRetryProfileServiceFailure } from '@commise/features-account';
 import { shouldRetryFoodServiceFailure } from '@kitchensink/food-service-client';
 import { shouldRetryRecipeServiceFailure } from '@kitchensink/recipe-service-client';
+import { NOT_PROCESSED_STATUSES } from '@kitchensink/retry-after';
 
 /**
  * How many RETRIES a failed READ is allowed — so three attempts in all, the first plus these (owner, 2026-10-13: two
@@ -84,14 +85,6 @@ export function shouldRetryQuery(failureCount: number, error: unknown): boolean 
 }
 
 /**
- * The statuses that mean the server did NOT process the request, so re-issuing cannot duplicate its effect.
- *
- * `429` is our own `UserThrottlerGuard` refusing on rate; `503` is a service shedding load. Both are
- * answered before any write happens, which is what makes them safe on a non-idempotent method.
- */
-const NOT_PROCESSED_STATUSES: readonly number[] = [429, 503];
-
-/**
  * The longest wait a refused write is held for before it is sent again, in seconds. A refusal that states a longer wait
  * fails at once: the cook has moved on by then, and the wait is theirs to act on (the same rule
  * `@kitchensink/e2e-fixtures`' `withClerkBackendRetry` applies with its `maxWaitSeconds`).
@@ -145,7 +138,7 @@ export function shouldRetryMutation(failureCount: number, error: unknown): boole
 
     const status: unknown = (error as { readonly status?: unknown } | null)?.status;
 
-    if (typeof status !== 'number' || !NOT_PROCESSED_STATUSES.includes(status)) {
+    if (typeof status !== 'number' || !NOT_PROCESSED_STATUSES.has(status)) {
         return false;
     }
 

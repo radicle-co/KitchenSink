@@ -13,6 +13,8 @@
  * @pattern Specification — pure predicates over a failure, with no I/O and no clock, so every branch is
  *     testable without a network.
  */
+import { NOT_PROCESSED_STATUSES } from '@kitchensink/retry-after';
+
 import type { IntentKind, SyncEntity } from './record.js';
 
 /** A failed send, as the drainer reports it. */
@@ -34,12 +36,6 @@ export type FailureScope =
 
 /** What the cook is offered. */
 export type Remedy = 'retry' | 'edit' | 'resolve' | 'confirm';
-
-/**
- * Statuses the server returns having NOT processed the request, so a replay cannot duplicate anything. A gateway's 502
- * and 504 are not among them: the load balancer can answer either after the service committed the write.
- */
-const TRANSIENT: ReadonlySet<number> = new Set([429, 503]);
 
 /** A gateway's answers that say nothing about whether the service processed the request. */
 const GATEWAY_UNKNOWN: ReadonlySet<number> = new Set([502, 504]);
@@ -63,7 +59,7 @@ export function classifyFailure(failure: SyncFailure): FailureClass {
         return 'conflict';
     }
 
-    if (TRANSIENT.has(failure.status)) {
+    if (NOT_PROCESSED_STATUSES.has(failure.status)) {
         return 'transient';
     }
 

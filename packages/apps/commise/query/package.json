@@ -32,6 +32,7 @@
         "@commise/ui": "*",
         "@kitchensink/food-service-client": "*",
         "@kitchensink/recipe-service-client": "*",
+        "@kitchensink/retry-after": "*",
         "@kitchensink/sync": "*"
     },
     "peerDependencies": {

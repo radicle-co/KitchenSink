@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { retryAfterSeconds } from '../retryAfter.js';
+import { NOT_PROCESSED_STATUSES, retryAfterSeconds } from '../retryAfter.js';
 
 /** 2015-10-21 07:27:00 UTC, one minute before every date the cases below state. */
 const NOW = Date.UTC(2015, 9, 21, 7, 27, 0);
@@ -84,4 +84,17 @@ describe('retryAfterSeconds', () => {
             expect(retryAfterSeconds(value, NOW)).toBeUndefined();
         });
     });
+});
+
+describe('NOT_PROCESSED_STATUSES', () => {
+    it.each([429, 503])('contains %s, which a server answers before doing any work', (status) => {
+        expect(NOT_PROCESSED_STATUSES.has(status)).toBe(true);
+    });
+
+    it.each([500, 502, 504])(
+        '⛔ does not contain %s, which a gateway can answer after the service committed',
+        (status) => {
+            expect(NOT_PROCESSED_STATUSES.has(status)).toBe(false);
+        },
+    );
 });

@@ -18,6 +18,7 @@
         "format:check": "prettier --check ."
     },
     "dependencies": {
+        "@kitchensink/retry-after": "*",
         "zod": "^4.4.3"
     },
     "devDependencies": {

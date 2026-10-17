@@ -11,6 +11,16 @@
  * @module
  */
 
+/**
+ * The statuses by which a server states it did NOT process the request, so repeating the request cannot duplicate its
+ * effect on any method: `429` (rate-limited before any work) and `503` (load shed before any work).
+ *
+ * ⛔ A GATEWAY'S `502` AND `504` ARE NOT HERE. The load balancer can answer either after the service committed the write,
+ * so they say nothing about whether the request was processed. This is the one statement of the set: the sync queue,
+ * the query retry policy and the cookbook importer all read it from here.
+ */
+export const NOT_PROCESSED_STATUSES: ReadonlySet<number> = new Set([429, 503]);
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 
 const DAY_NAME = '(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)';

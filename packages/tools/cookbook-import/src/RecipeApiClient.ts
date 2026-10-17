@@ -35,7 +35,7 @@
  *
  * @sideEffect Every method performs network I/O.
  */
-import { retryAfterSeconds } from '@kitchensink/retry-after';
+import { NOT_PROCESSED_STATUSES, retryAfterSeconds } from '@kitchensink/retry-after';
 import pRetry, { AbortError } from 'p-retry';
 import type { z } from 'zod';
 import { createRecipeRequestSchema, ingredientSchema, recipeDetailSchema } from '@kitchensink/schema-recipe';
@@ -51,9 +51,6 @@ export type Ingredient = z.infer<typeof ingredientSchema>;
 export type CreateRecipeBody = z.input<typeof createRecipeRequestSchema>;
 /** A created recipe, as the detail projection publishes it. */
 export type RecipeDetail = z.infer<typeof recipeDetailSchema>;
-
-/** Statuses where the server states it did NOT process the request. Retryable on every method. */
-const NOT_PROCESSED = new Set([429, 503]);
 
 /** Gateway statuses that can arrive AFTER the upstream committed. Retryable only where a repeat is harmless. */
 const MAYBE_PROCESSED = new Set([502, 504]);
@@ -131,7 +128,8 @@ export class RecipeApiClient {
                     `${method} ${path} -> ${response.status} ${code ?? ''}`.trim(),
                 );
                 const retryable =
-                    NOT_PROCESSED.has(response.status) || (retryMaybeProcessed && MAYBE_PROCESSED.has(response.status));
+                    NOT_PROCESSED_STATUSES.has(response.status) ||
+                    (retryMaybeProcessed && MAYBE_PROCESSED.has(response.status));
 
                 if (!retryable) {
                     // `AbortError` is p-retry's "this is final" signal: a 400/403 repeated five times is

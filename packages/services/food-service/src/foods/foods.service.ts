@@ -269,7 +269,14 @@ export class FoodsService {
 
         // ⛔ AUTHORIZATION FIRST (plan U10): a stranger reading a PRIVATE authored food gets the SAME
         // FoodNotFoundError a missing id gets — existence concealed; nothing below this line runs for them.
-        requireReadable(id, requested, callerId);
+        try {
+            requireReadable(id, requested, callerId);
+        } catch (error) {
+            // A concealed read is still one read the store did not serve: the observation precedes the throw.
+            this.metrics.recordLocalStoreServe(false);
+
+            throw error;
+        }
 
         // A retired root is answered by the live end of its forward chain, under the id the caller asked for.
         const answered = await this.liveEndOf(id, requested, callerId);

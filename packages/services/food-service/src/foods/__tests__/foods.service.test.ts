@@ -123,6 +123,17 @@ describe('FoodsService.getFood — local-store serve rate (SC-004/SC-005)', () =
         expect(serveRateValues(sink)).toEqual([0]);
     });
 
+    it('⛔ records an UNSERVED read (0) when the authorship gate conceals a stranger’s private food', async () => {
+        const { service, sink } = makeService({
+            ...makeRecord('RESOLVED'),
+            userId: 'someone-else',
+            visibility: 'private',
+        });
+
+        await expect(service.getFood(FOOD_ID, CALLER)).rejects.toThrow();
+        expect(serveRateValues(sink)).toEqual([0]);
+    });
+
     it('emits exactly ONE observation per read (CloudWatch aggregates; the service must not double-count)', async () => {
         const { service, sink } = makeService(makeRecord('RESOLVED'));
 

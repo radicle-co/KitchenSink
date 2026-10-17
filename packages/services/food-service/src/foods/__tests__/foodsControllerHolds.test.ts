@@ -154,6 +154,29 @@ describe('FoodsController — every answer that names a root holds it (ADR-0040)
         expect(read !== undefined && calledBefore(ctx.hold, read)).toBe(true);
     });
 
+    it('⛔ GET /{id} also holds the forward target its answer names, which may be a ROOT', async () => {
+        ctx.service['getFood']?.mockResolvedValue({ id: VALID_ID, forwardedTo: { kind: 'root', id: 'R9' } });
+
+        await ctx.controller.getFood(VALID_ID, reqOf(false), makeRes());
+
+        expect(ctx.hold).toHaveBeenCalledTimes(2);
+        expect(ctx.hold).toHaveBeenNthCalledWith(1, expect.anything(), [VALID_ID]);
+        expect(ctx.hold).toHaveBeenNthCalledWith(2, expect.anything(), [VALID_ID, 'R9']);
+    });
+
+    it('⛔ GET /{id}/status also holds the forward target its RESOLVED record names', async () => {
+        ctx.service['getStatus']?.mockResolvedValue({
+            id: VALID_ID,
+            status: 'RESOLVED',
+            food: { id: VALID_ID, forwardedTo: { kind: 'root', id: 'R9' } },
+        });
+
+        await ctx.controller.getStatus(VALID_ID, reqOf(false));
+
+        expect(ctx.hold).toHaveBeenNthCalledWith(1, expect.anything(), [VALID_ID]);
+        expect(ctx.hold).toHaveBeenNthCalledWith(2, expect.anything(), [VALID_ID, 'R9']);
+    });
+
     it('GET /{id} holds the id BEFORE it reads, and also when the food is still pending', async () => {
         const read = ctx.service['getFood'];
         read?.mockRejectedValue(new FoodPendingError(VALID_ID, 'PENDING', 30));

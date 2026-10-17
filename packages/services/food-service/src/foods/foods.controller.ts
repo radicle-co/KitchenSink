@@ -76,7 +76,7 @@ import { isFoodId } from '../db/ulid.js';
 import { AnsweredRoots } from './answeredRoots.js';
 import { CitedSourcesService } from './citedSources.service.js';
 import type { DataSourcesResponse } from './dataSources.schema.js';
-import { idsOfAdd, idsOfBatch, idsOfRefEntries } from './domain/answeredRootIds.js';
+import { idsOfAdd, idsOfBatch, idsOfFood, idsOfRefEntries, idsOfStatus } from './domain/answeredRootIds.js';
 import { evaluateTestPurgeAccess } from './domain/testPurgePolicy.js';
 import { isFoodPendingError } from './foods.errors.js';
 import { FoodsService } from './foods.service.js';
@@ -530,7 +530,12 @@ export class FoodsController {
 
         await this.answered.hold(this.requirePrincipal(req), [id]);
 
-        return this.foodsService.getStatus(id, requesterId);
+        const answer = await this.foodsService.getStatus(id, requesterId);
+
+        // The id was held before the read; a retired root's answer can also name a ROOT it forwards to (ADR-0040).
+        await this.holdWhatTheReadAdded(req, id, idsOfStatus(answer));
+
+        return answer;
     }
 
     /**
@@ -659,6 +664,7 @@ export class FoodsController {
             // authored food must get the same 404 a missing id gets. A `svc_*` principal is a stranger
             // to every authored food by construction.
             const food = await this.foodsService.getFood(id, requesterId);
+            await this.holdWhatTheReadAdded(req, id, idsOfFood(food));
             res.status(HttpStatus.OK);
 
             return food;
@@ -673,6 +679,24 @@ export class FoodsController {
             }
 
             throw error;
+        }
+    }
+
+    /**
+     * Hold the ids a by-id read named beyond the one already held before it, as `resolveRefs` does for its forwards.
+     *
+     * @param req - The guard-authenticated request.
+     * @param requestedId - The id held before the read.
+     * @param answered - Every id the answer names, the requested one first.
+     * @sideEffect Writes holds when the answer named something new.
+     */
+    private async holdWhatTheReadAdded(
+        req: AuthenticatedRequest,
+        requestedId: string,
+        answered: readonly string[],
+    ): Promise<void> {
+        if (answered.some((answeredId) => answeredId !== requestedId)) {
+            await this.answered.hold(this.requirePrincipal(req), [...answered]);
         }
     }
 

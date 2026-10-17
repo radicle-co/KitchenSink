@@ -6,7 +6,7 @@
  *   an answer can carry a root in, so a route cannot forget its forward target or a variant's root.
  * @module
  */
-import type { AddResponse, BatchResponse, FoodRefEntry } from '../foods.schema.js';
+import type { AddResponse, BatchResponse, FoodRefEntry, FoodResponse, StatusResponse } from '../foods.schema.js';
 
 /**
  * The ids an add-by-name answer names.
@@ -47,4 +47,24 @@ export function idsOfRefEntries(entries: readonly FoodRefEntry[]): string[] {
             ...(entry.forwardedTo === undefined ? [] : [entry.forwardedTo.id]),
         ];
     });
+}
+
+/**
+ * The ids a by-id read names: the requested id and, for a retired root, the live root or variant whose data it carries.
+ *
+ * @param response - The food body.
+ * @returns The id the caller asked for, then the forward target when there is one. Pure.
+ */
+export function idsOfFood(response: Pick<FoodResponse, 'id' | 'forwardedTo'>): string[] {
+    return response.forwardedTo === undefined ? [response.id] : [response.id, response.forwardedTo.id];
+}
+
+/**
+ * The ids a status poll names: its own id and, once `RESOLVED`, the ids of the record it carries.
+ *
+ * @param response - The status body.
+ * @returns The polled id, then the record's forward target when there is one. Pure.
+ */
+export function idsOfStatus(response: Pick<StatusResponse, 'id' | 'food'>): string[] {
+    return response.food === undefined ? [response.id] : [...new Set([response.id, ...idsOfFood(response.food)])];
 }

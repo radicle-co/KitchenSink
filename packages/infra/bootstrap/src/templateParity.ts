@@ -12,6 +12,7 @@
  *
  * @pattern Specification — a pure predicate over two cloud-assembly captures
  */
+import { isRecord, type Json } from './json.js';
 import { DEFAULT_QUALIFIER, boundaryPolicyName, qualifierForStage, type QualifierName } from './qualifiers.js';
 
 /** One synthesized cloud assembly: `"<app>/<stage>"` to its files (`*.template.json`, `*.assets.json`, `manifest.json`). */
@@ -31,11 +32,6 @@ const ACCOUNT_STAGE = 'account';
 
 /** Caps the differences reported per file, so a wholesale change reads as one finding and not ten thousand. */
 const MAX_DIFFERENCES_PER_FILE = 25;
-
-type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
-
-const isRecord = (value: unknown): value is Record<string, Json> =>
-    typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
  * The qualifier as a whole token. ⛔ NOT a substring: `IdentityWebhooksprod` is a logical id that CONTAINS `ksprod`,
@@ -272,6 +268,152 @@ function hasDockerImage(assets: unknown): boolean {
     );
 }
 
+/** One file of one stage, base and head, after the expected qualifier move has been rewritten out of both. */
+interface NormalisedPair {
+    readonly base: Json;
+    readonly head: Json;
+    /** Findings of the normalisation itself (a role without its boundary). */
+    readonly problems: readonly string[];
+    readonly boundedRoles: number;
+    readonly rehashedVersions: number;
+}
+
+/**
+ * Rewrites the two expected changes (the qualifier token and the boundary) out of one file pair.
+ *
+ * @param where - The `<stage key>/<file>` the findings are reported under.
+ * @param qualifier - The qualifier the head moved onto; `undefined` for the account app, which is compared as it is.
+ * @returns The pair to diff, and what the rewrite found. Pure.
+ */
+function normalisePair(
+    where: string,
+    file: string,
+    baseFile: Json,
+    headFile: Json,
+    qualifier: QualifierName | undefined,
+): NormalisedPair {
+    if (qualifier === undefined) {
+        return { base: baseFile, head: headFile, problems: [], boundedRoles: 0, rehashedVersions: 0 };
+    }
+
+    const isTemplate = file.endsWith('.template.json');
+    const problems: string[] = [];
+    let boundedRoles = 0;
+    let head = headFile;
+
+    // The boundary is stripped from the ORIGINAL head: its ARN names the tier, and the token rewrite below would
+    // erase which tier it was.
+    if (isTemplate && isRecord(headFile)) {
+        const { stripped, missing } = stripBoundary(headFile, qualifier);
+
+        for (const id of missing) {
+            problems.push(`${where}: role ${id} lacks the ${boundaryPolicyName(qualifier)} boundary`);
+        }
+
+        boundedRoles = countRoles(headFile) - missing.length;
+        head = stripped;
+    }
+
+    const base = rewriteQualifier(baseFile, DEFAULT_QUALIFIER);
+
+    head = rewriteQualifier(head, qualifier);
+
+    if (isTemplate && isRecord(base) && isRecord(head)) {
+        const baseVersions = stemLambdaVersions(base);
+        const headVersions = stemLambdaVersions(head);
+
+        return {
+            base: baseVersions.stemmed,
+            head: headVersions.stemmed,
+            problems,
+            boundedRoles,
+            rehashedVersions: headVersions.versions.filter((id) => !baseVersions.versions.includes(id)).length,
+        };
+    }
+
+    if (file.endsWith('.assets.json') || file === 'manifest.json') {
+        return {
+            base: normaliseAssetIdentity(base),
+            head: normaliseAssetIdentity(head),
+            problems,
+            boundedRoles,
+            rehashedVersions: 0,
+        };
+    }
+
+    return { base, head, problems, boundedRoles, rehashedVersions: 0 };
+}
+
+/** What comparing one stage's files found. */
+interface StageComparison {
+    readonly differences: readonly string[];
+    readonly summary: string;
+}
+
+/** The one-line summary of a stage: how many files came through unchanged, and what the move accounted for. */
+function summaryLine(
+    key: string,
+    counts: { identical: number; files: number; boundedRoles: number; rehashedVersions: number },
+    qualifier: QualifierName | undefined,
+): string {
+    const head = `${key}: ${counts.identical}/${counts.files} files identical after the qualifier move`;
+
+    if (qualifier === undefined) {
+        return `${head} (account app: no move expected)`;
+    }
+
+    const rehashed =
+        counts.rehashedVersions > 0
+            ? `, ${counts.rehashedVersions} Lambda version(s) re-hashed (code-bucket-derived id; no data)`
+            : '';
+
+    return `${head}, ${counts.boundedRoles} roles bounded by ${boundaryPolicyName(qualifier)}${rehashed}`;
+}
+
+/** Compares every file of one stage's base capture with its head capture. */
+function compareStage(
+    key: string,
+    baseFiles: Record<string, unknown>,
+    headFiles: Record<string, unknown>,
+): StageComparison {
+    const differences: string[] = [];
+    const qualifier = expectedQualifier(key.slice(key.lastIndexOf('/') + 1));
+    const counts = { identical: 0, files: Object.keys(baseFiles).length, boundedRoles: 0, rehashedVersions: 0 };
+
+    for (const file of Object.keys(baseFiles).sort()) {
+        const headFile = headFiles[file] as Json | undefined;
+
+        if (headFile === undefined) {
+            differences.push(`${key}/${file}: missing from the head capture`);
+            continue;
+        }
+
+        const pair = normalisePair(`${key}/${file}`, file, baseFiles[file] as Json, headFile, qualifier);
+        const found: string[] = [];
+
+        diff(pair.base, pair.head, '', found);
+
+        counts.identical += found.length === 0 ? 1 : 0;
+        counts.boundedRoles += pair.boundedRoles;
+        counts.rehashedVersions += pair.rehashedVersions;
+        differences.push(...pair.problems, ...found.map((line) => `${key}/${file}: ${line}`));
+
+        if (file.endsWith('.assets.json') && hasDockerImage(headFile)) {
+            differences.push(
+                `${key}/${file}: the head produces a docker image asset (CI roles get no image-publishing role)`,
+            );
+        }
+    }
+
+    for (const file of Object.keys(headFiles)) {
+        if (baseFiles[file] === undefined) {
+            differences.push(`${key}/${file}: present only in the head capture`);
+        }
+    }
+
+    return { differences, summary: summaryLine(key, counts, qualifier) };
+}
+
 /**
  * Compares a base capture with a head capture.
  *
@@ -284,7 +426,6 @@ export function compareCaptures(base: Capture, head: Capture): ParityReport {
     const summary: string[] = [];
 
     for (const key of Object.keys(base).sort()) {
-        const baseFiles = base[key] ?? {};
         const headFiles = head[key];
 
         if (headFiles === undefined) {
@@ -292,91 +433,10 @@ export function compareCaptures(base: Capture, head: Capture): ParityReport {
             continue;
         }
 
-        const stage = key.slice(key.lastIndexOf('/') + 1);
-        const qualifier = expectedQualifier(stage);
-        let identical = 0;
-        let boundedRoles = 0;
-        let rehashedVersions = 0;
+        const stage = compareStage(key, base[key] ?? {}, headFiles);
 
-        for (const file of Object.keys(baseFiles).sort()) {
-            const headFile = headFiles[file] as Json | undefined;
-
-            if (headFile === undefined) {
-                differences.push(`${key}/${file}: missing from the head capture`);
-                continue;
-            }
-
-            let normalisedBase = baseFiles[file] as Json;
-            let normalisedHead = headFile;
-
-            if (qualifier !== undefined) {
-                normalisedBase = rewriteQualifier(normalisedBase, DEFAULT_QUALIFIER);
-
-                // The boundary is stripped from the ORIGINAL head: its ARN names the tier, and the token rewrite
-                // below would erase which tier it was.
-                if (file.endsWith('.template.json') && isRecord(headFile)) {
-                    const { stripped, missing } = stripBoundary(headFile, qualifier);
-
-                    for (const id of missing) {
-                        differences.push(
-                            `${key}/${file}: role ${id} lacks the ${boundaryPolicyName(qualifier)} boundary`,
-                        );
-                    }
-
-                    boundedRoles += countRoles(headFile) - missing.length;
-                    normalisedHead = stripped;
-                }
-
-                normalisedHead = rewriteQualifier(normalisedHead, qualifier);
-
-                if (file.endsWith('.template.json') && isRecord(normalisedBase) && isRecord(normalisedHead)) {
-                    const baseVersions = stemLambdaVersions(normalisedBase);
-                    const headVersions = stemLambdaVersions(normalisedHead);
-
-                    normalisedBase = baseVersions.stemmed;
-                    normalisedHead = headVersions.stemmed;
-                    rehashedVersions += headVersions.versions.filter(
-                        (id) => !baseVersions.versions.includes(id),
-                    ).length;
-                } else if (file.endsWith('.assets.json') || file === 'manifest.json') {
-                    normalisedBase = normaliseAssetIdentity(normalisedBase);
-                    normalisedHead = normaliseAssetIdentity(normalisedHead);
-                }
-            }
-
-            const found: string[] = [];
-            diff(normalisedBase, normalisedHead, '', found);
-
-            if (found.length === 0) {
-                identical += 1;
-            }
-
-            for (const line of found) {
-                differences.push(`${key}/${file}: ${line}`);
-            }
-
-            if (file.endsWith('.assets.json') && hasDockerImage(headFile)) {
-                differences.push(
-                    `${key}/${file}: the head produces a docker image asset (CI roles get no image-publishing role)`,
-                );
-            }
-        }
-
-        for (const file of Object.keys(headFiles)) {
-            if (baseFiles[file] === undefined) {
-                differences.push(`${key}/${file}: present only in the head capture`);
-            }
-        }
-
-        summary.push(
-            `${key}: ${identical}/${Object.keys(baseFiles).length} files identical after the qualifier move` +
-                (qualifier === undefined
-                    ? ' (account app: no move expected)'
-                    : `, ${boundedRoles} roles bounded by ${boundaryPolicyName(qualifier)}` +
-                      (rehashedVersions > 0
-                          ? `, ${rehashedVersions} Lambda version(s) re-hashed (code-bucket-derived id; no data)`
-                          : '')),
-        );
+        differences.push(...stage.differences);
+        summary.push(stage.summary);
     }
 
     for (const key of Object.keys(head)) {

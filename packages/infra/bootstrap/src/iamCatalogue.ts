@@ -128,14 +128,8 @@ function formatsByService(catalogue: IamCatalogue): ReadonlyMap<string, readonly
                     continue;
                 }
 
-                const [, service, region, account, resource] = match as unknown as [
-                    string,
-                    string,
-                    string,
-                    string,
-                    string,
-                    string,
-                ];
+                // Every group of FORMAT is mandatory, so each is a string whenever the pattern matched.
+                const [, service = '', region = '', account = '', resource = ''] = match;
                 const list = formats.get(service) ?? [];
 
                 list.push({

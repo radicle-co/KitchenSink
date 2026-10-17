@@ -26,43 +26,47 @@ import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { z } from 'zod';
+
 import { renderedPolicies } from '../src/policySet.js';
 import { catalogueServicesOf, type IamCatalogue } from '../src/iamCatalogue.js';
 
 const INDEX_URL = 'https://servicereference.us-east-1.amazonaws.com/';
 
-interface IndexEntry {
-    readonly service: string;
-    readonly url: string;
-}
+/** The reference is a third-party document: its shape is checked at this boundary, not assumed. */
+const indexSchema = z.array(z.object({ service: z.string(), url: z.string() }));
 
-interface ServiceReference {
-    readonly Name: string;
-    readonly Version?: string;
-    readonly Actions: ReadonlyArray<{
-        readonly Name: string;
-        readonly Annotations?: {
-            readonly Properties?: {
-                readonly IsWrite?: boolean;
-                readonly IsPermissionManagement?: boolean;
-                readonly IsTaggingOnly?: boolean;
-            };
-        };
-    }>;
-    readonly Resources?: ReadonlyArray<{ readonly Name: string; readonly ARNFormats: readonly string[] }>;
-}
+const referenceSchema = z.object({
+    Actions: z.array(
+        z.object({
+            Name: z.string(),
+            Annotations: z
+                .object({
+                    Properties: z
+                        .object({
+                            IsWrite: z.boolean().optional(),
+                            IsPermissionManagement: z.boolean().optional(),
+                            IsTaggingOnly: z.boolean().optional(),
+                        })
+                        .optional(),
+                })
+                .optional(),
+        }),
+    ),
+    Resources: z.array(z.object({ Name: z.string(), ARNFormats: z.array(z.string()) })).optional(),
+});
 
-async function getJson<T>(url: string): Promise<T> {
+async function getJson<T>(url: string, schema: z.ZodType<T>): Promise<T> {
     const response = await fetch(url);
 
     if (!response.ok) {
         throw new Error(`GET ${url} answered ${response.status}`);
     }
 
-    return (await response.json()) as T;
+    return schema.parse(await response.json());
 }
 
-const index = await getJson<readonly IndexEntry[]>(INDEX_URL);
+const index = await getJson(INDEX_URL, indexSchema);
 const documents = renderedPolicies({ account: '000000000000', region: 'us-east-1' }).map((policy) => policy.document);
 const services = catalogueServicesOf(documents);
 
@@ -73,7 +77,7 @@ async function catalogueEntry(service: string): Promise<readonly [string, IamCat
         throw new Error(`the Service Authorization Reference has no service "${service}"`);
     }
 
-    const reference = await getJson<ServiceReference>(entry.url);
+    const reference = await getJson(entry.url, referenceSchema);
 
     return [
         service,

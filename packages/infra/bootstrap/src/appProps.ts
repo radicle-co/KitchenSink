@@ -24,6 +24,7 @@
  * @pattern Factory — one function builds the app props every entrypoint shares
  * @pattern Strategy by stage — the qualifier and boundary follow `qualifierForStage`
  */
+import { isRecord } from './json.js';
 import { QUALIFIERS, boundaryPolicyName, qualifierForStage } from './qualifiers.js';
 
 /** The CDK context key the default synthesizer reads its qualifier from (`BOOTSTRAP_QUALIFIER_CONTEXT`). */
@@ -91,8 +92,8 @@ export function resolveStage(environment: Readonly<Record<string, string | undef
     const raw = environment[CDK_CONTEXT_ENV];
 
     if (raw !== undefined && raw !== '') {
-        const context = JSON.parse(raw) as Record<string, unknown>;
-        const fromContext = context['stage'];
+        const context: unknown = JSON.parse(raw);
+        const fromContext = isRecord(context) ? context['stage'] : undefined;
 
         if (typeof fromContext === 'string') {
             return fromContext;

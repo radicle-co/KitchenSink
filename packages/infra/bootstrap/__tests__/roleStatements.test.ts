@@ -12,6 +12,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import type { Json } from '../src/json.js';
 import { emptyDerived, finalizeRoleStatements, foldCloudAssembly, toManifest } from '../scripts/deriveResourceTypes.js';
 
 import {
@@ -24,7 +25,7 @@ import {
 
 const stack = (stackName: string, template: StackTemplate['template']): StackTemplate => ({ stackName, template });
 
-const policy = (resource: unknown, action: unknown = 'sqs:SendMessage'): StackTemplate['template'] => ({
+const policy = (resource: Json, action: Json = 'sqs:SendMessage'): StackTemplate['template'] => ({
     Resources: {
         Policy: {
             Type: 'AWS::IAM::Policy',

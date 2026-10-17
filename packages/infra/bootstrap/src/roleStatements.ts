@@ -14,15 +14,14 @@
  *
  * @pattern Interpreter — a pure evaluator over the CloudFormation intrinsic-function grammar the tree actually writes
  */
+import { isRecord, toList, type Json } from './json.js';
 
 /** The account every rendered ARN carries: a placeholder id, never a real one. */
 export const ACCOUNT_ID = '123456789012';
 /** The region every rendered ARN carries. */
 export const REGION_NAME = 'us-east-1';
 
-type Json = unknown;
-
-interface TemplateResource {
+export interface TemplateResource {
     readonly Type: string;
     readonly Properties?: Readonly<Record<string, Json>>;
 }
@@ -48,8 +47,8 @@ export interface RoleStatement {
 
 /** Every stack of a derivation, indexed for cross-stack references. */
 export interface World {
-    readonly exports: ReadonlyMap<string, { readonly stack: StackTemplate; readonly value: Json }>;
-    readonly parameters: ReadonlyMap<string, { readonly stack: StackTemplate; readonly value: Json }>;
+    readonly exports: ReadonlyMap<string, { readonly stack: StackTemplate; readonly value: Json | undefined }>;
+    readonly parameters: ReadonlyMap<string, { readonly stack: StackTemplate; readonly value: Json | undefined }>;
 }
 
 interface Kind {
@@ -160,12 +159,6 @@ const MAX_ALTERNATIVES = 64;
 
 const unresolved = (what: string): string => `UNRESOLVED(${what})`;
 
-const asArray = (value: Json): Json[] =>
-    Array.isArray(value) ? (value as Json[]) : value === undefined ? [] : [value];
-
-const isRecord = (value: Json): value is Record<string, Json> =>
-    typeof value === 'object' && value !== null && !Array.isArray(value);
-
 /** Cartesian product of alternatives, capped so a pathological template cannot explode. */
 function product(lists: readonly (readonly string[])[]): string[] {
     let combined: string[] = [''];
@@ -272,7 +265,7 @@ function renderSub(template: string, context: Context): string[] {
     }
 }
 
-function render(expression: Json, context: Context): string[] {
+function render(expression: Json | undefined, context: Context): string[] {
     if (typeof expression === 'string') {
         return [expression];
     }
@@ -303,7 +296,7 @@ function render(expression: Json, context: Context): string[] {
 
     if (Array.isArray(join)) {
         const [separator, parts] = join as [string, Json[]];
-        const rendered = asArray(parts).map((part) => render(part, context));
+        const rendered = toList(parts).map((part) => render(part, context));
         const glued = product(
             rendered.flatMap((alternatives, index) => (index === 0 ? [alternatives] : [[separator], alternatives])),
         );
@@ -343,7 +336,7 @@ function render(expression: Json, context: Context): string[] {
             return render(source, context).map((text) => text.split(delimiter)[position] ?? unresolved('select'));
         }
 
-        return render(asArray(list)[position], context);
+        return render(toList(list)[position], context);
     }
 
     const conditional = expression['Fn::If'];
@@ -363,8 +356,8 @@ function render(expression: Json, context: Context): string[] {
  * @returns The world. Pure.
  */
 export function buildWorld(stacks: readonly StackTemplate[]): World {
-    const exports = new Map<string, { stack: StackTemplate; value: Json }>();
-    const parameters = new Map<string, { stack: StackTemplate; value: Json }>();
+    const exports = new Map<string, { stack: StackTemplate; value: Json | undefined }>();
+    const parameters = new Map<string, { stack: StackTemplate; value: Json | undefined }>();
     const scratch: World = { exports, parameters };
 
     for (const stack of stacks) {
@@ -392,18 +385,36 @@ export function buildWorld(stacks: readonly StackTemplate[]): World {
     return scratch;
 }
 
-function statementsOf(resource: TemplateResource): Json[] {
-    const documents: Json[] = [];
+/**
+ * Every statement of every policy document a resource carries: a role's inline policies, or a standalone policy.
+ * Effect-agnostic: the callers choose Allow or non-Deny.
+ *
+ * @returns The statements as written (they may be malformed; callers narrow). Pure.
+ */
+export function statementsOf(resource: TemplateResource): Json[] {
+    const documents: (Json | undefined)[] = [];
 
     if (resource.Type === 'AWS::IAM::Role') {
-        for (const inline of asArray(resource.Properties?.['Policies'])) {
+        for (const inline of toList(resource.Properties?.['Policies'])) {
             documents.push(isRecord(inline) ? inline['PolicyDocument'] : undefined);
         }
     } else if (resource.Type === 'AWS::IAM::Policy' || resource.Type === 'AWS::IAM::ManagedPolicy') {
         documents.push(resource.Properties?.['PolicyDocument']);
     }
 
-    return documents.flatMap((document) => (isRecord(document) ? asArray(document['Statement']) : []));
+    return documents.flatMap((document) => (isRecord(document) ? toList(document['Statement']) : []));
+}
+
+/** One Allow statement, rendered, sorted and deduplicated; `undefined` for a Deny or a malformed statement. */
+function renderAllow(statement: Json | undefined, world: World, stack: StackTemplate): RoleStatement | undefined {
+    if (!isRecord(statement) || statement['Effect'] !== 'Allow') {
+        return undefined;
+    }
+
+    const actions = toList(statement['Action']).filter((a): a is string => typeof a === 'string');
+    const resources = toList(statement['Resource']).flatMap((entry) => render(entry, { world, stack, depth: 0 }));
+
+    return { actions: [...new Set(actions)].sort(), resources: [...new Set(resources)].sort() };
 }
 
 /**
@@ -416,20 +427,11 @@ export function renderRoleStatements(world: World, stack: StackTemplate): RoleSt
 
     for (const resource of Object.values(stack.template.Resources ?? {})) {
         for (const statement of statementsOf(resource)) {
-            if (!isRecord(statement) || statement['Effect'] !== 'Allow') {
-                continue;
+            const rendered = renderAllow(statement, world, stack);
+
+            if (rendered !== undefined) {
+                found.set(JSON.stringify(rendered), rendered);
             }
-
-            const actions = asArray(statement['Action']).filter((a): a is string => typeof a === 'string');
-            const resources = asArray(statement['Resource']).flatMap((entry) =>
-                render(entry, { world, stack, depth: 0 }),
-            );
-            const normalized: RoleStatement = {
-                actions: [...new Set(actions)].sort(),
-                resources: [...new Set(resources)].sort(),
-            };
-
-            found.set(JSON.stringify(normalized), normalized);
         }
     }
 

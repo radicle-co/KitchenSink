@@ -25,13 +25,9 @@
  * @pattern Template Method — a fixed sequence of named edits over a vendored base, pinned by golden files
  * @pattern Pure transform — parsed document in, new document out; the input is never mutated
  */
+import { isRecord, type Json, type JsonObject } from './json.js';
 import { ASSUMABLE_ROLE_KINDS, BOOTSTRAP_TRUST, STACK_NAME_PATTERNS, ciRoleArn } from './qualifiers.js';
 import type { AssumableRoleKind, QualifierName } from './qualifiers.js';
-
-/** A parsed JSON/YAML value. */
-export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
-
-type JsonObject = { [key: string]: Json };
 
 /** The CloudFormation Sub-token for the deploying account: no account id is ever committed (`assertNoAwsAccountIds`). */
 const ACCOUNT_TOKEN = '${AWS::AccountId}';
@@ -63,8 +59,8 @@ export const LOOKUP_ROLE_ACTIONS: readonly string[] = [
     'ssm:GetParameter',
 ];
 
-const asObject = (value: Json | undefined, what: string): JsonObject => {
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+const expectObject = (value: Json | undefined, what: string): JsonObject => {
+    if (!isRecord(value)) {
         throw new Error(
             `customizeBootstrapTemplate: expected ${what} to be an object — the stock template changed shape`,
         );
@@ -73,7 +69,7 @@ const asObject = (value: Json | undefined, what: string): JsonObject => {
     return value;
 };
 
-const asArray = (value: Json | undefined, what: string): Json[] => {
+const expectArray = (value: Json | undefined, what: string): Json[] => {
     if (!Array.isArray(value)) {
         throw new Error(
             `customizeBootstrapTemplate: expected ${what} to be an array — the stock template changed shape`,
@@ -84,10 +80,10 @@ const asArray = (value: Json | undefined, what: string): Json[] => {
 };
 
 const resourceOf = (template: JsonObject, id: string): JsonObject =>
-    asObject(asObject(template['Resources'], 'Resources')[id], `Resources.${id}`);
+    expectObject(expectObject(template['Resources'], 'Resources')[id], `Resources.${id}`);
 
 const propertiesOf = (template: JsonObject, id: string): JsonObject =>
-    asObject(resourceOf(template, id)['Properties'], `Resources.${id}.Properties`);
+    expectObject(resourceOf(template, id)['Properties'], `Resources.${id}.Properties`);
 
 const sub = (value: string): Json => ({ 'Fn::Sub': value });
 
@@ -105,11 +101,11 @@ function narrowTrust(template: JsonObject, kind: AssumableRoleKind, qualifier: Q
     // The stock AssumeRole statement refuses a call carrying an ExternalId (confused-deputy hygiene) when
     // `DenyExternalId` is true. It is kept, with the principal condition merged beside it.
     const assumeCondition: JsonObject = {
-        'Fn::If': ['ShouldDenyExternalId', { ...asObject(EXTERNAL_ID_NULL, 'null'), ...arnEquals }, arnEquals],
+        'Fn::If': ['ShouldDenyExternalId', { ...expectObject(EXTERNAL_ID_NULL, 'null'), ...arnEquals }, arnEquals],
     };
 
     const properties = propertiesOf(template, ROLE_RESOURCE_IDS[kind]);
-    asObject(properties['AssumeRolePolicyDocument'], `${ROLE_RESOURCE_IDS[kind]} trust`);
+    expectObject(properties['AssumeRolePolicyDocument'], `${ROLE_RESOURCE_IDS[kind]} trust`);
 
     properties['AssumeRolePolicyDocument'] = {
         Statement: [
@@ -124,10 +120,13 @@ function narrowTrust(template: JsonObject, kind: AssumableRoleKind, qualifier: Q
 function scopeDeployRole(template: JsonObject, qualifier: QualifierName): void {
     const properties = propertiesOf(template, 'DeploymentActionRole');
     const stacks = STACK_NAME_PATTERNS[qualifier].map(stackArn);
-    const policies = asArray(properties['Policies'], 'DeploymentActionRole.Policies');
-    const document = asObject(asObject(policies[0], 'DeploymentActionRole policy')['PolicyDocument'], 'document');
-    const statements = asArray(document['Statement'], 'DeploymentActionRole statements').map((s, index) =>
-        asObject(s, `DeploymentActionRole statement ${index}`),
+    const policies = expectArray(properties['Policies'], 'DeploymentActionRole.Policies');
+    const document = expectObject(
+        expectObject(policies[0], 'DeploymentActionRole policy')['PolicyDocument'],
+        'document',
+    );
+    const statements = expectArray(document['Statement'], 'DeploymentActionRole statements').map((s, index) =>
+        expectObject(s, `DeploymentActionRole statement ${index}`),
     );
 
     const find = (sid: string): JsonObject => {
@@ -146,7 +145,9 @@ function scopeDeployRole(template: JsonObject, qualifier: QualifierName): void {
     find('Refactor')['Resource'] = stacks;
 
     const cli = find('CliPermissions');
-    const cliActions = asArray(cli['Action'], 'CliPermissions actions').filter((a) => a !== 'sts:GetCallerIdentity');
+    const cliActions = expectArray(cli['Action'], 'CliPermissions actions').filter(
+        (a) => a !== 'sts:GetCallerIdentity',
+    );
     cli['Action'] = cliActions;
     cli['Resource'] = stacks;
     // `sts:GetCallerIdentity` takes no resource type: it stays on `*`, in a statement of its own.
@@ -173,9 +174,12 @@ function scopeLookupRole(template: JsonObject): void {
     const properties = propertiesOf(template, 'LookupRole');
     delete properties['ManagedPolicyArns'];
 
-    const policies = asArray(properties['Policies'], 'LookupRole.Policies');
-    const document = asObject(asObject(policies[0], 'LookupRole policy')['PolicyDocument'], 'LookupRole document');
-    const statements = asArray(document['Statement'], 'LookupRole statements');
+    const policies = expectArray(properties['Policies'], 'LookupRole.Policies');
+    const document = expectObject(
+        expectObject(policies[0], 'LookupRole policy')['PolicyDocument'],
+        'LookupRole document',
+    );
+    const statements = expectArray(document['Statement'], 'LookupRole statements');
 
     const versionParameter = sub(
         'arn:${AWS::Partition}:ssm:${AWS::Region}:' + `${ACCOUNT_TOKEN}:parameter\${CdkBootstrapVersion}`,
@@ -207,15 +211,15 @@ function scopeLookupRole(template: JsonObject): void {
 /** Edit (d): the execution role. */
 function narrowExecutionRole(template: JsonObject): void {
     const properties = propertiesOf(template, 'CloudFormationExecutionRole');
-    const trust = asObject(properties['AssumeRolePolicyDocument'], 'execution role trust');
-    const statements = asArray(trust['Statement'], 'execution role trust statements');
+    const trust = expectObject(properties['AssumeRolePolicyDocument'], 'execution role trust');
+    const statements = expectArray(trust['Statement'], 'execution role trust statements');
 
     if (statements.length === 0) {
         throw new Error('customizeBootstrapTemplate: the execution role trust has no statement');
     }
 
     trust['Statement'] = statements.map((statement) => ({
-        ...asObject(statement, 'execution role trust statement'),
+        ...expectObject(statement, 'execution role trust statement'),
         Condition: { StringEquals: { 'aws:SourceAccount': { Ref: 'AWS::AccountId' } } },
     }));
     // No fallback to AdministratorAccess: an empty list fails the stack, which is the only safe empty.
@@ -224,9 +228,9 @@ function narrowExecutionRole(template: JsonObject): void {
 
 /** The identity of the stack: its qualifier and a variant of its own. */
 function stampIdentity(template: JsonObject, qualifier: QualifierName): void {
-    const parameters = asObject(template['Parameters'], 'Parameters');
-    asObject(parameters['Qualifier'], 'Parameters.Qualifier')['Default'] = qualifier;
-    asObject(parameters['BootstrapVariant'], 'Parameters.BootstrapVariant')['Default'] =
+    const parameters = expectObject(template['Parameters'], 'Parameters');
+    expectObject(parameters['Qualifier'], 'Parameters.Qualifier')['Default'] = qualifier;
+    expectObject(parameters['BootstrapVariant'], 'Parameters.BootstrapVariant')['Default'] =
         'KitchenSink: scoped bootstrap (ADR-0065)';
 }
 
@@ -240,7 +244,7 @@ function stampIdentity(template: JsonObject, qualifier: QualifierName): void {
  */
 export function customizeBootstrapTemplate(stock: Json, qualifier: QualifierName): Json {
     const template = structuredClone(stock);
-    const root = asObject(template, 'template');
+    const root = expectObject(template, 'template');
 
     for (const kind of ASSUMABLE_ROLE_KINDS) {
         narrowTrust(root, kind, qualifier);

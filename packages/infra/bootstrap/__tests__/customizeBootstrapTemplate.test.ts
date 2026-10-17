@@ -15,7 +15,8 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
-import { LOOKUP_ROLE_ACTIONS, customizeBootstrapTemplate, type Json } from '../src/customizeBootstrapTemplate.js';
+import { LOOKUP_ROLE_ACTIONS, customizeBootstrapTemplate } from '../src/customizeBootstrapTemplate.js';
+import type { Json } from '../src/json.js';
 import {
     ASSUMABLE_ROLE_KINDS,
     BOOTSTRAP_TRUST,

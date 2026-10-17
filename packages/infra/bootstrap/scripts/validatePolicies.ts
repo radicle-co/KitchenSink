@@ -14,14 +14,24 @@
  */
 import { spawnSync } from 'node:child_process';
 
+import { z } from 'zod';
+
 import { renderedPolicies } from '../src/policySet.js';
 
-interface Finding {
-    readonly findingType: string;
-    readonly issueCode: string;
-    readonly findingDetails: string;
-    readonly locations?: readonly unknown[];
-}
+/** What `aws sts get-caller-identity` answers that this script reads. */
+const identitySchema = z.object({ Account: z.string() });
+
+/** What `aws accessanalyzer validate-policy` answers that this script reads. */
+const validationSchema = z.object({
+    findings: z.array(
+        z.object({
+            findingType: z.string(),
+            issueCode: z.string(),
+            findingDetails: z.string(),
+            locations: z.array(z.unknown()).optional(),
+        }),
+    ),
+});
 
 const FAILING = new Set(['ERROR', 'SECURITY_WARNING']);
 
@@ -37,7 +47,7 @@ function aws(args: readonly string[]): string {
 
 const account =
     process.argv[2] ??
-    (JSON.parse(aws(['sts', 'get-caller-identity', '--output', 'json'])) as { Account: string }).Account;
+    identitySchema.parse(JSON.parse(aws(['sts', 'get-caller-identity', '--output', 'json']))).Account;
 const region = process.argv[3] ?? 'us-east-1';
 
 let failed = 0;
@@ -55,7 +65,7 @@ for (const { name, document } of renderedPolicies({ account, region })) {
         '--output',
         'json',
     ]);
-    const findings = (JSON.parse(output) as { findings: Finding[] }).findings;
+    const { findings } = validationSchema.parse(JSON.parse(output));
     const bad = findings.filter((finding) => FAILING.has(finding.findingType));
 
     failed += bad.length;

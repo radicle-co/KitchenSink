@@ -14,7 +14,8 @@
         "./iamCatalogue": "./manifests/iamCatalogue.json"
     },
     "dependencies": {
-        "yaml": "^2.8.1"
+        "yaml": "^2.8.1",
+        "zod": "^4.4.3"
     },
     "scripts": {
         "build": "tsc --noEmit",

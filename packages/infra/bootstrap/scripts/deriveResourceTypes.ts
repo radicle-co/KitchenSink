@@ -40,13 +40,17 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { z } from 'zod';
+
+import { isRecord, toList, type Json } from '../src/json.js';
 import { QUALIFIERS, type QualifierName } from '../src/qualifiers.js';
 import {
     buildWorld,
     renderRoleStatements,
+    statementsOf,
     type RoleStatement,
     type StackTemplate,
-    type Template as RenderableTemplate,
+    type TemplateResource,
 } from '../src/roleStatements.js';
 
 /** The stages that stand for each stage-bearing qualifier. `pr-1` stands for every `pr-{N}`. */
@@ -141,15 +145,6 @@ export function placeholderEnvironment(stage: string, outdir: string): NodeJS.Pr
     };
 }
 
-interface CfnResource {
-    readonly Type: string;
-    readonly Properties?: Record<string, unknown>;
-}
-
-interface Template {
-    readonly Resources?: Record<string, CfnResource>;
-}
-
 export interface Derived {
     readonly resourceTypes: Set<string>;
     readonly roleActions: Set<string>;
@@ -173,20 +168,53 @@ export const emptyDerived = (): Derived => ({
     dockerImageAssets: false,
 });
 
-const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : value === undefined ? [] : [value]);
+/** What a cloud assembly's `manifest.json` carries that this script reads. */
+const manifestSchema = z.object({
+    artifacts: z
+        .record(
+            z.string(),
+            z.object({
+                type: z.string(),
+                properties: z
+                    .object({ stackName: z.string().optional(), templateFile: z.string().optional() })
+                    .optional(),
+            }),
+        )
+        .optional(),
+});
 
-/** Collects the IAM actions of one policy document (a `Statement` list or a single statement). */
-function collectActions(document: unknown, into: Set<string>): void {
-    if (typeof document !== 'object' || document === null) {
-        return;
-    }
+/** What an `*.assets.json` carries that this script reads. */
+const assetsSchema = z.object({ dockerImages: z.record(z.string(), z.unknown()).optional() });
 
-    for (const statement of asArray((document as { Statement?: unknown }).Statement)) {
-        if ((statement as { Effect?: string }).Effect === 'Deny') {
+/** A synthesized template, as far as the derivation reads it (the shape `roleStatements` renders). */
+const templateSchema = z.object({
+    Resources: z
+        .record(z.string(), z.object({ Type: z.string(), Properties: z.record(z.string(), z.json()).optional() }))
+        .optional(),
+    Parameters: z
+        .record(z.string(), z.object({ Type: z.string().optional(), Default: z.json().optional() }))
+        .optional(),
+    Outputs: z
+        .record(
+            z.string(),
+            z.object({
+                Value: z.json().optional(),
+                Export: z.object({ Name: z.json().optional() }).optional(),
+            }),
+        )
+        .optional(),
+});
+
+const readJson = (file: string): unknown => JSON.parse(readFileSync(file, 'utf8'));
+
+/** Collects the actions of every non-Deny statement of one resource's policy documents. */
+function collectActions(resource: TemplateResource, into: Set<string>): void {
+    for (const statement of statementsOf(resource)) {
+        if (!isRecord(statement) || statement['Effect'] === 'Deny') {
             continue;
         }
 
-        for (const action of asArray((statement as { Action?: unknown }).Action)) {
+        for (const action of toList(statement['Action'])) {
             if (typeof action === 'string') {
                 into.add(action);
             }
@@ -195,15 +223,15 @@ function collectActions(document: unknown, into: Set<string>): void {
 }
 
 /** Collects the service principals one role trust document names. */
-function collectTrustServices(document: unknown, into: Set<string>): void {
-    if (typeof document !== 'object' || document === null) {
+function collectTrustServices(document: Json | undefined, into: Set<string>): void {
+    if (!isRecord(document)) {
         return;
     }
 
-    for (const statement of asArray((document as { Statement?: unknown }).Statement)) {
-        const principal = (statement as { Principal?: { Service?: unknown } }).Principal;
+    for (const statement of toList(document['Statement'])) {
+        const principal = isRecord(statement) ? statement['Principal'] : undefined;
 
-        for (const service of asArray(principal?.Service)) {
+        for (const service of toList(isRecord(principal) ? principal['Service'] : undefined)) {
             if (typeof service === 'string') {
                 into.add(service);
             }
@@ -211,73 +239,83 @@ function collectTrustServices(document: unknown, into: Set<string>): void {
     }
 }
 
-/** Folds one synthesized `cdk.out` directory into `into`. Pure of anything but the directory it reads. */
-export function foldCloudAssembly(outdir: string, into: Derived): void {
-    const assembly = JSON.parse(readFileSync(path.join(outdir, 'manifest.json'), 'utf8')) as {
-        artifacts?: Record<string, { type: string; properties?: { stackName?: string; templateFile?: string } }>;
-    };
+/** Collects the AWS-managed policy names (`policy/<name>`) one role attaches. */
+function collectManagedPolicies(properties: Readonly<Record<string, Json>>, into: Set<string>): void {
+    for (const arn of toList(properties['ManagedPolicyArns'])) {
+        const match = /policy\/([^"\\]+)"/u.exec(JSON.stringify(arn));
 
-    // The CloudFormation stack name is the artifact's `stackName`, or its id when none is set. The template file
-    // name is the construct id, which is NOT the stack name (`IdentityService-sandbox` deploys as
-    // `kitchensink-identity-service-sandbox`), so the manifest is the only honest source. Nested stacks have no
-    // artifact of their own and are not top-level deploy targets.
+        if (match?.[1] !== undefined) {
+            into.add(match[1]);
+        }
+    }
+}
+
+/** Folds one resource: its type, its policy actions and, for a role, the services it trusts and the managed policies. */
+function foldResource(resource: TemplateResource, into: Derived): void {
+    into.resourceTypes.add(resource.Type);
+
+    if (resource.Type === 'AWS::IAM::Role') {
+        collectTrustServices(resource.Properties?.['AssumeRolePolicyDocument'], into.rolePassedToServices);
+        collectManagedPolicies(resource.Properties ?? {}, into.awsManagedPolicies);
+    }
+
+    collectActions(resource, into.roleActions);
+}
+
+/**
+ * Records every stack name of the assembly and answers the stack name of each template file.
+ *
+ * The CloudFormation stack name is the artifact's `stackName`, or its id when none is set. The template file name is
+ * the construct id, which is NOT the stack name (`IdentityService-sandbox` deploys as
+ * `kitchensink-identity-service-sandbox`), so the manifest is the only honest source. Nested stacks have no artifact
+ * of their own and are not top-level deploy targets.
+ */
+function readStackNames(outdir: string, into: Derived): ReadonlyMap<string, string> {
+    const manifest = manifestSchema.parse(readJson(path.join(outdir, 'manifest.json')));
     const stackNameByTemplate = new Map<string, string>();
 
-    for (const [id, artifact] of Object.entries(assembly.artifacts ?? {})) {
+    for (const [id, artifact] of Object.entries(manifest.artifacts ?? {})) {
         if (artifact.type === 'aws:cloudformation:stack') {
             const stackName = artifact.properties?.stackName ?? id;
+
             into.stackNames.add(stackName);
             stackNameByTemplate.set(artifact.properties?.templateFile ?? `${id}.template.json`, stackName);
         }
     }
 
+    return stackNameByTemplate;
+}
+
+/** Folds one `*.template.json`. A nested stack is named after its file so its statements are still rendered. */
+function foldTemplateFile(
+    file: string,
+    stackNameByTemplate: ReadonlyMap<string, string>,
+    text: unknown,
+    into: Derived,
+): void {
+    const template = templateSchema.parse(text);
+
+    into.stacks.push({
+        stackName: stackNameByTemplate.get(file) ?? `kitchensink-nested-${file.replace('.template.json', '')}`,
+        template,
+    });
+
+    for (const resource of Object.values(template.Resources ?? {})) {
+        foldResource(resource, into);
+    }
+}
+
+/** Folds one synthesized `cdk.out` directory into `into`. Pure of anything but the directory it reads. */
+export function foldCloudAssembly(outdir: string, into: Derived): void {
+    const stackNameByTemplate = readStackNames(outdir, into);
+
     for (const file of readdirSync(outdir)) {
-        const full = path.join(outdir, file);
-
         if (file.endsWith('.assets.json')) {
-            const assets = JSON.parse(readFileSync(full, 'utf8')) as { dockerImages?: Record<string, unknown> };
-
-            if (Object.keys(assets.dockerImages ?? {}).length > 0) {
+            if (Object.keys(assetsSchema.parse(readJson(path.join(outdir, file))).dockerImages ?? {}).length > 0) {
                 into.dockerImageAssets = true;
             }
-
-            continue;
-        }
-
-        if (!file.endsWith('.template.json')) {
-            continue;
-        }
-
-        const template = JSON.parse(readFileSync(full, 'utf8')) as Template;
-
-        // A nested stack has no artifact of its own; it is named after its file so its statements are still rendered.
-        into.stacks.push({
-            stackName: stackNameByTemplate.get(file) ?? `kitchensink-nested-${file.replace('.template.json', '')}`,
-            template: template as RenderableTemplate,
-        });
-
-        for (const resource of Object.values(template.Resources ?? {})) {
-            into.resourceTypes.add(resource.Type);
-            const properties = resource.Properties ?? {};
-
-            if (resource.Type === 'AWS::IAM::Role') {
-                collectTrustServices(properties['AssumeRolePolicyDocument'], into.rolePassedToServices);
-
-                for (const inline of asArray(properties['Policies'])) {
-                    collectActions((inline as { PolicyDocument?: unknown }).PolicyDocument, into.roleActions);
-                }
-
-                for (const arn of asArray(properties['ManagedPolicyArns'])) {
-                    const rendered = JSON.stringify(arn);
-                    const match = /policy\/([^"\\]+)"/u.exec(rendered);
-
-                    if (match?.[1] !== undefined) {
-                        into.awsManagedPolicies.add(match[1]);
-                    }
-                }
-            } else if (resource.Type === 'AWS::IAM::Policy' || resource.Type === 'AWS::IAM::ManagedPolicy') {
-                collectActions(properties['PolicyDocument'], into.roleActions);
-            }
+        } else if (file.endsWith('.template.json')) {
+            foldTemplateFile(file, stackNameByTemplate, readJson(path.join(outdir, file)), into);
         }
     }
 }

@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { Document, isScalar, parse, visit } from 'yaml';
 
 import { customizeBootstrapTemplate } from './customizeBootstrapTemplate.js';
-import type { Json } from './customizeBootstrapTemplate.js';
+import type { Json } from './json.js';
 import type { QualifierName } from './qualifiers.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));

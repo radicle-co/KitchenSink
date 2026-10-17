@@ -95,6 +95,13 @@ describe('resolveStage', () => {
         expect(resolveStage({ CDK_CONTEXT_JSON: JSON.stringify({ stage: 5 }), STAGE: 'sandbox' })).toBe('sandbox');
     });
 
+    it.each(['null', '[]', '"prod"', '7'])(
+        'does not read a stage out of a context that is not an object (%s)',
+        (raw) => {
+            expect(resolveStage({ CDK_CONTEXT_JSON: raw, STAGE: 'sandbox' })).toBe('sandbox');
+        },
+    );
+
     it('throws on a malformed context instead of guessing a stage', () => {
         expect(() => resolveStage({ CDK_CONTEXT_JSON: '{nope', STAGE: 'prod' })).toThrow();
     });

@@ -107,6 +107,15 @@ function resolverJob(): WorkflowJob | undefined {
     return Object.values(workflow.jobs).find((job) => job.outputs !== undefined && 'live' in job.outputs);
 }
 
+const LIVENESS_SCRIPT_PATH = fileURLToPath(
+    new URL('../../../../.github/scripts/deployedSandboxLiveness.sh', import.meta.url),
+);
+
+/** A Maestro job's START probe: the step with id `liveness`, which calls the shared liveness script. */
+function startProbeSteps(job: WorkflowJob): readonly WorkflowStep[] {
+    return (job.steps ?? []).filter((step) => step.id === 'liveness');
+}
+
 /** The steps of a job that run the deploy gate's `evaluate` door — the liveness question itself. */
 function livenessSteps(job: WorkflowJob): readonly WorkflowStep[] {
     return (job.steps ?? []).filter((step) => /deployGate\.sh\s+evaluate/u.test(step.run ?? ''));
@@ -143,7 +152,7 @@ describe.each(maestroJobs())('%s re-proves liveness inside its own job', (_, job
         const maestro = maestroJob();
 
         expect(maestro, 'the Maestro job lost its provisioning signature').toBeDefined();
-        expect(livenessSteps(maestro as WorkflowJob)).toHaveLength(1);
+        expect(startProbeSteps(maestro as WorkflowJob)).toHaveLength(1);
         expect(
             (maestro as WorkflowJob).steps?.some((step) => /load-secrets/u.test(step.uses ?? '')),
             'the Maestro job lost its load-secrets step',
@@ -213,7 +222,7 @@ describe.each(maestroJobs())('%s re-proves liveness inside its own job', (_, job
 
     it('binds the probe’s stage at JOB level, from the resolver’s recorded output', () => {
         const maestro = maestroJob() as WorkflowJob;
-        const probe = livenessSteps(maestro)[0] as WorkflowStep;
+        const probe = startProbeSteps(maestro)[0] as WorkflowStep;
 
         expect(maestro.env?.['STAGE']).toBe('${{ needs.resolve-mobile-target.outputs.stage }}');
         // ⛔ STEP level would break two guards: `stackProbeCoverage.test.ts` resolves the stage inside a
@@ -238,18 +247,45 @@ describe.each(maestroJobs())('%s re-proves liveness inside its own job', (_, job
 
         expect(resolverSteps, 'the resolver lost its own deploy-gate liveness step').toHaveLength(1);
 
-        const probeRun = (livenessSteps(maestroJob() as WorkflowJob)[0] as WorkflowStep).run ?? '';
+        // CHANGED 2026-10-17 (mid-shard liveness): the Maestro probes no longer inline the question, they call
+        // `deployedSandboxLiveness.sh check`, the one authority the flow loop also re-asks after a failed flow.
+        // So the compared text is the SCRIPT's, not the step's, and the step is pinned to CALL it with the job's own
+        // stage and recorded origins. The comparison itself is unchanged and not weakened: same span, same
+        // whitespace-collapsed equality, against the same resolver.
+        const probeRun = (startProbeSteps(maestroJob() as WorkflowJob)[0] as WorkflowStep).run ?? '';
         const resolverRun = (resolverSteps[0] as WorkflowStep).run ?? '';
 
-        expect(questionOf(probeRun), 'the re-probe drifted from the resolver’s liveness question').toBe(
-            questionOf(resolverRun),
+        // A shell line continuation (backslash, newline) collapses with the rest of the whitespace.
+        const collapsed = probeRun.replace(/\\\s+/gu, ' ').replace(/\s+/gu, ' ');
+
+        expect(collapsed, 'the start probe must call the shared liveness script').toContain(
+            'bash .github/scripts/deployedSandboxLiveness.sh check "${STAGE}" "${DEFAULT_AWS_REGION}" "${RECIPE_ORIGIN}" "${FOOD_ORIGIN}"',
         );
+        expect(
+            questionOf(readFileSync(LIVENESS_SCRIPT_PATH, 'utf8')),
+            'the shared liveness script drifted from the resolver’s liveness question',
+        ).toBe(questionOf(resolverRun));
+    });
+
+    it('re-asks the same script mid-shard: the flow loop is handed the SAME command, stage and origins', () => {
+        const runStep = maestroJob()?.steps?.find((step) =>
+            /runMaestroFlows\.sh/u.test(step.run ?? step.with?.['script'] ?? ''),
+        );
+        const env = runStep?.env ?? {};
+
+        expect(runStep, 'the step that runs the flow loop was not found').toBeDefined();
+        expect(env['MAESTRO_SANDBOX_LIVENESS']).toBe(
+            'bash .github/scripts/deployedSandboxLiveness.sh check "${STAGE}" "${DEFAULT_AWS_REGION}" "${MAESTRO_LIVENESS_RECIPE_ORIGIN}" "${MAESTRO_LIVENESS_FOOD_ORIGIN}"',
+        );
+        // The origins are the run's OWN recorded ones, exactly as the start probe reads them.
+        expect(env['MAESTRO_LIVENESS_RECIPE_ORIGIN']).toBe('${{ needs.resolve-mobile-target.outputs.recipe_origin }}');
+        expect(env['MAESTRO_LIVENESS_FOOD_ORIGIN']).toBe('${{ needs.resolve-mobile-target.outputs.food_origin }}');
     });
 
     it('signs in through awsAuth, unconditionally, before it asks — and the probe holds no key of its own', () => {
         const steps = maestroJob()?.steps ?? [];
         const signIn = steps.findIndex((step) => step.uses === './.github/actions/awsAuth');
-        const probe = livenessSteps(maestroJob() as WorkflowJob)[0] as WorkflowStep;
+        const probe = startProbeSteps(maestroJob() as WorkflowJob)[0] as WorkflowStep;
 
         expect(signIn, 'the Maestro job does not sign in through awsAuth').toBeGreaterThanOrEqual(0);
         expect(signIn, 'awsAuth must run before the liveness probe').toBeLessThan(steps.indexOf(probe));
@@ -265,7 +301,7 @@ describe.each(maestroJobs())('%s re-proves liveness inside its own job', (_, job
 
     for (const authenticated of ['false', '']) {
         it(`treats an unsigned run (authenticated='${authenticated}') as a skip, never a red, and asks nothing`, () => {
-            const probe = livenessSteps(maestroJob() as WorkflowJob)[0] as WorkflowStep;
+            const probe = startProbeSteps(maestroJob() as WorkflowJob)[0] as WorkflowStep;
             // The step runner's directory holds no `deployGate.sh`, so a probe that reached the gate would fail.
             const outcome = runWorkflowStep(probe.run ?? '', { AUTHENTICATED: authenticated, STAGE: 'pr-91' });
 

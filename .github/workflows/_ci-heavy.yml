@@ -939,45 +939,20 @@ jobs:
                       exit 0
                   fi
 
-                  # Run the gate with its GITHUB_OUTPUT suppressed and capture the verdict, so both services
-                  # can be asked without the second answer clobbering the first.
-                  ask() {
-                      local service="$1" health="$2" seed="$3"
-                      shift 3
-                      GITHUB_OUTPUT='' bash .github/scripts/deployGate.sh evaluate \
-                          true "${service}" false false "${health}" "${DEFAULT_AWS_REGION}" "${seed}" "$@"
-                  }
-
-                  field() {
-                      printf '%s\n' "$1" | sed -n "s/^${2}=//p" | tail -1
-                  }
-
-                  recipe_verdict=$(ask recipe "${RECIPE_ORIGIN}/health" none \
-                      "kitchensink-ingredient-parser-${STAGE}" \
-                      "kitchensink-recipe-schema-${STAGE}" \
-                      "kitchensink-recipe-workers-${STAGE}" \
-                      "kitchensink-recipe-service-${STAGE}")
-                  echo "${recipe_verdict}"
-
-                  food_verdict=$(ask food "${FOOD_ORIGIN}/health" \
-                      "kitchensink-food-schema-${STAGE}:FoodSeedFunctionName" \
-                      "kitchensink-food-schema-${STAGE}" \
-                      "kitchensink-food-service-${STAGE}")
-                  echo "${food_verdict}"
-
-                  live='false'
-                  if [ "$(field "${recipe_verdict}" live)" = 'true' ] &&
-                      [ "$(field "${recipe_verdict}" deploy)" = 'false' ] &&
-                      [ "$(field "${food_verdict}" live)" = 'true' ] &&
-                      [ "$(field "${food_verdict}" deploy)" = 'false' ]; then
-                      live='true'
-                  fi
+                  # ⛔ ONE authority for the question: `deployedSandboxLiveness.sh check` (the same script the
+                  # flow loop re-asks after a failure, `MAESTRO_SANDBOX_LIVENESS`). It prints the gate's
+                  # verdicts, then `live=` and `reason=` last.
+                  verdict=$(bash .github/scripts/deployedSandboxLiveness.sh check \
+                      "${STAGE}" "${DEFAULT_AWS_REGION}" "${RECIPE_ORIGIN}" "${FOOD_ORIGIN}")
+                  echo "${verdict}"
+                  live=$(printf '%s\n' "${verdict}" | sed -n 's/^live=//p' | tail -1)
+                  reason=$(printf '%s\n' "${verdict}" | sed -n 's/^reason=//p' | tail -1)
 
                   echo "live=${live}" >>"$GITHUB_OUTPUT"
                   if [ "${live}" = 'true' ]; then
                       echo "::notice::${STAGE} is deployed and serving — running the mobile Maestro tier against it"
                   else
-                      echo "::notice::${STAGE} is no longer up for the mobile Maestro tier — SKIPPING this shard (this is not a failure; the sandbox this run resolved has since been torn down or stopped answering, and re-running the flows against it would report absence as app defects). recipe: $(field "${recipe_verdict}" reason). food: $(field "${food_verdict}" reason)"
+                      echo "::notice::${STAGE} is no longer up for the mobile Maestro tier — SKIPPING this shard (this is not a failure; the sandbox this run resolved has since been torn down or stopped answering, and re-running the flows against it would report absence as app defects). ${reason}"
                   fi
             # Clerk dev-instance keys (publishable for the APK, secret for provisioning the test user).
             - name: Load ${{ inputs.stage }} Clerk secrets
@@ -1227,6 +1202,15 @@ jobs:
                   # The APK `_mobileAppBuild.yml` built and this job downloaded and verified. The runner script's own
                   # default is the Gradle output path, which only a developer's local build produces.
                   MAESTRO_ANDROID_APK: ${{ runner.temp }}/testApp/app.apk
+                  # ⛔ MID-SHARD LIVENESS. The midnight stop (04:00 UTC) can land while this shard is running, and
+                  # a flow that fails into it failed for absence. After a failed flow or reset the loop runs this
+                  # command; only `live=false` turns that failure into a skip, and earlier failures stand. The
+                  # SAME script the start probe above calls, with the same stage and origins. `STAGE` and
+                  # `DEFAULT_AWS_REGION` are job and workflow env; the origins are named here, not reusing
+                  # `E2E_SEED_*`, which the per-flow reset reads and must not see a new food origin.
+                  MAESTRO_LIVENESS_RECIPE_ORIGIN: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  MAESTRO_LIVENESS_FOOD_ORIGIN: ${{ needs.resolve-mobile-target.outputs.food_origin }}
+                  MAESTRO_SANDBOX_LIVENESS: bash .github/scripts/deployedSandboxLiveness.sh check "${STAGE}" "${DEFAULT_AWS_REGION}" "${MAESTRO_LIVENESS_RECIPE_ORIGIN}" "${MAESTRO_LIVENESS_FOOD_ORIGIN}"
                   MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
                   # The per-flow reset reconciles the signer's library to the manifest through the recipe
                   # API, re-minting from the session `provision` established. Same three values that step
@@ -1612,45 +1596,20 @@ jobs:
                       exit 0
                   fi
 
-                  # Run the gate with its GITHUB_OUTPUT suppressed and capture the verdict, so both services
-                  # can be asked without the second answer clobbering the first.
-                  ask() {
-                      local service="$1" health="$2" seed="$3"
-                      shift 3
-                      GITHUB_OUTPUT='' bash .github/scripts/deployGate.sh evaluate \
-                          true "${service}" false false "${health}" "${DEFAULT_AWS_REGION}" "${seed}" "$@"
-                  }
-
-                  field() {
-                      printf '%s\n' "$1" | sed -n "s/^${2}=//p" | tail -1
-                  }
-
-                  recipe_verdict=$(ask recipe "${RECIPE_ORIGIN}/health" none \
-                      "kitchensink-ingredient-parser-${STAGE}" \
-                      "kitchensink-recipe-schema-${STAGE}" \
-                      "kitchensink-recipe-workers-${STAGE}" \
-                      "kitchensink-recipe-service-${STAGE}")
-                  echo "${recipe_verdict}"
-
-                  food_verdict=$(ask food "${FOOD_ORIGIN}/health" \
-                      "kitchensink-food-schema-${STAGE}:FoodSeedFunctionName" \
-                      "kitchensink-food-schema-${STAGE}" \
-                      "kitchensink-food-service-${STAGE}")
-                  echo "${food_verdict}"
-
-                  live='false'
-                  if [ "$(field "${recipe_verdict}" live)" = 'true' ] &&
-                      [ "$(field "${recipe_verdict}" deploy)" = 'false' ] &&
-                      [ "$(field "${food_verdict}" live)" = 'true' ] &&
-                      [ "$(field "${food_verdict}" deploy)" = 'false' ]; then
-                      live='true'
-                  fi
+                  # ⛔ ONE authority for the question: `deployedSandboxLiveness.sh check` (the same script the
+                  # flow loop re-asks after a failure, `MAESTRO_SANDBOX_LIVENESS`). It prints the gate's
+                  # verdicts, then `live=` and `reason=` last.
+                  verdict=$(bash .github/scripts/deployedSandboxLiveness.sh check \
+                      "${STAGE}" "${DEFAULT_AWS_REGION}" "${RECIPE_ORIGIN}" "${FOOD_ORIGIN}")
+                  echo "${verdict}"
+                  live=$(printf '%s\n' "${verdict}" | sed -n 's/^live=//p' | tail -1)
+                  reason=$(printf '%s\n' "${verdict}" | sed -n 's/^reason=//p' | tail -1)
 
                   echo "live=${live}" >>"$GITHUB_OUTPUT"
                   if [ "${live}" = 'true' ]; then
                       echo "::notice::${STAGE} is deployed and serving — running the iOS Maestro tier against it"
                   else
-                      echo "::notice::${STAGE} is no longer up for the iOS Maestro tier — SKIPPING this shard (this is not a failure; the sandbox this run resolved has since been torn down or stopped answering). recipe: $(field "${recipe_verdict}" reason). food: $(field "${food_verdict}" reason)"
+                      echo "::notice::${STAGE} is no longer up for the iOS Maestro tier — SKIPPING this shard (this is not a failure; the sandbox this run resolved has since been torn down or stopped answering). ${reason}"
                   fi
             # THE VALVE — every stateful step below keys on `steps.secrets.outcome == 'success'`, which reads `skipped`
             # only when the liveness re-probe above closed it. The load itself is NOT `continue-on-error`: a failure on a
@@ -1791,6 +1750,11 @@ jobs:
                   CLERK_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
                   E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
+                  # ⛔ MID-SHARD LIVENESS - the Android step's, for its reason: only `live=false` turns a failed
+                  # flow or reset into a skip, and earlier failures stand.
+                  MAESTRO_LIVENESS_RECIPE_ORIGIN: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  MAESTRO_LIVENESS_FOOD_ORIGIN: ${{ needs.resolve-mobile-target.outputs.food_origin }}
+                  MAESTRO_SANDBOX_LIVENESS: bash .github/scripts/deployedSandboxLiveness.sh check "${STAGE}" "${DEFAULT_AWS_REGION}" "${MAESTRO_LIVENESS_RECIPE_ORIGIN}" "${MAESTRO_LIVENESS_FOOD_ORIGIN}"
                   # Env, never expanded into the body (zizmor template-injection) — the Android step's reason.
                   MAESTRO_FLOW_SELECTOR: ${{ inputs.maestro_flow_selector }}
                   MAESTRO_SHARD_INDEX: ${{ matrix.shard }}

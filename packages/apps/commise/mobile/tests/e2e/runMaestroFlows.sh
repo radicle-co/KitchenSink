@@ -1354,6 +1354,44 @@ maestro_run_flows() {
     maestro_run_flow_list $flows
 }
 
+# maestro_sandbox_is_down
+#
+# Exit 0 ONLY when the probe named by MAESTRO_SANDBOX_LIVENESS answers `live=false`. Exit 1 for everything else: a
+# live sandbox, no probe configured (local runs and the `run-one` seam keep today's behaviour byte for byte), a
+# probe that errored, and a probe that printed no verdict. UNKNOWN is never DOWN - a red is only converted into a
+# skip on positive proof of absence, so a broken probe can hide nothing.
+#
+# The command is `.github/scripts/deployedSandboxLiveness.sh check …` in CI, the one authority for the question;
+# the LAST `live=` line is the verdict because the gate's own per-service verdicts carry `live=` keys too.
+#
+# @sideEffect Runs the probe command (AWS reads and HTTP health requests in CI) and echoes its output.
+maestro_sandbox_is_down() {
+    [ -n "${MAESTRO_SANDBOX_LIVENESS:-}" ] || return 1
+
+    local out probe_rc=0 verdict
+    out=$(bash -c "$MAESTRO_SANDBOX_LIVENESS" 2>&1) || probe_rc=$?
+    printf '%s\n' "$out"
+    verdict=$(printf '%s\n' "$out" | sed -n 's/^live=//p' | tail -1)
+
+    if [ "$probe_rc" -ne 0 ] || { [ "$verdict" != 'true' ] && [ "$verdict" != 'false' ]; }; then
+        echo "::warning::the sandbox liveness probe gave no verdict (exit ${probe_rc}) - treating it as UNKNOWN and keeping the failure"
+
+        return 1
+    fi
+
+    [ "$verdict" = 'false' ]
+}
+
+# maestro_announce_sandbox_stopped <what failed into the outage> <flows not run, space separated>
+#
+# The notice a shard prints in place of a failure when the sandbox stopped under it. A skip claims nothing: it is
+# not a pass, and it names what was not driven so no reader mistakes it for coverage.
+#
+# @sideEffect Prints a `::notice::` annotation.
+maestro_announce_sandbox_stopped() {
+    echo "::notice::the sandbox stopped mid-shard (the liveness probe now answers down) - $1. Not run: $2. This is absence, not an app defect, so it is a SKIP and not a failure; failures recorded earlier, while the sandbox still answered, stand."
+}
+
 # Run each named flow through the full per-flow lifecycle.
 #
 # Split out of `maestro_run_flows` so the `run-one` subcommand — and therefore
@@ -1427,10 +1465,20 @@ maestro_run_flow_list() {
         # failure below is that flow's own result and does not stop the loop. `maestroDriverLifecycle.integration.test.ts`
         # holds both directions.
         if ! npx tsx packages/tools/e2e-seed/src/reset.ts --mode "$reseed_mode"; then
-            echo "::error::e2e-seed reset failed before ${f} — the flow was NOT run"
             # `pending` is single-space padded, so trimming one space from each end leaves the list.
             not_run="${not_run# }"
             not_run="${not_run% }"
+            # ⛔ A reset fails for the stage, and the stage can be GONE: the midnight stop lands mid-shard. Only a
+            # probe that CONFIRMS it is down turns this into a skip (a notice, never an `::error::` annotation);
+            # failures already recorded stay.
+            if maestro_sandbox_is_down; then
+                echo "e2e-seed reset failed before ${f} - the flow was NOT run"
+                maestro_announce_sandbox_stopped "the reset before ${f} failed into it" "$not_run"
+                echo "::endgroup::"
+
+                return "$rc"
+            fi
+            echo "::error::e2e-seed reset failed before ${f} — the flow was NOT run"
             echo "::error::a failed reset is the stage failing, not ${f}, so the next reset would fail the same way — stopping this shard. Not run: ${not_run}"
             echo "::endgroup::"
 
@@ -1448,6 +1496,17 @@ maestro_run_flow_list() {
             echo "FLOW FAILED: ${f}"
             maestro_dump_device_log "$f"
             maestro_dump_port_owner
+            # ⛔ PER-FLOW ATTRIBUTION. A flow that fails after the sandbox went down failed for absence and is not
+            # counted; one that failed while the probe still answered live is its own red, as is every earlier
+            # flow's. The probe runs only on a failure, so a passing shard pays nothing.
+            if maestro_sandbox_is_down; then
+                pending="${pending# }"
+                pending="${pending% }"
+                maestro_announce_sandbox_stopped "${f} failed after it went down and is not counted" "${pending:-none}"
+                echo "::endgroup::"
+
+                return "$rc"
+            fi
             rc=1
         fi
         echo "::endgroup::"

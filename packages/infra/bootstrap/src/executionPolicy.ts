@@ -540,12 +540,20 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ['AWS::SSM::Parameter'],
         ),
         allow('data', 'SsmDescribe', ['ssm:DescribeParameters'], ['*']),
-        // CloudFormation resolves every stack's `BootstrapVersion` parameter (an SSM-typed parameter) with this role.
+        // CloudFormation resolves every SSM-typed template parameter with THIS role, before the change set exists:
+        // each stack's `BootstrapVersion` (`/cdk-bootstrap/<qualifier>/version`) and the public AMI parameter.
+        // `/kitchensink/...` is `SsmParameters`. Kept in the `network` part, which has the room.
         allow(
-            'data',
+            'network',
             'SsmBootstrapVersion',
             ['ssm:GetParameters'],
             [arn('ssm', `parameter/cdk-bootstrap/${qualifier}/version`)],
+        ),
+        allow(
+            'network',
+            'SsmPublicAmi',
+            ['ssm:GetParameter', 'ssm:GetParameters'],
+            [`arn:aws:ssm:${REGION}::parameter/aws/service/ami-amazon-linux-latest/*`],
         ),
         allow(
             'data',
@@ -1177,6 +1185,13 @@ function accountGrants(): Grant[] {
             ],
             [arn('sns', KS)],
             ['AWS::SNS::Topic', 'AWS::SNS::Subscription', 'AWS::SNS::TopicPolicy'],
+        ),
+        // The account app's stacks take `BootstrapVersion` too; CloudFormation resolves it with this role.
+        allow(
+            'data',
+            'SsmBootstrapVersion',
+            ['ssm:GetParameters'],
+            [arn('ssm', `parameter/cdk-bootstrap/${q}/version`)],
         ),
         allow(
             'data',

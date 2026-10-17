@@ -43,6 +43,25 @@ function conditionHolds(condition: Condition | undefined, context: RequestContex
     });
 }
 
+/** The ARN service an action's resources live under, where it is not the action's own prefix. */
+const ARN_SERVICE_OF_PREFIX: Readonly<Record<string, string>> = {
+    'cloudfront-keyvaluestore': 'cloudfront',
+    sts: 'iam',
+};
+
+/**
+ * An action only ever meets a resource of its own service, so one statement can list resources of several services
+ * (the boundary does, to save its size budget) without granting any action on another service's resource.
+ */
+function actionMeetsResource(action: string, resourcePattern: string): boolean {
+    const prefix = action.split(':')[0]?.toLowerCase() ?? '';
+
+    return (
+        !resourcePattern.startsWith('arn:') ||
+        resourcePattern.split(':')[2] === (ARN_SERVICE_OF_PREFIX[prefix] ?? prefix)
+    );
+}
+
 const actionCovered = (statement: Statement, action: string): boolean =>
     statement.Action.some((pattern) => iamLike(pattern.toLowerCase(), action.toLowerCase()));
 
@@ -51,11 +70,13 @@ const actionCovered = (statement: Statement, action: string): boolean =>
  * which then cuts it down). A Deny must COVER the resource to count: a Deny that only overlaps a wildcard resource
  * removes part of it, not the whole, so crediting it would hide a working grant.
  */
-const resourceCovered = (statement: Statement, resource: string, resourceIsPattern: boolean): boolean =>
-    statement.Resource.some((pattern) =>
-        statement.Effect === 'Allow' && resourceIsPattern
-            ? patternsOverlap(pattern, resource)
-            : iamLike(pattern, resource),
+const resourceCovered = (statement: Statement, action: string, resource: string, resourceIsPattern: boolean): boolean =>
+    statement.Resource.some(
+        (pattern) =>
+            actionMeetsResource(action, pattern) &&
+            (statement.Effect === 'Allow' && resourceIsPattern
+                ? patternsOverlap(pattern, resource)
+                : iamLike(pattern, resource)),
     );
 
 /**
@@ -74,7 +95,7 @@ export function allows(
 ): boolean {
     const applies = (statement: Statement): boolean =>
         actionCovered(statement, action) &&
-        resourceCovered(statement, resource, resourceIsPattern) &&
+        resourceCovered(statement, action, resource, resourceIsPattern) &&
         conditionHolds(statement.Condition, context);
 
     const allowed = document.Statement.some((statement) => statement.Effect === 'Allow' && applies(statement));

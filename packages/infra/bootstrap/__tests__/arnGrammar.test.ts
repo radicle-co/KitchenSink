@@ -41,6 +41,15 @@ const FIXTURES: ReadonlyArray<readonly [string, 'Allow' | 'Deny', boolean]> = [
     ['arn:aws:route53:::hostedzone/*', 'Allow', true],
     [`arn:aws:apigateway:${R}::/restapis/*`, 'Allow', true],
 
+    // The defect IAM refused at deploy: a wildcard standing where the resource TYPE belongs.
+    ['arn:aws:iam::*:*-prod*', 'Deny', false],
+    ['arn:aws:iam::*:*kitchensink-*-prod*', 'Deny', false],
+    ['arn:aws:logs:*:*:*-prod*', 'Deny', false],
+    ['arn:aws:ecs:*:*:*/kitchensink-*', 'Allow', false],
+    ['arn:aws:iam::*:role/*-prod*', 'Deny', true],
+    ['arn:aws:iam::*:policy/*-prod*', 'Deny', true],
+    ['arn:aws:logs:*:*:log-group:*-prod*', 'Deny', true],
+    ['arn:aws:sqs:*:*:*-prod*', 'Deny', true],
     // The defect IAM refused: a wildcard vendor.
     ['arn:aws:*:*:*:*kitchensink-*-prod*', 'Deny', false],
     ['arn:aws:s*:*:*:kitchensink-*', 'Deny', false],

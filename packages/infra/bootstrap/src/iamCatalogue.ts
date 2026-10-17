@@ -105,6 +105,8 @@ export function actionProblems(catalogue: IamCatalogue, action: string): string 
 interface ArnFormat {
     /** The ARN's resource part with every `${Placeholder}` as `*`. */
     readonly resource: string;
+    /** The literal text that opens the resource part (`role/`, `log-group:`); empty when the type is a bare name. */
+    readonly typePrefix: string;
     readonly regional: boolean;
     readonly account: 'none' | 'account';
 }
@@ -136,6 +138,7 @@ function formatsByService(catalogue: IamCatalogue): ReadonlyMap<string, readonly
 
                 list.push({
                     resource: resource.replaceAll(/\$\{[^}]+\}/gu, '*'),
+                    typePrefix: resource.split('${')[0] ?? '',
                     regional: region !== '',
                     account: account === '' ? 'none' : 'account',
                 });
@@ -182,7 +185,12 @@ export function arnProblems(catalogue: IamCatalogue, arn: string, context: ArnCo
         return [`"${arn}": no service "${service}" in the snapshot`];
     }
 
-    const candidates = known.filter((format) => patternsOverlap(resource, format.resource));
+    // The resource TYPE (`role/`, `log-group:`) is matched literally: a wildcard may not stand in for it, because IAM
+    // rejects a path it cannot place (`arn:aws:iam::*:*-prod*`).
+    const literal = resource.split(/[*?]/u)[0] ?? '';
+    const candidates = known.filter(
+        (format) => patternsOverlap(resource, format.resource) && literal.startsWith(format.typePrefix),
+    );
 
     if (candidates.length === 0) {
         return [`"${arn}": ${service} has no resource type that "${resource}" can be`];

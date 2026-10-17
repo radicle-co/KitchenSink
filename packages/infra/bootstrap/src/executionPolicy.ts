@@ -37,7 +37,7 @@ import {
     executionPolicyName,
     type QualifierName,
 } from './qualifiers.js';
-import { TIER_SERVICES, tierNameResources } from './tierNames.js';
+import { resourceTypesOf, tierNameResources } from './tierNames.js';
 
 /** The services a created role may be passed to. A superset of any tier; each tier lists its own subset. */
 export const PASS_ROLE_SERVICES: readonly string[] = [
@@ -58,13 +58,6 @@ export const ATTACHABLE_AWS_POLICIES: readonly string[] = [
     'service-role/AmazonAPIGatewayPushToCloudWatchLogs',
     'service-role/AmazonECSTaskExecutionRolePolicy',
 ];
-
-/**
- * The services the execution role's tier Denies cover: every service whose ARNs can carry a name. The execution role
- * is one union of all its parts, and its guard part has the room, so this is the full set rather than a subset
- * derived per part; `tierNames.test.ts` holds that no service an Allow reaches is missing.
- */
-const EXECUTION_TIER_SERVICES = TIER_SERVICES;
 
 const PART_NAMES = ['compute', 'data', 'observe', 'network', 'edge', 'iam', 'guard'] as const;
 
@@ -175,7 +168,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
           ]
         : [arn('cloudfront', 'function/*SandboxRouterprod*', false)];
 
-    return [
+    const grants: Grant[] = [
         // ---- compute ------------------------------------------------------------------------------------------
         allow(
             'compute',
@@ -978,9 +971,16 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 },
             },
         ),
-        // ---- guard (explicit Denies) --------------------------------------------------------------------------
+    ];
+
+    // ---- guard (explicit Denies) ------------------------------------------------------------------------------
+    return [
+        ...grants,
         ...commonDenies(qualifier),
-        ...tierDenies(qualifier),
+        ...tierDenies(
+            qualifier,
+            grants.map((grant) => grant.statement),
+        ),
     ];
 }
 
@@ -1013,7 +1013,9 @@ function commonDenies(qualifier: QualifierName): Grant[] {
 }
 
 /** Denies that separate the two stage tiers by name. The account tier has none: its names are exact. */
-function tierDenies(qualifier: QualifierName): Grant[] {
+function tierDenies(qualifier: QualifierName, allows: readonly Statement[]): Grant[] {
+    const types = resourceTypesOf(allows, false);
+
     if (qualifier === QUALIFIERS.nonprod) {
         return [
             deny(
@@ -1021,7 +1023,7 @@ function tierDenies(qualifier: QualifierName): Grant[] {
                 'DenyProductionNames',
                 ['*'],
                 [
-                    ...tierNameResources('production', EXECUTION_TIER_SERVICES),
+                    ...tierNameResources('production', types),
                     'arn:aws:cloudwatch::*:dashboard/food-data',
                     'arn:aws:cloudfront::*:function/*prod*',
                 ],
@@ -1038,10 +1040,7 @@ function tierDenies(qualifier: QualifierName): Grant[] {
                 'guard',
                 'DenyNonProductionNames',
                 ['*'],
-                [
-                    ...tierNameResources('nonproduction', EXECUTION_TIER_SERVICES),
-                    'arn:aws:cloudwatch::*:dashboard/pr-*',
-                ],
+                [...tierNameResources('nonproduction', types), 'arn:aws:cloudwatch::*:dashboard/pr-*'],
             ),
             deny('guard', 'DenySandboxDns', ['route53:ChangeResourceRecordSets'], ['*'], {
                 'ForAnyValue:StringLike': {

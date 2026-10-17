@@ -290,12 +290,18 @@ describe.each(stageQualifiers)('executionPolicy(%s) — iam:PassRole covers what
 });
 
 describe('executionPolicy — tier separation by name', () => {
+    // Refused by an explicit Deny, or by no Allow reaching it: the Deny names the resource types the Allows name, so an
+    // action no part allows (cloudformation: CloudFormation itself calls it) needs no line.
     it.each(PRODUCTION_NAMES)('ksnonprod refuses %s on %s', (action, resource) => {
-        expect(unconditionalDeny(parts(QUALIFIERS.nonprod), action, resource)).toBe(true);
+        const documents = parts(QUALIFIERS.nonprod);
+
+        expect(unconditionalDeny(documents, action, resource) || !anyAllow(documents, action, resource)).toBe(true);
     });
 
     it.each(NONPROD_NAMES)('ksprod refuses %s on %s', (action, resource) => {
-        expect(unconditionalDeny(parts(QUALIFIERS.prod), action, resource)).toBe(true);
+        const documents = parts(QUALIFIERS.prod);
+
+        expect(unconditionalDeny(documents, action, resource) || !anyAllow(documents, action, resource)).toBe(true);
     });
 
     it('does not deny nonprod names to ksnonprod (a Deny that over-matches would stop every deploy)', () => {

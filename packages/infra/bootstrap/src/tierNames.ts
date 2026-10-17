@@ -27,6 +27,8 @@
  * @pattern Specification / policy module — the name rule is data (patterns x services), rendered into Deny resources
  */
 
+import type { Statement } from './policyDocument.js';
+
 /** Which side of the tier line a Deny protects. */
 export type TierSide = 'production' | 'nonproduction';
 
@@ -36,7 +38,6 @@ type ArnShape = 'regional' | 'accountOnly' | 'bucket';
 /** The services whose ARNs can carry a resource name, and the shape of their ARNs. */
 const SERVICE_SHAPES = {
     cloudformation: 'regional',
-    cloudfront: 'accountOnly',
     cloudwatch: 'regional',
     dynamodb: 'regional',
     ecr: 'regional',
@@ -59,9 +60,6 @@ const SERVICE_SHAPES = {
 
 /** A service the tier Denies can cover. */
 export type TierService = keyof typeof SERVICE_SHAPES;
-
-/** Services whose names are also slash-separated paths (`/kitchensink/prod/...`, `kitchensink/sandbox/...`). */
-const PATH_SERVICES: ReadonlySet<TierService> = new Set<TierService>(['logs', 'secretsmanager', 'ssm']);
 
 /**
  * How much of a name the patterns anchor on.
@@ -91,8 +89,23 @@ const PATH_FORMS: Readonly<Record<TierNameForm, Readonly<Record<TierSide, readon
     compact: { production: ['*/prod/*', '*/prod'], nonproduction: ['*/sandbox*', '*/pr-*'] },
 };
 
-const prefixOf = (service: TierService): string => {
-    const shape: ArnShape = SERVICE_SHAPES[service];
+/** Services whose resource part is a bare name with no type segment (`kitchensink-queue`, `kitchensink-bucket/key`). */
+const BARE_NAME_SERVICES: ReadonlySet<TierService> = new Set<TierService>(['s3', 'sns', 'sqs']);
+
+/**
+ * Resource types of services the policies allow on `*`, so no Allow ARN names them: the Deny still has to, because
+ * their ARNs carry names (`loadbalancer/app/kitchensink-x-prod/<id>`, `alias/kitchensink-x-prod`).
+ */
+const STATIC_TYPES: Readonly<Partial<Record<TierService, readonly string[]>>> = {
+    elasticloadbalancing: ['loadbalancer/', 'targetgroup/'],
+    kms: ['alias/'],
+};
+
+/** Types whose ARN shape differs from their service's (CloudWatch dashboards are global; alarms are regional). */
+const SHAPE_OVERRIDES: Readonly<Record<string, ArnShape>> = { 'cloudwatch:dashboard/': 'accountOnly' };
+
+const prefixOf = (service: TierService, type: string): string => {
+    const shape: ArnShape = SHAPE_OVERRIDES[`${service}:${type}`] ?? SERVICE_SHAPES[service];
 
     if (shape === 'bucket') {
         return `arn:aws:${service}:::`;
@@ -105,25 +118,113 @@ const prefixOf = (service: TierService): string => {
 export const TIER_SERVICES: readonly TierService[] = Object.keys(SERVICE_SHAPES).sort() as TierService[];
 
 /**
- * The Deny resources that keep one side's names out of reach, for the given services.
+ * One resource type a Deny must name: its prefix (`role/`, `log-group:`, or `''` for a bare name) and whether the
+ * Allows reach names that are also slash-separated paths (`/kitchensink/prod/...`), which need the path forms too.
+ */
+export interface TierType {
+    readonly type: string;
+    readonly path: boolean;
+}
+
+/** Service -> the resource types a Deny must name. */
+export type TierResourceTypes = Readonly<Partial<Record<TierService, readonly TierType[]>>>;
+
+const isTierService = (service: string): service is TierService => service in SERVICE_SHAPES;
+
+/** The resource-type prefix of an ARN's resource part: up to and including its first `/` or `:`, else none. */
+const typeOf = (resource: string): string => {
+    const literal = resource.split(/[*?]/u)[0] ?? '';
+    const delimiter = literal.search(/[/:]/u);
+
+    return delimiter === -1 ? '' : literal.slice(0, delimiter + 1);
+};
+
+/**
+ * The resource types a policy set's Allows name, per service that carries names.
+ *
+ * IAM refuses a resource whose TYPE segment is a wildcard (`arn:aws:iam::*:*-prod*`: "IAM resource path must either be
+ * `*`, root, or start with user/, role/, ..."), so a Deny needs one ARN per type, and the types a Deny needs are
+ * exactly the types the Allows reach: derived here, not listed by hand. An Allow with a wildcard where the type
+ * belongs names none; `arnGrammar.test.ts` refuses such an Allow.
+ *
+ * @param statements - The policy set's statements.
+ * @param skipResourceTagged - Leave out Allows whose condition is a resource-tag test: a stack-name tag already keeps
+ *   the other tier out of those, and the permissions boundary has no room for a second line of defence.
+ * @returns Types per service, with {@link STATIC_TYPES} for services allowed on `*`. Pure.
+ */
+export function resourceTypesOf(statements: readonly Statement[], skipResourceTagged: boolean): TierResourceTypes {
+    const types = new Map<TierService, Map<string, boolean>>();
+
+    const add = (service: TierService, type: string, path: boolean): void => {
+        const forService = types.get(service) ?? new Map<string, boolean>();
+
+        forService.set(type, (forService.get(type) ?? false) || path);
+        types.set(service, forService);
+    };
+
+    for (const statement of statements) {
+        const tagged = JSON.stringify(statement.Condition ?? {}).includes('ResourceTag');
+
+        if (statement.Effect !== 'Allow' || (skipResourceTagged && tagged)) {
+            continue;
+        }
+
+        for (const arn of statement.Resource) {
+            const fields = arn.split(':');
+            const service = fields[2] ?? '';
+
+            if (fields[0] === 'arn' && isTierService(service)) {
+                const resource = fields.slice(5).join(':');
+
+                add(
+                    service,
+                    BARE_NAME_SERVICES.has(service) ? '' : typeOf(resource),
+                    /kitchensink[/?*]/u.test(resource),
+                );
+            }
+        }
+
+        for (const action of statement.Action) {
+            const service = action.split(':')[0] ?? '';
+
+            if (statement.Resource.includes('*') && isTierService(service)) {
+                (STATIC_TYPES[service] ?? []).forEach((type) => add(service, type, false));
+            }
+        }
+    }
+
+    return Object.fromEntries(
+        [...types].map(([service, forService]) => [
+            service,
+            [...forService]
+                .filter(([type]) => type !== '' || BARE_NAME_SERVICES.has(service))
+                .map(([type, path]) => ({ type, path }))
+                .sort((left, right) => left.type.localeCompare(right.type)),
+        ]),
+    );
+}
+
+/**
+ * The Deny resources that keep one side's names out of reach.
  *
  * @param protectedSide - `production` denies the production names (for the nonprod policies); `nonproduction`
  *   denies the sandbox and preview names (for the prod policies).
- * @param services - The services the policy set allows, as far as their ARNs carry a name.
+ * @param types - The resource types to cover, per service; see {@link resourceTypesOf}.
  * @param form - How much of a name the patterns anchor on; see {@link TierNameForm}.
- * @returns One ARN per service and name form, every service concrete. Pure.
+ * @returns One ARN per service, resource type and name form; the service and the type are concrete. Pure.
  */
 export function tierNameResources(
     protectedSide: TierSide,
-    services: readonly TierService[],
+    types: TierResourceTypes,
     form: TierNameForm = 'anchored',
 ): string[] {
-    return [...services].sort().flatMap((service) => {
-        const forms = [
-            ...FLAT_FORMS[form][protectedSide],
-            ...(PATH_SERVICES.has(service) ? PATH_FORMS[form][protectedSide] : []),
-        ];
-
-        return forms.map((form) => `${prefixOf(service)}${form}`);
-    });
+    return Object.entries(types)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .flatMap(([service, serviceTypes]) =>
+            (serviceTypes ?? []).flatMap(({ type, path }) =>
+                [...FLAT_FORMS[form][protectedSide], ...(path ? PATH_FORMS[form][protectedSide] : [])].map(
+                    (pattern) => `${prefixOf(service as TierService, type)}${type}${pattern}`,
+                ),
+            ),
+        );
 }

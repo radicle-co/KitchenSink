@@ -356,7 +356,9 @@ describe('buildBoundary — database logins', () => {
         (qualifier) => {
             const patterns = allowStatements(qualifier)
                 .filter((statement) => statement.Action.includes('rds-db:connect'))
-                .flatMap((statement) => [...statement.Resource]);
+                .flatMap((statement) =>
+                    statement.Resource.filter((resource) => resource.startsWith('arn:aws:rds-db:')),
+                );
             const users = patterns.map((resource) => resource.split('/').pop() ?? '');
 
             expect([...users].sort()).toEqual(

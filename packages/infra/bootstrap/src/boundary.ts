@@ -38,7 +38,7 @@
  */
 import { ACCOUNT, REGION, type Condition, type PolicyDocument, type Statement } from './policyDocument.js';
 import { QUALIFIERS, STACK_TAG_PATTERNS, type QualifierName } from './qualifiers.js';
-import { tierNameResources, type TierService } from './tierNames.js';
+import { resourceTypesOf, tierNameResources } from './tierNames.js';
 
 /** An ARN in any region of this account. */
 const arn = (service: string, resource: string): string => `arn:aws:${service}:*:${ACCOUNT}:${resource}`;
@@ -55,10 +55,12 @@ const SECRET_ANY = arn('secretsmanager', 'secret:*');
 const PARAMETER = arn('ssm', 'parameter/kitchensink/*');
 const FUNCTION = arn('lambda', 'function:kitchensink-*');
 /** Every log group a stack makes carries `kitchensink` (`/aws/lambda/kitchensink-...`, `/kitchensink/...`, `kitchensink-...-LogGroup-...`). */
-const LOG_GROUP = arn('logs', 'log-group:*kitchensink*');
+const LOG_GROUPS = ['log-group:/aws/lambda/kitchensink-*', 'log-group:kitchensink-*'].map((group) =>
+    arn('logs', group),
+);
 const ECR = arn('ecr', 'repository/kitchensink-*');
 /** Clusters, services and tasks: a cluster named kitchensink-..., or a service or task under one. */
-const ECS = arn('ecs', '*/kitchensink-*');
+const ECS = ['cluster', 'service', 'task'].map((type) => arn('ecs', `${type}/kitchensink-*`));
 const TASK_DEFINITION = arn('ecs', 'task-definition/*');
 const STACK = arn('cloudformation', 'stack/kitchensink-*/*');
 const DB_INSTANCE = arn('rds', 'db:kitchensink-*');
@@ -232,7 +234,7 @@ const GRANTS: readonly Grant[] = [
     },
     {
         sid: 'Logs',
-        resources: [LOG_GROUP],
+        resources: LOG_GROUPS,
         actions: {
             ...stage([
                 'logs:CreateLogGroup',
@@ -250,7 +252,7 @@ const GRANTS: readonly Grant[] = [
     { sid: 'CloudFrontInvalidation', resources: [DISTRIBUTION], actions: stage(['cloudfront:CreateInvalidation']) },
     {
         sid: 'EcsResources',
-        resources: [ECS],
+        resources: ECS,
         actions: {
             ksnonprod: [
                 'ecs:DeleteService',
@@ -303,7 +305,6 @@ const GRANTS: readonly Grant[] = [
         sid: 'DatabaseDescribe',
         resources: [DB_INSTANCE_ANY, DB_CLUSTER_ANY],
         actions: {
-            ksnonprod: ['rds:DescribeDBInstances'],
             ksaccount: ['rds:DescribeDBClusters', 'rds:DescribeDBInstances'],
         },
     },
@@ -393,6 +394,8 @@ export const STAR_RESOURCE_ACTIONS: Readonly<Record<string, string>> = {
         'WRITE: log resource policies have no resource-level form; can replace any policy in the account, which can grant a service write access to the log groups of the other application or remove its access',
     'logs:UpdateLogDelivery':
         'WRITE: log deliveries have no resource-level form; can change any log delivery in the account, redirecting the logs of the other application',
+    'rds:DescribeDBInstances':
+        'READ: a list-all describe is evaluated against "*"; returns the configuration of every instance',
     'route53:GetChange': 'READ: takes a change id, not a zone; returns the status of any change',
     'route53:ListHostedZones': 'READ: a list-all call has no resource-level form; returns every zone name',
     'route53:ListHostedZonesByName': 'READ: a list-all call has no resource-level form; returns every zone name',
@@ -489,6 +492,7 @@ const STAR_ACTIONS: Readonly<Record<QualifierName, readonly string[]>> = {
         'logs:ListLogDeliveries',
         'logs:PutResourcePolicy',
         'logs:UpdateLogDelivery',
+        'rds:DescribeDBInstances',
         'xray:GetSamplingRules',
         'xray:GetSamplingTargets',
         'xray:PutTelemetryRecords',
@@ -554,70 +558,60 @@ const statement = (
 ): Statement => ({ Sid, Effect, Action, Resource, ...(Condition === undefined ? {} : { Condition }) });
 
 /**
- * The services each stage boundary's tier Deny names: every service that boundary allows on a NAME. `lambda` and
- * `states` are absent on purpose: they are allowed only under the stack-name tag condition (`TaggedCompute`), which
- * a resource of the other tier does not satisfy, and the boundary has no room for a second line of defence on them
- * (it must stay ONE managed policy, under IAM's 6,144-character limit). `ec2` is absent because its ARNs carry ids,
- * never names. The production boundary also lacks `cloudformation` and `rds`: it allows no action on them.
- * `tierNames.test.ts` holds each list equal to what the boundary allows, in both directions.
+ * The Deny that keeps one stage tier out of the other's names: one ARN per resource TYPE the boundary's own Allows
+ * name (IAM refuses a wildcard where the type belongs), in the compact stage-token form so the boundary stays ONE
+ * managed policy under IAM's 6,144-character limit.
+ *
+ * Allows under a stack-name tag condition (`TaggedCompute`: lambda, states, ec2) are left out: a resource of the other
+ * tier does not satisfy the tag, and there is no room for a second line of defence. `tierNames.test.ts` holds the
+ * derivation in both directions.
  */
-export const BOUNDARY_TIER_SERVICES: Readonly<Record<'ksnonprod' | 'ksprod', readonly TierService[]>> = {
-    ksnonprod: [
-        'cloudformation',
-        'dynamodb',
-        'ecr',
-        'ecs',
-        'events',
-        'iam',
-        'logs',
-        'rds',
-        's3',
-        'secretsmanager',
-        'sns',
-        'sqs',
-        'ssm',
-    ],
-    ksprod: ['dynamodb', 'ecr', 'ecs', 'events', 'iam', 'logs', 's3', 'secretsmanager', 'sns', 'sqs', 'ssm'],
-};
+function tierNameDeny(qualifier: QualifierName, allows: readonly Statement[]): Statement[] {
+    const types = resourceTypesOf(allows, true);
 
-/** The Deny that keeps one stage tier out of the other's names. */
-function tierNameDeny(qualifier: QualifierName): Statement[] {
     if (qualifier === QUALIFIERS.nonprod) {
-        return [
-            statement(
-                'DenyProductionNames',
-                'Deny',
-                ['*'],
-                tierNameResources('production', BOUNDARY_TIER_SERVICES.ksnonprod, 'compact'),
-            ),
-        ];
+        return [statement('DenyProductionNames', 'Deny', ['*'], tierNameResources('production', types, 'compact'))];
     }
 
     if (qualifier === QUALIFIERS.prod) {
         return [
-            statement(
-                'DenyNonProductionNames',
-                'Deny',
-                ['*'],
-                tierNameResources('nonproduction', BOUNDARY_TIER_SERVICES.ksprod, 'compact'),
-            ),
+            statement('DenyNonProductionNames', 'Deny', ['*'], tierNameResources('nonproduction', types, 'compact')),
         ];
     }
 
     return [];
 }
 
-/** The Allow statements of one tier: each grant that names the tier, then the residual `*` statement. */
+/**
+ * The Allow statements of one tier: ONE statement for every grant without a condition, one statement per conditioned
+ * grant, then the residual `*` statement.
+ *
+ * An action only ever meets a resource of its own service, so unconditioned grants share a statement without granting
+ * anything across services (the table keeps one entry per service for the reader); each statement saved is a wrapper's
+ * worth of the 6,144-character managed-policy budget. A conditioned grant keeps its own statement, because the
+ * condition would otherwise apply to the rest.
+ */
 function allowStatements(qualifier: QualifierName): Statement[] {
-    const scoped = GRANTS.flatMap((grant) => {
+    const mine = GRANTS.flatMap((grant) => {
         const actions = grant.actions[qualifier];
 
-        return actions === undefined
-            ? []
-            : [statement(grant.sid, 'Allow', [...actions].sort(), grant.resources, grant.condition?.(qualifier))];
+        return actions === undefined ? [] : [{ grant, actions }];
     });
+    const plain = mine.filter(({ grant }) => grant.condition === undefined);
+    const conditioned = mine.filter(({ grant }) => grant.condition !== undefined);
 
-    return [...scoped, statement('AllowNoResourceLevelActions', 'Allow', [...STAR_ACTIONS[qualifier]].sort(), ['*'])];
+    return [
+        statement(
+            'AllowNamedResources',
+            'Allow',
+            [...new Set(plain.flatMap(({ actions }) => actions))].sort(),
+            plain.flatMap(({ grant }) => grant.resources),
+        ),
+        ...conditioned.map(({ grant, actions }) =>
+            statement(grant.sid, 'Allow', [...actions].sort(), grant.resources, grant.condition?.(qualifier)),
+        ),
+        statement('AllowNoResourceLevelActions', 'Allow', [...STAR_ACTIONS[qualifier]].sort(), ['*']),
+    ];
 }
 
 /**
@@ -629,7 +623,7 @@ function allowStatements(qualifier: QualifierName): Statement[] {
 export function buildBoundary(qualifier: QualifierName): PolicyDocument {
     const account = qualifier === QUALIFIERS.account;
 
-    const statements: Statement[] = [
+    const allows: Statement[] = [
         ...allowStatements(qualifier),
         ...(account
             ? [
@@ -645,6 +639,10 @@ export function buildBoundary(qualifier: QualifierName): PolicyDocument {
                   ),
               ]
             : [statement('AllowPassKitchenSinkRoles', 'Allow', ['iam:PassRole'], [iamArn('role/kitchensink-*')])]),
+    ];
+
+    const statements: Statement[] = [
+        ...allows,
         statement('DenyEscalation', 'Deny', [...IAM_MUTATIONS, 'organizations:*', 'account:*'], ['*']),
         ...(account
             ? [statement('DenyDefaultQualifierRoles', 'Deny', ['sts:AssumeRole'], [iamArn('role/cdk-hnb659fds-*')])]
@@ -656,7 +654,7 @@ export function buildBoundary(qualifier: QualifierName): PolicyDocument {
                       [iamArn('role/cdk-*'), iamArn('role/kitchensink-gha-*')],
                   ),
               ]),
-        ...tierNameDeny(qualifier),
+        ...tierNameDeny(qualifier, allows),
     ];
 
     return { Version: '2012-10-17', Statement: statements };

@@ -11,7 +11,7 @@
  */
 import { GlassView } from 'expo-glass-effect';
 import type { FC, Ref } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { hasLiquidGlass } from '../chromeSurface/liquidGlass.native.js';
 import { Icon } from '../icon/Icon.native.js';
@@ -20,6 +20,9 @@ import type { HeroButtonProps } from './props.js';
 
 /** The disc's diameter: the 44 pt minimum touch target, and the spec's size. */
 const DISC_PX = 44;
+
+/** The touch floor: 44 pt on iOS, 48 dp on Android ("every 44 is 48 dp there"). On Android a transparent frame carries it. */
+const touchFloor = (): number => (Platform.OS === 'android' ? 48 : DISC_PX);
 
 /** Native props: the shared contract plus the handle a screen-reader focus request needs. */
 export interface HeroButtonNativeProps extends HeroButtonProps {
@@ -40,24 +43,26 @@ export const HeroButton: FC<HeroButtonNativeProps> = ({ icon, label, onPress, ex
         ...(expanded === undefined ? {} : { 'aria-expanded': expanded }),
     };
 
-    if (hasLiquidGlass()) {
-        return (
-            <Pressable {...common} style={styles.disc}>
-                <GlassView glassEffectStyle="regular" isInteractive colorScheme="auto" style={styles.fill}>
-                    {glyph}
-                </GlassView>
-            </Pressable>
-        );
-    }
+    const frame = { width: touchFloor(), height: touchFloor() };
 
+    // The Pressable is the hit frame (48 dp on Android, the disc itself elsewhere); the disc is drawn inside it.
     return (
-        <Pressable {...common} style={[styles.disc, styles.center, { backgroundColor: colors.photoChip }]}>
-            {glyph}
+        <Pressable {...common} style={[styles.frame, frame]}>
+            {hasLiquidGlass() ? (
+                <View style={styles.disc}>
+                    <GlassView glassEffectStyle="regular" isInteractive colorScheme="auto" style={styles.fill}>
+                        {glyph}
+                    </GlassView>
+                </View>
+            ) : (
+                <View style={[styles.disc, styles.center, { backgroundColor: colors.photoChip }]}>{glyph}</View>
+            )}
         </Pressable>
     );
 };
 
 const styles = StyleSheet.create({
+    frame: { alignItems: 'center', justifyContent: 'center' },
     disc: { width: DISC_PX, height: DISC_PX, borderRadius: DISC_PX / 2, overflow: 'hidden' },
     center: { alignItems: 'center', justifyContent: 'center' },
     fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },

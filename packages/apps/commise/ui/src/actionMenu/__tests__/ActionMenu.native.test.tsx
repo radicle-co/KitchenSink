@@ -348,7 +348,10 @@ describe('ActionMenu (native) — the overhaul contract', () => {
         it('is the hero disc over a photo when asked: a 44 pt photoChip disc that still opens the sheet', () => {
             const trigger = renderAppearance('disc');
 
-            expect(getComputedStyle(trigger).backgroundColor).toBe(formatRgb(role.photoChip));
+            // 2026-10-17: the pressable is the hit frame (48 dp on Android); the photoChip disc is drawn inside it.
+            const disc = trigger.firstElementChild;
+            expect(disc).not.toBeNull();
+            expect(getComputedStyle(disc as Element).backgroundColor).toBe(formatRgb(role.photoChip));
             expect(trigger.getAttribute('aria-expanded')).toBe('false');
 
             fireEvent.click(trigger);
@@ -398,5 +401,62 @@ describe('ActionMenu (native) — the overhaul contract', () => {
                 .getByRole('menuitem', { name: 'Version history' })
                 .querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName'],
         ).toBe('clock');
+    });
+
+    describe('a disabled item (2026-10-17: Move earlier on the first photo)', () => {
+        const renderWithDisabled = () => {
+            const first = vi.fn();
+            const second = vi.fn();
+            render(
+                <ActionMenu
+                    triggerLabel="Actions for photo 1"
+                    title="Photo 1"
+                    closeLabel="Close actions for photo 1"
+                    items={[
+                        { id: 'earlier', label: 'Move earlier', disabled: true, onSelect: first },
+                        { id: 'later', label: 'Move later', onSelect: second },
+                    ]}
+                />,
+            );
+            fireEvent.click(screen.getByRole('button', { name: 'Actions for photo 1' }));
+
+            return { first, second };
+        };
+
+        it('is still listed, and says it is disabled to assistive technology', () => {
+            renderWithDisabled();
+
+            expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+                'Move earlier',
+                'Move later',
+            ]);
+            expect(screen.getByRole('menuitem', { name: 'Move earlier' }).getAttribute('aria-disabled')).toBe('true');
+            expect(screen.getByRole('menuitem', { name: 'Move later' }).getAttribute('aria-disabled')).not.toBe('true');
+        });
+
+        it('runs nothing when pressed, and leaves the sheet open', () => {
+            const { first } = renderWithDisabled();
+
+            fireEvent.click(screen.getByRole('menuitem', { name: 'Move earlier' }));
+
+            expect(first).not.toHaveBeenCalled();
+            expect(screen.queryByRole('menuitem', { name: 'Move later' })).not.toBeNull();
+        });
+
+        it('leaves its neighbour working', () => {
+            const { second } = renderWithDisabled();
+
+            fireEvent.click(screen.getByRole('menuitem', { name: 'Move later' }));
+
+            expect(second).toHaveBeenCalledTimes(1);
+        });
+
+        it('keeps a menu item at least 48 dp tall', () => {
+            renderWithDisabled();
+
+            expect(
+                Number.parseFloat(getComputedStyle(screen.getByRole('menuitem', { name: 'Move earlier' })).minHeight),
+            ).toBeGreaterThanOrEqual(48);
+        });
     });
 });

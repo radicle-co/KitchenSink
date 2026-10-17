@@ -467,4 +467,59 @@ describe('ActionMenu (web) — the overhaul contract', () => {
 
         expect(readInsets).toHaveBeenCalled();
     });
+
+    describe('a disabled item (2026-10-17: Move earlier on the first photo)', () => {
+        const renderWithDisabled = () => {
+            const first = vi.fn();
+            const second = vi.fn();
+            render(
+                <ActionMenu
+                    triggerLabel="Actions for photo 1"
+                    title="Photo 1"
+                    closeLabel="Close actions for photo 1"
+                    items={[
+                        { id: 'earlier', label: 'Move earlier', disabled: true, onSelect: first },
+                        { id: 'later', label: 'Move later', onSelect: second },
+                    ]}
+                />,
+            );
+
+            return { first, second };
+        };
+
+        it('is still listed, and says it is disabled to assistive technology', async () => {
+            const user = userEvent.setup();
+            renderWithDisabled();
+
+            await user.click(screen.getByRole('button', { name: 'Actions for photo 1' }));
+
+            expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+                'Move earlier',
+                'Move later',
+            ]);
+            expect(screen.getByRole('menuitem', { name: 'Move earlier' }).getAttribute('aria-disabled')).toBe('true');
+            expect(screen.getByRole('menuitem', { name: 'Move later' }).getAttribute('aria-disabled')).toBeNull();
+        });
+
+        it('runs nothing when activated, and leaves the menu open', async () => {
+            const user = userEvent.setup();
+            const { first } = renderWithDisabled();
+            await user.click(screen.getByRole('button', { name: 'Actions for photo 1' }));
+
+            await user.click(screen.getByRole('menuitem', { name: 'Move earlier' }));
+
+            expect(first).not.toHaveBeenCalled();
+            expect(screen.queryByRole('menu')).not.toBeNull();
+        });
+
+        it('leaves its neighbour working', async () => {
+            const user = userEvent.setup();
+            const { second } = renderWithDisabled();
+            await user.click(screen.getByRole('button', { name: 'Actions for photo 1' }));
+
+            await user.click(screen.getByRole('menuitem', { name: 'Move later' }));
+
+            expect(second).toHaveBeenCalledTimes(1);
+        });
+    });
 });

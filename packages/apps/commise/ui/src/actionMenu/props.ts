@@ -27,6 +27,11 @@ export interface ActionMenuItem {
     readonly label: string;
     /** A glyph before the label. */
     readonly icon?: IconName;
+    /**
+     * The action does not apply right now (Move earlier on the first photo). It stays listed so the menu keeps one shape,
+     * says `aria-disabled`, and runs nothing; a disabled item is never the destructive one.
+     */
+    readonly disabled?: boolean;
     readonly onSelect: () => void;
 }
 

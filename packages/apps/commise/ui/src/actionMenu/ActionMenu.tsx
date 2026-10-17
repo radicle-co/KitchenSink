@@ -46,7 +46,7 @@ const PLAIN_TRIGGER_CLASS =
 
 /** An item: a 44 px row, highlighted in `pearl`. */
 const ITEM =
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body outline-none data-[highlighted]:bg-ink/6';
+    'flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body outline-none data-[highlighted]:bg-ink/6 data-[disabled]:cursor-default data-[disabled]:opacity-60';
 
 /** One menu item: its glyph and label, in the tone of its place in the menu. */
 const MenuItem: FC<{
@@ -54,7 +54,11 @@ const MenuItem: FC<{
     readonly tone: 'text-ink' | 'text-danger-text';
     readonly onChoose: (id: string) => void;
 }> = ({ item, tone, onChoose }) => (
-    <DropdownMenu.Item onSelect={() => onChoose(item.id)} className={`${ITEM} ${tone}`}>
+    <DropdownMenu.Item
+        disabled={item.disabled === true}
+        onSelect={() => onChoose(item.id)}
+        className={`${ITEM} ${tone}`}
+    >
         {item.icon === undefined ? null : <Icon name={item.icon} size={20} />}
         {item.label}
     </DropdownMenu.Item>

@@ -7,7 +7,21 @@ import { createRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-const glass = vi.hoisted(() => ({ liquid: false, api: false }));
+const glass = vi.hoisted(() => ({ liquid: false, api: false, os: undefined as 'android' | undefined }));
+
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return {
+        ...actual,
+        Platform: {
+            ...actual.Platform,
+            get OS() {
+                return glass.os ?? actual.Platform.OS;
+            },
+        },
+    };
+});
 
 vi.mock('expo-glass-effect', async () => {
     const { View } = await import('react-native');
@@ -24,6 +38,7 @@ import { HeroButton } from '../HeroButton.native.js';
 beforeEach(() => {
     glass.liquid = false;
     glass.api = false;
+    glass.os = undefined;
 });
 afterEach(cleanup);
 
@@ -43,6 +58,15 @@ describe('HeroButton (native)', () => {
 
         expect(disc.width).toBe('44px');
         expect(disc.height).toBe('44px');
+    });
+
+    it('is hit across 48 dp on Android, around the same 44 disc (2026-10-17: every 44 is 48 dp there)', () => {
+        glass.os = 'android';
+        render(<HeroButton icon="ellipsis" label="More actions" onPress={vi.fn()} />);
+        const frame = getComputedStyle(screen.getByRole('button', { name: 'More actions' }));
+
+        expect(frame.width).toBe('48px');
+        expect(frame.height).toBe('48px');
     });
 
     it('draws glass on iOS 26 and a solid disc otherwise', () => {

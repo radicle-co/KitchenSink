@@ -45,8 +45,15 @@ const MenuItem: FC<{
         <Pressable
             accessibilityRole="menuitem"
             accessibilityLabel={item.label}
+            accessibilityState={{ disabled: item.disabled === true }}
+            aria-disabled={item.disabled === true ? true : undefined}
+            disabled={item.disabled === true}
             onPress={() => onChoose(item.id)}
-            style={({ pressed }) => [styles.item, pressed && { backgroundColor: wash }]}
+            style={({ pressed }) => [
+                styles.item,
+                item.disabled === true && styles.unavailable,
+                pressed && { backgroundColor: wash },
+            ]}
         >
             {item.icon === undefined ? null : <Icon name={item.icon} size={20} tone={tone} />}
             <Text style={[styles.itemLabel, { color: colors[tone] }]}>{item.label}</Text>

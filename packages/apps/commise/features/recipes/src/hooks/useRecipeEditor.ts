@@ -694,11 +694,13 @@ function errorsStillHolding(recorded: RecipeFormErrors, draft: RecipeFormValues,
         return recorded;
     }
 
-    const live = validateRecipeForm(draft, entryText);
-
-    return Object.fromEntries(
-        Object.entries(recorded).filter(([field]) => live[field as keyof RecipeFormErrors] !== undefined),
+    const stillFailing = new Set(
+        Object.entries(validateRecipeForm(draft, entryText))
+            .filter(([, code]) => code !== undefined)
+            .map(([field]) => field),
     );
+
+    return Object.fromEntries(Object.entries(recorded).filter(([field]) => stillFailing.has(field)));
 }
 
 /**

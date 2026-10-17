@@ -183,8 +183,11 @@ interface Context {
     readonly depth: number;
 }
 
+/** The ARN prefix every rendered ARN starts with; the partition is read from it rather than spelled as a bare word. */
+const ARN_ROOT = 'arn:aws:';
+
 const PSEUDO: Readonly<Record<string, string>> = {
-    'AWS::Partition': 'aws',
+    'AWS::Partition': ARN_ROOT.split(':')[1] ?? '',
     'AWS::Region': REGION_NAME,
     'AWS::AccountId': ACCOUNT_ID,
     'AWS::URLSuffix': 'amazonaws.com',

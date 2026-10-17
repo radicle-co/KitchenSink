@@ -13,6 +13,7 @@
  *
  * @pattern Observer over a small in-memory fact — a counter with subscribers, shared per store and cook.
  */
+import { createFanout, type FaultSink } from './fanout.js';
 import type { OutboxStore } from './outboxStore.js';
 
 /** A cook's count of set-aside events on one store. */
@@ -23,31 +24,23 @@ export interface UnreadableLedger {
     readonly record: () => void;
     /** Back to zero (the session-end clear), telling subscribers only if the count changed. */
     readonly reset: () => void;
-    /** Hear the count after each change. Returns the unsubscribe. */
-    readonly subscribe: (listener: (count: number) => void) => () => void;
+    /**
+     * Hear the count after each change. Returns the unsubscribe. A listener that throws is isolated from the others and
+     * from the quarantine write that is reporting; `onFault` receives what it threw.
+     */
+    readonly subscribe: (listener: (count: number) => void, onFault?: FaultSink) => () => void;
 }
 
 /** Make a ledger. Pure construction; the returned functions mutate its own count and listeners. */
 function createUnreadableLedger(): UnreadableLedger {
-    const listeners = new Set<(count: number) => void>();
+    const fanout = createFanout<number>();
     let count = 0;
-
-    const announce = (): void => {
-        for (const listener of [...listeners]) {
-            // ⛔ ONE LISTENER'S BUG MUST NOT STOP THE OTHERS, nor reject the quarantine write that is reporting.
-            try {
-                listener(count);
-            } catch {
-                // Isolated by design; the listener's owner has no channel back to this ledger.
-            }
-        }
-    };
 
     return {
         count: () => count,
         record: () => {
             count += 1;
-            announce();
+            fanout.publish(count);
         },
         reset: () => {
             if (count === 0) {
@@ -55,15 +48,9 @@ function createUnreadableLedger(): UnreadableLedger {
             }
 
             count = 0;
-            announce();
+            fanout.publish(count);
         },
-        subscribe: (listener) => {
-            listeners.add(listener);
-
-            return () => {
-                listeners.delete(listener);
-            };
-        },
+        subscribe: fanout.subscribe,
     };
 }
 

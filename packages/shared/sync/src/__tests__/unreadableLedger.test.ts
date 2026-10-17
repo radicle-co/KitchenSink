@@ -80,4 +80,19 @@ describe('unreadableLedgerFor', () => {
         await expect(appendToQuarantine(store, 'user_a', 'q.user_a', 'bytes')).resolves.toBeUndefined();
         expect(after).toHaveBeenCalledWith(1);
     });
+
+    it('⛔ reports a throwing listener to the sink it subscribed with', async () => {
+        const store = createMemoryOutboxStore();
+        const ledger = unreadableLedgerFor(store, 'user_a');
+        const boom = new Error('listener bug');
+        const sink = vi.fn();
+
+        ledger.subscribe(() => {
+            throw boom;
+        }, sink);
+
+        await appendToQuarantine(store, 'user_a', 'q.user_a', 'bytes');
+
+        expect(sink).toHaveBeenCalledExactlyOnceWith(boom);
+    });
 });

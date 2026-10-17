@@ -320,6 +320,10 @@ describe('resendsWhenParked — the rule the drain and the Discard confirm share
         ['an update refused transiently', true, 'update', 503],
         ['an update its signed-out cook never sent', true, 'update', 401],
         ['a delete with an unknown outcome', true, 'delete', undefined],
+        ['a delete a gateway answered 502 (it may have committed)', true, 'delete', 502],
+        ['a delete a gateway answered 504 (it may have committed)', true, 'delete', 504],
+        ['a create a gateway answered 502', false, 'create', 502],
+        ['an update a gateway answered 504', false, 'update', 504],
         ['a delete refused terminally', false, 'delete', 404],
     ] as const)('%s → %s', (_label, expected, intentKind, status) => {
         expect(
@@ -426,8 +430,24 @@ describe('drain — cook text that looks like a reference', () => {
         expect(after.synced).toHaveLength(1);
     });
 
-    it('⛔ builds the payload BEFORE the claim, so a substitution bug leaves the record pending, not sending', async () => {
+    it('⛔ builds the payload BEFORE the claim, so a fault while building it leaves the record pending, not sending', async () => {
         const claim = vi.fn(async () => true);
+        const sender: Sender = vi.fn(async (): Promise<SendResult> => ({ outcome: 'ok', serverId: 's' }));
+        const payload = {
+            get id(): string {
+                throw new Error('payload could not be built');
+            },
+        };
+        const log = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1', payload }));
+        const journal = { claim, settle: vi.fn(async () => undefined) };
+
+        await expect(drain(log, sender, { ...noSleep, journal })).rejects.toThrow(/could not be built/u);
+
+        expect(claim).not.toHaveBeenCalled();
+        expect(sender).not.toHaveBeenCalled();
+    });
+
+    it('substitutes a resolved declared reference into the payload that is sent', async () => {
         const sender: Sender = vi.fn(async (): Promise<SendResult> => ({ outcome: 'ok', serverId: 's' }));
         const log: OutboxLog = {
             ...appendIntent(
@@ -442,11 +462,9 @@ describe('drain — cook text that looks like a reference', () => {
             ),
             resolutions: { 'local:recipe:a': 'srv-a' },
         };
-        const journal = { claim, settle: vi.fn(async () => undefined) };
 
-        await drain(log, sender, { ...noSleep, journal });
+        await drain(log, sender, noSleep);
 
-        expect(claim).toHaveBeenCalledTimes(1);
         expect(sender).toHaveBeenCalledWith(expect.objectContaining({ payload: { id: 'srv-a' } }));
     });
 });
@@ -553,6 +571,35 @@ describe('drain — a sender that throws', () => {
         expect(report.failed).toHaveLength(1);
         expect(report.log.records.find((record) => record.seq === 1)?.state).toBe('parked');
         expect(sender).toHaveBeenCalledTimes(2);
+    });
+
+    it('⛔ parks it with NO status, so it classifies unknown rather than terminal', async () => {
+        const sender: Sender = vi.fn(async (): Promise<SendResult> => {
+            throw new Error('storage exploded');
+        });
+        const log = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: 'r1' }));
+
+        const report = await drain(log, sender, noSleep);
+
+        expect(report.failed).toStrictEqual([{ entity: 'recipe', intentKind: 'create', localId: 'r1' }]);
+        expect(report.log.records[0]?.lastStatus).toBeUndefined();
+    });
+
+    it('⛔ reports the throw to onFault, with the record it broke on, instead of swallowing it', async () => {
+        const boom = new Error('storage exploded');
+        const sender: Sender = vi.fn(async (): Promise<SendResult> => {
+            throw boom;
+        });
+        const onFault = vi.fn();
+        const log = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: 'r1' }));
+
+        await drain(log, sender, { ...noSleep, onFault });
+
+        expect(onFault).toHaveBeenCalledExactlyOnceWith(boom, {
+            entity: 'recipe',
+            intentKind: 'create',
+            localId: 'r1',
+        });
     });
 });
 
@@ -746,10 +793,10 @@ describe('drain — settlement events', () => {
  * pin stays: an unknown create or update is not re-sent behind the cook's back.
  */
 describe('drain — a parked delete with an unknown outcome', () => {
-    it('re-sends it', async () => {
+    it.each([undefined, 502, 504])('re-sends it when it parked with status %s', async (status) => {
         const sender = scripted({ outcome: 'ok', serverId: 'rec_1' });
 
-        const after = await drain(parkedWith(undefined, { intentKind: 'delete' }), sender, noSleep);
+        const after = await drain(parkedWith(status, { intentKind: 'delete' }), sender, noSleep);
 
         expect(sender).toHaveBeenCalledTimes(1);
         expect(after.log.records).toStrictEqual([]);
@@ -758,6 +805,8 @@ describe('drain — a parked delete with an unknown outcome', () => {
     it.each([
         ['create', undefined],
         ['update', undefined],
+        ['create', 502],
+        ['update', 504],
         ['delete', 409],
         ['delete', 422],
     ] as const)('⛔ does not re-send a parked %s with status %s', async (intentKind, status) => {

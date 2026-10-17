@@ -82,10 +82,10 @@ function coalesces(existing: OutboxRecord, incoming: Intent): boolean {
  */
 export function appendIntent(log: OutboxLog, incoming: Intent): OutboxLog {
     // ⛔ REFS ARE VALIDATED AT ENTRY, because a malformed one fails SILENTLY downstream. `substituteRefs`
-    // only rewrites values carrying the `local:` prefix, so a bare `'ing:x'` would order the drain correctly
-    // and then send the payload with the placeholder still in it — a server rejection hours later, blamed on
-    // the cook's data instead of on the caller that built the intent. Refusing here keeps the stack trace
-    // pointing at that caller.
+    // rewrites only the refs a record DECLARES in `dependsOn`, and the drain waits on a resolution for each of them, so
+    // a bare `'ing:x'` would be a declared ref that is never produced under the `local:` namespace the log resolves —
+    // an intent that never drains, blamed on the cook's data instead of on the caller that built it. Refusing here
+    // keeps the stack trace pointing at that caller.
     for (const ref of [...incoming.dependsOn, ...(incoming.produces === undefined ? [] : [incoming.produces])]) {
         // ⚠️ The prefix is tested DIRECTLY rather than through `isLocalRef`: `LocalRef` is an alias for
         // `string`, so a `value is LocalRef` guard narrows the negative branch to `never` and the compiler
@@ -430,7 +430,8 @@ const MAY_STAND: DiscardOutcome = { kind: 'mayStand' };
  * the save landed while the confirm said the recipe stays as it was. Here a record found on its way (pending or on the
  * wire) is left to the drain and reported as `mayStand`; one already gone settled meanwhile and may have synced, so it
  * is `mayStand` too; one still parked is withdrawn, and may stand only if its outcome is unknown. An entity Discard
- * answers the same for the create it withdraws ({@link entityMayStand}). It never throws.
+ * answers for the create it WITHDRAWS ({@link entityMayStand}), and only that: a create still on the wire is not
+ * withdrawn, so the answer is `settled` even though its outcome is not yet known. It never throws.
  *
  * @param log - The log as stored now.
  * @param request - What the cook confirmed.
@@ -462,10 +463,16 @@ function outcomeIsUnknown(record: OutboxRecord): boolean {
 }
 
 /**
- * Whether an entity Discard leaves the recipe standing on the server. Only the CREATE can: a withdrawn create whose
+ * Whether an entity Discard leaves the recipe standing on the server, among the records it withdraws. Only the CREATE
+ * can: a withdrawn create whose
  * outcome is unknown may exist, and with no record left to produce its id the delete cannot name it (`supersede` drops
  * it). Any other parked record of the entity is covered by the delete, which names the server's id. A create whose ref a
- * drain resolved is deleted by that id, so it cannot stand. Pure.
+ * drain resolved is deleted by that id, so it cannot stand.
+ *
+ * ⚠️ NOT THE SAME QUESTION AS THE PARKED-WRITE PATH FOR A CREATE ON THE WIRE. A `sending` create is left alone and the
+ * delete queues behind it, so this answers `settled`; if that create's answer is then lost, `withdrawMoot` removes both
+ * records and the recipe may stand with nothing recording it. ADR-0057 accepts that residual copy as the cook's to
+ * delete from My recipes. Pure.
  */
 function entityMayStand(log: OutboxLog, incoming: Intent): DiscardOutcome {
     const stands = log.records.some(

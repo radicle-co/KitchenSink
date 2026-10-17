@@ -109,6 +109,11 @@ export interface DrainOptions<A = unknown> {
     readonly random?: () => number;
     /** The current time, epoch milliseconds. Defaults to `Date.now`. */
     readonly now?: () => number;
+    /**
+     * Told when a sender THROWS, which breaks its contract (it answers with a result, never a throw). The record parks as
+     * an unknown outcome either way; this is the engineering signal the cook's notice cannot carry.
+     */
+    readonly onFault?: (error: unknown, record: Pick<SyncFailure, 'entity' | 'intentKind' | 'localId'>) => void;
 }
 
 /** What a drain produced. */
@@ -161,10 +166,10 @@ export function resendsWhenParked(failure: SyncFailure): boolean {
         return true;
     }
 
-    // ⛔ A DELETE CANNOT WRITE TWICE, so an unknown outcome may be sent again: if the first copy landed, the second meets
+    // ⛔ A DELETE CANNOT WRITE TWICE, so an unknown outcome (no status, or a gateway's 502/504) may be sent again: if the first copy landed, the second meets
     // the service's own "no such recipe" 404, which the sender reads as done. This depends on there being no route that
     // undeletes a recipe (ADR-0057).
-    if (failure.intentKind === 'delete' && failure.status === undefined) {
+    if (failure.intentKind === 'delete' && classifyFailure(failure) === 'unknown') {
         return true;
     }
 
@@ -282,8 +287,8 @@ export async function drain<A = unknown>(
             continue;
         }
 
-        // ⛔ BUILT BEFORE THE CLAIM: a substitution fault must throw while the record is still pending, not after it
-        // has been saved as `sending` (an outcome-unknown state no drain re-sends).
+        // ⛔ BUILT BEFORE THE CLAIM: any fault in building the payload must throw while the record is still pending, not
+        // after it has been saved as `sending` (an outcome-unknown state no drain re-sends).
         const payload = substituteRefs(queued.payload, current.resolutions, new Set(queued.dependsOn));
         const claimed = options.journal === undefined ? true : await options.journal.claim(queued.seq);
 
@@ -299,7 +304,13 @@ export async function drain<A = unknown>(
         for (let attempt = 1; attempt <= MAX_TRANSIENT_ATTEMPTS; attempt += 1) {
             try {
                 result = await send({ ...queued, payload });
-            } catch {
+            } catch (error) {
+                options.onFault?.(error, {
+                    entity: queued.entity,
+                    intentKind: queued.intentKind,
+                    localId: queued.localId,
+                });
+
                 // ⛔ A THROWING SENDER BREAKS ITS CONTRACT, AND THE REQUEST MAY HAVE LEFT: an unknown outcome, so the
                 // record parks with no status (re-sent only if it is a delete — `resendsWhenParked`) and the cook is
                 // told. Rejecting here would leave it `sending` with no settlement event, and the rest of the queue unsent.

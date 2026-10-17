@@ -57,10 +57,7 @@ const index = await getJson<readonly IndexEntry[]>(INDEX_URL);
 const documents = renderedPolicies({ account: '000000000000', region: 'us-east-1' }).map((policy) => policy.document);
 const services = catalogueServicesOf(documents);
 
-const catalogue: IamCatalogue = { services: {} };
-const entries: Record<string, IamCatalogue['services'][string]> = {};
-
-for (const service of services) {
+async function catalogueEntry(service: string): Promise<readonly [string, IamCatalogue['services'][string]]> {
     const entry = index.find((candidate) => candidate.service === service);
 
     if (entry === undefined) {
@@ -69,18 +66,23 @@ for (const service of services) {
 
     const reference = await getJson<ServiceReference>(entry.url);
 
-    entries[service] = {
-        actions: reference.Actions.map((action) => action.Name).sort(),
-        resources: Object.fromEntries(
-            (reference.Resources ?? [])
-                .map((resource) => [resource.Name, [...resource.ARNFormats].sort()] as const)
-                .sort(([left], [right]) => left.localeCompare(right)),
-        ),
-    };
+    return [
+        service,
+        {
+            actions: reference.Actions.map((action) => action.Name).sort(),
+            resources: Object.fromEntries(
+                (reference.Resources ?? [])
+                    .map((resource) => [resource.Name, [...resource.ARNFormats].sort()] as const)
+                    .sort(([left], [right]) => left.localeCompare(right)),
+            ),
+        },
+    ];
 }
+
+const catalogue: IamCatalogue = { services: Object.fromEntries(await Promise.all(services.map(catalogueEntry))) };
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const output = path.join(here, '../manifests/iamCatalogue.json');
 
-writeFileSync(output, `${JSON.stringify({ ...catalogue, services: entries }, null, 4)}\n`);
+writeFileSync(output, `${JSON.stringify(catalogue, null, 4)}\n`);
 console.log(`wrote ${output} for ${services.length} services`);

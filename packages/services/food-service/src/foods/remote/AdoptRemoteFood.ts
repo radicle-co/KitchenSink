@@ -110,7 +110,8 @@ export class AdoptRemoteFood {
      *   is fetching for the placeholder the pick would complete.
      * @sideEffect Reads the catalog; may lease a placeholder's queue row, call the source once, and write a root; marks
      *   the answered root held for a real cook. A hold that cannot be written fails the pick, which is idempotent, so a
-     *   retry is safe and the root is never left unprotected behind a success.
+     *   retry is safe. One window is accepted (see `purgeTestPickedRoots`): the pick finds a test principal's root before
+     *   it holds it, so a purge that runs between the two leaves the cook an id that is gone.
      */
     public async execute(token: string, picker: PickCaller): Promise<AdoptRemoteFoodResponse> {
         const answer = await this.pick(token, attributionOf(picker));

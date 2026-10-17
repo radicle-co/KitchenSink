@@ -8,7 +8,7 @@
  * @pattern Repository — the attribution table's reads and writes; the decision stays in the Specification
  * @module
  */
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 import type { FoodWriter } from '../../database/unitOfWork.js';
 import { testPickedRoot } from '../../db/schema/index.js';
@@ -48,10 +48,18 @@ export class TestPickedRootDao {
             return;
         }
 
-        await this.db
-            .update(testPickedRoot)
-            .set({ heldByRealUser: true })
-            .where(and(inArray(testPickedRoot.foodId, [...foodIds]), eq(testPickedRoot.heldByRealUser, false)));
+        // Rows are locked in food-id order, the order `lockCreatedBy` locks them in, so a hold over several roots and a
+        // purge of the same roots never wait on each other in opposite orders (a deadlock Postgres would break by
+        // aborting one of them).
+        await this.db.execute(sql`
+            UPDATE test_picked_root SET held_by_real_user = true
+             WHERE food_id IN (
+                 SELECT food_id FROM test_picked_root
+                  WHERE food_id = ANY(${sql.param([...foodIds])}) AND NOT held_by_real_user
+                  ORDER BY food_id
+                    FOR UPDATE
+             )
+        `);
     }
 
     /**
@@ -82,6 +90,7 @@ export class TestPickedRootDao {
               JOIN food f ON f.id = a.food_id
               JOIN food_item i ON i.id = f.item_id
              WHERE a.created_by = ${createdBy}
+             ORDER BY a.food_id
                FOR UPDATE OF a
         `);
 

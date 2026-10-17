@@ -596,7 +596,8 @@ describe('RecipeDetailScreen — owner actions', () => {
         const probe = document.createElement('div');
         probe.style.backgroundColor = role.photoChip;
 
-        expect(getComputedStyle(more).backgroundColor).toBe(probe.style.backgroundColor);
+        // The pressable is the hit frame (48 dp on Android, 2026-10-17); the photoChip disc is drawn inside it.
+        expect(getComputedStyle(more.firstElementChild as Element).backgroundColor).toBe(probe.style.backgroundColor);
         expect(back.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(more.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });

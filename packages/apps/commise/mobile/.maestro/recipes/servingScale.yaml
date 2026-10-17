@@ -106,6 +106,13 @@ appId: ${APP_ID}
       element: '${E2E_RECIPE_ASPARAGUS}'
       direction: UP
       timeout: 20000
+# ⛔ The title in view is NOT the top of the page: the Back disc rides on the hero photo ABOVE the title and scrolls away
+# with it, so with the title at the top of the screen the disc is still off it (run 38996739152, `Back to My recipes` not
+# found with the hero scrolled past). Scroll until the disc itself is on screen.
+- scrollUntilVisible:
+      element: 'Back to My recipes'
+      direction: UP
+      timeout: 20000
 
 # The detail's Back is a disc over the hero photo, named for where it goes ("Back to My recipes"), so it is UNIQUE: under
 # three-button navigation Android's system bar publishes a node named exactly `Back`, and a Maestro selector matches the

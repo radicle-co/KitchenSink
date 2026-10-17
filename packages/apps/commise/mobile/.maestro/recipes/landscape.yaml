@@ -105,10 +105,21 @@ onFlowComplete:
       direction: DOWN
       timeout: 40000
 - tapOn: 'Filter by ${E2E_PROBE_INGREDIENT}'
-- scrollUntilVisible:
-      element: 'Show \d+ recipes?|Show recipes'
-      direction: DOWN
-      timeout: 20000
+# ⛔ The ingredient field keeps the soft keyboard up, and sideways it covers everything below ~46% of the screen, which is
+# where `scrollUntilVisible` swipes (the screen's centre): the swipe lands on a key and moves nothing, and the unpinned
+# footer's button stays below the sheet's visible part (run 38996739152). So swipe INSIDE the sheet's visible band, above
+# the keyboard's edge and below the pinned title row and the field the sheet lifts to the top, as
+# `common/scrollOpenList.yaml` does for the open list.
+- repeat:
+      while:
+          notVisible: 'Show \d+ recipes?|Show recipes'
+      times: 10
+      commands:
+          - swipe:
+                start: '50%, 40%'
+                end: '50%, 22%'
+                duration: 500
+- assertVisible: 'Show \d+ recipes?|Show recipes'
 - tapOn: 'Show \d+ recipes?|Show recipes'
 - extendedWaitUntil:
       visible: 'No recipes match these filters'

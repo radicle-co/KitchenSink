@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * @module @commise/features-account — the recipe library's grid/list choice as an ACCOUNT setting (ADR-0059, owner
  * ruling 2026-10-17). It was a cookie on web and device storage on native; both are gone, so the choice follows the cook

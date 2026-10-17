@@ -30,6 +30,8 @@ import { HydrationBoundary } from '@tanstack/react-query';
 
 import { ProfileServiceClient, profileServiceKeys } from '@commise/features-account';
 import { SETTINGS_DEFAULTS } from '@kitchensink/schema-identity';
+
+import { SETTINGS_PREFETCH_DEADLINE_MS } from '@/lib/prefetchUserSettings';
 import { makeCollection, makeRecipe, makeRecipeDetail } from '@kitchensink/recipe-core/testing';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { recipeServiceKeys } from '@kitchensink/recipe-service-client/hooks';
@@ -150,6 +152,32 @@ describe('[locale]/recipes/page.tsx SSR prefetch', () => {
 
         expect(queries).toHaveLength(1);
         expect(queries[0]?.queryKey).toEqual(recipeServiceKeys.recipeLibrary({ sortBy: 'updatedAt' }));
+    });
+
+    it('does not wait on a settings read that never answers: the page renders with the library alone', async () => {
+        mockAuthed();
+        vi.useFakeTimers();
+        vi.spyOn(RecipeServiceClient.prototype, 'listRecipes').mockResolvedValue({
+            data: [],
+            page: 1,
+            pageSize: 100,
+            total: 0,
+            hasMore: false,
+        });
+        vi.spyOn(ProfileServiceClient.prototype, 'getSettings').mockReturnValue(new Promise(() => undefined));
+
+        try {
+            const rendering = RecipesPage({ params: Promise.resolve({ locale: 'en' }) });
+
+            await vi.advanceTimersByTimeAsync(SETTINGS_PREFETCH_DEADLINE_MS);
+            const queries = dehydratedQueries(await rendering);
+
+            expect(queries.map((query) => query.queryKey)).toEqual([
+                recipeServiceKeys.recipeLibrary({ sortBy: 'updatedAt' }),
+            ]);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('hands the container no view of its own: the cache carries the choice, not a prop or a cookie', async () => {

@@ -8,31 +8,51 @@
  * .settings()`): the first render is the cook's choice, and the shell's own settings read (the `/` shortcut) finds the
  * answer already cached, which saves a request on every such page.
  *
- * It never throws and never blocks on a failure: `prefetchQuery` swallows its query's error and `dehydrate()` leaves out
- * a query that did not succeed, so an identity outage degrades to the width's default view (and the client's own read),
- * not a 500. The client built here has NO `onUnauthorized`: web's sign-in bounce navigates the browser, and there is none
- * on the server.
+ * ⛔ IT MUST NOT COST THE PAGE ITS FIRST BYTE. A FAILURE is free: `prefetchQuery` swallows its query's error and
+ * `dehydrate()` leaves out a query that did not succeed, so an identity outage degrades to the width's default view (and
+ * the client's own read), not a 500. A HANG is not free: `ProfileServiceClient` bounds no request, so an identity service
+ * that accepts a connection and never answers would hold the server render until the platform's limit. The read is
+ * therefore raced against {@link SETTINGS_PREFETCH_DEADLINE_MS}; past it the page renders without the setting and the
+ * client reads it. The late answer is discarded: it settles after `dehydrate()` has run.
+ *
+ * The client is the web factory's (`createProfileServiceClient`, the one web path to identity). Its 401 recovery
+ * navigates the browser and is a no-op where there is no `window`, which is the server.
  *
  * @sideEffect Sends `GET /api/v1/users/me/settings` with the viewer's session token.
  */
-import { ProfileServiceClient, profileQueries } from '@commise/features-account';
+import { profileQueries } from '@commise/features-account';
 import type { QueryClient } from '@tanstack/react-query';
 
-import { IDENTITY_SERVICE_BASE_URL } from '@/lib/identityServiceClient';
+import { createProfileServiceClient } from '@/lib/identityServiceClient';
+
+/**
+ * How long a page waits for the settings before it renders without them. The read is one primary-key lookup, so this is
+ * generous for a healthy service, and it runs beside the library read (which takes longer), so a healthy page never waits
+ * on it.
+ */
+export const SETTINGS_PREFETCH_DEADLINE_MS = 1500;
 
 /**
  * Prefetch the signed-in viewer's settings into a server `QueryClient`.
  *
  * @param queryClient - The request's server query client, which the page dehydrates.
  * @param token - The viewer's session token, or `null` when the session yields none (nothing is requested).
- * @returns Resolves when the read settles, success or failure.
+ * @returns Resolves when the read settles or the deadline passes, whichever is first.
  */
 export async function prefetchUserSettings(queryClient: QueryClient, token: string | null): Promise<void> {
     if (token === null) {
         return;
     }
 
-    const client = new ProfileServiceClient({ baseUrl: IDENTITY_SERVICE_BASE_URL, token });
+    const read = queryClient.prefetchQuery(profileQueries(createProfileServiceClient(token)).settings());
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, SETTINGS_PREFETCH_DEADLINE_MS);
+    });
 
-    await queryClient.prefetchQuery(profileQueries(client).settings());
+    try {
+        await Promise.race([read, deadline]);
+    } finally {
+        clearTimeout(timer);
+    }
 }

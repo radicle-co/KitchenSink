@@ -13,9 +13,15 @@ import { gotoAfterSettingsRead, mockSettingsApi } from './utils/settingsApi';
  * save puts the view back and says so.
  *
  * The identity service is mocked at the network edge by the stateful settings fake (`utils/settingsApi.ts`), so the spec
- * asserts exactly what reaches the wire and what a reload reads back. The server's own settings read (SSR) is not
- * interceptable from the page; with no identity service behind it, it fails and the client's read supplies the setting,
- * which is the degraded path the production page also takes when identity is down.
+ * asserts exactly what reaches the wire and what a reload reads back.
+ *
+ * ⚠️ The Next SERVER's own settings read (SSR, `lib/prefetchUserSettings`) cannot be intercepted from the page. In this
+ * harness `NEXT_PUBLIC_IDENTITY_API_URL` is `http://localhost:4000` (`_ci.yml`, `.env.development`), where nothing listens,
+ * so the server read fails deterministically, the dehydrated state carries no settings, and the CLIENT's read (the fake)
+ * supplies them: the same degraded path the production page takes when identity is down. The SUCCESSFUL server read, with
+ * the first paint already the cook's view, is proven by the page-function unit tests
+ * (`src/app/__tests__/dataPagePrefetch.test.tsx`), not here. A developer running this against a live local identity on
+ * :4000 gets the real account's settings from the server and not the fake's; stop it first, as for the recipe API.
  *
  * Selectors are role/label only (repo policy); no `data-testid`, no `waitForTimeout`. Serial (Clerk-authed).
  */

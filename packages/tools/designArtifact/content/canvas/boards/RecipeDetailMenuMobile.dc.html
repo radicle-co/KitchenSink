@@ -542,13 +542,20 @@
                                         <span class="m-cell-label">Difficulty</span>
                                     </div>
                                 </div>
-                                <div style="display: flex; align-items: center; gap: 8px">
+                                <div style="display: flex; align-items: center; gap: 12px">
                                     <x-import
                                         component-from-global-scope="Commise.Native.Button"
                                         variant="primary"
                                         icon="pencilLine"
                                         >Edit recipe</x-import
                                     >
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.KeepAwakeToggle"
+                                        on="{{no}}"
+                                        on-change="{{noop}}"
+                                        label="Screen on"
+                                        display="labelled"
+                                    ></x-import>
                                 </div>
                                 <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px">
                                     <p class="m-desc">
@@ -745,13 +752,6 @@
                                     <div class="m-sec-head">
                                         <h2 id="steps" class="m-h2" style="margin-inline-end: auto">Steps</h2>
                                         <x-import
-                                            component-from-global-scope="Commise.Native.KeepAwakeToggle"
-                                            on="{{no}}"
-                                            on-change="{{noop}}"
-                                            label="Screen on"
-                                            display="labelled"
-                                        ></x-import
-                                        ><x-import
                                             component-from-global-scope="Commise.Native.Button"
                                             variant="ghost"
                                             size="sm"
@@ -760,7 +760,6 @@
                                             >Edit</x-import
                                         >
                                     </div>
-                                    <p class="m-caption">Keeps the screen awake while you cook.</p>
                                 </div>
                                 <div class="m-steplist">
                                     <div class="m-step">

@@ -550,7 +550,6 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             'EventsOwn',
             [
                 'events:DeleteEventBus',
-                'events:DeleteRule',
                 'events:Describe*',
                 'events:DisableRule',
                 'events:EnableRule',
@@ -563,13 +562,14 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ['AWS::Events::Rule', 'AWS::Events::EventBus'],
             own,
         ),
-        // CloudFormation sets a new rule's targets BEFORE it tags the rule, so the tier tag may be absent: allowed when
-        // it is this tier's OR absent. A generated rule name is truncated and carries no stage, so the name alone would
-        // reach the other tier's rules; `DeleteRule` stays fully tag-gated for that reason (executionPolicyScoping).
+        // CloudFormation sets a new rule's targets BEFORE it tags the rule, and a rollback deletes a rule that never got
+        // its tag (two per-PR stacks stuck DELETE_FAILED, 2026-10-17), so the tier tag may be absent: allowed when it is
+        // this tier's OR absent. A generated rule name is truncated and carries no stage, so the condition, never the
+        // name, keeps another tier's TAGGED rule out of reach (the other-tier tag Deny refuses it as well).
         allow(
             'observe',
             'EventsRuleTargets',
-            ['events:PutTargets', 'events:RemoveTargets'],
+            ['events:DeleteRule', 'events:PutTargets', 'events:RemoveTargets'],
             [arn('events', `rule/${KS}`), arn('events', `rule/*/${KS}`)],
             [],
             { StringEqualsIfExists: { [RESOURCE_TIER_TAG]: tierTagValue(qualifier) } },

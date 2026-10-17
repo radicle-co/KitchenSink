@@ -390,7 +390,7 @@ describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod])('executionPolicy(%s) — pe
 /**
  * The second round of per-PR creates (Sandbox Up rerun, 2026-10-17). Each acts on a resource BEFORE CloudFormation has
  * tagged it, so a tier-tag condition cannot hold and the resource's own name is its scope:
- * a new mapping (no grant existed), a new rule's targets (set before the rule is tagged; the tier tag may be absent), a
+ * a new mapping (no grant existed), a new rule's targets and its delete (set before the rule is tagged, deleted by a rollback that lands before it), a
  * dashboard's tags, and the tags of a table's stream (refused, so CloudFormation made the table with NO tags at all).
  */
 describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod])('executionPolicy(%s) — acts before the tag', (qualifier) => {
@@ -423,7 +423,7 @@ describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod])('executionPolicy(%s) — ac
         ).toBe(false);
     });
 
-    it.each(['events:PutTargets', 'events:RemoveTargets'])(
+    it.each(['events:PutTargets', 'events:RemoveTargets', 'events:DeleteRule'])(
         '%s on its own untagged rule, never on the other tier rule',
         (action) => {
             expect(evaluates(rendered(), action, a('events', `rule/kitchensink-recipe-band-drain-${stage}`))).toBe(
@@ -451,4 +451,27 @@ describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod])('executionPolicy(%s) — ac
         expect(evaluates(rendered(), 'dynamodb:TagResource', stream(`kitchensink-messages-${stage}`))).toBe(true);
         expect(evaluates(rendered(), 'dynamodb:TagResource', stream(`kitchensink-messages-${otherStage}`))).toBe(false);
     });
+});
+
+describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod])('executionPolicy(%s) — rules of the other tier', (qualifier) => {
+    const other = tierTagValue(qualifier === QUALIFIERS.nonprod ? QUALIFIERS.prod : QUALIFIERS.nonprod);
+    const rendered = (): PolicyDocument =>
+        JSON.parse(
+            JSON.stringify({
+                Version: '2012-10-17',
+                Statement: buildExecutionPolicy(qualifier).flatMap((part) => part.document.Statement),
+            })
+                .replaceAll('<region>', 'us-east-1')
+                .replaceAll('<account>', '040663841500'),
+        ) as PolicyDocument;
+    // A truncated generated name carries no stage: only the other tier's TAG can refuse it.
+    const truncated =
+        'arn:aws:events:us-east-1:040663841500:rule/kitchensink-identity-webh-ReconciliationScheduleAC1-ZT61';
+
+    it.each(['events:DeleteRule', 'events:PutTargets', 'events:RemoveTargets', 'events:DisableRule'])(
+        '%s is refused on a truncated rule tagged for the other tier',
+        (action) => {
+            expect(evaluates(rendered(), action, truncated, { [RESOURCE_TAG]: other })).toBe(false);
+        },
+    );
 });

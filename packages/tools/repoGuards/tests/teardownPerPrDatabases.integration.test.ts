@@ -106,8 +106,10 @@ case "$1 $2" in
     'cloudformation list-stacks')
         case "$*" in
             # The settle wait asks for the IN-PROGRESS states. \`AWS_STUB_SETTLE_AFTER\` is how many polls still
-            # report them before the deploy finishes; unset means they never finish.
-            *IN_PROGRESS*)
+            # report them before the deploy finishes; unset means they never finish. Told apart from the resting
+            # list by CREATE_IN_PROGRESS, which only the in-progress list holds (the resting list ends in
+            # REVIEW_IN_PROGRESS, so a bare *IN_PROGRESS* would match both).
+            *CREATE_IN_PROGRESS*)
                 [ -n "\${AWS_STUB_LIST_FAILS:-}" ] && exit 255
                 polls=$(cat "$AWS_STUB_DIR/inprogress-polls" 2>/dev/null || echo 0)
                 echo $((polls + 1)) > "$AWS_STUB_DIR/inprogress-polls"
@@ -487,7 +489,7 @@ describe("teardown waits for the PR's in-flight deploys before it drops the data
     it('⛔ drops only AFTER the in-progress stack has settled, and polls until then', () => {
         const { calls, status } = run('pr-73', IN_FLIGHT, { AWS_STUB_SETTLE_AFTER: '2' });
         const lastPoll = calls
-            .map((call, i) => (call.includes('IN_PROGRESS') ? i : -1))
+            .map((call, i) => (call.includes('CREATE_IN_PROGRESS') ? i : -1))
             .reduce((a, b) => Math.max(a, b));
 
         expect(polls(), 'two polls still saw it, the third saw it settled').toBe(3);

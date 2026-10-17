@@ -25,9 +25,12 @@ appId: ${APP_ID}
 onFlowComplete:
     - launchApp:
           clearState: true
+    - runFlow: ../auth/signOutIfSignedIn.yaml
 ---
 - launchApp:
       clearState: true
+# iOS keeps the Keychain session across the clear (the sub-flow says why), so the signer is signed out first.
+- runFlow: ../auth/signOutIfSignedIn.yaml
 - runFlow:
       file: ../auth/signin.yaml
       env:
@@ -88,6 +91,12 @@ onFlowComplete:
 
 # ── A collection's ⋯ Make public (plan 2026-10-14-009 T1) ─────────────────────────────────────────────────────────────
 # The same confirm, in the collection's own words. Back out of the recipe, then open the cook's one private collection.
+# Closing the editor lands on the recipe page, where the Collections segment is not. The detail's Back is named for where
+# it goes ("Back to My recipes"), so it is unique: the system navigation bar publishes a node named exactly `Back`.
+- extendedWaitUntil:
+      visible: 'Back to My recipes'
+      timeout: 20000
+- tapOn: 'Back to My recipes'
 - tapOn: 'Collections'
 - extendedWaitUntil:
       visible: '${E2E_DOWNGRADED_COLLECTION}(, .*)?'

@@ -162,6 +162,13 @@ const allow = (
 const isRead = (pattern: string): boolean => isReadOnlyPattern(iamCatalogueSnapshot, pattern);
 
 /**
+ * Reads that stay under the tier tag, against the rule that reads are scoped by name only. A secret's VALUE is the
+ * secret: CloudFormation reads it only to resolve a dynamic reference to a secret that already exists, so no
+ * create-time read needs it ungated, and CDK's generated secret names carry no `kitchensink` prefix to scope by.
+ */
+export const TAG_GATED_READS: readonly string[] = ['secretsmanager:GetSecretValue'];
+
+/**
  * An Allow for resources that carry the tier tag: mutations and deletes keep the tag condition, READS do not.
  *
  * CloudFormation's resource handlers read before they create (an existence or attribute check on a resource that has
@@ -721,6 +728,7 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             [],
             own,
         ),
+        allow('data', 'SecretsValueByTier', TAG_GATED_READS, [arn('secretsmanager', 'secret:*')], [], own),
         allow('data', 'SecretsCreate', ['secretsmanager:CreateSecret', 'secretsmanager:GetRandomPassword'], ['*']),
         allow(
             'data',

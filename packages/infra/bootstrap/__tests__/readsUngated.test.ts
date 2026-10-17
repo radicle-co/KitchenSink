@@ -12,7 +12,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { buildExecutionPolicy } from '../src/executionPolicy.js';
+import { buildExecutionPolicy, TAG_GATED_READS } from '../src/executionPolicy.js';
 import { iamLike } from '../src/iamPattern.js';
 import { isReadOnlyPattern, readOnlyActionsMatching } from '../src/iamCatalogue.js';
 import { QUALIFIERS, TIER_TAG_KEY } from '../src/qualifiers.js';
@@ -65,7 +65,7 @@ describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod, QUALIFIERS.account])('execut
                 (statement) =>
                     statement.Effect === 'Allow' && JSON.stringify(statement.Condition ?? {}).includes(TAG_KEY),
             ).flatMap((statement) =>
-                statement.Action.flatMap((action) =>
+                statement.Action.filter((action) => !TAG_GATED_READS.includes(action)).flatMap((action) =>
                     readOnlyActionsMatching(iamCatalogue, action).map(
                         (read) => `${statement.Sid}: ${action} -> ${read}`,
                     ),
@@ -74,6 +74,39 @@ describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod, QUALIFIERS.account])('execut
         );
 
         expect(leaks).toEqual([]);
+    });
+});
+
+/**
+ * The one exception: a secret's VALUE. CloudFormation reads it only to resolve a dynamic reference to a secret that
+ * already exists (an RDS instance's `{{resolve:secretsmanager:...}}`), so there is no create-time read to protect,
+ * and an ungated `GetSecretValue` on `secret:*` would hand the other application's secret values to this role. The
+ * generated secret names (`DatabaseCredentialsSecret...`) carry no `kitchensink` prefix, so it cannot be scoped by
+ * name either: the tier tag is the only scope it has (first sandbox deploy, `kitchensink-data-sandbox`: "not
+ * authorized to perform: secretsmanager:GetSecretValue on ... DatabaseCredentialsSecret").
+ */
+describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod])('executionPolicy(%s) — secret values', (qualifier) => {
+    const valueGrants = buildExecutionPolicy(qualifier)
+        .flatMap((part) => part.document.Statement)
+        .filter(
+            (statement) =>
+                statement.Effect === 'Allow' &&
+                statement.Action.some((action) => iamLike(action, 'secretsmanager:GetSecretValue')),
+        );
+
+    it('grants GetSecretValue (a vacuous pass would leave a dynamic reference unresolvable)', () => {
+        expect(valueGrants.length).toBeGreaterThan(0);
+    });
+
+    it("grants it only under the qualifier's own tier tag", () => {
+        for (const statement of valueGrants) {
+            expect(JSON.stringify(statement.Condition ?? {}), statement.Sid).toContain(TAG_KEY);
+        }
+    });
+
+    it('names exactly the reads that stay tag-gated, and every one is a real read', () => {
+        expect(TAG_GATED_READS).toEqual(['secretsmanager:GetSecretValue']);
+        expect(TAG_GATED_READS.every((action) => isReadOnlyPattern(iamCatalogue, action))).toBe(true);
     });
 });
 

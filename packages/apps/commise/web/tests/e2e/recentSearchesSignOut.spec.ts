@@ -34,7 +34,9 @@ test.describe('discovery recent searches — ended by sign-out (D23)', () => {
         await page.getByRole('button', { name: 'Sign out' }).click();
         await expect(page.getByRole('textbox', { name: /email/i })).toBeVisible({ timeout: 20_000 });
 
-        await signInWithTicket(page);
+        // `force`: a signed-out context still holds Clerk's dev-browser and `__client_uat` cookies, which the helper's
+        // restored-session branch reads as a live session and then waits on a Home that never comes.
+        await signInWithTicket(page, { force: true });
         await page.goto(route('/discover'));
         await expect(page.getByRole('heading', { name: 'Trending' })).toBeVisible();
         await page.getByRole('searchbox', { name: 'Search recipes' }).click();

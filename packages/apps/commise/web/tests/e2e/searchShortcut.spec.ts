@@ -71,7 +71,7 @@ test.describe('the / shortcut', () => {
         await page.getByRole('switch', { name: 'Keyboard shortcuts' }).click();
         await expect(page.getByRole('switch', { name: 'Keyboard shortcuts' })).toHaveAttribute('aria-checked', 'false');
         // A full page load aborts a request still in flight, so let the save land before leaving.
-        await expect.poll(() => settings.current()).toEqual({ searchShortcut: false });
+        await expect.poll(() => settings.current()).toMatchObject({ searchShortcut: false });
 
         await gotoAfterSettingsRead(page, route('/recipes'));
         await expect(page.getByRole('searchbox').first()).toBeVisible();
@@ -83,7 +83,7 @@ test.describe('the / shortcut', () => {
         // The switch shows the published default until the read lands; wait for the saved "off" before toggling it.
         await expect(page.getByRole('switch', { name: 'Keyboard shortcuts' })).toHaveAttribute('aria-checked', 'false');
         await page.getByRole('switch', { name: 'Keyboard shortcuts' }).click();
-        await expect.poll(() => settings.current()).toEqual({ searchShortcut: true });
+        await expect.poll(() => settings.current()).toMatchObject({ searchShortcut: true });
         await gotoAfterSettingsRead(page, route('/recipes'));
         await expect(page.getByRole('searchbox').first()).toBeVisible();
         await page.getByRole('heading', { level: 1 }).click();

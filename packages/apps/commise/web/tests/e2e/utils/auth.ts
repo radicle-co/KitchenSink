@@ -22,8 +22,10 @@ export interface SignInOptions {
     /**
      * Mint a NEW session even if this context already holds one.
      *
-     * Only `auth.setup.ts` sets it — the step whose entire job is to create the session the fast path later
-     * reuses would otherwise short-circuit on the very state it is supposed to produce.
+     * `auth.setup.ts` sets it — the step whose entire job is to create the session the fast path later
+     * reuses would otherwise short-circuit on the very state it is supposed to produce. A session-owning spec
+     * sets it to sign in AGAIN after it ended its own session: the signed-out context still holds Clerk's cookies,
+     * which the restored-session branch cannot tell from a live session.
      */
     readonly force?: boolean;
     /**

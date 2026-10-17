@@ -217,7 +217,10 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
 
         await expect(photosRegion.getByRole('alert', { name: 'Upload failed' })).toBeVisible();
         await expect(page.getByText('That file type isn’t supported. Use a JPEG, PNG, or WebP photo.')).toBeVisible();
-        await expect(photosRegion.getByRole('button', { name: 'Remove clip.gif' })).toBeVisible();
+        // A queue tile's Remove lives in its ⋯ menu now (the tile's own Remove button moved into it), so open it.
+        await photosRegion.getByRole('button', { name: 'Actions for clip.gif' }).click();
+        await page.getByRole('menuitem', { name: 'Remove' }).click();
+        await expect(photosRegion.getByRole('alert', { name: 'Upload failed' })).toHaveCount(0);
 
         await expect(page.getByRole('status').filter({ hasText: 'Uploading photo' })).toHaveCount(0);
         await expect(photosRegion.getByRole('img', { name: /Recipe photo/ })).toHaveCount(0);

@@ -69,16 +69,57 @@ export function managedPolicySize(document: PolicyDocument): number {
     return JSON.stringify(sent).replace(/\s/gu, '').length;
 }
 
-const substitute = (text: string, context: RenderContext): string =>
-    text.replaceAll(ACCOUNT, context.account).replaceAll(REGION, context.region);
+/** A CDK token for a value only CloudFormation knows (`this.account` of an environment-agnostic stack). */
+const CDK_TOKEN = String.raw`\$\{Token\[[A-Za-z0-9_.]+\]\}`;
+const ACCOUNT_VALUE = new RegExp(String.raw`^(?:\d{12}|${CDK_TOKEN})$`, 'u');
+const REGION_VALUE = new RegExp(String.raw`^(?:[a-z]{2}(?:-[a-z]+)+-\d|${CDK_TOKEN})$`, 'u');
+
+/** Fills the placeholders of one string with replacer FUNCTIONS: a replacement string would read `$&` as a pattern. */
+const fillWith =
+    (context: RenderContext) =>
+    (text: string): string =>
+        text.replaceAll(ACCOUNT, () => context.account).replaceAll(REGION, () => context.region);
+
+const fillCondition = (condition: Condition, fill: (text: string) => string): Condition =>
+    Object.fromEntries(
+        Object.entries(condition).map(([operator, keys]) => [
+            fill(operator),
+            Object.fromEntries(
+                Object.entries(keys).map(([key, value]) => [
+                    fill(key),
+                    typeof value === 'string' ? fill(value) : value.map(fill),
+                ]),
+            ),
+        ]),
+    );
 
 /**
- * Fills the account and region placeholders.
+ * Fills the account and region placeholders, field by field. No document is serialized and re-parsed, so a value can
+ * only ever replace a placeholder inside one string, never alter the structure around it.
  *
  * @returns A new document; the table it came from is untouched. Pure.
+ * @throws When the account is not a twelve-digit id (or a CDK token) or the region is not a region (or a CDK token).
  */
 export function renderDocument(document: PolicyDocument, context: RenderContext): PolicyDocument {
-    return JSON.parse(substitute(JSON.stringify(document), context)) as PolicyDocument;
+    if (!ACCOUNT_VALUE.test(context.account)) {
+        throw new Error(`renderDocument: "${context.account}" is not a twelve-digit account id`);
+    }
+
+    if (!REGION_VALUE.test(context.region)) {
+        throw new Error(`renderDocument: "${context.region}" is not a region`);
+    }
+
+    const fill = fillWith(context);
+
+    return {
+        ...document,
+        Statement: document.Statement.map((statement) => ({
+            ...statement,
+            Action: statement.Action.map(fill),
+            Resource: statement.Resource.map(fill),
+            ...(statement.Condition === undefined ? {} : { Condition: fillCondition(statement.Condition, fill) }),
+        })),
+    };
 }
 
 /** Every action of every statement with this effect. */

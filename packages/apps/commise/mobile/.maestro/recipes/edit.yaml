@@ -144,7 +144,11 @@ appId: ${APP_ID}
 - tapOn: 'Step 5'
 - inputText: 'Combine everything and simmer.'
 
-# Save changes is the pinned action bar's primary, on screen wherever the page is scrolled: ONE write.
+# Save changes is the pinned action bar's primary: ONE write.
+# The step field keeps the soft keyboard up, and while it is up the action bar UNPINS and scrolls with the page, below
+# this screen (build spec §7.1, "Keyboard open (phones)"). Close the keyboard from the first section's heading and the
+# bar pins to the foot again, wherever the page is scrolled.
+- runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Save changes'
 # Back on the detail with the new title (regex tolerates Maestro's occasional last-char input dup).
 - extendedWaitUntil:

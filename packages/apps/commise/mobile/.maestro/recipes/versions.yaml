@@ -92,6 +92,9 @@ appId: ${APP_ID}
 # which the save below would refuse.
 - tapOn: 'Step 5'
 - inputText: 'Marinate for two hours.'
+# The soft keyboard is up and the action bar has UNPINNED with it, so the bar is below this screen (build spec §7.1,
+# "Keyboard open (phones)"). The first heading closes the keyboard and pins the bar again.
+- runFlow: common/closeEditorKeyboard.yaml
 # The seeded lamb is PUBLISHED, so the pinned bar's primary is `Save changes`: ONE write, one version (owner
 # decision D1 — a published recipe's checkpoints never reach the server, so no extra versions appear).
 - tapOn: 'Save changes'

@@ -1,0 +1,164 @@
+name: Infra image
+description: >-
+    Build and push ONE service image to ECR, tagged `<stage>-<sha>`. It runs in a job of its own that starts with the
+    workflow, so a service's multi-minute image build is off the deploy critical path; the job that deploys the image
+    (`infra-package`) only consumes the tag.
+
+# ⛔ WHY THIS IS NOT A STEP OF THE DEPLOY ANY MORE
+#
+# `recipe-service` sits at the end of the longest chain in a preview (global, recipe-schema, recipe-workers, recipe-service)
+# and its deploy job spent about six minutes of that chain building and pushing an image no earlier job has any
+# bearing on: the image is a function of the commit, and its tag is the commit. A dependency on the chain existed
+# only because the build lived in the same job as the deploy.
+#
+# The properties the old step kept are kept here, deliberately and in the same order:
+#   • the repository EXISTS, with release tags immutable and the retention policy applied (`ecrEnsureRepo.sh`);
+#   • a release tag (`prod-<sha>`) is never pushed twice and a skip trusts only the production ledger
+#     (`ecrPushVerdict.sh`, `ecrRecordRelease.sh`); a preview tag is mutable and always rebuilt;
+#   • the pruned build context the Dockerfile COPYs from.
+# The one property that cannot cross a job boundary by itself, "the stack never references a tag nothing pushed", is
+# restored by the deploy job asking ECR before it deploys (`ecrImagePresent.sh`).
+#
+# ⚠️ The layer cache is the GitHub Actions cache, scoped to the repository so three images never evict each other's
+# layers, and `mode=min`: only the final image's layers are exported. `mode=max` would also store the build stages,
+# which these Dockerfiles do not reuse, against a repository cache that is close to its cap. Attestations are off:
+# an attestation manifest makes the pushed object an index with a different digest than the plain image the
+# production release ledger has always recorded.
+
+inputs:
+    stage:
+        description: The deploy stage (`sandbox`, `prod`, `pr-{N}`); it is part of the image tag.
+        required: true
+    node-auth-token:
+        description: Token for GitHub Packages, which the root workspace install authenticates against.
+        required: true
+    workspace-package:
+        description: The npm workspace package the image ships (e.g. `@kitchensink/food-service`).
+        required: true
+    workspace-dir:
+        description: The same package's directory, for the `--workspace=` form npm scripts take.
+        required: true
+    ecr-repo:
+        description: The ECR repository to push to (e.g. `kitchensink-food`).
+        required: true
+    dockerfile:
+        description: Path to the Dockerfile, relative to the repository root.
+        required: true
+    image-build-context:
+        description: >-
+            How the Docker build context is prepared. REQUIRED: the two strategies are not interchangeable and a wrong
+            guess fails only after a multi-minute image build.
+            `turbo-prune` cuts the context to the package's dependency closure under `.docker-prune/<prune-dir>`; the
+            Dockerfile COPYs from that exact path, so `prune-dir` is part of the CONTRACT, not a label.
+            `npm-prune` strips dev dependencies from the ROOT `node_modules` and builds from the repository root, which is
+            what a Dockerfile that COPYs `node_modules` plus per-package `dist` requires.
+        required: true
+    prune-dir:
+        description: The `.docker-prune/<name>` directory when `image-build-context` is `turbo-prune`.
+        required: false
+        default: ''
+
+outputs:
+    image-tag:
+        description: The tag this job pushed (or, for an already-recorded release tag, found).
+        value: ${{ steps.tag.outputs.tag }}
+
+runs:
+    using: composite
+    steps:
+        - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+          with:
+              node-version: 24
+
+        - name: Resolve the image tag
+          id: tag
+          shell: bash
+          env:
+              STAGE: ${{ inputs.stage }}
+              SHA: ${{ github.sha }}
+          run: echo "tag=$(bash .github/scripts/imageTag.sh "${STAGE}" "${SHA}")" >> "$GITHUB_OUTPUT"
+
+        # ⛔ The ROOT workspace, as in `infra-package`: `turbo` and the `@kitchensink/*` packages resolve from here.
+        - name: Install the root workspace
+          shell: bash
+          env:
+              NODE_AUTH_TOKEN: ${{ inputs.node-auth-token }}
+          run: npm ci --no-audit --no-fund
+
+        # The package and its dependency closure, then the production manifest the Dockerfile COPYs.
+        # ⛔ No `--if-present` on `docker:prepare`: it exists on exactly the containerized services, which are the only
+        # callers, so a renamed script must fail here instead of building the image from the DEV manifest.
+        - name: Build the workspace package this image ships
+          shell: bash
+          env:
+              PKG: ${{ inputs.workspace-package }}
+              DIR: ${{ inputs.workspace-dir }}
+          run: |
+              set -euo pipefail
+              npx turbo run build --filter="${PKG}"
+              npm run docker:prepare --workspace="${DIR}"
+
+        - name: Login to Amazon ECR
+          uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+          id: ecr
+
+        - name: Prepare the repository and the build context, and decide whether to push
+          id: verdict
+          shell: bash
+          env:
+              REPO: ${{ inputs.ecr-repo }}
+              PKG: ${{ inputs.workspace-package }}
+              BUILD_CONTEXT: ${{ inputs.image-build-context }}
+              PRUNE_DIR: ${{ inputs.prune-dir }}
+              IMAGE_TAG: ${{ steps.tag.outputs.tag }}
+          run: |
+              set -euo pipefail
+              bash .github/scripts/ecrEnsureRepo.sh "${REPO}"
+              case "${BUILD_CONTEXT}" in
+                  turbo-prune)
+                      # The out-dir is the Dockerfile's own COPY path. Renaming it here breaks the build
+                      # AFTER the push has already spent its minutes.
+                      npx turbo prune "${PKG}" --docker --out-dir=".docker-prune/${PRUNE_DIR}"
+                      ;;
+                  npm-prune)
+                      # Strips dev dependencies from the ROOT node_modules, which this Dockerfile COPYs
+                      # wholesale. This job runs nothing after the build, so the prune cannot affect another step.
+                      npm prune --omit=dev
+                      ;;
+                  *)
+                      echo "::error::image-build-context must be 'turbo-prune' or 'npm-prune' (got '${BUILD_CONTEXT}')" >&2
+                      exit 1
+                      ;;
+              esac
+              # A release tag (`prod-<sha>`) is immutable, so a rerun of this commit must not push it again;
+              # a preview tag is mutable and always rebuilt (ecrPushVerdict.sh decides).
+              verdict="$(bash .github/scripts/ecrPushVerdict.sh "${REPO}" "${IMAGE_TAG}")"
+              echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
+
+        - name: Set up Docker Buildx
+          if: steps.verdict.outputs.verdict == 'push'
+          uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+        - name: Build and push the container image
+          if: steps.verdict.outputs.verdict == 'push'
+          uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+          with:
+              context: .
+              file: ${{ inputs.dockerfile }}
+              platforms: linux/amd64
+              push: true
+              tags: ${{ steps.ecr.outputs.registry }}/${{ inputs.ecr-repo }}:${{ steps.tag.outputs.tag }}
+              cache-from: type=gha,scope=${{ inputs.ecr-repo }}
+              cache-to: type=gha,scope=${{ inputs.ecr-repo }},mode=min
+              provenance: false
+              sbom: false
+
+        # A release tag's digest goes in the production ledger, the only proof a later rerun may skip on;
+        # a preview tag is a no-op (ecrRecordRelease.sh).
+        - name: Record the release digest
+          if: steps.verdict.outputs.verdict == 'push'
+          shell: bash
+          env:
+              REPO: ${{ inputs.ecr-repo }}
+              IMAGE_TAG: ${{ steps.tag.outputs.tag }}
+          run: bash .github/scripts/ecrRecordRelease.sh "${REPO}" "${IMAGE_TAG}"

@@ -113,8 +113,8 @@ function prunedImageFacts(): readonly PrunedImageFacts[] {
         .filter((file) => file.endsWith('.yml') || file.endsWith('.yaml'))
         .map((file) => ({ file, text: readFileSync(join(WORKFLOW_DIR, file), 'utf8') }));
 
-    // ⛔ THE SECOND KIND OF BUILDER. `deployInfra.yml` builds every service image through the composite
-    // action, which parameterises BOTH halves this guard matches on: the Dockerfile path and the prune
+    // ⛔ THE SECOND KIND OF BUILDER. `deployInfra.yml` builds every service image through the `infra-image`
+    // composite action (in a job of its own, off the deploy chain), which parameterises BOTH halves this guard matches on: the Dockerfile path and the prune
     // directory are inputs (`docker buildx build -f "${DOCKERFILE}"`, `--out-dir=".docker-prune/${PRUNE_DIR}"`),
     // so the literals live at the CALL SITE and a text scan of the workflows sees neither. Scanning text
     // alone silently dropped this builder to zero and left `prod-deploy.yml` asserting on its own.
@@ -125,7 +125,7 @@ function prunedImageFacts(): readonly PrunedImageFacts[] {
             }
         ).jobs ?? {},
     ).flatMap(([job, definition]) => {
-        const step = (definition.steps ?? []).find(({ uses }) => uses?.endsWith('infra-package'));
+        const step = (definition.steps ?? []).find(({ uses }) => uses?.endsWith('infra-image'));
 
         return step?.with?.['dockerfile'] ? [{ job, inputs: step.with }] : [];
     });
@@ -171,7 +171,7 @@ function intact(): PrunedImageFacts {
         outDir: '.docker-prune/food',
         copiesRootNodeModules: false,
         installsFromSkeleton: true,
-        builders: ['deployInfra.yml::food-service', 'prod-deploy.yml'],
+        builders: ['deployInfra.yml::image-food-service', 'prod-deploy.yml'],
         buildersMissingPrune: [],
     };
 }
@@ -263,9 +263,11 @@ describe("food's image installs its own dependency closure, on every path that b
     it('is not vacuous: both known pipelines build it', () => {
         const [food] = prunedImageFacts();
 
-        // ⚠️ `deployInfra.yml::food-service`, not `sandboxPreview.yml`: the preview's two deploy jobs were
+        // ⚠️ `deployInfra.yml::image-food-service`, not `sandboxPreview.yml`: the preview's two deploy jobs were
         // retired so one workflow owns every `cdk deploy`, and the image build went with them.
-        expect(food?.builders).toEqual(expect.arrayContaining(['deployInfra.yml::food-service', 'prod-deploy.yml']));
+        expect(food?.builders).toEqual(
+            expect.arrayContaining(['deployInfra.yml::image-food-service', 'prod-deploy.yml']),
+        );
     });
 
     it('holds across the Dockerfile and every workflow that builds it', () => {

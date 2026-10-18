@@ -333,7 +333,7 @@ describe('ecrRecordRelease.sh: production records the digest it pushed', () => {
 
 describe('every caller of ecrPushVerdict.sh also records what it pushes', () => {
     // A skip trusts the ledger, so a push that never writes it turns the next rerun of that commit into a hard stop.
-    const callers = ['.github/workflows/prod-deploy.yml', '.github/actions/infra-package/action.yml'];
+    const callers = ['.github/workflows/prod-deploy.yml', '.github/actions/infra-image/action.yml'];
 
     it.each(callers)('%s records once per verdict it asks for', (file) => {
         const text = readFileSync(path.join(repoRoot, file), 'utf8');

@@ -90,11 +90,11 @@ inputs:
         required: false
         default: ''
     ecr-repo:
-        description: The ECR repository to push to (e.g. `kitchensink-food`). Empty means this app ships no image.
-        required: false
-        default: ''
-    dockerfile:
-        description: Path to the Dockerfile, relative to the repository root.
+        description: >-
+            The ECR repository this app's image lives in (e.g. `kitchensink-food`). Empty means this app ships no image.
+            ⛔ The image is BUILT AND PUSHED by a separate job (`infra-image`, which starts with the workflow); this action
+            only checks the tag is there before it deploys. The build inputs (`dockerfile`, `image-build-context`,
+            `prune-dir`) live on that action.
         required: false
         default: ''
     drift:
@@ -117,23 +117,6 @@ inputs:
         description: >-
             The stage that owns the shared platform tier. Defaults to `prod` for prod and `sandbox` for
             everything else, which is what makes a `pr-{N}` preview import sandbox's VPC and database.
-        required: false
-        default: ''
-    image-build-context:
-        description: >-
-            How the Docker build context is prepared — REQUIRED whenever `ecr-repo` is set, and there is no
-            default because the two strategies are not interchangeable and a wrong guess fails only after a
-            multi-minute image build.
-            `turbo-prune` cuts the context to the package's dependency closure under `.docker-prune/<dir>`;
-            the Dockerfile COPYs from that exact path, so `prune-dir` is part of the CONTRACT, not a label.
-            `npm-prune` strips dev dependencies from the ROOT `node_modules` and builds from the repository
-            root, which is what a Dockerfile that COPYs `node_modules` plus per-package `dist` requires.
-        required: false
-        default: ''
-    prune-dir:
-        description: >-
-            The `.docker-prune/<name>` directory, when `image-build-context` is `turbo-prune`. MUST equal
-            the name the Dockerfile COPYs from.
         required: false
         default: ''
     schema-only:
@@ -241,7 +224,7 @@ runs:
               TAG_ENV: ${{ inputs.image-tag-env }}
           run: | # zizmor: ignore[github-env] — all writes via safeEnv.sh (safeEnv.test.ts)
               set -euo pipefail
-              tag="${STAGE}-${SHA}"
+              tag="$(bash .github/scripts/imageTag.sh "${STAGE}" "${SHA}")"
               bash .github/scripts/safeEnv.sh IMAGE_TAG "${tag}"
               bash .github/scripts/safeEnv.sh "${TAG_ENV}" "${tag}"
 
@@ -448,55 +431,17 @@ runs:
               STAGE: ${{ inputs.stage }}
           run: npm run synth
 
-        # ⛔ The image is pushed AFTER synth and BEFORE deploy, and it is tagged with the tag the template
-        # already references — so the deploy cannot point ECS at a tag that does not exist. Pushing after
-        # the deploy would start the task before its image landed; pushing before synth would spend a
-        # multi-minute build on an app that does not compile.
-        - name: Login to Amazon ECR
-          if: inputs.ecr-repo != '' && inputs.deploy == 'true' && inputs.schema-only != 'true'
-          uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
-          id: ecr
-
-        - name: Build, tag and push the container image
+        # ⛔ The image is built and pushed by ANOTHER job (`infra-image`), tagged with the tag the template already
+        # references, so this job can no longer observe its own push. Asking ECR here keeps the property the old inline
+        # push gave: the deploy cannot point ECS at a tag that does not exist. A skipped, failed or mis-selected image job
+        # is a red step that names the repository and tag, not a service that cannot pull. The AWS role is the job's own
+        # (`awsAuth`), read-only for this call.
+        - name: Confirm the image this deploy references was pushed
           if: inputs.ecr-repo != '' && inputs.deploy == 'true' && inputs.schema-only != 'true'
           shell: bash
           env:
-              ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
               REPO: ${{ inputs.ecr-repo }}
-              PKG: ${{ inputs.workspace-package }}
-              DOCKERFILE: ${{ inputs.dockerfile }}
-              BUILD_CONTEXT: ${{ inputs.image-build-context }}
-              PRUNE_DIR: ${{ inputs.prune-dir }}
-          run: |
-              set -euo pipefail
-              bash .github/scripts/ecrEnsureRepo.sh "${REPO}"
-              case "${BUILD_CONTEXT}" in
-                  turbo-prune)
-                      # The out-dir is the Dockerfile's own COPY path. Renaming it here breaks the build
-                      # AFTER the push has already spent its minutes.
-                      npx turbo prune "${PKG}" --docker --out-dir=".docker-prune/${PRUNE_DIR}"
-                      ;;
-                  npm-prune)
-                      # Strips dev dependencies from the ROOT node_modules, which this Dockerfile COPYs
-                      # wholesale. Safe here because each CDK app's own dependencies live in its `infra/`
-                      # directory, OUTSIDE the workspace, which a root prune does not touch.
-                      npm prune --omit=dev
-                      ;;
-                  *)
-                      echo "::error::image-build-context must be 'turbo-prune' or 'npm-prune' when ecr-repo is set (got '${BUILD_CONTEXT}')" >&2
-                      exit 1
-                      ;;
-              esac
-              # A release tag (`prod-<sha>`) is immutable, so a rerun of this commit must not push it again;
-              # a preview tag is mutable and always rebuilt (ecrPushVerdict.sh decides).
-              verdict="$(bash .github/scripts/ecrPushVerdict.sh "${REPO}" "${IMAGE_TAG}")"
-              if [ "${verdict}" = push ]; then
-                  docker buildx build --platform linux/amd64 -f "${DOCKERFILE}" \
-                      -t "${ECR_REGISTRY}/${REPO}:${IMAGE_TAG}" --push .
-                  # A release tag's digest goes in the production ledger, the only proof a later rerun may skip on;
-                  # a preview tag is a no-op (ecrRecordRelease.sh).
-                  bash .github/scripts/ecrRecordRelease.sh "${REPO}" "${IMAGE_TAG}"
-              fi
+          run: bash .github/scripts/ecrImagePresent.sh "${REPO}" "${IMAGE_TAG}"
 
         # ⛔ ADR-0035: deploy-schema → migrate → deploy-everything-else, and the schema stack goes
         # `--exclusively` so it lands WITHOUT dragging the app stacks that read it. Ordering the other way

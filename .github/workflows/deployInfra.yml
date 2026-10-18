@@ -162,6 +162,115 @@ jobs:
                   # `infraWorkspaceInstall.test.ts`.
                   workspace-install: 'true'
 
+    image-identity:
+        name: infra - identity image
+        runs-on: ubuntu-latest
+        timeout-minutes: 60
+        permissions:
+            contents: read
+            packages: read # the root workspace install authenticates against GitHub Packages
+            id-token: write # awsAuth (ECR push)
+        # ⛔ NO `needs:`, and that is the whole point. The image is a function of the commit and is tagged by it, so it
+        # builds while `global` and the schema stacks deploy, and `identity` finds it already in ECR. See
+        # `infra-image` for what it keeps (ensure-exists, push verdict, release ledger) and how it caches layers.
+        # Runs only when this run DEPLOYS this package: a `deploy: false` checks run pushes nothing, and the deploy job
+        # below is not skipped when this one is (its `if:` tolerates a skipped image job).
+        if: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' identity ')) }}
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - name: Sign in to AWS
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: ${{ inputs.stage != 'prod' && 'nonprod' || inputs.deploy && 'prod' || 'prod-read' }}
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - uses: ./.github/actions/infra-image
+              with:
+                  stage: ${{ inputs.stage }}
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+                  workspace-package: '@kitchensink/identity-service'
+                  workspace-dir: packages/services/identity
+                  ecr-repo: kitchensink-identity
+                  image-build-context: npm-prune
+                  dockerfile: packages/services/identity/Dockerfile
+
+    image-food-service:
+        name: infra - food-service image
+        runs-on: ubuntu-latest
+        timeout-minutes: 60
+        permissions:
+            contents: read
+            packages: read # the root workspace install authenticates against GitHub Packages
+            id-token: write # awsAuth (ECR push)
+        # ⛔ NO `needs:`, and that is the whole point. The image is a function of the commit and is tagged by it, so it
+        # builds while `global` and the schema stacks deploy, and `food-service` finds it already in ECR. See
+        # `infra-image` for what it keeps (ensure-exists, push verdict, release ledger) and how it caches layers.
+        # Runs only when this run DEPLOYS this package: a `deploy: false` checks run pushes nothing, and the deploy job
+        # below is not skipped when this one is (its `if:` tolerates a skipped image job).
+        if: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' food-service ')) }}
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - name: Sign in to AWS
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: ${{ inputs.stage != 'prod' && 'nonprod' || inputs.deploy && 'prod' || 'prod-read' }}
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - uses: ./.github/actions/infra-image
+              with:
+                  stage: ${{ inputs.stage }}
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+                  workspace-package: '@kitchensink/food-service'
+                  workspace-dir: packages/services/food-service
+                  ecr-repo: kitchensink-food
+                  image-build-context: turbo-prune
+                  prune-dir: food
+                  dockerfile: packages/services/food-service/Dockerfile
+
+    image-recipe-service:
+        name: infra - recipe-service image
+        runs-on: ubuntu-latest
+        timeout-minutes: 60
+        permissions:
+            contents: read
+            packages: read # the root workspace install authenticates against GitHub Packages
+            id-token: write # awsAuth (ECR push)
+        # ⛔ NO `needs:`, and that is the whole point. The image is a function of the commit and is tagged by it, so it
+        # builds while `global` and the schema stacks deploy, and `recipe-service` finds it already in ECR. See
+        # `infra-image` for what it keeps (ensure-exists, push verdict, release ledger) and how it caches layers.
+        # Runs only when this run DEPLOYS this package: a `deploy: false` checks run pushes nothing, and the deploy job
+        # below is not skipped when this one is (its `if:` tolerates a skipped image job).
+        if: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' recipe-service ')) }}
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - name: Sign in to AWS
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: ${{ inputs.stage != 'prod' && 'nonprod' || inputs.deploy && 'prod' || 'prod-read' }}
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            - uses: ./.github/actions/infra-image
+              with:
+                  stage: ${{ inputs.stage }}
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+                  workspace-package: '@kitchensink/recipe-service'
+                  workspace-dir: packages/services/recipe-service
+                  ecr-repo: kitchensink-recipes
+                  image-build-context: npm-prune
+                  dockerfile: packages/services/recipe-service/Dockerfile
+
     identity-schema:
         name: infra — identity-schema
         runs-on: ubuntu-latest
@@ -320,7 +429,10 @@ jobs:
         # ⚠️ Reclamation jobs must NEVER be bound — a protection rule suspends them and a suspended
         # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
-        needs: [identity-schema]
+        # The image is pushed by `image-identity`, which may have been SKIPPED (this run does not deploy identity), so the
+        # default "every need succeeded" is replaced: a skipped image job is fine, a failed one is not.
+        needs: [identity-schema, image-identity]
+        if: ${{ !cancelled() && needs.identity-schema.result == 'success' && needs.image-identity.result != 'failure' && needs.image-identity.result != 'cancelled' }}
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -358,8 +470,6 @@ jobs:
                   workspace-dir: packages/services/identity
                   image-tag-env: IDENTITY_IMAGE_TAG
                   ecr-repo: kitchensink-identity
-                  image-build-context: npm-prune
-                  dockerfile: packages/services/identity/Dockerfile
 
             # ⛔ identity is SHARED, never per-PR — a `pr-{N}` stage signs in against the sandbox instance —
             # so its origin is keyed on prod-or-not, not on the stage name.
@@ -484,8 +594,10 @@ jobs:
         # read, so the order is stated here or it does not exist. A remote-search job that ran and deployed nothing
         # (deselected, or unchanged) is not a failure, which is the `deploy-recipe` after `deploy-food` shape
         # (ADR-0010 §5); the explicit `food-schema` success replaces the default the custom `if:` turns off.
-        needs: [food-schema, remote-search]
-        if: ${{ !cancelled() && needs.food-schema.result == 'success' && needs.remote-search.result != 'failure' }}
+        # `image-food-service` is a need for the same reason: the image is built off this chain and this job only
+        # consumes the tag. Skipped (not deploying food) is fine; failed is not.
+        needs: [food-schema, remote-search, image-food-service]
+        if: ${{ !cancelled() && needs.food-schema.result == 'success' && needs.remote-search.result != 'failure' && needs.image-food-service.result != 'failure' && needs.image-food-service.result != 'cancelled' }}
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -514,9 +626,6 @@ jobs:
                   image-tag-env: FOOD_IMAGE_TAG
                   seed-ref: kitchensink-food-schema:FoodSeedFunctionName
                   ecr-repo: kitchensink-food
-                  image-build-context: turbo-prune
-                  prune-dir: food
-                  dockerfile: packages/services/food-service/Dockerfile
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
 
             # ⛔ A RETRY LOOP, not a single probe: `cdk deploy` returns once ECS reports the service stable,
@@ -627,7 +736,8 @@ jobs:
         # ⚠️ Reclamation jobs must NEVER be bound — a protection rule suspends them and a suspended
         # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
-        needs: [recipe-schema]
+        needs: [recipe-schema, image-recipe-service]
+        if: ${{ !cancelled() && needs.recipe-schema.result == 'success' && needs.image-recipe-service.result != 'failure' && needs.image-recipe-service.result != 'cancelled' }}
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -656,8 +766,6 @@ jobs:
                   workspace-dir: packages/services/recipe-service
                   image-tag-env: RECIPE_IMAGE_TAG
                   ecr-repo: kitchensink-recipes
-                  image-build-context: npm-prune
-                  dockerfile: packages/services/recipe-service/Dockerfile
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
 
             - name: Smoke — recipe service live, browser-reachable and CURRENT

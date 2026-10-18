@@ -362,7 +362,7 @@ export const FIXTURE_ENV_KEYS = {
     roleVipEmail: 'E2E_ROLE_VIP_EMAIL',
     roleSuperuserEmail: 'E2E_ROLE_SUPERUSER_EMAIL',
     // The DOWNGRADED OWNER (plan 2026-10-14-009 T2), for `recipes/makePublicConfirm.yaml`: its address and the fixed names
-    // of its private recipe and collection. Not run-scoped — it is seeded once and never reset.
+    // of its private recipe and collection. Not run-scoped — it is ensured by CI (`ensureDowngradedWorld.ts`) and never reset.
     roleDowngradedEmail: 'E2E_ROLE_DOWNGRADED_EMAIL',
     downgradedRecipe: 'E2E_DOWNGRADED_RECIPE',
     downgradedCollection: 'E2E_DOWNGRADED_COLLECTION',

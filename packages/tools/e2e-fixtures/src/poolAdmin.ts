@@ -50,17 +50,29 @@
  * that costs a Backend API call per hundred users against a limit every suite shares, and a stray user is no reason
  * to fail a mobile run whose own slots are healthy.
  *
- * ## The downgraded owner — three steps, in this order (plan 2026-10-14-009 T2)
+ * ## The downgraded owner — CI ensures its world; the by-hand path is a fallback (plan 2026-10-14-009 T2)
  *
  * `roles/roledowngraded` owns a PRIVATE recipe and a PRIVATE collection yet holds no entitled role, which the recipe
- * service refuses to create — so it is made premium, seeded, and only then downgraded. `planPool`'s `phase` decides it:
+ * service refuses to create — so it is made premium, seeded, and only then downgraded. `planPool`'s `phase` decides it.
+ *
+ * ⛔ AMENDED by owner ruling 2026-10-18: **CI rebuilds that world automatically.** The world lives in the per-PR recipe
+ * database, which Sandbox Down and the midnight reclaim drop every cycle, so the `downgraded-owner-world` job of
+ * `deployedE2eTiers.yml` runs `e2e-seed`'s `ensureDowngradedWorld.ts` once per run, before the web and Maestro tiers
+ * that read the world. It moves the lane through `setLanePhase` below — this module stays the only writer of
+ * `public_metadata`, and the job adds no writer — and only when the world is missing or stale; on the common path it
+ * writes nothing. `npm run ensure-downgraded --workspace=packages/tools/e2e-seed` is the same command for a local or
+ * owner run, and it works whether or not the owner was ever settled.
+ *
+ * The three manual steps below still exist, but they work ONLY for a lane that was never settled: step 1 never raises
+ * an already-settled user (while `seeding`, `planPool` accepts either state), so a settled owner whose world was dropped
+ * needs `ensure-downgraded`, not these.
  *
  *   1. `poolAdmin --apply` — creates it `premium` (a plain run never downgrades it, and never upgrades it again).
  *   2. `npm run seed-downgraded --workspace=packages/tools/e2e-seed` — writes its fixed world as that premium cook.
  *   3. `poolAdmin --apply --settle-downgraded` — merges its declared `default` roles. Until step 3 the report says
  *      `UNSETTLED`, and a user step 3 had to create is premium again, so the order is repeated, not skipped.
  *
- * The world is never reset (`resetPool` does not touch the `roles` tier), so the three steps are run once.
+ * The world is never reset (`resetPool` does not touch the `roles` tier); it is rebuilt only when it is found missing.
  *
  * ## Running it
  *
@@ -539,6 +551,66 @@ export async function reconcilePool(
         unsettled,
         healthy: !broken && unleasable.length === 0 && unsettled.length === 0,
     };
+}
+
+/**
+ * The ONE holder of a lane's address, or a refusal naming why there is none. Pure over the lookup it is given.
+ *
+ * @throws When nobody holds the address (not provisioned) or more than one user does (ambiguous).
+ */
+function onlyHolder(slot: PoolSlot, found: readonly ObservedPoolUser[]): ObservedPoolUser {
+    const [only, ...others] = found;
+
+    if (only === undefined) {
+        throw new Error(`poolAdmin: ${slot.email} is not provisioned — no user holds it (run poolAdmin --apply)`);
+    }
+
+    if (others.length > 0) {
+        throw new Error(`poolAdmin: more than one user holds ${slot.email} — ambiguous, nothing was written`);
+    }
+
+    return only;
+}
+
+/**
+ * Whether a lane's user carries EXACTLY the metadata a phase declares. A lane nobody holds, or two people hold, is
+ * `false`: a caller that asks "is it settled?" must not be told yes about a user it cannot identify.
+ *
+ * @sideEffect One Backend API lookup.
+ */
+export async function laneHoldsPhase(port: PoolAdminPort, slot: PoolSlot, phase: PoolPhase): Promise<boolean> {
+    const found = await port.findUsers(slot.email);
+
+    return found.length === 1 && metadataSatisfies(found[0]?.publicMetadata ?? {}, poolSlotMetadata(slot, phase));
+}
+
+/**
+ * Move ONE two-state lane (a downgraded owner) to a phase, in either direction, and prove the write held.
+ *
+ * Added 2026-10-18 for the CI job that rebuilds the downgraded owner's world: `reconcilePool` can only settle (move
+ * down) such a lane — a plain run leaves either state alone — so a settled owner whose recipe database was dropped
+ * could never be raised to be seeded again. This stays in THIS module because it writes `public_metadata`, which
+ * `metadataSingleWriter.test.ts` allows no other file to do. It merges (never replaces) and refuses every lane that
+ * has a single state, so it cannot be turned on a signer or a consumable.
+ *
+ * @throws When the lane has one state, is not provisioned, is ambiguous, or does not hold the phase after the write.
+ * @sideEffect Two Backend API lookups and one merge-PATCH of the lane's `public_metadata`.
+ */
+export async function setLanePhase(port: PoolAdminPort, slot: PoolSlot, phase: PoolPhase): Promise<void> {
+    if (slot.seedRoles === undefined) {
+        throw new Error(
+            `poolAdmin: ${slot.email} has a single state (no seedRoles) — only a downgraded owner moves between phases`,
+        );
+    }
+
+    const holder = onlyHolder(slot, await port.findUsers(slot.email));
+
+    await port.mergeMetadata(holder.id, poolSlotMetadata(slot, phase));
+
+    // Judged on a FRESH read: a PATCH that returned is not a role the next token carries.
+    if (!(await laneHoldsPhase(port, slot, phase))) {
+        throw new Error(`poolAdmin: ${slot.email} does not hold its ${phase} roles after the write — it did not take`);
+    }
 }
 
 /** 429s a reconciliation waits out before it gives up. Its creates are paced by Clerk's own retry-after. */

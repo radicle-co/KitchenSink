@@ -10,7 +10,8 @@
         ".": "./src/index.ts",
         "./session": "./src/clerkSession.ts",
         "./testPool": "./src/testPool.ts",
-        "./lease": "./src/leaseSession.ts"
+        "./lease": "./src/leaseSession.ts",
+        "./poolAdmin": "./src/poolAdmin.ts"
     },
     "scripts": {
         "test": "vitest run",

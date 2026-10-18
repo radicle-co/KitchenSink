@@ -5,6 +5,7 @@ exports[`6 — a job checks every origin it is given > discovers the jobs that a
   "_ci-heavy.yml::e2e-mobile-maestro",
   "_ci-heavy.yml::e2e-mobile-maestro-ios",
   "_ci.yml::e2e-web-report",
+  "deployedE2eTiers.yml::downgraded-owner-world",
   "deployedE2eTiers.yml::e2e-auth-boundary",
   "deployedE2eTiers.yml::e2e-backend",
   "deployedE2eTiers.yml::e2e-cross-service-linkage",

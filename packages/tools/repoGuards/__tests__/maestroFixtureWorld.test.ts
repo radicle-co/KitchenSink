@@ -40,7 +40,7 @@ const SEED_FILE = 'packages/services/recipe-service/src/database/seed.ts';
 
 /**
  * The fixture identities whose recipes `seed.ts` holds. The downgraded owner's world is written by its own seeder
- * (`DOWNGRADED_OWNER_WORLD`, `seed-downgraded`), so it has no `seed.ts` owner to stand for.
+ * (`DOWNGRADED_OWNER_WORLD`, `ensureDowngradedWorld.ts`), so it has no `seed.ts` owner to stand for.
  */
 type SeedFixtureOwner = Exclude<FixtureOwner, 'downgradedOwner'>;
 

@@ -17,7 +17,9 @@ import {
     poolProfileReassert,
     poolScopeOptions,
     poolUserCreateInput,
+    laneHoldsPhase,
     reconcilePool,
+    setLanePhase,
     type ObservedPoolUser,
     type PoolAdminPort,
     type PoolProfileReassert,
@@ -788,5 +790,84 @@ describe('the downgraded owner', () => {
         expect(created[0]?.publicMetadata['roles']).toEqual(['premium']);
         expect(report.unsettled).toEqual([owner.email]);
         expect(report.healthy).toBe(false);
+    });
+});
+
+/**
+ * One lane, one phase (2026-10-18 amendment — the CI job `downgraded-owner-world`). `reconcilePool --settle-downgraded`
+ * can only ever move a lane DOWN, so a settled owner whose world was dropped could not be raised again; `setLanePhase`
+ * moves exactly one lane either way. These tests hold what makes that safe: it refuses a lane with a single state, an
+ * absent or ambiguous holder, and a write that did not stick.
+ */
+describe('setLanePhase — move one lane between its two states', () => {
+    const owner = slotFor('roles', DOWNGRADED_OWNER_LANE_ID);
+    const holder = (phase: 'seeding' | 'settled', id = 'user_owner'): ObservedPoolUser =>
+        user(owner.email, { id, publicMetadata: { ...poolSlotMetadata(owner, phase) } });
+
+    /** A stateful port over a list of holders; `sticks: false` makes a merge a no-op, as a lost write would be. */
+    const portOver = (holders: readonly ObservedPoolUser[], sticks = true) => {
+        let current = [...holders];
+
+        return {
+            findUsers: vi.fn(async () => current),
+            listUsers: vi.fn(async () => current),
+            createUser: vi.fn(async () => ({ id: 'unused' })),
+            mergeMetadata: vi.fn(async (id: string, metadata: PoolSlotMetadata) => {
+                if (sticks) {
+                    current = current.map((candidate) =>
+                        candidate.id === id
+                            ? { ...candidate, publicMetadata: { ...candidate.publicMetadata, ...metadata } }
+                            : candidate,
+                    );
+                }
+            }),
+            readExternalId: vi.fn(async () => 'ext'),
+            reassertProfile: vi.fn(async () => undefined),
+        } satisfies PoolAdminPort;
+    };
+
+    it('raises a settled lane to its seeding roles, which a plain run never does', async () => {
+        const port = portOver([holder('settled')]);
+
+        await setLanePhase(port, owner, 'seeding');
+
+        expect(port.mergeMetadata).toHaveBeenCalledExactlyOnceWith('user_owner', poolSlotMetadata(owner, 'seeding'));
+        expect(await laneHoldsPhase(port, owner, 'seeding')).toBe(true);
+        expect(await laneHoldsPhase(port, owner, 'settled')).toBe(false);
+    });
+
+    it('settles a raised lane', async () => {
+        const port = portOver([holder('seeding')]);
+
+        await setLanePhase(port, owner, 'settled');
+
+        expect(await laneHoldsPhase(port, owner, 'settled')).toBe(true);
+    });
+
+    it('⛔ refuses a lane that has only one state — this door exists for the downgraded owner alone', async () => {
+        const port = portOver([user(alfa.email, { publicMetadata: { ...poolSlotMetadata(alfa) } })]);
+
+        await expect(setLanePhase(port, alfa, 'seeding')).rejects.toThrow(/one state|seedRoles|downgraded/iu);
+        expect(port.mergeMetadata).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['absent', [] as ObservedPoolUser[], /not provisioned|absent|no user/iu],
+        ['ambiguous', [holder('settled', 'a'), holder('settled', 'b')], /more than one|ambiguous/iu],
+    ])('refuses an %s holder and writes nothing', async (_name, holders, message) => {
+        const port = portOver(holders);
+
+        await expect(setLanePhase(port, owner, 'seeding')).rejects.toThrow(message);
+        expect(port.mergeMetadata).not.toHaveBeenCalled();
+    });
+
+    it('⛔ fails when the write did not stick — a returned PATCH is not a held role', async () => {
+        const port = portOver([holder('settled')], false);
+
+        await expect(setLanePhase(port, owner, 'seeding')).rejects.toThrow(/did not take|does not hold/iu);
+    });
+
+    it('laneHoldsPhase is false for an absent lane rather than throwing', async () => {
+        expect(await laneHoldsPhase(portOver([]), owner, 'settled')).toBe(false);
     });
 });

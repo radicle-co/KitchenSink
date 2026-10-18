@@ -19,6 +19,7 @@ import pRetry, { AbortError } from 'p-retry';
 import { userProfileSchema, type PaidFeatures } from '@kitchensink/schema-identity';
 
 import { withoutTrailingSlashes } from './env.js';
+import { SignerStillEntitledError } from './signerStillEntitledError.js';
 import { isTransientStatus } from './transientStatus.js';
 
 /**
@@ -106,19 +107,26 @@ class TransientIdentityFailure extends Error {
     }
 }
 
+/** Who is asked, and how it proves itself. */
+export interface EntitlementInput {
+    readonly identityOrigin: string;
+    readonly signerEmail: string;
+    readonly token: () => Promise<string>;
+}
+
 /**
- * Refuse to seed unless identity says the signer is entitled to the paid features.
+ * Read the signer's entitlement from identity, riding out a cold task. The one read both assertions below judge.
  *
  * @param input - The identity origin, the signer's address (for the message), and its token source.
  * @param deps - `fetch` and the retry bound.
- * @throws SignerNotEntitledError When the signer is read and is not entitled — the fix is `poolAdmin --apply`.
+ * @returns `entitled` or `notEntitled`; never `unreadable`, which is thrown.
  * @throws Error When identity refuses the read, answers something that is not a profile, or stays unavailable.
  * @sideEffect Mints a token and makes one or more HTTPS reads against identity.
  */
-export async function assertSignerEntitled(
-    input: { readonly identityOrigin: string; readonly signerEmail: string; readonly token: () => Promise<string> },
-    deps: EntitlementDeps = {},
-): Promise<void> {
+async function readSignerEntitlement(
+    input: EntitlementInput,
+    deps: EntitlementDeps,
+): Promise<Exclude<SignerEntitlement, { readonly kind: 'unreadable' }>> {
     const fetch = deps.fetch ?? globalThis.fetch;
     const retry = deps.retry ?? DEFAULT_RETRY;
     const url = `${withoutTrailingSlashes(input.identityOrigin)}/api/v1/users/me`;
@@ -174,6 +182,21 @@ export async function assertSignerEntitled(
         throw new Error(`${asSigner}: ${verdict.reason}`);
     }
 
+    return verdict;
+}
+
+/**
+ * Refuse to seed unless identity says the signer is entitled to the paid features.
+ *
+ * @param input - The identity origin, the signer's address (for the message), and its token source.
+ * @param deps - `fetch` and the retry bound.
+ * @throws SignerNotEntitledError When the signer is read and is not entitled — the fix is `poolAdmin --apply`.
+ * @throws Error When identity refuses the read, answers something that is not a profile, or stays unavailable.
+ * @sideEffect Mints a token and makes one or more HTTPS reads against identity.
+ */
+export async function assertSignerEntitled(input: EntitlementInput, deps: EntitlementDeps = {}): Promise<void> {
+    const verdict = await readSignerEntitlement(input, deps);
+
     if (verdict.kind === 'notEntitled') {
         throw new SignerNotEntitledError(
             `e2e-seed provision: the pool signer ${input.signerEmail} is not entitled to the paid features ` +
@@ -182,6 +205,28 @@ export async function assertSignerEntitled(
                 `fail in its reset. Its Clerk user is missing the roles POOL_ROSTER declares: run \`poolAdmin --apply\` ` +
                 `(packages/tools/e2e-fixtures/src/poolAdmin.ts) against the sandbox tenant, then re-run.`,
             verdict.paidFeatures,
+        );
+    }
+}
+
+/**
+ * Refuse to carry on unless identity says the signer is NOT entitled — the downgraded owner's consumers assume it.
+ *
+ * @param input - The identity origin, the signer's address (for the message), and a FRESH token source: a token minted
+ *   before the downgrade still carries the old roles, which would make a settled owner read as entitled.
+ * @param deps - `fetch` and the retry bound.
+ * @throws SignerStillEntitledError When identity still reports `granted`.
+ * @throws Error When identity refuses the read, answers something that is not a profile, or stays unavailable.
+ * @sideEffect Mints a token and makes one or more HTTPS reads against identity.
+ */
+export async function assertSignerNotEntitled(input: EntitlementInput, deps: EntitlementDeps = {}): Promise<void> {
+    const verdict = await readSignerEntitlement(input, deps);
+
+    if (verdict.kind === 'entitled') {
+        throw new SignerStillEntitledError(
+            `e2e-seed: ${input.signerEmail} is still entitled to the paid features after it was settled ` +
+                `(identity's account.paidFeatures is 'granted', expected 'upsell' or 'hidden'), so the make-public ` +
+                `flows that sign in as it would not see the downgraded behaviour they assert.`,
         );
     }
 }

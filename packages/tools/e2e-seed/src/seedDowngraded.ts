@@ -1,7 +1,11 @@
 /**
- * SEED DOWNGRADED — write the downgraded owner's private recipe and collection, once, as the owner (plan
- * 2026-10-14-009 T2). Step 2 of the three in `poolAdmin.ts`: run it AFTER `poolAdmin --apply` made the lane premium and
+ * SEED DOWNGRADED — write the downgraded owner's private recipe and collection as the owner (plan 2026-10-14-009 T2).
+ * Step 2 of the three by-hand steps in `poolAdmin.ts`: run it AFTER `poolAdmin --apply` made the lane premium and
  * BEFORE `poolAdmin --apply --settle-downgraded` takes the role away.
+ *
+ * ⚠️ CI no longer needs this: since 2026-10-18 the `downgraded-owner-world` job runs `ensureDowngradedWorld.ts`, which
+ * raises, seeds and settles the lane itself, and — unlike the three by-hand steps — can rebuild the world for an owner that
+ * was already settled. This command remains for a lane that was never settled, as the by-hand fallback.
  *
  * ⛔ IT CREATES NO CLERK USER AND CHANGES NO ROLE. It signs in as the `roles` tier's `roledowngraded` slot, refuses to
  * write unless identity says that cook is entitled (a private recipe from anyone else is refused `400

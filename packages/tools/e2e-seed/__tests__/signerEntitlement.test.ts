@@ -10,10 +10,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     assertSignerEntitled,
+    assertSignerNotEntitled,
     isSignerNotEntitledError,
     judgeSignerEntitlement,
     SignerNotEntitledError,
 } from '../src/signerEntitlement.js';
+import { isSignerStillEntitledError } from '../src/signerStillEntitledError.js';
 
 const ORIGIN = 'https://identity.sandbox.commise.app';
 const SIGNER = 'test-signer+clerk_test@radcile.com';
@@ -216,5 +218,45 @@ describe('assertSignerEntitled — a body read that is cut short', () => {
             assertSignerEntitled(input, { fetch: fetch as unknown as typeof globalThis.fetch, retry: NO_WAIT }),
         ).rejects.toThrow(/body that is not JSON/u);
         expect(fetch).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * The inverse read (2026-10-18): after the downgraded owner is settled, the consumers ASSUME it holds no entitled role.
+ * `granted` here means the settle did not take, or a token minted before it is still in use.
+ */
+describe('assertSignerNotEntitled — prove the downgrade held', () => {
+    it.each(['hidden', 'upsell'])('resolves when identity says %s, and asks as the signer', async (value) => {
+        const { fetch, calls } = identity(json(200, profile(value)));
+
+        await expect(assertSignerNotEntitled(input, { fetch, retry: NO_WAIT })).resolves.toBeUndefined();
+        expect(calls).toEqual([{ url: `${ORIGIN}/api/v1/users/me`, authorization: 'Bearer signer-token' }]);
+    });
+
+    it('⛔ fails loudly when identity still says granted, naming the signer', async () => {
+        const { fetch } = identity(json(200, profile('granted')));
+        const failure = await assertSignerNotEntitled(input, { fetch, retry: NO_WAIT }).catch(
+            (error: unknown) => error,
+        );
+
+        expect(isSignerStillEntitledError(failure)).toBe(true);
+        expect(String((failure as Error).message)).toContain(SIGNER);
+        expect(String((failure as Error).message)).toContain("'granted'");
+    });
+
+    it('does not mistake a body identity does not publish for a downgrade', async () => {
+        const { fetch } = identity(json(200, profile('premium')));
+        const failure = await assertSignerNotEntitled(input, { fetch, retry: NO_WAIT }).catch(
+            (error: unknown) => error,
+        );
+
+        expect(isSignerStillEntitledError(failure)).toBe(false);
+        expect(String((failure as Error).message)).toContain('not the profile identity publishes');
+    });
+
+    it('rides out a cold identity task like the forward read does', async () => {
+        const { fetch } = identity(json(503, {}), json(200, profile('hidden')));
+
+        await expect(assertSignerNotEntitled(input, { fetch, retry: NO_WAIT })).resolves.toBeUndefined();
     });
 });

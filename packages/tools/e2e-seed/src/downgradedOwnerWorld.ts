@@ -7,8 +7,9 @@
  * Every other fixture is leased for a run, scoped by the run key and reset around it. This one cannot be: the recipe
  * service refuses a private recipe from a cook with no entitled role, so the world can only be WRITTEN while the lane is
  * premium (`poolAdmin`'s seeding phase), and the lane is downgraded straight after. After that it can only be READ, so it
- * is seeded once by `seedDowngraded.ts`, has FIXED names (no run key, which would make a second seeding a second
- * recipe), and `resetPool` never touches the `roles` tier it lives in. The owner's order is in `poolAdmin.ts`.
+ * is seeded when found missing (CI's `downgraded-owner-world` job runs `ensureDowngradedWorld.ts` on every run; the
+ * by-hand `seedDowngraded.ts` is the fallback), has FIXED names (no run key, which would make a second seeding a second
+ * recipe), and `resetPool` never touches the `roles` tier it lives in. The order is in `poolAdmin.ts`.
  *
  * ⛔ The flows that use it only READ and answer every confirm "Keep private". A flow that confirmed Make public would
  * destroy the fixture for every later run, with no way back for a user who cannot go private.
@@ -63,15 +64,47 @@ export function planDowngradedOwnerWorld(actual: DowngradedOwnerSnapshot): Downg
     };
 }
 
+/** Whether the lane holds its declared (settled) roles. */
+export type LaneState = 'settled' | 'unsettled';
+
+/** What one CI run does about the world. */
+export type WorldRun =
+    /** The world stands and the lane is settled: touch nothing. */
+    | 'ready'
+    /** The world stands but the lane is still raised (a run died before settling): settle it, write nothing. */
+    | 'settleOnly'
+    /** The world is missing or stale: raise the lane, write the world, settle. */
+    | 'reseed';
+
 /**
- * Write the world, as the cook, WHILE THE LANE IS PREMIUM.
+ * Decide what a run does. Pure.
+ *
+ * The owner is raised ONLY when the recipe service would otherwise be asked to create or replace a private row, because
+ * a raised owner is premium for every consumer signing in as that lane, so the common path must never raise it.
+ */
+export function planDowngradedWorldRun(actual: DowngradedOwnerSnapshot, lane: LaneState): WorldRun {
+    const plan = planDowngradedOwnerWorld(actual);
+    const standing =
+        !plan.createRecipe &&
+        !plan.createCollection &&
+        plan.deleteRecipeIds.length === 0 &&
+        plan.deleteCollectionIds.length === 0;
+
+    if (!standing) {
+        return 'reseed';
+    }
+
+    return lane === 'settled' ? 'ready' : 'settleOnly';
+}
+
+/**
+ * Read everything the cook owns, every page. Reading one's own rows needs no paid role, so this works for a settled
+ * owner too.
  *
  * @param client - A recipe client signed in as the downgraded owner's lane.
- * @returns The plan that was carried out.
- * @throws When the recipe service refuses the private rows — the lane is not premium (`poolAdmin --apply` first).
- * @sideEffect Reads the cook's recipes and collections; deletes stale rows under the fixed names; creates what is missing.
+ * @sideEffect Reads the cook's recipes and collections.
  */
-export async function seedDowngradedOwnerWorld(client: RecipeServiceClient): Promise<DowngradedOwnerPlan> {
+export async function readDowngradedOwnerSnapshot(client: RecipeServiceClient): Promise<DowngradedOwnerSnapshot> {
     const recipes: DowngradedOwnerSnapshot['recipes'][number][] = [];
     const collections: DowngradedOwnerSnapshot['collections'][number][] = [];
 
@@ -93,7 +126,19 @@ export async function seedDowngradedOwnerWorld(client: RecipeServiceClient): Pro
         }
     }
 
-    const plan = planDowngradedOwnerWorld({ recipes, collections });
+    return { recipes, collections };
+}
+
+/**
+ * Write the world, as the cook, WHILE THE LANE IS PREMIUM.
+ *
+ * @param client - A recipe client signed in as the downgraded owner's lane.
+ * @returns The plan that was carried out.
+ * @throws When the recipe service refuses the private rows — the lane is not premium (`poolAdmin --apply` first).
+ * @sideEffect Reads the cook's recipes and collections; deletes stale rows under the fixed names; creates what is missing.
+ */
+export async function seedDowngradedOwnerWorld(client: RecipeServiceClient): Promise<DowngradedOwnerPlan> {
+    const plan = planDowngradedOwnerWorld(await readDowngradedOwnerSnapshot(client));
 
     for (const id of plan.deleteRecipeIds) {
         await client.deleteRecipe(id);

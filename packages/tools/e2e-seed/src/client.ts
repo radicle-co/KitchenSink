@@ -12,19 +12,31 @@ import type { SessionHandle } from '@kitchensink/e2e-fixtures';
 import { memoizingTokenSource } from './tokenSource.js';
 
 /**
- * A client bound to `handle`'s identity.
+ * A client that authenticates with `token`, however the caller sources it.
  *
- * @sideEffect The returned client mints Clerk tokens on demand and makes HTTP calls.
+ * @sideEffect The returned client makes HTTP calls and calls `token` per request.
  */
-export function clientFor(baseUrl: string, handle: SessionHandle): RecipeServiceClient {
+export function clientWithToken(
+    baseUrl: string,
+    token: (options?: { readonly forceRefresh?: boolean }) => Promise<string>,
+): RecipeServiceClient {
     return new RecipeServiceClient({
         baseUrl,
-        token: memoizingTokenSource(handle, { remint: remintFromSession }),
+        token,
         // ⚠️ Longer than the client's 10s default. A `pr-{N}` preview runs ONE 0.5-vCPU Fargate Spot task
         // against a shared `db.t4g.micro`, and the first write after an idle period meets a cold pool — a
         // timeout there would fail a whole emulator job for a latency figure nobody is measuring.
         timeoutMs: 30_000,
     });
+}
+
+/**
+ * A client bound to `handle`'s identity.
+ *
+ * @sideEffect The returned client mints Clerk tokens on demand and makes HTTP calls.
+ */
+export function clientFor(baseUrl: string, handle: SessionHandle): RecipeServiceClient {
+    return clientWithToken(baseUrl, memoizingTokenSource(handle, { remint: remintFromSession }));
 }
 
 /**

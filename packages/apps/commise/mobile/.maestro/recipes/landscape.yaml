@@ -167,6 +167,19 @@ onFlowComplete:
       text: 'Maestro Landscape Draft'
 # ⛔ Sideways the soft keyboard fills the screen, so the scroll below to the ingredient field swipes on the keyboard and
 # moves nothing (run 38988891871). The section heading closes it (`common/typeTitle.yaml` says why a heading).
+# Reaching the field scrolled the heading off the top, and only the Title label and field show above the keyboard, so
+# `common/closeEditorKeyboard.yaml`'s centred scroll would start on a key. The cook drags the strip that shows instead:
+# from the label down, the page scrolls back to the heading. Not a tap on the label: that focuses its field
+# (`labelFocus.native.ts`), and the keyboard stays.
+- repeat:
+      while:
+          notVisible: 'About the recipe'
+      times: 4
+      commands:
+          - swipe:
+                start: 50%, 20%
+                end: 50%, 44%
+                duration: 500
 - tapOn: 'About the recipe'
 
 # The trailing "Add an ingredient" field, typed into sideways: its list renders where the cook can reach it. Read,

@@ -18,8 +18,9 @@
  * - The `Modal` stays mounted with `visible={open}`, because React Native plays the iOS slide-out only for a Modal
  *   still mounted with `visible={false}` and reports `onDismiss` only then, on iOS only (React Native 0.86
  *   `Modal.js`). So `onDismissed` comes from that `onDismiss` on iOS, and from an effect after the close elsewhere,
- *   where the Modal leaves at once (`docs/design/rowEditorBlueprint.md` decision 5). ⚠️ The iOS slide-out is owed a
- *   device check (`docs/design/rowEditorOpenDecisions.md` item 8).
+ *   where the Modal leaves at once (`docs/design/rowEditorBlueprint.md` decision 5). A report that lands while the
+ *   sheet is open makes the next close unreported on iOS too, so the sheet reports that close itself. ⚠️ The iOS
+ *   slide-out is owed a device check (`docs/design/rowEditorOpenDecisions.md` item 8).
  * - The panel is keyed on the opening, so each open starts it fresh, a reopen during an iOS slide-out included.
  *
  * A presentational component: controlled by `open`, it fetches nothing and holds no domain state.
@@ -59,7 +60,16 @@ export const Sheet: FC<SheetProps> = ({
     // iOS: the close whose `onDismiss` has arrived. A repeated report of one close sets the same value, so it is not a
     // second dismissal.
     const [dismissedClose, setDismissedClose] = useState(0);
+    // iOS: the opening that a dismissal report reached while it was open. React Native's `Modal.js` sets `isRendered`
+    // false on every report and back to true only when `visible` turns true, so that opening's close unmounts the
+    // Modal at once and is never reported. The sheet reports it itself, as on Android, in the render that sees it.
+    const [strandedOpening, setStrandedOpening] = useState<number | undefined>(undefined);
     const reportsDismissal = Platform.OS === 'ios';
+
+    if (reportsDismissal && !open && strandedOpening === opens && dismissedClose !== closes) {
+        setDismissedClose(closes);
+    }
+
     const dismissed = reportsDismissal ? dismissedClose : closes;
     // The host's latest callback, read when the dismissal is reported; a new callback re-reports nothing.
     const reportDismissed = useEffectEvent(() => onDismissed?.());
@@ -81,11 +91,13 @@ export const Sheet: FC<SheetProps> = ({
             animationType={sheetAnimationType(reduceMotion)}
             onRequestClose={close}
             onShow={() => setShown((count) => count + 1)}
-            // A dismissal that lands after the sheet opened again belongs to a close the reopen overtook.
+            // A dismissal that lands while the sheet is open belongs to an earlier close, and strands this opening.
             onDismiss={
                 reportsDismissal
                     ? () => {
-                          if (!open) {
+                          if (open) {
+                              setStrandedOpening(opens);
+                          } else {
                               setDismissedClose(closes);
                           }
                       }

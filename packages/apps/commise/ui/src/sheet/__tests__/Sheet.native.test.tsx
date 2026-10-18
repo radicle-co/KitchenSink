@@ -273,7 +273,11 @@ describe('Sheet (native)', () => {
             expect(onDismissed).toHaveBeenCalledTimes(1);
         });
 
-        it('on iOS ignores a dismissal that lands after the sheet opened again', () => {
+        // React Native 0.86 `Modal.js` sets `isRendered` false on EVERY dismissal report and back to true only on a
+        // `visible` false-to-true edge. So a report that lands while the sheet is open leaves the Modal unable to slide
+        // out: the next close unmounts it, and no report for that close can arrive. Rewritten from "ignores a dismissal
+        // that lands after the sheet opened again", which then fired a report the source shows cannot happen.
+        it('on iOS ignores a dismissal that lands while open, and reports the next close itself', () => {
             state.os = 'ios';
             const onDismissed = vi.fn();
             const { rerender } = render(sheet(true, onDismissed));
@@ -284,8 +288,46 @@ describe('Sheet (native)', () => {
             expect(onDismissed).not.toHaveBeenCalled();
 
             act(() => rerender(sheet(false, onDismissed)));
+            expect(onDismissed).toHaveBeenCalledTimes(1);
+        });
+
+        // The order the Simulator logged for New collection: Close, Keep editing, Create (newCollectionSheet).
+        it('on iOS reports every close when one close is reported twice, the second time after the reopen', () => {
+            state.os = 'ios';
+            const onDismissed = vi.fn();
+            const { rerender } = render(sheet(true, onDismissed));
+
+            act(() => rerender(sheet(false, onDismissed)));
             act(() => state.modal?.onDismiss?.());
             expect(onDismissed).toHaveBeenCalledTimes(1);
+
+            act(() => rerender(sheet(true, onDismissed)));
+            act(() => state.modal?.onDismiss?.());
+            expect(onDismissed).toHaveBeenCalledTimes(1);
+
+            act(() => rerender(sheet(false, onDismissed)));
+            expect(onDismissed).toHaveBeenCalledTimes(2);
+
+            // A report that still arrives for that close is not a third close.
+            act(() => state.modal?.onDismiss?.());
+            expect(onDismissed).toHaveBeenCalledTimes(2);
+        });
+
+        it('on iOS waits again for the dismissal at the opening after one that a stray report reached', () => {
+            state.os = 'ios';
+            const onDismissed = vi.fn();
+            const { rerender } = render(sheet(true, onDismissed));
+
+            act(() => state.modal?.onDismiss?.());
+            act(() => rerender(sheet(false, onDismissed)));
+            expect(onDismissed).toHaveBeenCalledTimes(1);
+
+            act(() => rerender(sheet(true, onDismissed)));
+            act(() => rerender(sheet(false, onDismissed)));
+            expect(onDismissed).toHaveBeenCalledTimes(1);
+
+            act(() => state.modal?.onDismiss?.());
+            expect(onDismissed).toHaveBeenCalledTimes(2);
         });
 
         it('starts the panel fresh at each opening, even one that comes before the slide-out ends', () => {

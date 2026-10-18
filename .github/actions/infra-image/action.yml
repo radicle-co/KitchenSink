@@ -20,10 +20,12 @@ description: >-
 # restored by the deploy job asking ECR before it deploys (`ecrImagePresent.sh`).
 #
 # ⚠️ The layer cache is the GitHub Actions cache, scoped to the repository so three images never evict each other's
-# layers, and `mode=min`: only the final image's layers are exported. `mode=max` would also store the build stages,
-# which these Dockerfiles do not reuse, against a repository cache that is close to its cap. Attestations are off:
-# an attestation manifest makes the pushed object an index with a different digest than the plain image the
-# production release ledger has always recorded.
+# layers, and `mode=max`: every stage is exported, not only the final image's. That matters for food, whose Dockerfile
+# installs production dependencies in a `deps` stage (`npm ci --omit=dev`, the expensive step), and `mode=min` would not
+# keep that stage; recipe and identity build in one stage, where the two modes are identical. The repository cache is
+# close to its cap, so the entries are the least-recently-used first to go. Attestations are off: an attestation manifest
+# makes the pushed object an index with a different digest than the plain image the production release ledger has always
+# recorded.
 
 inputs:
     stage:
@@ -148,7 +150,7 @@ runs:
               push: true
               tags: ${{ steps.ecr.outputs.registry }}/${{ inputs.ecr-repo }}:${{ steps.tag.outputs.tag }}
               cache-from: type=gha,scope=${{ inputs.ecr-repo }}
-              cache-to: type=gha,scope=${{ inputs.ecr-repo }},mode=min
+              cache-to: type=gha,scope=${{ inputs.ecr-repo }},mode=max
               provenance: false
               sbom: false
 

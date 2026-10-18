@@ -109,7 +109,7 @@ on:
                     because a shard the pool cannot identify would sign in as another shard's user.
                 required: false
                 type: string
-                default: '8'
+                default: '4'
         outputs:
             web_result:
                 description: >-

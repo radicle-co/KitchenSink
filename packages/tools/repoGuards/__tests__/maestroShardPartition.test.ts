@@ -772,7 +772,7 @@ describe('_ci-heavy.yml declares and relays the shard count', () => {
      * step. Rolling back is setting all three back to the lower number; this assertion is part of that commit by design,
      * so a half-rollback (one file) is red here and in the agreement test below.
      */
-    it('⛔ defaults to eight shards in all three files, because the pool can now identify eight per platform', () => {
+    it('⛔ defaults to four shards in all three files, until poolAdmin has created lanes 05 to 08', () => {
         const defaults = ['_ci-heavy.yml', 'deployedE2eTiers.yml', 'deployedE2e.yml'].map((file) => {
             const doc = parse(readFileSync(join(REPO_ROOT, '.github/workflows', file), 'utf8')) as {
                 on?: Record<string, { inputs?: Record<string, { default?: unknown }> }>;
@@ -783,9 +783,9 @@ describe('_ci-heavy.yml declares and relays the shard count', () => {
         });
 
         expect(defaults).toEqual([
-            ['_ci-heavy.yml', '8'],
-            ['deployedE2eTiers.yml', '8'],
-            ['deployedE2e.yml', '8'],
+            ['_ci-heavy.yml', '4'],
+            ['deployedE2eTiers.yml', '4'],
+            ['deployedE2e.yml', '4'],
         ]);
 
         for (const platform of MAESTRO_PLATFORMS) {

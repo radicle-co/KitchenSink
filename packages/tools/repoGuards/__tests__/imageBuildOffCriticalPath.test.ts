@@ -26,7 +26,7 @@
  * 5. **The deploy job proves the tag is there** before it deploys (`ecrImagePresent`), so a skipped or failed push
  *    is a red job and not a task that cannot pull.
  * 6. **The build keeps ensure-exists and push-verdict semantics, and is layer-cached** per image
- *    (`ecrEnsureRepo.sh`, `ecrPushVerdict.sh`, `ecrRecordRelease.sh`, a `type=gha` cache scoped to the repository).
+ *    (`ecrEnsureRepo.sh`, `ecrPushVerdict.sh`, `ecrRecordRelease.sh`, a `type=gha,mode=max` cache scoped to the repository).
  *
  * DESIGN PATTERN: Specification module over the parsed workflow and action; each clause is a pure predicate.
  */
@@ -141,6 +141,24 @@ describe('an image is built off the deploy critical path', () => {
         }
     });
 
+    /**
+     * ⛔ The image is no longer pushed by the job that deploys it, so `deployVerificationCoverage.test.ts` (which finds
+     * pushers by their `docker buildx build ... --push`) can no longer see these jobs. Its rule still holds for them: a
+     * green `/health` cannot tell a fresh task from one running a build from weeks ago, and the only thing that can is
+     * reading the RUNNING task definition's image. So the rule is restated over the jobs that deploy an image.
+     */
+    it('every deploy job proves what is RUNNING is the tag it deployed', () => {
+        for (const [name, job] of deployJobs()) {
+            const runs = (job.steps ?? []).map((step) => step.run ?? '').join('\n');
+
+            expect(runs, `${name} never reads the running task definition's image`).toMatch(
+                /describe-task-definition[\s\S]*containerDefinitions\[0\]\.image/u,
+            );
+            expect(runs, `${name} never compares it with the expected tag`).toMatch(/--expected-image-tag/u);
+            expect(runs, name).toMatch(/--running-image-tag/u);
+        }
+    });
+
     it('the deploy job confirms the tag exists before it deploys', () => {
         const action = read('.github/actions/infra-package/action.yml');
         const confirm = action.indexOf('ecrImagePresent.sh');
@@ -180,7 +198,7 @@ describe('the image action keeps the registry semantics and caches its layers', 
         const withs = step?.with ?? {};
 
         expect(withs['cache-from']).toMatch(/type=gha,scope=\$\{\{\s*inputs\.ecr-repo\s*\}\}/u);
-        expect(withs['cache-to']).toMatch(/type=gha,scope=\$\{\{\s*inputs\.ecr-repo\s*\}\},mode=min/u);
+        expect(withs['cache-to']).toMatch(/type=gha,scope=\$\{\{\s*inputs\.ecr-repo\s*\}\},mode=max/u);
         // An attestation manifest turns the pushed image into an index and changes the digest the production
         // release ledger records; the pre-split build produced a plain image.
         expect(String(withs['provenance'])).toBe('false');

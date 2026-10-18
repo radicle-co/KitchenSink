@@ -143,8 +143,8 @@ on:
                     for a reason that has nothing to do with the flows. '8' is each platform's capacity
                     (`testPool.ts`), and `maestroShardPartition.test.ts` is what refuses anything above it. The lanes
                     05 to 08 exist in the roster before their Clerk users do: the owner's `poolAdmin --apply` creates
-                    them, and until it has run, set this to '4' (a form field on the manual door; a three-file commit on
-                    the PR path).
+                    them, and THE DEFAULT STAYS '4' UNTIL IT HAS RUN AND REPORTS HEALTHY. Then one commit moves all three
+                    defaults to '8' (a form field on the manual door can ask for it sooner).
 
                     ⛔ THE POOL IS NOT THE ONLY CEILING FOR iOS. A Simulator job needs a macOS runner and a Team plan
                     runs at most FIVE at once, so `runMaestroFlows.sh shard-matrix` stops the iOS matrix at five
@@ -159,7 +159,7 @@ on:
                     and timeouts. Rolling back is setting this and the other two defaults to '4'.
 
                     ⛔ THE SHARD JOBS' TIMEOUTS (60 minutes Android, 75 iOS) ARE UPPER BOUNDS, not estimates. They were
-                    sized for four shards from measured flow time plus six to eight minutes of setup. At the defaults
+                    sized for four shards from measured flow time plus six to eight minutes of setup. At eight shards
                     each runner holds roughly half the flows it did, so the slowest Android shard should land near 30
                     minutes and the slowest iOS shard near 50; the bounds stay because a hung emulator is cut off by
                     them rather than by GitHub's six hours, and because a run with FEWER shards (a rollback or a value
@@ -180,7 +180,7 @@ on:
                     move this default — and the other two — LAST.
                 required: false
                 type: string
-                default: '8'
+                default: '4'
             android_test_app:
                 description: >-
                     The name of the artifact holding the Android test app, built ONCE for the whole run by
@@ -661,8 +661,8 @@ jobs:
             contents: read
             id-token: write # awsAuth: the non-prod role, for the liveness probe and the sandbox Clerk keys
         # Bounded (it had no bound, so GitHub's six hours): a shard no longer builds, so it is about 6 minutes of setup, the
-        # emulator boot, and an eighth of the flows at the default — the slowest shard of the measured 4-shard run was 47
-        # minutes in all, so the default eight should land near 30.
+        # emulator boot, and an eighth of the flows once eight shards run — the slowest shard of the measured 4-shard run was 47
+        # minutes in all, so eight should land near 30.
         # ⛔ 60 IS AN UPPER BOUND SIZED FOR FOUR SHARDS (see `maestro_shards`), kept at eight so a hung emulator is cut off
         # and a rollback to four still fits: at two shards the margin is about eight minutes, and fewer than two cannot
         # fit. A dispatch or a rollback with fewer shards must raise this number with it.
@@ -1398,8 +1398,10 @@ jobs:
         # GitHub's six-hour default. 75 minutes (it was 150, sized for a per-shard build of up to 26 minutes plus 54 minutes
         # of flows on two shards): a shard is now about 8 minutes of setup, a boot that overlaps it, and a quarter of the
         # flows. `maestroIosTier.test.ts` holds the number.
-        # ⛔ 75 ASSUMES FOUR SHARDS, like the Android job's 60 (see `maestro_shards`): fewer shards means more flows per runner,
-        # and a rollback or a dispatch with fewer must raise this number with it.
+        # ⛔ 75 IS AN UPPER BOUND SIZED FOR FOUR SHARDS, like the Android job's 60 (see `maestro_shards`). The iOS matrix stops at
+        # five (the macOS runner ceiling), so a shard holds about a fifth of the flows and should land near 50 minutes (the
+        # slowest of four measured 60). Fewer shards mean more flows per runner: a rollback or a dispatch with fewer must raise
+        # this number with it.
         timeout-minutes: 75
         needs: [install, resolve-mobile-target]
         env:

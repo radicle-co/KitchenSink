@@ -163,7 +163,7 @@ jobs:
                   workspace-install: 'true'
 
     image-identity:
-        name: infra - identity image
+        name: infra — identity image
         runs-on: ubuntu-latest
         timeout-minutes: 60
         permissions:
@@ -199,7 +199,7 @@ jobs:
                   dockerfile: packages/services/identity/Dockerfile
 
     image-food-service:
-        name: infra - food-service image
+        name: infra — food-service image
         runs-on: ubuntu-latest
         timeout-minutes: 60
         permissions:
@@ -236,7 +236,7 @@ jobs:
                   dockerfile: packages/services/food-service/Dockerfile
 
     image-recipe-service:
-        name: infra - recipe-service image
+        name: infra — recipe-service image
         runs-on: ubuntu-latest
         timeout-minutes: 60
         permissions:

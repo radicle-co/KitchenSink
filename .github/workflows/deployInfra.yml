@@ -1119,9 +1119,9 @@ jobs:
               with:
                   node-version: 24
             - name: Install the root workspace
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: npm ci --no-audit --no-fund
+              uses: ./.github/actions/installWorkspace
+              with:
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
             # ⛔ `printFoodHost.ts` imports `FoodServiceStack`, whose `aws-cdk-lib` and `@radicle-co/infra-shared`
             # exist only in the food app's own `infra/` install. This job runs only on a real deploy, so its
             # missing install had never failed — the first sign would have been a red post-deploy smoke on

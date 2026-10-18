@@ -80,10 +80,9 @@ runs:
 
         # ⛔ The ROOT workspace, as in `infra-package`: `turbo` and the `@kitchensink/*` packages resolve from here.
         - name: Install the root workspace
-          shell: bash
-          env:
-              NODE_AUTH_TOKEN: ${{ inputs.node-auth-token }}
-          run: npm ci --no-audit --no-fund
+          uses: ./.github/actions/installWorkspace
+          with:
+              node-auth-token: ${{ inputs.node-auth-token }}
 
         # The package and its dependency closure, then the production manifest the Dockerfile COPYs.
         # ⛔ No `--if-present` on `docker:prepare`: it exists on exactly the containerized services, which are the only

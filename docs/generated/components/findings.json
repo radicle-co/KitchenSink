@@ -3164,7 +3164,7 @@
             "message": "the web and native leaves declare different prop names",
             "evidence": [
                 "web: arrived entryCopy expanded inlineEditor panel row",
-                "native: amountColumn arrived entryCopy expanded inlineEditor m onLayout panel row speak"
+                "native: amountColumn arrived entryCopy expanded inlineEditor m onLayout panel row"
             ]
         },
         {
@@ -3199,8 +3199,7 @@
                 "inlineEditor",
                 "m",
                 "panel",
-                "row",
-                "speak"
+                "row"
             ]
         },
         {

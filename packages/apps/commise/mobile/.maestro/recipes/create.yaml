@@ -113,6 +113,11 @@ appId: ${APP_ID}
 - tapOn: 'Add step'
 - tapOn: 'Step 1'
 - inputText: 'Combine everything and simmer.'
+# Close the keyboard first. On iOS XCUITest reports a control behind the soft keyboard as visible, so with the keyboard
+# up `Add a timer` "is visible" under the keys and the tap types instead (the Mac Simulator, 2026-10-18: the keyboard
+# offered "Add" and no timer boxes appeared). Android drops what the keyboard covers, so there the scroll below already
+# brings it above the keys.
+- runFlow: common/closeEditorKeyboard.yaml
 # F1 (`docs/design/uiOverhaul/evaluateRecipeAndWizard.md`): the timer is entered in hours and minutes, no longer
 # in seconds. The boxes appear once the step's 'Add a timer' is pressed. Read back on the detail below.
 - scrollUntilVisible:

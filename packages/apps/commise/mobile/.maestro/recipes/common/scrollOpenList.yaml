@@ -30,9 +30,11 @@ appId: ${APP_ID}
 # as visible, so `notVisible: TARGET` is already false before the first swipe: the loop never ran, the tap landed on a key,
 # and the line was never declared (CI run 39076738796, iOS shard 4: `edit`, `conflictMerge`, `cuisineField`,
 # `quantityRange`, `createAuthoredFood`; the screenshots show the list unscrolled under the keyboard). The iOS keyboard
-# publishes its own keys, so the target must be ABOVE the Space key: a position, which is what the swipe is for.
+# publishes its own keys, so the target must be ABOVE THE KEYBOARD: a position, which is what the swipe is for. The
+# anchor is the keyboard's own `inputView` (its top is the suggestion strip, 539 pt on the iPhone 17), by id: the Space
+# key's text is a single space, so `above: space` never matched, and the Space row is the keyboard's LAST row, so a
+# target above it can still sit under the letter rows (Mac Simulator, 2026-10-18: the tap typed a "y").
 # Android's accessibility tree drops what the keyboard covers, so plain visibility there already means "on screen".
-# UNVERIFIED on a Simulator (this was fixed from the CI artifacts; the Android emulator cannot run it).
 - runFlow:
       when:
           platform: Android
@@ -69,7 +71,8 @@ appId: ${APP_ID}
                 while:
                     notVisible:
                         text: ${TARGET}
-                        above: space
+                        above:
+                            id: inputView
                 times: 10
                 commands:
                     - runFlow:
@@ -90,4 +93,5 @@ appId: ${APP_ID}
                                     duration: 500
           - assertVisible:
                 text: ${TARGET}
-                above: space
+                above:
+                    id: inputView

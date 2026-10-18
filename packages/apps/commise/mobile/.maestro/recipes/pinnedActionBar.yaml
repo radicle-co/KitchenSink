@@ -114,10 +114,11 @@ appId: ${APP_ID}
 - tapOn: 'Title'
 - assertNotVisible:
       text: 'Sections\. Current: .*'
+# 60 s down for the same page as the 60 s up above: run 39153198436 ran out at 30 s with Save changes on screen.
 - scrollUntilVisible:
       element: 'Save changes'
       direction: DOWN
-      timeout: 30000
+      timeout: 60000
 - assertVisible: 'Preview'
 
 # Leave the recipe as found: throw the device changes away through the header's menu. A published recipe's item is

@@ -143,8 +143,9 @@ on:
                     for a reason that has nothing to do with the flows. '8' is each platform's capacity
                     (`testPool.ts`), and `maestroShardPartition.test.ts` is what refuses anything above it. The lanes
                     05 to 08 exist in the roster before their Clerk users do: the owner's `poolAdmin --apply` creates
-                    them, and THE DEFAULT STAYS '4' UNTIL IT HAS RUN AND REPORTS HEALTHY. Then one commit moves all three
-                    defaults to '8' (a form field on the manual door can ask for it sooner).
+                    them. The defaults moved to '8' only after it ran and reported healthy; before that they stayed at '4'.
+                    If a lane is ever missing, set all three defaults back to '4' (a form field on the manual door can
+                    say it without a commit).
 
                     ⛔ THE POOL IS NOT THE ONLY CEILING FOR iOS. A Simulator job needs a macOS runner and a Team plan
                     runs at most FIVE at once, so `runMaestroFlows.sh shard-matrix` stops the iOS matrix at five
@@ -180,7 +181,7 @@ on:
                     move this default — and the other two — LAST.
                 required: false
                 type: string
-                default: '4'
+                default: '8'
             android_test_app:
                 description: >-
                     The name of the artifact holding the Android test app, built ONCE for the whole run by

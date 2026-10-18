@@ -464,9 +464,9 @@ local_maestro_install_app() {
     # The app's committed `.env.development` names identity at :4000 (the spec's local table); the local sandbox
     # serves it at :3001 (its own `PORT` default).
     adb reverse tcp:4000 tcp:3001 >/dev/null || return 1
-    # The two device settings CI's `maestro_run_flows` makes before its flows.
-    adb shell settings put secure spell_checker_enabled 0 || true
-    adb shell settings put secure show_ime_with_hard_keyboard 0 || true
+    # CI's own input settings, from the sourced runner. A copy here once kept an old `0`: on this AVD, which reports a
+    # hardware keyboard, that held the soft keyboard down in every local run while CI's was up.
+    maestro_android_input_settings
 
     # The first flow's launch would otherwise wait out a cold bundle — and the bundle is what names the backend.
     echo 'local:maestro: building and checking the Metro bundle' >&2

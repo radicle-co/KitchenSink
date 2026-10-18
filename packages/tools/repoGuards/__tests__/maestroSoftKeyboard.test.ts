@@ -58,6 +58,24 @@ describe('Maestro devices raise the soft keyboard on focus', () => {
         expect(script).toMatch(/settings get secure show_ime_with_hard_keyboard/);
     });
 
+    // The local runner (`npm run local:maestro`) once hand-copied these settings and kept the old `0`, so on an AVD that
+    // reports a hardware keyboard (`keysexposed-qwerty`) every local run had the soft keyboard down while CI had it up:
+    // local failures CI never saw, and local passes CI did not repeat (2026-10-18). Both runners call ONE function.
+    it('⛔ CI and the local runner settle the Android input settings through ONE function', () => {
+        const localRunner = readFileSync(
+            path.join(repoRoot, 'packages/tools/local-sandbox/bin/localMaestro.sh'),
+            'utf8',
+        );
+        const settings = /^maestro_android_input_settings\(\) \{\n([\s\S]*?)\n\}/mu.exec(script)?.[1] ?? '';
+        const prepare = /^maestro_prepare_device\(\) \{\n([\s\S]*?)\n\}/mu.exec(script)?.[1] ?? '';
+
+        expect(settings).toMatch(/settings put secure show_ime_with_hard_keyboard 1/);
+        expect(settings).toMatch(/settings put secure spell_checker_enabled 0/);
+        expect(prepare).toMatch(/^\s*maestro_android_input_settings\s*$/mu);
+        expect(localRunner).toMatch(/^\s*maestro_android_input_settings\s*$/mu);
+        expect(localRunner).not.toMatch(/settings put secure (show_ime_with_hard_keyboard|spell_checker_enabled)/);
+    });
+
     it('⛔ the iOS Simulator is told not to connect the host hardware keyboard before it boots', () => {
         const run = scalarText(simulatorStep?.run);
         const write = run.indexOf('ConnectHardwareKeyboard');

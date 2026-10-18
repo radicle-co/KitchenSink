@@ -1109,6 +1109,24 @@ maestro_require_device() {
     fi
 }
 
+# maestro_android_input_settings
+#
+# Settle the Android device's input settings. CI's `maestro_prepare_device` and the local runner
+# (`packages/tools/local-sandbox/bin/localMaestro.sh`) both call this, so the two devices cannot differ.
+#
+# @sideEffect Writes device settings and prints the IME setting back.
+maestro_android_input_settings() {
+    # The soft-keyboard spell checker/suggestions mangle Maestro inputText (duplicated chars, e.g. "collectionn").
+    adb shell settings put secure spell_checker_enabled 0 || true
+    # "Show virtual keyboard while a physical keyboard is active" (Settings.Secure `show_ime_with_hard_keyboard`).
+    # The AVD `avdmanager` builds from the pixel_6 profile can report a hardware keyboard (`_ci-heavy.yml` rewrites
+    # it to `hw.keyboard=no` before launch); with one reported, `0` here keeps the IME down and every flow that
+    # needs the keyboard up (pinnedActionBar, keyboardReveal, the sign-in footer pin) never sees it. `1` is
+    # harmless without a hardware keyboard. Printed back so the log says what the device holds.
+    adb shell settings put secure show_ime_with_hard_keyboard 1 || true
+    echo "show_ime_with_hard_keyboard=$(adb shell settings get secure show_ime_with_hard_keyboard | tr -d '\r')"
+}
+
 # maestro_prepare_device <platform>
 #
 # Install the app and settle the device's input settings, once per run.
@@ -1119,15 +1137,7 @@ maestro_prepare_device() {
         android)
             adb install -r "$APK"
             adb reverse tcp:3000 tcp:3000 || true
-            # The soft-keyboard spell checker/suggestions mangle Maestro inputText (duplicated chars, e.g. "collectionn").
-            adb shell settings put secure spell_checker_enabled 0 || true
-            # "Show virtual keyboard while a physical keyboard is active" (Settings.Secure `show_ime_with_hard_keyboard`).
-            # The AVD `avdmanager` builds from the pixel_6 profile can report a hardware keyboard (`_ci-heavy.yml` rewrites
-            # it to `hw.keyboard=no` before launch); with one reported, `0` here keeps the IME down and every flow that
-            # needs the keyboard up (pinnedActionBar, keyboardReveal, the sign-in footer pin) never sees it. `1` is
-            # harmless without a hardware keyboard. Printed back so the log says what the device holds.
-            adb shell settings put secure show_ime_with_hard_keyboard 1 || true
-            echo "show_ime_with_hard_keyboard=$(adb shell settings get secure show_ime_with_hard_keyboard | tr -d '\r')"
+            maestro_android_input_settings
             ;;
         ios)
             # The keyboard's own settings (autocorrect, prediction, capitalisation) are written by the workflow

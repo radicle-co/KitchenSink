@@ -102,6 +102,8 @@ const NAMED_RESIDUALS: Readonly<Record<string, string>> = {
     LogDeliveries: 'log deliveries take no resource-level scope',
     LambdaEventSourceMappings:
         'an event source mapping is addressed by uuid; limited to kitchensink functions by lambda:FunctionArn',
+    LambdaEventSourceMappingsGone:
+        'on a mapping that no longer exists AWS authorizes Delete and Get on "*" with no lambda:FunctionArn, and CloudFormation confirms every delete that way; an existing mapping still carries the key and must name a kitchensink function',
     SecretsOwn: 'explicit secret names carry the stage as a path segment',
     EcsDeregisterTaskDefinition:
         'DeregisterTaskDefinition has no resource type in the reference, so it authorizes on "*" and no tag or name can narrow it',

@@ -423,6 +423,42 @@ describe.each([QUALIFIERS.nonprod, QUALIFIERS.prod])('executionPolicy(%s) — ac
         ).toBe(false);
     });
 
+    // Measured 2026-10-18 on kitchensink-recipe-workers-pr-91: CloudFormation's first DeleteEventSourceMapping removed
+    // each mapping, and its confirming call then met a mapping that no longer existed. AWS authorizes that call on "*"
+    // with no lambda:FunctionArn, so a strict ArnLike refused it, the handler read AccessDenied as a failure, and the
+    // stack sat in DELETE_FAILED with all five mappings already gone.
+    it.each(['lambda:DeleteEventSourceMapping', 'lambda:GetEventSourceMapping'])(
+        '%s on a mapping that no longer exists (resource "*", no function key) is allowed',
+        (action) => {
+            expect(evaluates(rendered(), action, '*', {})).toBe(true);
+        },
+    );
+
+    it.each(['lambda:DeleteEventSourceMapping', 'lambda:GetEventSourceMapping'])(
+        "%s on an existing mapping: a kitchensink function's, never another application's",
+        (action) => {
+            const mapping = a('lambda', 'event-source-mapping:22ae0dc5-542f-400a-bb92-ffd208fe4ead');
+
+            expect(
+                evaluates(rendered(), action, mapping, {
+                    'lambda:FunctionArn': a('lambda', `function:kitchensink-recipe-workers-${stage}-ParseLine`),
+                }),
+            ).toBe(true);
+            expect(
+                evaluates(rendered(), action, mapping, {
+                    'lambda:FunctionArn': a('lambda', 'function:armoury-api-prod'),
+                }),
+            ).toBe(false);
+        },
+    );
+
+    it('does not widen UpdateEventSourceMapping to a mapping with no function key', () => {
+        expect(evaluates(rendered(), 'lambda:UpdateEventSourceMapping', '*', {})).toBe(false);
+        expect(
+            evaluates(rendered(), 'lambda:UpdateEventSourceMapping', a('lambda', 'event-source-mapping:x'), {}),
+        ).toBe(false);
+    });
+
     it.each(['events:PutTargets', 'events:RemoveTargets', 'events:DeleteRule'])(
         '%s on its own untagged rule, never on the other tier rule',
         (action) => {

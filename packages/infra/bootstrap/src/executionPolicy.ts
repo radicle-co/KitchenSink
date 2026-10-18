@@ -419,15 +419,21 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
         allow(
             'compute',
             'LambdaEventSourceMappings',
-            [
-                'lambda:CreateEventSourceMapping',
-                'lambda:DeleteEventSourceMapping',
-                'lambda:GetEventSourceMapping',
-                'lambda:UpdateEventSourceMapping',
-            ],
+            ['lambda:CreateEventSourceMapping', 'lambda:UpdateEventSourceMapping'],
             [arn('lambda', 'event-source-mapping:*')],
             ['AWS::Lambda::EventSourceMapping'],
             { ArnLike: { 'lambda:FunctionArn': [arn('lambda', `function:${KS}`)] } },
+        ),
+        // CloudFormation confirms a delete by calling again, and on a mapping that is gone AWS authorizes on "*" with no
+        // lambda:FunctionArn, so a strict ArnLike answers AccessDenied and the stack sticks in DELETE_FAILED. IfExists
+        // admits only that case: an existing mapping still carries the key and must name a kitchensink function.
+        allow(
+            'compute',
+            'LambdaEventSourceMappingsGone',
+            ['lambda:DeleteEventSourceMapping', 'lambda:GetEventSourceMapping'],
+            ['*'],
+            ['AWS::Lambda::EventSourceMapping'],
+            { ArnLikeIfExists: { 'lambda:FunctionArn': [arn('lambda', `function:${KS}`)] } },
         ),
         // Tags on a mapping take no `lambda:FunctionArn` key, so the tier tag is their only scope; `ownAllow` adds the
         // request-tag statement that lets a mapping made before the tier tag existed receive it.

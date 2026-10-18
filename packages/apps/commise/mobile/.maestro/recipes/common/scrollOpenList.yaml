@@ -26,27 +26,68 @@ appId: ${APP_ID}
           childOf:
               text: 'Food suggestions for ingredient \d+'
       timeout: 20000
-- repeat:
-      while:
-          notVisible:
-              text: ${TARGET}
-      times: 10
+# ⛔ ON iOS "VISIBLE" IS NOT "ON SCREEN ABOVE THE KEYBOARD". XCUITest reports an option that sits behind the soft keyboard
+# as visible, so `notVisible: TARGET` is already false before the first swipe: the loop never ran, the tap landed on a key,
+# and the line was never declared (CI run 39076738796, iOS shard 4: `edit`, `conflictMerge`, `cuisineField`,
+# `quantityRange`, `createAuthoredFood`; the screenshots show the list unscrolled under the keyboard). The iOS keyboard
+# publishes its own keys, so the target must be ABOVE the Space key: a position, which is what the swipe is for.
+# Android's accessibility tree drops what the keyboard covers, so plain visibility there already means "on screen".
+# UNVERIFIED on a Simulator (this was fixed from the CI artifacts; the Android emulator cannot run it).
+- runFlow:
+      when:
+          platform: Android
       commands:
-          - runFlow:
-                when:
-                    true: ${DIRECTION == 'UP'}
+          - repeat:
+                while:
+                    notVisible:
+                        text: ${TARGET}
+                times: 10
                 commands:
-                    - swipe:
-                          start: 50%, 35%
-                          end: 50%, 55%
-                          duration: 500
-          - runFlow:
-                when:
-                    true: ${DIRECTION != 'UP'}
+                    - runFlow:
+                          when:
+                              true: ${DIRECTION == 'UP'}
+                          commands:
+                              - swipe:
+                                    start: 50%, 35%
+                                    end: 50%, 55%
+                                    duration: 500
+                    - runFlow:
+                          when:
+                              true: ${DIRECTION != 'UP'}
+                          commands:
+                              - swipe:
+                                    start: 50%, 55%
+                                    end: 50%, 35%
+                                    duration: 500
+          - assertVisible:
+                text: ${TARGET}
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - repeat:
+                while:
+                    notVisible:
+                        text: ${TARGET}
+                        above: space
+                times: 10
                 commands:
-                    - swipe:
-                          start: 50%, 55%
-                          end: 50%, 35%
-                          duration: 500
-- assertVisible:
-      text: ${TARGET}
+                    - runFlow:
+                          when:
+                              true: ${DIRECTION == 'UP'}
+                          commands:
+                              - swipe:
+                                    start: 50%, 35%
+                                    end: 50%, 55%
+                                    duration: 500
+                    - runFlow:
+                          when:
+                              true: ${DIRECTION != 'UP'}
+                          commands:
+                              - swipe:
+                                    start: 50%, 55%
+                                    end: 50%, 35%
+                                    duration: 500
+          - assertVisible:
+                text: ${TARGET}
+                above: space

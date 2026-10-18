@@ -89,8 +89,9 @@ appId: ${APP_ID}
 - tapOn: 'Add step'
 - tapOn: 'Step 1'
 - inputText: 'Roast.'
-# The step field keeps the soft keyboard up over the action bar; the section heading closes it (`common/typeTitle.yaml`).
-- tapOn: 'Steps'
+# The step field keeps the soft keyboard up, and while it is up the action bar UNPINS and scrolls with the page, below
+# this screen (build spec §7.1). The first heading closes the keyboard, and the bar pins to the foot again.
+- runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Publish'
 
 # The refusal says how many things there are to fix (the bar), and the row says why. Nothing was published: the editor
@@ -110,6 +111,8 @@ appId: ${APP_ID}
       env:
           TARGET: 'Use “smoked flour” as written, without nutrition'
 - tapOn: 'Use “smoked flour” as written, without nutrition'
+# The row's field may still hold focus, and the keyboard with it, which unpins the bar (build spec §7.1).
+- runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Publish'
 - extendedWaitUntil:
       visible:

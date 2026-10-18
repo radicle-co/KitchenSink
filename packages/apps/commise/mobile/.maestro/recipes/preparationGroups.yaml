@@ -81,14 +81,9 @@ appId: ${APP_ID}
 - tapOn: 'Add step'
 - tapOn: 'Step 1'
 - inputText: 'Marinate and grill.'
-# The step field keeps the iOS keyboard up over the action bar; a tap on the section heading closes it
-# (`common/typeTitle.yaml` says why a heading, and why not Return).
-- runFlow:
-      when:
-          platform: iOS
-      commands:
-          - tapOn: 'Steps'
-
+# The soft keyboard is up and the action bar has UNPINNED with it, so the bar is below this screen (build spec §7.1,
+# "Keyboard open (phones)"). The first heading closes the keyboard and pins the bar again.
+- runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Publish'
 
 # Landed on the new recipe's detail. The title regex tolerates this emulator's occasional last-character

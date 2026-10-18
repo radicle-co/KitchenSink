@@ -321,6 +321,40 @@ describe('⛔ no shard builds an app: the recipe lives in buildTestApp.sh', () =
         expect(offenders).toEqual([]);
     });
 
+    /**
+     * The Android test-app build (not a shard) keeps a Gradle home cache. The older "declined" reasons were three, and each
+     * is answered where the step is written: the build is hoisted off the shards, `setup-gradle` is read-only off the
+     * default branch (so it is told not to be, or it would restore an entry nothing writes), and the entry no longer competes
+     * with `node_modules` for a full cache. This holds the shape: the open-source provider (the default one is a commercial
+     * service with its own terms), writes enabled on a PR, cleanup on success so the entry cannot only grow, a pinned SHA,
+     * and NOTHING of the kind on the iOS build (DerivedData stays refused: a partially hitting compiler cache is the thing
+     * that could serve an object built from stale inputs).
+     */
+    it('the Android build job caches the Gradle home through setup-gradle, and the iOS build caches no compiler output', () => {
+        const android = (build.jobs?.['android']?.steps ?? []).find((step) =>
+            /gradle\/actions\/setup-gradle@/u.test(step.uses ?? ''),
+        );
+        const ios = (build.jobs?.['ios']?.steps ?? []).map(
+            (step) => `${step.uses ?? ''} ${scalarText(step.with?.['path'])}`,
+        );
+
+        expect(android?.uses).toMatch(/@[0-9a-f]{40}\s*(#.*)?$/u);
+        expect(android?.with?.['cache-provider']).toBe('basic');
+        expect(String(android?.with?.['cache-read-only'])).toBe('false');
+        expect(android?.with?.['cache-cleanup']).toBe('on-success');
+        expect(ios.join('\n')).not.toMatch(/gradle|cocoapods|DerivedData|ccache/iu);
+    });
+
+    it('runs setup-gradle after Java is set up and before the build it caches', () => {
+        const steps = build.jobs?.['android']?.steps ?? [];
+        const at = (re: RegExp): number =>
+            steps.findIndex((step) => re.test(`${step.uses ?? ''} ${scalarText(step.run)}`));
+
+        expect(at(/setup-java/u)).toBeGreaterThan(-1);
+        expect(at(/setup-gradle/u)).toBeGreaterThan(at(/setup-java/u));
+        expect(at(/buildTestApp\.sh android/u)).toBeGreaterThan(at(/setup-gradle/u));
+    });
+
     it('_ci-heavy.yml caches no Gradle, no CocoaPods and no DerivedData', () => {
         const offenders = Object.entries(heavy.jobs ?? {}).flatMap(([name, job]) =>
             (job.steps ?? []).flatMap((step) =>

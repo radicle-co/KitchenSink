@@ -7,8 +7,8 @@
  * Nightly run 31471786779 of `e2e-mobile-maestro` took **52.75m**, of which only **17.3m** is fixed setup
  * (12.9m Gradle release-APK build + ~1.5m emulator/AVD boot + install + ~2.9m checkout/deps/service
  * build/seed) and **35.5m is FLOW EXECUTION**. The variable half dominates the fixed half 2:1, so caching
- * the fixed half is the small lever (Gradle/AVD caching targets ~2.8% and is REFUTED — do not re-propose
- * it); choosing FEWER FLOWS is the big one. `recipes/collectionsPagination` alone is 7.75m — 22% of all
+ * the fixed half is the small lever (Gradle/AVD caching targeted ~2.8% of the tier while the build sat in every
+ * shard; the Gradle home is cached now that the build is hoisted, see `_mobileAppBuild.yml`); choosing FEWER FLOWS is the big one. `recipes/collectionsPagination` alone is 7.75m — 22% of all
  * flow time — and the top five flows are 48% of it.
  *
  * Since commit `5832ce7c` the Maestro tier auto-triggers on the mobile surface, so a large share of PRs pay

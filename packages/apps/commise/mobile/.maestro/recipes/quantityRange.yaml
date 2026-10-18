@@ -81,6 +81,9 @@ appId: ${APP_ID}
 - tapOn: 'Step 1'
 - inputText: 'Mix and bake.'
 
+# A field is still focused, so the soft keyboard is up and the action bar has UNPINNED (build spec §7.1, "Keyboard open
+# (phones)"): it scrolls with the page, below this screen. Closing the keyboard from the first heading pins it again.
+- runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Publish'
 
 # Landed on the new recipe's detail. The title regex tolerates this emulator's occasional last-character
@@ -130,6 +133,9 @@ appId: ${APP_ID}
       text: '^the size of an egg$'
 - hideKeyboard
 - tapOn: 'Done'
+# The soft keyboard is up and the action bar has UNPINNED with it, so the bar is below this screen (build spec §7.1,
+# "Keyboard open (phones)"). The first heading closes the keyboard and pins the bar again.
+- runFlow: common/closeEditorKeyboard.yaml
 # The recipe is published now, so its edits reach the server only at Save changes (owner decision D1).
 - tapOn: 'Save changes'
 

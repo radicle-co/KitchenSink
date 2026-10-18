@@ -69,6 +69,25 @@ both food stacks and deploys on any non-usable status, so a successful food depl
 are usable. Because that entailment lives in another job's step where nothing else would notice it rotting,
 `deployedE2eEntrypoint.test.ts` analyzer 7 asserts that food's gate still names both stacks.
 
+### The same move for the recipe queues
+
+`recipe-service` also waited on `recipe-workers`, and for the same kind of reason: it resolved the account-erasure,
+ingredient-verification and parse queue addresses from SSM parameters the workers stack published at deploy time.
+That edge put the workers' whole deploy on the longest chain in the preview (parser, workers, service). The
+addresses were never data. We choose each queue's name, and its URL and ARN follow from the name, the region and the
+account.
+
+So the edge goes the way food's did. `recipeQueueName`, `recipeQueueUrl` and `recipeQueueArn` in
+`@radicle-co/infra-shared/recipe-queues` are the one authority: the workers stack names its queues with them, the
+service stack derives its environment and its `sqs:SendMessage` grants with them, and the join derives the same.
+The six SSM parameters are not published any more, and `recipe-service` needs only `recipe-schema`.
+
+The guarantee the edge gave, that a stage wired with no queue fails loudly, moves to `ecosystem-smoke`, which now also
+needs `recipe-workers`. For each derived queue it asks SQS whether the queue exists, requires SQS's own URL to equal
+the derived one, and requires the running task's configured value to equal it. The services still refuse to boot on a
+missing or malformed URL. A queue's producer may now run ahead of its consumer for a few minutes; SQS retains the
+message until the consumer lands.
+
 ## Alternatives considered
 
 **Keep the serial edge.** Costs ~13 minutes on every run that deploys both services, and pushes a run that

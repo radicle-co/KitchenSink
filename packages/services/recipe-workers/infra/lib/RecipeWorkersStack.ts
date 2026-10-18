@@ -34,6 +34,7 @@ import {
     subscribeAlarmEmail,
 } from '@radicle-co/infra-shared/security';
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
+import { recipeQueueDlqName, recipeQueueName } from '@radicle-co/infra-shared/recipe-queues';
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
 import { consumerConcurrencyFor } from './consumerConcurrency.js';
 import { PARSE_LINE_DELIVERY } from '@kitchensink/recipe-core/parsing/parse-line-delivery';
@@ -631,7 +632,7 @@ export class RecipeWorkersStack extends Stack {
         // that owner's rows out of the WRONG database while the real sandbox job stayed queued.
         this.erasureDlq = new sqs.Queue(this, 'AccountErasureDlq', {
             enforceSSL: true,
-            queueName: `kitchensink-recipe-account-erasure-dlq-${props.stage}`,
+            queueName: recipeQueueDlqName('accountErasure', props.stage),
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             // 14 days, as with the archive DLQ: a message here is a right-to-erasure request that failed
             // permanently, so it must survive a long weekend for an operator to redrive.
@@ -641,7 +642,7 @@ export class RecipeWorkersStack extends Stack {
 
         this.erasureQueue = new sqs.Queue(this, 'AccountErasureQueue', {
             enforceSSL: true,
-            queueName: `kitchensink-recipe-account-erasure-${props.stage}`,
+            queueName: recipeQueueName('accountErasure', props.stage),
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(4),
             visibilityTimeout: ERASURE_QUEUE_VISIBILITY_TIMEOUT,
@@ -1123,7 +1124,7 @@ export class RecipeWorkersStack extends Stack {
         // share — see the argument recorded at `RecipeParseDlq`.
         const verificationDlq = new sqs.Queue(this, 'IngredientVerificationDlq', {
             enforceSSL: true,
-            queueName: `kitchensink-recipe-verification-dlq-${props.stage}`,
+            queueName: recipeQueueDlqName('ingredientVerification', props.stage),
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(7),
             visibilityTimeout: VERIFICATION_QUEUE_VISIBILITY_TIMEOUT,
@@ -1131,7 +1132,7 @@ export class RecipeWorkersStack extends Stack {
 
         const verificationQueue = new sqs.Queue(this, 'IngredientVerificationQueue', {
             enforceSSL: true,
-            queueName: `kitchensink-recipe-verification-${props.stage}`,
+            queueName: recipeQueueName('ingredientVerification', props.stage),
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(4),
             visibilityTimeout: VERIFICATION_QUEUE_VISIBILITY_TIMEOUT,
@@ -1368,7 +1369,7 @@ export class RecipeWorkersStack extends Stack {
 
         const parseDlq = new sqs.Queue(this, 'RecipeParseDlq', {
             enforceSSL: true,
-            queueName: `kitchensink-recipe-parse-dlq-${props.stage}`,
+            queueName: recipeQueueDlqName('parse', props.stage),
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(14),
         });
@@ -1382,7 +1383,7 @@ export class RecipeWorkersStack extends Stack {
             // today. (Suppressing it was never the alternative — ADR-0013 requires every suppression to be
             // "its own reviewed change with its own diff".)
             enforceSSL: true,
-            queueName: `kitchensink-recipe-parse-${props.stage}`,
+            queueName: recipeQueueName('parse', props.stage),
             // `encryption` closes no live gap: AWS encrypts a NEW queue with SSE-SQS by default, and cdk-nag's
             // SSE rule fails only on an explicit `false`, so nothing was reporting this one. What the
             // declaration buys is CloudFormation OWNERSHIP — a queue's encryption CAN be turned off later, and
@@ -1503,20 +1504,6 @@ export class RecipeWorkersStack extends Stack {
             }),
         );
 
-        // Cross-stack hand-off to recipe-service's parse-job PRODUCER (plan U9), by SSM for the reason the
-        // erasure and verification parameters are: an imported CfnOutput export is LOCKED while referenced,
-        // and ADR-0005's PR-close cleanup deletes a PR's stacks in no guaranteed order. Keyed on the DEPLOY
-        // stage (never baseStage): a pr-{N} service must enqueue onto the pr-{N} queue, whose worker points
-        // at the pr-{N} logical database (ADR-0006).
-        new ssm.StringParameter(this, 'RecipeParseQueueUrlParam', {
-            parameterName: `/kitchensink/${props.stage}/recipe/parse-queue-url`,
-            stringValue: parseQueue.queueUrl,
-        });
-        new ssm.StringParameter(this, 'RecipeParseQueueArnParam', {
-            parameterName: `/kitchensink/${props.stage}/recipe/parse-queue-arn`,
-            stringValue: parseQueue.queueArn,
-        });
-
         // ── band revocation drain (plan U3, R14) ────────────────────────────────────────────────────
         //
         // Revocation flips a band's state and enqueues NOTHING; `resolution_band_skips` is the backlog,
@@ -1577,10 +1564,11 @@ export class RecipeWorkersStack extends Stack {
         // pipeline step ahead of this stack AND ahead of the service. One runner ahead of everything orders
         // every consumer regardless of app or stack, which is strictly more than either barrier gave.
         //
-        // ⚠️ THE PIPELINE ORDER IS UNCHANGED AND STILL LOAD-BEARING: this stack still deploys BEFORE
-        // `RecipeServiceStack`, because it publishes the `account-erasure-queue-{url,arn}` SSM parameters
-        // the service resolves at deploy time, and because a queue's CONSUMER must upgrade before its
-        // PRODUCER. What moved is only the schema, which now precedes both.
+        // ⚠️ The schema precedes both this stack and the service. This stack no longer has to deploy BEFORE
+        // `RecipeServiceStack` (ADR-0036: the service derives the queues' addresses rather than reading
+        // parameters published here), so a queue's PRODUCER may briefly run ahead of its CONSUMER on a deploy.
+        // That is safe by design: SQS retains the message (4 days at least) and the consumer drains it once it
+        // lands, and `ecosystem-smoke` fails the run if the derived queue never appears.
         //
         // ⛔ Do NOT re-add a runner here. The EXPAND-FIRST discipline still binds: a migration must be safe
         // to apply while the previous release is still serving, so a contracting change ships a release
@@ -2171,38 +2159,14 @@ export class RecipeWorkersStack extends Stack {
             handleSyncDlqAlarm.addAlarmAction(alarmAction);
         }
 
-        // Cross-stack hand-off to recipe-service's producer, by SSM for the reason the erasure queue is:
-        // an imported CfnOutput export is LOCKED while referenced, and ADR-0005's PR-close cleanup deletes a
-        // PR's stacks in no guaranteed order.
-        new ssm.StringParameter(this, 'IngredientVerificationQueueUrlParam', {
-            parameterName: `/kitchensink/${props.stage}/recipe/verification-queue-url`,
-            stringValue: verificationQueue.queueUrl,
-        });
-        new ssm.StringParameter(this, 'IngredientVerificationQueueArnParam', {
-            parameterName: `/kitchensink/${props.stage}/recipe/verification-queue-arn`,
-            stringValue: verificationQueue.queueArn,
-        });
-        // ── cross-stack hand-off: erasure queue → recipe-service (T136b) ───────────────────────────
-        // recipe-service's ErasureService REQUIRES ACCOUNT_ERASURE_QUEUE_URL and refuses to boot without
-        // it. It reads the URL (and the ARN, to scope its sqs:SendMessage grant) from these per-STAGE SSM
-        // parameters rather than a CfnOutput export.
-        //
-        // This is NOT a `CfnOutput`/`Fn.importValue` export ON PURPOSE. An imported export is LOCKED for as
-        // long as the importer references it, and the ADR-0005 PR-close cleanup deletes a PR's stacks with
-        // NO ordering guarantee — delete workers before service and CloudFormation refuses with the
-        // export-in-use deadlock ADR-0002 documents, unattended, in CI. An SSM parameter carries the same
-        // value with no such lock: either stack deletes in any order, and a missing parameter still fails
-        // the consumer's deploy loudly rather than degrading silently. Per-stage names (never baseStage) so
-        // a pr-{N} service enqueues onto its OWN queue, never the shared sandbox one (ADR-0006).
-        new ssm.StringParameter(this, 'AccountErasureQueueUrlParam', {
-            parameterName: `/kitchensink/${props.stage}/recipe/account-erasure-queue-url`,
-            stringValue: this.erasureQueue.queueUrl,
-        });
-        new ssm.StringParameter(this, 'AccountErasureQueueArnParam', {
-            parameterName: `/kitchensink/${props.stage}/recipe/account-erasure-queue-arn`,
-            stringValue: this.erasureQueue.queueArn,
-        });
-
+        // ⛔ NO cross-stack hand-off for the erasure, verification or parse queues, ON PURPOSE (ADR-0036).
+        // `RecipeServiceStack` produces onto all three, and it used to read their URLs and ARNs from SSM
+        // parameters published here - resolved at deploy time, which made the service's deploy wait for this
+        // one. The queues are now NAMED by `recipeQueueName` (`@radicle-co/infra-shared/recipe-queues`) and
+        // the service DERIVES the URL and ARN from that same function, so there is nothing to publish and no
+        // ordering to state. `ecosystem-smoke` asserts each derived queue exists and that the running task is
+        // configured with it. Do not re-add the parameters: a published value nothing reads is how the
+        // verification queue once shipped unproduced-to behind green checks.
         new CfnOutput(this, 'VersionArchiveQueueUrl', { value: this.archiveQueue.queueUrl });
         new CfnOutput(this, 'VersionArchiveDlqUrl', { value: this.archiveDlq.queueUrl });
         // ── THE SCHEDULED BACKSTOP (plan U12, R29/R30/R32/R34/R36) ──────────────────────────────────────

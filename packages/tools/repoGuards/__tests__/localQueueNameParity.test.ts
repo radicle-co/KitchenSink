@@ -38,6 +38,7 @@
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
@@ -48,6 +49,15 @@ const LOCAL_RUNNER = 'packages/tools/local-sandbox/bin/adapters.ts';
 
 /** A `queueName:` property whose value is a template literal, e.g. `` `kitchensink-recipe-parse-${x}` ``. */
 const QUEUE_NAME = /queueName:\s*`([^`]+)`/gu;
+
+/**
+ * A queue named through the SHARED authority, e.g. `queueName: recipeQueueName('parse', props.stage)` (ADR-0036).
+ * The name is a function of the kind and the stage, so it is evaluated with the real module rather than re-spelled.
+ */
+const SHARED_QUEUE_NAME = /recipeQueue(Dlq)?Name\(\s*'([A-Za-z]+)'/gu;
+
+/** Where the shared queue-naming authority lives. */
+const SHARED_QUEUES_MODULE = 'shared/infra/src/recipeQueues/recipeQueues.ts';
 
 /** Any `…_QUEUE_URL=<url>` assignment in a committed env file. */
 const QUEUE_URL = /^\s*([A-Z0-9_]*QUEUE_URL)\s*=\s*(\S+)\s*$/gmu;
@@ -91,15 +101,28 @@ function localStage(): string {
  *
  * @param stage - The stage to substitute for the templates' stage interpolation.
  * @returns The declared names. Impure.
- * @sideEffect Shells out to git and reads the infra tree.
+ * @sideEffect Shells out to git, reads the infra tree and loads the shared queue-naming module.
  */
-function declaredQueueNames(stage: string): ReadonlySet<string> {
-    const names = [...trackedFiles('packages')]
+async function declaredQueueNames(stage: string): Promise<ReadonlySet<string>> {
+    const sources = [...trackedFiles('packages')]
         .filter((file) => /(?:^|\/)infra\/lib\//u.test(file) && file.endsWith('.ts'))
-        .flatMap((file) => [...readFileSync(path.join(repoRoot, file), 'utf8').matchAll(QUEUE_NAME)])
+        .map((file) => readFileSync(path.join(repoRoot, file), 'utf8'));
+    const literal = sources
+        .flatMap((text) => [...text.matchAll(QUEUE_NAME)])
         .map(([, template]) => (template ?? '').replace(STAGE_INTERPOLATION, stage));
+    const shared = (await import(pathToFileURL(path.join(repoRoot, SHARED_QUEUES_MODULE)).href)) as {
+        recipeQueueName(kind: string, stage: string): string;
+        recipeQueueDlqName(kind: string, stage: string): string;
+    };
+    const viaAuthority = sources
+        .flatMap((text) => [...text.matchAll(SHARED_QUEUE_NAME)])
+        .map(([, dlq, kind]) =>
+            dlq === undefined
+                ? shared.recipeQueueName(kind ?? '', stage)
+                : shared.recipeQueueDlqName(kind ?? '', stage),
+        );
 
-    return new Set(names);
+    return new Set([...literal, ...viaAuthority]);
 }
 
 /**
@@ -137,20 +160,20 @@ function unmatchedQueueNames(queues: readonly LocalQueue[], declared: ReadonlySe
 }
 
 describe('local queue name parity', () => {
-    it('derives both sides — neither discovery has gone vacuous', () => {
+    it('derives both sides — neither discovery has gone vacuous', async () => {
         expect(
             localQueues().length,
             'no local queue URL found — the env-file discovery has stopped working',
         ).toBeGreaterThan(0);
         expect(
-            declaredQueueNames(localStage()).size,
+            (await declaredQueueNames(localStage())).size,
             'no queueName found in the infra tree — the stack discovery has stopped working',
         ).toBeGreaterThan(0);
     });
 
-    it('points every local queue URL at a queue the local sandbox creates', () => {
+    it('points every local queue URL at a queue the local sandbox creates', async () => {
         expect(
-            unmatchedQueueNames(localQueues(), declaredQueueNames(localStage())),
+            unmatchedQueueNames(localQueues(), await declaredQueueNames(localStage())),
             'A local queue URL names a queue nothing in the repository creates. `npm run local:up` provisions ' +
                 'queues under the `queueName` in each synthesized template at its own stage, so a hand-written ' +
                 'name here sends every local message to a queue that does not exist — and the producer catches ' +
@@ -158,7 +181,7 @@ describe('local queue name parity', () => {
         ).toEqual([]);
     });
 
-    it('⛔ NEGATIVE CONTROL: reports the exact names this guard was written for', () => {
+    it('⛔ NEGATIVE CONTROL: reports the exact names this guard was written for', async () => {
         // The literal pre-fix values. If the predicate ever stops reporting these, it has been broken open
         // and the assertion above would pass on the very defect it exists to catch.
         const stale: readonly LocalQueue[] = [
@@ -174,6 +197,6 @@ describe('local queue name parity', () => {
             },
         ];
 
-        expect(unmatchedQueueNames(stale, declaredQueueNames(localStage()))).toHaveLength(2);
+        expect(unmatchedQueueNames(stale, await declaredQueueNames(localStage()))).toHaveLength(2);
     });
 });

@@ -625,7 +625,7 @@ export const parseJobConfigSchema = z.object({
      * ⛔ REQUIRED for the same historical reason `INGREDIENT_VERIFICATION_QUEUE_URL` is (see above): an
      * optional URL is how a consumer ships with nothing producing — the service would boot, accept parse
      * jobs, and silently enqueue nowhere, leaving every line `pending` until the TTL sweep expired the job.
-     * Published per stage by `RecipeWorkersStack` (`/kitchensink/{stage}/recipe/parse-queue-url`).
+     * Derived per stage by `RecipeServiceStack` (`recipeQueueUrl`, ADR-0036), the queue `RecipeWorkersStack` names.
      */
     RECIPE_PARSE_QUEUE_URL: z.string().url(),
     /**

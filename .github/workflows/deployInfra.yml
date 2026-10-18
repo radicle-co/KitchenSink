@@ -602,16 +602,17 @@ jobs:
             contents: read
             packages: read # `@radicle-co/infra-shared` authenticates even for a public read
             id-token: write # awsAuth (a callee can only downgrade, so every caller grants it)
-        # ⛔ AFTER recipe-workers, not before. `RecipeServiceStack` reads the account-erasure queue URL and
-        # ARN from a per-stage SSM parameter that the WORKERS stack publishes, and `ErasureService` refuses
-        # to boot without it — "a stage wired with no queue fails the deploy loudly instead of degrading
-        # every 'erase my data' request to a silent cron-tick wait".
+        # ⛔ NOT after recipe-workers, deliberately - the ADR-0036 amendment. `RecipeServiceStack` used to read the
+        # account-erasure, verification and parse queue addresses from SSM parameters the WORKERS stack published,
+        # resolved at deploy time, so this job waited on workers' whole deploy (parser -> workers -> service was the
+        # longest chain in the preview). It now DERIVES them with the pure `recipeQueueUrl`/`recipeQueueArn`
+        # (`@radicle-co/infra-shared/recipe-queues`), the same module that names the queues in the workers stack, so
+        # nothing this deploy reads is produced by another job.
         #
-        # ⚠️ It is SSM rather than `Fn.importValue` on purpose, so the dependency is INVISIBLE to
-        # CloudFormation: an export would lock the workers stack while this one imports it, and ADR-0005's
-        # PR-close cleanup deletes a PR's stacks in no fixed order — workers-first would hit the
-        # export-in-use deadlock ADR-0002 documents, unattended, in CI. Invisible to CFN means the ordering
-        # has to be stated HERE or it does not exist.
+        # ⚠️ What the edge used to guarantee - a stage wired with no queue fails loudly - belongs to the JOIN now:
+        # `ecosystem-smoke` asks SQS for each derived queue and compares the running task's configured value with
+        # it. `ErasureService` and the two job queues' configs still refuse to boot on a missing or malformed URL.
+        # A queue's producer may briefly run ahead of its consumer on a deploy; SQS retains the message.
         #
         # ⛔ NOT after food-service, deliberately — ADR-0036. That edge cost ~13 minutes of every run for an
         # ordering that was never a data dependency: recipe resolves food's origin through the PURE
@@ -626,7 +627,7 @@ jobs:
         # ⚠️ Reclamation jobs must NEVER be bound — a protection rule suspends them and a suspended
         # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
-        needs: [recipe-workers]
+        needs: [recipe-schema]
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -689,9 +690,9 @@ jobs:
             contents: read
             packages: read # `@radicle-co/infra-shared` authenticates even for a public read
             id-token: write # awsAuth (a callee can only downgrade, so every caller grants it)
-        # Owns the account-erasure queue and publishes its URL/ARN to SSM for recipe-service to read, so it
-        # goes FIRST of the recipe pair. It imports nothing cross-stack itself — verified: no
-        # `Fn.importValue` anywhere in its lib.
+        # Owns the account-erasure, verification and parse queues. recipe-service no longer waits for it: it derives
+        # their addresses (ADR-0036 amendment), and `ecosystem-smoke` asserts they exist. It imports nothing
+        # cross-stack itself - verified: no `Fn.importValue` anywhere in its lib.
         #
         # ⛔ AFTER ingredient-parser, which is ALSO invisible to CloudFormation. `RecipeWorkersStack` sets
         # `CRF_FUNCTION_NAME: kitchensink-ingredient-parser-${stage}` — a NAME it constructs, plus an IAM
@@ -986,12 +987,15 @@ jobs:
         # ⚠️ Reclamation jobs must NEVER be bound — a protection rule suspends them and a suspended
         # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
-        needs: [food-service, recipe-service]
+        # recipe-workers is a need because it OWNS the queues the recipe API is configured with (ADR-0036 amendment):
+        # the join cannot say "the queues exist" before it has deployed.
+        needs: [food-service, recipe-service, recipe-workers]
         if: >-
             ${{ inputs.deploy
             && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' food-service '))
             && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' recipe-service '))
-            && needs.food-service.result == 'success' && needs.recipe-service.result == 'success' }}
+            && needs.food-service.result == 'success' && needs.recipe-service.result == 'success'
+            && needs.recipe-workers.result == 'success' }}
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -1020,7 +1024,16 @@ jobs:
               working-directory: packages/services/food-service/infra
               run: npm install --no-audit --no-fund
 
-            - name: Smoke — this stage's recipe service is WIRED to this stage's food service
+            # ⛔ `printRecipeQueues.ts` imports `@radicle-co/infra-shared/recipe-queues`, which exists only in the recipe
+            # app's own `infra/` install - the same constraint as the food helper above. Asserted by
+            # `infraInstallBeforeUse.test.ts`.
+            - name: Install the recipe service's CDK package (the queue helper imports the shared module)
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              working-directory: packages/services/recipe-service/infra
+              run: npm install --no-audit --no-fund
+
+            - name: Smoke — this stage's recipe service is WIRED to this stage's food service and queues
               env:
                   STAGE: ${{ inputs.stage }}
               run: |
@@ -1047,7 +1060,36 @@ jobs:
                       configured=''
                   fi
 
+                  # ⛔ THE QUEUE HALF OF THE JOIN (ADR-0036 amendment). The recipe service DERIVES its three queue
+                  # addresses instead of reading what the workers stack published, so this is where "a stage wired
+                  # with no queue fails loudly" is enforced: for each derived queue, ask SQS whether it exists, and
+                  # hand the smoke what the RUNNING task is configured with. The names, URLs and variables come
+                  # from the same helper the stack's module feeds - nothing is restated here.
+                  # ⚠️ Only a missing queue is "absent"; any other SQS error (permissions, throttling) fails this
+                  # step, because reading an outage as "no such queue" would blame the wrong stack.
+                  queue_args=()
+                  while IFS=$'\t' read -r label name expected_url env_var; do
+                      queue_configured=$(aws ecs describe-task-definition --task-definition "$task_def" \
+                          --query "taskDefinition.containerDefinitions[0].environment[?name=='${env_var}'].value | [0]" \
+                          --output text)
+                      if [ "$queue_configured" = 'None' ]; then
+                          queue_configured=''
+                      fi
+                      if queue_actual=$(aws sqs get-queue-url --queue-name "$name" --query QueueUrl --output text 2>/tmp/sqs-error); then
+                          :
+                      elif grep -q 'NonExistentQueue\|QueueDoesNotExist' /tmp/sqs-error; then
+                          queue_actual=''
+                      else
+                          cat /tmp/sqs-error >&2
+                          echo "::error::could not ask SQS about ${name}" >&2
+                          exit 1
+                      fi
+                      queue_args+=(--queue-check "${label}|${expected_url}|${queue_configured}|${queue_actual}")
+                  done < <(npx tsx packages/services/recipe-service/infra/bin/printRecipeQueues.ts \
+                      "${STAGE}" "${DEFAULT_AWS_REGION}" "${AWS_ACCOUNT_ID}")
+
                   npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
                       --base-url "https://recipe-${STAGE}.${DOMAIN_NAME}" \
                       --food-origin "${food_origin}" \
-                      --configured-food-origin "${configured}"
+                      --configured-food-origin "${configured}" \
+                      "${queue_args[@]}"

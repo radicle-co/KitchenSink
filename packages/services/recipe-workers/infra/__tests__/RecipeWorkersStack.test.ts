@@ -22,6 +22,7 @@ import { PARSE_LINE_DELIVERY } from '@kitchensink/recipe-core/parsing/parse-line
 import { BEDROCK_MODEL_REGISTRY, residencyClearance } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
+import { RECIPE_QUEUE_KINDS, recipeQueueDlqName, recipeQueueName } from '@radicle-co/infra-shared/recipe-queues';
 
 import { RecipeWorkersStack } from '../lib/RecipeWorkersStack.js';
 import { SCHEDULED_RULE_STAGE_TAG } from '../lib/scheduledRuleGate.js';
@@ -942,19 +943,24 @@ describe('RecipeWorkersStack — account erasure', () => {
         expect(dlqAlarm?.Properties?.ComparisonOperator).toBe('GreaterThanThreshold');
     });
 
-    it('publishes the queue URL + ARN to per-stage SSM for the recipe-service stack', () => {
-        // The cross-stack hand-off. NOT a CfnOutput export: an `Fn.importValue` would lock this stack's
-        // export while recipe-service imports it, and the ADR-0005 PR-close cleanup deletes a PR's stacks
-        // with no ordering guarantee — workers-before-service would hit the export-in-use deadlock
-        // ADR-0002 documents, unattended, in CI. An SSM parameter carries the same value with no lock.
-        template.hasResourceProperties('AWS::SSM::Parameter', {
-            Name: '/kitchensink/sandbox/recipe/account-erasure-queue-url',
-            Type: 'String',
-        });
-        template.hasResourceProperties('AWS::SSM::Parameter', {
-            Name: '/kitchensink/sandbox/recipe/account-erasure-queue-arn',
-            Type: 'String',
-        });
+    it('names the three producer-facing queues with the SHARED authority, and publishes NO SSM hand-off', () => {
+        // ADR-0036's move. `RecipeServiceStack` derives these queues' URLs and ARNs from `recipeQueueName`
+        // (`@radicle-co/infra-shared/recipe-queues`) instead of reading parameters this stack published, so
+        // the service's deploy no longer waits for this one. The two sides agree only because both call that
+        // one function: this asserts THIS side does, for every kind, and that the old parameters are gone
+        // (a leftover would be a hand-off nobody reads, which is how the verification queue once went unread).
+        for (const kind of RECIPE_QUEUE_KINDS) {
+            template.hasResourceProperties('AWS::SQS::Queue', { QueueName: recipeQueueName(kind, 'sandbox') });
+            template.hasResourceProperties('AWS::SQS::Queue', { QueueName: recipeQueueDlqName(kind, 'sandbox') });
+        }
+
+        const published = Object.values(template.findResources('AWS::SSM::Parameter')).map(
+            (parameter) => (parameter.Properties as { Name?: string }).Name ?? '',
+        );
+
+        expect(
+            published.filter((name) => /\/recipe\/(account-erasure|verification|parse)-queue-(url|arn)$/.test(name)),
+        ).toEqual([]);
     });
 
     it('publishes NO migration-runner output — one runner per database means one output', () => {
@@ -1001,9 +1007,6 @@ describe('RecipeWorkersStack — account erasure', () => {
         });
         prTemplate.hasResourceProperties('AWS::Events::Rule', {
             Name: 'kitchensink-recipe-erasure-sweep-pr-73',
-        });
-        prTemplate.hasResourceProperties('AWS::SSM::Parameter', {
-            Name: '/kitchensink/pr-73/recipe/account-erasure-queue-url',
         });
     });
 });
@@ -1742,25 +1745,11 @@ describe('RecipeWorkersStack — the spend alarm still watches the aggregate', (
 describe('RecipeWorkersStack — the parse-job hand-off', () => {
     const template = synth('sandbox');
 
-    it('publishes the parse queue URL + ARN to per-stage SSM for the recipe-service stack', () => {
-        template.hasResourceProperties('AWS::SSM::Parameter', {
-            Name: '/kitchensink/sandbox/recipe/parse-queue-url',
-            Type: 'String',
-        });
-        template.hasResourceProperties('AWS::SSM::Parameter', {
-            Name: '/kitchensink/sandbox/recipe/parse-queue-arn',
-            Type: 'String',
-        });
-    });
-
-    it('keys the parameters on the DEPLOY stage, so a pr-{N} service enqueues onto its own queue', () => {
+    it('names the parse queue for the DEPLOY stage, so a pr-{N} service enqueues onto its own queue', () => {
         // ADR-0006: the pr-{N} worker points at the pr-{N} logical database; a message crossing stages
-        // would land parse rows in the wrong database and bill the wrong stage's spend pool.
-        const prTemplate = synth('pr-73');
-
-        prTemplate.hasResourceProperties('AWS::SSM::Parameter', {
-            Name: '/kitchensink/pr-73/recipe/parse-queue-url',
-        });
+        // would land parse rows in the wrong database and bill the wrong stage's spend pool. The service
+        // derives the same name from the same module, so no parameter is published.
+        synth('pr-73').hasResourceProperties('AWS::SQS::Queue', { QueueName: recipeQueueName('parse', 'pr-73') });
     });
 
     /**

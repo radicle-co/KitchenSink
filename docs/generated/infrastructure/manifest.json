@@ -1240,7 +1240,7 @@
                         {
                             "kind": "queue",
                             "logicalId": "AccountErasureDlq",
-                            "nameTemplate": "kitchensink-recipe-account-erasure-dlq-{stage}",
+                            "nameTemplate": null,
                             "handler": null,
                             "condition": null,
                             "notes": []
@@ -1248,7 +1248,7 @@
                         {
                             "kind": "queue",
                             "logicalId": "AccountErasureQueue",
-                            "nameTemplate": "kitchensink-recipe-account-erasure-{stage}",
+                            "nameTemplate": null,
                             "handler": null,
                             "condition": null,
                             "notes": []
@@ -1328,7 +1328,7 @@
                         {
                             "kind": "queue",
                             "logicalId": "IngredientVerificationDlq",
-                            "nameTemplate": "kitchensink-recipe-verification-dlq-{stage}",
+                            "nameTemplate": null,
                             "handler": null,
                             "condition": null,
                             "notes": []
@@ -1336,7 +1336,7 @@
                         {
                             "kind": "queue",
                             "logicalId": "IngredientVerificationQueue",
-                            "nameTemplate": "kitchensink-recipe-verification-{stage}",
+                            "nameTemplate": null,
                             "handler": null,
                             "condition": null,
                             "notes": []
@@ -1368,7 +1368,7 @@
                         {
                             "kind": "queue",
                             "logicalId": "RecipeParseDlq",
-                            "nameTemplate": "kitchensink-recipe-parse-dlq-{stage}",
+                            "nameTemplate": null,
                             "handler": null,
                             "condition": null,
                             "notes": []
@@ -1376,7 +1376,7 @@
                         {
                             "kind": "queue",
                             "logicalId": "RecipeParseQueue",
-                            "nameTemplate": "kitchensink-recipe-parse-{stage}",
+                            "nameTemplate": null,
                             "handler": null,
                             "condition": null,
                             "notes": []
@@ -1386,22 +1386,6 @@
                             "logicalId": "RecipeParseLineFunction",
                             "nameTemplate": null,
                             "handler": "handlers/parseLine.handler",
-                            "condition": null,
-                            "notes": []
-                        },
-                        {
-                            "kind": "ssmParameter",
-                            "logicalId": "RecipeParseQueueUrlParam",
-                            "nameTemplate": "/kitchensink/{stage}/recipe/parse-queue-url",
-                            "handler": null,
-                            "condition": null,
-                            "notes": []
-                        },
-                        {
-                            "kind": "ssmParameter",
-                            "logicalId": "RecipeParseQueueArnParam",
-                            "nameTemplate": "/kitchensink/{stage}/recipe/parse-queue-arn",
-                            "handler": null,
                             "condition": null,
                             "notes": []
                         },
@@ -1571,38 +1555,6 @@
                             "nameTemplate": "kitchensink-recipe-handle-sync-dlq-{stage}",
                             "handler": null,
                             "condition": "props.alarmsEnabled",
-                            "notes": []
-                        },
-                        {
-                            "kind": "ssmParameter",
-                            "logicalId": "IngredientVerificationQueueUrlParam",
-                            "nameTemplate": "/kitchensink/{stage}/recipe/verification-queue-url",
-                            "handler": null,
-                            "condition": null,
-                            "notes": []
-                        },
-                        {
-                            "kind": "ssmParameter",
-                            "logicalId": "IngredientVerificationQueueArnParam",
-                            "nameTemplate": "/kitchensink/{stage}/recipe/verification-queue-arn",
-                            "handler": null,
-                            "condition": null,
-                            "notes": []
-                        },
-                        {
-                            "kind": "ssmParameter",
-                            "logicalId": "AccountErasureQueueUrlParam",
-                            "nameTemplate": "/kitchensink/{stage}/recipe/account-erasure-queue-url",
-                            "handler": null,
-                            "condition": null,
-                            "notes": []
-                        },
-                        {
-                            "kind": "ssmParameter",
-                            "logicalId": "AccountErasureQueueArnParam",
-                            "nameTemplate": "/kitchensink/{stage}/recipe/account-erasure-queue-arn",
-                            "handler": null,
-                            "condition": null,
                             "notes": []
                         },
                         {

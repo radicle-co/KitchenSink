@@ -362,6 +362,99 @@ export function classifyDependencyWiring(expected: string, configured: string | 
 }
 
 /**
+ * One queue the recipe API produces onto, as the join observed it. Every field is a URL except `label`.
+ *
+ * - `expected` - the pure `recipeQueueUrl(...)` this stage derives (the address both stacks compute).
+ * - `configured` - the value the RUNNING recipe task carries in its environment.
+ * - `actual` - what SQS itself answers for the derived queue NAME (`get-queue-url`); empty when no such queue.
+ */
+export interface QueueCheck {
+    readonly label: string;
+    readonly expected: string;
+    readonly configured: string;
+    readonly actual: string;
+}
+
+/**
+ * The derived queue EXISTS, SQS agrees with the derivation, and the running task is configured with it. Pure.
+ *
+ * ADR-0036 amendment. `RecipeServiceStack` no longer reads the addresses of the queues `RecipeWorkersStack`
+ * owns from parameters that stack published, so it can deploy before those queues exist and can name a queue
+ * nothing created. The guarantee that used to be a failed deploy - a stage wired with no queue fails loudly -
+ * is asserted here, at the join, once both deploys have succeeded. Three distinct failures, kept distinct
+ * because the remedies differ:
+ *
+ *   - **absent** - the workers stack never created the queue (deselected, rolled back, or renamed).
+ *   - **derivation drift** - SQS reports a different URL than the pure function derives (partition, domain or
+ *     account format changed), so the task is wired to an address that is not the queue.
+ *   - **mis-wired** - the task carries nothing, or another stage's queue (a `pr-73` API enqueueing onto the
+ *     shared sandbox's erasure queue would erase an owner out of the wrong database).
+ *
+ * @param check - What the join observed for one queue.
+ */
+export function classifyQueueWiring(check: QueueCheck): SmokeVerdict {
+    const { label, expected, configured, actual } = check;
+
+    if (actual === '') {
+        return {
+            ok: false,
+            reason:
+                `the ${label} queue does not exist: SQS has no queue at ${expected} - the recipe-workers stack ` +
+                'did not create it for this stage, so every enqueue from the recipe API would fail',
+        };
+    }
+
+    if (actual !== expected) {
+        return {
+            ok: false,
+            reason:
+                `the ${label} queue exists at "${actual}" but this stage derives "${expected}" - the derived ` +
+                'address is not the queue (the URL format drifted from what SQS answers)',
+        };
+    }
+
+    if (configured === '') {
+        return {
+            ok: false,
+            reason: `the running recipe task carries no ${label} queue URL - it cannot enqueue onto ${expected}`,
+        };
+    }
+
+    if (configured !== expected) {
+        return {
+            ok: false,
+            reason:
+                `the running recipe task enqueues ${label} work onto "${configured}" but this stage's queue is ` +
+                `"${expected}" - the preview is cross-wired to another stage's queue`,
+        };
+    }
+
+    return { ok: true, reason: `the ${label} queue exists and the running recipe task is configured with ${expected}` };
+}
+
+/**
+ * Parse one `--queue-check label|expected|configured|actual` spec. Pure.
+ *
+ * `configured` and `actual` may be blank - a missing queue or an unset variable is DATA for the classifier, not a
+ * usage error - but the label and the derived address may not, since a check with nothing to compare against
+ * would pass for the wrong reason.
+ *
+ * @param spec - The flag value.
+ * @returns The parsed check.
+ * @throws {TypeError} when the spec is not four `|`-separated fields with a label and an expected URL.
+ */
+export function parseQueueCheck(spec: string): QueueCheck {
+    const fields = spec.split('|');
+    const [label, expected, configured, actual] = fields;
+
+    if (fields.length !== 4 || !label || !expected || configured === undefined || actual === undefined) {
+        throw new TypeError(`--queue-check expects "label|expected|configured|actual" (got "${spec}")`);
+    }
+
+    return { label, expected, configured, actual };
+}
+
+/**
  * This stage's food service actually answers. Pure.
  *
  * **A 401 is the PASS.** The probe is deliberately unauthenticated, and `GET /api/v1/foods/search` requires a
@@ -969,6 +1062,8 @@ export interface SmokeTarget {
     readonly foodOrigin?: string;
     /** `FOOD_SERVICE_URL` as read from the RUNNING recipe task definition. */
     readonly configuredFoodOrigin?: string;
+    /** The queues the recipe API produces onto, each checked by {@link classifyQueueWiring}. */
+    readonly queueChecks?: readonly QueueCheck[];
 }
 
 /**
@@ -1063,6 +1158,10 @@ export async function runSmoke(target: SmokeTarget): Promise<readonly SmokeVerdi
         verdicts.push(classifyDependencyReachability(foodOrigin, canonical, legacy));
     }
 
+    for (const queue of target.queueChecks ?? []) {
+        verdicts.push(classifyQueueWiring(queue));
+    }
+
     return verdicts;
 }
 
@@ -1073,6 +1172,7 @@ const USAGE =
     '                        [--unauthorized-path <path>]...\n' +
     '                        [--expected-image-tag <tag>] [--running-image-tag <tag>]\n' +
     '                        [--food-origin <url>] [--configured-food-origin <url>]\n' +
+    '                        [--queue-check <label>|<expected>|<configured>|<actual>]...\n' +
     '       deployedSmoke.ts --base-url <url> --web-origin <url> --edge-unauthorized-path <path>\n' +
     '       deployedSmoke.ts --media-cdn-url <url> --media-bucket-url <url> --web-origin <url> [--media-object-key <key>]...';
 
@@ -1118,6 +1218,7 @@ function parseFlags(argv: readonly string[]) {
             'running-image-tag': { type: 'string' },
             'food-origin': { type: 'string' },
             'configured-food-origin': { type: 'string' },
+            'queue-check': { type: 'string', multiple: true },
             'edge-unauthorized-path': { type: 'string' },
             'unauthorized-path': { type: 'string', multiple: true },
             'media-cdn-url': { type: 'string' },
@@ -1150,11 +1251,13 @@ export async function main(argv: readonly string[]): Promise<void> {
     let values: ReturnType<typeof parseFlags>;
     let preflightRoutes: PreflightRoute[];
     let denyPreflightRoutes: PreflightRoute[];
+    let queueChecks: QueueCheck[];
 
     try {
         values = parseFlags(argv);
         preflightRoutes = many(values['preflight-path']).map(parsePreflightRoute);
         denyPreflightRoutes = many(values['deny-preflight-path']).map(parsePreflightRoute);
+        queueChecks = many(values['queue-check']).map(parseQueueCheck);
     } catch (error) {
         console.error(`${error instanceof Error ? error.message : String(error)}\n${USAGE}`);
         process.exitCode = 2;
@@ -1239,6 +1342,7 @@ export async function main(argv: readonly string[]): Promise<void> {
                   runningImageTag: optional(values['running-image-tag']),
                   foodOrigin: optional(values['food-origin']),
                   configuredFoodOrigin: optional(values['configured-food-origin']),
+                  queueChecks,
               });
 
     console.log(

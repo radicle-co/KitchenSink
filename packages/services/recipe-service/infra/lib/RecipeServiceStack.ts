@@ -38,6 +38,7 @@ import {
     schemaCurrencyEnvironment,
 } from '@radicle-co/infra-shared/security';
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
+import { RECIPE_QUEUE_KINDS, recipeQueueArn, recipeQueueUrl } from '@radicle-co/infra-shared/recipe-queues';
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
 
 /**
@@ -303,46 +304,28 @@ export class RecipeServiceStack extends Stack {
                 this,
                 `/kitchensink/${baseStage}/recipe/service-principal-jwt-public-key`,
             ),
-            // The account-erasure queue the recipe-workers stack owns (T136b). REQUIRED — ErasureService
-            // refuses to boot without it, so a stage wired with no queue fails the deploy loudly instead of
-            // degrading every "erase my data" request to a silent cron-tick wait. Read from SSM, NOT a
-            // cross-stack export: an `Fn.importValue` would lock the workers export while this stack imports
-            // it, and the ADR-0005 PR-close cleanup deletes a PR's stacks in no fixed order — workers-first
-            // would hit the export-in-use deadlock ADR-0002 documents, unattended, in CI.
+            // The three queues the recipe-workers stack owns, DERIVED rather than read (ADR-0036). Each URL is a
+            // pure function of the deploy stage, region and account (`recipeQueueUrl`), and the workers stack
+            // names its queues with the same module, so the two cannot disagree. They used to be SSM parameters
+            // the workers stack published, resolved at deploy time - which made this stack's deploy wait for the
+            // workers' deploy, an ordering CloudFormation could not see. `ecosystem-smoke` is now what asserts
+            // each derived queue EXISTS and that the running task is configured with it, so a stage wired with no
+            // queue still fails loudly, one job later; and every consumer of these values (`ErasureService` and
+            // the two job queues' configs) still refuses to boot on a missing or malformed URL.
             //
-            // Keyed on `stage`, NOT `baseStage` (unlike the VPC/ALB/RDS platform imports above): the queue
-            // is the feature deploy's OWN resource, so a pr-{N} service must enqueue onto the pr-{N} queue.
-            // Its worker points at the pr-{N} logical DB (ADR-0006); draining a sandbox erasure there would
-            // erase an owner out of the WRONG database while the real sandbox job stayed queued.
-            ACCOUNT_ERASURE_QUEUE_URL: ssm.StringParameter.valueForStringParameter(
-                this,
-                `/kitchensink/${stage}/recipe/account-erasure-queue-url`,
+            // The DEPLOY stage, NOT `baseStage` (unlike the VPC/ALB/RDS platform imports above): the queue is
+            // the feature deploy's OWN resource, so a pr-{N} service enqueues onto the pr-{N} queue. Its worker
+            // points at the pr-{N} logical DB (ADR-0006); draining a sandbox erasure there would erase an owner
+            // out of the WRONG database while the real sandbox job stayed queued, and ADR-0024's spend counter
+            // lives in that same database.
+            ACCOUNT_ERASURE_QUEUE_URL: recipeQueueUrl('accountErasure', stage, this.region, this.account),
+            INGREDIENT_VERIFICATION_QUEUE_URL: recipeQueueUrl(
+                'ingredientVerification',
+                stage,
+                this.region,
+                this.account,
             ),
-            // ⛔ THE VERIFICATION GATE'S QUEUE (plan U11 / ADR-0024), and the reason this line exists at all:
-            // U11 shipped the gate's CONSUMER complete — a Lambda, its queue and DLQ, its `bedrock:InvokeModel`
-            // grant, its EMF alarms and its spend ledger — and `RecipeWorkersStack` published this very
-            // parameter under the comment "cross-stack hand-off to recipe-service's PRODUCER". Nothing read
-            // it. The gate ran, alarmed and verified nothing, behind a fully green repository.
-            //
-            // UNCONDITIONAL, like FOOD_SERVICE_URL below and for the same reason: `ingredientVerificationConfigSchema`
-            // requires it, so a stage wired without a queue fails the DEPLOY instead of silently asking nobody.
-            //
-            // Keyed on `stage`, NOT `baseStage`: a pr-{N} preview must enqueue onto the pr-{N} queue, whose
-            // worker points at the pr-{N} logical database (ADR-0006) — and ADR-0024's spend counter lives in
-            // THAT database, so a message crossing stages would be judged against, and billed against, the
-            // wrong stage's ceiling.
-            INGREDIENT_VERIFICATION_QUEUE_URL: ssm.StringParameter.valueForStringParameter(
-                this,
-                `/kitchensink/${stage}/recipe/verification-queue-url`,
-            ),
-            // THE PARSE-JOB QUEUE (plan U9) — same discovery path, same rules as the verification queue
-            // above: UNCONDITIONAL because `parseJobConfigSchema` requires it (a stage wired without the
-            // queue fails the DEPLOY, not silently a poll that never completes), and keyed on `stage`
-            // because a pr-{N} preview's parse rows and spend belong to the pr-{N} database (ADR-0006).
-            RECIPE_PARSE_QUEUE_URL: ssm.StringParameter.valueForStringParameter(
-                this,
-                `/kitchensink/${stage}/recipe/parse-queue-url`,
-            ),
+            RECIPE_PARSE_QUEUE_URL: recipeQueueUrl('parse', stage, this.region, this.account),
             // The food service (003) this stage's ingredients vertical reads through (issue #120).
             // UNCONDITIONAL: the service's config requires it, so an absent value is a boot failure, and the
             // previous conditional passthrough is precisely how the live task ended up with no food origin at
@@ -361,54 +344,23 @@ export class RecipeServiceStack extends Stack {
         photosBucket.grantReadWrite(apiTaskRole);
         versionsBucket.grantReadWrite(apiTaskRole);
 
-        // sqs:SendMessage on the erasure queue, and NOTHING more (ARCH-IT-7): the API produces erasure
-        // work, only the worker consumes it — a task role that could receive/delete could drain a
-        // right-to-erasure request without performing it. The ARN comes from the same per-stage SSM
-        // parameter the URL does (published by recipe-workers), so the grant is scoped to exactly this
-        // stage's queue with no cross-stack export lock.
-        apiTaskRole.addToPolicy(
-            new iam.PolicyStatement({
-                actions: ['sqs:SendMessage'],
-                resources: [
-                    ssm.StringParameter.valueForStringParameter(
-                        this,
-                        `/kitchensink/${stage}/recipe/account-erasure-queue-arn`,
-                    ),
-                ],
-            }),
-        );
-
-        // sqs:SendMessage on the VERIFICATION queue, and nothing more (plan U11 / ADR-0024). A SEPARATE
-        // statement rather than a second resource on the one above, so each grant stays readable as "this
-        // role may send to exactly this queue" — and so removing one queue cannot silently widen the other.
+        // sqs:SendMessage on each queue the API produces onto, and NOTHING more (ARCH-IT-7, ADR-0024 layer 4b,
+        // plan U9/U11). One statement PER QUEUE, so each grant reads as "this role may send to exactly this
+        // queue" and removing one cannot silently widen another. The ARNs are derived (`recipeQueueArn`), the
+        // same module that names the queues.
         //
-        // ⛔ Send only. The API PRODUCES verification work; the gate Lambda is the sole consumer, and it is
-        // also ADR-0024 layer 4b's single `bedrock:InvokeModel` grantee. A task role that could receive here
-        // could drain requests without verifying them, which would look exactly like a healthy quiet queue.
-        apiTaskRole.addToPolicy(
-            new iam.PolicyStatement({
-                actions: ['sqs:SendMessage'],
-                resources: [
-                    ssm.StringParameter.valueForStringParameter(
-                        this,
-                        `/kitchensink/${stage}/recipe/verification-queue-arn`,
-                    ),
-                ],
-            }),
-        );
-
-        // sqs:SendMessage on the PARSE queue, and nothing more (plan U9). Its own statement for the same
-        // reason as the two above. ⛔ Send only: the parse Lambda is the sole consumer AND shares the
-        // verification role's single `bedrock:InvokeModel` grant (ADR-0024 layer 4b) — a task role that
-        // could receive here could drain parse work without paying for it through the gated path.
-        apiTaskRole.addToPolicy(
-            new iam.PolicyStatement({
-                actions: ['sqs:SendMessage'],
-                resources: [
-                    ssm.StringParameter.valueForStringParameter(this, `/kitchensink/${stage}/recipe/parse-queue-arn`),
-                ],
-            }),
-        );
+        // ⛔ Send only. The API PRODUCES erasure, verification and parse work; the workers are the sole
+        // consumers, and the verification and parse Lambdas share the single `bedrock:InvokeModel` grant. A
+        // task role that could receive here could drain a right-to-erasure request without performing it, or
+        // drain verification and parse work without paying for it through the gated path.
+        for (const kind of RECIPE_QUEUE_KINDS) {
+            apiTaskRole.addToPolicy(
+                new iam.PolicyStatement({
+                    actions: ['sqs:SendMessage'],
+                    resources: [recipeQueueArn(kind, stage, this.region, this.account)],
+                }),
+            );
+        }
 
         // HAZ-051/067/039: least-privilege grant for photo-delete's CDN-invalidation call, scoped to the ONE media
         // distribution - never a wildcard resource. Unconditional: the distribution always exists once the global

@@ -459,11 +459,16 @@ describe('analyzer 7 — ADR-0036: the deploys are peers, and the join owns the 
         const recipe = workflow(SANDBOX_DEPLOY)?.doc.jobs?.['recipe-service'];
         const needs = recipe?.needs === undefined ? [] : [recipe.needs].flat();
 
-        // ⚠️ `recipe-workers` IS allowed — and required — because it is a REAL data dependency: recipe-service
-        // reads the account-erasure queue from an SSM parameter the workers stack publishes, and refuses to
-        // boot without it. ADR-0036 removed the edge to FOOD, which never was one.
+        // ADR-0036 removed the edge to FOOD, which never was a data dependency. Its amendment removes the edge to
+        // RECIPE-WORKERS for the same reason: the account-erasure, verification and parse queue addresses are
+        // DERIVED by the pure `recipeQueueUrl` (`@radicle-co/infra-shared/recipe-queues`), not read from SSM
+        // parameters the workers stack publishes, so nothing the service deploy reads is produced by that job.
+        // Re-adding either edge costs the workers' whole deploy on the longest chain, for an ordering the join
+        // below already guards.
         expect(needs).not.toContain('food-service');
+        expect(needs).not.toContain('recipe-workers');
         expect(recipe?.if ?? '').not.toMatch(/needs\.food-service/);
+        expect(recipe?.if ?? '').not.toMatch(/needs\.recipe-workers/);
     });
 
     it('joins both deploys in ecosystem-smoke, and makes the claim only when both SUCCEEDED', () => {
@@ -484,6 +489,18 @@ describe('analyzer 7 — ADR-0036: the deploys are peers, and the join owns the 
         expect(body).toMatch(/--configured-food-origin/);
     });
 
+    it('asserts the queue half of the join: each derived queue exists and the task carries it', () => {
+        // The guarantee the SSM read used to give ("a stage wired with no queue fails loudly") now lives ONLY
+        // here, so deleting these flags silently deletes it.
+        const body = (workflow(SANDBOX_DEPLOY)?.doc.jobs?.['ecosystem-smoke']?.steps ?? [])
+            .map((step) => step.run ?? '')
+            .join('\n');
+
+        expect(body).toMatch(/printRecipeQueues\.ts/);
+        expect(body).toMatch(/--queue-check/);
+        expect(body).toMatch(/aws sqs get-queue-url/);
+    });
+
     it('keeps ONE bearer of the ecosystem claim — deploy-recipe no longer probes food', () => {
         const body = (workflow(SANDBOX_DEPLOY)?.doc.jobs?.['recipe-service']?.steps ?? [])
             .map((step) => step.run ?? '')
@@ -491,6 +508,7 @@ describe('analyzer 7 — ADR-0036: the deploys are peers, and the join owns the 
 
         expect(body).not.toMatch(/--food-origin/);
         expect(body).not.toMatch(/--configured-food-origin/);
+        expect(body).not.toMatch(/--queue-check/);
     });
 
     it("pins the derivation that replaced recipe's describe-stacks loop: food's gate enumerates both stacks", () => {

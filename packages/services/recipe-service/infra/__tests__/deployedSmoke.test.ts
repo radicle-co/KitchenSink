@@ -55,12 +55,14 @@ import {
     classifyForeignPreflight,
     classifyPreflight,
     classifyPreflightDenied,
+    classifyQueueWiring,
     classifyUnauthorized,
     EDGE_GENERATED_X_CACHE,
     FOREIGN_PREFLIGHT_ORIGIN,
     failureAnnotation,
     main,
     parsePreflightRoute,
+    parseQueueCheck,
     runEdgeUnauthorizedSmoke,
     runMediaSmoke,
     runSmoke,
@@ -1485,5 +1487,103 @@ describe('media delivery smoke (ADR-0064)', () => {
 
             expect(process.exitCode).toBe(2);
         });
+    });
+});
+
+/**
+ * The queue half of the ecosystem join (ADR-0036 amendment). `RecipeServiceStack` DERIVES its three queue
+ * addresses instead of reading what `RecipeWorkersStack` published, so the guarantee the SSM read used to give -
+ * a stage wired with no queue fails loudly - lives here: the derived queue must EXIST (SQS itself answers for
+ * it), SQS's own URL must equal the derived one, and the RUNNING task must be configured with it.
+ */
+describe('classifyQueueWiring - the derived queue exists and the running task is configured with it', () => {
+    const EXPECTED = 'https://sqs.us-east-1.amazonaws.com/123456789012/kitchensink-recipe-account-erasure-pr-73';
+    const intact = { label: 'account-erasure', expected: EXPECTED, configured: EXPECTED, actual: EXPECTED };
+
+    it('passes when the derived, configured and real URLs are one', () => {
+        expect(classifyQueueWiring(intact).ok).toBe(true);
+    });
+
+    it('FAILS when the queue does not exist (the workers stack never created it)', () => {
+        const verdict = classifyQueueWiring({ ...intact, actual: '' });
+
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toContain('does not exist');
+        expect(verdict.reason).toContain('account-erasure');
+    });
+
+    it('FAILS when the running task carries no value', () => {
+        expect(classifyQueueWiring({ ...intact, configured: '' }).ok).toBe(false);
+    });
+
+    it("FAILS when the task is configured with another stage's queue, naming both", () => {
+        const other = EXPECTED.replace('pr-73', 'sandbox');
+        const verdict = classifyQueueWiring({ ...intact, configured: other });
+
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toContain(other);
+        expect(verdict.reason).toContain(EXPECTED);
+    });
+
+    it('FAILS when SQS reports a different URL than the one derived (the derivation drifted from AWS)', () => {
+        const verdict = classifyQueueWiring({ ...intact, actual: `${EXPECTED}-x` });
+
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toMatch(/derived/);
+    });
+});
+
+describe('parseQueueCheck', () => {
+    it('reads label|expected|configured|actual', () => {
+        expect(parseQueueCheck('parse|e|c|a')).toEqual({ label: 'parse', expected: 'e', configured: 'c', actual: 'a' });
+    });
+
+    it('keeps blank configured/actual as empty (a missing queue is data, not a usage error)', () => {
+        expect(parseQueueCheck('parse|e||')).toEqual({ label: 'parse', expected: 'e', configured: '', actual: '' });
+    });
+
+    it.each(['', 'parse', 'parse|e|c', '|e|c|a', 'parse||c|a', 'a|b|c|d|e'])('refuses %j', (spec) => {
+        expect(() => parseQueueCheck(spec)).toThrow(TypeError);
+    });
+});
+
+describe('runSmoke / main - queue checks', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+        process.exitCode = undefined;
+    });
+
+    it('adds one verdict per queue check, and a missing queue turns the run red', async () => {
+        vi.stubGlobal('fetch', () => Promise.resolve(new Response('', { status: 200 })));
+
+        const verdicts = await runSmoke({
+            baseUrl: ORIGIN,
+            queueChecks: [
+                { label: 'a', expected: 'u', configured: 'u', actual: 'u' },
+                { label: 'b', expected: 'u', configured: 'u', actual: '' },
+            ],
+        });
+
+        expect(verdicts.map((v) => v.ok)).toEqual([true, true, false]);
+    });
+
+    it('main accepts a repeatable --queue-check and exits 1 when one fails', async () => {
+        vi.stubGlobal('fetch', () => Promise.resolve(new Response('', { status: 200 })));
+        vi.spyOn(console, 'log').mockImplementation(() => undefined);
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        await main(['--base-url', ORIGIN, '--queue-check', 'a|u|u|u', '--queue-check', 'b|u|u|']);
+
+        expect(process.exitCode).toBe(1);
+    });
+
+    it('main refuses a malformed --queue-check with the usage exit code', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        vi.stubGlobal('fetch', () => Promise.reject(new Error('must not be called')));
+
+        await main(['--base-url', ORIGIN, '--queue-check', 'nope']);
+
+        expect(process.exitCode).toBe(2);
     });
 });

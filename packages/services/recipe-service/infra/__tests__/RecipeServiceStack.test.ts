@@ -15,6 +15,7 @@ import {
     ephemeralBandsForSlot,
 } from '@radicle-co/infra-shared/alb';
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
+import { recipeQueueArn, recipeQueueUrl } from '@radicle-co/infra-shared/recipe-queues';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
 import { RecipeSchemaStack } from '../lib/RecipeSchemaStack.js';
@@ -500,31 +501,32 @@ describe('Account-erasure queue wiring', () => {
         expect(serialized).not.toContain('testrecipeserviceprincipaljwtpublickey');
     });
 
-    it('sources the queue URL from SSM, not a cross-stack export', () => {
-        // The mechanism matters as much as the value. An `Fn.importValue` of a recipe-workers export would
-        // lock that export for as long as this stack imports it, and the ADR-0005 PR-close cleanup deletes
-        // a PR's stacks with no ordering guarantee — deleting workers first would fail with the
-        // export-in-use deadlock ADR-0002 documents, unattended, in CI. SSM carries the value with no lock:
-        // either stack can be deleted in any order, and a missing parameter still fails the deploy loudly.
+    it('DERIVES the queue URL from the stage, region and account: no SSM read, no cross-stack export', () => {
+        // ADR-0036's move, for the queue. The URL used to be an SSM parameter the workers stack published,
+        // resolved at DEPLOY time, which made this stack's deploy wait for the workers' deploy. It is now the
+        // pure `recipeQueueUrl`, so neither an SSM lookup nor an `Fn.importValue` may reappear: either one
+        // re-creates the ordering edge `deployInfra.yml` no longer states. `ecosystem-smoke` is what asserts
+        // the queue exists and that this value equals the derived one.
         const queueUrlEnv = apiEnvironment(template).find((entry) => entry.Name === 'ACCOUNT_ERASURE_QUEUE_URL');
-        const serialized = JSON.stringify(queueUrlEnv?.Value);
 
-        expect(serialized).toContain('Ref');
-        expect(serialized).not.toContain('Fn::ImportValue');
+        expect(queueUrlEnv?.Value).toBe(recipeQueueUrl('accountErasure', 'pr-73', 'us-east-1', '123456789012'));
+        expect(JSON.stringify(queueUrlEnv?.Value)).not.toContain('Fn::ImportValue');
+        expect(JSON.stringify(template.toJSON().Parameters ?? {})).not.toContain('account-erasure-queue');
     });
 
-    it('reads the queue from THIS stage, never the base stage', () => {
+    it('derives the queue from THIS stage, never the base stage', () => {
         // A pr-73 service must not enqueue onto the sandbox queue. The workers stack for pr-73 points its
         // Lambdas at the pr-73 logical DB (ADR-0006), so a sandbox erasure message drained by a pr-73
-        // worker would find no job row for that owner — and the worker erases unconditionally, so it would
+        // worker would find no job row for that owner - and the worker erases unconditionally, so it would
         // delete that owner's rows out of the pr-73 database while the real sandbox job stayed queued.
         // Unlike the platform imports (VPC/ALB/RDS), which correctly ride `baseStage`, the queue is the
         // feature deploy's OWN resource.
-        const prTemplate = synthTemplate('pr-73', 'sandbox');
-        const parameters = JSON.stringify(prTemplate.toJSON().Parameters ?? {});
+        const prEnv = apiEnvironment(synthTemplate('pr-73', 'sandbox')).find(
+            (entry) => entry.Name === 'ACCOUNT_ERASURE_QUEUE_URL',
+        );
 
-        expect(parameters).toContain('/kitchensink/pr-73/recipe/account-erasure-queue-url');
-        expect(parameters).not.toContain('/kitchensink/sandbox/recipe/account-erasure-queue-url');
+        expect(prEnv?.Value).toBe(recipeQueueUrl('accountErasure', 'pr-73', 'us-east-1', '123456789012'));
+        expect(prEnv?.Value).not.toContain('-sandbox');
     });
 
     it('grants the API task role sqs:SendMessage on the erasure queue and nothing more', () => {
@@ -541,6 +543,8 @@ describe('Account-erasure queue wiring', () => {
         );
         expect(serialized).not.toContain('sqs:ReceiveMessage');
         expect(serialized).not.toContain('sqs:DeleteMessage');
+        // ...scoped to exactly the DERIVED ARN of this stage's queue.
+        expect(serialized).toContain(recipeQueueArn('accountErasure', 'pr-73', 'us-east-1', '123456789012'));
     });
 });
 
@@ -578,25 +582,17 @@ describe('Ingredient-verification queue wiring', () => {
         expect(apiEnvironment(template).map((entry) => entry.Name)).toContain('INGREDIENT_VERIFICATION_QUEUE_URL');
     });
 
-    it('sources it from SSM, not a cross-stack export', () => {
-        // Same reason as the erasure queue: an `Fn.importValue` locks the workers export while this stack
-        // references it, and ADR-0005's PR-close cleanup deletes a PR's stacks in no guaranteed order.
-        const serialized = JSON.stringify(
-            apiEnvironment(template).find((entry) => entry.Name === 'INGREDIENT_VERIFICATION_QUEUE_URL')?.Value,
-        );
+    it('DERIVES it from this stage, region and account: no SSM read, no cross-stack export', () => {
+        // A pr-73 service must not enqueue onto the sandbox queue. The pr-73 worker points at the pr-73
+        // logical database (ADR-0006), and ADR-0024's spend counter lives in that database - so a message
+        // crossing stages would be judged against, and BILLED against, the wrong stage's ceiling. Deriving the
+        // URL (rather than reading the workers stack's parameter) also removes the deploy-order edge.
+        const value = apiEnvironment(template).find(
+            (entry) => entry.Name === 'INGREDIENT_VERIFICATION_QUEUE_URL',
+        )?.Value;
 
-        expect(serialized).toContain('Ref');
-        expect(serialized).not.toContain('Fn::ImportValue');
-    });
-
-    it('reads the queue from THIS stage, never the base stage', () => {
-        // ⛔ A pr-73 service must not enqueue onto the sandbox queue. The pr-73 worker points at the pr-73
-        // logical database (ADR-0006), and ADR-0024's spend counter lives in that database — so a message
-        // crossing stages would be judged against, and BILLED against, the wrong stage's ceiling.
-        const parameters = JSON.stringify(template.toJSON().Parameters ?? {});
-
-        expect(parameters).toContain('/kitchensink/pr-73/recipe/verification-queue-url');
-        expect(parameters).not.toContain('/kitchensink/sandbox/recipe/verification-queue-url');
+        expect(value).toBe(recipeQueueUrl('ingredientVerification', 'pr-73', 'us-east-1', '123456789012'));
+        expect(JSON.stringify(template.toJSON().Parameters ?? {})).not.toContain('verification-queue');
     });
 
     it('grants sqs:SendMessage scoped to the verification queue ARN, and NOTHING else on it', () => {
@@ -607,16 +603,14 @@ describe('Ingredient-verification queue wiring', () => {
         // version checked only that `sqs:ReceiveMessage` and `sqs:DeleteMessage` appeared nowhere — so
         // mutating `actions: ['sqs:SendMessage']` to `['sqs:*']` kept it green while handing the API receive
         // AND delete on the queue. A negative assertion cannot see a wildcard.
-        const parameters = JSON.stringify(template.toJSON().Parameters ?? {});
-
-        expect(parameters).toContain('/kitchensink/pr-73/recipe/verification-queue-arn');
-
         const statements = Object.values(template.findResources('AWS::IAM::Policy')).flatMap(
             (policy: { Properties?: { PolicyDocument?: { Statement?: unknown[] } } }) =>
                 policy.Properties?.PolicyDocument?.Statement ?? [],
         );
         const verificationStatements = statements.filter((statement) =>
-            JSON.stringify(statement).includes('verificationqueuearn'),
+            JSON.stringify(statement).includes(
+                recipeQueueArn('ingredientVerification', 'pr-73', 'us-east-1', '123456789012'),
+            ),
         );
 
         // Exactly one statement names this queue, and its action list is exactly one action.
@@ -1108,32 +1102,23 @@ describe('Parse-job queue wiring', () => {
         expect(apiEnvironment(template).map((entry) => entry.Name)).toContain('RECIPE_PARSE_QUEUE_URL');
     });
 
-    it('sources it from SSM at THIS stage, never the base stage and never a cross-stack export', () => {
-        const serialized = JSON.stringify(
-            apiEnvironment(template).find((entry) => entry.Name === 'RECIPE_PARSE_QUEUE_URL')?.Value,
-        );
+    it('DERIVES it at THIS stage: no SSM read, no cross-stack export, never the base stage', () => {
+        const value = apiEnvironment(template).find((entry) => entry.Name === 'RECIPE_PARSE_QUEUE_URL')?.Value;
 
-        expect(serialized).toContain('Ref');
-        expect(serialized).not.toContain('Fn::ImportValue');
-
-        const parameters = JSON.stringify(template.toJSON().Parameters ?? {});
-
-        expect(parameters).toContain('/kitchensink/pr-73/recipe/parse-queue-url');
-        expect(parameters).not.toContain('/kitchensink/sandbox/recipe/parse-queue-url');
+        expect(value).toBe(recipeQueueUrl('parse', 'pr-73', 'us-east-1', '123456789012'));
+        expect(JSON.stringify(template.toJSON().Parameters ?? {})).not.toContain('parse-queue');
     });
 
     it('grants sqs:SendMessage scoped to the parse queue ARN, and NOTHING else on it', () => {
         // Positive assertion on the statement's action list, for the wildcard reason the verification
         // block documents: a negative check cannot see `sqs:*`.
-        const parameters = JSON.stringify(template.toJSON().Parameters ?? {});
-
-        expect(parameters).toContain('/kitchensink/pr-73/recipe/parse-queue-arn');
-
         const statements = Object.values(template.findResources('AWS::IAM::Policy')).flatMap(
             (policy: { Properties?: { PolicyDocument?: { Statement?: unknown[] } } }) =>
                 policy.Properties?.PolicyDocument?.Statement ?? [],
         );
-        const parseStatements = statements.filter((statement) => JSON.stringify(statement).includes('parsequeuearn'));
+        const parseStatements = statements.filter((statement) =>
+            JSON.stringify(statement).includes(recipeQueueArn('parse', 'pr-73', 'us-east-1', '123456789012')),
+        );
 
         expect(parseStatements).toHaveLength(1);
         expect(parseStatements[0]).toMatchObject({ Action: 'sqs:SendMessage', Effect: 'Allow' });

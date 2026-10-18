@@ -335,6 +335,7 @@ jobs:
         # `live=false` and skips the whole tier. Nothing automatic in this repository may point a suite at
         # production; that is `deployedE2e.yml`'s manual door, and only by hand.
         env:
+            TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
             STAGE: ${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || '' }}
             # The BASE stage ('sandbox' | 'prod'), which is a different question from the per-PR stage above:
             # the identity service is GLOBAL infra (ADR-0005) with one deploy per base stage, so a `pr-{N}`
@@ -388,6 +389,11 @@ jobs:
                       ${{ runner.os }}-turbo-resolve-sandbox-
             - name: Build the workspace packages the origin resolver imports
               run: npx turbo run build --filter='@kitchensink/loadtest^...'
+            # ⛔ Drop the archives no run of this job used, so the entry saved after this job is the size of ONE run's
+            # outputs and not every earlier commit's as well (`pruneTurboCache.sh`; `turboCachePrune.test.ts`).
+            - name: Prune the turbo cache to what this job used
+              if: ${{ !cancelled() }}
+              run: bash .github/scripts/pruneTurboCache.sh
             # ⛔ NO HOST LITERAL. Every service origin comes from `publicServiceOriginForStage` (ADR-0003 /
             # ADR-0006: prod is the bare label `recipe.{apex}`, every other stage the DASH form
             # `recipe-{stage}.{apex}`, because a 3-label `recipe.pr-7.{apex}` matches no wildcard on the shared
@@ -578,6 +584,8 @@ jobs:
         timeout-minutes: 20
         runs-on: ubuntu-latest
         needs: [install]
+        env:
+            TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -643,6 +651,11 @@ jobs:
             # excluded by `.prettierignore`, which owns that list and states the reason per entry.
             - name: Check docs formatting (the paths no package owns)
               run: npm run format:check:docs
+            # ⛔ Drop the archives no run of this job used, so the entry saved after this job is the size of ONE run's
+            # outputs and not every earlier commit's as well (`pruneTurboCache.sh`; `turboCachePrune.test.ts`).
+            - name: Prune the turbo cache to what this job used
+              if: ${{ !cancelled() }}
+              run: bash .github/scripts/pruneTurboCache.sh
             # Workflow files get NO coverage from `turbo run lint` — eslint does not read YAML. GitHub
             # validates them only at dispatch time, and an invalid one does not fail a check: it produces a
             # zero-job `startup_failure` attributed to the PUSH event, so the workflow that should have run
@@ -684,6 +697,8 @@ jobs:
         timeout-minutes: 10
         runs-on: ubuntu-latest
         needs: [install]
+        env:
+            TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -739,6 +754,11 @@ jobs:
                       ${{ runner.os }}-turbo-format-${{ hashFiles('package-lock.json') }}-
                       ${{ runner.os }}-turbo-format-
             - run: npx turbo run format:check
+            # ⛔ Drop the archives no run of this job used, so the entry saved after this job is the size of ONE run's
+            # outputs and not every earlier commit's as well (`pruneTurboCache.sh`; `turboCachePrune.test.ts`).
+            - name: Prune the turbo cache to what this job used
+              if: ${{ !cancelled() }}
+              run: bash .github/scripts/pruneTurboCache.sh
 
     # ────────────────────────────────────────────────────────────────────────────────────────────────
     # ⛔ PYTHON WAS UNCHECKED. ESLint does not read `.py`, `tsc` does not read `.py`, and Prettier does not
@@ -784,6 +804,8 @@ jobs:
         timeout-minutes: 20
         runs-on: ubuntu-latest
         needs: [install]
+        env:
+            TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -839,6 +861,11 @@ jobs:
                       ${{ runner.os }}-turbo-typecheck-${{ hashFiles('package-lock.json') }}-
                       ${{ runner.os }}-turbo-typecheck-
             - run: npx turbo run typecheck
+            # ⛔ Drop the archives no run of this job used, so the entry saved after this job is the size of ONE run's
+            # outputs and not every earlier commit's as well (`pruneTurboCache.sh`; `turboCachePrune.test.ts`).
+            - name: Prune the turbo cache to what this job used
+              if: ${{ !cancelled() }}
+              run: bash .github/scripts/pruneTurboCache.sh
 
     # DRIFT LAYER 2 (Correctness) — CODING_STANDARDS §15.2.5. `packages/schemas/*` publishes each service's
     # wire contract as CHECKED-IN GENERATED artifacts, and nothing else in this pipeline can see them go stale:
@@ -952,6 +979,8 @@ jobs:
                           --filter=./packages/utils/*
                           --filter=./packages/infra/bootstrap
                           --filter=!@kitchensink/repo-guards
+        env:
+            TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -1069,6 +1098,11 @@ jobs:
               run: |
                   set -f
                   npx turbo run test $TEST_FILTER --concurrency="$TEST_CONCURRENCY"
+            # ⛔ Drop the archives no run of this job used, so the entry saved after this job is the size of ONE run's
+            # outputs and not every earlier commit's as well (`pruneTurboCache.sh`; `turboCachePrune.test.ts`).
+            - name: Prune the turbo cache to what this job used
+              if: ${{ !cancelled() }}
+              run: bash .github/scripts/pruneTurboCache.sh
 
     integration-identity:
         name: Integration (identity — mocked)
@@ -1589,6 +1623,8 @@ jobs:
         permissions:
             contents: read
             packages: read # the infra/ install reads `@radicle-co/infra-shared` from GitHub Packages
+        env:
+            TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -1659,6 +1695,11 @@ jobs:
 
             - name: Run recipe-workers integration tests (the synth spec)
               run: npm run test:integration --workspace=@kitchensink/recipe-workers
+            # ⛔ Drop the archives no run of this job used, so the entry saved after this job is the size of ONE run's
+            # outputs and not every earlier commit's as well (`pruneTurboCache.sh`; `turboCachePrune.test.ts`).
+            - name: Prune the turbo cache to what this job used
+              if: ${{ !cancelled() }}
+              run: bash .github/scripts/pruneTurboCache.sh
 
     integration-selfcontained:
         # Static name covering both self-contained integration suites (same precedent as `e2e-backend`).
@@ -1867,6 +1908,8 @@ jobs:
         permissions:
             contents: read
             packages: read # zizmor: ignore[use-trusted-publishing]
+        env:
+            TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -1960,6 +2003,11 @@ jobs:
               if: ${{ !cancelled() }}
               working-directory: packages/infra/global
               run: npm run test:integration
+            # ⛔ Drop the archives no run of this job used, so the entry saved after this job is the size of ONE run's
+            # outputs and not every earlier commit's as well (`pruneTurboCache.sh`; `turboCachePrune.test.ts`).
+            - name: Prune the turbo cache to what this job used
+              if: ${{ !cancelled() }}
+              run: bash .github/scripts/pruneTurboCache.sh
 
     build:
         name: Build ${{ matrix.workspace }}

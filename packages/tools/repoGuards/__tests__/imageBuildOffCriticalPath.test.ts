@@ -26,7 +26,7 @@
  * 5. **The deploy job proves the tag is there** before it deploys (`ecrImagePresent`), so a skipped or failed push
  *    is a red job and not a task that cannot pull.
  * 6. **The build keeps ensure-exists and push-verdict semantics, and is layer-cached** per image
- *    (`ecrEnsureRepo.sh`, `ecrPushVerdict.sh`, `ecrRecordRelease.sh`, a `type=gha,mode=max` cache scoped to the repository).
+ *    (`ecrEnsureRepo.sh`, `ecrPushVerdict.sh`, `ecrRecordRelease.sh`, an ECR `type=registry` cache, preview tags only).
  *
  * DESIGN PATTERN: Specification module over the parsed workflow and action; each clause is a pure predicate.
  */
@@ -191,17 +191,48 @@ describe('the image action keeps the registry semantics and caches its layers', 
         expect(step?.if ?? '').toMatch(/verdict\s*==\s*'push'/u);
     });
 
-    it('reads and writes a gha layer cache scoped to the repository, without attestations', () => {
+    /**
+     * ⛔ THE CACHE LIVES IN ECR, NOT THE ACTIONS CACHE. The repository's Actions cache is at its 10 GB cap, and a layer cache
+     * there evicts the entries other jobs depend on. A registry cache costs ECR storage (cents) and no Actions quota.
+     *
+     * ⛔ AND NEVER FOR A RELEASE TAG. `buildcache` is a mutable tag in a repository every branch job can push to; a
+     * production image built from layers read out of it would inherit whatever a branch wrote there. So the cache is read and
+     * written only when the tag is a preview (`ecr_tag_is_preview`), and the two `cache-*` inputs are empty otherwise.
+     * `ignore-error` keeps a cache that cannot be written (a repository not yet carrying the mutable filter) from failing
+     * the image build it only exists to speed up.
+     */
+    it('uses an ECR registry cache on the repository, for preview tags only, without attestations', () => {
         const step = (parse(action) as { runs: { steps: Step[] } }).runs.steps.find(({ uses }) =>
             uses?.startsWith('docker/build-push-action@'),
         );
         const withs = step?.with ?? {};
 
-        expect(withs['cache-from']).toMatch(/type=gha,scope=\$\{\{\s*inputs\.ecr-repo\s*\}\}/u);
-        expect(withs['cache-to']).toMatch(/type=gha,scope=\$\{\{\s*inputs\.ecr-repo\s*\}\},mode=max/u);
+        for (const input of ['cache-from', 'cache-to']) {
+            expect(String(withs[input]), input).toMatch(/steps\.verdict\.outputs\.cache\s*==\s*'true'/u);
+            expect(String(withs[input]), input).toMatch(/type=registry,ref=\{0\}\/\{1\}:buildcache/u);
+        }
+
+        expect(String(withs['cache-to'])).toMatch(/mode=max/u);
+        expect(String(withs['cache-to'])).toMatch(/image-manifest=true,oci-mediatypes=true/u);
+        expect(String(withs['cache-to'])).toMatch(/ignore-error=true/u);
+        expect(String(withs['cache-from']) + String(withs['cache-to'])).not.toMatch(/type=gha/u);
+        expect(action).toMatch(/ecr_tag_is_preview/u);
         // An attestation manifest turns the pushed image into an index and changes the digest the production
         // release ledger records; the pre-split build produced a plain image.
         expect(String(withs['provenance'])).toBe('false');
         expect(String(withs['sbom'])).toBe('false');
+    });
+});
+
+/**
+ * PRODUCTION BUILDS NEVER TOUCH THE LAYER CACHE. `buildcache` is a mutable tag in a repository every branch job can push
+ * to, and production's image tags are immutable and recorded in a ledger precisely so nothing a branch wrote can end up in
+ * them. A production build that read layers out of the cache would break that without changing a single tag.
+ * `prod-deploy.yml` builds with a plain `docker buildx build`; `infra-image` enforces the same for a release tag in the
+ * preview path.
+ */
+describe('production keeps its image builds out of the registry cache', () => {
+    it.each(['.github/workflows/prod-deploy.yml'])('%s names no layer cache', (file) => {
+        expect(read(file)).not.toMatch(/buildcache|--cache-from|--cache-to/u);
     });
 });

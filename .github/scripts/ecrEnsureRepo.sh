@@ -57,7 +57,13 @@ if [ ! -f "$POLICY" ]; then
 fi
 
 # The tags that stay mutable: every prefix the retention policy expires, as a wildcard. One value per line, sorted.
-MUTABLE_FILTERS="$(jq -r '[.rules[].selection.tagPrefixList // [] | .[] | . + "*"] | unique | .[]' "$POLICY")"
+# ⛔ The mutable set is the preview prefixes PLUS one exact tag, `buildcache`: the BuildKit layer cache `infra-image`
+# pushes to the same repository (`type=registry`). It is rewritten by every build, so it cannot be immutable, and it is
+# not a preview (no wildcard, so `buildcache-x` stays immutable) and not a release. Release shapes (`prod-<sha>`, a bare
+# sha) stay immutable, and `infra-image` neither reads nor writes the cache for one: a mutable tag any branch job can
+# write must never feed a production image's layers.
+CACHE_TAG='buildcache'
+MUTABLE_FILTERS="$(jq -r --arg cache "$CACHE_TAG" '([.rules[].selection.tagPrefixList // [] | .[] | . + "*"] + [$cache]) | unique | .[]' "$POLICY")"
 if [ -z "$MUTABLE_FILTERS" ]; then
     echo "::error::ecr-ensure-repo: ${POLICY} names no tag prefix, so no tag would be mutable and previews could not be rebuilt" >&2
     exit 1

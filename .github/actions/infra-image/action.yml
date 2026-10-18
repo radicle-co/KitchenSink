@@ -19,13 +19,20 @@ description: >-
 # The one property that cannot cross a job boundary by itself, "the stack never references a tag nothing pushed", is
 # restored by the deploy job asking ECR before it deploys (`ecrImagePresent.sh`).
 #
-# ⚠️ The layer cache is the GitHub Actions cache, scoped to the repository so three images never evict each other's
-# layers, and `mode=max`: every stage is exported, not only the final image's. That matters for food, whose Dockerfile
-# installs production dependencies in a `deps` stage (`npm ci --omit=dev`, the expensive step), and `mode=min` would not
-# keep that stage; recipe and identity build in one stage, where the two modes are identical. The repository cache is
-# close to its cap, so the entries are the least-recently-used first to go. Attestations are off: an attestation manifest
-# makes the pushed object an index with a different digest than the plain image the production release ledger has always
-# recorded.
+# ⚠️ The layer cache is an ECR REGISTRY cache (`<repo>:buildcache`), not the Actions cache. The repository's Actions cache is
+# at its 10 GB cap, so a layer cache there would evict the entries other jobs restore; ECR storage costs cents and no
+# quota. `mode=max` exports every stage, which matters for food, whose Dockerfile installs production dependencies in a
+# `deps` stage (`npm ci --omit=dev`, the expensive step). `image-manifest` and `oci-mediatypes` are what ECR needs to store
+# a cache as an image. `ignore-error` keeps a cache that cannot be written (a repository not yet carrying the mutable
+# filter) from failing the build it only exists to speed up.
+#
+# ⛔ NEVER FOR A RELEASE TAG. `buildcache` is a MUTABLE tag in a repository every branch job can push to (the exact tag is
+# the one exclusion `ecrEnsureRepo.sh` adds to the immutable set). A production image built from layers read out of it would
+# inherit whatever a branch wrote there, which is the supply-chain gap tag immutability exists to close. So the cache is read
+# and written only for a preview tag (`ecr_tag_is_preview`), and both cache inputs are empty for a release.
+#
+# Attestations are off: an attestation manifest makes the pushed object an index with a different digest than the plain image
+# the production release ledger has always recorded.
 
 inputs:
     stage:
@@ -135,6 +142,13 @@ runs:
               # a preview tag is mutable and always rebuilt (ecrPushVerdict.sh decides).
               verdict="$(bash .github/scripts/ecrPushVerdict.sh "${REPO}" "${IMAGE_TAG}")"
               echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
+              # The layer cache is for previews only (see the header).
+              source .github/scripts/ecrTagKind.sh
+              if ecr_tag_is_preview "${IMAGE_TAG}"; then
+                  echo "cache=true" >> "$GITHUB_OUTPUT"
+              else
+                  echo "cache=false" >> "$GITHUB_OUTPUT"
+              fi
 
         - name: Set up Docker Buildx
           if: steps.verdict.outputs.verdict == 'push'
@@ -149,8 +163,8 @@ runs:
               platforms: linux/amd64
               push: true
               tags: ${{ steps.ecr.outputs.registry }}/${{ inputs.ecr-repo }}:${{ steps.tag.outputs.tag }}
-              cache-from: type=gha,scope=${{ inputs.ecr-repo }}
-              cache-to: type=gha,scope=${{ inputs.ecr-repo }},mode=max
+              cache-from: ${{ steps.verdict.outputs.cache == 'true' && format('type=registry,ref={0}/{1}:buildcache', steps.ecr.outputs.registry, inputs.ecr-repo) || '' }}
+              cache-to: ${{ steps.verdict.outputs.cache == 'true' && format('type=registry,ref={0}/{1}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true', steps.ecr.outputs.registry, inputs.ecr-repo) || '' }}
               provenance: false
               sbom: false
 

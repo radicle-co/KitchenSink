@@ -34,8 +34,11 @@ const POLICY = JSON.parse(readFileSync(path.join(SCRIPTS, 'ecrLifecyclePolicy.js
 };
 
 const SHA = '67f56925ef02406f9e6b4530c868e914cb555daa';
-const MUTABLE_FILTERS = [...new Set(POLICY.rules.flatMap((rule) => rule.selection.tagPrefixList ?? []))]
+/** The one mutable tag that is not a preview image: the BuildKit layer cache `infra-image` writes (exact, no wildcard). */
+const CACHE_TAG = 'buildcache';
+const MUTABLE_FILTERS = [...new Set(POLICY.rules.flatMap((rule) => rule.selection.tagPrefixList ?? [])).values()]
     .map((prefix) => `${prefix}*`)
+    .concat(CACHE_TAG)
     .sort();
 
 /** What the fake `aws` answers. Everything else it is asked is recorded and succeeds. */
@@ -150,8 +153,20 @@ const callsTo = (r: Run, verb: string): readonly string[] => r.calls.filter((cal
 const CONFIGURED = { mutability: 'IMMUTABLE_WITH_EXCLUSION', filters: MUTABLE_FILTERS } as const;
 
 describe('ecrEnsureRepo.sh: release tags are immutable, preview tags are not', () => {
-    it('the mutable filters are the lifecycle policy preview prefixes, each as a wildcard', () => {
-        expect(MUTABLE_FILTERS).toEqual(['pr-*', 'sandbox-*']);
+    it('the mutable filters are the lifecycle policy preview prefixes, each as a wildcard, plus the exact cache tag', () => {
+        expect(MUTABLE_FILTERS).toEqual(['buildcache', 'pr-*', 'sandbox-*']);
+    });
+
+    // ⛔ The cache tag is mutable (BuildKit rewrites it every build) but it is NOT a preview: it must never reach the
+    // push verdict's skip path or the release ledger, and a release shape must still be refused a mutable tag.
+    it('treats the cache tag as mutable without making it a preview or a release', () => {
+        const create =
+            callsTo(run(ENSURE, ['kitchensink-food'], { repository: 'absent' }), 'create-repository')[0] ?? '';
+
+        expect(create).toContain('filterType=WILDCARD,filter=buildcache ');
+        expect(create).not.toContain('filter=buildcache*');
+        expect(create).not.toContain('filter=prod-');
+        expect(run(VERDICT, ['kitchensink-food', CACHE_TAG], { image: 'present', ledger: 'absent' }).status).toBe(1);
     });
 
     it('creates a missing repository already immutable, excluding exactly the preview prefixes', () => {

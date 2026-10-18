@@ -131,6 +131,9 @@ appId: ${APP_ID}
 # back on the surface a cook checks before publishing. ⚠️ The wizard's Review also read back the MEAL TYPE; the
 # detail page does not show one, so no surface on this flow can prove that axis round-trips any more (a recorded gap,
 # not an omission here).
+# A field is still focused, so the soft keyboard is up and the action bar has UNPINNED (build spec §7.1, "Keyboard open
+# (phones)"): it scrolls with the page, below this screen. Closing the keyboard from the first heading pins it again.
+- runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Preview'
 - extendedWaitUntil:
       visible: 'Preview. This is how it looks to others.'

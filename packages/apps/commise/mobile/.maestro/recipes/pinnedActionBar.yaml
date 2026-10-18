@@ -69,9 +69,14 @@ appId: ${APP_ID}
                 notVisible: 'Use .*Tamarind.* as written.*'
                 timeout: 30000
 
+# The trailing field still holds focus, and while the soft keyboard is up the bar UNPINS and scrolls with the page
+# (build spec §7.1, "Keyboard open (phones)"), so "pinned" is a property of the keyboard-closed page. Close the keyboard
+# from the first heading (`common/closeEditorKeyboard.yaml`; no `hideKeyboard`, which Maestro delivers as a BACK event
+# on Android and leaves the editor, build spec §3.5), which also returns the page to the top.
+- runFlow: common/closeEditorKeyboard.yaml
+
 # ⛔ THE ASSERTION. Scroll to the very BOTTOM of the ingredient list, then assert, with no further scrolling, that both
-# controls are still on screen. The trailing field is the list's last item. No `hideKeyboard` here: on Android
-# Maestro delivers it as a BACK event, which leaves the editor (build spec §3.5).
+# controls are still on screen. The trailing field is the list's last item.
 - scrollUntilVisible:
       element: 'Add an ingredient'
       direction: DOWN

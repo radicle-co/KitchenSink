@@ -48,6 +48,7 @@ import { composeValue } from '../src/composeValue.js';
 import {
     creatableResources,
     importRefsOf,
+    localizeQueueUrls,
     localExportMap,
     ownRefsOf,
     resolveImport,
@@ -239,6 +240,9 @@ async function main(): Promise<void> {
     // An SSM parameter this run creates is also the answer for any env var that reads it — and it is the
     // ONLY answer when the deployed stage does not exist in real AWS, which is the case for every
     // `/kitchensink/dev/` path here.
+    const createdQueueNames: ReadonlySet<string> = new Set(
+        toCreate.filter((resource) => resource.type === 'AWS::SQS::Queue').map((resource) => resource.name),
+    );
     const ssmLocally: Record<string, string> = {};
 
     for (const resource of toCreate) {
@@ -410,9 +414,18 @@ async function main(): Promise<void> {
                 // A literal the stack's tasks all state (`CLERK_ADMIT_NATIVE_CLIENT: 'true'`) ranks with what AWS resolved;
                 // without it every such value became a placeholder and the native app's tokens 401'd.
                 resolved: {
-                    ...(stackEntry === undefined
-                        ? {}
-                        : sharedLiteralEnv(stackEntry.template, new Set(Object.values(synthEnvFor(stackEntry.app))))),
+                    // A queue URL a stack states as a LITERAL (ADR-0036) is rewritten to LocalStack's, for the queues
+                    // this run creates. Applied to the literals only: imports and SSM answers are already local.
+                    ...localizeQueueUrls(
+                        stackEntry === undefined
+                            ? {}
+                            : sharedLiteralEnv(
+                                  stackEntry.template,
+                                  new Set(Object.values(synthEnvFor(stackEntry.app))),
+                              ),
+                        createdQueueNames,
+                        localStackTarget,
+                    ),
                     ...importsByStack.get(build.stack),
                     ...secretsByStack.get(build.stack),
                 },

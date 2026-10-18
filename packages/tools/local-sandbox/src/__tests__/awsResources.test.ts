@@ -29,6 +29,7 @@ import { describe, expect, it } from 'vitest';
 import {
     creatableResources,
     importRefsOf,
+    localizeQueueUrls,
     localExportMap,
     ownRefsOf,
     refValueOf,
@@ -386,5 +387,54 @@ describe('resolveParameterValues — an SSM parameter whose value IS another res
         const resources = [{ stack: 'S', logicalId: 'Q', type: 'AWS::SQS::Queue', name: 'q', properties: {} }];
 
         expect(resolveParameterValues(resources, LOCALSTACK)).toStrictEqual(resources);
+    });
+});
+
+/**
+ * ADR-0036: `RecipeServiceStack` states its queue URLs as LITERALS (`https://sqs.<region>.amazonaws.com/<acct>/<name>`)
+ * instead of resolving an SSM parameter the workers stack published. The local run used to answer that parameter with
+ * LocalStack's own queue URL; a literal AWS URL would send a local container to real SQS. So a literal that names a queue
+ * this run creates is rewritten to where LocalStack serves that queue.
+ */
+describe('localizeQueueUrls', () => {
+    const created = new Set(['kitchensink-recipe-parse-dev', 'kitchensink-recipe-account-erasure-dev']);
+
+    it('points a literal AWS queue URL for a queue this run creates at LocalStack', () => {
+        expect(
+            localizeQueueUrls(
+                {
+                    RECIPE_PARSE_QUEUE_URL:
+                        'https://sqs.us-east-1.amazonaws.com/000000000000/kitchensink-recipe-parse-dev',
+                },
+                created,
+                LOCALSTACK,
+            ),
+        ).toEqual({ RECIPE_PARSE_QUEUE_URL: 'http://localhost:4566/000000000000/kitchensink-recipe-parse-dev' });
+    });
+
+    it('leaves a queue this run does NOT create alone (it is a real one, or a typo that must stay visible)', () => {
+        const other = { Q: 'https://sqs.us-east-1.amazonaws.com/000000000000/some-other-queue' };
+
+        expect(localizeQueueUrls(other, created, LOCALSTACK)).toEqual(other);
+    });
+
+    it('leaves every non-queue value alone, including one that merely mentions a queue name', () => {
+        const values = {
+            DB_NAME: 'kitchensink-recipe-parse-dev',
+            FOOD_SERVICE_URL: 'https://food-pr-1.example.com',
+            ALREADY_LOCAL: 'http://localhost:4566/000000000000/kitchensink-recipe-parse-dev',
+        };
+
+        expect(localizeQueueUrls(values, created, LOCALSTACK)).toEqual(values);
+    });
+
+    it('does not let the region or account in a URL matter: the queue is matched by NAME', () => {
+        expect(
+            localizeQueueUrls(
+                { Q: 'https://sqs.eu-west-2.amazonaws.com/123456789012/kitchensink-recipe-parse-dev' },
+                created,
+                LOCALSTACK,
+            ),
+        ).toEqual({ Q: 'http://localhost:4566/000000000000/kitchensink-recipe-parse-dev' });
     });
 });

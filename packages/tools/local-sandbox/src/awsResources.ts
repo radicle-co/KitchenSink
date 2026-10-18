@@ -121,6 +121,42 @@ export function refValueOf(
     }
 }
 
+/** A queue URL as AWS answers it: `https://sqs.<region>.amazonaws.com/<account>/<queue name>`. */
+const AWS_QUEUE_URL = /^https:\/\/sqs\.[a-z0-9-]+\.amazonaws\.com\/[^/]+\/([^/]+)$/u;
+
+/**
+ * Point every literal AWS queue URL that names a queue THIS run creates at where LocalStack serves it.
+ *
+ * ⛔ ADR-0036 made the recipe service state its queue URLs as literals derived from the stage, region and account,
+ * where it used to resolve an SSM parameter the workers stack published (which `local:up` answered with LocalStack's own
+ * URL). A literal reaches a container as written, so left alone a local service would address real SQS. The match is by
+ * queue NAME against the queues this run creates, never by shape alone: a queue it does not create is left exactly as the
+ * template states it, so a typo or a genuinely remote queue stays visible instead of silently landing in LocalStack.
+ *
+ * @param values - Environment name to value.
+ * @param createdQueueNames - The names of the queues this run creates.
+ * @param target - The local emulator's endpoint and account.
+ * @returns The values, with matching queue URLs rewritten. Pure.
+ */
+export function localizeQueueUrls(
+    values: Readonly<Record<string, string>>,
+    createdQueueNames: ReadonlySet<string>,
+    target: LocalStackTarget,
+): Readonly<Record<string, string>> {
+    return Object.fromEntries(
+        Object.entries(values).map(([name, value]) => {
+            const queue = AWS_QUEUE_URL.exec(value)?.[1];
+
+            return [
+                name,
+                queue !== undefined && createdQueueNames.has(queue)
+                    ? `${target.endpoint}/${target.account}/${queue}`
+                    : value,
+            ];
+        }),
+    );
+}
+
 /** The ARN of a resource, for the `Fn::GetAtt … Arn` exports. */
 function arnOf(resource: { readonly type: string; readonly name: string }, target: LocalStackTarget): string {
     switch (resource.type) {

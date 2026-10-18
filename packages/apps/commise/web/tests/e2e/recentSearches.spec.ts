@@ -126,4 +126,37 @@ test.describe('discovery recent searches — A-027: a pause while typing is not 
         await expect(recents.getByRole('button', { name: 'Search for “rice”' })).toBeVisible();
         await expect(recents.getByRole('button', { name: /^Search for “(r|ri|ric)”$/u })).toHaveCount(0);
     });
+
+    // Owner ruling 2026-10-18: deleting letters never rewrites a search the cook ran. Erasing one letter at a time
+    // commits each shorter query at a pause, and "ric" used to replace "rice".
+    test('erasing "rice" one letter at a time keeps "rice" and records none of the shorter queries', async ({
+        page,
+    }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            recipes: [makeRecipeDetail({ id: E2E_RECIPE_IDS.pasta, ownerId: 'usr_other', title: 'Rice Bowl' })],
+        });
+
+        await page.goto(route('/discover'));
+        await expect(page.getByRole('heading', { name: 'Trending' })).toBeVisible();
+
+        const searchBox = page.getByRole('searchbox', { name: 'Search recipes' });
+        await searchBox.click();
+        await searchBox.fill('rice');
+        await expect(page.getByText('1 recipe for “rice”', { exact: true })).toBeVisible();
+
+        // Each shorter query's own results prove the debounce committed it as a query that ran.
+        for (const shorter of ['ric', 'ri', 'r']) {
+            await searchBox.press('Backspace');
+            await expect(page.getByText(`1 recipe for “${shorter}”`, { exact: true })).toBeVisible();
+        }
+
+        await searchBox.fill('');
+
+        const recents = page.getByRole('region', { name: 'Recent searches' });
+        await expect(recents.getByRole('button', { name: 'Search for “rice”' })).toBeVisible();
+        await expect(recents.getByRole('button', { name: /^Search for “(r|ri|ric)”$/u })).toHaveCount(0);
+    });
 });

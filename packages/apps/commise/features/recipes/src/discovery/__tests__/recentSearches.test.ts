@@ -61,8 +61,13 @@ describe('addRecentSearch — A-027: a partial query typed this session is repla
         expect(addRecentSearch(['r', 'pasta'], 'rice', 'r')).toEqual(['rice', 'pasta']);
     });
 
-    it('replaces it when the new one is shorter (the cook deleted a letter)', () => {
-        expect(addRecentSearch(['rice', 'pasta'], 'ric', 'rice')).toEqual(['ric', 'pasta']);
+    // Owner ruling 2026-10-18: deleting letters never rewrites a search the cook ran. Erasing "Risotto" one letter at a
+    // time commits "Risott" at the first pause, and that used to replace "Risotto" (discoverRecentSearches on iOS).
+    it('records nothing when the new one is shorter (the cook deleted a letter): the search they ran stays', () => {
+        const existing = ['rice', 'pasta'];
+
+        expect(addRecentSearch(existing, 'ric', 'rice')).toBe(existing);
+        expect(addRecentSearch(['Risotto'], 'Risott', 'Risotto')).toEqual(['Risotto']);
     });
 
     it('compares ignoring case and surrounding whitespace', () => {

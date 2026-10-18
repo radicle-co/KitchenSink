@@ -101,27 +101,38 @@ export function mergeRecentSearches(newer: readonly string[], older: readonly st
 }
 
 /**
- * Whether one query is a prefix of the other, in either direction, ignoring case and surrounding whitespace. Equal
- * queries are not partial of each other here: the de-duplication already folds them.
+ * How a query relates to the one recorded before it, ignoring case and surrounding whitespace. Equal queries are
+ * `unrelated` here: the de-duplication already folds them.
  *
  * @param previous - The query recorded before.
  * @param query - The query being recorded.
- * @returns `true` when typing or deleting letters turned one into the other.
+ * @returns `extends` when letters were typed onto `previous`, `shortens` when letters were deleted from it.
  */
-function isPartialOf(previous: string, query: string): boolean {
+function relationTo(previous: string, query: string): 'extends' | 'shortens' | 'unrelated' {
     const before = dedupeKey(previous);
     const after = dedupeKey(query);
 
-    return before !== after && (after.startsWith(before) || before.startsWith(after));
+    if (before === after) {
+        return 'unrelated';
+    }
+
+    if (after.startsWith(before)) {
+        return 'extends';
+    }
+
+    return before.startsWith(after) ? 'shortens' : 'unrelated';
 }
 
 /**
  * Record a query that actually ran, at the front of the history.
  *
  * A pause in typing commits a PARTIAL query ("r" while typing "rice"), and that is not a search the cook meant to keep.
- * So when the query the SAME session recorded just before is a prefix of this one, or this one of it, this one takes
- * its place (A-027). Only that one entry: an older entry that shares the prefix was a search of its own, and a search
- * stored by an earlier session is never `previous`, because the caller passes only what it recorded itself.
+ * So when this query EXTENDS the one the SAME session recorded just before, it takes that one's place (A-027). Only
+ * that one entry: an older entry that shares the prefix was a search of its own, and a search stored by an earlier
+ * session is never `previous`, because the caller passes only what it recorded itself.
+ *
+ * Deleting letters never rewrites a search the cook ran (owner ruling 2026-10-18): a query that SHORTENS the previous
+ * one is a partial on the way to something else, so nothing is recorded and the previous search stays.
  *
  * @param existing - The current history, newest-first.
  * @param query - The query that ran; blank/whitespace-only is ignored.
@@ -134,7 +145,13 @@ export function addRecentSearch(existing: readonly string[], query: string, prev
         return existing;
     }
 
-    if (previous === undefined || !isPartialOf(previous, query)) {
+    const relation = previous === undefined ? 'unrelated' : relationTo(previous, query);
+
+    if (relation === 'shortens') {
+        return existing;
+    }
+
+    if (previous === undefined || relation === 'unrelated') {
         return mergeRecentSearches([query], existing);
     }
 

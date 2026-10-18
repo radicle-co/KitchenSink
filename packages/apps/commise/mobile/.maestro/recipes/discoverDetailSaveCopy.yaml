@@ -22,7 +22,7 @@ appId: ${APP_ID}
 - runFlow:
       file: common/searchDiscover.yaml
       env:
-          QUERY: 'Risotto'
+          QUERY: 'Risotto ${E2E_RUN_KEY}'
 
 # Open the seeded PRO-owned public recipe. The seed is guaranteed present (the CI loop reseeds before
 # every flow), so scroll to it rather than a `when: visible` guard that would silently SKIP when the row is

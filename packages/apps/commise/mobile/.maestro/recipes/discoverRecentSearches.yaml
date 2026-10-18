@@ -29,7 +29,7 @@ appId: ${APP_ID}
 - runFlow:
       file: common/searchDiscover.yaml
       env:
-          QUERY: 'Risotto'
+          QUERY: 'Risotto ${E2E_RUN_KEY}'
 - scrollUntilVisible:
       element: '${E2E_RECIPE_RISOTTO}'
       direction: DOWN
@@ -40,15 +40,18 @@ appId: ${APP_ID}
       element: 'Search recipes'
       direction: UP
       timeout: 20000
+# The field's own clear control, not a tap and `eraseText`: the tap puts the caret where it lands, which is mid-way
+# through a query as long as `Risotto ${E2E_RUN_KEY}`, and `eraseText` deletes only what is before the caret (emulator,
+# 2026-10-18: the field kept "03-e94064a4"). The tap after it focuses the empty field.
+- tapOn: 'Clear search'
 - tapOn: 'Search recipes'
-- eraseText
 - extendedWaitUntil:
       visible: 'Recent searches'
       timeout: 40000
-- assertVisible: 'Risotto'
+- assertVisible: 'Risotto ${E2E_RUN_KEY}'
 
 # 3. Tapping the entry re-runs it: the result list returns.
-- tapOn: 'Search for “Risotto”'
+- tapOn: 'Search for “Risotto ${E2E_RUN_KEY}”'
 - scrollUntilVisible:
       element: '${E2E_RECIPE_RISOTTO}'
       direction: DOWN
@@ -66,7 +69,7 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Recent searches'
       timeout: 40000
-- assertVisible: 'Risotto'
+- assertVisible: 'Risotto ${E2E_RUN_KEY}'
 
 # 5. Clear forgets everything — the panel goes away, and the rails are still there behind it.
 - tapOn: 'Clear recent searches'
@@ -79,13 +82,16 @@ appId: ${APP_ID}
 - runFlow:
       file: common/searchDiscover.yaml
       env:
-          QUERY: 'Risotto'
+          QUERY: 'Risotto ${E2E_RUN_KEY}'
 - scrollUntilVisible:
       element: 'Search recipes'
       direction: UP
       timeout: 20000
+# The field's own clear control, not a tap and `eraseText`: the tap puts the caret where it lands, which is mid-way
+# through a query as long as `Risotto ${E2E_RUN_KEY}`, and `eraseText` deletes only what is before the caret (emulator,
+# 2026-10-18: the field kept "03-e94064a4"). The tap after it focuses the empty field.
+- tapOn: 'Clear search'
 - tapOn: 'Search recipes'
-- eraseText
 - extendedWaitUntil:
       visible: 'Recent searches'
       timeout: 40000
@@ -97,4 +103,4 @@ appId: ${APP_ID}
       timeout: 40000
 - tapOn: 'Search recipes'
 - assertNotVisible: 'Recent searches'
-- assertNotVisible: 'Search for “Risotto”'
+- assertNotVisible: 'Search for “Risotto ${E2E_RUN_KEY}”'

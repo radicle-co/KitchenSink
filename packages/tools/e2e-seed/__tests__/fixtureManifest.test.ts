@@ -371,6 +371,18 @@ describe('manifestToEnvLines', () => {
         expect(lines.every((line) => /^[A-Z0-9_]+=.+$/.test(line))).toBe(true);
     });
 
+    /**
+     * Every lane seeds its own public Herb Risotto, so a Discover search for the bare word matched twelve cards in run
+     * 39165813897 and the lane's own card scrolled out of view. The flows search `Risotto ${E2E_RUN_KEY}`, which only
+     * this lane's risotto answers, and which the search field cannot satisfy as a match for the card's full title.
+     */
+    it('carries the run key alone, so a Discover search can reach this lane’s recipe and nothing else', () => {
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE);
+
+        expect(FIXTURE_ENV_KEYS.runKey).toBe('E2E_RUN_KEY');
+        expect(lines).toContain(`E2E_RUN_KEY=${RUN}`);
+    });
+
     it('carries the run-scoped titles, not the base ones', () => {
         const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE);
 

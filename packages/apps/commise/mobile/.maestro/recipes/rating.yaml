@@ -36,7 +36,7 @@ appId: ${APP_ID}
 - runFlow:
       file: common/searchDiscover.yaml
       env:
-          QUERY: 'Risotto'
+          QUERY: 'Risotto ${E2E_RUN_KEY}'
 - scrollUntilVisible:
       element:
           text: '^${E2E_RECIPE_RISOTTO}$'

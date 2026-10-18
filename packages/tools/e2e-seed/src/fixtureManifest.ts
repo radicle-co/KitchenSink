@@ -347,6 +347,9 @@ export const FIXTURE_ENV_KEYS = {
     coAuthorEmail: 'E2E_COAUTHOR_EMAIL',
     erasureEmail: 'E2E_ERASURE_EMAIL',
     probeIngredient: 'E2E_PROBE_INGREDIENT',
+    // The run key alone. Every lane seeds its own public Herb Risotto, so Discover is searched for `Risotto <runKey>`,
+    // which only this lane's risotto answers. Not the full title: the field would hold it and match it as a card.
+    runKey: 'E2E_RUN_KEY',
     lamb: 'E2E_RECIPE_LAMB',
     asparagus: 'E2E_RECIPE_ASPARAGUS',
     salad: 'E2E_RECIPE_SALAD',
@@ -489,6 +492,7 @@ export function manifestToEnvLines(manifest: FixtureManifest, erasureEmail: stri
         `${FIXTURE_ENV_KEYS.coAuthorEmail}=${manifest.coAuthorEmail}`,
         ...(erasureEmail === null ? [] : [`${FIXTURE_ENV_KEYS.erasureEmail}=${erasureEmail}`]),
         `${FIXTURE_ENV_KEYS.probeIngredient}=${manifest.probeIngredient}`,
+        `${FIXTURE_ENV_KEYS.runKey}=${manifest.runKey}`,
         `${FIXTURE_ENV_KEYS.lamb}=${byKey.get('lamb') ?? ''}`,
         `${FIXTURE_ENV_KEYS.asparagus}=${byKey.get('asparagus') ?? ''}`,
         `${FIXTURE_ENV_KEYS.salad}=${byKey.get('salad') ?? ''}`,

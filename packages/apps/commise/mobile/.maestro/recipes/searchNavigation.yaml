@@ -109,14 +109,19 @@ appId: ${APP_ID}
 - assertNotVisible: 'No public recipes yet.'
 
 # A query that DOES match returns the seeded public recipe — the positive half of the same contract.
+# ⛔ The query is "Risotto" AND this lane's run key, never the bare word. Every lane seeds its own public Herb Risotto, so
+# "Risotto" matched ten cards in run 39165813897 and this lane's card was below the fold. The search ANDs every word, so
+# only this lane's risotto answers. Not the whole title either: the field would hold it and match it as the card.
 - tapOn: 'Search recipes'
 - eraseText
 - runFlow:
       file: common/searchDiscover.yaml
       env:
-          QUERY: 'Risotto'
+          QUERY: 'Risotto ${E2E_RUN_KEY}'
+# The RESULTS SENTENCE, not the card's title: it also proves the result set is exactly this lane's card, so a filter that
+# let other rows back in fails. Every positive check below uses it.
 - extendedWaitUntil:
-      visible: '${E2E_RECIPE_RISOTTO}'
+      visible: '1 recipe for .Risotto ${E2E_RUN_KEY}.'
       timeout: 40000
 
 # --- W4/S3 sort controls -------------------------------------------------------------------------------
@@ -128,7 +133,7 @@ appId: ${APP_ID}
 - assertVisible: 'Quickest'
 - tapOn: 'Quickest'
 - extendedWaitUntil:
-      visible: '${E2E_RECIPE_RISOTTO}'
+      visible: '1 recipe for .Risotto ${E2E_RUN_KEY}.'
       timeout: 40000
 
 # --- FR-006 filter bar (now a "Filters" bottom sheet, U7) ----------------------------------------------
@@ -141,21 +146,20 @@ appId: ${APP_ID}
 # 34863424203 it held 20 matches under "Under 60 min", led by repeated `Cross-service linkage proof` rows other
 # suites had left behind. With the sort still on Quickest, 35-minute Risotto sat below all of them and a
 # 20-second scroll never reached it. With the term kept, each assertion still tests the filter itself: a dropped
-# prep bound, cook bound or ingredient id would still show Risotto, or still hide it. The result set is then
-# this run's recipe alone, however many public rows the sandbox has built up. The leftovers are reported as an
-# environment problem, not absorbed here.
+# prep bound, cook bound or ingredient id would still show Risotto, or still hide it. The term carries the lane's run key
+# (see above), so the result set is this lane's recipe alone, however many public rows the sandbox has built up.
+# The leftovers are reported as an environment problem, not absorbed here.
 - tapOn: 'Filters.*'
 - extendedWaitUntil:
       visible: 'Under 60 min'
       timeout: 40000
 # Herb Risotto is 35 min total (and ≤ 60 prep), so selecting a 60-minute bound must keep it — a filter that
-# wrongly dropped a matching recipe fails here. Close the sheet, then scroll the result grid to the card.
+# wrongly dropped a matching recipe fails here. Close the sheet, then read the results sentence.
 - tapOn: 'Under 60 min'
 - tapOn: 'Show \d+ recipes?|Show recipes'
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_RISOTTO}'
-      direction: DOWN
-      timeout: 20000
+- extendedWaitUntil:
+      visible: '1 recipe for .Risotto ${E2E_RUN_KEY}.'
+      timeout: 40000
 # Reopen the sheet and press the SAME (now-active) bound again to clear it (the round trip proves it toggles).
 - tapOn: 'Filters.*'
 - tapOn: 'Any'
@@ -174,13 +178,13 @@ appId: ${APP_ID}
 # about the filter any more. The no-result heading, which names the term and says "with these filters", is only
 # rendered when the search returned nothing, so it is the proof that the bound reached the service.
 - extendedWaitUntil:
-      visible: 'No recipes for .Risotto.* with these filters'
+      visible: 'No recipes for .*Risotto.* with these filters'
       timeout: 40000
 - tapOn: 'Filters.*'
 - tapOn: 'Any'
 - tapOn: 'Show \d+ recipes?|Show recipes'
 - extendedWaitUntil:
-      visible: '${E2E_RECIPE_RISOTTO}'
+      visible: '1 recipe for .Risotto ${E2E_RUN_KEY}.'
       timeout: 40000
 
 # --- FR-006 gap #3: ingredient filter typeahead -------------------------------------------------------
@@ -214,7 +218,7 @@ appId: ${APP_ID}
 - tapOn: 'Filter by ${E2E_PROBE_INGREDIENT}'
 - tapOn: 'Show \d+ recipes?|Show recipes'
 - extendedWaitUntil:
-      visible: 'No recipes for .Risotto.* with these filters'
+      visible: 'No recipes for .*Risotto.* with these filters'
       timeout: 40000
 
 # Reopen the sheet, confirm the chip, and remove it — clearing the filter restores the browse set.
@@ -223,7 +227,7 @@ appId: ${APP_ID}
 - tapOn: 'Remove ${E2E_PROBE_INGREDIENT}'
 - tapOn: 'Show \d+ recipes?|Show recipes'
 - extendedWaitUntil:
-      visible: '${E2E_RECIPE_RISOTTO}'
+      visible: '1 recipe for .Risotto ${E2E_RUN_KEY}.'
       timeout: 40000
 
 # --- Navigation: back to the Recipes tab, through its two segments (slice 3: Collections is a segment of Recipes) --

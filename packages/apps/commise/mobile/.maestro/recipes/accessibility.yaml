@@ -72,7 +72,7 @@ appId: ${APP_ID}
 - runFlow:
       file: common/searchDiscover.yaml
       env:
-          QUERY: 'Risotto'
+          QUERY: 'Risotto ${E2E_RUN_KEY}'
 # ⛔ SCROLL TO THE CONTROL BEING ASSERTED, not to the row's title. A card's Save a copy button sits in the footer BELOW
 # its title, so a scroll that stops the moment the title is on screen can leave the button past the bottom edge: run
 # 38950847113 stopped with the title at y 2106 and the button at y 2579 on a 2400 px screen, and the assertion below

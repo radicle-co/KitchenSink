@@ -96,6 +96,10 @@ appId: ${APP_ID}
 
 # The seeded lamb is PUBLISHED, so the pinned bar's primary is `Save changes`: ONE write (owner decision D1), the
 # write that can meet a concurrent save.
+# The step field keeps the soft keyboard up, and while it is up the action bar UNPINS and scrolls with the page, below
+# this screen (build spec §7.1, "Keyboard open (phones)"). Close the keyboard from the first section's heading and the
+# bar pins to the foot again, wherever the page is scrolled.
+- runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Save changes'
 # If a concurrent save landed first, the conflict view offers the per-side banner, the changed-only diff, and
 # all three W7 FR-007c resolutions (A/B/C). UN-DRIVABLE without a conflict-seeding harness — see module note.

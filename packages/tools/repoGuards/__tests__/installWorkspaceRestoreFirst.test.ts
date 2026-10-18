@@ -92,3 +92,29 @@ describe('the root workspace is restored, not reinstalled, on the deploy path', 
         expect(steps.some(({ uses }) => uses?.endsWith('installWorkspace'))).toBe(true);
     });
 });
+
+/**
+ * `resolve-sandbox` has no `needs:` on purpose, so that eight Playwright shards and the preview deploy are not delayed
+ * by `install`; its comment concluded it "cannot restore the cache `install` saves". That holds only for the first run
+ * of a new lockfile. The entry is addressed by key, so every later run restores it, and the job sits at the very start
+ * of the longest chain: it gates the preview gate and the mobile build plan, and its `npm ci` was 135 seconds.
+ */
+describe('resolve-sandbox, the head of the preview chain, restores instead of reinstalling', () => {
+    const job = (): { steps?: Step[] } | undefined =>
+        (parse(read('.github/workflows/_ci.yml')) as { jobs: Record<string, { steps?: Step[] }> }).jobs[
+            'resolve-sandbox'
+        ];
+
+    it('installs through the restore-first action', () => {
+        const steps = job()?.steps ?? [];
+
+        expect(steps.some(({ uses }) => uses?.endsWith('installWorkspace'))).toBe(true);
+        expect(steps.filter(({ run }) => /(^|\n)\s*npm ci\b/u.test(run ?? ''))).toEqual([]);
+    });
+
+    it('needs no token: the root workspace install does not read GitHub Packages', () => {
+        const action = parse(read(ACTION)) as { inputs: Record<string, { required?: boolean }> };
+
+        expect(action.inputs['node-auth-token']?.required).toBe(false);
+    });
+});

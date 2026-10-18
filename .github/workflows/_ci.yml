@@ -355,9 +355,13 @@ jobs:
               with:
                   node-version: 24
                   cache: npm
-            # This job has no `needs:`, so it cannot restore the cache `install` saves — it is deliberately
-            # off the critical path of every other job, since eight Playwright shards wait on its answer.
-            - run: npm ci
+            # This job has no `needs:`, so it is deliberately off the critical path of every other job, since eight
+            # Playwright shards and the preview deploy wait on its answer. It still RESTORES the tree `install` saves: the
+            # entry is addressed by the lockfile's hash, not by run, so any earlier run of this lockfile left it, and the
+            # `npm ci` this job used to run (135 seconds, run 39076738796) sat at the head of the longest chain. A new
+            # lockfile misses and installs as before.
+            - name: Install the root workspace
+              uses: ./.github/actions/installWorkspace
             # `printPublicOrigin.mjs` imports `@kitchensink/infra-alb`, which exports `./dist` (the compiled
             # CDK apps run under plain `node`, whose type-stripping resolves a `.js` specifier inside a `.ts`
             # file literally rather than through `extensionAlias`). `^...` asks turbo for the dependency

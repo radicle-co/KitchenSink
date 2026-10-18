@@ -19,8 +19,11 @@ description: >-
 
 inputs:
     node-auth-token:
-        description: Token for GitHub Packages, which the fallback `npm ci` authenticates against.
-        required: true
+        description: >-
+            Token for GitHub Packages, for the fallback `npm ci`. Optional: the root workspace's own dependencies are public,
+            and only a caller that also installs a CDK app needs the token (it passes it to that install itself).
+        required: false
+        default: ''
 
 runs:
     using: composite

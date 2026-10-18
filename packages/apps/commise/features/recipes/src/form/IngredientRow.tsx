@@ -35,6 +35,7 @@ import { ingredientRowId } from './fieldIds.js';
 import { rowBadgeStatus } from './ingredientRowPolicy.js';
 import type { IngredientRowView } from './ingredientRowView.js';
 import { errorText } from './formSectionStyles.js';
+import { withRefusalFocus } from './refusalFocus.js';
 import { rowEntryFieldOf, type RowEntryFieldCopy } from './rowEntryField.js';
 
 /** Props for {@link IngredientRow}. */
@@ -101,7 +102,10 @@ const EntryName: FC<{ readonly row: IngredientRowView; readonly entryCopy: RowEn
     entryCopy,
 }) => (
     <div className="flex min-w-0 flex-1 flex-col gap-1 py-2">
-        <Combobox {...rowEntryFieldOf(row.entryField, entryCopy)} loadingIcon={<Icon name="search" size={16} />} />
+        <Combobox
+            {...rowEntryFieldOf(withRefusalFocus(row.entryField), entryCopy)}
+            loadingIcon={<Icon name="search" size={16} />}
+        />
         {row.noFoodNote !== undefined && (
             // `IngredientRowView.noFoodNote`, which the field's description names. `StatusBadge` takes no id and no
             // role, so this wrapper carries both.

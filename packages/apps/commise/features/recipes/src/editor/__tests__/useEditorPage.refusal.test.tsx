@@ -28,6 +28,7 @@ vi.mock('@commise/ui/scroll-host', () => ({
 }));
 
 import { makeEditorResult } from '../../__fixtures__/editorResult.js';
+import { ingredientNameFieldId } from '../../form/fieldIds.js';
 import type { RecipeFormErrors } from '../../form/validate.js';
 import type { EditorPage } from '../useEditorPage.js';
 import { useEditorPage } from '../useEditorPage.js';
@@ -41,7 +42,11 @@ beforeEach(() => {
 afterEach(cleanup);
 
 /** Render the page, with a Publish that refuses with `errors` in `section`; returns the latest page. */
-function mountRefusing(errors: RecipeFormErrors, section: EditorSectionId | undefined) {
+function mountRefusing(
+    errors: RecipeFormErrors,
+    section: EditorSectionId | undefined,
+    pendingEntryFieldId: string | undefined = undefined,
+) {
     const seen: { page?: EditorPage } = {};
     const editor = makeEditorResult({ publish: () => ({ kind: 'refused', errors, section }) });
 
@@ -51,6 +56,7 @@ function mountRefusing(errors: RecipeFormErrors, section: EditorSectionId | unde
             mode: 'create',
             keep: 'tabSession',
             pendingEntryText: '',
+            pendingEntryFieldId,
             sections: { details: null, ingredients: null, steps: null, photos: null },
             onClose: () => undefined,
             onPreview: () => undefined,
@@ -98,6 +104,18 @@ describe('useEditorPage — a refused Publish', () => {
         );
     });
 
+    it('takes the cook to the field that HOLDS the pending text, a row`s name field and not the add field', () => {
+        const { press } = mountRefusing(
+            { ingredients: 'ingredientsPendingText' },
+            'ingredients',
+            ingredientNameFieldId('line-2'),
+        );
+
+        press();
+
+        expect(host.scrollToField).toHaveBeenCalledExactlyOnceWith(ingredientNameFieldId('line-2'));
+    });
+
     it('counts a heading refusal for a section whose refusal has no single field', () => {
         const { page, press } = mountRefusing({ servings: 'servingsPositive' }, 'details');
         expect(page().refusalHeadings).toEqual({});
@@ -139,6 +157,7 @@ describe('useEditorPage — a refused Publish', () => {
                 mode: 'create',
                 keep: 'tabSession',
                 pendingEntryText: '',
+                pendingEntryFieldId: undefined,
                 sections: { details: null, ingredients: null, steps: null, photos: null },
                 onClose: () => undefined,
                 onPreview: () => undefined,

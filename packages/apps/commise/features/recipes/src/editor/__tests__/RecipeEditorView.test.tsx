@@ -43,6 +43,7 @@ function view(editor: UseRecipeEditorResult, over: Partial<RecipeEditorViewProps
                 mode="create"
                 keep="tabSession"
                 pendingEntryText=""
+                pendingEntryFieldId={undefined}
                 sections={{
                     details: <p>details body</p>,
                     ingredients: <p>ingredients body</p>,

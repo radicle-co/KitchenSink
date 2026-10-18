@@ -353,8 +353,6 @@ describe('useIngredientRowEditor — a refusal for pending text (`rowEditorOpenD
 
         act(() => result.current.refused(landsOnTwo));
         expect(result.current.pendingFocusRequested).toBe(true);
-        // Each refusal is counted, so the pending field can say its sentence again at the next one (R8).
-        expect(result.current.pendingRefusals).toBe(2);
     });
 
     it('the level drops by itself once no field holds pending text, so it never fires later at text typed after', () => {

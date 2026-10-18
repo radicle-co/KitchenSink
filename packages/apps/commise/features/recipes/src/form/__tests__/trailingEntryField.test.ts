@@ -53,11 +53,10 @@ const input = (over: Partial<TrailingEntryFieldInput> = {}): TrailingEntryFieldI
     label: 'Add an ingredient',
     invalid: false,
     pickFailure: undefined,
-    refusal: undefined,
     describedBy: undefined,
     focusRequested: false,
     listRequested: false,
-    refusalOccurrence: 0,
+    refusalFocus: { pointed: false, onHandled: () => undefined },
     onFocusRequestHandled: () => undefined,
     onTextChange: () => undefined,
     onCreateOwnFood: () => undefined,
@@ -188,17 +187,8 @@ describe('trailingEntryFieldOf', () => {
         expect(onFocusRequestHandled).toHaveBeenCalledTimes(1);
     });
 
-    it('says a failed pick, then a refusal’s sentence, assertively (R3, R7)', () => {
-        const props = trailingEntryFieldOf(
-            input({ pickFailure: 'We couldn’t add “kale”.', refusal: '“kale” isn’t in the recipe yet.' }),
-            COPY,
-        );
-
-        expect(props.alertAnnouncement).toBe('We couldn’t add “kale”. “kale” isn’t in the recipe yet.');
-    });
-
-    it('counts the alert’s occurrences: the limit’s refused presses and the refusals said here (R8)', () => {
-        expect(trailingEntryFieldOf(input({ refusalOccurrence: 2 }), COPY).alertOccurrence).toBe(2);
-        expect(trailingEntryFieldOf(input({ refusalOccurrence: 2, limitRefusals: 3 }), COPY).alertOccurrence).toBe(5);
+    it('counts the alert’s occurrences by the remote picks the limit refused (R8)', () => {
+        expect(trailingEntryFieldOf(input({ limitRefusals: 3 }), COPY).alertOccurrence).toBe(3);
+        expect(trailingEntryFieldOf(input({ limitRefusals: 0 }), COPY).alertOccurrence).toBe(0);
     });
 });

@@ -9,6 +9,7 @@ import {
     cuisineFieldId,
     descriptionFieldId,
     ingredientAddFieldId,
+    ingredientNameFieldId,
     stepFieldId,
     titleFieldId,
 } from '../../form/fieldIds.js';
@@ -71,6 +72,21 @@ describe('firstInvalidFieldOf', () => {
     it('names the add field for an empty list of ingredients and for text typed but not added', () => {
         expect(firstInvalidFieldOf({ ingredients: 'ingredientsEmpty' }, values)).toBe(ingredientAddFieldId);
         expect(firstInvalidFieldOf({ ingredients: 'ingredientsPendingText' }, values)).toBe(ingredientAddFieldId);
+    });
+
+    it('names the field that HOLDS the pending text: a row`s name field when a row holds it, the add field otherwise', () => {
+        const row = ingredientNameFieldId('line-2');
+
+        expect(firstInvalidFieldOf({ ingredients: 'ingredientsPendingText' }, values, row)).toBe(row);
+        expect(firstInvalidFieldOf({ ingredients: 'ingredientsPendingText' }, values, ingredientAddFieldId)).toBe(
+            ingredientAddFieldId,
+        );
+        // Only pending text points at the field that holds it: an empty list still points at the add field.
+        expect(firstInvalidFieldOf({ ingredients: 'ingredientsEmpty' }, values, row)).toBe(ingredientAddFieldId);
+        // No field holds text (the entry was cleared since): the add field, as before.
+        expect(firstInvalidFieldOf({ ingredients: 'ingredientsPendingText' }, values, undefined)).toBe(
+            ingredientAddFieldId,
+        );
     });
 
     it('names the FIRST step whose instruction the wire refuses, not the first step', () => {

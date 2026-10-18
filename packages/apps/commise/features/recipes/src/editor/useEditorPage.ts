@@ -85,7 +85,17 @@ function statusKey(statuses: SectionStatuses): string {
  * @returns What the leaves draw and the commands they issue. @sideEffect Raises checkpoints and jumps the page.
  */
 export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
-    const { editor, mode, keep, pendingEntryText, initialSection, onClose, onRefused, onOpenMyRecipes } = props;
+    const {
+        editor,
+        mode,
+        keep,
+        pendingEntryText,
+        pendingEntryFieldId,
+        initialSection,
+        onClose,
+        onRefused,
+        onOpenMyRecipes,
+    } = props;
     const m = useMessages(editorMessages);
     const locale = useLocale();
     const host = useScrollHost();
@@ -169,7 +179,7 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
 
             // §7.8: focus goes to the first invalid FIELD. The section's heading stays the answer where the error has
             // no single field: web's jump focused it, and native is asked to move the screen-reader cursor to it.
-            const field = firstInvalidFieldOf(outcome.errors, editor.values);
+            const field = firstInvalidFieldOf(outcome.errors, editor.values, pendingEntryFieldId);
 
             if (field !== undefined) {
                 scrollToField(field);

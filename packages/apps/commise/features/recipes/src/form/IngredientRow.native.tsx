@@ -32,24 +32,17 @@ import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { useRef, useState, type FC, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
-import {
-    ingredientCommitFailureId,
-    ingredientNoFoodNoteId,
-    ingredientPendingTextId,
-    ingredientStandInId,
-} from './fieldErrorIds.js';
+import { ingredientCommitFailureId, ingredientNoFoodNoteId, ingredientStandInId } from './fieldErrorIds.js';
 import { rowBadgeStatus } from './ingredientRowPolicy.js';
 import type { IngredientRowView } from './ingredientRowView.js';
 import type { RecipeFormMessages } from './messages.js';
 import { rowEntryFieldOf, type RowEntryFieldCopy } from './rowEntryField.js';
-import type { SpeakRefusal } from './useSpokenRefusal.js';
 
 /** Props for {@link IngredientRow}. */
 export interface IngredientRowProps {
     readonly row: IngredientRowView;
     readonly m: RecipeFormMessages;
     readonly entryCopy: RowEntryFieldCopy;
-    readonly speak: SpeakRefusal;
     readonly panel: (close: () => void) => ReactNode;
     readonly inlineEditor: ReactNode;
     readonly expanded: boolean | undefined;
@@ -142,7 +135,6 @@ export const IngredientRow: FC<IngredientRowProps> = ({
     row,
     m,
     entryCopy,
-    speak,
     panel,
     inlineEditor,
     expanded,
@@ -174,9 +166,12 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                 {row.inEntry ? (
                     <View style={styles.entry}>
                         <Combobox
-                            // PLATFORM-FORK: native has no `aria-describedby`, so a refused field says its row sentence
-                            // in its own alert (`useSpokenRefusal`); on web the sentence describes the field.
-                            {...rowEntryFieldOf(speak(row.entryField, line.key, row.pendingText), entryCopy)}
+                            {...rowEntryFieldOf(row.entryField, entryCopy)}
+                            // PLATFORM-FORK: native has no `aria-describedby`, so a refused field says its row sentence as
+                            // its own `error` (drawn, and the head of its hint), never in an assertive alert, and never by
+                            // taking focus: the keyboard and the list stay down (buildSpec §7.8). The first tap opens the
+                            // list.
+                            {...(row.pendingText === undefined ? {} : { error: row.pendingText, openOnFocus: true })}
                             loadingIcon={<Icon name="search" size={16} tone="inkMuted" />}
                             // A search that would keep a food has Cancel instead (item 4).
                             {...(row.entryField.changing
@@ -251,11 +246,6 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                 )}
                 {row.amountInvalidNote !== undefined && <Text style={error}>{row.amountInvalidNote}</Text>}
                 {row.busyText !== undefined && <Text style={caption}>{row.busyText}</Text>}
-                {row.pendingText !== undefined && (
-                    <Text nativeID={ingredientPendingTextId(line.key)} style={error}>
-                        {row.pendingText}
-                    </Text>
-                )}
                 {row.failure !== undefined && (
                     // Shown on the row; the field says it assertively, so this text is not live too (system change 2).
                     <Text nativeID={ingredientCommitFailureId(line.key)} style={error}>

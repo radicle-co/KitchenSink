@@ -91,9 +91,15 @@ export function errorsStillHolding(
  *
  * @param errors - The errors the gate refused with.
  * @param values - The draft they were found in (a step's id is its index).
+ * @param pendingEntryFieldId - The id of the field holding the uncommitted entry text, or `undefined` when none does.
+ *   Pending text points at THAT field, a row's name field as readily as the add field.
  * @returns The field's element id, or `undefined` when no refused error has a field. Pure.
  */
-export function firstInvalidFieldOf(errors: RecipeFormErrors, values: RecipeFormValues): string | undefined {
+export function firstInvalidFieldOf(
+    errors: RecipeFormErrors,
+    values: RecipeFormValues,
+    pendingEntryFieldId?: string,
+): string | undefined {
     if (errors.title !== undefined) {
         return titleFieldId;
     }
@@ -107,7 +113,11 @@ export function firstInvalidFieldOf(errors: RecipeFormErrors, values: RecipeForm
         return cuisineFieldId;
     }
 
-    if (errors.ingredients === 'ingredientsEmpty' || errors.ingredients === 'ingredientsPendingText') {
+    if (errors.ingredients === 'ingredientsPendingText') {
+        return pendingEntryFieldId ?? ingredientAddFieldId;
+    }
+
+    if (errors.ingredients === 'ingredientsEmpty') {
         return ingredientAddFieldId;
     }
 

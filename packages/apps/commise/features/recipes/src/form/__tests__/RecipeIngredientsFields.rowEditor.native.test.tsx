@@ -19,6 +19,7 @@
  */
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
+import { ScrollerDragContext } from '@commise/ui/field-reveal';
 import { installHardwareBackHandler, type HardwareBackHandle } from '@commise/ui/testing/hardware-back';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { useState, type FC } from 'react';
@@ -197,6 +198,24 @@ const BRISKET = {
     foodId: 'food_brisket',
 } as const;
 
+/** The scroller's drag-begin subscribers: a drag on the page closes an open list without blurring its field. */
+const pageDragListeners = new Set<() => void>();
+
+const subscribeToPageDrag = (listener: () => void): (() => void) => {
+    pageDragListeners.add(listener);
+
+    return () => pageDragListeners.delete(listener);
+};
+
+/** The cook drags the page: any open list closes, and its field keeps whatever focus it had. */
+const dragPage = (): void => {
+    act(() => {
+        for (const listener of pageDragListeners) {
+            listener();
+        }
+    });
+};
+
 const Harness: FC<{
     readonly initial: RecipeFormValues;
     readonly over?: FakeRowEditorOverrides;
@@ -214,17 +233,19 @@ const Harness: FC<{
 
     return (
         <BackInterceptProvider onUnhandled={() => false}>
-            <RecipeIngredientsFields
-                values={values}
-                {...(errors === undefined ? {} : { errors })}
-                onChange={(next) => {
-                    onValues?.(next);
-                    setValues(next);
-                }}
-                nutrition={nutrition}
-                lookupRetry={makeLookupRetry()}
-                rowEditor={rowEditor}
-            />
+            <ScrollerDragContext.Provider value={subscribeToPageDrag}>
+                <RecipeIngredientsFields
+                    values={values}
+                    {...(errors === undefined ? {} : { errors })}
+                    onChange={(next) => {
+                        onValues?.(next);
+                        setValues(next);
+                    }}
+                    nutrition={nutrition}
+                    lookupRetry={makeLookupRetry()}
+                    rowEditor={rowEditor}
+                />
+            </ScrollerDragContext.Provider>
         </BackInterceptProvider>
     );
 };
@@ -717,12 +738,18 @@ describe('the trailing add row, native (plan 002 V1 B8; §2d, §4b; items 1, 3 a
         expect(trailing().value).toBe('chickpeas');
     });
 
-    it('a refusal that points at it: focus, the list opens, and its alert says the trailing row’s sentence (R7)', () => {
+    // REWRITTEN for native's R7 (`docs/design/uiOverhaul/buildSpec.md` §7.8, "Refused Publish"): the refusal no longer
+    // focuses the field or opens its list. It centres the field (the editor's `scrollToField`), says the sentence as the
+    // field's own error, and acknowledges the level; the first tap opens the list.
+    it('a refusal that points at it: no focus, no keyboard, no list; the sentence is its error, and a tap opens the list (R7)', () => {
         const handled = vi.fn();
         const values = valuesWith(withLineKeys([BRISKET]));
         const { rerender } = render(<Harness initial={values} over={{ entry: { view: NOTHING_FOUND } }} />);
+        const focusSpy = vi.spyOn(trailing(), 'focus');
 
         fireEvent.change(trailing(), { target: { value: 'saffron' } });
+        // The cook closed the list (a drag on the page) and went to Publish: the field holds text and a shut list.
+        dragPage();
         act(() => actions('Beef brisket').focus());
         rerender(
             <Harness
@@ -735,11 +762,28 @@ describe('the trailing add row, native (plan 002 V1 B8; §2d, §4b; items 1, 3 a
         );
         const sentence = '“saffron” isn’t in the recipe yet. Choose a food for it, or clear the box.';
 
-        expect(document.activeElement).toBe(trailing());
-        expect(screen.getByLabelText('Food suggestions for ingredient 2')).toBeTruthy();
-        // Once under the field (never live), once in the field's assertive channel.
-        expect(screen.getAllByText(sentence)).toHaveLength(2);
+        expect(focusSpy).not.toHaveBeenCalled();
+        expect(document.activeElement).toBe(actions('Beef brisket'));
+        expect(screen.queryByLabelText('Food suggestions for ingredient 2')).toBeNull();
+        // Once, as the field's own error text, drawn and carried in its hint: never in an assertive region.
+        expect(screen.getAllByText(sentence)).toHaveLength(1);
+        expect(screen.getByText(sentence).closest('[aria-live="assertive"]')).toBeNull();
         expect(handled).toHaveBeenCalledTimes(1);
+
+        fireEvent.focus(trailing());
+
+        expect(screen.getByLabelText('Food suggestions for ingredient 2')).toBeTruthy();
+    });
+
+    it('with no refusal, a tap on a field whose list the cook closed leaves it shut until they type', () => {
+        const values = valuesWith(withLineKeys([BRISKET]));
+        render(<Harness initial={values} over={{ entry: { view: NOTHING_FOUND } }} />);
+
+        fireEvent.change(trailing(), { target: { value: 'saffron' } });
+        dragPage();
+        fireEvent.focus(trailing());
+
+        expect(screen.queryByLabelText('Food suggestions for ingredient 2')).toBeNull();
     });
 
     it('its list ends with Create my own food, which opens the form for a new line on the typed text (O3)', () => {
@@ -862,7 +906,8 @@ describe('a failed pick across the step’s lifetime, native (E2)', () => {
     });
 });
 
-describe('a refusal for pending text points at its field, and says why (`rowEditorOpenDecisions.md` R7)', () => {
+describe('a refusal for pending text points at its field, and says why (`rowEditorOpenDecisions.md` R7, buildSpec §7.8)', () => {
+    const NOTHING_FOUND_ROW = settledFoodView(answeredGroup(), answeredGroup());
     const SENTENCE = '“saffron” isn’t in the recipe yet. Choose a food for it, or clear the box.';
 
     const typed = (): HTMLElement => {
@@ -874,11 +919,47 @@ describe('a refusal for pending text points at its field, and says why (`rowEdit
         return field;
     };
 
-    it('the raised level focuses the pending field, and only then does its own alert speak the row sentence', () => {
+    // REWRITTEN for native's R7 (`docs/design/uiOverhaul/buildSpec.md` §7.8, "Refused Publish"): see the trailing row's
+    // suite. A row's name field is pointed at the same way, and the pending text it holds stays where it is.
+    it('the raised level acknowledges without focusing: no keyboard, no list; the sentence is the field’s error', () => {
         const handled = vi.fn();
         const values = valuesWith(withLineKeys([NO_FOOD, BRISKET]));
-        const { rerender } = render(<Harness initial={values} />);
+        const { rerender } = render(<Harness initial={values} over={{ entry: { view: NOTHING_FOUND_ROW } }} />);
         const field = typed();
+        const focusSpy = vi.spyOn(field, 'focus');
+
+        dragPage();
+
+        rerender(
+            <Harness
+                initial={values}
+                over={{
+                    entry: { view: NOTHING_FOUND_ROW },
+                    editor: { pendingRefused: true, pendingFocusRequested: true, pendingFocusHandled: handled },
+                }}
+            />,
+        );
+
+        expect(focusSpy).not.toHaveBeenCalled();
+        expect(document.activeElement).toBe(actions('Beef brisket'));
+        expect(screen.queryByLabelText('Food suggestions for ingredient 1')).toBeNull();
+        expect(handled).toHaveBeenCalledTimes(1);
+        // The sentence is the field's error, drawn once; the row draws no copy of its own and nothing is assertive.
+        expect(screen.getAllByText(SENTENCE)).toHaveLength(1);
+        expect(screen.getByText(SENTENCE).closest('[aria-live="assertive"]')).toBeNull();
+
+        fireEvent.focus(field);
+
+        expect(screen.getByLabelText('Food suggestions for ingredient 1')).toBeTruthy();
+    });
+
+    it('the level is acknowledged once per refusal, and not at rest', () => {
+        const handled = vi.fn();
+        const values = valuesWith(withLineKeys([NO_FOOD, BRISKET]));
+        const { rerender } = render(<Harness initial={values} over={{ editor: { pendingFocusHandled: handled } }} />);
+
+        typed();
+        expect(handled).not.toHaveBeenCalled();
 
         rerender(
             <Harness
@@ -886,14 +967,17 @@ describe('a refusal for pending text points at its field, and says why (`rowEdit
                 over={{ editor: { pendingRefused: true, pendingFocusRequested: true, pendingFocusHandled: handled } }}
             />,
         );
+        rerender(
+            <Harness
+                initial={values}
+                over={{ editor: { pendingRefused: true, pendingFocusRequested: true, pendingFocusHandled: handled } }}
+            />,
+        );
 
-        expect(document.activeElement).toBe(field);
         expect(handled).toHaveBeenCalledTimes(1);
-        // Once under the field (never live), once in the field's assertive channel.
-        expect(screen.getAllByText(SENTENCE)).toHaveLength(2);
     });
 
-    it('typing after the refusal takes the sentence out of the alert; the visible one follows the text', () => {
+    it('typing after the refusal makes the visible sentence follow the text', () => {
         const values = valuesWith(withLineKeys([NO_FOOD, BRISKET]));
         const { rerender } = render(<Harness initial={values} />);
         const field = typed();
@@ -905,40 +989,6 @@ describe('a refusal for pending text points at its field, and says why (`rowEdit
         expect(
             screen.getAllByText('“saffron threads” isn’t in the recipe yet. Choose a food for it, or clear the box.'),
         ).toHaveLength(1);
-    });
-
-    it('a later refusal says the sentence again, and only once the field has taken focus, so the move does not cut it off (R8)', () => {
-        const values = valuesWith(withLineKeys([NO_FOOD, BRISKET]));
-        const { container, rerender } = render(<Harness initial={values} />);
-        const assertive = (): readonly string[] =>
-            Array.from(container.querySelectorAll('[aria-live="assertive"]'))
-                .map((node) => node.textContent ?? '')
-                .filter((text) => text === '' || text === SENTENCE);
-
-        // The row editor's level as it moves: raised at a refusal, lowered once the field has taken focus.
-        const at = (pendingFocusRequested: boolean, pendingRefusals: number): readonly string[] => {
-            rerender(
-                <Harness
-                    initial={values}
-                    over={{ editor: { pendingRefused: true, pendingFocusRequested, pendingRefusals } }}
-                />,
-            );
-
-            return assertive();
-        };
-
-        typed();
-        const first = at(true, 1);
-        const taken = at(false, 1);
-        // The second refusal is counted before the field has taken focus again: nothing is said yet.
-        const counted = at(false, 2);
-        const again = at(true, 2);
-
-        expect(first).toContain(SENTENCE);
-        expect(taken).toEqual(first);
-        expect(counted).toEqual(first);
-        expect(again).toContain(SENTENCE);
-        expect(again.indexOf(SENTENCE)).not.toBe(first.indexOf(SENTENCE));
     });
 
     it('with no level raised, the sentence shows under the field and is not spoken', () => {

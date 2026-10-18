@@ -52,10 +52,12 @@ describe('useRowFocus — at rest', () => {
     it('asks no control to take focus', () => {
         const { result } = renderFocus(editorWith());
 
-        expect(result.current.name(A)).toMatchObject({ requested: false, listRequested: false });
+        expect(result.current.name(A).requested).toBe(false);
         expect(result.current.open(A).requested).toBe(false);
         expect(result.current.actions(A).requested).toBe(false);
-        expect(result.current.trailing).toMatchObject({ requested: false, listRequested: false });
+        expect(result.current.trailing.requested).toBe(false);
+        expect(result.current.refusal.name(A).pointed).toBe(false);
+        expect(result.current.refusal.trailing.pointed).toBe(false);
     });
 });
 
@@ -105,7 +107,7 @@ describe('useRowFocus — a request', () => {
 
         act(() => result.current.requestTrailing());
 
-        expect(result.current.trailing).toMatchObject({ requested: true, listRequested: false });
+        expect(result.current.trailing.requested).toBe(true);
 
         act(() => result.current.trailing.onHandled());
 
@@ -113,35 +115,52 @@ describe('useRowFocus — a request', () => {
     });
 });
 
+/**
+ * REWRITTEN for native's R7 (`docs/design/uiOverhaul/buildSpec.md` §7.8, "Refused Publish"): the refusal is its OWN
+ * level (`refusal`), no longer merged into a field's `requested` here, because native must acknowledge it without taking
+ * focus (the keyboard and the list stay down). Web's merge of the two lives in `refusalFocus.ts`.
+ */
 describe('useRowFocus — a refused save points at the pending field (R7)', () => {
-    it('a row’s field takes focus with its list open, and taking it lowers the refusal’s level', () => {
+    it('a row’s field is pointed at, and the refusal’s own acknowledgement lowers the level', () => {
         const pendingFocusHandled = vi.fn();
         const { result } = renderFocus(editorWith({ pendingFocusHandled }, { kind: 'line', key: B }));
 
-        expect(result.current.name(B)).toMatchObject({ requested: true, listRequested: true });
-        expect(result.current.name(A)).toMatchObject({ requested: false, listRequested: false });
-        expect(result.current.trailing.requested).toBe(false);
+        expect(result.current.refusal.name(B).pointed).toBe(true);
+        expect(result.current.refusal.name(A).pointed).toBe(false);
+        expect(result.current.refusal.trailing.pointed).toBe(false);
+        // The settled-commit request is untouched by a refusal: focus is not asked of the field.
+        expect(result.current.name(B).requested).toBe(false);
 
-        act(() => result.current.name(A).onHandled());
+        act(() => result.current.refusal.name(A).onHandled());
         expect(pendingFocusHandled).not.toHaveBeenCalled();
 
-        act(() => result.current.name(B).onHandled());
+        act(() => result.current.refusal.name(B).onHandled());
         expect(pendingFocusHandled).toHaveBeenCalledTimes(1);
     });
 
-    it('the trailing field takes focus with its list open, and taking it lowers the refusal’s level', () => {
+    it('the trailing field is pointed at, and its acknowledgement lowers the level', () => {
         const pendingFocusHandled = vi.fn();
         const { result } = renderFocus(editorWith({ pendingFocusHandled }, { kind: 'newLine' }));
 
-        expect(result.current.trailing).toMatchObject({ requested: true, listRequested: true });
-        expect(result.current.name(A).requested).toBe(false);
+        expect(result.current.refusal.trailing.pointed).toBe(true);
+        expect(result.current.refusal.name(A).pointed).toBe(false);
+        expect(result.current.trailing.requested).toBe(false);
 
-        act(() => result.current.trailing.onHandled());
+        act(() => result.current.refusal.trailing.onHandled());
 
         expect(pendingFocusHandled).toHaveBeenCalledTimes(1);
     });
 
-    it('asks nothing while the refusal is not pointing, even with text pending', () => {
+    it('a field taking a settled commit’s focus does not acknowledge the refusal', () => {
+        const pendingFocusHandled = vi.fn();
+        const { result } = renderFocus(editorWith({ pendingFocusHandled }, { kind: 'newLine' }));
+
+        act(() => result.current.trailing.onHandled());
+
+        expect(pendingFocusHandled).not.toHaveBeenCalled();
+    });
+
+    it('points at nothing while the refusal is not pointing, even with text pending', () => {
         const { result } = renderFocus(
             makeIngredientRowEditor({
                 pendingFocusRequested: false,
@@ -149,7 +168,7 @@ describe('useRowFocus — a refused save points at the pending field (R7)', () =
             }),
         );
 
-        expect(result.current.name(B).requested).toBe(false);
+        expect(result.current.refusal.name(B).pointed).toBe(false);
     });
 });
 

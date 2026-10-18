@@ -23,6 +23,7 @@ import { entryComboboxOf, type EntryComboboxCopy } from './entryCombobox.js';
 import { ingredientAddFieldId } from './fieldIds.js';
 import type { RecipeFormMessages } from './messages.js';
 import type { SourceNaming } from './progressiveNotes.js';
+import type { RefusalFocus } from './useRowFocus.js';
 import { chooseEntryOption } from './rowEntryField.js';
 
 /** The copy the trailing field reads, already localised. */
@@ -43,15 +44,14 @@ export interface TrailingEntryFieldInput {
     readonly invalid: boolean;
     /** A pick on the trailing row that did not take, already worded; said assertively. */
     readonly pickFailure: string | undefined;
-    /** Native: the sentence a refusal pointed at, said assertively (`EntryComboboxInput.refusal`). */
-    readonly refusal: string | undefined;
     /** Web: the id of an element that describes the field (its pending sentence, its failure). */
     readonly describedBy: string | undefined;
+    /** A settled commit asks the field to take focus (`RowFocus.trailing`). */
     readonly focusRequested: boolean;
-    /** With the focus request: open the list too, because a refusal points at this field (R7). */
+    /** With the focus request: open the list too. The builders pass `false`; web's R7 merge sets it (`withRefusalFocus`). */
     readonly listRequested: boolean;
-    /** The refusals said in this field's alert (native, R8). */
-    readonly refusalOccurrence: number;
+    /** Whether a refused save or Next points at this field (R7). Web reads it as focus and the list; native does not. */
+    readonly refusalFocus: RefusalFocus;
     readonly onFocusRequestHandled: () => void;
     /** The cook typed or cleared the field (a failed pick's message is then stale). */
     readonly onTextChange: () => void;
@@ -90,7 +90,6 @@ export const trailingEntryFieldOf = (
             view: entry.view,
             databaseSaidEarly: entry.databaseSaidEarly,
             pickFailure: input.pickFailure,
-            refusal: input.refusal,
             offersCreateOwnFood: true,
             ...input.naming,
         },
@@ -125,8 +124,8 @@ export const trailingEntryFieldOf = (
         ...(input.describedBy === undefined ? {} : { describedBy: input.describedBy }),
         focusRequested: input.focusRequested,
         listRequested: input.listRequested,
-        // R8: every remote pick the cook's limit refused, and every refusal said here, speaks the alert again.
-        alertOccurrence: input.limitRefusals + input.refusalOccurrence,
+        // R8: every remote pick the cook’s limit refused speaks the alert again.
+        alertOccurrence: input.limitRefusals,
         onFocusRequestHandled: input.onFocusRequestHandled,
     };
 };

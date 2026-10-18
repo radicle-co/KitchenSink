@@ -36,7 +36,7 @@ import type { IngredientLineKey } from '../lineKey.js';
 import type { LookupEntry } from '../nutritionLookup.js';
 import { recipeFormMessages } from '../messages.js';
 import { applyDraftAction } from '../props.js';
-import type { RowFocus } from '../useRowFocus.js';
+import type { RefusalFocus, RowFocus } from '../useRowFocus.js';
 import type { RecipeFormErrors } from '../validate.js';
 import type { RecipeFormIngredient } from '../values.js';
 
@@ -75,14 +75,15 @@ const nameless = (over: Partial<UnkeyedFormIngredient> = {}): UnkeyedFormIngredi
 });
 
 /** The field group's focus requests, each a spy. */
-const makeFocus = () => {
+const makeFocus = (refusal: RefusalFocus = { pointed: false, onHandled: () => undefined }) => {
     const level = { requested: false, onHandled: () => undefined };
 
     return {
-        name: () => ({ ...level, listRequested: false }),
+        name: () => level,
         open: () => level,
         actions: () => level,
-        trailing: { ...level, listRequested: false },
+        trailing: level,
+        refusal: { name: () => refusal, trailing: refusal },
         request: vi.fn<RowFocus['request']>(),
         requestTrailing: vi.fn<RowFocus['requestTrailing']>(),
         authoredSheetDismissed: () => false,
@@ -99,6 +100,8 @@ interface Setup {
     readonly retrying?: ReadonlySet<string>;
     readonly failure?: string;
     readonly alert?: string;
+    /** The refusal's level for every row's name field (`RowFocus.refusal`). */
+    readonly refusal?: RefusalFocus;
     /** The row whose editor is open. */
     readonly openKey?: IngredientLineKey;
     /** How many named groups the list has (its own and the cook's new, empty ones). */
@@ -110,7 +113,7 @@ interface Setup {
 /** Every row of a draft, with the spies a test reads. */
 const rowsOf = (setup: Setup) => {
     const values = makeRecipeFormValues({ ingredients: withLineKeys(setup.lines) });
-    const focus = makeFocus();
+    const focus = makeFocus(setup.refusal);
     const retry = vi.fn<(ingredientId: string, key: string) => void>();
     const moveOn = vi.fn<() => void>();
     const entry = makeIngredientEntry(setup.entry);
@@ -583,6 +586,20 @@ describe('ingredientRowViewOf — what a refusal and a pick say on the row (R7, 
             '“brisket point” isn’t in the recipe yet. Choose a food for it, or press Cancel to keep beef brisket.',
         );
         expect(row.entryField.invalid).toBe(true);
+    });
+
+    it('R7: a row`s entry field carries the refusal as its own level, never as a focus request', () => {
+        const pointed = { pointed: true, onHandled: vi.fn() };
+        const { row } = onlyRow({
+            lines: [bound()],
+            entry: { isPending: () => true, textOf: () => 'brisket point' },
+            editor: { pendingRefused: true },
+            refusal: pointed,
+        });
+
+        expect(row.entryField.refusalFocus).toBe(pointed);
+        expect(row.entryField.focusRequested).toBe(false);
+        expect(row.entryField.listRequested).toBe(false);
     });
 
     it('R7: before any refusal, pending text says nothing', () => {

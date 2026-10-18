@@ -123,6 +123,8 @@ export interface RecipeEditorViewProps {
     readonly keep: DraftKeep;
     /** The ingredient entry's uncommitted text (the row editor's). */
     readonly pendingEntryText: string;
+    /** The id of the field that holds it, or `undefined` when none does: where a refused Publish takes the cook. */
+    readonly pendingEntryFieldId: string | undefined;
     /** A paste is being sent, or its lines are still joining the recipe: Publish waits (`useIngredientsPaste`). */
     readonly pastePending?: boolean;
     /** Each section's body. */

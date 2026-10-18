@@ -110,6 +110,7 @@ function view(editor: UseRecipeEditorResult, over: Partial<RecipeEditorViewProps
                 mode="create"
                 keep="disk"
                 pendingEntryText=""
+                pendingEntryFieldId={undefined}
                 sections={{
                     details: <></>,
                     ingredients: <></>,

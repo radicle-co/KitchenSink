@@ -71,6 +71,17 @@ export const ingredientAddFieldId = 'recipe-ingredient-add';
 export const ingredientNameFieldId = (key: string): string => `recipe-ingredient-${key}-name`;
 
 /**
+ * The field an ingredient entry types into: a row's name field, or the trailing add field. Both the page's focus target
+ * after a refusal and the fields themselves read their id from here. Pure.
+ *
+ * @param target - The entry's target (`LineCommitTarget`, narrowed to what names a field).
+ * @returns The id.
+ */
+export const entryFieldIdOf = (
+    target: { readonly kind: 'line'; readonly key: string } | { readonly kind: 'newLine' },
+): string => (target.kind === 'line' ? ingredientNameFieldId(target.key) : ingredientAddFieldId);
+
+/**
  * A row's list item, by its line's key: the top of the span web scrolls into view when a pick adds the row
  * (`ScrollHost.revealSpan`, `docs/design/uiOverhaul/ingredientArrival.md`). Pure.
  *

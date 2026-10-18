@@ -65,7 +65,6 @@ const input = (over: Partial<EntryComboboxInput> = {}): EntryComboboxInput => ({
     view: viewOf([BOTH, COMPLETE_FRAME]),
     databaseSaidEarly: false,
     pickFailure: undefined,
-    refusal: undefined,
     offersCreateOwnFood: false,
     formatTime: () => '3:05 PM',
     formatList: (items) => items.join(' and '),
@@ -552,16 +551,11 @@ describe('entryComboboxOf — how an option reads (L4, P5)', () => {
     });
 });
 
-describe('entryComboboxOf — the assertive channel (R3, R7)', () => {
-    it('a pick that failed is said first, then any failure of the list, then the refusal', () => {
-        const view = entryComboboxOf(
-            input({ view: viewOf([]), pickFailure: 'We couldn’t add that.', refusal: 'Choose a food first.' }),
-            COPY,
-        );
+describe('entryComboboxOf — the assertive channel (R3)', () => {
+    it('a pick that failed is said first, then any failure of the list', () => {
+        const view = entryComboboxOf(input({ view: viewOf([]), pickFailure: 'We couldn’t add that.' }), COPY);
 
-        expect(view.alertAnnouncement).toBe(
-            `We couldn’t add that. ${shared.ingredientPickerSearch.failed} Choose a food first.`,
-        );
+        expect(view.alertAnnouncement).toBe(`We couldn’t add that. ${shared.ingredientPickerSearch.failed}`);
     });
 });
 

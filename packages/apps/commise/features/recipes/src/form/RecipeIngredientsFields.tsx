@@ -43,6 +43,7 @@ import { PastedReadingRow } from './PastedReadingRow.js';
 import { PasteProgressBlock } from './PasteProgressBlock.js';
 import { pasteAnnouncementTextOf } from './pasteStatusCopy.js';
 import type { RecipeIngredientsFieldsProps } from './props.js';
+import { withRefusalFocus } from './refusalFocus.js';
 import { trailingEntryFieldOf } from './trailingEntryField.js';
 import type { SectionAddView } from './useIngredientGroups.js';
 import { useIngredientsFields, type IngredientsFieldsModel } from './useIngredientsFields.js';
@@ -57,7 +58,7 @@ const AddField: FC<{ readonly model: IngredientsFieldsModel; readonly trailingAc
     return (
         <div className="flex flex-col gap-1">
             <Combobox
-                {...trailingEntryFieldOf(trailing.entryField, model.entryCopy)}
+                {...trailingEntryFieldOf(withRefusalFocus(trailing.entryField), model.entryCopy)}
                 // How the text was read, and "Pick a food from the list." (§7.5.3), directly under the field. The
                 // reading is said to a screen reader, after a pause, below.
                 belowField={

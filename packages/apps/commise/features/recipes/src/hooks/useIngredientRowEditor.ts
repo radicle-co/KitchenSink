@@ -134,8 +134,6 @@ export interface IngredientRowEditor {
      * focus move; it drops once no field holds pending text.
      */
     readonly pendingRefused: boolean;
-    /** How many refusals have pointed at a pending field: its alert says its sentence again at each one (R8). */
-    readonly pendingRefusals: number;
     /** A gate decided: a refusal for pending text, landing on Ingredients, raises {@link pendingFocusRequested}. */
     readonly refused: (outcome: GateOutcome) => void;
     /** The pending field took focus: lowers {@link pendingFocusRequested}. */
@@ -249,7 +247,6 @@ export function useIngredientRowEditor(options: UseIngredientRowEditorOptions): 
         pickInFlight: lineCommit.inFlightPick,
         pendingFocusRequested,
         pendingRefused,
-        pendingRefusals: refusalCount,
         refused: (outcome) => {
             // Only a refusal that lands on Ingredients for the pending text points at the field (R7 item 2).
             if (

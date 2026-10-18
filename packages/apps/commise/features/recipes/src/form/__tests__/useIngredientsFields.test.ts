@@ -252,6 +252,27 @@ describe('useIngredientsFields — the trailing add row (item 3, item 1, O3)', (
     });
 });
 
+describe('useIngredientsFields — a refusal that points at the trailing field (R7)', () => {
+    it('is carried as the field’s own level and asks nothing of its focus or list', () => {
+        const { result } = renderFields(
+            propsOf({
+                lines: [bound('flour')],
+                entry: {
+                    isPending: (target) => target.kind === 'newLine',
+                    textOf: () => 'smoked flour',
+                    pending: { target: { kind: 'newLine' }, text: 'smoked flour' },
+                },
+                editor: { pendingRefused: true, pendingFocusRequested: true },
+            }),
+        );
+        const { entryField } = result.current.trailing;
+
+        expect(entryField.refusalFocus.pointed).toBe(true);
+        expect(entryField.focusRequested).toBe(false);
+        expect(entryField.listRequested).toBe(false);
+    });
+});
+
 describe('useIngredientsFields — what a settled pick says (item 1, item 4)', () => {
     it('a trailing pick that lands UNRESOLVED says, politely, that the new line needs a choice', () => {
         const props = propsOf({ lines: [bound('flour'), bound('kale')] });

@@ -751,7 +751,6 @@ export const ingredientRowViewOf = (
             food: displayName,
             invalid: marks.noFoodNote !== undefined || pendingText !== undefined,
             pickFailure: ctx.alertOf(target),
-            refusal: undefined,
             describedBy: ingredientEntryDescribedBy(index, line.key, {
                 noFoodNote: marks.noFoodNote !== undefined,
                 unresolvedError: ctx.errors?.ingredients === 'ingredientsUnresolved',
@@ -759,8 +758,8 @@ export const ingredientRowViewOf = (
                 failure: failure !== undefined,
             }),
             focusRequested: nameFocus.requested,
-            listRequested: nameFocus.listRequested,
-            refusalOccurrence: 0,
+            listRequested: false,
+            refusalFocus: focus.refusal.name(line.key),
             onFocusRequestHandled: nameFocus.onHandled,
             onCancel: onLeaveEntry,
             onAbandon: onLeaveEntry,

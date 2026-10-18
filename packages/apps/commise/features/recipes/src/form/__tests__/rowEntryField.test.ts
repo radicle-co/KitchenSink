@@ -60,12 +60,11 @@ const input = (over: Partial<RowEntryFieldInput> = {}): RowEntryFieldInput => ({
     changing: false,
     food: 'Kale',
     pickFailure: undefined,
-    refusal: undefined,
     invalid: false,
     describedBy: undefined,
     focusRequested: false,
     listRequested: false,
-    refusalOccurrence: 0,
+    refusalFocus: { pointed: false, onHandled: () => undefined },
     onFocusRequestHandled: () => undefined,
     onCancel: () => undefined,
     onAbandon: () => undefined,
@@ -197,16 +196,6 @@ describe('rowEntryFieldOf', () => {
         expect(onFocusRequestHandled).toHaveBeenCalledTimes(1);
     });
 
-    it('says a refusal’s row sentence assertively, after the alerts the entry already has (R7, native)', () => {
-        const sentence = '“kale x” isn’t in the recipe yet. Choose a food for it, or clear the box.';
-
-        expect(rowEntryFieldOf(input({ refusal: sentence }), COPY).alertAnnouncement).toBe(sentence);
-        expect(
-            rowEntryFieldOf(input({ pickFailure: 'The change didn’t save.', refusal: sentence }), COPY)
-                .alertAnnouncement,
-        ).toBe(`The change didn’t save. ${sentence}`);
-    });
-
     it('asks for the list with the focus when a refusal points at the row (R7)', () => {
         expect(rowEntryFieldOf(input({ focusRequested: true, listRequested: true }), COPY)).toMatchObject({
             focusRequested: true,
@@ -215,9 +204,9 @@ describe('rowEntryFieldOf', () => {
         expect(rowEntryFieldOf(input(), COPY).listRequested).toBe(false);
     });
 
-    it('counts the alert’s occurrences: the limit’s refused presses and the refusals that pointed here (R8)', () => {
-        expect(rowEntryFieldOf(input({ limitRefusals: 2, refusalOccurrence: 1 }), COPY).alertOccurrence).toBe(3);
-        expect(rowEntryFieldOf(input({ refusalOccurrence: 4 }), COPY).alertOccurrence).toBe(4);
+    it('counts the alert’s occurrences by the remote picks the limit refused (R8)', () => {
+        expect(rowEntryFieldOf(input({ limitRefusals: 2 }), COPY).alertOccurrence).toBe(2);
+        expect(rowEntryFieldOf(input({ limitRefusals: 0 }), COPY).alertOccurrence).toBe(0);
     });
 
     it('says a failed pick assertively (R3)', () => {

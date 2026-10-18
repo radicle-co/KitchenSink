@@ -35,6 +35,7 @@ import { RecipeIngredientsFields } from '../form/RecipeIngredientsFields.js';
 import { RecipeInstructionsFields } from '../form/RecipeInstructionsFields.js';
 import { RecipeVisibilityField } from '../form/RecipeVisibilityField.js';
 import { RecipeVisibilityStatement } from '../form/RecipeVisibilityStatement.js';
+import { entryFieldIdOf } from '../form/fieldIds.js';
 import { pendingIngredientIds } from '../form/ingredientStatus.js';
 import type { EditorSeed } from '../hooks/useRecipeEditor.js';
 import type { RecipeEditorViewProps } from './frameProps.js';
@@ -91,6 +92,8 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
 }) => {
     const { editor, paste } = session;
     // ⛔ READ FROM THE ENTRY AS IT IS NOW: the editor learns the entry's text only at a press (`errorsStillHolding`).
+    const { pending } = session.rowEditor.entry;
+    const pendingFieldId = pending === undefined ? undefined : entryFieldIdOf(pending.target);
     const errors = errorsStillHolding(editor.refusedFields, editor.values, session.rowEditor.entry.pendingEntryText);
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
     // E1 + plan 2026-10-14-009 D14: Private from the viewer's paid features alone — applied when granted, the Premium sheet
@@ -169,6 +172,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                 mode={mode}
                 keep={keep}
                 pendingEntryText={session.rowEditor.entry.pendingEntryText}
+                pendingEntryFieldId={pendingFieldId}
                 pastePending={paste.pending}
                 sections={sections}
                 // §7.2 and §7.5.6: the rail's foot shows the Ingredients total too, from the same draft and read.

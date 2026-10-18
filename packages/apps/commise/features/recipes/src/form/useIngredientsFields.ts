@@ -281,14 +281,13 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
                 label: groups.trailingLabel,
                 invalid: trailingPending !== undefined,
                 pickFailure: alertOf(TRAILING),
-                refusal: undefined,
                 describedBy: trailingEntryDescribedBy({
                     pending: trailingPending !== undefined,
                     failure: trailingFailure !== undefined,
                 }),
                 focusRequested: focus.trailing.requested,
-                listRequested: focus.trailing.listRequested,
-                refusalOccurrence: 0,
+                listRequested: false,
+                refusalFocus: focus.refusal.trailing,
                 onFocusRequestHandled: focus.trailing.onHandled,
                 onTextChange: () => {
                     moveOn();

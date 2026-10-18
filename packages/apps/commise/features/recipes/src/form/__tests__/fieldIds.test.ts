@@ -4,7 +4,14 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { ingredientEditorFieldId, ingredientNameFieldId, ingredientRowId } from '../fieldIds.js';
+import {
+    entryFieldIdOf,
+    ingredientAddFieldId,
+    ingredientEditorFieldId,
+    ingredientNameFieldId,
+    ingredientRowId,
+} from '../fieldIds.js';
+import { seedLineKey } from '../lineKey.js';
 
 describe('ingredientRowId', () => {
     it('is stable for a key and differs between keys', () => {
@@ -21,5 +28,14 @@ describe('ingredientRowId', () => {
         ];
 
         expect(others).not.toContain(ingredientRowId('line-1'));
+    });
+});
+
+describe('entryFieldIdOf', () => {
+    it('names the field an entry target types into: a row`s name field, or the trailing add field', () => {
+        const key = seedLineKey(1, 0);
+
+        expect(entryFieldIdOf({ kind: 'line', key })).toBe(ingredientNameFieldId(key));
+        expect(entryFieldIdOf({ kind: 'newLine' })).toBe(ingredientAddFieldId);
     });
 });

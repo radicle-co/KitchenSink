@@ -370,7 +370,6 @@ export const makeIngredientRowEditor = (over: Partial<IngredientRowEditor> = {})
     pickInFlight: () => undefined,
     pendingFocusRequested: false,
     pendingRefused: false,
-    pendingRefusals: 0,
     refused: () => undefined,
     pendingFocusHandled: () => undefined,
     dispatch: () => undefined,

@@ -6,7 +6,7 @@
  *
  * This orchestration component takes the section's state, focus and views from `useIngredientsFields` and draws them
  * with native's own mechanisms: an entry field's list is in flow below it (`docs/design/rowEditorOpenDecisions.md` item
- * 7), a refused field says its sentence in its own alert (`useSpokenRefusal`), and the reading cursor returns to a
+ * 7), a refused field says its sentence as its own `error` without taking focus (`docs/design/uiOverhaul/buildSpec.md` §7.8), and the reading cursor returns to a
  * row's `⋯` once a sheet that row opened has gone (items 1 and 8, §S8.8).
  *
  * @pattern Mediator — between the host's row-editor controllers and the row controls, through `useIngredientsFields`
@@ -18,7 +18,7 @@ import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { useState, type FC, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useState, type FC, type ReactNode } from 'react';
 import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { VariantDetailsDialog } from '../details/VariantDetailsDialog.native.js';
@@ -27,7 +27,7 @@ import { useLastDefined } from '../hooks/useLastDefined.js';
 import { useMainContainerClass } from '../layout/useMainContainerClass.js';
 import { AuthoredFoodSheet } from './AuthoredFoodSheet.native.js';
 import { FoodDetailsSheet } from './FoodDetailsSheet.native.js';
-import { ingredientsErrorId, trailingCommitFailureId, trailingPendingTextId } from './fieldErrorIds.js';
+import { ingredientsErrorId, trailingCommitFailureId } from './fieldErrorIds.js';
 import { GroupNameField } from './GroupNameField.native.js';
 import { IngredientGroupHeading } from './IngredientGroupHeading.native.js';
 import { IngredientLineEditor } from './IngredientLineEditor.native.js';
@@ -45,7 +45,6 @@ import type { RecipeIngredientsFieldsProps } from './props.js';
 import { trailingEntryFieldOf } from './trailingEntryField.js';
 import type { SectionAddView } from './useIngredientGroups.js';
 import { useIngredientsFields, type IngredientsFieldsModel } from './useIngredientsFields.js';
-import { useSpokenRefusal, type SpeakRefusal } from './useSpokenRefusal.js';
 
 /** The dp between a group's list and the add field under it: the stack lays it out, and an arrival adds it. */
 const LIST_TO_FIELD_DP = nativeTokens.spacing[1];
@@ -53,10 +52,9 @@ const LIST_TO_FIELD_DP = nativeTokens.spacing[1];
 /** The one add field, with its reading, its notices and its sentences (§7.5.3). */
 const AddField: FC<{
     readonly model: IngredientsFieldsModel;
-    readonly speak: SpeakRefusal;
     readonly arrival: ComboboxArrival | undefined;
     readonly trailingAction?: ReactNode;
-}> = ({ model, speak, arrival, trailingAction }) => {
+}> = ({ model, arrival, trailingAction }) => {
     const m = useMessages(recipeFormMessages);
     const { colors } = useTheme();
     const { trailing } = model;
@@ -66,11 +64,11 @@ const AddField: FC<{
     return (
         <View style={styles.stack}>
             <Combobox
-                // PLATFORM-FORK: native has no `aria-describedby`; the refused field's own alert says its sentence.
-                {...trailingEntryFieldOf(
-                    { ...speak(trailing.entryField, 'newLine', trailing.pendingText), describedBy: undefined },
-                    model.entryCopy,
-                )}
+                // PLATFORM-FORK: native has no `aria-describedby`; a refused field's sentence is its own `error` (drawn,
+                // and the head of its hint), and it takes no focus: the keyboard and the list stay down, and the first
+                // tap opens the list (buildSpec §7.8).
+                {...trailingEntryFieldOf({ ...trailing.entryField, describedBy: undefined }, model.entryCopy)}
+                {...(trailing.pendingText === undefined ? {} : { error: trailing.pendingText, openOnFocus: true })}
                 leadingIcon={<Icon name="plus" size={16} tone="inkMuted" />}
                 loadingIcon={<Icon name="search" size={16} tone="inkMuted" />}
                 // PLATFORM-FORK: the row a pick just added is shown with this field by asking the scroller's field
@@ -94,11 +92,6 @@ const AddField: FC<{
                 {trailing.readingSpoken}
             </LiveRegion>
             {trailing.busyText !== undefined && <Text style={caption}>{trailing.busyText}</Text>}
-            {trailing.pendingText !== undefined && (
-                <Text nativeID={trailingPendingTextId} style={error}>
-                    {trailing.pendingText}
-                </Text>
-            )}
             {trailing.failure !== undefined && (
                 // Shown here; the field says it assertively, so this text is not live too (system change 2).
                 <Text nativeID={trailingCommitFailureId} style={error}>
@@ -113,14 +106,13 @@ const AddField: FC<{
 const GroupFoot: FC<{
     readonly add: SectionAddView;
     readonly model: IngredientsFieldsModel;
-    readonly speak: SpeakRefusal;
     readonly arrival: ComboboxArrival | undefined;
-}> = ({ add, model, speak, arrival }) => {
+}> = ({ add, model, arrival }) => {
     switch (add.kind) {
         case 'none':
             return null;
         case 'field':
-            return <AddField model={model} speak={speak} arrival={arrival} />;
+            return <AddField model={model} arrival={arrival} />;
         case 'button':
             return (
                 <View style={styles.row}>
@@ -143,7 +135,17 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
     const reading = paste?.reading ?? [];
     const { authoredFood, details } = rowEditor;
     const { focus } = model;
-    const speak = useSpokenRefusal(rowEditor.pendingRefusals);
+    // A refusal that points at a pending field is taken up WITHOUT focusing it: the editor centres the field and moves the
+    // screen-reader cursor (`scrollToField`), and the keyboard and the list stay down (buildSpec §7.8, "Refused
+    // Publish"). The level is the host's, so it is lowered in an effect and never while this component renders.
+    const acknowledgeRefusal = useEffectEvent((): void => rowEditor.pendingFocusHandled());
+    const { pendingFocusRequested } = rowEditor;
+    // @sideEffect Lowers the row editor's refusal level once per refusal.
+    useEffect(() => {
+        if (pendingFocusRequested) {
+            acknowledgeRefusal();
+        }
+    }, [pendingFocusRequested]);
     // §7.12: a sheet on a phone, inline on a tablet (from a 600 pt content width).
     const inline = useMainContainerClass() !== 'narrow';
     // The add field when no run holds it: the empty section, or a list whose rows are all being read.
@@ -188,7 +190,6 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             row={row}
             m={m}
             entryCopy={model.entryCopy}
-            speak={speak}
             panel={panelOf(row)}
             expanded={inline ? row.editorOpen : undefined}
             amountColumn={amountColumn}
@@ -256,7 +257,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                         <View role="list" collapsable={false}>
                             {section.rows.map(rowOf)}
                         </View>
-                        <GroupFoot add={section.addHere} model={model} speak={speak} arrival={arrival} />
+                        <GroupFoot add={section.addHere} model={model} arrival={arrival} />
                     </View>
                 ))
             )}
@@ -285,13 +286,12 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                     {group.group !== undefined && (
                         <IngredientGroupHeading id={`${group.key}-heading`} group={group.group} />
                     )}
-                    <GroupFoot add={group.addHere} model={model} speak={speak} arrival={arrival} />
+                    <GroupFoot add={group.addHere} model={model} arrival={arrival} />
                 </View>
             ))}
             {addFieldHere && (
                 <AddField
                     model={model}
-                    speak={speak}
                     arrival={arrival}
                     {...(pasteBesideField ? { trailingAction: pasteButton } : {})}
                 />

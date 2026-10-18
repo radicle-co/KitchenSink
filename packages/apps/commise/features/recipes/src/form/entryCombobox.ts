@@ -84,11 +84,6 @@ export interface EntryComboboxInput extends SourceNaming {
     /** A pick on this field that did not take, already worded by the row; said assertively (R3). */
     readonly pickFailure: string | undefined;
     /**
-     * The row sentence a refused save or Next pointed at, said assertively after the alerts above (R7). Only the native
-     * leaf passes one: on web the sentence is the field's description and is never live.
-     */
-    readonly refusal: string | undefined;
-    /**
      * The trailing row's list ends with Create my own food (owner ruling 2026-10-02, answering
      * `docs/design/rowEditorOpenDecisions.md` O3). A row's list does not: a line reaches it through its `⋮`.
      */
@@ -463,7 +458,7 @@ export const entryComboboxOf = (input: EntryComboboxInput, copy: EntryComboboxCo
         status: speech.status,
         trailingStatus: speech.trailing,
         countAnnouncement: speech.polite,
-        alertAnnouncement: sentences(input.pickFailure, speech.assertive, input.refusal),
+        alertAnnouncement: sentences(input.pickFailure, speech.assertive),
         optionFor,
     };
 };

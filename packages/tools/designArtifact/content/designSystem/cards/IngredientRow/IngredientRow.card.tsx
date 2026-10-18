@@ -66,7 +66,6 @@ export default defineCard({
                         row={row}
                         m={recipeFormMessages.en}
                         entryCopy={entryCopy}
-                        speak={(input) => input}
                         panel={panel}
                         inlineEditor={null}
                         expanded={undefined}

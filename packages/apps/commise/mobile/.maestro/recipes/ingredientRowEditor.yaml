@@ -49,7 +49,15 @@ appId: ${APP_ID}
 - inputText: '3'
 - tapOn: 'Unit'
 - inputText: 'cups'
-# No `hideKeyboard`: it is a BACK event on Android and failed on iOS (run 38988891871). The sheet's own Done closes it.
+# ⛔ On Android the keyboard's own action key is ALSO named "Done" (`key_pos_ime_action`), and with the keyboard up a bare
+# `tapOn: 'Done'` resolves to it, not to the sheet's button (maestro.log, local run 2026-10-18). So Android closes the
+# keyboard first. Inside the sheet's Modal its BACK closes only the keyboard, as `quantityRange.yaml` relies on. iOS keeps
+# the bare tap: `hideKeyboard` failed there (run 38988891871).
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - hideKeyboard
 - tapOn: 'Done'
 - assertVisible: 'Edit 3 cups Flour'
 
@@ -104,8 +112,13 @@ appId: ${APP_ID}
       timeout: 20000
 - assertVisible: 'Close editor'
 
-# The list opened with the focus (R7 item 3), so the cook keeps the words without editing them. The way on is the list's
-# last option, after every food the words match, so how far down it sits depends on the stage's catalog.
+# Build spec §7.8, native: the refusal moves only the screen-reader cursor to the row's field. The keyboard stays down
+# and the list stays shut (it replaces R7 items 2-4 on native). The cook's first tap on the field opens the list on the
+# words it holds (`openOnFocus`), so the cook keeps them without editing them.
+- assertNotVisible: 'Use “smoked flour” as written, without nutrition'
+- tapOn: 'smoked flour'
+# The way on is the list's last option, after every food the words match, so how far down it sits depends on the
+# stage's catalog.
 - runFlow:
       file: common/scrollOpenList.yaml
       env:

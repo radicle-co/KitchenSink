@@ -69,16 +69,20 @@ appId: ${APP_ID}
 - tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
 # E1 (`docs/design/rowEditorOpenDecisions.md`): the list opens as the cook types, and the field and its first options
-# show inside the visible area, above the pinned bar, with NO scroll command first. The first catalog option is the
-# check, anchored below its group's header and above the bar, so a list the scroller clips, or one under the bar, fails.
+# show inside the visible area with NO scroll command first. The first catalog option is the check, anchored below its
+# group's header, so a list the scroller clips fails. It was also anchored ABOVE `Publish`, to prove the pinned bar did not
+# cover it; with the keyboard up the bar is UNPINNED (build spec §7.1, "Keyboard open (phones)") and sits below the screen,
+# so there is no bar to be under and that anchor could only ever say "the bar is on screen", which the spec rules out
+# (CI run 39076738796, Android and iOS).
 - extendedWaitUntil:
       visible:
           text: '(?i)tomato.*'
           below: 'Food catalog'
-          above: 'Publish'
           index: 0
       timeout: 20000
-# No `hideKeyboard`: on Android it is itself a BACK, which leaves the editor. The pinned bar stays above the keyboard.
+# No `hideKeyboard`: on Android it is itself a BACK, which leaves the editor. The first heading closes the keyboard and
+# pins the bar again.
+- runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Publish'
 # Refused: the bar says how many things there are to fix, and the editor is still open.
 - assertVisible: 'Fix 1 thing to publish'
@@ -88,17 +92,21 @@ appId: ${APP_ID}
           text: '“Tomato.*” isn’t in the recipe yet\. Choose a food for it, or clear the box\.'
       timeout: 20000
 - assertNotVisible: 'Edit .*'
-# E1 again: the refusal opened the list with the focus (R7), and its first option shows with no scroll command.
+# Build spec §7.8, native: the refusal moves only the screen-reader cursor to the field. The keyboard stays down and the
+# list stays shut, so the bar's count and the row's sentence above both stay on screen. It replaces R7 items 2-4 on native.
+- assertNotVisible: 'Food catalog'
+# The cook's first tap on the field opens the list on the words it holds (`openOnFocus`), and E1's first option shows
+# with no scroll command.
+- tapOn: 'Tomato'
 - extendedWaitUntil:
       visible:
           text: '(?i)tomato.*'
           below: 'Food catalog'
-          above: 'Publish'
           index: 0
       timeout: 20000
 
-# The refusal opened the list with the focus (R7 item 3), so the cook keeps the words without editing them. The swipe
-# starts inside the open list: a drag that starts outside it closes it (slice 8).
+# The cook keeps the words without editing them. The swipe starts inside the open list: a drag that starts outside it
+# closes it (slice 8).
 - runFlow:
       file: common/scrollOpenList.yaml
       env:
@@ -120,7 +128,9 @@ appId: ${APP_ID}
 - assertNotVisible:
       text: 'No food chosen.*'
 
-# With the line declared, nothing is left to fix: Publish goes through.
+# With the line declared, nothing is left to fix: Publish goes through. The field may still hold focus, and the keyboard
+# with it, which unpins the bar (build spec §7.1).
+- runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Publish'
 
 # Landed on the new recipe's detail — the loop completed. The title regex tolerates this emulator's

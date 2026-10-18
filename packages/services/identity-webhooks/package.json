@@ -47,7 +47,7 @@
         "@kitchensink/identity-utils": "*",
         "@kitchensink/recipe-core": "*",
         "@sentry/aws-serverless": "^10.57.0",
-        "aws-cdk-lib": "*",
+        "aws-cdk-lib": "^2.263.0",
         "constructs": "*",
         "debug": "^4.3.7",
         "drizzle-orm": "^0.45.2",

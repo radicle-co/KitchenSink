@@ -22,6 +22,13 @@
  * whose worker points at the `pr-{N}` logical database (ADR-0006). Draining a sandbox queue from a preview
  * would erase an owner out of the wrong database.
  *
+ * ## Why it lives in `@kitchensink/recipe-core` and not in `@radicle-co/infra-shared`
+ *
+ * Both CDK apps already import their shared recipe facts from here (`database-name`, `parse-line-delivery`,
+ * `spend-arithmetic`). `infra-shared` is a PUBLISHED package consumers pin by exact version, so a function placed
+ * there reaches a consumer only after a prerelease is published and every pin is moved by a commit - and until then
+ * a synth that imports it fails. This module is CDK-free and pure, so the workspace is the cheaper home.
+ *
  * @module
  */
 

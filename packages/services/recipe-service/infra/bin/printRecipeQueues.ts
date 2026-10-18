@@ -14,7 +14,7 @@ import {
     recipeQueueName,
     recipeQueueUrl,
     type RecipeQueueKind,
-} from '@radicle-co/infra-shared/recipe-queues';
+} from '@kitchensink/recipe-core/queue-names';
 
 /** The environment variable `RecipeServiceStack` puts each queue's URL in. */
 export const QUEUE_ENV_VARS: Readonly<Record<RecipeQueueKind, string>> = {

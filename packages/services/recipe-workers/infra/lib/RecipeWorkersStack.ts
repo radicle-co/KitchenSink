@@ -34,7 +34,7 @@ import {
     subscribeAlarmEmail,
 } from '@radicle-co/infra-shared/security';
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
-import { recipeQueueDlqName, recipeQueueName } from '@radicle-co/infra-shared/recipe-queues';
+import { recipeQueueDlqName, recipeQueueName } from '@kitchensink/recipe-core/queue-names';
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
 import { consumerConcurrencyFor } from './consumerConcurrency.js';
 import { PARSE_LINE_DELIVERY } from '@kitchensink/recipe-core/parsing/parse-line-delivery';
@@ -2162,7 +2162,7 @@ export class RecipeWorkersStack extends Stack {
         // ⛔ NO cross-stack hand-off for the erasure, verification or parse queues, ON PURPOSE (ADR-0036).
         // `RecipeServiceStack` produces onto all three, and it used to read their URLs and ARNs from SSM
         // parameters published here - resolved at deploy time, which made the service's deploy wait for this
-        // one. The queues are now NAMED by `recipeQueueName` (`@radicle-co/infra-shared/recipe-queues`) and
+        // one. The queues are now NAMED by `recipeQueueName` (`@kitchensink/recipe-core/queue-names`) and
         // the service DERIVES the URL and ARN from that same function, so there is nothing to publish and no
         // ordering to state. `ecosystem-smoke` asserts each derived queue exists and that the running task is
         // configured with it. Do not re-add the parameters: a published value nothing reads is how the

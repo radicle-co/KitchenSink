@@ -461,7 +461,7 @@ describe('analyzer 7 — ADR-0036: the deploys are peers, and the join owns the 
 
         // ADR-0036 removed the edge to FOOD, which never was a data dependency. Its amendment removes the edge to
         // RECIPE-WORKERS for the same reason: the account-erasure, verification and parse queue addresses are
-        // DERIVED by the pure `recipeQueueUrl` (`@radicle-co/infra-shared/recipe-queues`), not read from SSM
+        // DERIVED by the pure `recipeQueueUrl` (`@kitchensink/recipe-core/queue-names`), not read from SSM
         // parameters the workers stack publishes, so nothing the service deploy reads is produced by that job.
         // Re-adding either edge costs the workers' whole deploy on the longest chain, for an ordering the join
         // below already guards.
@@ -499,6 +499,10 @@ describe('analyzer 7 — ADR-0036: the deploys are peers, and the join owns the 
         expect(body).toMatch(/printRecipeQueues\.ts/);
         expect(body).toMatch(/--queue-check/);
         expect(body).toMatch(/aws sqs get-queue-url/);
+        // ⛔ Captured into a variable and counted: a `< <(helper)` loop under `set -e` ignores a failing helper, sees
+        // zero rows, passes `--queue-check` nothing, and the join goes green having asserted nothing.
+        expect(body).not.toMatch(/<\s*<\(\s*npx tsx[^)]*printRecipeQueues/);
+        expect(body).toMatch(/queue_rows=\$\(npx tsx[^)]*printRecipeQueues/);
     });
 
     it('keeps ONE bearer of the ecosystem claim — deploy-recipe no longer probes food', () => {

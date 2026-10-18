@@ -211,6 +211,10 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/*/database',
         '!@kitchensink/*/database/*',
         '!@kitchensink/*/database-name',
+        // `queue-names` (ADR-0036): the identity of the three queues `recipe-service` produces onto and
+        // `recipe-workers` consumes from. Its own entry point for the reason `database-name` is - both CDK apps
+        // derive from it, and two copies of "which queue is the parse queue" is the drift it exists to prevent.
+        '!@kitchensink/*/queue-names',
         // `recipe-core` publishes three modules as their own entry points,
         // deliberately kept OFF its barrel: `scaling` (display-only serving
         // scaling), `external-url` (the outbound-link trust boundary) and

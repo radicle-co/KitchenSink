@@ -15,7 +15,7 @@ import {
     ephemeralBandsForSlot,
 } from '@radicle-co/infra-shared/alb';
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
-import { recipeQueueArn, recipeQueueUrl } from '@radicle-co/infra-shared/recipe-queues';
+import { recipeQueueArn, recipeQueueUrl } from '@kitchensink/recipe-core/queue-names';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
 import { RecipeSchemaStack } from '../lib/RecipeSchemaStack.js';

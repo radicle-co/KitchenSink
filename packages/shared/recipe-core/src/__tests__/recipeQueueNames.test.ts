@@ -14,7 +14,7 @@ import {
     recipeQueueDlqName,
     recipeQueueName,
     recipeQueueUrl,
-} from '../recipeQueues.js';
+} from '../recipeQueueNames.js';
 
 const REGION = 'us-east-1';
 const ACCOUNT = '040663841500';

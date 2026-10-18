@@ -38,7 +38,7 @@ import {
     schemaCurrencyEnvironment,
 } from '@radicle-co/infra-shared/security';
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
-import { RECIPE_QUEUE_KINDS, recipeQueueArn, recipeQueueUrl } from '@radicle-co/infra-shared/recipe-queues';
+import { RECIPE_QUEUE_KINDS, recipeQueueArn, recipeQueueUrl } from '@kitchensink/recipe-core/queue-names';
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
 
 /**

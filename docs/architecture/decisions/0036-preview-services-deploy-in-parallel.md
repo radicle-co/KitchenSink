@@ -78,7 +78,7 @@ addresses were never data. We choose each queue's name, and its URL and ARN foll
 account.
 
 So the edge goes the way food's did. `recipeQueueName`, `recipeQueueUrl` and `recipeQueueArn` in
-`@radicle-co/infra-shared/recipe-queues` are the one authority: the workers stack names its queues with them, the
+`@kitchensink/recipe-core/queue-names` are the one authority: the workers stack names its queues with them, the
 service stack derives its environment and its `sqs:SendMessage` grants with them, and the join derives the same.
 The six SSM parameters are not published any more, and `recipe-service` needs only `recipe-schema`.
 
@@ -137,3 +137,10 @@ it.
 GitHub's behaviour for job outputs published by one job of a reusable workflow and consumed by another job of
 the same workflow is documented but was not previously exercised in this repository. A guard suite cannot
 observe it; only a run can.
+
+The queue change has one transition risk. The first deploy after it removes six SSM parameters from the workers
+stack while the service stack, which still reads them in its old template, may update at the same time. If the service
+update fails and CloudFormation rolls it back to the old template, that template points at parameters that no longer
+exist, and the rollback can fail and leave the stack in `UPDATE_ROLLBACK_FAILED`. This applies to stacks that already
+exist. It is cleared by deploying the service first, or by deleting the stack, which costs nothing while no environment
+holds data. Nothing keeps the old parameters alive to avoid it.

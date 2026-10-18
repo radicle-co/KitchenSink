@@ -589,8 +589,7 @@ describe('the production pipeline knows which services are cut over to the edge'
  * recipe took the second, which cost a SECOND runner for one database shipping the first's bundle.
  *
  * ⛔ Reordering the pipeline to reach the first route was considered and REJECTED then, for a reason that
- * still stands: the workers-first order is not an SSM accident (`RecipeWorkersStack` publishes the
- * `account-erasure-queue-{url,arn}` parameters `RecipeServiceStack` resolves at deploy time) — it is the
+ * still stands: the workers-first order is not an accident of how the service found its queues - it is the
  * CORRECT order for a queue, because the CONSUMER must upgrade before the PRODUCER. Deploying the service
  * first would trade schema skew for message-contract skew on a right-to-erasure request.
  *

@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { recipeQueueName, recipeQueueUrl } from '@radicle-co/infra-shared/recipe-queues';
+import { recipeQueueName, recipeQueueUrl } from '@kitchensink/recipe-core/queue-names';
 
 import { QUEUE_ENV_VARS, formatRows, recipeQueueRows } from '../bin/printRecipeQueues.js';
 

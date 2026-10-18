@@ -22,7 +22,7 @@ import { PARSE_LINE_DELIVERY } from '@kitchensink/recipe-core/parsing/parse-line
 import { BEDROCK_MODEL_REGISTRY, residencyClearance } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
-import { RECIPE_QUEUE_KINDS, recipeQueueDlqName, recipeQueueName } from '@radicle-co/infra-shared/recipe-queues';
+import { RECIPE_QUEUE_KINDS, recipeQueueDlqName, recipeQueueName } from '@kitchensink/recipe-core/queue-names';
 
 import { RecipeWorkersStack } from '../lib/RecipeWorkersStack.js';
 import { SCHEDULED_RULE_STAGE_TAG } from '../lib/scheduledRuleGate.js';
@@ -945,7 +945,7 @@ describe('RecipeWorkersStack — account erasure', () => {
 
     it('names the three producer-facing queues with the SHARED authority, and publishes NO SSM hand-off', () => {
         // ADR-0036's move. `RecipeServiceStack` derives these queues' URLs and ARNs from `recipeQueueName`
-        // (`@radicle-co/infra-shared/recipe-queues`) instead of reading parameters this stack published, so
+        // (`@kitchensink/recipe-core/queue-names`) instead of reading parameters this stack published, so
         // the service's deploy no longer waits for this one. The two sides agree only because both call that
         // one function: this asserts THIS side does, for every kind, and that the old parameters are gone
         // (a leftover would be a hand-off nobody reads, which is how the verification queue once went unread).

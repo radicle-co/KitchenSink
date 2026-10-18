@@ -1271,10 +1271,12 @@ jobs:
                   bash .github/scripts/verifyDeployment.sh drains-app "${DEFAULT_AWS_REGION}" \
                     "packages/services/food-service/infra/node_modules/.bin/tsx packages/services/food-service/infra/bin/app.ts"
 
-            # Recipe: WORKERS BEFORE SERVICE. recipe-workers owns the account-erasure queue and publishes
-            # its URL/ARN to SSM (/kitchensink/{stage}/recipe/account-erasure-queue-*), which the service
-            # reads at DEPLOY time — service-first fails with "Unable to fetch parameters …". Every input
-            # is resolved from the prod platform tier's CloudFormation exports rather than hardcoded.
+            # Recipe: WORKERS BEFORE SERVICE, kept in production although the previews no longer need it (ADR-0036).
+            # The service derives its queue addresses (`@kitchensink/recipe-core/queue-names`) rather than reading
+            # SSM parameters the workers stack publishes, so nothing here fails if the order flips. Production keeps
+            # the order for the reason that remains: a queue's CONSUMER should upgrade before its PRODUCER, or a
+            # changed message contract reaches a worker that cannot read it. Every input is resolved from the prod
+            # platform tier's CloudFormation exports rather than hardcoded.
             - name: Resolve recipe platform inputs (prod exports)
               id: recipe-infra
               if: steps.flags.outputs.deploy_recipe == 'true'
@@ -1455,7 +1457,7 @@ jobs:
                     "kitchensink-recipe-schema-${STAGE}" RecipeMigrationFunctionName recipe \
                     packages/services/recipe-service/src/database/migrations
 
-            - name: CDK Deploy (recipe workers — publishes the erasure-queue SSM params)
+            - name: CDK Deploy (recipe workers, before the service that produces onto their queues)
               if: steps.flags.outputs.deploy_recipe == 'true'
               env:
                   RECIPE_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}

@@ -59,10 +59,6 @@
             "types": "./dist/messaging/index.d.ts",
             "default": "./dist/messaging/index.js"
         },
-        "./recipe-queues": {
-            "types": "./dist/recipeQueues/index.d.ts",
-            "default": "./dist/recipeQueues/index.js"
-        },
         "./remote-search": {
             "types": "./dist/remoteSearch/index.d.ts",
             "default": "./dist/remoteSearch/index.js"

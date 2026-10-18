@@ -57,7 +57,7 @@ const QUEUE_NAME = /queueName:\s*`([^`]+)`/gu;
 const SHARED_QUEUE_NAME = /recipeQueue(Dlq)?Name\(\s*'([A-Za-z]+)'/gu;
 
 /** Where the shared queue-naming authority lives. */
-const SHARED_QUEUES_MODULE = 'shared/infra/src/recipeQueues/recipeQueues.ts';
+const SHARED_QUEUES_MODULE = 'packages/shared/recipe-core/src/recipeQueueNames.ts';
 
 /** Any `…_QUEUE_URL=<url>` assignment in a committed env file. */
 const QUEUE_URL = /^\s*([A-Z0-9_]*QUEUE_URL)\s*=\s*(\S+)\s*$/gmu;

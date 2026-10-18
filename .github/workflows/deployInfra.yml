@@ -606,7 +606,7 @@ jobs:
         # account-erasure, verification and parse queue addresses from SSM parameters the WORKERS stack published,
         # resolved at deploy time, so this job waited on workers' whole deploy (parser -> workers -> service was the
         # longest chain in the preview). It now DERIVES them with the pure `recipeQueueUrl`/`recipeQueueArn`
-        # (`@radicle-co/infra-shared/recipe-queues`), the same module that names the queues in the workers stack, so
+        # (`@kitchensink/recipe-core/queue-names`), the same module that names the queues in the workers stack, so
         # nothing this deploy reads is produced by another job.
         #
         # ⚠️ What the edge used to guarantee - a stage wired with no queue fails loudly - belongs to the JOIN now:
@@ -1024,15 +1024,6 @@ jobs:
               working-directory: packages/services/food-service/infra
               run: npm install --no-audit --no-fund
 
-            # ⛔ `printRecipeQueues.ts` imports `@radicle-co/infra-shared/recipe-queues`, which exists only in the recipe
-            # app's own `infra/` install - the same constraint as the food helper above. Asserted by
-            # `infraInstallBeforeUse.test.ts`.
-            - name: Install the recipe service's CDK package (the queue helper imports the shared module)
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              working-directory: packages/services/recipe-service/infra
-              run: npm install --no-audit --no-fund
-
             - name: Smoke — this stage's recipe service is WIRED to this stage's food service and queues
               env:
                   STAGE: ${{ inputs.stage }}
@@ -1067,6 +1058,15 @@ jobs:
                   # from the same helper the stack's module feeds - nothing is restated here.
                   # ⚠️ Only a missing queue is "absent"; any other SQS error (permissions, throttling) fails this
                   # step, because reading an outage as "no such queue" would blame the wrong stack.
+                  # ⛔ The helper's output is CAPTURED FIRST, not read through `< <(...)`: under `set -e` a process
+                  # substitution that fails is ignored, the loop would see zero rows, and the smoke would go green
+                  # having asserted nothing about the queues. The count is checked for the same reason.
+                  queue_rows=$(npx tsx packages/services/recipe-service/infra/bin/printRecipeQueues.ts \
+                      "${STAGE}" "${DEFAULT_AWS_REGION}" "${AWS_ACCOUNT_ID}")
+                  if [ "$(printf '%s\n' "${queue_rows}" | grep -c .)" -ne 3 ]; then
+                      echo "::error::printRecipeQueues.ts did not print the 3 queues the recipe API produces onto" >&2
+                      exit 1
+                  fi
                   queue_args=()
                   while IFS=$'\t' read -r label name expected_url env_var; do
                       queue_configured=$(aws ecs describe-task-definition --task-definition "$task_def" \
@@ -1085,8 +1085,7 @@ jobs:
                           exit 1
                       fi
                       queue_args+=(--queue-check "${label}|${expected_url}|${queue_configured}|${queue_actual}")
-                  done < <(npx tsx packages/services/recipe-service/infra/bin/printRecipeQueues.ts \
-                      "${STAGE}" "${DEFAULT_AWS_REGION}" "${AWS_ACCOUNT_ID}")
+                  done <<< "${queue_rows}"
 
                   npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
                       --base-url "https://recipe-${STAGE}.${DOMAIN_NAME}" \

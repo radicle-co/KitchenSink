@@ -87,7 +87,9 @@ describe('deriveFixtureManifest', () => {
         );
         const emails = manifests.flatMap((manifest) => [manifest.signInEmail, manifest.coAuthorEmail]);
 
-        expect(manifests, 'the roster must declare more than one lane for this to be a real assertion').toHaveLength(8);
+        expect(manifests, 'the roster must declare more than one lane for this to be a real assertion').toHaveLength(
+            16,
+        );
         expect(new Set(emails).size).toBe(emails.length);
     });
 

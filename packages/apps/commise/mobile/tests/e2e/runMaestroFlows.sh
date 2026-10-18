@@ -49,7 +49,7 @@
 #   1. **Disjoint identities.** Every flow signs in as the tier's FIXED Clerk pool slots and the per-flow reset
 #      RECONCILES that signer's library to the run manifest, so two shards on one signer delete each other's
 #      fixtures mid-flow. `maestroSlotForShard` (testPool.ts) partitions the roster by PLATFORM and then by shard
-#      (Android and iOS each have four disjoint lanes), and `MAESTRO_MAX_SHARDS` below is the shell-side copy of what
+#      (Android and iOS each have eight disjoint lanes), and `MAESTRO_MAX_SHARDS` below is the shell-side copy of what
 #      EACH platform's lanes can reach. A platform's erasure subjects are NOT partitioned across its shards: they all
 #      belong to that platform's `MAESTRO_ERASURE_SHARD`, and every flow in `MAESTRO_ERASING_FLOWS` is pinned there
 #      (see below).
@@ -353,11 +353,34 @@ maestro_app_id() {
 # and `maestroShardPartition.test.ts` asserts the two agree FROM DISK, for EACH platform. It is a copy because neither
 # language can typecheck the other and this script must answer "how many shards" without a node process — the same
 # cross-language-contract posture `maestroFixtureVariables.test.ts` takes for the fixture key set. One number serves
-# both platforms because both have four lanes (2026-10-13: Android signer/signer02-04, iOS iossigner01-04); if they
-# ever differ this becomes a per-platform table and the guard says so. Raising it is a THREE-part act: append
-# signer/co-author lanes to `POOL_ROSTER`, have the owner run `poolAdmin --apply` so those Clerk users exist, and
-# raise this number. Raising it alone produces a shard whose very first pool lease fails with "run poolAdmin --apply".
-MAESTRO_MAX_SHARDS=4
+# both platforms because both have eight lanes (Android signer/signer02-08, iOS iossigner01-08); if they ever differ
+# this becomes a per-platform table and the guard says so. Raising it is a THREE-part act: append signer/co-author lanes
+# to `POOL_ROSTER`, have the owner run `poolAdmin --apply` so those Clerk users exist, and raise this number. Raising it
+# alone produces a shard whose very first pool lease fails with "run poolAdmin --apply".
+MAESTRO_MAX_SHARDS=8
+
+# ⛔ THE POOL IS NOT THE ONLY CEILING, AND THIS ONE IS A RUNNER LIMIT. A Simulator job runs on a macOS runner and GitHub
+# caps a Team plan at FIVE concurrent macOS jobs (this organisation's plan is `team`). More iOS shards than that do not
+# run faster, they QUEUE behind the first five: eight shards of ~30 minutes finish at ~60 minutes, as four did, after
+# four more Simulator setups billed at the macOS rate. So the iOS matrix stops here while Android, on a Linux runner,
+# reaches the pool. The pool keeps eight lanes per platform so raising this is a one-line change if the plan changes.
+# It is not a copy of anything in `testPool.ts` and must never exceed the pool (`maestroShardPartition.test.ts`).
+MAESTRO_IOS_RUNNER_CEILING=5
+
+# maestro_runner_ceiling <platform>
+#
+# How many shards of one platform the RUNNERS can run at once, which is at most what the pool can identify. Pure.
+maestro_runner_ceiling() {
+    case "${1-}" in
+        ios) printf '%s\n' "$MAESTRO_IOS_RUNNER_CEILING" ;;
+        android) printf '%s\n' "$MAESTRO_MAX_SHARDS" ;;
+        *)
+            echo "runMaestroFlows.sh: no runner ceiling for platform '${1-}'" >&2
+
+            return 2
+            ;;
+    esac
+}
 
 # ── THE ERASURE LANE — which shard erases, and which flows erase ───────────────────────────────────────────
 #
@@ -1008,6 +1031,13 @@ maestro_shard_matrix() {
         count="$MAESTRO_MAX_SHARDS"
     fi
 
+    # The runner ceiling for THIS platform: the pool may identify more shards than the runners can run at once.
+    local ceiling
+    ceiling=$(maestro_runner_ceiling "$platform") || return 2
+    if [ "$count" -gt "$ceiling" ]; then
+        count="$ceiling"
+    fi
+
     # How many flows are actually PACKABLE: the selection minus the spine, which every shard runs anyway.
     #
     # ⛔ THE SPINE COUNT COMES FROM THE PLAN, never from the name `auth/loginFlow`. A literal here would be a
@@ -1573,6 +1603,10 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
         max-shards)
             printf '%s\n' "$MAESTRO_MAX_SHARDS"
             ;;
+        runner-ceiling)
+            shift
+            maestro_runner_ceiling "$@"
+            ;;
         erasure-shard)
             printf '%s\n' "$MAESTRO_ERASURE_SHARD"
             ;;
@@ -1616,7 +1650,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             printf '%s\n' $MAESTRO_VERTICALS
             ;;
         *)
-            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|exclusions|plan|verticals|platforms|max-shards|erasure-shard|erasing-flows|erasure-subject|weights|default-weight|flow-cost|ios-flow-overhead|driver-port|run-one] …" >&2
+            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|exclusions|plan|verticals|platforms|max-shards|runner-ceiling|erasure-shard|erasing-flows|erasure-subject|weights|default-weight|flow-cost|ios-flow-overhead|driver-port|run-one] …" >&2
             exit 2
             ;;
     esac

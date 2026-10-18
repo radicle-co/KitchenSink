@@ -153,8 +153,11 @@ const lane = (id: string, overrides: Partial<Omit<PoolLane, 'id'>> = {}): PoolLa
     ...overrides,
 });
 
+/** A lane number as the two digits every numbered lane id carries. */
+const pad = (n: number): string => String(n).padStart(2, '0');
+
 const numbered = (prefix: string, count: number, overrides: Partial<Omit<PoolLane, 'id'>>): readonly PoolLane[] =>
-    Array.from({ length: count }, (_, index) => lane(`${prefix}${String(index + 1).padStart(2, '0')}`, overrides));
+    Array.from({ length: count }, (_, index) => lane(`${prefix}${pad(index + 1)}`, overrides));
 
 /**
  * The k6 VU lanes. Their ids are the addresses the sandbox pool users ALREADY hold
@@ -234,6 +237,17 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
         lane('ioscoauthor03'),
         lane('iossigner04', { roles: ['premium'], signsInByPassword: true }),
         lane('ioscoauthor04'),
+        // ⛔ SHARDS 5 TO 8 OF EACH PLATFORM — APPENDED after the sixteen above, never interleaved, so no existing lane
+        // changes index and no shard signs in as a user another shard's data was reset for. Android first, then iOS,
+        // the order the first eight were declared in. Each needs `poolAdmin --apply` before a run can lease it.
+        ...[5, 6, 7, 8].flatMap((n) => [
+            lane(`signer${pad(n)}`, { roles: ['premium'], signsInByPassword: true }),
+            lane(`coauthor${pad(n)}`),
+        ]),
+        ...[5, 6, 7, 8].flatMap((n) => [
+            lane(`iossigner${pad(n)}`, { roles: ['premium'], signsInByPassword: true }),
+            lane(`ioscoauthor${pad(n)}`),
+        ]),
     ],
     k6: [
         // Premium so the load scenarios' writes can be PRIVATE — a public write is visible to real users.
@@ -313,13 +327,13 @@ interface MaestroPlatformLanes {
  */
 const MAESTRO_PLATFORM_LANES: Readonly<Record<MaestroPlatform, MaestroPlatformLanes>> = {
     android: {
-        signer: ['signer', 'signer02', 'signer03', 'signer04'],
-        coauthor: ['coauthor', 'coauthor02', 'coauthor03', 'coauthor04'],
+        signer: ['signer', ...[2, 3, 4, 5, 6, 7, 8].map((n) => `signer${pad(n)}`)],
+        coauthor: ['coauthor', ...[2, 3, 4, 5, 6, 7, 8].map((n) => `coauthor${pad(n)}`)],
         erasure: ['erasure01', 'erasure02', 'erasure03', 'erasure04', 'erasure05'],
     },
     ios: {
-        signer: ['iossigner01', 'iossigner02', 'iossigner03', 'iossigner04'],
-        coauthor: ['ioscoauthor01', 'ioscoauthor02', 'ioscoauthor03', 'ioscoauthor04'],
+        signer: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `iossigner${pad(n)}`),
+        coauthor: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `ioscoauthor${pad(n)}`),
         erasure: ['erasure06', 'erasure07', 'erasure08', 'erasure09', 'erasure10'],
     },
 };

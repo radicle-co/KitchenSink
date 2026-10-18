@@ -527,7 +527,9 @@ describe('maestro_shard_matrix — how many shards the workflow actually runs', 
         const matrixFor = (...selector: readonly string[]): number[] =>
             JSON.parse(
                 (
-                    spawnSync('bash', [SCRIPT, 'shard-matrix', '4', ...selector], { encoding: 'utf8' }).stdout ?? ''
+                    spawnSync('bash', [SCRIPT, 'shard-matrix', String(shellMaxShards()), ...selector], {
+                        encoding: 'utf8',
+                    }).stdout ?? ''
                 ).trim(),
             ) as number[];
         const nonSpine = (...selector: readonly string[]): number =>
@@ -538,9 +540,45 @@ describe('maestro_shard_matrix — how many shards the workflow actually runs', 
         // `home` is the ONE-flow vertical: spine + home, so exactly one flow is packable and one shard can hold it.
         expect(nonSpine('home=true')).toBe(1);
         expect(matrixFor('home=true')).toStrictEqual([1]);
-        // `collections` has five, so it fills every shard the pool can identify.
-        expect(nonSpine('collections=true')).toBeGreaterThan(shellMaxShards());
-        expect(matrixFor('collections=true')).toHaveLength(shellMaxShards());
+        // The whole suite has far more than the pool's eight, so it fills every shard the pool can identify.
+        expect(nonSpine('full=true')).toBeGreaterThan(shellMaxShards());
+        expect(matrixFor('full=true')).toHaveLength(shellMaxShards());
+    });
+
+    /**
+     * ⛔ THE POOL IS NOT THE ONLY CEILING. A Simulator job runs on a macOS runner, and GitHub caps a Team plan at FIVE
+     * concurrent macOS jobs (this organisation's plan is `team`, from `GET /orgs/radicle-co`). A matrix wider than that
+     * does not run faster, it queues: with eight iOS shards of ~30 minutes, five run and three wait for them, so the tier
+     * ends at ~60 minutes, the same as four shards, for four more Simulator setups billed at the macOS rate. So the
+     * Android matrix reaches the pool's eight and the iOS matrix stops at the runner ceiling.
+     */
+    it('⛔ stops the iOS matrix at the macOS runner ceiling while Android reaches the pool', () => {
+        const matrixFor = (platform: string): number[] =>
+            JSON.parse(
+                (
+                    spawnSync('bash', [SCRIPT, 'shard-matrix', '8', 'full=true'], {
+                        encoding: 'utf8',
+                        env: { ...process.env, MAESTRO_PLATFORM: platform },
+                    }).stdout ?? ''
+                ).trim(),
+            ) as number[];
+
+        expect(matrixFor('android')).toStrictEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+        expect(matrixFor('ios')).toStrictEqual([1, 2, 3, 4, 5]);
+    });
+
+    it('exposes the macOS ceiling, and it never exceeds the pool', () => {
+        const ceiling = Number(
+            (spawnSync('bash', [SCRIPT, 'runner-ceiling', 'ios'], { encoding: 'utf8' }).stdout ?? '').trim(),
+        );
+
+        expect(ceiling).toBe(5);
+        expect(ceiling).toBeLessThanOrEqual(maestroShardCapacity('ios'));
+        expect(
+            Number(
+                (spawnSync('bash', [SCRIPT, 'runner-ceiling', 'android'], { encoding: 'utf8' }).stdout ?? '').trim(),
+            ),
+        ).toBe(shellMaxShards());
     });
 
     it('clamps an unreadable request DOWN to one shard rather than guessing — a wrong matrix is a wrong lease', () => {
@@ -734,7 +772,7 @@ describe('_ci-heavy.yml declares and relays the shard count', () => {
      * step. Rolling back is setting all three back to the lower number; this assertion is part of that commit by design,
      * so a half-rollback (one file) is red here and in the agreement test below.
      */
-    it('⛔ defaults to four shards per platform in all three files, because the pool can now identify four', () => {
+    it('⛔ defaults to eight shards in all three files, because the pool can now identify eight per platform', () => {
         const defaults = ['_ci-heavy.yml', 'deployedE2eTiers.yml', 'deployedE2e.yml'].map((file) => {
             const doc = parse(readFileSync(join(REPO_ROOT, '.github/workflows', file), 'utf8')) as {
                 on?: Record<string, { inputs?: Record<string, { default?: unknown }> }>;
@@ -745,13 +783,13 @@ describe('_ci-heavy.yml declares and relays the shard count', () => {
         });
 
         expect(defaults).toEqual([
-            ['_ci-heavy.yml', '4'],
-            ['deployedE2eTiers.yml', '4'],
-            ['deployedE2e.yml', '4'],
+            ['_ci-heavy.yml', '8'],
+            ['deployedE2eTiers.yml', '8'],
+            ['deployedE2e.yml', '8'],
         ]);
 
         for (const platform of MAESTRO_PLATFORMS) {
-            expect(maestroShardCapacity(platform)).toBe(4);
+            expect(maestroShardCapacity(platform)).toBe(8);
         }
     });
 

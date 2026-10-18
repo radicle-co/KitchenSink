@@ -324,9 +324,9 @@ describe('maestro shard allocation', () => {
         expect(MAESTRO_PLATFORMS).toEqual(['android', 'ios']);
     });
 
-    it('gives each platform four shards, which is the shell runner’s own maximum', () => {
+    it('gives each platform eight shards, which is the shell runner’s own maximum', () => {
         for (const platform of MAESTRO_PLATFORMS) {
-            expect(maestroShardCapacity(platform), platform).toBe(4);
+            expect(maestroShardCapacity(platform), platform).toBe(8);
         }
     });
 
@@ -349,11 +349,11 @@ describe('maestro shard allocation', () => {
             ...maestroErasureSlots(platform, shard).map((slot) => slot.email),
         ]);
 
-        expect(emails).toHaveLength(4 * 2 * 2 + 10);
+        expect(emails).toHaveLength(8 * 2 * 2 + 10);
         expect(new Set(emails).size).toBe(emails.length);
     });
 
-    it('declares every one of the eight lanes in the roster, and no other maestro signer or co-author', () => {
+    it('declares every one of the thirty-two lanes in the roster, and no other maestro signer or co-author', () => {
         const lanes = everyShard().flatMap(({ platform, shard }) => [
             maestroSlotForShard('signer', platform, shard).id,
             maestroSlotForShard('coauthor', platform, shard).id,
@@ -396,32 +396,54 @@ describe('maestro shard allocation', () => {
         expect(maestroSlotForShard('coauthor', 'android', 1)).toEqual(slotFor('maestro', 'coauthor'));
     });
 
-    it('gives iOS lanes of its own: iossigner01..04 and ioscoauthor01..04, in shard order', () => {
-        expect(Array.from({ length: 4 }, (_, i) => maestroSlotForShard('signer', 'ios', i + 1).id)).toEqual([
-            'iossigner01',
-            'iossigner02',
-            'iossigner03',
-            'iossigner04',
-        ]);
-        expect(Array.from({ length: 4 }, (_, i) => maestroSlotForShard('coauthor', 'ios', i + 1).id)).toEqual([
-            'ioscoauthor01',
-            'ioscoauthor02',
-            'ioscoauthor03',
-            'ioscoauthor04',
+    it('gives iOS lanes of its own: iossigner01..08 and ioscoauthor01..08, in shard order', () => {
+        const numbered = (prefix: string): string[] =>
+            Array.from({ length: 8 }, (_, i) => `${prefix}${String(i + 1).padStart(2, '0')}`);
+
+        expect(Array.from({ length: 8 }, (_, i) => maestroSlotForShard('signer', 'ios', i + 1).id)).toEqual(
+            numbered('iossigner'),
+        );
+        expect(Array.from({ length: 8 }, (_, i) => maestroSlotForShard('coauthor', 'ios', i + 1).id)).toEqual(
+            numbered('ioscoauthor'),
+        );
+    });
+
+    it('keeps Android shards 2 to 8 on signer02..08 and coauthor02..08', () => {
+        const numbered = (prefix: string): string[] =>
+            Array.from({ length: 7 }, (_, i) => `${prefix}${String(i + 2).padStart(2, '0')}`);
+
+        expect(Array.from({ length: 7 }, (_, i) => maestroSlotForShard('signer', 'android', i + 2).id)).toEqual(
+            numbered('signer'),
+        );
+        expect(Array.from({ length: 7 }, (_, i) => maestroSlotForShard('coauthor', 'android', i + 2).id)).toEqual(
+            numbered('coauthor'),
+        );
+    });
+
+    /**
+     * ⛔ The lanes 05 to 08 were APPENDED after the original sixteen, in this order, and no existing lane moved. A shard
+     * is its index into a platform's list, and `resetPool` purges what a slot owns, so a reordered roster would sign a
+     * shard in as a user another shard's data was reset for.
+     */
+    it('⛔ appends the second four shards of each platform after the first sixteen lanes, in order', () => {
+        const ids = POOL_ROSTER.maestro.map((lane) => lane.id);
+        const appended = ids.slice(ids.indexOf('ioscoauthor04') + 1);
+
+        expect(appended).toEqual([
+            ...[5, 6, 7, 8].flatMap((n) => [`signer0${n}`, `coauthor0${n}`]),
+            ...[5, 6, 7, 8].flatMap((n) => [`iossigner0${n}`, `ioscoauthor0${n}`]),
         ]);
     });
 
-    it('keeps Android shards 2 to 4 on signer02..04 and coauthor02..04', () => {
-        expect(Array.from({ length: 3 }, (_, i) => maestroSlotForShard('signer', 'android', i + 2).id)).toEqual([
-            'signer02',
-            'signer03',
-            'signer04',
-        ]);
-        expect(Array.from({ length: 3 }, (_, i) => maestroSlotForShard('coauthor', 'android', i + 2).id)).toEqual([
-            'coauthor02',
-            'coauthor03',
-            'coauthor04',
-        ]);
+    it('gives every signer the premium role its private recipes need, and no co-author any', () => {
+        for (const lane of POOL_ROSTER.maestro.filter((entry) => /signer\d*$/u.test(entry.id))) {
+            expect(lane.roles, lane.id).toEqual(['premium']);
+            expect(lane.signsInByPassword, lane.id).toBe(true);
+        }
+
+        for (const lane of POOL_ROSTER.maestro.filter((entry) => /coauthor\d*$/u.test(entry.id))) {
+            expect(lane.roles, lane.id).toEqual(['default']);
+        }
     });
 
     it('⛔ APPENDS the new lanes: the maestro roster before them keeps its old order, so no shard changes user', () => {

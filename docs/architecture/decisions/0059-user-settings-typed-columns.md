@@ -50,7 +50,16 @@ CONFLICT (user_id) DO UPDATE SET <only the supplied columns>, updated_at = now()
    the current settings.
 5. **Last write wins, per column.** Two devices that change different settings both keep their change. Two that
    change the same setting keep the later one. A preference is not worth a version token.
-6. **Adding a setting is four edits.** A nullable column, a field on the response schema, an optional field on the
+6. **`DELETE` restores "never chosen".** `PATCH` can set a setting but cannot clear one: it takes no `null`, because
+   `null` is not a choice. `DELETE /api/v1/users/me/settings` deletes the caller's whole row, so every setting is
+   "never chosen" again and `GET` answers the defaults. It answers `204`, also when there was no row, so a retry is
+   safe. The caller's own row is the only one it can name, because the user id comes from the verified token and
+   nothing in the request. It takes no active-user check, because a delete cannot recreate personal data. Deleting the
+   row, and not clearing one column, is deliberate: it covers every setting added later with no change to the
+   route, and it needs no per-setting "clear" field in the `PATCH` schema. It serves "reset to defaults" for a user
+   and gives the end-to-end test pool a way to undo a choice a run made (a pool user is reused, and a leftover
+   `recipeViewMode` changed what the next run saw).
+7. **Adding a setting is four edits.** A nullable column, a field on the response schema, an optional field on the
    `PATCH` schema, and a default. The server deploys before the clients, because `PATCH` is strict and rejects a key
    it does not know. The response is not strict, so an old client ignores a key it does not know.
 
@@ -103,6 +112,11 @@ setting exists, the same endpoint serves it.
 - `settings/__tests__/settings.schema.test.ts` pins the strict `PATCH` and the unstrict response.
 - `settings/__tests__/settings.service.test.ts` proves that a read writes nothing, that a `PATCH` sets only the
   columns it names, and that an inactive user gets `403`.
+- `settings.service.test.ts` and `tests/settings.integration.test.ts` also prove that `DELETE` removes only the
+  caller's row by the verified id, answers `204` with no body (also when there is no row, and for a test principal),
+  and answers `401` with no token.
+- `tests/e2e/settingsReset.e2e.test.ts` is LOCAL e2e on a real Postgres. It proves that the service role holds
+  `DELETE`, that another user's row survives, and that a second delete is not an error.
 - `tests/apiRoutePaths.test.ts` proves that the controller has no deprecated alias.
 - `tests/e2e/migration0015Settings.e2e.test.ts` is LOCAL e2e on a real Postgres. It proves the key, the foreign key,
   the column type, the service role's grants, and that two concurrent first writes leave one row.

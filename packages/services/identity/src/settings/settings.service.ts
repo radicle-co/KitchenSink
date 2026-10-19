@@ -5,8 +5,8 @@ import type { AuthorizerContext } from '../auth/decorators/currentUser.decorator
 import { resolveSettings } from './domain/resolveSettings.js';
 import type { PatchUserSettingsRequest, UserSettings } from './settings.schema.js';
 
-/** The two DAO operations this service uses, so a test stands in for the DAO without a cast. */
-export type SettingsStore = Pick<SettingsDAO, 'findByUserId' | 'upsertForActiveUser'>;
+/** The DAO operations this service uses, so a test stands in for the DAO without a cast. */
+export type SettingsStore = Pick<SettingsDAO, 'findByUserId' | 'upsertForActiveUser' | 'deleteByUserId'>;
 
 /**
  * The signed-in viewer's settings (ADR-0059).
@@ -58,5 +58,19 @@ export class SettingsService {
         }
 
         return resolveSettings(row);
+    }
+
+    /**
+     * Restore every setting to "never chosen" by deleting the viewer's row; the next read answers the defaults.
+     * Idempotent: a viewer with no row gets the same answer. Only the caller's own row can be named, because the id
+     * comes from the verified context and nothing in the request.
+     *
+     * No active-user check, unlike a write: a delete cannot recreate personal data after an erasure.
+     *
+     * @param ctx - The verified caller.
+     * @sideEffect Deletes the viewer's `settings` row, if any.
+     */
+    async resetSettings(ctx: AuthorizerContext): Promise<void> {
+        await this.store.deleteByUserId(ctx.userId);
     }
 }

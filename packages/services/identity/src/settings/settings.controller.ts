@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Patch } from '@nestjs/common';
 
 import { CurrentAuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
 import type { AuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
@@ -24,5 +24,12 @@ export class SettingsController {
         @Body() body: PatchUserSettingsBodyDto,
     ): Promise<UserSettings> {
         return this.settingsService.patchSettings(ctx, body);
+    }
+
+    /** Restore every setting to "never chosen" (ADR-0059). `204` with no body, also when there was nothing to delete. */
+    @Delete()
+    @HttpCode(HttpStatus.NO_CONTENT)
+    async resetSettings(@CurrentAuthorizerContext() ctx: AuthorizerContext): Promise<void> {
+        await this.settingsService.resetSettings(ctx);
     }
 }

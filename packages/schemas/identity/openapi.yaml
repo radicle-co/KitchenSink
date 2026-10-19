@@ -198,6 +198,23 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/PatchUserSettingsRequest"
+    delete:
+      operationId: resetUserSettings
+      summary: Restore the signed-in viewer's settings to never chosen
+      security:
+        - clerkSession: []
+      responses:
+        "204":
+          description: Every setting is back to never chosen.
+        "401":
+          description: No valid Clerk session token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "Deletes the caller's settings row, so every setting is \"never chosen\" again and `GET` answers the
+        defaults. Idempotent: a viewer with no row also gets `204`. It touches only the caller's own row. This is the
+        only way back to \"never chosen\" — `PATCH` cannot clear a setting."
   /api/v1/users/me/avatar/presign:
     post:
       operationId: presignAvatarUpload

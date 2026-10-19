@@ -249,6 +249,18 @@ export const identityOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument(
                     },
                 },
             },
+            delete: {
+                operationId: 'resetUserSettings',
+                summary: "Restore the signed-in viewer's settings to never chosen",
+                description:
+                    'Deletes the caller\'s settings row, so every setting is "never chosen" again and `GET` answers the ' +
+                    "defaults. Idempotent: a viewer with no row also gets `204`. It touches only the caller's own row. " +
+                    'This is the only way back to "never chosen" — `PATCH` cannot clear a setting.',
+                responses: {
+                    '204': { description: 'Every setting is back to never chosen.' },
+                    '401': unauthorized,
+                },
+            },
         },
         '/api/v1/users/me/avatar/presign': {
             post: {

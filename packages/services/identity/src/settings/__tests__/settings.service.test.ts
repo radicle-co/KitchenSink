@@ -20,6 +20,7 @@ function build(
     const dao = {
         findByUserId: vi.fn<SettingsStore['findByUserId']>().mockResolvedValue(options.found),
         upsertForActiveUser: vi.fn<SettingsStore['upsertForActiveUser']>().mockResolvedValue(options.written),
+        deleteByUserId: vi.fn<SettingsStore['deleteByUserId']>().mockResolvedValue(undefined),
     } satisfies SettingsStore;
 
     return { dao, service: new SettingsService(dao) };
@@ -110,5 +111,33 @@ describe('SettingsService.patchSettings', () => {
         await service.patchSettings(ctx, { searchShortcut: false });
 
         expect(dao.upsertForActiveUser).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('SettingsService.resetSettings', () => {
+    it("deletes the CALLER's row, by the verified user id, and nothing else is read or written", async () => {
+        const { dao, service } = build({ found: stored(false, 'grid') });
+
+        await expect(service.resetSettings(ctx)).resolves.toBeUndefined();
+
+        expect(dao.deleteByUserId).toHaveBeenCalledTimes(1);
+        expect(dao.deleteByUserId).toHaveBeenCalledWith(ctx.userId);
+        expect(dao.upsertForActiveUser).not.toHaveBeenCalled();
+    });
+
+    it('is idempotent: a user with no row resolves the same way (the store reports nothing to delete)', async () => {
+        const { dao, service } = build();
+
+        await expect(service.resetSettings(ctx)).resolves.toBeUndefined();
+        await expect(service.resetSettings(ctx)).resolves.toBeUndefined();
+
+        expect(dao.deleteByUserId).toHaveBeenCalledTimes(2);
+    });
+
+    it('lets a store failure surface, so it can never be reported as a reset', async () => {
+        const { dao, service } = build();
+        dao.deleteByUserId.mockRejectedValueOnce(new Error('connection lost'));
+
+        await expect(service.resetSettings(ctx)).rejects.toThrow('connection lost');
     });
 });

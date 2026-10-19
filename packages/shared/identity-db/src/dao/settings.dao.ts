@@ -7,8 +7,9 @@ import { users } from '../schema/users.js';
 import type { UserId } from '../ulid.js';
 
 /**
- * The settings a caller may change. A key that is ABSENT is left as it is; there is no way to say "clear it", because
- * a setting that was never chosen reads back as its default.
+ * The settings a caller may change. A key that is ABSENT is left as it is. A single setting cannot be cleared by a
+ * write (PATCH never takes `null`); the way back to "never chosen" is {@link SettingsDAO.deleteByUserId}, which
+ * removes the whole row, so it covers every setting added later without changing.
  *
  * Add a setting by adding its optional key here, beside the column in `schema/settings.ts`.
  */
@@ -20,8 +21,8 @@ export interface SettingsPatch {
 }
 
 /**
- * Data Access Object over the `settings` table (ADR-0059): read one user's row, and write the columns a caller
- * supplied in ONE statement.
+ * Data Access Object over the `settings` table (ADR-0059): read one user's row, write the columns a caller
+ * supplied in ONE statement, and delete the row to restore "never chosen".
  *
  * @pattern Data Access Object
  */
@@ -79,5 +80,18 @@ export class SettingsDAO {
             .returning();
 
         return rows[0];
+    }
+
+    /**
+     * Delete a user's row, which restores every setting to "never chosen" (the read then resolves the defaults).
+     *
+     * Idempotent: with no row it deletes nothing and does not fail. It is keyed on the user id alone and takes no
+     * active-user predicate, because a delete cannot recreate personal data after an erasure.
+     *
+     * @param userId - The app-user ULID.
+     * @sideEffect Deletes at most one `settings` row.
+     */
+    async deleteByUserId(userId: UserId): Promise<void> {
+        await this.db.delete(settings).where(eq(settings.userId, userId));
     }
 }

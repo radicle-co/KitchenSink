@@ -61,7 +61,7 @@ const row = (searchShortcut: boolean | null, recipeViewMode: 'grid' | 'list' | n
 describe('settings routes (controller + service + pipe, DAO stubbed)', () => {
     let app: INestApplication;
     let baseUrl: string;
-    const dao = { findByUserId: vi.fn(), upsertForActiveUser: vi.fn() };
+    const dao = { findByUserId: vi.fn(), upsertForActiveUser: vi.fn(), deleteByUserId: vi.fn() };
 
     @Module({
         controllers: [SettingsController],
@@ -84,7 +84,9 @@ describe('settings routes (controller + service + pipe, DAO stubbed)', () => {
                 permissions: [],
                 tokenType: 'user',
                 roles: [],
-                testPrincipal: false,
+                // A pool slot is a Clerk TEST PRINCIPAL, and the e2e-seed reset calls DELETE as one: the route must
+                // not be contained the way account closure is.
+                testPrincipal: req.header('x-test-principal') === 'true',
             };
             next();
         });
@@ -189,6 +191,55 @@ describe('settings routes (controller + service + pipe, DAO stubbed)', () => {
         expect(res.status).toBe(403);
     });
 
+    describe('DELETE (restore "never chosen")', () => {
+        const del = (headers: Record<string, string> = {}) =>
+            fetch(`${baseUrl}/api/v1/users/me/settings`, { method: 'DELETE', headers });
+
+        it("answers 204 with NO body and deletes the CALLER's row by the verified id", async () => {
+            dao.deleteByUserId.mockClear();
+            dao.deleteByUserId.mockResolvedValueOnce(undefined);
+
+            const res = await del();
+
+            expect(res.status).toBe(204);
+            expect(await res.text()).toBe('');
+            expect(dao.deleteByUserId).toHaveBeenCalledTimes(1);
+            expect(dao.deleteByUserId).toHaveBeenCalledWith(USER_ID);
+        });
+
+        it('is idempotent: a second DELETE, with no row left, is also a 204', async () => {
+            dao.deleteByUserId.mockResolvedValue(undefined);
+
+            expect((await del()).status).toBe(204);
+            expect((await del()).status).toBe(204);
+        });
+
+        it('is served to a Clerk test principal (the e2e-seed reset is one)', async () => {
+            dao.deleteByUserId.mockClear();
+
+            const res = await del({ 'x-test-principal': 'true' });
+
+            expect(res.status).toBe(204);
+            expect(dao.deleteByUserId).toHaveBeenCalledWith(USER_ID);
+        });
+
+        it('answers 500, never 204, when the store fails', async () => {
+            dao.deleteByUserId.mockRejectedValueOnce(new Error('connection lost'));
+
+            expect((await del()).status).toBe(500);
+        });
+
+        it('does not touch the read or write paths', async () => {
+            dao.findByUserId.mockClear();
+            dao.upsertForActiveUser.mockClear();
+
+            await del();
+
+            expect(dao.findByUserId).not.toHaveBeenCalled();
+            expect(dao.upsertForActiveUser).not.toHaveBeenCalled();
+        });
+    });
+
     it('does not serve the deprecated bare alias', async () => {
         const res = await fetch(`${baseUrl}/v1/users/me/settings`);
 
@@ -210,6 +261,7 @@ describe('settings routes behind the real AuthMiddleware', () => {
     it.each([
         ['GET', undefined],
         ['PATCH', JSON.stringify({ searchShortcut: false })],
+        ['DELETE', undefined],
     ])('%s without a token is a 401', async (method, body) => {
         const res = await fetch(`${booted.baseUrl}/api/v1/users/me/settings`, {
             method,

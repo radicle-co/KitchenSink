@@ -1310,6 +1310,39 @@ jobs:
         secrets:
             VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
+    # ── THE IDENTITY DEPLOY OF THIS COMMIT — the deployed tiers' missing ordering edge ────────────────────────
+    #
+    # A push starts `sandbox-identity-deploy.yml` (the SHARED sandbox identity service) and this workflow from one event,
+    # and a workflow cannot `needs:` another workflow. The tiers' e2e-seed resets call identity endpoints a push can
+    # introduce, so a tier that ran first met the old server (404, red) or one mid-rollout. This job waits for the identity
+    # run of the SAME head commit and fails, naming the run, if that run did not deliver. No run means the push did not
+    # touch identity. `waitForIdentityDeployOfCommit.sh` holds the verdict, the grace for a run not yet registered, and why.
+    #
+    # It needs only the two jobs that decide whether the tiers run, so it starts beside `deploy-preview` and its wait costs
+    # the critical path nothing. `contents: read` is the checkout; `actions: read` is `gh run list`.
+    wait-identity-deploy:
+        name: Wait for this commit's identity deploy
+        needs: [sandbox-status, resolve-sandbox]
+        if: >-
+            ${{ needs.sandbox-status.outputs.branch == 'run'
+            && github.event_name == 'pull_request'
+            && needs.resolve-sandbox.outputs.stage != '' }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 50
+        permissions:
+            contents: read
+            actions: read
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - name: Wait for the identity deploy of the head commit
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GITHUB_REPOSITORY: ${{ github.repository }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+              run: bash .github/scripts/waitForIdentityDeployOfCommit.sh evaluate "$HEAD_SHA"
+
     # ── THE MOBILE TEST APPS — built once per platform, BESIDE the preview deploy ───────────────────────────
     #
     # The Maestro shards used to build the app themselves, one build per shard (18.4 / 14.3 minutes on Android, 17.5 /
@@ -1371,6 +1404,7 @@ jobs:
             [
                 deploy-preview,
                 preview-address,
+                wait-identity-deploy,
                 install,
                 build-ui,
                 resolve-sandbox,
@@ -1398,7 +1432,8 @@ jobs:
             && needs.detect-mobile-flows.result == 'success'
             && needs.sandbox-status.outputs.branch == 'run'
             && needs.deploy-preview.result == 'success'
-            && needs.preview-address.result == 'success' }}
+            && needs.preview-address.result == 'success'
+            && needs.wait-identity-deploy.result == 'success' }}
         uses: ./.github/workflows/deployedE2eTiers.yml
         # ⛔ A called workflow can only DOWNGRADE its caller's grant; the web shards exchange an OIDC token for
         # their secretless Argos credential, and the tiers sign in to AWS through `awsAuth`, so `id-token: write`
@@ -2955,6 +2990,7 @@ jobs:
                 sandbox-status,
                 deploy-preview,
                 preview-address,
+                wait-identity-deploy,
                 mobile-app-build,
                 deployed-tiers,
                 integration-food,
@@ -2977,5 +3013,5 @@ jobs:
             - name: Decide the verdict
               env:
                   NEEDS_JSON: ${{ toJSON(needs) }}
-                  SANDBOX_MAY_SKIP: deploy-preview preview-address mobile-app-build deployed-tiers
+                  SANDBOX_MAY_SKIP: deploy-preview preview-address wait-identity-deploy mobile-app-build deployed-tiers
               run: bash .github/scripts/ciVerdict.sh

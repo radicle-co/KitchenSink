@@ -114,11 +114,19 @@ describe('recipeSender', () => {
         expect(await send(record('update', { id: 'r1', input: {} }))).toStrictEqual({ outcome: 'failed', status: 409 });
     });
 
-    it('sends a delete', async () => {
+    /**
+     * REWRITTEN (2026-10-19, combative audit M3): a delete answers with the recipe it removed. With no answer the cache
+     * observer had nothing to act on, so My recipes kept showing a draft Discard had deleted.
+     */
+    it('sends a delete, and answers with the recipe it removed', async () => {
         const deleteRecipe = vi.fn().mockResolvedValue(undefined);
         const send = recipeSender(() => ({ deleteRecipe }) as never);
 
-        expect(await send(record('delete', { id: 'r1' }))).toStrictEqual({ outcome: 'ok', serverId: 'r1' });
+        expect(await send(record('delete', { id: 'r1' }))).toStrictEqual({
+            outcome: 'ok',
+            serverId: 'r1',
+            answer: { kind: 'recipeDeleted', id: 'r1' },
+        });
         expect(deleteRecipe).toHaveBeenCalledWith('r1');
     });
 
@@ -295,7 +303,12 @@ describe('recipeSender — a delete that meets a 404', () => {
         const deleteRecipe = vi.fn().mockRejectedValue(new NotFoundError('gone', 'RECIPE_NOT_FOUND'));
         const send = recipeSender(() => ({ deleteRecipe }) as never);
 
-        expect(await send(record('delete', { id: 'r1' }))).toStrictEqual({ outcome: 'ok', serverId: 'r1' });
+        // The recipe is gone either way, so the answer is the same as a 204's: every cache that showed it refreshes.
+        expect(await send(record('delete', { id: 'r1' }))).toStrictEqual({
+            outcome: 'ok',
+            serverId: 'r1',
+            answer: { kind: 'recipeDeleted', id: 'r1' },
+        });
     });
 
     it.each([

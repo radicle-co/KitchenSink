@@ -53,7 +53,7 @@ function harness(send: (record: unknown) => Promise<SendResult>): {
     };
 }
 
-const write = (intentKind: 'create' | 'update', localId: string): Intent => ({
+const write = (intentKind: 'create' | 'update' | 'delete', localId: string): Intent => ({
     entity: 'recipe',
     intentKind,
     localId,
@@ -99,6 +99,34 @@ describe('RecipeWriteCacheObserver', () => {
         await waitFor(() =>
             expect(client.getQueryState([...recipeServiceKeys.recipeLists, 'mine'])?.isInvalidated).toBe(true),
         );
+    });
+
+    /**
+     * Combative audit M3 (2026-10-19): a delete sent through the outbox had no cache effect, so after Discard My recipes,
+     * a search and a collection kept showing the deleted draft until the app next came to the foreground. It now has the
+     * delete hook's effect, from the one statement of it.
+     */
+    it('marks every recipe query, every search and every collection stale after a delete', async () => {
+        const { client, queue } = harness(
+            vi.fn(async () => ({
+                outcome: 'ok' as const,
+                serverId: 'rec_1',
+                answer: { kind: 'recipeDeleted', id: 'rec_1' },
+            })),
+        );
+        client.setQueryData([...recipeServiceKeys.recipeLists, 'mine'], []);
+        client.setQueryData([...recipeServiceKeys.recipeSearches, 'soup'], []);
+        client.setQueryData([...recipeServiceKeys.collections, 'list'], []);
+
+        await act(async () => {
+            await queue().submitExclusive(write('delete', 'rec_1'));
+        });
+
+        await waitFor(() =>
+            expect(client.getQueryState([...recipeServiceKeys.recipeLists, 'mine'])?.isInvalidated).toBe(true),
+        );
+        expect(client.getQueryState([...recipeServiceKeys.recipeSearches, 'soup'])?.isInvalidated).toBe(true);
+        expect(client.getQueryState([...recipeServiceKeys.collections, 'list'])?.isInvalidated).toBe(true);
     });
 
     it('leaves the cache alone for a refusal', async () => {

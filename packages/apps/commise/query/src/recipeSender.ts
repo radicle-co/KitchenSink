@@ -119,7 +119,7 @@ async function dispatch(client: RecipeServiceClient, record: OutboxRecord): Prom
                 }
             }
 
-            return { outcome: 'ok', serverId: id };
+            return { outcome: 'ok', serverId: id, answer: { kind: 'recipeDeleted', id } };
         }
 
         // ⛔ ENUMERATED, NOT SWEPT UP BY `default`. `IntentKind` has seven members and this sender implements

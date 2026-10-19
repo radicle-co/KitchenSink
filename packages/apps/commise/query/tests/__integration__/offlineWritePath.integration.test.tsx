@@ -626,3 +626,47 @@ describe('a change of cook mid-drain (integration)', () => {
         expect((await loadOutbox(store, 'cook_b')).records).toStrictEqual([]);
     });
 });
+
+/**
+ * Combative audit M3 (2026-10-19): a Discard deletes a draft the server holds through the outbox, and the sender calls
+ * the client directly, so nothing told the cache. My recipes kept showing the deleted draft. Composed here from the real
+ * sender, client and observer, with only the network a double.
+ */
+describe('a synced delete refreshes what showed the recipe (integration)', () => {
+    it('⛔ a Discard that deletes a held draft marks My recipes, search and collections stale', async () => {
+        const network = scriptedFetch([() => new Response(null, { status: 204 })]);
+        const store = createMemoryOutboxStore();
+        const client = new RecipeServiceClient({ baseUrl: BASE, fetch: network.fetch, token: 'token' });
+        const queryClient = new QueryClient();
+        queryClient.setQueryData([...recipeServiceKeys.recipeLists, 'mine'], []);
+        queryClient.setQueryData([...recipeServiceKeys.recipeSearches, 'soup'], []);
+        queryClient.setQueryData([...recipeServiceKeys.collections, 'list'], []);
+        const discardSoup: Intent = {
+            entity: 'recipe',
+            intentKind: 'delete',
+            localId: 'srv-soup',
+            dependsOn: [],
+            payload: { id: 'srv-soup' },
+        };
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <SyncProvider subject="user_a" send={recipeSender(() => client)} store={store}>
+                    <RecipeWriteCacheObserver />
+                    <Harness intents={[]} discards={[discardSoup]} />
+                </SyncProvider>
+            </QueryClientProvider>,
+        );
+        await press('discard 0');
+
+        await waitFor(async () => expect((await loadOutbox(store, 'user_a')).records).toStrictEqual([]));
+        expect(network.calls.map((call) => `${call.method} ${call.path}`)).toStrictEqual([
+            'DELETE /api/v1/recipes/srv-soup',
+        ]);
+        await waitFor(() =>
+            expect(queryClient.getQueryState([...recipeServiceKeys.recipeLists, 'mine'])?.isInvalidated).toBe(true),
+        );
+        expect(queryClient.getQueryState([...recipeServiceKeys.recipeSearches, 'soup'])?.isInvalidated).toBe(true);
+        expect(queryClient.getQueryState([...recipeServiceKeys.collections, 'list'])?.isInvalidated).toBe(true);
+    });
+});

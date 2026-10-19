@@ -146,6 +146,7 @@ import {
 /** A recipe write's answer, as the outbox's sender reports it (the app's `SyncAnswer`, structurally). */
 export type EditorWriteAnswer =
     | { readonly kind: 'recipeWritten'; readonly detail: RecipeDetail }
+    | { readonly kind: 'recipeDeleted'; readonly id: string }
     | { readonly kind: 'recipeConflict'; readonly server: VersionConflictSide; readonly base?: VersionConflictSide };
 
 /** What `submitExclusive` did (the app's `ExclusiveSubmit`, structurally). */

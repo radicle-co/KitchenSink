@@ -1,25 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { recipeServiceKeys } from '../queries.js';
-import { forgetSavedCopy } from './useCloneRecipe.js';
+import { applyRecipeDeleted } from './recipeWriteCache.js';
 import { useRecipeServiceClient } from './recipeServiceProvider.js';
-
-/**
- * Invalidate the broad set an EDIT to an existing recipe stales, for a mutation whose response does NOT
- * fully describe the entity (`deleteRecipe` resolves `void`, so there is nothing to write through): every
- * recipe query (`recipes`), the recipe-search namespace (`recipeSearches`), and — DA2 — every collection
- * embed (`collections`). Used ONLY by {@link useDeleteRecipe} now — DA3 moved update/visibility/restore to
- * explicit write-through + narrower invalidation (see each hook's doc comment) once their responses proved
- * to fully describe the changed detail.
- *
- * @param queryClient - The query client whose cache to invalidate.
- * @sideEffect Marks the three regions stale on the query cache.
- */
-function invalidateEditedRecipeRows(queryClient: ReturnType<typeof useQueryClient>): void {
-    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipes });
-    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
-    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collections });
-}
 
 /** `DELETE /api/v1/recipes/{id}` — soft-delete a recipe. */
 export function useDeleteRecipe() {
@@ -29,9 +11,8 @@ export function useDeleteRecipe() {
     return useMutation({
         mutationFn: (id: string) => client.deleteRecipe(id),
         onSuccess: (_data, id) => {
-            invalidateEditedRecipeRows(queryClient);
-            // A deleted copy is no longer a saved one: its source's card must offer Save a copy again (A-022).
-            forgetSavedCopy(queryClient, id);
+            // One statement of what a delete does to the cache, shared with the offline write port (`recipeWriteCache.ts`).
+            applyRecipeDeleted(queryClient, id);
         },
     });
 }

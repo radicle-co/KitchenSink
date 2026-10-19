@@ -2,9 +2,10 @@
  * @module @commise/query/recipe-write-cache — the outbox's recipe writes, applied to the TanStack cache.
  *
  * The outbox's sender calls the client directly (`recipeSender.ts`), so it bypasses the mutation hooks' cache effects.
- * This observer applies the same effects (`applyRecipeCreated` / `applyRecipeUpdated`, the one statement of them) to
- * every recipe write that synced, so a recipe the editor saved through the outbox shows fresh in My recipes and on its
- * detail page. Mount it once, inside both `QueryClientProvider` and `SyncProvider`.
+ * This observer applies the same effects (`applyRecipeCreated` / `applyRecipeUpdated` / `applyRecipeDeleted`, the one
+ * statement of them) to every recipe write that synced, so a recipe the editor saved through the outbox shows fresh in
+ * My recipes and on its detail page, and one Discard deleted leaves them. Mount it once, inside both
+ * `QueryClientProvider` and `SyncProvider`.
  *
  * Renders nothing.
  *
@@ -13,7 +14,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, type FC } from 'react';
 
-import { applyRecipeCreated, applyRecipeUpdated } from '@kitchensink/recipe-service-client/hooks';
+import { applyRecipeCreated, applyRecipeDeleted, applyRecipeUpdated } from '@kitchensink/recipe-service-client/hooks';
 
 import { useSyncQueue } from './syncProvider.js';
 
@@ -25,7 +26,17 @@ export const RecipeWriteCacheObserver: FC = () => {
     useEffect(
         () =>
             subscribe((event) => {
-                if (event.outcome !== 'synced' || event.answer?.kind !== 'recipeWritten') {
+                if (event.outcome !== 'synced' || event.answer === undefined) {
+                    return;
+                }
+
+                if (event.answer.kind === 'recipeDeleted') {
+                    applyRecipeDeleted(queryClient, event.answer.id);
+
+                    return;
+                }
+
+                if (event.answer.kind !== 'recipeWritten') {
                     return;
                 }
 

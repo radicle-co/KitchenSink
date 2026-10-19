@@ -36,6 +36,19 @@ const SHARD = 1;
 const PLATFORM = 'android';
 /** The erasure subject `provision` leased — a consumable pool slot, resolved at run time, never derived. */
 const ERASURE = consumableSlots('maestro')[2]?.email ?? '';
+/** The probe words `provision` chose and verified against the live search — NOT derivable from the run key. */
+const PROBE_WORDS = {
+    appendWord: 'paneer',
+    appendFood: `paneer ${RUN}`,
+    changeWord: 'gochujang',
+    unresolvedWord: 'halloumi',
+    noMatchFood: 'Zorbleflax',
+} as const;
+/** What `provision` knows that the run key does not: the leased erasure subject and the chosen probe words. */
+const provisioned = (erasureEmail: string | null): Parameters<typeof manifestToEnvLines>[1] => ({
+    erasureEmail,
+    probeWords: PROBE_WORDS,
+});
 
 describe('deriveFixtureManifest', () => {
     it('is deterministic — provision, ~35 resets and teardown must agree without passing state', () => {
@@ -359,13 +372,13 @@ describe('manifestToEnvLines', () => {
     it('carries the cap foods’ run-scoped prefix', () => {
         const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
 
-        expect(manifestToEnvLines(manifest, ERASURE)).toContain(
+        expect(manifestToEnvLines(manifest, provisioned(ERASURE))).toContain(
             `${FIXTURE_ENV_KEYS.capFoodPrefix}=${manifest.capFoodPrefix}`,
         );
     });
 
     it('emits exactly the registry, one KEY=VALUE per line, nothing else', () => {
-        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE);
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE));
 
         expect(lines.map((line) => line.split('=')[0]).sort()).toEqual([...Object.values(FIXTURE_ENV_KEYS)].sort());
         expect(lines.every((line) => /^[A-Z0-9_]+=.+$/.test(line))).toBe(true);
@@ -377,14 +390,14 @@ describe('manifestToEnvLines', () => {
      * this lane's risotto answers, and which the search field cannot satisfy as a match for the card's full title.
      */
     it('carries the run key alone, so a Discover search can reach this lane’s recipe and nothing else', () => {
-        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE);
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE));
 
         expect(FIXTURE_ENV_KEYS.runKey).toBe('E2E_RUN_KEY');
         expect(lines).toContain(`E2E_RUN_KEY=${RUN}`);
     });
 
     it('carries the run-scoped titles, not the base ones', () => {
-        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE);
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE));
 
         expect(lines).toContain(`${FIXTURE_ENV_KEYS.risotto}=${runScopedTitle('Herb Risotto', RUN)}`);
         expect(lines).toContain(
@@ -393,7 +406,7 @@ describe('manifestToEnvLines', () => {
     });
 
     it('carries the private food’s name, which the flow asserts is never shown', () => {
-        expect(manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE)).toContain(
+        expect(manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE))).toContain(
             `${FIXTURE_ENV_KEYS.privateFoodName}=${PRIVATE_FOOD_NAME}`,
         );
     });
@@ -410,13 +423,13 @@ describe('manifestToEnvLines', () => {
         ['roleVipEmail', 'vip'],
         ['roleSuperuserEmail', 'superuser'],
     ] as const)('carries %s, the %s role user’s pool address', (key, role) => {
-        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE);
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE));
 
         expect(lines).toContain(`${FIXTURE_ENV_KEYS[key]}=${slotFor('roles', ROLE_LANE_IDS[role]).email}`);
     });
 
     it('carries the downgraded owner’s address and its fixed world, for `recipes/makePublicConfirm.yaml`', () => {
-        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE);
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE));
 
         expect(lines).toContain(
             `${FIXTURE_ENV_KEYS.roleDowngradedEmail}=${slotFor('roles', DOWNGRADED_OWNER_LANE_ID).email}`,
@@ -429,25 +442,28 @@ describe('manifestToEnvLines', () => {
         const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
 
         expect(FIXTURE_ENV_KEYS.coAuthorEmail).toBe('E2E_COAUTHOR_EMAIL');
-        expect(manifestToEnvLines(manifest, ERASURE)).toContain(
+        expect(manifestToEnvLines(manifest, provisioned(ERASURE))).toContain(
             `${FIXTURE_ENV_KEYS.coAuthorEmail}=${manifest.coAuthorEmail}`,
         );
         expect(manifest.coAuthorEmail).not.toBe(manifest.signInEmail);
     });
 
     it('carries the LEASED erasure subject, not a derived one', () => {
-        expect(manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE)).toContain(
+        expect(manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE))).toContain(
             `${FIXTURE_ENV_KEYS.erasureEmail}=${ERASURE}`,
         );
     });
 
     it('refuses an erasure subject that is not a consumable pool slot — the flow really erases it', () => {
         expect(() =>
-            manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), slotFor('maestro', 'signer').email),
+            manifestToEnvLines(
+                deriveFixtureManifest(RUN, PLATFORM, SHARD),
+                provisioned(slotFor('maestro', 'signer').email),
+            ),
         ).toThrow(/consumable/u);
-        expect(() => manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), 'someone@example.com')).toThrow(
-            /consumable/u,
-        );
+        expect(() =>
+            manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned('someone@example.com')),
+        ).toThrow(/consumable/u);
     });
 
     /**
@@ -462,7 +478,10 @@ describe('manifestToEnvLines', () => {
         ['ios', 'erasure05'],
     ] as const)('⛔ refuses the OTHER platform’s subject: a %s manifest may not erase %s', (platform, subject) => {
         expect(() =>
-            manifestToEnvLines(deriveFixtureManifest(RUN, platform, SHARD), slotFor('maestro', subject).email),
+            manifestToEnvLines(
+                deriveFixtureManifest(RUN, platform, SHARD),
+                provisioned(slotFor('maestro', subject).email),
+            ),
         ).toThrow(/consumable maestro pool slot of this platform/u);
     });
 
@@ -473,7 +492,10 @@ describe('manifestToEnvLines', () => {
         ['ios', 'erasure10'],
     ] as const)('accepts its OWN platform’s subject: a %s manifest may erase %s', (platform, subject) => {
         expect(() =>
-            manifestToEnvLines(deriveFixtureManifest(RUN, platform, SHARD), slotFor('maestro', subject).email),
+            manifestToEnvLines(
+                deriveFixtureManifest(RUN, platform, SHARD),
+                provisioned(slotFor('maestro', subject).email),
+            ),
         ).not.toThrow();
     });
 
@@ -489,8 +511,8 @@ describe('manifestToEnvLines', () => {
      */
     it('OMITS the erasure key when this shard leased no subject, and keeps every other key', () => {
         const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
-        const withSubject = manifestToEnvLines(manifest, ERASURE);
-        const without = manifestToEnvLines(manifest, null);
+        const withSubject = manifestToEnvLines(manifest, provisioned(ERASURE));
+        const without = manifestToEnvLines(manifest, provisioned(null));
 
         expect(without.some((line) => line.startsWith(`${FIXTURE_ENV_KEYS.erasureEmail}=`))).toBe(false);
         expect(without).toEqual(withSubject.filter((line) => !line.startsWith(`${FIXTURE_ENV_KEYS.erasureEmail}=`)));
@@ -499,9 +521,38 @@ describe('manifestToEnvLines', () => {
 
     it('never emits an empty value — a blank renders as the literal ${VAR} on screen', () => {
         expect(
-            manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE).every(
+            manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE)).every(
                 (line) => line.split('=')[1] !== '',
             ),
         ).toBe(true);
+    });
+
+    /**
+     * ADDED 2026-10-18 (owner ruling: probe words are chosen and verified at seed time). The words are chosen by
+     * searching the live catalog, so they cannot be derived from the run key the way a title is; they travel in the
+     * second parameter, and a flow reads them as the keys below.
+     */
+    it('carries the chosen probe words, each under its own key', () => {
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE));
+
+        expect(FIXTURE_ENV_KEYS.remoteAppendWord).toBe('E2E_REMOTE_APPEND_WORD');
+        expect(FIXTURE_ENV_KEYS.remoteAppendFood).toBe('E2E_REMOTE_APPEND_FOOD');
+        expect(FIXTURE_ENV_KEYS.remoteChangeWord).toBe('E2E_REMOTE_CHANGE_WORD');
+        expect(FIXTURE_ENV_KEYS.unresolvedWord).toBe('E2E_UNRESOLVED_WORD');
+        expect(FIXTURE_ENV_KEYS.noMatchFood).toBe('E2E_NO_MATCH_FOOD');
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.remoteAppendWord}=paneer`);
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.remoteAppendFood}=paneer ${RUN}`);
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.remoteChangeWord}=gochujang`);
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.unresolvedWord}=halloumi`);
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.noMatchFood}=Zorbleflax`);
+    });
+
+    it('emits whatever words it is given, so two lanes that chose different words get different manifests', () => {
+        const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+        const other = { ...PROBE_WORDS, appendWord: 'tahini', appendFood: `tahini ${RUN}` };
+
+        expect(manifestToEnvLines(manifest, { erasureEmail: ERASURE, probeWords: other })).toContain(
+            `${FIXTURE_ENV_KEYS.remoteAppendWord}=tahini`,
+        );
     });
 });

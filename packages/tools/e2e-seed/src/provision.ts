@@ -23,7 +23,9 @@ import { maestroSlotForShard } from '@kitchensink/e2e-fixtures/testPool';
 
 import { clientFor, foodClientFor } from './client.js';
 import { readFoodOrigin, readIdentityOrigin, readSeedEnvironment } from './env.js';
+import { ensureRemoteProbeWords, probePortOver } from './ensureRemoteProbeWords.js';
 import { deriveFixtureManifest, manifestToEnvLines } from './fixtureManifest.js';
+import { candidatesFor } from './remoteProbeWords.js';
 import {
     ensureCapFoods,
     ensureIngredients,
@@ -117,6 +119,26 @@ console.error(`e2e-seed provision: discovery probe "${probe.name}" is food ${pro
 const capFoods = await ensureCapFoods(signerFoods, manifest.capFoodNames);
 console.error(`e2e-seed provision: ${capFoods.length} cap foods named "${manifest.capFoodPrefix} N"`);
 
+// The remote-food probe words (owner ruling 2026-10-18): chosen by asking the REAL progressive search as the signer, so
+// a stage whose catalog has outgrown a word fails HERE, naming the word and why, and no flow ever types a stale literal.
+// ⛔ The signer only: it is a test principal, so the roots a pick of these words creates are attributed and purgeable.
+// ⛔ Once per run: the per-flow reset makes no source call.
+const probeWords = await ensureRemoteProbeWords(
+    {
+        port: probePortOver(signerFoods.food, Date.now),
+        now: Date.now,
+        sleep: async (milliseconds) => {
+            await new Promise((resolve) => setTimeout(resolve, milliseconds));
+        },
+        authorFood: async (name) => ensureProbeFood(signerFoods, name),
+        log: (text) => console.error(text),
+    },
+    { candidates: candidatesFor(platform), runKey, stage: env.recipeOrigin },
+);
+console.error(
+    `e2e-seed provision: remote probe words append "${probeWords.appendWord}", change "${probeWords.changeWord}"`,
+);
+
 const coAuthorClient = clientFor(env.recipeOrigin, coAuthorSession);
 
 // The co-author's public recipe bound to the co-author's PRIVATE food: the signer reads its line with no name
@@ -150,6 +172,6 @@ for (const recipe of coAuthored) {
 }
 
 // stdout is the CONTRACT.
-for (const line of manifestToEnvLines(manifest, erasure?.slot.email ?? null)) {
+for (const line of manifestToEnvLines(manifest, { erasureEmail: erasure?.slot.email ?? null, probeWords })) {
     console.log(line);
 }

@@ -45,6 +45,8 @@ import {
 } from '@kitchensink/e2e-fixtures/testPool';
 import { MAX_SEARCH_FOOD_FILTERS } from '@kitchensink/schema-recipe';
 
+import type { ProvisionedProbeWords } from './remoteProbeWords.js';
+
 /**
  * The FOOD every run authors as the signer (`ensureProbeFood`) and NO seeded recipe uses.
  *
@@ -357,6 +359,16 @@ export const FIXTURE_ENV_KEYS = {
     privateFoodRecipe: 'E2E_RECIPE_PRIVATE_FOOD',
     privateFoodName: 'E2E_PRIVATE_FOOD_NAME',
     capFoodPrefix: 'E2E_CAP_FOOD_PREFIX',
+    // The remote-food probe words (owner ruling 2026-10-18): chosen and verified against the live search by `provision`
+    // (`ensureRemoteProbeWords`), so they come from `provisioned.probeWords`, never from the run key.
+    remoteAppendWord: 'E2E_REMOTE_APPEND_WORD',
+    // The signer's own food `<append word> <run key>`, which the append story expects under "Your foods".
+    remoteAppendFood: 'E2E_REMOTE_APPEND_FOOD',
+    remoteChangeWord: 'E2E_REMOTE_CHANGE_WORD',
+    // The word `ingredientCandidates.yaml` makes an UNRESOLVED line from; verified at provision to leave no unpurgeable root.
+    unresolvedWord: 'E2E_UNRESOLVED_WORD',
+    // `createAuthoredFood.yaml`'s name that nothing matches; verified at provision, not chosen.
+    noMatchFood: 'E2E_NO_MATCH_FOOD',
     // The `roles` tier's users (plan 2026-10-14-009 D12), for `recipes/paidFeaturesByRole.yaml`. Read-only users with
     // no lease, so the same address on every run and shard; it comes from the roster, never a literal.
     roleDefaultEmail: 'E2E_ROLE_DEFAULT_EMAIL',
@@ -465,11 +477,22 @@ export function deriveFixtureManifest(runKey: string, platform: MaestroPlatform,
  * "what does the flow see".
  *
  * @param manifest - This run's world.
- * @param erasureEmail - The subject `provision` leased, or `null` on a shard that leases none — only a platform's erasure
- *     shard does (`maestroErasureSlots`). REQUIRED, with no default: `null` omits the key, and a default would decide
- *     that silently for a caller that had not thought about which shard it is.
+ * @param provisioned - What `provision` decided at run time and the run key cannot derive. REQUIRED, with no default, and
+ *     a parameter object so a call site names each part:
+ *     - `erasureEmail`: the subject `provision` leased, or `null` on a shard that leases none — only a platform's
+ *       erasure shard does (`maestroErasureSlots`). `null` omits the key, and a default would decide that silently for
+ *       a caller that had not thought about which shard it is.
+ *     - `probeWords`: the remote-food words `ensureRemoteProbeWords` chose and verified against the live search.
  */
-export function manifestToEnvLines(manifest: FixtureManifest, erasureEmail: string | null): readonly string[] {
+export function manifestToEnvLines(
+    manifest: FixtureManifest,
+    provisioned: {
+        readonly erasureEmail: string | null;
+        readonly probeWords: ProvisionedProbeWords;
+    },
+): readonly string[] {
+    const { erasureEmail, probeWords } = provisioned;
+
     // ⛔ `accountErasure.yaml` REALLY erases whoever this names. Anything but a consumable pool slot of THIS manifest's
     // platform — the signer every later flow signs in as, an address off the roster, or the OTHER platform's subject,
     // which a different job holds the lane for — is refused here, before it reaches a flow.
@@ -500,6 +523,11 @@ export function manifestToEnvLines(manifest: FixtureManifest, erasureEmail: stri
         `${FIXTURE_ENV_KEYS.privateFoodRecipe}=${manifest.privateFoodRecipe.title}`,
         `${FIXTURE_ENV_KEYS.privateFoodName}=${manifest.privateFoodName}`,
         `${FIXTURE_ENV_KEYS.capFoodPrefix}=${manifest.capFoodPrefix}`,
+        `${FIXTURE_ENV_KEYS.remoteAppendWord}=${probeWords.appendWord}`,
+        `${FIXTURE_ENV_KEYS.remoteAppendFood}=${probeWords.appendFood}`,
+        `${FIXTURE_ENV_KEYS.remoteChangeWord}=${probeWords.changeWord}`,
+        `${FIXTURE_ENV_KEYS.unresolvedWord}=${probeWords.unresolvedWord}`,
+        `${FIXTURE_ENV_KEYS.noMatchFood}=${probeWords.noMatchFood}`,
         `${FIXTURE_ENV_KEYS.roleDefaultEmail}=${slotFor('roles', ROLE_LANE_IDS.default).email}`,
         `${FIXTURE_ENV_KEYS.roleAdminEmail}=${slotFor('roles', ROLE_LANE_IDS.admin).email}`,
         `${FIXTURE_ENV_KEYS.rolePremiumEmail}=${slotFor('roles', ROLE_LANE_IDS.premium).email}`,

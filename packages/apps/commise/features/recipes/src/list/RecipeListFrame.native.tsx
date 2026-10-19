@@ -32,6 +32,7 @@ import { useId, type FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
+import { RecipeCreateButton } from './RecipeCreateButton.native.js';
 import { RECIPES_SEGMENTS, RECIPES_TITLE_ID, type RecipeListFrameProps, type RecipesSegment } from './model.js';
 
 /**
@@ -48,6 +49,8 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
     searchValue,
     onSearchChange,
     searchVisible,
+    onCreateRecipe,
+    createEntryYields,
     segments,
     headingFocusSignal,
     headerAction,
@@ -122,6 +125,9 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
             </View>
 
             {children}
+            {/* A sibling after the boundary: it floats over the screen's foot and never leaves with a pending, offline or
+                failed read (§3.4). The host decides when it yields. */}
+            <RecipeCreateButton onCreateRecipe={onCreateRecipe} yielded={createEntryYields} />
         </View>
     );
 };

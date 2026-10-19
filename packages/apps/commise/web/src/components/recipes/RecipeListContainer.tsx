@@ -79,6 +79,8 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale, avat
             searchValue={controls.searchValue}
             onSearchChange={controls.onSearchChange}
             searchVisible={controls.searchVisible}
+            onCreateRecipe={onCreateRecipe}
+            createEntryYields={controls.createEntryYields}
             segments={{
                 current: 'mine',
                 href: { mine: `/${locale}/recipes`, collections: `/${locale}/collections` },
@@ -94,9 +96,7 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale, avat
             <ClientQueryBoundary
                 prefetchedKeys={[controls.read.queryKey]}
                 loading={<RecipeListLoading variant={presentation.variant} />}
-                renderError={({ resetErrorBoundary }) => (
-                    <RecipeListLoadError onRetry={resetErrorBoundary} onCreateRecipe={onCreateRecipe} />
-                )}
+                renderError={({ resetErrorBoundary }) => <RecipeListLoadError onRetry={resetErrorBoundary} />}
             >
                 <SettledRecipeList
                     locale={locale}

@@ -14,7 +14,7 @@
  * recipe-service hooks seam this migration targets.
  */
 import { LocaleProvider } from '@commise/i18n/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RecipeServiceClient, recipeQueries } from '@kitchensink/recipe-service-client';
@@ -42,8 +42,100 @@ vi.mock('next/navigation', () => ({
 }));
 
 afterEach(() => {
+    onlineManager.setOnline(true);
     vi.restoreAllMocks();
     vi.clearAllMocks();
+});
+
+// §3.4 (first fetch in flight: none; offline or load error: shown). The button is the FRAME's, outside the read boundary:
+// ⚠️ NEW, because it used to live inside the boundary, where a paused (offline) read never rendered it at all.
+describe('RecipeListContainer — the floating create button, by the library`s state', () => {
+    it('offline with nothing cached (the first fetch parks): shown, and opens the editor', async () => {
+        onlineManager.setOnline(false);
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockRejectedValue(new Error('offline'));
+
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
+        await user.click(await screen.findByRole('button', { name: 'New recipe' }));
+
+        expect(pushMock).toHaveBeenCalledExactlyOnceWith('/en/recipes/new');
+    });
+
+    it('warm and populated: present on the first render, and a refetch does not take it away', () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockReturnValue(new Promise(() => {}));
+        const queryClient = new QueryClient();
+        const queryKey = recipeQueries(client).library({ sortBy: 'updatedAt' }).queryKey;
+        queryClient.setQueryData(queryKey, {
+            pages: [{ data: [], total: 2, hasMore: false, nextFirstPage: 2 }],
+            pageParams: [1],
+        });
+        queryClient.getQueryCache().find({ queryKey })?.setState({ fetchStatus: 'fetching' });
+
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client, { queryClient });
+
+        expect(screen.getByRole('button', { name: 'New recipe' })).toBeInTheDocument();
+    });
+
+    it('empty (the first run): never appears, even in the frame before the empty page settles', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(makeRecipesPage([]));
+
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
+        expect(screen.queryByRole('button', { name: 'New recipe' })).not.toBeInTheDocument();
+
+        await screen.findByRole('button', { name: 'Add your first recipe' });
+        expect(screen.queryByRole('button', { name: 'New recipe' })).not.toBeInTheDocument();
+    });
+
+    it('a focused floating button stays when the library turns empty, and goes once focus leaves it', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockReturnValue(new Promise(() => {}));
+        const queryClient = new QueryClient();
+        const queryKey = recipeQueries(client).library({ sortBy: 'updatedAt' }).queryKey;
+        const chunk = (total: number) => ({
+            pages: [{ data: [], total, hasMore: false, nextFirstPage: 2 }],
+            pageParams: [1],
+        });
+        queryClient.setQueryData(queryKey, chunk(2));
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client, { queryClient });
+        const button = screen.getByRole('button', { name: 'New recipe' });
+        act(() => button.focus());
+
+        await act(async () => {
+            queryClient.setQueryData(queryKey, chunk(0));
+            // TanStack tells subscribers on a 0 ms timer; let it fire, or the assertion below runs before the screen has heard.
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+        expect(screen.getByRole('button', { name: 'New recipe' })).toBe(button);
+
+        act(() => button.blur());
+
+        await waitFor(() => expect(screen.queryByRole('button', { name: 'New recipe' })).not.toBeInTheDocument());
+    });
+
+    it('a term typed while loading, on a library that settles EMPTY, keeps it (a no-match has no create action)', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        let settle: (page: ReturnType<typeof makeRecipesPage>) => void = () => undefined;
+        vi.spyOn(client, 'listRecipes').mockReturnValue(
+            new Promise((resolve) => {
+                settle = resolve;
+            }),
+        );
+
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
+        await user.type(screen.getByRole('searchbox', { name: 'Search your recipes' }), 'zzz');
+        expect(screen.queryByRole('button', { name: 'New recipe' })).not.toBeInTheDocument();
+
+        await act(async () => {
+            settle(makeRecipesPage([]));
+        });
+
+        expect(await screen.findByRole('button', { name: 'New recipe' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).not.toBeInTheDocument();
+    });
 });
 
 describe('RecipeListContainer', () => {

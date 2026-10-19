@@ -71,8 +71,11 @@ export interface CollectionListFrameProps {
     readonly headingFocusSignal: number;
     /** The large title's action (slice 3): the avatar, which opens Profile. The app supplies it. */
     readonly headerAction?: HeaderAction;
-    /** The cook has no collections yet: the first run's own start buttons take the floating button's place (§3.4). */
-    readonly firstRun?: boolean;
+    /**
+     * The floating button yields (§3.4): while the first read loads, and on the first run, whose own start buttons take
+     * its place. Offline or failed it shows.
+     */
+    readonly createEntryYields?: boolean;
     /** The read boundary: its loading or error fallback, or the settled results. */
     readonly children: ReactNode;
 }

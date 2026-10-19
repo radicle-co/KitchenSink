@@ -9,4 +9,4 @@ export { LIVE_CAPABILITIES } from './liveCapabilities.js';
 export { RECENT_RECIPE_LIMIT } from './recentRecipeLimit.js';
 export { useRecentRecipesNutrition } from './useRecentRecipesNutrition.js';
 export { recentRecipesQuery } from './recentRecipesQuery.js';
-export { useHomeFirstRun } from './useHomeFirstRun.js';
+export { useHomeCreateEntryYields } from './useHomeCreateEntryYields.js';

@@ -2,10 +2,10 @@
  * @module @commise/features-recipes — the native My recipes RESULTS (`docs/design/uiOverhaul/buildSpec.md` §4.3), the
  * twin of the web leaf: the facet chips with their counts and the result bar (count, sort sheet, list/grid switch),
  * the refresh notice, then the body the host's `LibraryState` names — the first run, a no-match, or the cards in the
- * decided variant in a virtualised list — then "Load more" past 500 recipes, and the create button wherever
- * `shouldShowCreateButton` keeps it.
+ * decided variant in a virtualised list — then "Load more" past 500 recipes. The floating create button is the FRAME's
+ * (outside the read boundary, so it also shows offline).
  *
- * While the frame is collapsed (a short screen with the keyboard open) the chips and the button step aside so the field
+ * While the frame is collapsed (a short screen with the keyboard open) the chips step aside so the field
  * and the first results stay in view. Pure `props → JSX`: the host reads, narrows and decides.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
@@ -13,6 +13,7 @@ import { Button } from '@commise/ui/button';
 import { Chip, ChipRow } from '@commise/ui/chip';
 import { contentWidthOf } from '@commise/ui/container-class';
 import { useFrameCollapsed } from '@commise/ui/layout';
+import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { LoadMoreControl } from '@commise/ui/load-more';
 import { nativeTokens } from '@commise/ui/native';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
@@ -27,8 +28,7 @@ import { LIST_VIEW_MODES, isListViewMode } from '../card/cardVariant.js';
 import { RecipeCard } from '../card/RecipeCard.native.js';
 import { recipeMessages } from '../messages.js';
 import { LibrarySortMenu } from './LibrarySortMenu.native.js';
-import { RecipeCreateButton } from './RecipeCreateButton.native.js';
-import { formatRecipeCount, shouldShowCreateButton, type RecipeListResultsProps } from './model.js';
+import { formatRecipeCount, type RecipeListResultsProps } from './model.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 
 /** The first run: the two ways to start. */
@@ -246,10 +246,6 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
             )}
 
             {body}
-
-            {!collapsed && shouldShowCreateButton({ recipeCount: recipes.length, narrowed: true }) && (
-                <RecipeCreateButton onCreateRecipe={onCreateRecipe} />
-            )}
         </>
     );
 };
@@ -290,7 +286,8 @@ const styles = StyleSheet.create({
     viewSwitch: { width: 112 },
     count: { ...nativeTokens.type.label, fontVariant: ['tabular-nums', 'lining-nums'] },
     cardsScroll: { flex: 1 },
-    cards: { paddingBottom: nativeTokens.spacing[5] },
+    // The floating create button is drawn over the foot of the list (§3.4): reserve it in every state.
+    cards: { paddingBottom: FAB_RESERVED_BOTTOM_PX },
     gridCell: { flex: 1, paddingHorizontal: GRID_GAP / 2 },
     rowSeparator: { height: nativeTokens.spacing[2] },
     gridSeparator: { height: GRID_GAP },

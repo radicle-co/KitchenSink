@@ -29,7 +29,7 @@ import {
     type HomeWidgetSlot,
 } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_ID, RecipeCreateButton } from '@commise/features-recipes';
-import { LIVE_CAPABILITIES, useHomeFirstRun } from '@commise/features-recipes/widget';
+import { LIVE_CAPABILITIES, useHomeCreateEntryYields } from '@commise/features-recipes/widget';
 import { homeMessages } from '@commise/features-core/home';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { paidFeatureStateOf } from '@commise/features-account';
@@ -104,8 +104,9 @@ export function HomeWidgetSurface({ container = homeContainer, renderers }: Home
     // (never a hard-coded Sentry import), mirroring the mobile host so both platforms share ONE seam.
     const reportWidgetError = resolveErrorReporter(container);
 
-    // The recent-recipes page the widget reads, from the cache: settled empty is Home's first run (§3.4).
-    const firstRun = useHomeFirstRun();
+    // The library's state, from the cache: the floating button yields while the recent recipes load and on the first run
+    // (§3.4), and shows when they are unreachable.
+    const createEntryYields = useHomeCreateEntryYields();
 
     // The slot's OWN inner boundaries catch a throw before the per-widget boundary below ever sees it, so without
     // this seam a recipe-widget failure goes unobserved (B23/DA9). It travels by context to a module-level host
@@ -183,14 +184,14 @@ export function HomeWidgetSurface({ container = homeContainer, renderers }: Home
             <div className="flex w-full max-w-page flex-col gap-6">
                 {/* The large title: the greeting is the page's H1 (`buildSpec.md` §4.2), the avatar its action below 840,
                     and the floating create button right after it in DOM order — drawn at the bottom corner. One tap
-                    opens the empty editor (§3.4, slice 8). First run hides it (§3.4): the recent-recipes page the widget
-                    reads, settled empty. */}
+                    opens the empty editor (§3.4, slice 8). It yields while the recent recipes load and on the first run
+                    (§3.4); offline or on a load error it shows. */}
                 <HomeGreeting
                     {...(cookName === undefined ? {} : { name: cookName })}
                     action={{ kind: 'avatar', avatar: <ProfileAvatarEntry /> }}
                     afterTitle={
                         <RecipeCreateButton
-                            firstRun={firstRun}
+                            yielded={createEntryYields}
                             onCreateRecipe={() => router.push(`/${locale}/recipes/new` as Route)}
                         />
                     }

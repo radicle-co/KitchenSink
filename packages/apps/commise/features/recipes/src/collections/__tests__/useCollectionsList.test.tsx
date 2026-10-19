@@ -57,10 +57,13 @@ describe('useCollectionsList — the first run', () => {
         expect(result.current.hasRecipes).toBe(true);
     });
 
-    it('is a first run only once the collection list has settled empty in the cache', async () => {
+    // ⚠️ REWRITTEN from "is a first run only once the collection list has settled empty": that boolean was false while
+    // the list loaded, so the floating button mounted and then vanished under the cook's finger. It now yields while
+    // loading as well, and shows when the list is unreachable (offline or failed) with nothing cached.
+    it('yields the floating create button while the list loads and once it settles empty, not once it holds one', async () => {
         const { queryClient, result } = setup();
 
-        expect(result.current.firstRun).toBe(false);
+        expect(result.current.createEntryYields).toBe(true);
 
         act(() => {
             queryClient.setQueryData(result.current.read.queryKey, {
@@ -68,8 +71,28 @@ describe('useCollectionsList — the first run', () => {
                 pageParams: [1],
             });
         });
+        await waitFor(() => expect(result.current.createEntryYields).toBe(true));
 
-        await waitFor(() => expect(result.current.firstRun).toBe(true));
+        act(() => {
+            queryClient.setQueryData(result.current.read.queryKey, {
+                pages: [{ data: [], total: 2, page: 1, pageSize: 20, hasMore: false }],
+                pageParams: [1],
+            });
+        });
+        await waitFor(() => expect(result.current.createEntryYields).toBe(false));
+    });
+
+    it('keeps the floating create button when the list is paused (offline) with nothing cached', async () => {
+        const { queryClient, result } = setup();
+
+        act(() => {
+            queryClient
+                .getQueryCache()
+                .build(queryClient, { queryKey: result.current.read.queryKey })
+                .setState({ fetchStatus: 'paused' });
+        });
+
+        await waitFor(() => expect(result.current.createEntryYields).toBe(false));
     });
 
     it('reads the SAME list key the page prefetches', () => {

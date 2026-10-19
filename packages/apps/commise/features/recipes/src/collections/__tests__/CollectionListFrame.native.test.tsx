@@ -126,9 +126,9 @@ describe('CollectionListFrame (native) — the floating create button (UI overha
         expect(getComputedStyle(screen.getByRole('tablist')).alignSelf).toBe('flex-start');
     });
 
-    it('hides it during the first run, whose own start buttons take its place (buildSpec §3.4)', () => {
+    it('hides it while the screen yields it (first load, or the first run whose own start buttons take its place) (buildSpec §3.4)', () => {
         render(
-            <CollectionListFrame onCreate={noop} headingFocusSignal={0} firstRun>
+            <CollectionListFrame onCreate={noop} headingFocusSignal={0} createEntryYields>
                 <Text>boundary content</Text>
             </CollectionListFrame>,
         );

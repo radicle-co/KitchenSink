@@ -15,7 +15,8 @@ import { recipeQueries, type RecipeListSortBy } from '@kitchensink/recipe-servic
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useDeferredValue, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 
-import { useLibraryEmpty } from '../hooks/useLibraryEmpty.js';
+import { useRecipeLibraryState } from '../hooks/useRecipeLibraryState.js';
+import { isListNarrowed, shouldShowCreateButton } from './model.js';
 
 /** The library read the boundary gates and the settled list renders. */
 export type LibraryRead = ReturnType<ReturnType<typeof recipeQueries>['library']>;
@@ -27,6 +28,12 @@ export interface RecipeLibraryControls {
     readonly onClearSearch: () => void;
     /** Whether the frame shows the search: hidden only on a settled empty library with nothing typed. */
     readonly searchVisible: boolean;
+    /**
+     * Whether the floating "New recipe" yields (§3.4): while the first read is in flight (it never appears, so it cannot
+     * vanish), and on a settled empty library the first-run block answers, unless the cook narrowed the list (a no-match
+     * body has no create action, so the button stays). Offline or on a load error it shows.
+     */
+    readonly createEntryYields: boolean;
     readonly activeFacets: readonly string[];
     readonly onActiveFacetsChange: Dispatch<SetStateAction<readonly string[]>>;
     readonly sort: RecipeListSortBy;
@@ -38,7 +45,7 @@ export interface RecipeLibraryControls {
 /**
  * The library's search, chips and sort, and the read they key.
  *
- * @sideEffect Reads the query cache (never fetches) for the empty-library verdict.
+ * @sideEffect Reads the query cache (never fetches) for the library's state.
  * @returns The controls and the read.
  */
 export function useRecipeLibraryControls(): RecipeLibraryControls {
@@ -49,14 +56,19 @@ export function useRecipeLibraryControls(): RecipeLibraryControls {
     const deferredSort = useDeferredValue(sort);
     // Memoized: the boundary keys on this read, so a new options object per render would reset it on every cache event.
     const read = useMemo(() => recipeQueries(client).library({ sortBy: deferredSort }), [client, deferredSort]);
-    // A cache-only read of the same key (it never fetches): the frame hides the search on a settled empty library.
-    const libraryEmpty = useLibraryEmpty(read.queryKey);
+    // A cache-only read of the library's family (it never fetches): the frame hides the search on a settled empty library
+    // and decides the floating button from the same state.
+    const libraryState = useRecipeLibraryState(read.queryKey);
+    const narrowed = isListNarrowed(searchValue, activeFacets);
 
     return {
         searchValue,
         onSearchChange: setSearchValue,
         onClearSearch: () => setSearchValue(''),
-        searchVisible: !libraryEmpty || searchValue.length > 0,
+        searchVisible: libraryState !== 'empty' || searchValue.length > 0,
+        createEntryYields:
+            libraryState === 'loading' ||
+            !shouldShowCreateButton({ recipeCount: libraryState === 'empty' ? 0 : 1, narrowed }),
         activeFacets,
         onActiveFacetsChange: setActiveFacets,
         sort,

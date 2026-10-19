@@ -7,6 +7,7 @@
  * auto-measures — no `estimatedItemSize`), pull-to-refresh is wired through the recycler, and the styles derive from
  * the shared design scale (`nativeTokens`).
  */
+import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { LoadMoreControl } from '@commise/ui/load-more';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
@@ -265,7 +266,8 @@ const styles = StyleSheet.create({
     centred: { textAlign: 'center' },
     count: { ...nativeTokens.type.label, fontVariant: ['tabular-nums', 'lining-nums'] },
     cardsScroll: { flex: 1 },
-    cards: { paddingBottom: nativeTokens.spacing[5] },
+    // The floating create button is drawn over the foot of the list (§3.4): reserve it in every state.
+    cards: { paddingBottom: FAB_RESERVED_BOTTOM_PX },
     cardSeparator: { height: nativeTokens.spacing[4] },
     cell: { flex: 1, paddingHorizontal: nativeTokens.spacing[2] },
     card: { borderRadius: nativeTokens.radius.md, borderWidth: StyleSheet.hairlineWidth, ...nativeTokens.elevation.sm },

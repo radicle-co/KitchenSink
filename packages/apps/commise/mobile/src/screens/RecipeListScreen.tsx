@@ -1,7 +1,7 @@
 /**
  * Recipe-list screen (mobile, orchestration). The shared native recipe-list FRAME (title band + search field) around a suspense read
  * of the caller's library: `Suspense` renders `RecipeListLoading`, the error boundary renders `RecipeListLoadError`
- * (its retry refetches, and it keeps the create button), and once settled the RESULTS render the facet chips, the rows
+ * (its retry refetches; the frame keeps the create button), and once settled the RESULTS render the facet chips, the rows
  * narrowed by the search term and chips with pull-to-refresh, and a notice for a failed refresh of them.
  *
  * The screen owns the search term and the active chips, because both outlive the boundary: typing while the library
@@ -94,6 +94,8 @@ export function RecipeListScreen({
             searchValue={controls.searchValue}
             onSearchChange={controls.onSearchChange}
             searchVisible={controls.searchVisible}
+            onCreateRecipe={onCreateRecipe}
+            createEntryYields={controls.createEntryYields}
             {...(segments === undefined ? {} : { segments })}
             {...(headerAction === undefined ? {} : { headerAction })}
             headingFocusSignal={recovery.signal}
@@ -101,9 +103,7 @@ export function RecipeListScreen({
             {saveFailed ? <ViewSaveFailedNotice /> : null}
             <QueryBoundary
                 loading={<RecipeListLoading variant={presentation.variant} />}
-                renderError={({ resetErrorBoundary }) => (
-                    <RecipeListLoadError onRetry={resetErrorBoundary} onCreateRecipe={onCreateRecipe} />
-                )}
+                renderError={({ resetErrorBoundary }) => <RecipeListLoadError onRetry={resetErrorBoundary} />}
             >
                 <SettledRecipeList
                     controls={controls}

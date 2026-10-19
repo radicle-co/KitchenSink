@@ -5,6 +5,7 @@
  * in the frame, which never receives the load-more state at all.
  */
 import { LocaleProvider } from '@commise/i18n/react';
+import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
@@ -52,6 +53,23 @@ describe('CollectionListResults (native) — pull-to-refresh (U4/L8)', () => {
         });
 
         expect(screen.getByRole('link', { name: 'Weeknight Dinners, Private' })).toBeTruthy();
+    });
+});
+
+// The floating "New collection" is drawn over the list's foot, so the list reserves its height and a gap (SC 2.4.11), the
+// same in every state so it does not jump when the button appears or yields. ⚠️ NEW: the rows used to reserve only 20 px.
+describe('CollectionListResults (native) — the foot reserved for the floating create button', () => {
+    it('reserves FAB_RESERVED_BOTTOM_PX under the last row', () => {
+        renderList({ collections: threeCollections });
+        const row = screen.getByRole('link', { name: 'Meal Prep, Private' });
+        const foot: string[] = [];
+
+        // The scroller's content container is one of the item's ancestors; the item's own padding is not its foot.
+        for (let node = row.parentElement; node !== null; node = node.parentElement) {
+            foot.push(getComputedStyle(node).paddingBottom);
+        }
+
+        expect(foot).toContain(`${FAB_RESERVED_BOTTOM_PX}px`);
     });
 });
 

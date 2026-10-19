@@ -14,8 +14,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccessibilityInfo } from 'react-native';
-import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
-import { QueryClient } from '@tanstack/react-query';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { QueryClient, onlineManager } from '@tanstack/react-query';
 import type { Recipe } from '@kitchensink/recipe-core';
 import type { ReactElement } from 'react';
 
@@ -64,7 +64,10 @@ function render(ui: ReactElement) {
 
 const noop = (): void => undefined;
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    onlineManager.setOnline(true);
+});
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -90,6 +93,69 @@ describe('RecipeListScreen — while the library loads', () => {
 
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
         expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
+    });
+});
+
+// §3.4 (first fetch in flight: none; offline or load error: shown). The button is the FRAME's, outside the read boundary:
+// ⚠️ NEW, because it used to live inside the boundary, where a paused (offline) read never rendered it at all.
+describe('RecipeListScreen — the floating create button, by the library`s state', () => {
+    const create = () => screen.queryByRole('button', { name: 'New recipe' });
+
+    it('offline with nothing cached (the first fetch parks): shown, and opens the editor', async () => {
+        onlineManager.setOnline(false);
+        const onCreateRecipe = vi.fn();
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={onCreateRecipe} />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'New recipe' }));
+
+        expect(onCreateRecipe).toHaveBeenCalledTimes(1);
+    });
+
+    it('warm and populated: present on the first render, and a refetch does not take it away', () => {
+        seedLibrary([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]);
+        queryClient
+            .getQueryCache()
+            .find({ queryKey: recipeQueries(client).library({ sortBy: 'updatedAt' }).queryKey })
+            ?.setState({ fetchStatus: 'fetching' });
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
+
+        expect(create()).toBeTruthy();
+    });
+
+    it('empty (the first run): absent, because the first-run block is the one create control', () => {
+        seedLibrary([]);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
+
+        expect(create()).toBeNull();
+        expect(screen.getByRole('button', { name: 'Add your first recipe' })).toBeTruthy();
+    });
+
+    it('a focused floating button stays when the library turns empty, and goes once focus leaves it', async () => {
+        seedLibrary([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
+        const button = screen.getByRole('button', { name: 'New recipe' });
+        act(() => button.focus());
+
+        act(() => {
+            seedLibrary([]);
+        });
+        await screen.findByRole('button', { name: 'Add your first recipe' });
+        expect(create()).toBeTruthy();
+
+        act(() => button.blur());
+
+        await waitFor(() => expect(create()).toBeNull());
+    });
+
+    it('loading, then empty: never appears; loading, then populated: appears', async () => {
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
+        expect(create()).toBeNull();
+
+        act(() => {
+            seedLibrary([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]);
+        });
+
+        expect(await screen.findByRole('button', { name: 'New recipe' })).toBeTruthy();
     });
 });
 

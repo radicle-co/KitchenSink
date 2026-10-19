@@ -11,6 +11,9 @@ export interface RecipeCreateButtonProps {
     readonly onCreateRecipe: () => void;
     /** Web only: which form is drawn. Defaults to the floating `fab`; native draws only that form. */
     readonly appearance?: RecipeCreateButtonAppearance;
-    /** The screen shows its first-run state, whose own start buttons take the floating form's place (§3.4). */
-    readonly firstRun?: boolean;
+    /**
+     * The floating form yields its place (§3.4): while the screen's first load is in flight (it never appears, so it
+     * cannot vanish), and on the first run, whose own start buttons take its place.
+     */
+    readonly yielded?: boolean;
 }

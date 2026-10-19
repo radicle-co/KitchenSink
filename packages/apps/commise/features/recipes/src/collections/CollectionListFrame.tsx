@@ -27,7 +27,7 @@ export const CollectionListFrame: FC<CollectionListFrameProps> = ({
     segments,
     headingFocusSignal,
     headerAction,
-    firstRun = false,
+    createEntryYields = false,
     children,
 }) => {
     const { list } = useMessages(collectionMessages);
@@ -50,7 +50,7 @@ export const CollectionListFrame: FC<CollectionListFrameProps> = ({
                                 {list.createCta}
                             </Button>
                         </div>
-                        <CreateFab label={list.createCta} icon="plus" onPress={onCreate} yielded={firstRun} />
+                        <CreateFab label={list.createCta} icon="plus" onPress={onCreate} yielded={createEntryYields} />
                     </>
                 }
                 {...(segments === undefined

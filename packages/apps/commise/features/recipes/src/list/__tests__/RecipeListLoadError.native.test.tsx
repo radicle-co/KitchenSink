@@ -16,7 +16,7 @@ const noop = () => undefined;
 describe('RecipeListLoadError (native)', () => {
     it('shows an alert with a retry action that reports upward', () => {
         const onRetry = vi.fn();
-        render(<RecipeListLoadError onRetry={onRetry} onCreateRecipe={noop} />);
+        render(<RecipeListLoadError onRetry={onRetry} />);
 
         expect(screen.getByRole('alert').textContent).toContain('We couldn’t load your recipes.');
 
@@ -25,19 +25,18 @@ describe('RecipeListLoadError (native)', () => {
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
-    it('⛔ keeps the create button, since this body has no create CTA to replace it: one tap opens the editor', () => {
-        // Rewritten for slice 8: the button no longer discloses a menu (Paste lives in the editor's Ingredients section).
-        const onCreateRecipe = vi.fn();
-        render(<RecipeListLoadError onRetry={noop} onCreateRecipe={onCreateRecipe} />);
+    // ⚠️ REWRITTEN. This test pinned that the error body keeps the create button. That need is unchanged, but the button
+    // now lives in the FRAME (outside the read boundary, so it also shows offline, where this body never renders):
+    // `RecipeListFrame.native.test.tsx` pins it there, and `RecipeListScreen.native.test.tsx` pins that a failed read
+    // still shows it. Two buttons would be the defect.
+    it('draws no create button of its own: the frame owns the one floating control', () => {
+        render(<RecipeListLoadError onRetry={noop} />);
 
-        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
-
-        expect(onCreateRecipe).toHaveBeenCalledTimes(1);
-        expect(screen.queryByText('Create from Scratch')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
     });
 
     it('offers no first-run CTA — the library has not said it is empty', () => {
-        render(<RecipeListLoadError onRetry={noop} onCreateRecipe={noop} />);
+        render(<RecipeListLoadError onRetry={noop} />);
 
         expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
         expect(screen.queryByText('Your recipe box is empty')).toBeNull();

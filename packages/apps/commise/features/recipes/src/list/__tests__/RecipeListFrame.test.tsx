@@ -24,12 +24,49 @@ const HREF = { mine: '/en/recipes', collections: '/en/collections' } as const;
 function frame(overrides: Partial<RecipeListFrameProps> = {}) {
     return (
         <LocaleProvider locale="en">
-            <RecipeListFrame searchValue="" onSearchChange={noop} searchVisible headingFocusSignal={0} {...overrides}>
+            <RecipeListFrame
+                searchValue=""
+                onSearchChange={noop}
+                searchVisible
+                onCreateRecipe={noop}
+                createEntryYields={false}
+                headingFocusSignal={0}
+                {...overrides}
+            >
                 {overrides.children ?? <p>boundary content</p>}
             </RecipeListFrame>
         </LocaleProvider>
     );
 }
+
+describe('RecipeListFrame (web) — the floating create button (§3.4)', () => {
+    // MOVED here from the settled results and the load error: it used to sit INSIDE the read boundary, so a pending or
+    // offline read took it away. The frame is outside the boundary, so it shows offline and on a load error, and it
+    // is the screen's ONE floating create control.
+    it('floats "New recipe", opening the editor in one press', () => {
+        const onCreateRecipe = vi.fn();
+        render(frame({ onCreateRecipe }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+
+        expect(onCreateRecipe).toHaveBeenCalledTimes(1);
+    });
+
+    it('comes right after the H1 in DOM order, so a screen reader meets it early', () => {
+        render(frame());
+
+        const heading = screen.getByRole('heading', { level: 1, name: 'Recipes' });
+        const button = screen.getByRole('button', { name: 'New recipe' });
+
+        expect(heading.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('is absent while the screen yields it (first load in flight, or the first run)', () => {
+        render(frame({ createEntryYields: true }));
+
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+    });
+});
 
 describe('RecipeListFrame (web)', () => {
     it('renders the heading, the search field and the boundary under it', () => {

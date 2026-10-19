@@ -3,7 +3,7 @@
 /**
  * @module @commise/features-recipes/collections — the collection list FRAME's session, shared by web's
  * `CollectionListContainer` and mobile's `CollectionsScreen` (`docs/design/uiOverhaul/buildSpec.md` §5.1): the search
- * text, whether the cook has a recipe to group, whether the list has settled empty (the first run), and the
+ * text, whether the cook has a recipe to group, whether the floating create button yields (the list is loading or settled empty), and the
  * new-collection sheet with its create. The frame sits OUTSIDE the read boundary, so none of this reads the list itself.
  *
  * The collections read is built ONCE here and handed back as `read`, so the key a boundary checks for a server prefetch
@@ -17,7 +17,8 @@ import { useCreateCollection, useRecipeServiceClient } from '@kitchensink/recipe
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { useLibraryEmpty } from '../hooks/useLibraryEmpty.js';
+import { createEntryYields } from '../hooks/libraryState.js';
+import { useLibraryState } from '../hooks/useLibraryState.js';
 
 /** What {@link useCollectionsList} reads. */
 export interface CollectionsListInput {
@@ -32,8 +33,12 @@ export interface CollectionsList {
     readonly search: { readonly value: string; readonly onChange: (value: string) => void };
     /** Whether the cook has a recipe to group; while unknown it is `true`, so the first run offers New collection. */
     readonly hasRecipes: boolean;
-    /** The first run (no collection at all): it draws its own start buttons in place of the floating one. */
-    readonly firstRun: boolean;
+    /**
+     * The floating "New collection" yields (§3.4, §5.1): while the first read is in flight it never appears, so it cannot
+     * vanish; on the first run (no collection at all) the screen draws its own start buttons in its place. Offline or
+     * failed with nothing cached, it shows.
+     */
+    readonly createEntryYields: boolean;
     readonly sheet: {
         readonly open: boolean;
         readonly onOpenChange: (open: boolean) => void;
@@ -64,14 +69,17 @@ export function useCollectionsList({ onCreated }: CollectionsListInput): Collect
     const createCollection = useCreateCollection();
     // One recipe is enough to know; while it is unknown the first run offers New collection, the common case.
     const anyRecipe = useQuery(recipeQueries(client).list({ pageSize: 1 }));
-    // A cache-only read of the list's own key: it fetches nothing, and is false until the read has settled empty.
-    const firstRun = useLibraryEmpty(read.queryKey);
+    // A cache-only read of the list's own key (its family is that one key: collection search is on the device and not in
+    // it). It fetches nothing.
+    const createEntryYieldsNow = createEntryYields(
+        useLibraryState([{ queryKey: read.queryKey, exact: true }], read.queryKey),
+    );
 
     return {
         read,
         search: { value: searchValue, onChange: setSearchValue },
         hasRecipes: (anyRecipe.data?.total ?? 1) > 0,
-        firstRun,
+        createEntryYields: createEntryYieldsNow,
         sheet: {
             open: sheetOpen,
             onOpenChange: setSheetOpen,

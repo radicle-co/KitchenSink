@@ -67,7 +67,7 @@ export const CollectionListContainer: FC<CollectionListContainerProps> = ({ loca
         <CollectionListFrame
             {...(avatar === undefined ? {} : { headerAction: { kind: 'avatar', avatar } })}
             onCreate={list.sheet.onOpen}
-            firstRun={list.firstRun}
+            createEntryYields={list.createEntryYields}
             segments={{
                 current: 'collections',
                 href: { mine: `/${locale}/recipes`, collections: `/${locale}/collections` },

@@ -11,7 +11,7 @@ import { recipeMessages } from '../messages.js';
 import type { RecipeCreateButtonProps } from './createButtonProps.js';
 
 /** "New recipe": one tap opens the editor. */
-export const RecipeCreateButton: FC<RecipeCreateButtonProps> = ({ onCreateRecipe, firstRun }) => {
+export const RecipeCreateButton: FC<RecipeCreateButtonProps> = ({ onCreateRecipe, yielded }) => {
     const { list } = useMessages(recipeMessages);
 
     return (
@@ -19,7 +19,7 @@ export const RecipeCreateButton: FC<RecipeCreateButtonProps> = ({ onCreateRecipe
             label={list.createCta}
             icon="plus"
             onPress={onCreateRecipe}
-            {...(firstRun === undefined ? {} : { yielded: firstRun })}
+            {...(yielded === undefined ? {} : { yielded })}
         />
     );
 };

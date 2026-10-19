@@ -6,8 +6,8 @@
  *
  * The facet chips with their counts and the result bar (count, sort, list/grid switch), the notice for a failed refresh,
  * then the body the host's `LibraryState` names — the first run, a no-match for a search, for chips or for both, or the
- * cards in the variant the host decided — then "Load more" past 500 recipes, and the create button wherever
- * `shouldShowCreateButton` keeps it. Pure `props → JSX`: the host reads, narrows and decides.
+ * cards in the variant the host decided — then "Load more" past 500 recipes. The floating create button is the FRAME's
+ * (outside the read boundary, so it also shows offline). Pure `props → JSX`: the host reads, narrows and decides.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
@@ -22,8 +22,7 @@ import { LIST_VIEW_MODES, isListViewMode } from '../card/cardVariant.js';
 import { RecipeCard } from '../card/RecipeCard.js';
 import { recipeMessages } from '../messages.js';
 import { LibrarySortMenu } from './LibrarySortMenu.js';
-import { RecipeCreateButton } from './RecipeCreateButton.js';
-import { formatRecipeCount, shouldShowCreateButton, type RecipeListResultsProps } from './model.js';
+import { formatRecipeCount, type RecipeListResultsProps } from './model.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 
 /** The first run: the two ways to start, stacked below a 600 container and side by side above. */
@@ -226,11 +225,6 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
                         failed: list.loadMoreError,
                     }}
                 />
-            )}
-
-            {/* The policy owns ONE side of "exactly one create affordance": the first-run block above is the other. */}
-            {shouldShowCreateButton({ recipeCount: recipes.length, narrowed: true }) && (
-                <RecipeCreateButton onCreateRecipe={onCreateRecipe} />
             )}
         </>
     );

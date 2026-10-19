@@ -42,7 +42,7 @@ const RailButton: FC<{ readonly label: string; readonly onPress: () => void }> =
 );
 
 /** "New recipe": one tap opens the editor. */
-export const RecipeCreateButton: FC<RecipeCreateButtonProps> = ({ onCreateRecipe, appearance = 'fab', firstRun }) => {
+export const RecipeCreateButton: FC<RecipeCreateButtonProps> = ({ onCreateRecipe, appearance = 'fab', yielded }) => {
     const { list } = useMessages(recipeMessages);
 
     switch (appearance) {
@@ -52,7 +52,7 @@ export const RecipeCreateButton: FC<RecipeCreateButtonProps> = ({ onCreateRecipe
                     label={list.createCta}
                     icon="plus"
                     onPress={onCreateRecipe}
-                    {...(firstRun === undefined ? {} : { yielded: firstRun })}
+                    {...(yielded === undefined ? {} : { yielded })}
                 />
             );
         case 'sidebar':

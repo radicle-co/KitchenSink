@@ -32,9 +32,9 @@ describe('CollectionListFrame (web)', () => {
         expect(screen.getByText('boundary content')).toBeTruthy();
     });
 
-    it('hides the floating button during the first run, whose own start buttons take its place (buildSpec §3.4)', () => {
+    it('hides the floating button while the screen yields it (first load, or the first run whose own start buttons take its place) (buildSpec §3.4)', () => {
         render(
-            <CollectionListFrame onCreate={noop} headingFocusSignal={0} firstRun>
+            <CollectionListFrame onCreate={noop} headingFocusSignal={0} createEntryYields>
                 <p>boundary content</p>
             </CollectionListFrame>,
         );

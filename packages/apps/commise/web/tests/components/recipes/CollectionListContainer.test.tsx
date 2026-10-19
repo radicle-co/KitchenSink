@@ -15,7 +15,7 @@
  */
 import { LocaleProvider } from '@commise/i18n/react';
 import { collectionQueries } from '@kitchensink/recipe-service-client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
@@ -38,6 +38,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 afterEach(() => {
+    onlineManager.setOnline(true);
     vi.restoreAllMocks();
     vi.clearAllMocks();
 });
@@ -84,6 +85,114 @@ describe('CollectionListContainer', () => {
 
         await screen.findByText('Group recipes your way');
         expect(screen.getAllByRole('button', { name: 'New collection' })).toHaveLength(2);
+    });
+
+    // The floating "New collection" (§3.4, §5.1) in its six states. The wide header's secondary button is always present
+    // (jsdom applies no media query), so ONE "New collection" button means the floating one is absent and TWO means it
+    // shows. ⚠️ NEW: the floating button used to mount while loading and vanish when the empty list arrived.
+    describe('the floating New collection, by the list`s state', () => {
+        const floating = () => screen.getAllByRole('button', { name: 'New collection' }).length - 1;
+
+        it('loading: absent', () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listCollections').mockReturnValue(new Promise(() => {}));
+
+            renderWithRecipeClient(<CollectionListContainer locale="en" />, client);
+
+            expect(floating()).toBe(0);
+        });
+
+        it('loading, then populated: appears once the list settles', async () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listCollections').mockResolvedValue(
+                makeCollectionsPage([makeCollection({ id: 'c1', name: 'Weeknight dinners' })]),
+            );
+
+            renderWithRecipeClient(<CollectionListContainer locale="en" />, client);
+            expect(floating()).toBe(0);
+
+            await screen.findByRole('link', { name: 'Weeknight dinners' });
+            await waitFor(() => expect(floating()).toBe(1));
+        });
+
+        it('warm and populated: present from the first render, with no loading frame', () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listCollections').mockReturnValue(new Promise(() => {}));
+            const queryClient = new QueryClient();
+            queryClient.setQueryData(collectionQueries(client).listInfinite().queryKey, {
+                pages: [makeCollectionsPage([makeCollection({ id: 'c1' })])],
+                pageParams: [1],
+            });
+
+            renderWithRecipeClient(<CollectionListContainer locale="en" />, client, { queryClient });
+
+            expect(floating()).toBe(1);
+        });
+
+        it('load error with nothing cached: shown', async () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listCollections').mockRejectedValue(new Error('boom'));
+
+            renderWithRecipeClient(<CollectionListContainer locale="en" />, client);
+
+            await screen.findByRole('alert');
+            await waitFor(() => expect(floating()).toBe(1));
+        });
+
+        it('offline with nothing cached (the read parks): shown', async () => {
+            onlineManager.setOnline(false);
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listCollections').mockRejectedValue(new Error('offline'));
+
+            renderWithRecipeClient(<CollectionListContainer locale="en" />, client);
+
+            await waitFor(() => expect(floating()).toBe(1));
+        });
+
+        it('a focused floating button stays when the list turns empty, and goes once focus leaves it', async () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listCollections').mockReturnValue(new Promise(() => {}));
+            const queryClient = new QueryClient();
+            const queryKey = collectionQueries(client).listInfinite().queryKey;
+            const pages = (items: ReturnType<typeof makeCollection>[]) => ({
+                pages: [makeCollectionsPage(items)],
+                pageParams: [1],
+            });
+            queryClient.setQueryData(queryKey, pages([makeCollection({ id: 'c1' })]));
+            renderWithRecipeClient(<CollectionListContainer locale="en" />, client, { queryClient });
+            const button = screen.getAllByRole('button', { name: 'New collection' })[1] as HTMLElement;
+            act(() => button.focus());
+
+            await act(async () => {
+                queryClient.setQueryData(queryKey, pages([]));
+                // TanStack tells subscribers on a 0 ms timer; let it fire, or the assertion below runs before the screen has heard.
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            });
+            expect(screen.getAllByRole('button', { name: 'New collection' }).includes(button)).toBe(true);
+            expect(floating()).toBeGreaterThanOrEqual(1);
+
+            act(() => button.blur());
+
+            await waitFor(() =>
+                expect(screen.queryAllByRole('button', { name: 'New collection' }).includes(button)).toBe(false),
+            );
+        });
+
+        it('a refetch of a warm list does not take it away', async () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listCollections').mockReturnValue(new Promise(() => {}));
+            const queryClient = new QueryClient();
+            const queryKey = collectionQueries(client).listInfinite().queryKey;
+            queryClient.setQueryData(queryKey, {
+                pages: [makeCollectionsPage([makeCollection({ id: 'c1' })])],
+                pageParams: [1],
+            });
+            queryClient.getQueryCache().find({ queryKey })?.setState({ fetchStatus: 'fetching' });
+
+            renderWithRecipeClient(<CollectionListContainer locale="en" />, client, { queryClient });
+
+            expect(floating()).toBe(1);
+        });
     });
 
     it('renders the error state and retries on demand', async () => {

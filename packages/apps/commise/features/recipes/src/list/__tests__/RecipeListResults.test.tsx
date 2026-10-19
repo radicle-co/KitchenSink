@@ -271,10 +271,12 @@ describe('RecipeListResults (web) — no match', () => {
         expect(within(status).getByRole('button', { name: 'Clear filters' })).toBeTruthy();
     });
 
-    it('keeps the create dial: a no-match body has no create action of its own', () => {
+    // ⚠️ REWRITTEN from "keeps the create dial": the floating button moved to the frame, which keeps it for a narrowed
+    // zero (`useRecipeLibraryControls.test.tsx`), so the results draw none in any state.
+    it('draws no floating create button: the frame owns it, and a no-match keeps it there', () => {
         render(results({ recipes: [], state: 'noMatchQuery', searchValue: 'z' }));
 
-        expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
     });
 });
 

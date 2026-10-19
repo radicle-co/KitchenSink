@@ -4,8 +4,9 @@
  * title — and floats two things over it: the condensed title bar, once the greeting scrolls under the top, and the
  * floating "New recipe" button, a sibling after the scroller so it stays put.
  *
- * One tap opens the empty editor (§3.4, D4). Home's first run hides the button (§3.4): the recent-recipes page the
- * widget reads, settled empty, is the first run, and the widget's own start buttons take its place.
+ * One tap opens the empty editor (§3.4, D4). The button yields while the recent-recipes page the widget reads is
+ * loading (so it never appears and cannot vanish) and on the first run (a settled empty page), whose own start buttons
+ * take its place; offline or on a load error it shows.
  *
  * ⚠️ ORCHESTRATION of chrome, not of data: it reads the scroll host and the cook's name for the condensed title.
  *
@@ -14,7 +15,7 @@
 import { profileEntryOf } from '@commise/features-core';
 import { useHomeGreeting } from '@commise/features-core/home';
 import { RecipeCreateButton } from '@commise/features-recipes';
-import { useHomeFirstRun } from '@commise/features-recipes/widget';
+import { useHomeCreateEntryYields } from '@commise/features-recipes/widget';
 import { CondensedTitleBar } from '@commise/ui/large-title-header';
 import { useScrollHost, type ScrollBind } from '@commise/ui/scroll-host';
 import type { JSX } from 'react';
@@ -59,9 +60,9 @@ export function HomeScreen({
 }: HomeScreenProps): JSX.Element {
     const { condensed } = useScrollHost();
     const { title: greeting } = useHomeGreeting(profileEntryOf(useUserProfile()).name);
-    // The recent-recipes read the widget makes, read from the cache: a settled page of no recipes is Home's first run,
-    // whose own start buttons take the floating button's place (§3.4).
-    const firstRun = useHomeFirstRun();
+    // The library's state, from the cache: the floating button yields while the recent recipes load, and on the first run
+    // whose own start buttons take its place (§3.4). Offline or on a load error it shows.
+    const createEntryYields = useHomeCreateEntryYields();
 
     return (
         <View style={styles.container}>
@@ -76,7 +77,7 @@ export function HomeScreen({
             />
             <CondensedTitleBar title={greeting} visible={condensed} />
             {/* One tap opens the empty editor (build spec §3.4, slice 8); paste lives in its Ingredients section. */}
-            <RecipeCreateButton onCreateRecipe={onCreateRecipe} firstRun={firstRun} />
+            <RecipeCreateButton onCreateRecipe={onCreateRecipe} yielded={createEntryYields} />
         </View>
     );
 }

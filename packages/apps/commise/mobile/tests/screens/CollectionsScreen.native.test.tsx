@@ -11,7 +11,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccessibilityInfo } from 'react-native';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, onlineManager } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
 
 import { renderWithRecipeClient } from '@commise/test-utils';
@@ -44,7 +44,10 @@ function render(ui: ReactElement) {
     return renderWithRecipeClient(ui, client, { queryClient });
 }
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    onlineManager.setOnline(true);
+});
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -107,12 +110,87 @@ describe('CollectionsScreen — a failed refresh of the rows on screen', () => {
 
 describe('CollectionsScreen — loading, error, empty', () => {
     // Slice 3: the heading is the Recipes screen's large title, and "New collection" floats (`buildSpec.md` §5.1).
-    it('shows the loading indicator while collections load, under the heading and create action', () => {
+    // ⚠️ REWRITTEN: it also asserted the floating button while loading, which is the defect (it mounted, then vanished when
+    // an empty list arrived). Loading now has the heading and no button; the states below pin the rest.
+    it('shows the loading indicator while collections load, under the heading and with no create button yet', () => {
         render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
 
         expect(screen.getByLabelText('Loading collections…')).toBeTruthy();
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'New collection' })).toBeNull();
+    });
+
+    it('floats New collection from the first frame when a populated list is already cached (warm)', () => {
+        seedPages(makeCollectionPage([makeCollection({ id: 'col_1', name: 'Weeknight dinners' })]));
+        queryClient
+            .getQueryCache()
+            .find({ queryKey: collectionQueries(client).listInfinite().queryKey })
+            ?.setState({
+                fetchStatus: 'fetching',
+            });
+
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
+
         expect(screen.getByRole('button', { name: 'New collection' })).toBeTruthy();
+    });
+
+    it('never mounts New collection for a list that turns out empty (the first run has its own buttons)', async () => {
+        vi.spyOn(client, 'listCollections').mockResolvedValue(makeCollectionPage([]));
+
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
+        expect(screen.queryByRole('button', { name: 'New collection' })).toBeNull();
+
+        await screen.findByText('Group recipes your way');
+        // The first run's own button is the only "New collection" left.
+        expect(screen.getAllByRole('button', { name: 'New collection' })).toHaveLength(1);
+    });
+
+    it('a focused floating button stays when the list turns empty, and goes once focus leaves it', async () => {
+        seedPages(makeCollectionPage([makeCollection({ id: 'col_1', name: 'Weeknight dinners' })]));
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
+        const button = screen.getByRole('button', { name: 'New collection' });
+        act(() => button.focus());
+
+        act(() => {
+            seedPages(makeCollectionPage([]));
+        });
+        await screen.findByText('Group recipes your way');
+        // The first run's own button is also named "New collection"; the focused floating one is still the same node.
+        expect(button.isConnected).toBe(true);
+
+        act(() => button.blur());
+
+        await waitFor(() => expect(button.isConnected).toBe(false));
+    });
+
+    it('shows New collection once a populated list arrives', async () => {
+        vi.spyOn(client, 'listCollections').mockResolvedValue(
+            makeCollectionPage([makeCollection({ id: 'col_1', name: 'Weeknight dinners' })]),
+        );
+
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
+
+        await screen.findByRole('link', { name: 'Weeknight dinners, Private' });
+        expect(screen.getByRole('button', { name: 'New collection' })).toBeTruthy();
+    });
+
+    it('keeps New collection when the load failed with nothing cached', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        vi.spyOn(client, 'listCollections').mockRejectedValue(new Error('network down'));
+
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
+
+        await screen.findByRole('alert');
+        expect(screen.getByRole('button', { name: 'New collection' })).toBeTruthy();
+    });
+
+    it('keeps New collection when offline with nothing cached', async () => {
+        onlineManager.setOnline(false);
+        vi.spyOn(client, 'listCollections').mockRejectedValue(new Error('offline'));
+
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
+
+        expect(await screen.findByRole('button', { name: 'New collection' })).toBeTruthy();
     });
 
     it('shows an alert and retries from the retry action', async () => {

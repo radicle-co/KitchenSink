@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { LocaleProvider } from '@commise/i18n/react';
 
 import { makeRecipeListItem } from '../../__fixtures__/index.js';
@@ -175,13 +176,42 @@ describe('RecipeListResults (native) — chips and the result bar', () => {
         expect(within(controls).getByRole('radiogroup', { name: 'View' })).toBeTruthy();
     });
 
-    it('hides the chips and the dial while the frame is collapsed', () => {
+    // ⚠️ REWRITTEN: it also asserted the floating button hidden. The button moved to the frame (hiding with the keyboard
+    // is `CreateFab`'s own rule), so the results draw none at all, collapsed or not.
+    it('hides the chips while the frame is collapsed, and draws no floating create button of its own', () => {
         layout.collapsed = true;
         render(results());
 
         expect(screen.queryByRole('group', { name: 'Quick filters' })).toBeNull();
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
     });
+
+    it('draws no floating create button when settled with rows: the frame owns it', () => {
+        render(results());
+
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+    });
+});
+
+// The floating create button is drawn over the list's foot, so the list reserves its height and a gap (SC 2.4.11): the
+// last card is never hidden behind it. The reservation is the same in every state, so the list does not jump when the
+// button appears or yields. ⚠️ NEW: the cards used to reserve only 20 px.
+describe('RecipeListResults (native) — the foot reserved for the floating create button', () => {
+    it.each([['row'], ['grid']] as const)(
+        'the %s cards reserve FAB_RESERVED_BOTTOM_PX under the last card',
+        (variant) => {
+            render(results({ variant }));
+            const card = screen.getByText('Gourmet Garden Salad');
+            const foot: string[] = [];
+
+            // The scroller's content container is one of the item's ancestors; the item's own padding is not its foot.
+            for (let node = card.parentElement; node !== null; node = node.parentElement) {
+                foot.push(getComputedStyle(node).paddingBottom);
+            }
+
+            expect(foot).toContain(`${FAB_RESERVED_BOTTOM_PX}px`);
+        },
+    );
 });
 
 describe('RecipeListResults (native) — states', () => {
@@ -201,12 +231,14 @@ describe('RecipeListResults (native) — states', () => {
         expect(onPasteIngredients).toHaveBeenCalledTimes(1);
     });
 
-    it('a search no-match quotes it and offers Clear search, keeping the dial', () => {
+    // ⚠️ REWRITTEN: "keeping the dial" asserted the floating button here; the frame owns it now (a no-match body has no
+    // create action of its own, so the FRAME keeps it for a narrowed zero: `useRecipeLibraryControls.test.tsx`).
+    it('a search no-match quotes it and offers Clear search', () => {
         const onClearSearch = vi.fn();
         render(results({ recipes: [], state: 'noMatchQuery', searchValue: 'zzz', onClearSearch }));
 
         expect(screen.getByText('Nothing matches “zzz”.')).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
 
         fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
 

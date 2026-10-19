@@ -18,7 +18,7 @@ describe('RecipeListLoadError (web)', () => {
     it('shows an alert with a retry action that reports upward', async () => {
         const user = userEvent.setup();
         const onRetry = vi.fn();
-        render(<RecipeListLoadError onRetry={onRetry} onCreateRecipe={noop} />);
+        render(<RecipeListLoadError onRetry={onRetry} />);
 
         expect(screen.getByRole('alert').textContent).toContain('We couldn’t load your recipes.');
 
@@ -27,21 +27,18 @@ describe('RecipeListLoadError (web)', () => {
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
-    it('⛔ keeps the create button, since this body has no create CTA to replace it: one tap opens the editor', async () => {
-        // Suppressing it would strand a cook whose library failed to load with no way to create at all. Rewritten for
-        // slice 8: the button no longer discloses a menu (Paste lives in the editor's Ingredients section).
-        const user = userEvent.setup();
-        const onCreateRecipe = vi.fn();
-        render(<RecipeListLoadError onRetry={noop} onCreateRecipe={onCreateRecipe} />);
+    // ⚠️ REWRITTEN. This test pinned that the error body keeps the create button, because hiding it would strand a cook
+    // whose library failed to load. That need is unchanged, but the button now lives in the FRAME (outside the read
+    // boundary, so it also shows offline, where this body never renders): `RecipeListFrame.test.tsx` pins it there, and
+    // `RecipeListContainer.test.tsx` pins that a failed read still shows it. Two buttons would be the defect.
+    it('draws no create button of its own: the frame owns the one floating control', () => {
+        render(<RecipeListLoadError onRetry={noop} />);
 
-        await user.click(screen.getByRole('button', { name: 'New recipe' }));
-
-        expect(onCreateRecipe).toHaveBeenCalledTimes(1);
-        expect(screen.queryByRole('menu')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
     });
 
     it('offers no first-run CTA — the library has not said it is empty', () => {
-        render(<RecipeListLoadError onRetry={noop} onCreateRecipe={noop} />);
+        render(<RecipeListLoadError onRetry={noop} />);
 
         expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
         expect(screen.queryByText('Your recipe box is empty')).toBeNull();
@@ -49,7 +46,7 @@ describe('RecipeListLoadError (web)', () => {
 
     // Slice 4 (`buildSpec.md` §4.3 Load error): Try again is the design-system secondary button with its glyph.
     it('offers Try again as the secondary design-system button', () => {
-        render(<RecipeListLoadError onRetry={noop} onCreateRecipe={noop} />);
+        render(<RecipeListLoadError onRetry={noop} />);
         const retry = screen.getByRole('button', { name: 'Try again' });
 
         expect(retry.querySelector('svg.lucide-rotate-ccw')).not.toBeNull();

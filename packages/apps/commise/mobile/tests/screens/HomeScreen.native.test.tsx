@@ -19,7 +19,7 @@ import { cleanup, screen } from '@testing-library/react';
 
 import { renderWithProviders } from '@commise/test-utils';
 import { act, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, onlineManager, type Query } from '@tanstack/react-query';
 import { RECENT_RECIPE_LIMIT } from '@commise/features-recipes/widget';
 import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
 
@@ -51,6 +51,7 @@ const { ScrollHost } = await import('@commise/ui/scroll-host');
 
 afterEach(() => {
     cleanup();
+    onlineManager.setOnline(true);
     vi.useRealTimers();
     safeArea.insets = { top: 0, bottom: 0, left: 0, right: 0 };
 });
@@ -120,26 +121,126 @@ describe('HomeScreen (mobile) — the large title, the avatar and the create but
         expect(onOpenProfile).toHaveBeenCalledOnce();
     });
 
-    it('floats the "New recipe" create button over the screen', () => {
-        renderHome();
-
-        expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
-    });
-
-    // §3.4: the first run's own start buttons (Add your first recipe, Paste ingredients) take the button's place.
-    it('hides the "New recipe" create button while the cook has no recipes', async () => {
-        const queryClient = new QueryClient();
-        queryClient.setQueryData(recipeServiceKeys.recipeList({ pageSize: RECENT_RECIPE_LIMIT }), {
+    // §3.4 (first fetch in flight: none; offline or load error: shown; first run: start buttons). ⚠️ REWRITTEN: the old
+    // tests expected the button with NOTHING cached and hid it only for a settled empty page, so it mounted while
+    // loading and vanished when the empty page arrived. Nothing cached is now "loading": no button.
+    describe('the floating create button, by the library`s state', () => {
+        const recentKey = recipeServiceKeys.recipeList({ pageSize: RECENT_RECIPE_LIMIT });
+        const page = (total: number) => ({
             data: [],
-            total: 0,
+            total,
             page: 1,
             pageSize: RECENT_RECIPE_LIMIT,
             hasMore: false,
         });
+        const create = () => screen.queryByRole('button', { name: 'New recipe' });
 
-        renderHome(noop, noop, queryClient);
+        const withState = (state: Parameters<Query['setState']>[0]) => {
+            const queryClient = new QueryClient();
+            queryClient.getQueryCache().build(queryClient, { queryKey: recentKey }).setState(state);
 
-        await waitFor(() => expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull());
+            return queryClient;
+        };
+
+        it('populated and warm: floats over the screen from the first frame', () => {
+            const queryClient = new QueryClient();
+            queryClient.setQueryData(recentKey, page(3));
+            renderHome(noop, noop, queryClient);
+
+            expect(create()).toBeTruthy();
+        });
+
+        it('loading: absent', () => {
+            renderHome(noop, noop, withState({ fetchStatus: 'fetching' }));
+
+            expect(create()).toBeNull();
+        });
+
+        it('loading, then empty: it never appears, so it cannot vanish', async () => {
+            const queryClient = new QueryClient();
+            renderHome(noop, noop, queryClient);
+            expect(create()).toBeNull();
+
+            act(() => {
+                queryClient.setQueryData(recentKey, page(0));
+            });
+
+            await waitFor(() => expect(create()).toBeNull());
+        });
+
+        it('loading, then populated: appears when the page settles', async () => {
+            const queryClient = new QueryClient();
+            renderHome(noop, noop, queryClient);
+
+            act(() => {
+                queryClient.setQueryData(recentKey, page(2));
+            });
+
+            expect(await screen.findByRole('button', { name: 'New recipe' })).toBeTruthy();
+        });
+
+        // §3.4: the first run's own start buttons (Add your first recipe, Paste ingredients) take the button's place.
+        it('empty (the first run): absent', async () => {
+            const queryClient = new QueryClient();
+            queryClient.setQueryData(recentKey, page(0));
+            renderHome(noop, noop, queryClient);
+
+            await waitFor(() => expect(create()).toBeNull());
+        });
+
+        it('warm and refetching: still judged by the cached page', () => {
+            const queryClient = new QueryClient();
+            queryClient.setQueryData(recentKey, page(3));
+            queryClient.getQueryCache().find({ queryKey: recentKey })?.setState({ fetchStatus: 'fetching' });
+            renderHome(noop, noop, queryClient);
+
+            expect(create()).toBeTruthy();
+        });
+
+        it('unreachable, offline (paused, nothing cached): shown', async () => {
+            // Really offline: the widget's own read (mounted under the screen) parks its first fetch.
+            onlineManager.setOnline(false);
+            renderHome();
+
+            expect(await screen.findByRole('button', { name: 'New recipe' })).toBeTruthy();
+        });
+
+        it('unreachable, load error (nothing cached): shown', async () => {
+            renderHome(noop, noop, withState({ status: 'error', fetchStatus: 'idle', error: new Error('503') }));
+
+            expect(await screen.findByRole('button', { name: 'New recipe' })).toBeTruthy();
+        });
+
+        it('opens the editor when pressed', async () => {
+            const onCreateRecipe = vi.fn();
+            const queryClient = new QueryClient();
+            queryClient.setQueryData(recentKey, page(1));
+            renderHome(noop, onCreateRecipe, queryClient);
+
+            fireEvent.click(await screen.findByRole('button', { name: 'New recipe' }));
+
+            expect(onCreateRecipe).toHaveBeenCalledOnce();
+        });
+
+        // The focus rule: a button that has focus when the library moves to a state that yields stays until focus leaves.
+        it('a focused floating button stays when the library turns empty, and goes once focus leaves it', async () => {
+            const queryClient = new QueryClient();
+            queryClient.setQueryData(recentKey, page(3));
+            renderHome(noop, noop, queryClient);
+            const button = screen.getByRole('button', { name: 'New recipe' });
+            act(() => button.focus());
+
+            act(() => {
+                queryClient.setQueryData(recentKey, page(0));
+            });
+            // Let the cache notification reach the screen before judging that the button stayed.
+            await waitFor(() => expect(screen.getByRole('button', { name: 'Add your first recipe' })).toBeTruthy());
+            expect(create()).toBeTruthy();
+
+            act(() => button.blur());
+
+            await waitFor(() => expect(create()).toBeNull());
+        });
     });
 
     it('keeps the condensed title bar hidden at the top', () => {

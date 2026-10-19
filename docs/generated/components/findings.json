@@ -9,7 +9,7 @@
         "platform-singleton": 66,
         "ref-api": 13,
         "unclassified-layer": 93,
-        "undocumented-prop": 176
+        "undocumented-prop": 174
     },
     "findings": [
         {
@@ -3440,26 +3440,6 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLoadError.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresRecipes/list/RecipeListLoadError",
-            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLoadError.native.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "onCreateRecipe"
-            ]
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresRecipes/list/RecipeListLoadError",
-            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLoadError.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "onCreateRecipe"
-            ]
         },
         {
             "rule": "platform-singleton",

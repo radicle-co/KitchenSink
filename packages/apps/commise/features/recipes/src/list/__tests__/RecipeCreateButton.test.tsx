@@ -39,8 +39,8 @@ describe('RecipeCreateButton (web)', () => {
         expect(fab.textContent).not.toContain('+');
     });
 
-    it('the floating form is not drawn while the screen shows its first run (§3.4)', () => {
-        render(<RecipeCreateButton onCreateRecipe={vi.fn()} firstRun />);
+    it('the floating form is not drawn while the screen yields it: first load in flight or first run (§3.4)', () => {
+        render(<RecipeCreateButton onCreateRecipe={vi.fn()} yielded />);
 
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
     });

@@ -58,11 +58,45 @@ const HREF = { mine: '/en/recipes', collections: '/en/collections' } as const;
 
 function frame(overrides: Partial<RecipeListFrameProps> = {}) {
     return (
-        <RecipeListFrame searchValue="" onSearchChange={noop} searchVisible headingFocusSignal={0} {...overrides}>
+        <RecipeListFrame
+            searchValue=""
+            onSearchChange={noop}
+            searchVisible
+            onCreateRecipe={noop}
+            createEntryYields={false}
+            headingFocusSignal={0}
+            {...overrides}
+        >
             {overrides.children ?? <Text>boundary content</Text>}
         </RecipeListFrame>
     );
 }
+
+describe('RecipeListFrame (native) — the floating create button (§3.4)', () => {
+    // MOVED here from the settled results and the load error: it used to sit INSIDE the read boundary, so a pending or
+    // offline read took it away. The frame is outside the boundary, so it shows offline and on a load error.
+    it('floats "New recipe", opening the editor in one press', () => {
+        const onCreateRecipe = vi.fn();
+        render(frame({ onCreateRecipe }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+
+        expect(onCreateRecipe).toHaveBeenCalledTimes(1);
+    });
+
+    it('is absent while the screen yields it (first load in flight, or the first run)', () => {
+        render(frame({ createEntryYields: true }));
+
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+    });
+
+    it('is drawn in compact height too: hiding it with the keyboard is CreateFab`s own rule', () => {
+        layout.compact = true;
+        render(frame());
+
+        expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
+    });
+});
 
 describe('RecipeListFrame (native) — chrome', () => {
     it('renders the heading, the search field and whatever the boundary below it renders', () => {

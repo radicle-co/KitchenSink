@@ -13,6 +13,9 @@
  * (inside the boundary) that succeeds removes the button the cook pressed.
  *
  * The heading is the shell's `LargeTitleHeader` (slice 3), whose H1 takes focus when `headingFocusSignal` advances.
+ *
+ * The floating "New recipe" is drawn HERE, right after the H1 in DOM order, and not inside the boundary: a pending,
+ * offline or failed read must neither mount it late nor take it away (§3.4). The host decides when it yields.
  */
 import { useMessages } from '@commise/i18n/react';
 import { LargeTitleHeader } from '@commise/ui/large-title-header';
@@ -21,6 +24,7 @@ import { SegmentedControl } from '@commise/ui/segmented-control';
 import { useId, type FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
+import { RecipeCreateButton } from './RecipeCreateButton.js';
 import { RECIPES_SEGMENTS, RECIPES_TITLE_ID, type RecipeListFrameProps, type RecipesSegment } from './model.js';
 
 /**
@@ -37,6 +41,8 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
     searchValue,
     onSearchChange,
     searchVisible,
+    onCreateRecipe,
+    createEntryYields,
     segments,
     headingFocusSignal,
     headerAction,
@@ -52,6 +58,7 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
                 headingId={RECIPES_TITLE_ID}
                 title={list.heading}
                 focusSignal={headingFocusSignal}
+                afterTitle={<RecipeCreateButton onCreateRecipe={onCreateRecipe} yielded={createEntryYields} />}
                 {...(headerAction === undefined ? {} : { action: headerAction })}
                 {...(segments === undefined
                     ? {}

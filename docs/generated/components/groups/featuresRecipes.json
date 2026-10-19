@@ -6,11 +6,11 @@
     "coverage": {
         "components": 155,
         "implementations": 264,
-        "props": 1296,
+        "props": 1298,
         "documentedComponents": 155,
         "implementationsWithModuleDoc": 264,
         "implementationsWithComponentDoc": 157,
-        "documentedProps": 1018,
+        "documentedProps": 1022,
         "classifiedComponents": 135,
         "componentsWithPatternTag": 77,
         "crossPlatformComponents": 109
@@ -1672,12 +1672,12 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         },
                         {
-                            "name": "firstRun",
+                            "name": "createEntryYields",
                             "type": "boolean",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": "false",
-                            "description": "The cook has no collections yet: the first run's own start buttons take the floating button's place (§3.4).",
+                            "description": "The floating button yields (§3.4): while the first read loads, and on the first run, whose own start buttons take\nits place. Offline or failed it shows.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         },
                         {
@@ -1751,12 +1751,12 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         },
                         {
-                            "name": "firstRun",
+                            "name": "createEntryYields",
                             "type": "boolean",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": "false",
-                            "description": "The cook has no collections yet: the first run's own start buttons take the floating button's place (§3.4).",
+                            "description": "The floating button yields (§3.4): while the first read loads, and on the first run, whose own start buttons take\nits place. Offline or failed it shows.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         },
                         {
@@ -18554,21 +18554,21 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/list/createButtonProps.ts"
                         },
                         {
-                            "name": "firstRun",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The screen shows its first-run state, whose own start buttons take the floating form's place (§3.4).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/list/createButtonProps.ts"
-                        },
-                        {
                             "name": "onCreateRecipe",
                             "type": "() => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "Open the empty editor.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/list/createButtonProps.ts"
+                        },
+                        {
+                            "name": "yielded",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The floating form yields its place (§3.4): while the screen's first load is in flight (it never appears, so it\ncannot vanish), and on the first run, whose own start buttons take its place.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/list/createButtonProps.ts"
                         }
                     ],
@@ -18610,21 +18610,21 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/list/createButtonProps.ts"
                         },
                         {
-                            "name": "firstRun",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The screen shows its first-run state, whose own start buttons take the floating form's place (§3.4).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/list/createButtonProps.ts"
-                        },
-                        {
                             "name": "onCreateRecipe",
                             "type": "() => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "Open the empty editor.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/list/createButtonProps.ts"
+                        },
+                        {
+                            "name": "yielded",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The floating form yields its place (§3.4): while the screen's first load is in flight (it never appears, so it\ncannot vanish), and on the first run, whose own start buttons take its place.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/list/createButtonProps.ts"
                         }
                     ],
@@ -18659,7 +18659,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListFrame.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/list",
-                    "moduleDoc": "@commise/features-recipes — the web My recipes FRAME (presentational,\n`docs/design/uiOverhaul/buildSpec.md` §4.3).\n\nThe chrome of the library — the heading, the My recipes · Collections segments and the search field — rendered\nOUTSIDE the list's suspense boundary, which the composing container passes as `children`. A pending or failed read\ntherefore swaps only what is under the search field, never the field a cook is typing in. It fetches nothing.\n\nThe search field is sticky at the top edge while the list scrolls on a narrow container, and hides on the first run\n(the host decides when). The heading takes focus when `headingFocusSignal` advances: a retry from the refresh notice\n(inside the boundary) that succeeds removes the button the cook pressed.\n\nThe heading is the shell's `LargeTitleHeader` (slice 3), whose H1 takes focus when `headingFocusSignal` advances.",
+                    "moduleDoc": "@commise/features-recipes — the web My recipes FRAME (presentational,\n`docs/design/uiOverhaul/buildSpec.md` §4.3).\n\nThe chrome of the library — the heading, the My recipes · Collections segments and the search field — rendered\nOUTSIDE the list's suspense boundary, which the composing container passes as `children`. A pending or failed read\ntherefore swaps only what is under the search field, never the field a cook is typing in. It fetches nothing.\n\nThe search field is sticky at the top edge while the list scrolls on a narrow container, and hides on the first run\n(the host decides when). The heading takes focus when `headingFocusSignal` advances: a retry from the refresh notice\n(inside the boundary) that succeeds removes the button the cook pressed.\n\nThe heading is the shell's `LargeTitleHeader` (slice 3), whose H1 takes focus when `headingFocusSignal` advances.\n\nThe floating \"New recipe\" is drawn HERE, right after the H1 in DOM order, and not inside the boundary: a pending,\noffline or failed read must neither mount it late nor take it away (§3.4). The host decides when it yields.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -18681,6 +18681,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
                         },
                         {
+                            "name": "createEntryYields",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The floating button yields (see `RecipeLibraryControls.createEntryYields`): first load in flight, or the first run.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
+                        },
+                        {
                             "name": "headerAction",
                             "type": "HeaderAction",
                             "typeDetail": null,
@@ -18696,6 +18705,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "A counter whose change moves focus to the heading: the owner advances it when a retry from the refresh notice\nsucceeds, because that retry removed the button the viewer pressed. The frame never moves focus on mount.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
+                        },
+                        {
+                            "name": "onCreateRecipe",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the empty editor: the floating \"New recipe\" the frame draws (§3.4), outside the read boundary.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
                         },
                         {
@@ -18769,6 +18787,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
                         },
                         {
+                            "name": "createEntryYields",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The floating button yields (see `RecipeLibraryControls.createEntryYields`): first load in flight, or the first run.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
+                        },
+                        {
                             "name": "headerAction",
                             "type": "HeaderAction",
                             "typeDetail": null,
@@ -18784,6 +18811,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "A counter whose change moves focus to the heading: the owner advances it when a retry from the refresh notice\nsucceeds, because that retry removed the button the viewer pressed. The frame never moves focus on mount.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
+                        },
+                        {
+                            "name": "onCreateRecipe",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the empty editor: the floating \"New recipe\" the frame draws (§3.4), outside the read boundary.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
                         },
                         {
@@ -18854,7 +18890,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLoadError.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/list",
-                    "moduleDoc": "@commise/features-recipes — web recipe-list LOAD-ERROR fallback (presentational): what the list's error\nboundary renders when the read failed with nothing loaded. Its retry is the boundary's reset, which refetches.\n\nIt keeps the create button: creating a recipe does not depend on this read, and this body has no create CTA to replace\nit, so hiding it would leave Try again as the only action (see `shouldShowCreateButton`).",
+                    "moduleDoc": "@commise/features-recipes — web recipe-list LOAD-ERROR fallback (presentational): what the list's error\nboundary renders when the read failed with nothing loaded. Its retry is the boundary's reset, which refetches.\n\nIt draws no create button: creating a recipe does not depend on this read, and the frame (outside the read boundary)\nkeeps the floating one, so Try again is never the only action (see `shouldShowCreateButton`).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -18866,15 +18902,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "onCreateRecipe",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
-                        },
                         {
                             "name": "onRetry",
                             "type": "() => void",
@@ -18897,7 +18924,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLoadError.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/list",
-                    "moduleDoc": "@commise/features-recipes — native recipe-list LOAD-ERROR fallback (presentational): what the list's error\nboundary renders when the read failed with nothing loaded. Its retry is the boundary's reset, which refetches.\n\nIt keeps the create button, because this body has no create CTA to replace it (see `shouldShowCreateButton`).",
+                    "moduleDoc": "@commise/features-recipes — native recipe-list LOAD-ERROR fallback (presentational): what the list's error\nboundary renders when the read failed with nothing loaded. Its retry is the boundary's reset, which refetches.\n\nIt draws no create button: the frame does, outside the read boundary, so it shows here without this body (see\n`shouldShowCreateButton`).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -18909,15 +18936,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "onCreateRecipe",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
-                        },
                         {
                             "name": "onRetry",
                             "type": "() => void",
@@ -19015,7 +19033,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListResults.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/list",
-                    "moduleDoc": "@commise/features-recipes — the web My recipes RESULTS (`docs/design/uiOverhaul/buildSpec.md` §4.3): what\nrenders inside the list's suspense boundary once the library has settled.\n\nThe facet chips with their counts and the result bar (count, sort, list/grid switch), the notice for a failed refresh,\nthen the body the host's `LibraryState` names — the first run, a no-match for a search, for chips or for both, or the\ncards in the variant the host decided — then \"Load more\" past 500 recipes, and the create button wherever\n`shouldShowCreateButton` keeps it. Pure `props → JSX`: the host reads, narrows and decides.",
+                    "moduleDoc": "@commise/features-recipes — the web My recipes RESULTS (`docs/design/uiOverhaul/buildSpec.md` §4.3): what\nrenders inside the list's suspense boundary once the library has settled.\n\nThe facet chips with their counts and the result bar (count, sort, list/grid switch), the notice for a failed refresh,\nthen the body the host's `LibraryState` names — the first run, a no-match for a search, for chips or for both, or the\ncards in the variant the host decided — then \"Load more\" past 500 recipes. The floating create button is the FRAME's\n(outside the read boundary, so it also shows offline). Pure `props → JSX`: the host reads, narrows and decides.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -19233,7 +19251,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListResults.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/list",
-                    "moduleDoc": "@commise/features-recipes — the native My recipes RESULTS (`docs/design/uiOverhaul/buildSpec.md` §4.3), the\ntwin of the web leaf: the facet chips with their counts and the result bar (count, sort sheet, list/grid switch),\nthe refresh notice, then the body the host's `LibraryState` names — the first run, a no-match, or the cards in the\ndecided variant in a virtualised list — then \"Load more\" past 500 recipes, and the create button wherever\n`shouldShowCreateButton` keeps it.\n\nWhile the frame is collapsed (a short screen with the keyboard open) the chips and the button step aside so the field\nand the first results stay in view. Pure `props → JSX`: the host reads, narrows and decides.",
+                    "moduleDoc": "@commise/features-recipes — the native My recipes RESULTS (`docs/design/uiOverhaul/buildSpec.md` §4.3), the\ntwin of the web leaf: the facet chips with their counts and the result bar (count, sort sheet, list/grid switch),\nthe refresh notice, then the body the host's `LibraryState` names — the first run, a no-match, or the cards in the\ndecided variant in a virtualised list — then \"Load more\" past 500 recipes. The floating create button is the FRAME's\n(outside the read boundary, so it also shows offline).\n\nWhile the frame is collapsed (a short screen with the keyboard open) the chips step aside so the field\nand the first results stay in view. Pure `props → JSX`: the host reads, narrows and decides.",
                     "moduleTags": [
                         {
                             "name": "module",

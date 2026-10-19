@@ -7,7 +7,7 @@
  * `RecipeWidgetSlot.test.tsx`, the chrome in `chrome/__tests__`, and the greeting in `HomeGreeting.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { lazy, type FC, type JSX } from 'react';
 
@@ -25,7 +25,7 @@ import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { RECENT_RECIPE_LIMIT } from '@commise/features-recipes/widget';
 import { renderWithProviders } from '@commise/test-utils';
 import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { createContainer, type Container } from 'ditox';
 
 // The profile hook hits Clerk + the identity API; stub it to a controllable tier + display name.
@@ -103,6 +103,17 @@ const renderSurface = (props: Parameters<typeof HomeWidgetSurface>[0], queryClie
 const floatingCreate = (): HTMLElement | undefined =>
     screen.queryAllByRole('button', { name: 'New recipe' }).find((button) => button.className.includes('nav:hidden'));
 
+const recentKey = recipeServiceKeys.recipeList({ pageSize: RECENT_RECIPE_LIMIT });
+const recentPage = (total: number) => ({ data: [], total, page: 1, pageSize: RECENT_RECIPE_LIMIT, hasMore: false });
+
+/** A cache whose recent-recipes page has settled with `total` recipes: Home's warm, populated state. */
+const warmClient = (total: number): QueryClient => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(recentKey, recentPage(total));
+
+    return queryClient;
+};
+
 const FakeRecipeWidget: FC = () => <div>fake-recipe-widget</div>;
 
 describe('HomeWidgetSurface (web) — host composition', () => {
@@ -110,10 +121,15 @@ describe('HomeWidgetSurface (web) — host composition', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
 
-        renderSurface({
-            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
-            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
-        });
+        // ⚠️ REWRITTEN: the cache is now POPULATED. With nothing cached the button yields (first fetch in flight), so
+        // the old assertion that it sits after the H1 only held because the old rule showed it while loading.
+        renderSurface(
+            {
+                container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+                renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+            },
+            warmClient(3),
+        );
 
         // Slice 3 (`buildSpec.md` §4.2): the greeting IS the page's large title, its only H1; the avatar is the header's
         // action and the floating create button comes right after it in DOM order (§3.4).
@@ -130,26 +146,126 @@ describe('HomeWidgetSurface (web) — host composition', () => {
         expect(heading.compareDocumentPosition(fab as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    // §3.4: the first run's own start buttons (in the recent-recipes widget) take the floating button's place.
-    it('hides the floating create button while the cook has no recipes', async () => {
-        const queryClient = new QueryClient();
-        queryClient.setQueryData(recipeServiceKeys.recipeList({ pageSize: RECENT_RECIPE_LIMIT }), {
-            data: [],
-            total: 0,
-            page: 1,
-            pageSize: RECENT_RECIPE_LIMIT,
-            hasMore: false,
+    // §3.4 (first fetch in flight: none; offline or load error: shown; first run: start buttons). The six states of the
+    // floating button, read from the query cache. ⚠️ REWRITTEN from "hides the floating create button while the cook has
+    // no recipes", which pinned only the settled-empty state and so let the button mount while loading and vanish when
+    // the empty page arrived.
+    describe('the floating create button, by the library`s state', () => {
+        const surface = (queryClient: QueryClient): void =>
+            renderSurface(
+                {
+                    container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+                    renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+                },
+                queryClient,
+            );
+
+        afterEach(() => {
+            onlineManager.setOnline(true);
         });
 
-        renderSurface(
-            {
-                container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
-                renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
-            },
-            queryClient,
-        );
+        it('loading: absent, and never appears before the page settles', () => {
+            const queryClient = new QueryClient();
+            queryClient
+                .getQueryCache()
+                .build(queryClient, { queryKey: recentKey })
+                .setState({ fetchStatus: 'fetching' });
+            surface(queryClient);
 
-        await waitFor(() => expect(floatingCreate()).toBeUndefined());
+            expect(floatingCreate()).toBeUndefined();
+        });
+
+        it('loading to empty: it was never there to vanish', async () => {
+            const queryClient = new QueryClient();
+            surface(queryClient);
+            expect(floatingCreate()).toBeUndefined();
+
+            await act(async () => {
+                queryClient.setQueryData(recentKey, recentPage(0));
+            });
+
+            expect(floatingCreate()).toBeUndefined();
+        });
+
+        it('loading to populated: it appears when the page settles', async () => {
+            const queryClient = new QueryClient();
+            surface(queryClient);
+
+            await act(async () => {
+                queryClient.setQueryData(recentKey, recentPage(2));
+            });
+
+            await waitFor(() => expect(floatingCreate()).toBeDefined());
+        });
+
+        it('empty (the first run): absent', async () => {
+            surface(warmClient(0));
+
+            await waitFor(() => expect(floatingCreate()).toBeUndefined());
+        });
+
+        it('populated and warm: present from the first frame', () => {
+            surface(warmClient(3));
+
+            expect(floatingCreate()).toBeDefined();
+        });
+
+        it('warm and refetching: still judged by the cached page', () => {
+            const queryClient = warmClient(3);
+            queryClient.getQueryCache().find({ queryKey: recentKey })?.setState({ fetchStatus: 'fetching' });
+            surface(queryClient);
+
+            expect(floatingCreate()).toBeDefined();
+        });
+
+        it('unreachable, offline (paused with nothing cached): shown', async () => {
+            const queryClient = new QueryClient();
+            queryClient.getQueryCache().build(queryClient, { queryKey: recentKey }).setState({ fetchStatus: 'paused' });
+            surface(queryClient);
+
+            await waitFor(() => expect(floatingCreate()).toBeDefined());
+        });
+
+        it('unreachable, load error (nothing cached): shown', async () => {
+            const queryClient = new QueryClient();
+            queryClient
+                .getQueryCache()
+                .build(queryClient, { queryKey: recentKey })
+                .setState({ status: 'error', fetchStatus: 'idle', error: new Error('503') });
+            surface(queryClient);
+
+            await waitFor(() => expect(floatingCreate()).toBeDefined());
+        });
+
+        it('family-wide: a populated library cached by My recipes shows it before Home`s own page settles', () => {
+            const queryClient = new QueryClient();
+            queryClient.setQueryData(recipeServiceKeys.recipeLibrary({ sortBy: 'title' }), {
+                pages: [{ data: [], total: 4, hasMore: false, nextFirstPage: 2 }],
+                pageParams: [1],
+            });
+            surface(queryClient);
+
+            expect(floatingCreate()).toBeDefined();
+        });
+
+        // The focus rule: a button that has focus when the library moves to a state that yields stays until focus leaves.
+        it('a focused floating button stays when the library turns empty, and goes once focus leaves it', async () => {
+            const queryClient = warmClient(3);
+            surface(queryClient);
+            const button = floatingCreate() as HTMLElement;
+            act(() => button.focus());
+
+            await act(async () => {
+                queryClient.setQueryData(recentKey, recentPage(0));
+                // TanStack tells subscribers on a 0 ms timer; let it fire, or the assertion below runs before the screen has heard.
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            });
+            expect(floatingCreate()).toBeDefined();
+
+            act(() => button.blur());
+
+            await waitFor(() => expect(floatingCreate()).toBeUndefined());
+        });
     });
 
     it('sits the greeting on the page canvas, not inside a gradient card', () => {

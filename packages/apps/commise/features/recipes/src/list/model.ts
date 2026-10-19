@@ -168,7 +168,7 @@ export const isListNarrowed = (searchValue: string, activeFacets: readonly strin
     searchValue.trim().length > 0 || activeFacets.length > 0;
 
 /**
- * Whether the floating create button ("New recipe", build spec §3.4) is mounted over SETTLED results.
+ * Whether the floating create button ("New recipe", build spec §3.4) shows, for a library that has answered.
  *
  * One gate, and the ONE authoritative representation of it: **not on a TRUE empty library.** The first-run empty
  * body renders its own "Create your first recipe" CTA, and two competing create affordances on one screen is the
@@ -176,21 +176,15 @@ export const isListNarrowed = (searchValue: string, activeFacets: readonly strin
  * answer: a chip- or search-narrowed zero KEEPS the button, since that body renders no CTA to replace it and
  * suppressing would leave the viewer with no way to create at all.
  *
- * ⚠️ It is asked ONLY of settled results, and the two other states answer structurally rather than here:
- *
- *  - **Loading renders no button at all** (`RecipeListLoading` has none). While the library has not answered,
- *    `recipeCount: 0` is "unknown", not "empty", and a button mounted through that window UNMOUNTED under a first-run
- *    cook's finger the moment the empty library settled — Playwright saw `element was detached from the DOM` for
- *    60s. This used to be a `status === 'loading'` clause; the suspense boundary now makes it unrepresentable.
- *  - **A load error renders the button unconditionally** (`RecipeListLoadError`). Its body has no create CTA, so
- *    suppressing there would strand a cook whose library failed to load with no create affordance. ⚠️ An error can
- *    still become a settled EMPTY library without a user action — TanStack refetches a stale errored query on
- *    focus and reconnect — and that transition unmounts the button the same way. It is accepted: it needs a failed
- *    load AND a focus change AND an empty library, rather than happening on every first run.
+ * ⚠️ The other states are answered by the library's STATE (`libraryStateOf`), which the frame reads from the cache
+ * because the frame sits OUTSIDE the read boundary: while the first read is in flight the button yields (it never
+ * appears, so it cannot unmount under a first-run cook's finger, which Playwright saw as `element was detached from the
+ * DOM` for 60s), and when the library is unreachable (offline, or a failed load) it shows, since creating does not depend
+ * on the read and the error body has no create CTA.
  *
  * The Community source never reaches this policy: the community surface is discovery, which mounts no button. Pure.
  *
- * @param visibility - How many rows the results show, and whether the viewer narrowed them.
+ * @param visibility - How many rows the library has, and whether the viewer narrowed them.
  * @returns `true` when the button should be rendered.
  */
 export const shouldShowCreateButton = ({ recipeCount, narrowed }: CreateButtonVisibility): boolean =>
@@ -250,6 +244,10 @@ export interface RecipeListFrameProps {
      * loading, and whenever the cook has typed, so a search can always be cleared.
      */
     readonly searchVisible: boolean;
+    /** Open the empty editor: the floating "New recipe" the frame draws (§3.4), outside the read boundary. */
+    readonly onCreateRecipe: () => void;
+    /** The floating button yields (see `RecipeLibraryControls.createEntryYields`): first load in flight, or the first run. */
+    readonly createEntryYields: boolean;
     /** The My recipes · Collections segments. Absent → none (a host whose shell switches the places itself). */
     readonly segments?: RecipesSegmentControl;
     /**
@@ -343,9 +341,9 @@ export interface RecipeListLoadingProps {
 
 /**
  * Props for the recipe list's LOAD ERROR — what the error boundary renders when the read failed with nothing loaded:
- * the alert with its retry, and the create button (see {@link shouldShowCreateButton} for why an error keeps it).
+ * the alert with its retry. The create button is the frame's, so it shows here without this body drawing it.
  */
-export interface RecipeListLoadErrorProps extends Pick<RecipeCreateDestinations, 'onCreateRecipe'> {
+export interface RecipeListLoadErrorProps {
     /** The boundary's reset, which refetches. */
     readonly onRetry: () => void;
 }

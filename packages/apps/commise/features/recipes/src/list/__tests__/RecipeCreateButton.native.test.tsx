@@ -28,8 +28,8 @@ describe('RecipeCreateButton (native)', () => {
         expect(within(screen.getByRole('button', { name: 'New recipe' })).queryByText('+')).toBeNull();
     });
 
-    it('is not drawn while the screen shows its first run (§3.4)', () => {
-        render(<RecipeCreateButton onCreateRecipe={vi.fn()} firstRun />);
+    it('is not drawn while the screen yields it: first load in flight or first run (§3.4)', () => {
+        render(<RecipeCreateButton onCreateRecipe={vi.fn()} yielded />);
 
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
     });

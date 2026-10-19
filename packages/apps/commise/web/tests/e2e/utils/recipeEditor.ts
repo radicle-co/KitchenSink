@@ -152,14 +152,14 @@ const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/gu, '
 
 /**
  * A read ingredient row's open control (build spec §7.5.1): one button named "Edit {amount} {food}", or "Edit {food}"
- * for a line that states no amount.
+ * for a line that states no amount, followed by ", {preparation}" when the row states one (`rowOpenLabelOf`).
  *
  * @param scope - The page, or the section or list to look in.
  * @param food - The food the row names.
  * @returns The control.
  */
 export function ingredientOpen(scope: Page | Locator, food: string): Locator {
-    return scope.getByRole('button', { name: new RegExp(`^Edit (.+ )?${escaped(food)}$`, 'u') });
+    return scope.getByRole('button', { name: new RegExp(`^Edit (.+ )?${escaped(food)}(, .+)?$`, 'u') });
 }
 
 /**

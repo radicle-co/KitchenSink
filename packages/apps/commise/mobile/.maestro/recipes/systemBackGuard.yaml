@@ -33,7 +33,9 @@ appId: ${APP_ID}
 # changes are discarded from the resume notice, so the seed is untouched.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 
 # ── LEG 1: the CREATE editor, titled. Back leaves at once, and the recipe is kept as a draft. ──
 - tapOn: 'New recipe'
@@ -54,7 +56,8 @@ appId: ${APP_ID}
 # No dialog, and the editor is gone: Back did what × does.
 - assertNotVisible: 'Discard this draft?'
 - assertNotVisible: 'Close editor'
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
+- assertVisible: 'My recipes'
 # ⛔ KEPT, not lost: the exit checkpoint created the titled draft, and My recipes shows it. Against an editor that
 # skipped the checkpoint on a system Back, this wait goes red (the native new-recipe screen always opens blank, so
 # a draft never sent would be unrecoverable).
@@ -78,7 +81,8 @@ appId: ${APP_ID}
 - tapOn: 'Edit recipe'
 - assertVisible: 'Close editor'
 - runFlow: common/discardDraft.yaml
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
+- assertVisible: 'My recipes'
 
 # ── LEG 2: an UNTOUCHED new recipe leaves on one press and creates nothing. ──
 - tapOn: 'New recipe'
@@ -86,7 +90,8 @@ appId: ${APP_ID}
 
 - pressKey: Back
 - assertNotVisible: 'Close editor'
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
+- assertVisible: 'My recipes'
 
 # ── LEG 3: the EDIT editor on the PUBLISHED lamb. Back leaves at once; the edit stays on the device (D1). ──
 - runFlow:
@@ -142,6 +147,9 @@ appId: ${APP_ID}
 - tapOn: 'Discard'
 # The notice's Discard asks first; its confirm drops the device changes.
 - assertVisible: 'Discard your changes\?'
+# Audit 2026-10-19, A1.18: the dialog fades in; wait for it before the tap.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn:
       text: 'Discard'
       below: 'Discard your changes\?'
@@ -155,7 +163,10 @@ appId: ${APP_ID}
 
 # ── LEG 4: a pushed surface with nothing to lose still pops, and the guard did not break ordinary back. ──
 - pressKey: Back
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: leg 4. Back pops the lamb's detail to the list: the detail's 'Edit recipe' goes and the list's
+# 'My recipes' comes back. 'Recipes' is the tab label and was always on screen.
+- assertNotVisible: 'Edit recipe'
+- assertVisible: 'My recipes'
 
 # ── LEG 5: the NEW-COLLECTION SHEET, dirty (slice 4 replaced the form screen with a sheet). The typed name lives only
 # in the sheet's own state; Back asks before discarding it, in the sheet's own words. ──
@@ -165,6 +176,9 @@ appId: ${APP_ID}
       timeout: 40000
 - tapOn: 'New collection'
 - assertVisible: 'Description \(optional\)'
+# Audit 2026-10-19, A1.18: the sheet slides up and its fields are visible from the first frame; wait before typing.
+- waitForAnimationToEnd:
+      timeout: 3000
 - runFlow:
       file: common/typeCollectionName.yaml
       env:
@@ -194,7 +208,11 @@ appId: ${APP_ID}
 # in the editor's Ingredients section now. The sheet keeps what was typed when it closes, so Back has nothing to guard:
 # it closes the sheet at once, with no dialog, and the text is there when the sheet opens again. ──
 - tapOn: 'My recipes'
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'My recipes' was tapped just above and is on the Collections root too. The list's own search
+# field is on the list only.
+- extendedWaitUntil:
+      visible: 'Search your recipes'
+      timeout: 20000
 - tapOn: 'New recipe'
 - assertVisible: 'Close editor'
 - tapOn:
@@ -202,12 +220,18 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Close sections'
       timeout: 20000
+# Audit 2026-10-19, A1.18: the sections list is a sliding sheet; wait for it to settle before the tap.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Ingredients'
 - extendedWaitUntil:
       visible: 'Paste a list'
       timeout: 20000
 - tapOn: 'Paste a list'
 - assertVisible: 'Ingredient lines'
+# Audit 2026-10-19, A1.18: the Paste a list sheet slides up and is visible from its first frame; wait before typing into it.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Ingredient lines'
 - inputText: '2 cups flour'
 
@@ -241,7 +265,8 @@ appId: ${APP_ID}
 - assertNotVisible: 'Ingredient lines'
 - pressKey: Back
 - assertNotVisible: 'Close editor'
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
+- assertVisible: 'My recipes'
 
 # ── LEG 9: Back at the Recipes ROOT goes Home; it no longer leaves the app (M1). ──
 # `docs/design/uiOverhaul/evaluateShellAndLists.md` M1: Recipes declined a back press at its root, so the OS took

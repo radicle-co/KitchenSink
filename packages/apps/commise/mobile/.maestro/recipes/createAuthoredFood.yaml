@@ -33,7 +33,8 @@ appId: ${APP_ID}
 # run (its log line reads `-N authored foods`), so it does not build up.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
@@ -156,4 +157,5 @@ appId: ${APP_ID}
 # Throw the scratch recipe away: the editor saves a titled draft on its own (10 s idle, and on exit, §7.3), so a flow
 # that simply stopped here would leave one behind. The authored FOOD is the pool slot's, reset as noted above.
 - runFlow: common/discardDraft.yaml
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'

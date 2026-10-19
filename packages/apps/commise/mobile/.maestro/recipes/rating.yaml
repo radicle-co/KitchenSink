@@ -20,9 +20,15 @@ appId: ${APP_ID}
 # on) — reached via the Discover tab, since the caller's own library never contains a recipe they can rate.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 - tapOn: 'Discover'
-- assertVisible: 'Discover'
+# Audit 2026-10-19, A1.15: 'Discover' is the tab label and is on screen everywhere. 'Search recipes' is Discover's own
+# search field and is on no other screen.
+- extendedWaitUntil:
+      visible: 'Search recipes'
+      timeout: 40000
 
 # ⛔ REACH THE RECIPE BY SEARCH, NEVER BY ITS PLACE IN A RAIL. This flow used to wait for Herb Risotto in the
 # browse rails and tap the "Trending" card. A rail is ONE fixed-sort page (`RECIPE_BROWSE_RAILS`: Trending sorts

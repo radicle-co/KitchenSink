@@ -12,10 +12,12 @@ appId: ${APP_ID}
 # Mutates the signer's library (the copy). The next flow's reset deletes it: its title is not in the manifest.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - tapOn: 'Discover'
+# audit 2026-10-19, A1.15: the tab's own label 'Discover' is on screen before the tap, so waiting on it proves nothing; 'Search recipes' exists only on the Discover screen.
 - extendedWaitUntil:
-      visible: 'Discover'
+      visible: 'Search recipes'
       timeout: 40000
 
 # Typing a recipe's name switches the rails for the deterministic result list; a rail's order is data about the whole

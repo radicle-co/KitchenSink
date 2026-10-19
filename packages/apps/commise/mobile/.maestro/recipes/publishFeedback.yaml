@@ -7,7 +7,9 @@ appId: ${APP_ID}
 # Every flow is reseeded before it runs, so the recipe this publishes does not outlive it.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 - tapOn: 'New recipe'
 - assertVisible: 'Close editor'
 - runFlow:
@@ -22,11 +24,19 @@ appId: ${APP_ID}
 - runFlow: common/addTomatoAndStep.yaml
 
 - tapOn: 'Publish'
+# Audit 2026-10-19, A1.14: 'Recipe published.' shows only once the server accepted the write and
+# lasts about 6 s, so it is the FIRST wait after the tap. Then the editor must be gone,
+# then the title proves the detail.
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
 - extendedWaitUntil:
       visible:
           text: 'Maestro Feedback Soup.*'
       timeout: 40000
-- assertVisible: 'Recipe published.'
 
 # A published recipe's primary is Save changes.
 - runFlow:
@@ -46,8 +56,16 @@ appId: ${APP_ID}
 # Closes the keyboard before Save changes, for `common/typeTitle.yaml`'s reason.
 - tapOn: 'About the recipe'
 - tapOn: 'Save changes'
+# Audit 2026-10-19, A1.14: 'Changes saved.' shows only once the server accepted the write and
+# lasts about 6 s, so it is the FIRST wait after the tap. Then the editor must be gone,
+# then the title proves the detail.
+- extendedWaitUntil:
+      visible: 'Changes saved.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
 - extendedWaitUntil:
       visible:
           text: 'Maestro Feedback Soup.*'
       timeout: 40000
-- assertVisible: 'Changes saved.'

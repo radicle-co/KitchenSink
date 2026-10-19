@@ -22,7 +22,9 @@ appId: ${APP_ID}
 # populated recipe, by the web Playwright suite.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 - extendedWaitUntil:
       visible:
           text: '^3 recipes$'
@@ -123,4 +125,8 @@ appId: ${APP_ID}
 # WHOLE string, so this one can never resolve to the OS button (the reason the old text row had to be anchored above the
 # recipe title). It starts from the recipe list, so the parent is My recipes.
 - tapOn: 'Back to My recipes'
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: the detail's Back is gone and the list is back. 'Recipes' was always on screen.
+- extendedWaitUntil:
+      notVisible: 'Back to My recipes'
+      timeout: 20000
+- assertVisible: 'My recipes'

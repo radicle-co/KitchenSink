@@ -10,7 +10,8 @@ appId: ${APP_ID}
 # Every flow is reseeded before it runs, so the recipe this publishes does not outlive it.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - tapOn: 'New recipe'
 - assertVisible: 'Close editor'
 - runFlow:
@@ -54,9 +55,16 @@ appId: ${APP_ID}
 - assertNotVisible: 'Choose a cuisine, or type your own.'
 
 - tapOn: 'Publish'
+# audit 2026-10-19, A1.14: the snackbar lasts about 6 s, so it is the FIRST wait after the tap. It shows only after the server
+# accepted the write. Then the editor must be gone (60 s: 20 s longer than the first wait, because Maestro counts both from the tap).
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
 - extendedWaitUntil:
       visible:
           text: 'Maestro Cuisine Curry.*'
       timeout: 40000
-- assertVisible: 'Recipe published.'
 - assertVisible: 'Nyonya'

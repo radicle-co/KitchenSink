@@ -21,6 +21,9 @@ appId: ${APP_ID}
       element: 'Edit Tomato'
       direction: UP
       timeout: 30000
+# Close the keyboard first: after the pick iOS can call `Add step` visible while the keyboard covers it, so the shared step
+# skips its scroll and the tap lands on the keyboard (CI run 39313803199, iOS shards 3 and 4, create and preparationGroups).
+- runFlow: closeEditorKeyboard.yaml
 - runFlow:
       file: scrollIntoTapView.yaml
       env:
@@ -35,4 +38,11 @@ appId: ${APP_ID}
 - inputText: 'Simmer.'
 # The step field keeps the soft keyboard up over the action bar on both platforms; a tap on the section heading closes it
 # (`common/typeTitle.yaml` says why a heading, and why not Return or `hideKeyboard`).
+# Audit 2026-10-19, A1.8: step text that landed in the add field would open the "as written" option. Give it a moment to show,
+# then require it gone.
+- extendedWaitUntil:
+      visible: 'Use .*Simmer.* as written.*'
+      timeout: 5000
+      optional: true
+- assertNotVisible: 'Use .*Simmer.* as written.*'
 - tapOn: 'Steps'

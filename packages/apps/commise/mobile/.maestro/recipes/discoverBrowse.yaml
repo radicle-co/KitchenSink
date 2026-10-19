@@ -11,10 +11,12 @@ appId: ${APP_ID}
 - runFlow: ../auth/signin.yaml
 
 # Recipes list is the initial destination; cross to Discover.
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - tapOn: 'Discover'
+# audit 2026-10-19, A1.15: the tab's own label 'Discover' is on screen before the tap, so waiting on it proves nothing; 'Search recipes' exists only on the Discover screen.
 - extendedWaitUntil:
-      visible: 'Discover'
+      visible: 'Search recipes'
       timeout: 40000
 
 # 1. Browsable default: the curated rails render (their headings are static, so this is seed-drift-immune).
@@ -66,6 +68,9 @@ appId: ${APP_ID}
 # the last two: react-native-web has no hardware back key and no touch gesture.
 - assertNotVisible: 'Under 60 min'
 - tapOn: 'Filters.*'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - extendedWaitUntil:
       visible: 'Under 60 min'
       timeout: 40000
@@ -74,6 +79,9 @@ appId: ${APP_ID}
 - assertNotVisible: 'Under 60 min'
 
 - tapOn: 'Filters.*'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - extendedWaitUntil:
       visible: 'Under 60 min'
       timeout: 40000
@@ -81,6 +89,9 @@ appId: ${APP_ID}
 - assertNotVisible: 'Under 60 min'
 
 - tapOn: 'Filters.*'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - extendedWaitUntil:
       visible: 'Under 60 min'
       timeout: 40000
@@ -88,6 +99,9 @@ appId: ${APP_ID}
 - assertNotVisible: 'Under 60 min'
 
 - tapOn: 'Filters.*'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - extendedWaitUntil:
       visible: 'Under 60 min'
       timeout: 40000

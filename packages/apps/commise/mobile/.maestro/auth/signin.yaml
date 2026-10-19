@@ -4,7 +4,7 @@
 #
 # This split keeps "sign in" (→ Home, the real post-login landing, T104-mobile) separate from "navigate to a
 # feature". The recipe flows `runFlow: ../auth/signin.yaml` as their first step and then
-# `assertVisible: 'Recipes'` — so they keep working unchanged. A Home-surface E2E instead uses the core
+# `assertVisible: 'My recipes'` (the list's own segment; 'Recipes' is also a tab label). A Home-surface E2E instead uses the core
 # `signinHome.yaml` directly, so it stays on Home.
 #
 # The login form lives in mobile/src/screens/login.tsx. Credentials mirror the web Playwright suite's
@@ -18,7 +18,7 @@ appId: ${APP_ID}
 # Cross from Home into the recipes surface via the recipe widget's "See all recipes" entry (accessibility
 # label from the mobile i18n `home.seeAllRecipes`). Done here, in the shared sub-flow, because EVERY consumer
 # (the login-chrome flow + all five recipe flows) wants the recipe list next, so each keeps its existing
-# `assertVisible: 'Recipes'` with no per-flow change.
+# `assertVisible: 'My recipes'` with no per-flow change.
 # The recipe widget heads the Home surface (the roadmap placeholders follow it, `buildSpec.md` §4.2). The scroll
 # stays as a guard for a short screen; it returns at once when the entry is already visible.
 - runFlow:
@@ -28,8 +28,10 @@ appId: ${APP_ID}
           DIRECTION: DOWN
 - tapOn: 'See all recipes'
 
-# The recipes surface: RecipesScreen renders the "Recipes" list heading (it then fetches from the recipe
-# service — slow on first paint under the Metro dev bundler, hence the generous wait).
+# The recipes surface: the list's "My recipes" segment (`tabMine`, features/recipes/src/messages.ts). Audit 2026-10-19, A1.6:
+# this used to wait for 'Recipes', which is also the TAB label, so Home satisfied it before the tap had landed and every
+# flow built on this sub-flow (about 70) started on Home. Home renders no 'My recipes' text on either platform. The wait is
+# generous because the list then fetches from the recipe service, slow on first paint under the Metro dev bundler.
 - extendedWaitUntil:
-      visible: 'Recipes'
+      visible: 'My recipes'
       timeout: 40000

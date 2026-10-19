@@ -20,7 +20,8 @@ appId: ${APP_ID}
 
 # The recipes surface, then across the tab bar to Collections. Only the TAB carries this label right now
 # (the CollectionListFrame heading + container label also read "Collections", but neither is rendered yet).
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - tapOn: 'Collections'
 
 # CollectionListFrame chrome. The create CTA proves the list rendered (heading "Collections" alone would also
@@ -32,6 +33,9 @@ appId: ${APP_ID}
 # CREATE. Slice 4 (`buildSpec.md` §5.1): the CTA opens the new-collection SHEET over the list (the create screen is
 # deleted), and a created collection opens its own detail.
 - tapOn: 'New collection'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - assertVisible: 'Description \(optional\)'
 - runFlow:
       file: common/typeCollectionName.yaml
@@ -56,6 +60,9 @@ appId: ${APP_ID}
 # body was SKIPPED and the flow reported GREEN having asserted nothing (run 101351873536). The seeded world is
 # guaranteed by `e2e-seed`, so its absence is a failure to report.
 - tapOn: 'Add recipes'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - assertVisible: 'Add to Maestro test collection'
 - extendedWaitUntil:
       visible: '${E2E_RECIPE_LAMB}'
@@ -71,7 +78,13 @@ appId: ${APP_ID}
 
 # RENAME. The ⋯ menu's Rename opens the rename sheet, filled in with the current name.
 - tapOn: 'More actions for Maestro test collection'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Rename'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - assertVisible: 'Rename collection'
 - tapOn: 'Name'
 - eraseText
@@ -104,7 +117,13 @@ appId: ${APP_ID}
 # DELETE (also this flow's cleanup). The ⋯ menu's Delete collection asks first; confirming returns to the collections
 # list, and the row must be GONE, which is the assertion that proves the delete actually happened.
 - tapOn: 'More actions for Maestro renamed collection.*'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Delete collection'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - assertVisible: 'Delete Maestro renamed collection.*\?'
 - tapOn: 'Delete collection'
 - extendedWaitUntil:

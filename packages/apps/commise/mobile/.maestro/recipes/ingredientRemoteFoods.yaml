@@ -25,7 +25,9 @@ appId: ${APP_ID}
 # reset deletes.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
@@ -105,7 +107,13 @@ appId: ${APP_ID}
           DIRECTION: DOWN
           TIMEOUT: 20000
 - tapOn: 'Actions for .*'
+# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
+# a tap), so wait for the screen to settle first.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Change food'
+- waitForAnimationToEnd:
+      timeout: 3000
 - eraseText: 120
 - inputText: '${E2E_REMOTE_CHANGE_WORD}'
 - runFlow:
@@ -130,6 +138,9 @@ appId: ${APP_ID}
 - assertNotVisible: '.*, from USDA'
 
 # Finish the recipe, so the remote foods are proven usable.
+# Close the keyboard first: after the pick iOS can call `Add step` visible while the keyboard covers it, so the shared step
+# skips its scroll and the tap lands on the keyboard (CI run 39313803199, iOS shards 3 and 4, create and preparationGroups).
+- runFlow: common/closeEditorKeyboard.yaml
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
@@ -143,7 +154,15 @@ appId: ${APP_ID}
 # "Keyboard open (phones)"). The first heading closes the keyboard and pins the bar again.
 - runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Publish'
-
+# Audit 2026-10-19, A1.14: 'Recipe published.' shows only once the server accepted the write and
+# lasts about 6 s, so it is the FIRST wait after the tap. Then the editor must be gone,
+# then the title proves the detail.
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
 - extendedWaitUntil:
       visible:
           text: 'Maestro Remote Foods.*'

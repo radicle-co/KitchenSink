@@ -14,7 +14,9 @@ appId: ${APP_ID}
 # reset deletes.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
@@ -68,7 +70,14 @@ appId: ${APP_ID}
 # US7: Change food keeps the cook's amount and unit. The field opens on the food's name with the caret at its end
 # (`Combobox.native.tsx`'s focus request), so the name is erased before the search is typed.
 - tapOn: 'Actions for Flour'
+# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
+# a tap), so wait for the screen to settle first.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Change food'
+# The field this types into opens only after the menu has closed.
+- waitForAnimationToEnd:
+      timeout: 3000
 - eraseText: 20
 - inputText: 'boneless skinless chicken brea'
 - extendedWaitUntil:
@@ -87,7 +96,13 @@ appId: ${APP_ID}
 # R7: Change food again and type, but choose nothing. A step first, so the only thing Publish can refuse is the
 # held text (a new recipe has no steps, and an empty Steps section would be refused too).
 - tapOn: 'Actions for boneless skinless chicken breasts'
+# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
+# a tap), so wait for the screen to settle first.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Change food'
+- waitForAnimationToEnd:
+      timeout: 3000
 - eraseText: 40
 - inputText: 'smoked flour'
 # ⚠️ Centred, so the tap lands mid-screen: with the held text's option list open the page is long, and an element
@@ -131,6 +146,15 @@ appId: ${APP_ID}
 # The row's field may still hold focus, and the keyboard with it, which unpins the bar (build spec §7.1).
 - runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Publish'
+# Audit 2026-10-19, A1.14: 'Recipe published.' shows only once the server accepted the write and
+# lasts about 6 s, so it is the FIRST wait after the tap. Then the editor must be gone,
+# then the title proves the detail.
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
 - extendedWaitUntil:
       visible:
           text: 'Maestro Row Editor.*'

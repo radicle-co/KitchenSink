@@ -77,7 +77,11 @@ onFlowComplete:
           TIMEOUT: 20000
 - tapOn:
       text: 'Back to My recipes'
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: the detail's Back is gone and the list is back. 'Recipes' was always on screen.
+- extendedWaitUntil:
+      notVisible: 'Back to My recipes'
+      timeout: 20000
+- assertVisible: 'My recipes'
 
 # Clear the search, so the list is whole again for the later flows' assumptions about this screen.
 - tapOn: 'Search your recipes'
@@ -90,8 +94,10 @@ onFlowComplete:
 
 # ── The filter sheet, typed into sideways: the "Show {n} recipes" button must stay reachable with the keyboard up. ──
 - tapOn: 'Discover'
+# Audit 2026-10-19, A1.15: 'Discover' is the tab label and is on screen everywhere. 'Search recipes' is Discover's own
+# search field and is on no other screen.
 - extendedWaitUntil:
-      visible: 'Discover'
+      visible: 'Search recipes'
       timeout: 40000
 - tapOn: 'Filters.*'
 # Sideways, the sheet's content scrolls under its pinned "Show {n} recipes" button, and the ingredient field starts
@@ -317,4 +323,5 @@ onFlowComplete:
 # Throw the draft away through the editor's own header menu: × or Back would keep it, because the editor saves on
 # exit (build spec §3.5). The menu is in the pinned header, so it is reachable wherever the page is scrolled.
 - runFlow: common/discardDraft.yaml
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
+- assertVisible: 'My recipes'

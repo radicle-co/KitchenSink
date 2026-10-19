@@ -7,7 +7,8 @@ appId: ${APP_ID}
 # Mobile mirror of the web Playwright delete flow (cross-platform mandate).
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the recipe rather than a
 # `when: visible` guard that would silently SKIP if it were below the fold.
@@ -29,6 +30,9 @@ appId: ${APP_ID}
           DIRECTION: DOWN
           TIMEOUT: 20000
 - tapOn: 'More actions for .*'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - scrollUntilVisible:
       element: 'Delete recipe'
       direction: DOWN
@@ -41,6 +45,9 @@ appId: ${APP_ID}
           enabled: true
       timeout: 30000
 - tapOn: 'Delete recipe'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 # ⛔ NO `scrollUntilVisible` HERE, DELIBERATELY — and this is the whole point of the step. RecipeDeleteDialog
 # is an RN `Modal` overlaying the screen, so the confirm is visible the instant the trigger is tapped; it does
 # not need to be scrolled to and MUST NOT need to be. A `scrollUntilVisible` here would PASS against the exact
@@ -61,7 +68,8 @@ appId: ${APP_ID}
 # (`useDeleteRecipe` → `invalidateEditedRecipeRows`), and the populated branch renders the count — so the
 # library settling at TWO is the one observable only a delete that actually reached the service can produce.
 # `extendedWaitUntil` (not `assertVisible`) because the refetch is asynchronous.
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 # Owner 2026-10-13: the screen the cook lands on says so. The snackbar host sits above the navigator, so it outlives the
 # detail screen. Asserted before the count because it clears itself after a few seconds.
 - extendedWaitUntil:

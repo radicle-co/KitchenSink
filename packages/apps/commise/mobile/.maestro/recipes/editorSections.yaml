@@ -12,7 +12,8 @@ appId: ${APP_ID}
 # Read-only: it types nothing, so nothing is saved, and it can run anywhere in the plan.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - tapOn: 'New recipe'
 # The editor's own × is the entry checkpoint ('New recipe' is also the FAB's label).
 - assertVisible: 'Close editor'
@@ -46,6 +47,9 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Close sections'
       timeout: 20000
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Steps'
 - extendedWaitUntil:
       notVisible: 'Close sections'
@@ -60,4 +64,5 @@ appId: ${APP_ID}
 - tapOn: 'Close editor'
 - assertNotVisible: 'Discard this draft?'
 - assertNotVisible: 'Close editor'
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'

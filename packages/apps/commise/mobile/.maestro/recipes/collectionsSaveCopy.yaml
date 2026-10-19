@@ -14,7 +14,8 @@ appId: ${APP_ID}
 # exactly what this flow drives, same as the web spec.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - tapOn: 'Collections'
 
 - extendedWaitUntil:
@@ -24,6 +25,9 @@ appId: ${APP_ID}
 # CREATE the source. A fresh collection is PRIVATE by default (no visibility control on the create form),
 # which does not block self-cloning (see above).
 - tapOn: 'New collection'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - assertVisible: 'Description \(optional\)'
 - runFlow:
       file: common/typeCollectionName.yaml
@@ -41,6 +45,9 @@ appId: ${APP_ID}
 # SAVE A COPY. The ⋯ menu always offers it — every collection detail the caller can open is their own, since there is no
 # cross-owner detail read. A successful copy navigates to the new copy's OWN detail.
 - tapOn: 'More actions for Maestro clone source'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Save a copy'
 - extendedWaitUntil:
       visible: 'Copied from .*'
@@ -62,6 +69,9 @@ appId: ${APP_ID}
 - waitForAnimationToEnd:
       timeout: 3000
 - tapOn: 'Delete collection'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Delete collection'
 - extendedWaitUntil:
       visible: 'New collection'
@@ -69,11 +79,20 @@ appId: ${APP_ID}
 # The list's card: iOS merges its texts into one label (`Maestro clone source, 0 recipes, Private`, run 38447859313), and
 # Maestro matches the WHOLE string, so the name is matched with the rest optional.
 - tapOn: 'Maestro clone source(, .*)?'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - extendedWaitUntil:
       visible: 'More actions for Maestro clone source'
       timeout: 40000
 - tapOn: 'More actions for Maestro clone source'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Delete collection'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Delete collection'
 - extendedWaitUntil:
       visible: 'New collection'

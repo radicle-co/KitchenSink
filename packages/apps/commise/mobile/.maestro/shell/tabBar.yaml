@@ -30,8 +30,10 @@ appId: ${APP_ID}
 
 # Discover is a tab of its own.
 - tapOn: 'Discover'
+# Audit 2026-10-19, A1.17: 'Discover' is also the tab label, so it was on screen before the tap. Discover's own search
+# field is 'Search recipes' (the list's is 'Search your recipes').
 - extendedWaitUntil:
-      visible: 'Discover'
+      visible: 'Search recipes'
       timeout: 20000
 
 # A pushed recipe on the Recipes tab keeps the tab bar (level 3), and survives a switch away and back.
@@ -50,9 +52,14 @@ appId: ${APP_ID}
       notVisible: 'My recipes'
       timeout: 20000
 - assertVisible: 'Discover'
+# Audit 2026-10-19, A1.18: let the recipe's native push finish before the next tap.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Discover'
+# Audit 2026-10-19, A1.17: 'Discover' is also the tab label, so it was on screen before the tap. Discover's own search
+# field is 'Search recipes' (the list's is 'Search your recipes').
 - extendedWaitUntil:
-      visible: 'Discover'
+      visible: 'Search recipes'
       timeout: 20000
 - tapOn: 'Recipes'
 - extendedWaitUntil:

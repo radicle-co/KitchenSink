@@ -14,7 +14,9 @@ appId: ${APP_ID}
 # the way out, and Add the rest as written joins every line through the add field's reader.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 - tapOn: 'New recipe'
 - assertVisible: 'Close editor'
 
@@ -23,12 +25,18 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Close sections'
       timeout: 20000
+# Audit 2026-10-19, A1.18: the sections list is a sliding sheet; wait for it to settle before the tap.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Ingredients'
 - extendedWaitUntil:
       visible: 'Paste a list'
       timeout: 20000
 - tapOn: 'Paste a list'
 - assertVisible: 'Ingredient lines'
+# Audit 2026-10-19, A1.18: the Paste a list sheet slides up and is visible from its first frame; wait before typing into it.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Ingredient lines'
 # Maestro's inputText drops a newline, so each line is typed and Enter starts the next (the field is multiline).
 - inputText: '2 cups flour'

@@ -27,7 +27,38 @@ appId: ${APP_ID}
       timeout: 3000
 - tapOn: 'Discard draft'
 - assertVisible: 'Discard this draft?'
+# Audit 2026-10-19, A1.12: the dialog fades in, and a tap on it while it fades can be lost.
+- waitForAnimationToEnd:
+      timeout: 2000
 - tapOn: 'Discard'
+# CI run 39313803199 (Android shard 2, ingredientGroups): the dialog closed but the editor stayed open, status "Saved". That is
+# designed: a Discard confirmed while a checkpoint write is on the wire is REFUSED by the outbox, silently, and the editor goes
+# back to editing (`useRecipeEditor.ts` discardThrough -> discardDeclined; owner ruling 2026-10-17, "Don't allow users to
+# delete while saving"). The checkpoint can start after the menu item was drawn enabled. So if the editor is still there once
+# the dialog is gone, discard once more: the menu item waits out the in-flight write.
+- extendedWaitUntil:
+      notVisible: 'Discard this draft?'
+      timeout: 10000
+- waitForAnimationToEnd:
+      timeout: 3000
+- runFlow:
+      when:
+          visible: 'Close editor'
+      commands:
+          - tapOn: 'More editor actions'
+          - extendedWaitUntil:
+                visible:
+                    text: 'Discard draft'
+                    enabled: true
+                timeout: 30000
+          - waitForAnimationToEnd:
+                timeout: 3000
+          - tapOn: 'Discard draft'
+          - assertVisible: 'Discard this draft?'
+          - waitForAnimationToEnd:
+                timeout: 2000
+          - tapOn: 'Discard'
+# Still the proof that the draft is gone.
 - extendedWaitUntil:
       notVisible: 'Close editor'
       timeout: 20000

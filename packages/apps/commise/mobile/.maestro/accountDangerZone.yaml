@@ -46,7 +46,12 @@ appId: ${APP_ID}
 # CLOSE reads as recoverable — never permanent deletion.
 - tapOn: 'Close account'
 - assertVisible: '.*not permanent deletion.*'
+# Audit 2026-10-19, A1.18: dialogs fade, so wait for each to finish before the next tap.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Cancel'
+- waitForAnimationToEnd:
+      timeout: 3000
 
 # ERASE reads as irreversible and explicitly distinct from closing, and is phrase-gated.
 - tapOn: 'Erase my data'
@@ -54,4 +59,6 @@ appId: ${APP_ID}
 - assertVisible: '.*not the same as closing your account.*'
 - assertVisible: 'Confirmation phrase'
 # Stop here — do NOT confirm the irreversible erasure. Dismiss the flow.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Cancel'

@@ -42,7 +42,7 @@
  * script's usage error and exit 2.
  */
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -129,11 +129,12 @@ function exclusions(platform: string): readonly Exclusion[] {
 /**
  * The commands Maestro implements on Android only, as this guard detects them. Kept to what Maestro's own
  * reference says, and no wider: `back` is documented "Android only", and the `Back` key of `pressKey` is the
- * same system key event. A command whose iOS support is merely uncertain does NOT belong here — adding one
+ * same system key event. `setAirplaneMode` is Android-only too: iOS simulators have no airplane mode (audit
+ * 2026-10-19, plan 013 A1.4). A command whose iOS support is merely uncertain does NOT belong here — adding one
  * would force exclusions this guard cannot justify.
  */
 function isAndroidOnlyCommand(name: string, argument: unknown): boolean {
-    if (name === 'back') {
+    if (name === 'back' || name === 'setAirplaneMode') {
         return true;
     }
 
@@ -237,6 +238,9 @@ describe('the Android-only detector — proved on command shapes before it is tr
         conditional: `${header}- runFlow:\n      when:\n          notVisible: 'x'\n      commands:\n          - pressKey: Back\n`,
         repeated: `${header}- repeat:\n      times: 2\n      commands:\n          - back\n`,
         hook: 'appId: io.commise.mobile\nonFlowComplete:\n    - back\n---\n- launchApp\n',
+        airplane: `${header}- setAirplaneMode: enabled\n`,
+        airplaneInHook:
+            'appId: io.commise.mobile\nonFlowComplete:\n    - setAirplaneMode: disabled\n---\n- launchApp\n',
         viaSubFlow: `${header}- runFlow: common/sub.yaml\n`,
         viaSubFlowFile: `${header}- runFlow:\n      file: common/sub.yaml\n`,
         'common/sub': `${header}- pressKey: Back\n`,
@@ -265,6 +269,8 @@ describe('the Android-only detector — proved on command shapes before it is tr
         ['conditional', true],
         ['repeated', true],
         ['hook', true],
+        ['airplane', true],
+        ['airplaneInHook', true],
         ['viaSubFlow', true],
         ['viaSubFlowFile', true],
         ['viaCleanSubFlow', false],
@@ -276,6 +282,46 @@ describe('the Android-only detector — proved on command shapes before it is tr
 
 /** Every planned flow that reaches an Android-only command, by this guard's own reading of the YAML. */
 const ANDROID_ONLY: readonly string[] = PLANNED.filter((flow) => flowReachesAndroidOnly(flow, readCommittedFlow));
+
+/** Every flow file under `.maestro`, as a slash-separated name without extension. */
+const ALL_FLOWS: readonly string[] = readdirSync(MAESTRO_DIR, { recursive: true, encoding: 'utf8' })
+    .map((entry) => entry.split('\\').join('/'))
+    .filter((entry) => entry.endsWith('.yaml') && !entry.startsWith('visual/baselines') && entry !== 'config.yaml')
+    .map((entry) => entry.replace(/\.yaml$/u, ''));
+
+describe('a flow outside the plan that turns airplane mode on says it is Android-only (audit 2026-10-19, A1.4)', () => {
+    // The exclusion table covers PLANNED flows only. A hand-run flow such as the offline trio is not planned, so
+    // nothing excludes it on iOS; without a stated platform a person who runs the folder on an iOS Simulator gets a
+    // red that reads like an app defect. The statement is a `tags` entry `android` in the flow's own header.
+    const unplannedAndroidOnly = ALL_FLOWS.filter(
+        (flow) => !PLANNED.includes(flow) && readCommittedFlow(flow).includes('setAirplaneMode: enabled'),
+    );
+
+    it('is not vacuous: the offline flows are found', () => {
+        expect(unplannedAndroidOnly).toEqual(expect.arrayContaining(['offline/offlineSave']));
+    });
+
+    it.each(unplannedAndroidOnly.map((flow) => [flow] as const))('%s carries the `android` tag', (flow) => {
+        const header = parseAllDocuments(readCommittedFlow(flow))[0]?.toJS() as { tags?: unknown } | null;
+
+        expect(header?.tags, `${flow} turns airplane mode on and names no platform`).toEqual(
+            expect.arrayContaining(['android']),
+        );
+    });
+
+    it('resets airplane mode when the flow ends, so a killed run cannot leave the next flow offline', () => {
+        for (const flow of ALL_FLOWS.filter((name) => readCommittedFlow(name).includes('setAirplaneMode: enabled'))) {
+            const header = parseAllDocuments(readCommittedFlow(flow))[0]?.toJS() as {
+                onFlowComplete?: readonly Record<string, unknown>[];
+            } | null;
+
+            expect(
+                header?.onFlowComplete?.some((command) => command['setAirplaneMode'] === 'disabled'),
+                `${flow} turns airplane mode on and never guarantees it off`,
+            ).toBe(true);
+        }
+    });
+});
 
 describe('the platform set', () => {
     it('is exactly android and ios', () => {

@@ -8,14 +8,20 @@
 # and the flow would pass vacuously.
 appId: ${APP_ID}
 name: a queued write survives an app restart
+# Audit 2026-10-19, A1.4: a run killed while offline would leave the device offline for the next flow. This always runs.
+onFlowComplete:
+    - setAirplaneMode: disabled
 tags:
     - offline
+    # Android only: iOS simulators have no airplane mode (guarded by maestroPlatformExclusions.test.ts).
+    - android
 ---
 - launchApp:
       clearState: true
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, which Home shows too.
+- assertVisible: 'My recipes'
 - runFlow:
       file: ../recipes/common/scrollIntoTapView.yaml
       env:

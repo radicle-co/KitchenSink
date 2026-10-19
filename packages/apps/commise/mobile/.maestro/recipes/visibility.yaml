@@ -44,7 +44,9 @@ appId: ${APP_ID}
 # Uses the run's "Mediterranean Grilled Lamb" (seeded PRIVATE, owned by the signer).
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 
 # E1 (UI walk 2026-10-13; build spec §6.4, §7.7 item 2) — the editor's own visibility choice, PREMIUM path. Private is a
 # real choice for this signer: it selects, with no Premium sheet. The FREE-tier leg (Private opens "Private recipes are
@@ -79,7 +81,11 @@ appId: ${APP_ID}
                 text: 'radio button, checked'
                 below: 'Public, Anyone can find it in Discover'
 - tapOn: 'Close editor'
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 20000
+- assertVisible: 'My recipes'
 
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the owned recipe rather
 # than a `when: visible` guard that would silently SKIP when it is below the fold (the list scrolls).
@@ -116,6 +122,10 @@ appId: ${APP_ID}
 
 # Public -> Private: the premium-only transition, and the restore this shared world depends on (see above).
 - tapOn: 'More actions for .*'
+# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
+# a tap), so wait for the screen to settle first.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Make private'
 - extendedWaitUntil:
       visible:

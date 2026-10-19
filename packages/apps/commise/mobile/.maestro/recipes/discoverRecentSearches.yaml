@@ -10,10 +10,12 @@ appId: ${APP_ID}
 # on the seeded public row "Herb Risotto" that no other flow renames.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - tapOn: 'Discover'
+# audit 2026-10-19, A1.15: the tab's own label 'Discover' is on screen before the tap, so waiting on it proves nothing; 'Search recipes' exists only on the Discover screen.
 - extendedWaitUntil:
-      visible: 'Discover'
+      visible: 'Search recipes'
       timeout: 40000
 
 # Start from a clean history: if an earlier run left entries, forget them so step 1 is meaningful.
@@ -64,8 +66,9 @@ appId: ${APP_ID}
 - stopApp
 - runFlow: ../auth/signin.yaml
 - tapOn: 'Discover'
+# audit 2026-10-19, A1.15: the tab's own label 'Discover' is on screen before the tap, so waiting on it proves nothing; 'Search recipes' exists only on the Discover screen.
 - extendedWaitUntil:
-      visible: 'Discover'
+      visible: 'Search recipes'
       timeout: 40000
 - tapOn: 'Search recipes'
 - extendedWaitUntil:
@@ -102,8 +105,9 @@ appId: ${APP_ID}
 - runFlow: ../auth/signOutIfSignedIn.yaml
 - runFlow: ../auth/signin.yaml
 - tapOn: 'Discover'
+# audit 2026-10-19, A1.15: the tab's own label 'Discover' is on screen before the tap, so waiting on it proves nothing; 'Search recipes' exists only on the Discover screen.
 - extendedWaitUntil:
-      visible: 'Discover'
+      visible: 'Search recipes'
       timeout: 40000
 - tapOn: 'Search recipes'
 - assertNotVisible: 'Recent searches'

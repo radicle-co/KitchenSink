@@ -7,7 +7,12 @@
 appId: ${APP_ID}
 ---
 - runFlow: ../../auth/signinHome.yaml
-- tapOn: 'New recipe|Add your first recipe'
+# Audit 2026-10-19, A1.2: the account under test owns no recipes, so it opens on first run and shows 'Add your first recipe'.
+# The signer owns recipes and never shows it, so a wrong-user run goes red here instead of passing on 'New recipe'.
+- extendedWaitUntil:
+      visible: 'Add your first recipe'
+      timeout: 30000
+- tapOn: 'Add your first recipe'
 - assertVisible: 'Close editor'
 - scrollUntilVisible:
       element: 'Private, Only you can see it'

@@ -13,6 +13,9 @@ appId: ${APP_ID}
 #
 # The text is read back and typed once more, for the iOS Simulator's dropped keystrokes (`auth/signinHome.yaml`). The
 # read-back allows a tail, as the flows' own title checks do, for the Android emulator's doubled last key (`create.yaml`).
+# Audit 2026-10-19, A1.11: callers arrive right after a native push, and iOS ignores a tap until it finishes.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Title'
 - inputText: ${TITLE}
 - runFlow: dismissKeyboardIntro.yaml

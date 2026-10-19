@@ -11,8 +11,9 @@ appId: ${APP_ID}
 # Read-only: it types nothing, so nothing is saved, and it can run anywhere in the plan.
 - runFlow: ../auth/signin.yaml
 
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label (on Home too); 'My recipes' only on the Recipes root.
 - extendedWaitUntil:
-      visible: 'Recipes'
+      visible: 'My recipes'
       timeout: 40000
 - assertVisible: 'New recipe'
 
@@ -28,4 +29,5 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       notVisible: 'Close editor'
       timeout: 20000
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'

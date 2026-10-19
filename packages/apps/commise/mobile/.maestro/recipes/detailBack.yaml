@@ -8,7 +8,8 @@ appId: ${APP_ID}
 # so the flow stays green having exercised none of the app's control. The disc's name is unique, so no anchor is needed.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
@@ -23,7 +24,8 @@ appId: ${APP_ID}
 
 # The disc goes back to the list.
 - tapOn: 'Back to My recipes'
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - scrollUntilVisible:
       element: '${E2E_RECIPE_LAMB}'
       direction: DOWN

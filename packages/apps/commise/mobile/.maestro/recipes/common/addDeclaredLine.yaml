@@ -24,3 +24,8 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       notVisible: 'Use .*${NAME}.* as written.*'
       timeout: 30000
+# Audit 2026-10-19, A1.9: the field emptying alone does not prove the line was added. The committed row is named
+# 'Edit ${NAME}'. No scroll here: the field stays focused and a caller asserts where the page is left.
+- extendedWaitUntil:
+      visible: 'Edit ${NAME}'
+      timeout: 20000

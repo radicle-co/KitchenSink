@@ -5,7 +5,9 @@ appId: ${APP_ID}
 ---
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 - tapOn: 'Collections'
 - extendedWaitUntil:
       visible: 'New collection'
@@ -15,6 +17,9 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Description \(optional\)'
       timeout: 20000
+# Audit 2026-10-19, A1.18: the sheet slides up and its fields are visible from the first frame; wait before the tap.
+- waitForAnimationToEnd:
+      timeout: 3000
 
 # An empty name is refused in place, with the reason under the field.
 - tapOn: 'Create collection'
@@ -35,6 +40,9 @@ appId: ${APP_ID}
           - hideKeyboard
 - tapOn: 'Close'
 - assertVisible: 'Discard this collection\?'
+# Audit 2026-10-19, A1.18: the dialog fades in; wait before the tap.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Keep editing'
 - assertVisible: 'Maestro sheet collection'
 

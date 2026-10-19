@@ -11,12 +11,15 @@ appId: ${APP_ID}
 - runFlow: ../auth/signin.yaml
 
 # Recipe list is the initial top-level destination; switch to the Discover tab.
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - tapOn: 'Discover'
 
 # RecipeDiscoveryScreen chrome.
-- assertVisible: 'Discover'
-- assertVisible: 'Search recipes'
+# audit 2026-10-19, A1.15: 'Discover' is the tab label and is on screen before the tap; wait on the Discover search field.
+- extendedWaitUntil:
+      visible: 'Search recipes'
+      timeout: 40000
 # With no query the surface shows the curated browse rails (U7); type the recipe's name to switch to the
 # deterministic 2-col result list before reaching for the row.
 - runFlow:

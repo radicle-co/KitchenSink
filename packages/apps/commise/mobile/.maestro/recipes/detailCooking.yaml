@@ -10,7 +10,8 @@ appId: ${APP_ID}
 # merely highlighted fails here. The seeded lamb's lines and steps are fixed by the recipe-service seed.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:

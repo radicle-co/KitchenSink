@@ -78,6 +78,18 @@ appId: ${APP_ID}
 
 # Cross into the Profile page, whose last group is the danger zone (the "Account settings" hub is gone).
 - tapOn: 'Profile.*'
+# ⛔ PROVE WHOSE ACCOUNT THIS IS BEFORE ANYTHING IS DESTROYED. The two guards above make a signer session unlikely, but
+# neither reads the account back, and the erase below cannot be undone: run 38988891871 erased the SIGNER. The Profile
+# header shows the signed-in email (`ProfileHeader.tsx`), so the flow stops here, before the danger zone, unless it is
+# this run's erasure subject. The email holds a `+`, which as a regex would not match itself; Maestro also accepts an
+# exact text match, as `signinHome.yaml` relies on for the same address.
+- extendedWaitUntil:
+      visible: '${E2E_ERASURE_EMAIL}'
+      timeout: 20000
+# Audit 2026-10-19, A1.1: the wait above proves the erasure subject's address is on screen, but a surviving signer session
+# could show its own address beside it. The signer's address must be ABSENT before anything is destroyed
+# (`accountDangerZone.yaml` shows the address is readable on iOS, so this can fail).
+- assertNotVisible: '${E2E_SIGNIN_EMAIL}'
 - scrollUntilVisible:
       element: 'Erase my data'
       direction: DOWN
@@ -99,6 +111,9 @@ appId: ${APP_ID}
       text: 'Erase my data'
       enabled: false
 
+# Audit 2026-10-19, A1.18: a dialog fades in, and a tap during the fade can be lost.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Confirmation phrase'
 - inputText: 'ERASE MY DATA'
 # Close the keyboard first: on iOS the dialog's actions sit behind it, still counted as visible, and the confirm tap

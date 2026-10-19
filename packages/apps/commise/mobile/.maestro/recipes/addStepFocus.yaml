@@ -10,7 +10,8 @@ appId: ${APP_ID}
 # It types into a new recipe and discards it, so it leaves the library as it found it.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - tapOn: 'New recipe'
 - assertVisible: 'Close editor'
 

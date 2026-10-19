@@ -12,7 +12,9 @@ appId: ${APP_ID}
 - runFlow: ../auth/signin.yaml
 
 # Chrome that renders in EVERY state — including a hung load — so it proves the screen mounted, nothing more.
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 - assertVisible: 'Search your recipes'
 
 # That the list actually SETTLED is a separate claim, and this is what makes it: the "{n} recipes" count
@@ -43,7 +45,8 @@ appId: ${APP_ID}
 # survives the gesture and its chrome is still present afterwards).
 - swipe:
       direction: DOWN
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
+- assertVisible: 'My recipes'
 
 # Drive list -> detail on a seeded recipe, then return. Anchored on the seed row itself rather than wrapped
 # in a `when: visible` guard: the seed cards are full-bleed 4:3, so only ~1 fits the viewport, and that
@@ -178,4 +181,8 @@ appId: ${APP_ID}
           TIMEOUT: 20000
 - tapOn:
       text: 'Back to My recipes'
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: the detail's Back is gone and the list's count is back. 'Recipes' was always on screen.
+- extendedWaitUntil:
+      notVisible: 'Back to My recipes'
+      timeout: 20000
+- assertVisible: '^3 recipes$'

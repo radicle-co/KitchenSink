@@ -66,7 +66,8 @@ appId: ${APP_ID}
 
 # A failed/absent figure must cost the CARD nothing: the row is still complete and still navigable. (Without
 # this, "no skeleton" would also pass on a screen that rendered no cards at all.)
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
@@ -75,18 +76,23 @@ appId: ${APP_ID}
           TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 - assertVisible: 'Ingredients'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 # The detail's Back is a disc over the hero photo, named for where it goes ("Back to My recipes"), so it is UNIQUE: under
 # three-button navigation Android's system bar publishes a node named exactly `Back`, and a Maestro selector matches the
 # WHOLE string, so this one can never resolve to the OS button (the reason the old text row had to be anchored above the
 # recipe title). It starts from the recipe list, so the parent is My recipes.
 - tapOn: 'Back to My recipes'
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 
 # The same invariant on DISCOVER, whose default state is the curated browse rails — a second card surface,
 # with its own batch per rail, and the one a viewer meets first.
 - tapOn: 'Discover'
+# audit 2026-10-19, A1.15: the tab's own label 'Discover' is on screen before the tap, so waiting on it proves nothing; 'Search recipes' exists only on the Discover screen.
 - extendedWaitUntil:
-      visible: 'Discover'
+      visible: 'Search recipes'
       timeout: 40000
 
 # ⛔ THE RAILS MUST HAVE RENDERED before "no placeholder" means anything here. 'Discover' is the

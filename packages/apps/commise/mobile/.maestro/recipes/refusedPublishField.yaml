@@ -12,7 +12,9 @@ appId: ${APP_ID}
 # screen-reader cursor is a device check (TalkBack and VoiceOver), recorded in the slice report.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 - tapOn: 'New recipe'
 - assertVisible: 'Close editor'
 

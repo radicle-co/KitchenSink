@@ -8,6 +8,9 @@ appId: ${APP_ID}
 # to Maestro's `checked: true` filter, though the screenshot showed Grid chosen). `rating.yaml` reads the same iOS value
 # text. On iOS the checked value is therefore asserted by its position beside the named sibling: Grid is the right-hand
 # switch, List the left-hand one.
+# Audit 2026-10-19, A1.13: a view name that is neither switch would match nothing on iOS and could pass on Android's
+# `checked` filter against any element of that name, so refuse it outright.
+- assertTrue: ${VIEW == 'Grid view' || VIEW == 'List view'}
 - runFlow:
       when:
           platform: Android

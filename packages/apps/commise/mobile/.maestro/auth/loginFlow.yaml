@@ -78,6 +78,11 @@ appId: ${APP_ID}
 # whereas on the login screen it would also match that form's own submit — which is why the flow taps it only
 # while the sign-up screen is up, and confirms the login form is back by its unique email placeholder.
 - tapOn: 'Sign in'
+# Audit 2026-10-19, A1.16: the login heading proves we are back on the sign-in form, and the sign-up heading must be gone.
+- extendedWaitUntil:
+      visible: 'Sign in to Commise'
+      timeout: 20000
+- assertNotVisible: 'Create your account'
 - assertVisible: 'you@example.com'
 - assertVisible: 'Password'
 
@@ -110,5 +115,6 @@ appId: ${APP_ID}
 # clearState plus the sign-out above guarantee the guarded credential block runs (no persisted session to skip it).
 - runFlow: signin.yaml
 
-# A completed sign-in renders the authenticated surface: the RecipesScreen "Recipes" list heading.
-- assertVisible: 'Recipes'
+# A completed sign-in renders the authenticated surface: the list's "My recipes" segment. (Audit 2026-10-19, A1.16: 'Recipes'
+# is also the tab label, which Home shows too.)
+- assertVisible: 'My recipes'

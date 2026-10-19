@@ -17,7 +17,8 @@ appId: ${APP_ID}
 # empty fixture now land on SEEDED content instead (see Ingredients and Steps below).
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 
 - runFlow:
       file: common/scrollIntoTapView.yaml
@@ -147,12 +148,17 @@ appId: ${APP_ID}
 # wrong row — it appends this text to the SEEDED first step and leaves the added step EMPTY, which the save below
 # then has to refuse ('Fill in or remove the empty step').
 # DOWN: Steps sits below Ingredients on the one page, and `Add step` below the seeded steps.
+# Close the keyboard first: after the pick iOS can call `Add step` visible while the keyboard covers it, so the shared step
+# skips its scroll and the tap lands on the keyboard (CI run 39313803199, iOS shards 3 and 4, create and preparationGroups).
+- runFlow: common/closeEditorKeyboard.yaml
+# From the top of a seeded recipe (a long ingredient list, then four steps) the scroll to `Add step` takes longer than
+# 20 s on a CI emulator (local Android run, 2026-10-19, conflictMerge).
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
           TARGET: 'Add step'
           DIRECTION: DOWN
-          TIMEOUT: 20000
+          TIMEOUT: 60000
 - tapOn: 'Add step'
 - tapOn: 'Step 5'
 - inputText: 'Combine everything and simmer.'
@@ -163,6 +169,14 @@ appId: ${APP_ID}
 # bar pins to the foot again, wherever the page is scrolled.
 - runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Save changes'
+# audit 2026-10-19, A1.14: the snackbar lasts about 6 s, so it is the FIRST wait after the tap. It shows only after the server
+# accepted the write. Then the editor must be gone (60 s: 20 s longer than the first wait, because Maestro counts both from the tap).
+- extendedWaitUntil:
+      visible: 'Changes saved.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
 # Back on the detail with the new title (regex tolerates Maestro's occasional last-char input dup).
 - extendedWaitUntil:
       visible:

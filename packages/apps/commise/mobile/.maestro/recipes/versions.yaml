@@ -20,7 +20,9 @@ appId: ${APP_ID}
 # undrivable step inline rather than silently skipping it.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to it rather than a
 # `when: visible` guard that would silently SKIP the whole flow when it is below the fold (the list scrolls).
@@ -89,12 +91,17 @@ appId: ${APP_ID}
       direction: UP
       timeout: 30000
 # DOWN: Steps sits below Ingredients on the one page, and `Add step` below the seeded steps.
+# Close the keyboard first: after the pick iOS can call `Add step` visible while the keyboard covers it, so the shared step
+# skips its scroll and the tap lands on the keyboard (CI run 39313803199, iOS shards 3 and 4, create and preparationGroups).
+- runFlow: common/closeEditorKeyboard.yaml
+# From the top of a seeded recipe (a long ingredient list, then four steps) the scroll to `Add step` takes longer than
+# 20 s on a CI emulator (local Android run, 2026-10-19, conflictMerge).
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
           TARGET: 'Add step'
           DIRECTION: DOWN
-          TIMEOUT: 20000
+          TIMEOUT: 60000
 - tapOn: 'Add step'
 # ⛔ `Step 5`, NOT `Step 1`. `Add step` APPENDS, and the seeded lamb carries four steps of its own
 # (`SEED_RECIPE_STEPS`, `packages/services/recipe-service/src/database/seed.ts`), so the row just created is
@@ -109,6 +116,15 @@ appId: ${APP_ID}
 # The seeded lamb is PUBLISHED, so the pinned bar's primary is `Save changes`: ONE write, one version (owner
 # decision D1 — a published recipe's checkpoints never reach the server, so no extra versions appear).
 - tapOn: 'Save changes'
+# Audit 2026-10-19, A1.14: 'Changes saved.' shows only once the server accepted the write and
+# lasts about 6 s, so it is the FIRST wait after the tap. Then the editor must be gone,
+# then the title proves the detail.
+- extendedWaitUntil:
+      visible: 'Changes saved.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
 - extendedWaitUntil:
       visible:
           text: '${E2E_RECIPE_LAMB} .v2.*'
@@ -129,7 +145,21 @@ appId: ${APP_ID}
 - inputText: '${E2E_RECIPE_LAMB} (v3)'
 # Close the keyboard before moving on, as `common/typeTitle.yaml` does and for its reason.
 - tapOn: 'About the recipe'
+# Audit 2026-10-19, A1.14: EDIT 1's 'Changes saved.' lasts about 6 s and may still be up, which would satisfy EDIT 2's
+# wait before EDIT 2 is saved. Wait for it to go first.
+- extendedWaitUntil:
+      notVisible: 'Changes saved.'
+      timeout: 15000
 - tapOn: 'Save changes'
+# Audit 2026-10-19, A1.14: 'Changes saved.' shows only once the server accepted the write and
+# lasts about 6 s, so it is the FIRST wait after the tap. Then the editor must be gone,
+# then the title proves the detail.
+- extendedWaitUntil:
+      visible: 'Changes saved.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
 - extendedWaitUntil:
       visible:
           text: '${E2E_RECIPE_LAMB} .v3.*'
@@ -144,6 +174,10 @@ appId: ${APP_ID}
           DIRECTION: UP
           TIMEOUT: 20000
 - tapOn: 'More actions for .*'
+# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
+# a tap), so wait for the screen to settle first.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Version history'
 - assertVisible: 'Version history'
 
@@ -168,6 +202,10 @@ appId: ${APP_ID}
 # ingredients/steps (only the title differs, by design above), so the tally is honestly all-zero. Every past
 # version's actions are in its row's ⋯ menu (§6.6).
 - tapOn: 'More actions for version 2'
+# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
+# a tap), so wait for the screen to settle first.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Preview'
 - assertVisible:
       text: 'Version 2 Preview: ${E2E_RECIPE_LAMB} .v2.*'
@@ -178,6 +216,10 @@ appId: ${APP_ID}
 # COMPARE — per row, against the current version. Only the title changed between v2 and v3, so the one row is
 # the title, as what v2 said and what the recipe says now.
 - tapOn: 'More actions for version 2'
+# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
+# a tap), so wait for the screen to settle first.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Compare with current'
 - assertVisible: 'Version 2 and the current version'
 - assertVisible: 'Title'
@@ -189,6 +231,10 @@ appId: ${APP_ID}
 # current status and gaining a menu, once the post-restore refetch lands. The snackbar says so, with Undo.
 - assertNotVisible: 'More actions for version 3'
 - tapOn: 'More actions for version 2'
+# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
+# a tap), so wait for the screen to settle first.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Restore this version'
 - extendedWaitUntil:
       visible: 'Restored version 2.'

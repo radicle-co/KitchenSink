@@ -39,6 +39,8 @@ appId: ${APP_ID}
           TARGET: 'See all recipes'
           DIRECTION: UP
 - tapOn: 'See all recipes'
+# Audit 2026-10-19, A1.16: 'Recipes' is also the tab label, so Home satisfied it before the tap landed. 'My recipes' is the
+# list's own segment, which Home never renders.
 - extendedWaitUntil:
-      visible: 'Recipes'
+      visible: 'My recipes'
       timeout: 40000

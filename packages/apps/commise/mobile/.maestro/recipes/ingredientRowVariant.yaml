@@ -13,7 +13,9 @@ appId: ${APP_ID}
 # Discards its draft at the end, so it leaves the library unchanged.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
@@ -112,4 +114,5 @@ appId: ${APP_ID}
 
 # Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
 - runFlow: common/discardDraft.yaml
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
+- assertVisible: 'My recipes'

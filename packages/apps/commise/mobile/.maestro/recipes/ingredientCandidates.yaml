@@ -28,7 +28,9 @@ appId: ${APP_ID}
 # recipe, which the next flow's reset deletes.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
@@ -60,7 +62,13 @@ appId: ${APP_ID}
 # Change food to the words by name. The field opens on the food's name with the caret at its end, so the name is erased
 # first. The by-name option sits under "Not listed?", after the foods the list found.
 - tapOn: 'Actions for Flour'
+# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
+# a tap), so wait for the screen to settle first.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Change food'
+- waitForAnimationToEnd:
+      timeout: 3000
 - eraseText: 20
 - inputText: '${E2E_UNRESOLVED_WORD}'
 - runFlow:
@@ -112,7 +120,11 @@ appId: ${APP_ID}
 # Leave with ×. REWRITTEN for slice 7: Save Draft is gone; × is the exit checkpoint, which creates the titled draft
 # (build spec §7.3), so the recipe is in My recipes when the list returns.
 - tapOn: 'Close editor'
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 20000
+- assertVisible: 'My recipes'
 - extendedWaitUntil:
       visible:
           text: 'Maestro Row Candidates.*'

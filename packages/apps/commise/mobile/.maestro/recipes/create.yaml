@@ -13,7 +13,8 @@ appId: ${APP_ID}
 - runFlow: ../auth/signin.yaml
 
 # Recipe list surface, then into the editor.
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - tapOn: 'New recipe'
 
 # Details. The editor's × is its own control ('New recipe' would also match the FAB), so it is the entry checkpoint.
@@ -122,6 +123,10 @@ appId: ${APP_ID}
       timeout: 30000
 
 # Steps, below Ingredients. A new recipe has no steps, so this is `Step 1`.
+# Close the keyboard first. The trailing ingredient field keeps it up after the pick, and iOS then calls `Add step`
+# visible while the keyboard covers it: the shared step skips its scroll and the tap lands on the keyboard (CI run
+# 39313803199, iOS shard 3: `Step 1` not found, the keyboard over the button in the screenshot).
+- runFlow: common/closeEditorKeyboard.yaml
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
@@ -162,6 +167,9 @@ appId: ${APP_ID}
 # (phones)"): it scrolls with the page, below this screen. Closing the keyboard from the first heading pins it again.
 - runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Preview'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - extendedWaitUntil:
       visible: 'Preview. This is how it looks to others.'
       timeout: 20000
@@ -174,6 +182,14 @@ appId: ${APP_ID}
 
 # Publish is the pinned action bar's primary, on screen wherever the page is scrolled.
 - tapOn: 'Publish'
+# audit 2026-10-19, A1.14: the snackbar lasts about 6 s, so it is the FIRST wait after the tap. It shows only after the server
+# accepted the write. Then the editor must be gone (60 s: 20 s longer than the first wait, because Maestro counts both from the tap).
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
 
 # Landed on the new recipe's detail. The title assertion is a `…Soup.*` regex because Maestro's inputText
 # intermittently duplicates the final typed character on this emulator ("…Soupp") — an input artifact, not an

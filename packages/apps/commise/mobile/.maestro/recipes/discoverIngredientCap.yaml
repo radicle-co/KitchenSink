@@ -13,13 +13,18 @@ appId: ${APP_ID}
 # Read-only: the filter is screen state, so nothing is written.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - tapOn: 'Discover'
+# audit 2026-10-19, A1.15: the tab's own label 'Discover' is on screen before the tap, so waiting on it proves nothing; 'Search recipes' exists only on the Discover screen.
 - extendedWaitUntil:
-      visible: 'Discover'
+      visible: 'Search recipes'
       timeout: 40000
 
 - tapOn: 'Filters.*'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - runFlow:
       file: common/typeIngredientFilter.yaml
       env:
@@ -60,6 +65,7 @@ appId: ${APP_ID}
 - assertNotVisible: 'You can filter by up to 6 ingredients. Remove one to add another.'
 
 - tapOn: 'Show \d+ recipes?|Show recipes'
+# audit 2026-10-19, A1.15: 'Discover' is on screen under the open sheet, so it proved nothing. The sheet's own apply button is gone once it has closed.
 - extendedWaitUntil:
-      visible: 'Discover'
+      notVisible: 'Show \d+ recipes?|Show recipes'
       timeout: 20000

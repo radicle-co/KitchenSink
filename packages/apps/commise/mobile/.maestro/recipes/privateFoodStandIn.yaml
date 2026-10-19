@@ -13,10 +13,14 @@ appId: ${APP_ID}
 # Mutates the signer's library (the copy). The next flow's reset deletes it: its title is not in the manifest.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 - tapOn: 'Discover'
+# Audit 2026-10-19, A1.15: 'Discover' is the tab label and is on screen everywhere. 'Search recipes' is Discover's own
+# search field and is on no other screen.
 - extendedWaitUntil:
-      visible: 'Discover'
+      visible: 'Search recipes'
       timeout: 40000
 
 # Reach the recipe by search, as `discoverDetailSaveCopy` and `rating` do: a rail's order is data about the whole sandbox.

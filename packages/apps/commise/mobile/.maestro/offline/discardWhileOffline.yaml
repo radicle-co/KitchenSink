@@ -15,15 +15,20 @@
 # — never report one as a pass.
 appId: ${APP_ID}
 name: discard while offline leaves nothing syncing and nothing created
+# Audit 2026-10-19, A1.4: a run killed while offline would leave the device offline for the next flow. This always runs.
+onFlowComplete:
+    - setAirplaneMode: disabled
 tags:
     - offline
+    # Android only: iOS simulators have no airplane mode (guarded by maestroPlatformExclusions.test.ts).
+    - android
 ---
 - launchApp:
       clearState: true
 - runFlow: ../auth/signin.yaml
 
 - extendedWaitUntil:
-      visible: 'Recipes'
+      visible: 'My recipes'
       timeout: 40000
 - tapOn: 'New recipe'
 - extendedWaitUntil:
@@ -43,6 +48,9 @@ tags:
 - extendedWaitUntil:
       visible: 'Close sections'
       timeout: 20000
+# Audit 2026-10-19, A1.18: the sections sheet slides up, and a tap during the slide is lost.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Steps'
 - extendedWaitUntil:
       notVisible: 'Close sections'
@@ -64,6 +72,6 @@ tags:
       timeout: 30000
 
 # The recipe was never made: it is not in My recipes.
-- assertVisible: 'Recipes'
+- assertVisible: 'My recipes'
 - assertNotVisible:
       text: 'Maestro discard while offline.*'

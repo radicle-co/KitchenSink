@@ -22,7 +22,8 @@ appId: ${APP_ID}
 # recipe service. The line is declared as written (no food-service dependency — same rationale as `create.yaml`).
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - tapOn: 'New recipe'
 
 # Details. servings/prep/cook keep their valid defaults, as in `create.yaml`.
@@ -140,6 +141,14 @@ appId: ${APP_ID}
 # with it, which unpins the bar (build spec §7.1).
 - runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Publish'
+# audit 2026-10-19, A1.14: the snackbar lasts about 6 s, so it is the FIRST wait after the tap. It shows only after the server
+# accepted the write. Then the editor must be gone (60 s: 20 s longer than the first wait, because Maestro counts both from the tap).
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
 
 # Landed on the new recipe's detail — the loop completed. The title regex tolerates this emulator's
 # occasional last-character input duplication (see `create.yaml`).

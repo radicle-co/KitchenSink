@@ -18,7 +18,8 @@ appId: ${APP_ID}
 # already did pre-rebuild. Cannot be verified locally — no emulator here.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the recipe rather than a
 # `when: visible` guard that would silently SKIP the whole flow when it is below the fold (the list scrolls).
@@ -90,12 +91,17 @@ appId: ${APP_ID}
       direction: UP
       timeout: 30000
 # DOWN: Steps sits below Ingredients on the one page, and `Add step` below the seeded steps.
+# Close the keyboard first: after the pick iOS can call `Add step` visible while the keyboard covers it, so the shared step
+# skips its scroll and the tap lands on the keyboard (CI run 39313803199, iOS shards 3 and 4, create and preparationGroups).
+- runFlow: common/closeEditorKeyboard.yaml
+# From the top of a seeded recipe (a long ingredient list, then four steps) the scroll to `Add step` takes longer than
+# 20 s on a CI emulator (local Android run, 2026-10-19, conflictMerge).
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
           TARGET: 'Add step'
           DIRECTION: DOWN
-          TIMEOUT: 20000
+          TIMEOUT: 60000
 - tapOn: 'Add step'
 # ⛔ `Step 5`, NOT `Step 1`. `Add step` APPENDS, and the seeded lamb carries four steps of its own
 # (`SEED_RECIPE_STEPS`, `packages/services/recipe-service/src/database/seed.ts`), so the row just created is

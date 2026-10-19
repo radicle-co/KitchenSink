@@ -26,3 +26,6 @@ appId: ${APP_ID}
       # Centred, so the tap cannot land on the sticky Sections bar over the top of the page.
       centerElement: true
 - tapOn: 'Kind of dish'
+# Audit 2026-10-19, A1.10: the pick must have replaced the typed 'Ital' with the full name.
+- assertVisible: 'Italian'
+- assertNotVisible: 'Ital'

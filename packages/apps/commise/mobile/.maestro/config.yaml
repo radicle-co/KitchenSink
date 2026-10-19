@@ -1,11 +1,14 @@
 # Maestro workspace config (T087).
 #
-# This file exists for ONE load-bearing reason: flow DISCOVERY. Pointed at a folder, Maestro "only executes
-# Flow files located at the top level of that directory. It ignores subfolders to prevent accidental
-# execution of nested or utility Flows" — the `flows` key defaults to `*` (root only). CI runs
-# `maestro test packages/apps/commise/mobile/.maestro` (.github/workflows/_ci.yml, the e2e-mobile-maestro
-# job), so WITHOUT this file only `home.yaml` runs and every flow under `auth/` and `recipes/` is silently
-# skipped — a green job proving almost nothing. The patterns below are what actually make the suite execute.
+# This file serves hand runs of the whole folder. Pointed at a folder, Maestro "only executes Flow files located at the top
+# level of that directory. It ignores subfolders to prevent accidental execution of nested or utility Flows" — the `flows`
+# key defaults to `*` (root only), so WITHOUT this file `maestro test .maestro` would run only the root flows and skip
+# `auth/` and `recipes/`. The patterns below make that hand run execute them.
+#
+# ⛔ CI DOES NOT RUN `maestro test .maestro` (audit 2026-10-19, plan 013 C2). CI iterates `FLOW_PLAN` in
+# `tests/e2e/runMaestroFlows.sh` and runs each planned flow by name, so this list does not decide what CI runs. Do not read
+# it as the CI plan. Its `'*'` also admits the root flows that really erase the signed-in account (`accountErasure.yaml`),
+# so a plain hand run of the folder runs them too; run the flows you mean by name.
 #
 # Deliberately NOT set here:
 #

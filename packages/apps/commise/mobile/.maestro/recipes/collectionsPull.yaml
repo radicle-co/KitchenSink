@@ -21,7 +21,8 @@ appId: ${APP_ID}
 # flow asserts further down.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
 - tapOn: 'Collections'
 - extendedWaitUntil:
       visible: 'New collection'
@@ -29,6 +30,9 @@ appId: ${APP_ID}
 
 # CREATE the source.
 - tapOn: 'New collection'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - assertVisible: 'Description \(optional\)'
 - runFlow:
       file: common/typeCollectionName.yaml
@@ -45,6 +49,9 @@ appId: ${APP_ID}
 
 # SEED it with ONE recipe, in the picker sheet.
 - tapOn: 'Add recipes'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - assertVisible: 'Add to Maestro pull source'
 - runFlow:
       file: common/scrollIntoTapView.yaml
@@ -58,12 +65,21 @@ appId: ${APP_ID}
 
 # SAVE A COPY, then rename the copy so later list lookups by name are unambiguous.
 - tapOn: 'More actions for Maestro pull source'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Save a copy'
 - extendedWaitUntil:
       visible: 'Copied from .*'
       timeout: 40000
 - tapOn: 'More actions for Maestro pull source'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Rename'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - assertVisible: 'Rename collection'
 - tapOn: 'Name'
 - eraseText
@@ -88,6 +104,9 @@ appId: ${APP_ID}
       visible: 'More actions for Maestro pull source'
       timeout: 40000
 - tapOn: 'Add recipes'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - assertVisible: 'Add to Maestro pull source'
 - runFlow:
       file: common/scrollIntoTapView.yaml
@@ -125,7 +144,13 @@ appId: ${APP_ID}
 # PULL. Opening the dialog runs the preview: one new recipe available (Asparagus), nothing removed, one
 # already there (Mediterranean Grilled Lamb, seeded at copy time).
 - tapOn: 'More actions for Maestro pull clone.*'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Pull updates'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - extendedWaitUntil:
       visible: 'Pull Updates from Source Collection'
       timeout: 40000
@@ -161,17 +186,32 @@ appId: ${APP_ID}
       direction: UP
       timeout: 20000
 - tapOn: 'More actions for Maestro pull clone.*'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Delete collection'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Delete collection'
 - extendedWaitUntil:
       visible: 'New collection'
       timeout: 40000
 - tapOn: 'Maestro pull source(, .*)?'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - extendedWaitUntil:
       visible: 'More actions for Maestro pull source'
       timeout: 40000
 - tapOn: 'More actions for Maestro pull source'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Delete collection'
+# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Delete collection'
 - extendedWaitUntil:
       visible: 'New collection'

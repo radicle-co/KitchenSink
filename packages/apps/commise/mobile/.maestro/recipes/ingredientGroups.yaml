@@ -8,7 +8,9 @@ appId: ${APP_ID}
 # Discards its draft at the end, so it leaves the library unchanged.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
 - tapOn: 'New recipe'
 
 - assertVisible: 'Close editor'
@@ -58,6 +60,13 @@ appId: ${APP_ID}
           DIRECTION: DOWN
           TIMEOUT: 20000
 - tapOn: 'Actions for Maestro Garlic'
+# Audit 2026-10-19, A1.18 (a false green before): the menu slides up, so on iOS the absence check ran on the first frame,
+# before the menu had any items. Wait for 'Move up' (an item this row has), let the slide end, then check the absence.
+- extendedWaitUntil:
+      visible: 'Move up'
+      timeout: 10000
+- waitForAnimationToEnd:
+      timeout: 3000
 - assertNotVisible: 'Move to group…'
 - tapOn: 'Move up'
 # Garlic moves up a row, which can be above the top of the screen (run 38447859313 kept the page still and left only
@@ -97,8 +106,14 @@ appId: ${APP_ID}
           DIRECTION: DOWN
           TIMEOUT: 20000
 - tapOn: 'Actions for Maestro Garlic'
+# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
+# a tap), so wait for the screen to settle first.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Move to group…'
 - assertVisible: 'Move to group'
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Paste'
 - extendedWaitUntil:
       notVisible: 'No group'
@@ -109,7 +124,13 @@ appId: ${APP_ID}
 
 # Rename the group; its line follows.
 - tapOn: 'Actions for Paste'
+# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
+# a tap), so wait for the screen to settle first.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Rename group'
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Group name'
 - eraseText: 10
 - inputText: 'Curry paste'
@@ -118,6 +139,10 @@ appId: ${APP_ID}
 
 # Remove the group, keeping its line: no heading is left, and both lines are still here.
 - tapOn: 'Actions for Curry paste'
+# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
+# a tap), so wait for the screen to settle first.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Remove group (keep its ingredients)'
 - assertNotVisible: 'Curry paste'
 - assertVisible: 'Edit Maestro Garlic'
@@ -125,4 +150,5 @@ appId: ${APP_ID}
 
 # Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
 - runFlow: common/discardDraft.yaml
-- assertVisible: 'Recipes'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
+- assertVisible: 'My recipes'

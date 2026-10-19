@@ -12,7 +12,12 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Close sections'
       timeout: 20000
+# Audit 2026-10-19, A1.7: the sheet slides up, and a tap during the slide is lost. Wait for it to settle.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: ${SECTION}
 - extendedWaitUntil:
       notVisible: 'Close sections'
       timeout: 20000
+# A dropped tap leaves the page somewhere else; the section index names the section the page is on.
+- assertVisible: 'Sections\. Current: ${SECTION}\..*'

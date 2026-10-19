@@ -510,6 +510,56 @@ describe('poolProfileReassert', () => {
     });
 });
 
+/**
+ * Owner decision 2026-10-19 (plan 013 C4 / matrix G18): the Maestro co-author and the web peer sign in by password for
+ * `sessionHandoff`. A co-author that ALREADY exists was created with a random password nobody holds, and `poolAdmin`
+ * only ever wrote the password in the CREATE body, so a plain `--apply` would have left it unable to sign in. The
+ * owner's whole-roster run therefore re-states the committed password for every slot that carries it.
+ */
+describe('poolProfileReassert password', () => {
+    const coauthor = slotFor('maestro', 'coauthor');
+
+    it('carries the committed password, with the checks skipped, for a slot a flow types a password for', () => {
+        expect(poolProfileReassert(coauthor)).toEqual({
+            ...poolProfileReassert(alfa),
+            username: coauthor.username,
+            lastName: coauthor.id,
+            password: POOL_PASSWORD,
+            skipPasswordChecks: true,
+        });
+    });
+
+    it('⛔ never carries a password for a slot nothing types one for (its random password stays unknown)', () => {
+        expect(Object.keys(poolProfileReassert(alfa))).toEqual(['username', 'firstName', 'lastName']);
+    });
+
+    it('is applied to an EXISTING co-author by the whole-roster run, and not to a CI refill (`leave`)', async () => {
+        const existing = [marked(coauthor)];
+        const reassertProfile = vi.fn(async (_userId: string, _profile: PoolProfileReassert) => undefined);
+        const fake = {
+            findUsers: vi.fn(async (email: string) => existing.filter((u) => u.emails.includes(email))),
+            listUsers: vi.fn(async () => [...existing]),
+            createUser: vi.fn(async () => ({ id: 'created' })),
+            mergeMetadata: vi.fn(async () => undefined),
+            readExternalId: vi.fn(async () => 'ext'),
+            reassertProfile,
+        } satisfies PoolAdminPort;
+        const base = { randomPassword: () => 'r', now: () => 0, sleep: async () => undefined, drift: 'skip' } as const;
+
+        await reconcilePool(fake, { ...base, slots: [coauthor], apply: true, profile: 'reassert' });
+
+        expect(reassertProfile).toHaveBeenCalledWith(
+            existing[0]?.id,
+            expect.objectContaining({ password: POOL_PASSWORD }),
+        );
+
+        reassertProfile.mockClear();
+        await reconcilePool(fake, { ...base, slots: [coauthor], apply: true, profile: 'leave' });
+
+        expect(reassertProfile).not.toHaveBeenCalled();
+    });
+});
+
 describe('reconcilePool profile re-assert', () => {
     const port = (existing: readonly ObservedPoolUser[]) => {
         const reassertProfile = vi.fn(async (_userId: string, _profile: PoolProfileReassert) => undefined);

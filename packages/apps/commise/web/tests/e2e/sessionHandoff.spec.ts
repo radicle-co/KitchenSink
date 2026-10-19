@@ -1,10 +1,9 @@
-import { createClerkClient } from '@clerk/backend';
-import { setupClerkTestingToken } from '@clerk/testing/playwright';
-import { slotFor } from '@kitchensink/e2e-fixtures/testPool';
-import { expect, test, type Page } from '@playwright/test';
+import { peerSlotFor } from '@kitchensink/e2e-fixtures/testPool';
+import { expect, test } from '@playwright/test';
 
-import { isHome, isRoute, pathnameOf, route } from './utils/basePath';
+import { isRoute, pathnameOf, route } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
+import { TEST_SLOT } from './utils/testUser';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 
 /**
@@ -13,48 +12,21 @@ import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipe
  * recipe. On web this cannot fail first: a sign-out reloads the document, which empties the query cache by itself. It
  * guards the day a sign-out stops reloading.
  *
- * ⛔ FIXME, AND NOT RUN, until the pool gives a shard a SECOND web identity. `POOL_ROSTER.web` (`@kitchensink/e2e-fixtures`'
- * `testPool.ts`) declares one lane per shard, and borrowing another shard's lane would put two concurrent runs on one
- * user. The lane id below is a PROPOSED roster name, not an existing one; `slotFor` throws until a lane with it exists.
- * The peer sign-in below repeats `signInWithTicket`'s fresh path for a second address; it belongs in that helper as an
- * `email` option once the lane exists.
+ * Cook B is the shard's PEER (`peerSlotFor`, the `webPeer` tier of `@kitchensink/e2e-fixtures`' `testPool.ts`): a
+ * second pool user that belongs to this shard alone, so two concurrent shards never share one. Owner decision
+ * 2026-10-19 (plan 013 C4, matrix G18) gave the lane its password and removed the `test.fixme` this spec carried; run
+ * `poolAdmin --apply` once so the peer exists. B signs in by ticket, as every web spec does, through
+ * `signInWithTicket`'s `email` option.
+ *
+ * ⛔ THE ABSENCE OF A's RECIPE IS CHECKED WHILE B's OWN LIST READ IS HELD, and then again after it lands. Checked only
+ * after B's list has rendered, the assertion would run once B's fresh read had replaced whatever the cache drew, and a
+ * leak could never be seen (audit 2026-10-19, combative #4). The held read is issued by the hydrated container, whose
+ * first render already holds any cached rows, so a leak is on screen by the time the request is held.
  *
  * The recipe service is the stubbed contract (`utils/recipeApi`), re-stubbed for each cook, so B's list can only show
  * A's recipe from the app's own cache.
  */
-const PEER_LANE = 'webpeer01';
-
-/**
- * Sign the peer identity in by ticket, as `signInWithTicket`'s fresh path signs the shard's own identity in.
- *
- * @param page - The page to authenticate.
- * @sideEffect Calls Clerk's Backend API and navigates.
- */
-async function signInAsPeer(page: Page): Promise<void> {
-    const secretKey = process.env['CLERK_SECRET_KEY'];
-
-    if (!secretKey) {
-        throw new Error('CLERK_SECRET_KEY is required for e2e auth');
-    }
-
-    const clerk = createClerkClient({ secretKey });
-    const { data } = await clerk.users.getUserList({ emailAddress: [slotFor('web', PEER_LANE).email] });
-    const userId = data[0]?.id;
-
-    if (userId === undefined) {
-        throw new Error(`test-pool lane ${PEER_LANE} is missing — run poolAdmin --apply`);
-    }
-
-    const { token } = await clerk.signInTokens.createSignInToken({ userId, expiresInSeconds: 600 });
-
-    await setupClerkTestingToken({ page });
-    await page.goto(`${route('/sign-in')}?__clerk_ticket=${token}`);
-    await expect.poll(() => isHome(pathnameOf(page)), { timeout: 30_000 }).toBe(true);
-}
-
 test.describe('a cook’s cached recipes end with their session (ADR-0054)', () => {
-    test.fixme(true, `needs a second web pool identity per shard (POOL_ROSTER.web lane '${PEER_LANE}')`);
-
     test('the next cook on the browser never sees the last cook’s private recipe', async ({ page }) => {
         test.slow();
 
@@ -72,19 +44,52 @@ test.describe('a cook’s cached recipes end with their session (ADR-0054)', () 
             ],
         });
         await page.goto(route('/recipes'));
-        await expect(page.getByRole('button', { name: 'A’s Private Lamb' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'A’s Private Lamb' })).toBeVisible();
 
         await page.goto(route('/profile'));
         await page.getByRole('button', { name: 'Sign out' }).click();
         await expect.poll(() => isRoute(pathnameOf(page), '/sign-in'), { timeout: 20_000 }).toBe(true);
 
         await page.unrouteAll({ behavior: 'ignoreErrors' });
-        await signInAsPeer(page);
+        // `force`: the signed-out context still holds Clerk's cookies, which the restored-session branch cannot tell
+        // from a live session.
+        await signInWithTicket(page, { force: true, email: peerSlotFor(TEST_SLOT).email });
         const cookB = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId: cookB, recipes: [] });
-        await page.goto(route('/recipes'));
 
-        await expect(page.getByText('No recipes yet')).toBeVisible();
+        // Hold B's list read, registered AFTER the stub so it runs first and hands the request on with `fallback()`.
+        let releaseList: () => void = () => undefined;
+        const listReleased = new Promise<void>((resolve) => {
+            releaseList = resolve;
+        });
+        let markHeld: () => void = () => undefined;
+        const listHeld = new Promise<void>((resolve) => {
+            markHeld = resolve;
+        });
+
+        await page.route(
+            (url) => url.pathname.endsWith('/api/v1/recipes'),
+            async (intercepted) => {
+                if (intercepted.request().method() !== 'GET') {
+                    await intercepted.fallback();
+
+                    return;
+                }
+
+                markHeld();
+                await listReleased;
+                await intercepted.fallback();
+            },
+        );
+
+        await page.goto(route('/recipes'));
+        await listHeld;
+
+        // B's own data is NOT in yet: the only thing that could draw A's recipe now is the app's cache.
+        await expect(page.getByText('A’s Private Lamb')).toHaveCount(0);
+
+        releaseList();
+        await expect(page.getByRole('heading', { level: 2, name: 'Your recipe box is empty' })).toBeVisible();
         await expect(page.getByText('A’s Private Lamb')).toHaveCount(0);
     });
 });

@@ -283,3 +283,29 @@ describe('planPrivateFoodRecipe', () => {
         expect(reversed.deleteRecipeIds).toContain('stale');
     });
 });
+
+/**
+ * Audit 2026-10-19, plan 013 C3. The ambiguity probe is made by `ensureAmbiguityProbe` AFTER the reconcile, so the
+ * reconcile must treat it as residue: otherwise a probe whose lines a pick already re-pointed would be KEPT by title,
+ * and the flow would open a recipe with nothing left to review.
+ */
+describe('planWorldReset — ambiguity mode', () => {
+    it('plans exactly what seeded mode plans, against a settled world', () => {
+        expect(planWorldReset(settled(), manifest, 'ambiguity')).toEqual(planWorldReset(settled(), manifest, 'seeded'));
+    });
+
+    it('⛔ deletes a probe left by an earlier run, whatever state its lines are in, and never plans to create one', () => {
+        const stale = row('probe', manifest.ambiguityProbe.title);
+        const plan = planWorldReset(snapshot({ recipes: [...settled().recipes, stale] }), manifest, 'ambiguity');
+
+        expect(plan.deleteRecipeIds).toEqual(['probe']);
+        expect(plan.create).toEqual([]);
+    });
+
+    it('seeded mode deletes the probe too, so every flow after the review sees "3 recipes" again', () => {
+        const stale = row('probe', manifest.ambiguityProbe.title);
+        const plan = planWorldReset(snapshot({ recipes: [...settled().recipes, stale] }), manifest, 'seeded');
+
+        expect(plan.deleteRecipeIds).toEqual(['probe']);
+    });
+});

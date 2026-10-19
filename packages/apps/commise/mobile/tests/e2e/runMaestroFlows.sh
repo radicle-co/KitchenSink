@@ -279,11 +279,13 @@ recipes:recipes/ingredientRowEditor
 recipes:recipes/ingredientCandidates
 recipes:recipes/ingredientRemoteFoods
 recipes:recipes/pinnedActionBar
+recipes:recipes/ambiguityReview
 recipes:recipes/photos
 recipes:recipes/accessibility
 auth:dataSources
 auth:profileUsername
 auth:accountDangerZone
+auth:sessionHandoff
 recipes:recipes/delete
 auth:accountErasure"
 
@@ -517,6 +519,9 @@ MAESTRO_DRIVER_PORT="${MAESTRO_DRIVER_PORT:-7001}"
 MAESTRO_DRIVER_PACKAGE="dev.mobile.maestro"
 
 EMPTY_LIBRARY_FLOWS=" recipes/emptyLibrary "
+# The flows whose reset also seeds the gate-AMBIGUOUS probe recipe (`reset.ts --mode ambiguity`). Only these hold it, so
+# every other flow's `^3 recipes$` count stays true (plan 013 C3, owner decision 2026-10-19).
+AMBIGUITY_FLOWS=" recipes/ambiguityReview "
 
 # Where `e2e-seed provision` writes this run's fixture MANIFEST, and how it reaches the flows.
 #
@@ -1499,7 +1504,12 @@ maestro_run_flow_list() {
         fi
         case "$EMPTY_LIBRARY_FLOWS" in
             *" ${f} "*) reseed_mode=empty ;;
-            *) reseed_mode=seeded ;;
+            *)
+                case "$AMBIGUITY_FLOWS" in
+                    *" ${f} "*) reseed_mode=ambiguity ;;
+                    *) reseed_mode=seeded ;;
+                esac
+                ;;
         esac
         # ⛔ A FAILED RESET IS NEVER FOLLOWED BY ITS FLOW, and that is the lesson of run 101351873536. Every reset
         # there failed (`ECONNREFUSED 127.0.0.1:5432`) and every flow ran anyway, against whatever state happened to

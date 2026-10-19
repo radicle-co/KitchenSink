@@ -39,8 +39,12 @@ export interface WorldResetPlan {
  * The empty mode exists for `recipes/emptyLibrary`, the one flow whose subject is the first-run screen a
  * brand-new account opens on. That state is unreachable any other way, and a universal seeded fixture is
  * precisely what hid a permanent-loading-skeleton defect on it.
+ *
+ * `ambiguity` is `seeded` plus the gate-AMBIGUOUS probe (`ensureAmbiguityProbe`), for `recipes/ambiguityReview`
+ * alone. The PLAN is the same as `seeded`'s on purpose: the probe is made after the reconcile, and an old one is
+ * residue the reconcile must delete (a pick already re-pointed its lines).
  */
-export type ResetMode = 'seeded' | 'empty';
+export type ResetMode = 'seeded' | 'empty' | 'ambiguity';
 
 /**
  * Reconcile. Pure.

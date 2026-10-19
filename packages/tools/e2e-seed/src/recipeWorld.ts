@@ -299,12 +299,91 @@ export function toCreateRequest(
             ingredientId: ingredientIds.get(line.name) ?? '',
             quantity: { kind: 'exact' as const, value: line.quantity },
             ...(line.unit === undefined ? {} : { unit: line.unit }),
+            // Audit 2026-10-19, C3: only the ambiguity probe sets one; the gate judges the bound food against it.
+            ...(line.sourceLine === undefined ? {} : { sourceLine: line.sourceLine }),
         })),
         steps: recipe.steps.map((step) => ({
             instruction: step.instruction,
             ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
         })),
     };
+}
+
+/** The calls the ambiguity probe needs: its food's, and the recipe routes that create it and read the verdict back. */
+export interface AmbiguityProbeClients extends ProbeFoodClients {
+    readonly recipe: Pick<RecipeServiceClient, 'addIngredientByFood' | 'createRecipe' | 'getRecipeById'>;
+}
+
+/** How the verdict is waited on. Injected so a test spends no real time. */
+export interface AmbiguityTiming {
+    readonly intervalMs: number;
+    /** How long the verdict may take, from the moment the recipe was created, before the reset fails. */
+    readonly deadlineMs: number;
+    readonly now: () => number;
+    readonly sleep: (ms: number) => Promise<void>;
+}
+
+/**
+ * Four minutes. A stage that has never judged these lines pays an SQS delivery, a cold worker Lambda and one model call
+ * per line. A stage that has judged them before answers on the first read, because a verdict is keyed by the line's
+ * content and outlives the recipe. Not longer: a worker that is down should be named, not absorbed into a job timeout.
+ */
+export const DEFAULT_AMBIGUITY_TIMING: AmbiguityTiming = {
+    intervalMs: 3_000,
+    deadlineMs: 4 * 60_000,
+    now: () => Date.now(),
+    sleep: (ms) => delay(ms),
+};
+
+/**
+ * Create the signer's ambiguity probe and wait until the gate calls EVERY line AMBIGUOUS, then return the recipe's id.
+ *
+ * ⛔ The wait is part of the Command, not an option of it. A create answers before the worker has judged anything, so a
+ * reset that stopped there would hand the flow a recipe with nothing to review, and the flow's red would read like an app
+ * defect. A deadline that passes is an `Error` naming what each line read, which tells a worker that is down
+ * (`PENDING_VERIFICATION`) from a verdict that came back as something else (`NEEDS_REVIEW`, or a line with no status).
+ *
+ * ⛔ EVERY line, not any: the flow picks twice, once per line.
+ *
+ * Does not delete an older probe: `planWorldReset` already did, as residue, before this runs.
+ *
+ * @param clients - Clients authenticated as the SIGNER, the food's author and the recipe's owner.
+ * @param recipe - The run-scoped fixture (`manifest.ambiguityProbe`).
+ * @param foodName - The food both lines are bound to (`AMBIGUITY_PROBE_FOOD_NAME`).
+ * @param timing - How the verdict is waited on.
+ * @returns The recipe's id.
+ * @throws {Error} When the food is not a food or has another name, or when the lines are not all AMBIGUOUS by the deadline.
+ * @sideEffect May author a food; creates one recipe; polls the recipe service.
+ */
+export async function ensureAmbiguityProbe(
+    clients: AmbiguityProbeClients,
+    recipe: FixtureRecipe,
+    foodName: string,
+    timing: AmbiguityTiming = DEFAULT_AMBIGUITY_TIMING,
+): Promise<string> {
+    const binding = await ensureAuthoredFood(clients, foodName, 'the ambiguity probe food');
+    const created = await clients.recipe.createRecipe(toCreateRequest(recipe, new Map([[foodName, binding.id]])));
+    const startedAt = timing.now();
+
+    for (;;) {
+        const detail = await clients.recipe.getRecipeById(created.id);
+        const statuses = detail.ingredients.map((line) => line.resolutionStatus ?? 'none');
+
+        if (statuses.length === recipe.ingredients.length && statuses.every((status) => status === 'AMBIGUOUS')) {
+            return created.id;
+        }
+
+        if (timing.now() - startedAt >= timing.deadlineMs) {
+            throw new Error(
+                `e2e-seed: "${recipe.title}" never read AMBIGUOUS on every line within ${timing.deadlineMs} ms ` +
+                    `(its ${recipe.ingredients.length} lines read: ${statuses.join(', ') || 'no lines'}). ` +
+                    'PENDING_VERIFICATION means the verification worker has not answered; anything else means it answered ' +
+                    'something other than a high-certainty identity contradiction.',
+            );
+        }
+
+        await timing.sleep(timing.intervalMs);
+    }
 }
 
 /** Injectable pacing, so a unit test never sleeps and the integration tier can slow down. */

@@ -9,8 +9,9 @@ import type { CreateAuthoredFoodInput, CreateAuthoredFoodResult } from '@kitchen
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { describe, expect, it, vi } from 'vitest';
 
-import { deriveFixtureManifest } from '../src/fixtureManifest.js';
+import { AMBIGUITY_PROBE_FOOD_NAME, deriveFixtureManifest } from '../src/fixtureManifest.js';
 import {
+    ensureAmbiguityProbe,
     ensureCapFoods,
     ensurePrivateFoodRecipe,
     ensureProbeFood,
@@ -304,5 +305,121 @@ describe('ensurePrivateFoodRecipe', () => {
 
         expect(spies.list).not.toHaveBeenCalled();
         expect(spies.create).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * Audit 2026-10-19, plan 013 C3. The AMBIGUOUS state is the verification worker's verdict, so the seeder authors the
+ * inputs and then WAITS for the verdict, and a verdict that never comes must fail the reset loudly: the flow behind it
+ * would otherwise run against a recipe with nothing to review, and its red would read like an app defect.
+ */
+describe('ensureAmbiguityProbe', () => {
+    const recipe = manifest.ambiguityProbe;
+    const name = AMBIGUITY_PROBE_FOOD_NAME;
+    type Line = { resolutionStatus?: string };
+
+    /** A clock the fake `sleep` advances, so a deadline is reached without waiting. */
+    function clock() {
+        let now = 0;
+
+        return {
+            now: () => now,
+            sleep: async (ms: number): Promise<void> => {
+                now += ms;
+            },
+        };
+    }
+
+    /** Fake clients: food authors `name`, recipe binds it, creates the probe and then answers each read from `reads`. */
+    function probeClients(reads: readonly (readonly Line[])[], byFood = bound({ name })) {
+        const food = {
+            createAuthoredFood: async (): Promise<CreateAuthoredFoodResult> => created('food_apple_sauce', name),
+        };
+        const client = createFakeRecipeServiceClient();
+        let read = 0;
+        const spies = {
+            byFood: vi.spyOn(client, 'addIngredientByFood').mockResolvedValue(byFood),
+            create: vi.spyOn(client, 'createRecipe').mockResolvedValue({ id: 'probe_1' } as never),
+            get: vi.spyOn(client, 'getRecipeById').mockImplementation(async () => {
+                const lines = reads[Math.min(read, reads.length - 1)] ?? [];
+                read += 1;
+
+                return { id: 'probe_1', ingredients: lines } as never;
+            }),
+        };
+
+        return { clients: { food, recipe: client }, spies };
+    }
+
+    const AMBIGUOUS: Line = { resolutionStatus: 'AMBIGUOUS' };
+    const PENDING: Line = { resolutionStatus: 'PENDING_VERIFICATION' };
+    const timing = { intervalMs: 1_000, deadlineMs: 5_000 };
+
+    it('authors the food, binds it, and creates the recipe with both lines on that ONE binding and their source lines', async () => {
+        const { clients, spies } = probeClients([[AMBIGUOUS, AMBIGUOUS]]);
+
+        await ensureAmbiguityProbe(clients, recipe, name, { ...timing, ...clock() });
+
+        expect(spies.byFood).toHaveBeenCalledWith('food_apple_sauce');
+        const request = spies.create.mock.calls[0]?.[0];
+
+        expect(request?.title).toBe(recipe.title);
+        expect(request?.ingredients.map((line) => line.ingredientId)).toEqual([BINDING, BINDING]);
+        expect(request?.ingredients.map((line) => line.sourceLine)).toEqual(
+            recipe.ingredients.map((line) => line.sourceLine),
+        );
+    });
+
+    it('returns the recipe id once EVERY line reads AMBIGUOUS', async () => {
+        const { clients } = probeClients([[AMBIGUOUS, AMBIGUOUS]]);
+
+        await expect(ensureAmbiguityProbe(clients, recipe, name, { ...timing, ...clock() })).resolves.toBe('probe_1');
+    });
+
+    it('⛔ keeps waiting while a line is still PENDING, and succeeds when the verdict lands', async () => {
+        const { clients, spies } = probeClients([
+            [PENDING, PENDING],
+            [AMBIGUOUS, PENDING],
+            [AMBIGUOUS, AMBIGUOUS],
+        ]);
+
+        await expect(ensureAmbiguityProbe(clients, recipe, name, { ...timing, ...clock() })).resolves.toBe('probe_1');
+        expect(spies.get).toHaveBeenCalledTimes(3);
+    });
+
+    /** One ambiguous line is not the fixture: the flow picks twice, so a half-settled recipe is not ready. */
+    it('⛔ does not return while only ONE of the two lines is AMBIGUOUS', async () => {
+        const { clients } = probeClients([[AMBIGUOUS, PENDING]]);
+
+        await expect(ensureAmbiguityProbe(clients, recipe, name, { ...timing, ...clock() })).rejects.toThrow(
+            /AMBIGUOUS/u,
+        );
+    });
+
+    it('⛔ fails LOUDLY at the deadline, naming what each line read, rather than handing the flow an empty fixture', async () => {
+        const { clients, spies } = probeClients([[{ resolutionStatus: 'NEEDS_REVIEW' }, PENDING]]);
+
+        await expect(ensureAmbiguityProbe(clients, recipe, name, { ...timing, ...clock() })).rejects.toThrow(
+            /NEEDS_REVIEW.*PENDING_VERIFICATION/su,
+        );
+        // Bounded: it polled, but it did not poll forever.
+        expect(spies.get.mock.calls.length).toBeGreaterThan(1);
+        expect(spies.get.mock.calls.length).toBeLessThanOrEqual(7);
+    });
+
+    it('⛔ refuses a food that is not bound to a food, and creates no recipe', async () => {
+        const declared = { ...bound({ name }), foodId: undefined, foodResolutionStatus: undefined };
+        const { clients, spies } = probeClients([[AMBIGUOUS, AMBIGUOUS]], declared);
+
+        await expect(ensureAmbiguityProbe(clients, recipe, name, { ...timing, ...clock() })).rejects.toThrow(
+            /food id/u,
+        );
+        expect(spies.create).not.toHaveBeenCalled();
+    });
+
+    it('treats a recipe that comes back with no lines as NOT ambiguous', async () => {
+        const { clients } = probeClients([[]]);
+
+        await expect(ensureAmbiguityProbe(clients, recipe, name, { ...timing, ...clock() })).rejects.toThrow();
     });
 });

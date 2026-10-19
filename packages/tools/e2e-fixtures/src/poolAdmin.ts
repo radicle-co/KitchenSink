@@ -35,7 +35,9 @@
  * slot in scope is READ AGAIN and judged by the lease's own rule (`judgePoolSlot`): healthy means the next lease of
  * any of them will succeed, not merely that the writes returned.
  *
- * The owner's whole-roster `--apply` also RE-ASSERTS each existing slot's username and names through
+ * The owner's whole-roster `--apply` also RE-ASSERTS each existing slot's username and names (and, for a slot a flow
+ * types a password for, the committed password — so a lane that became password-bearing after it was created, like the
+ * Maestro co-author and the web peer of 2026-10-19, can sign in) through
  * `updateUser`, so Clerk emits `user.updated` and the identity webhook fills the profile's username — the one
  * honest path (identity never fills it on read, and this command never writes identity's database). It is idempotent
  * and only the roster scope does it; the Maestro refill leaves existing users alone.
@@ -147,6 +149,15 @@ export interface PoolProfileReassert {
     readonly username: string;
     readonly firstName: string;
     readonly lastName: string;
+    /**
+     * {@link POOL_PASSWORD}, present ONLY for a slot a flow types a password for. Re-stated here because an existing user
+     * was created with a random password (the create body is the only other place a password is written), so a lane that
+     * BECAME password-bearing later (the Maestro co-author and the web peer, owner decision 2026-10-19) is otherwise
+     * unable to sign in. Absent for every other slot: its random password stays unknown.
+     */
+    readonly password?: string;
+    /** Set with `password`: the committed password is not one the instance's strength rules would pick. */
+    readonly skipPasswordChecks?: true;
 }
 
 /** Whether a reconciliation re-states existing slots' profiles so Clerk re-emits them to identity. */
@@ -401,7 +412,8 @@ export function poolUserCreateInput(slot: PoolSlot, randomPassword: string): Poo
 }
 
 /**
- * The profile a slot's Clerk user is re-asserted with: exactly the username and names its create body carries. Pure.
+ * The profile a slot's Clerk user is re-asserted with: exactly the username and names its create body carries, plus the
+ * committed password for a slot that signs in by password. Pure.
  *
  * Identity learns a username ONLY from the `user.created` / `user.updated` webhook (never filled on read), so a slot
  * whose identity profile was made before the username column existed gets it when Clerk re-emits the user.
@@ -409,7 +421,9 @@ export function poolUserCreateInput(slot: PoolSlot, randomPassword: string): Poo
 export function poolProfileReassert(slot: PoolSlot): PoolProfileReassert {
     const { username, firstName, lastName } = poolUserCreateInput(slot, '');
 
-    return { username, firstName, lastName };
+    return slot.signsInByPassword
+        ? { username, firstName, lastName, password: POOL_PASSWORD, skipPasswordChecks: true }
+        : { username, firstName, lastName };
 }
 
 /**

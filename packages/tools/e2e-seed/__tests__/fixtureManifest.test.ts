@@ -17,6 +17,8 @@ import { createRecipeRequestSchema, MAX_SEARCH_FOOD_FILTERS } from '@kitchensink
 import { describe, expect, it } from 'vitest';
 
 import {
+    AMBIGUITY_PROBE_FOOD_NAME,
+    AMBIGUITY_PROBE_RECIPE,
     CAP_FOOD_BASE_NAME,
     deriveFixtureManifest,
     FIXTURE_ENV_KEYS,
@@ -28,6 +30,7 @@ import {
     SEED_WORLD,
     UNATTACHED_PROBE_INGREDIENT,
 } from '../src/fixtureManifest.js';
+import { toCreateRequest } from '../src/recipeWorld.js';
 
 const RUN = 'gh42-1-maestro';
 /** The shard whose identities these assertions are about; shard 1 is the unsharded tier. */
@@ -554,5 +557,83 @@ describe('manifestToEnvLines', () => {
         expect(manifestToEnvLines(manifest, { erasureEmail: ERASURE, probeWords: other })).toContain(
             `${FIXTURE_ENV_KEYS.remoteAppendWord}=tahini`,
         );
+    });
+});
+
+/**
+ * Audit 2026-10-19, plan 013 C3: `recipes/ambiguityReview` needs a recipe the viewer owns whose lines the verification
+ * gate calls AMBIGUOUS. The gate's verdict is the worker's, so the fixture can only SET UP the inputs that make the
+ * verdict near-certain: a line bound to one food whose source line names a plainly different one.
+ */
+describe('the ambiguity probe', () => {
+    const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+
+    it('scopes its title to the run, with the run key last, like every other fixture title', () => {
+        expect(manifest.ambiguityProbe.title).toBe(runScopedTitle('Ambiguity Probe', RUN));
+    });
+
+    it('is the SIGNER’s PRIVATE recipe, because the review is the owner’s alone and Discover must not list it', () => {
+        expect(manifest.ambiguityProbe.owner).toBe('signer');
+        expect(manifest.ambiguityProbe.visibility).toBe('private');
+    });
+
+    /**
+     * ⛔ Two lines, not one. The merged flow picks twice (the detail’s review, then the editor’s row), and each pick
+     * re-points ONE line, so a one-line fixture leaves the second leg nothing to choose.
+     */
+    it('has TWO lines of one food, 1 cup and 2 tbsp — the rows "1 cup apple sauce" and "2 tbsp apple sauce"', () => {
+        expect(AMBIGUITY_PROBE_RECIPE.ingredients.map((line) => [line.name, line.quantity, line.unit])).toEqual([
+            [AMBIGUITY_PROBE_FOOD_NAME, 1, 'cup'],
+            [AMBIGUITY_PROBE_FOOD_NAME, 2, 'tbsp'],
+        ]);
+        expect(AMBIGUITY_PROBE_FOOD_NAME).toBe('apple sauce');
+    });
+
+    /**
+     * ⛔ THE LINES MUST CONTRADICT THEIR FOOD. A source line that agrees with the bound food is `verified`, and a
+     * verified line is never AMBIGUOUS — so a source line equal to the food's own words would make the fixture inert.
+     */
+    it('gives every line a source line that names a DIFFERENT food than the one it is bound to', () => {
+        for (const line of AMBIGUITY_PROBE_RECIPE.ingredients) {
+            expect(line.sourceLine).toBeDefined();
+            expect(line.sourceLine?.toLowerCase()).not.toContain('apple');
+            expect(line.sourceLine?.toLowerCase()).not.toContain('sauce');
+        }
+    });
+
+    it('gives each line its own source line, so each carries its own verdict', () => {
+        const lines = AMBIGUITY_PROBE_RECIPE.ingredients.map((line) => line.sourceLine);
+
+        expect(new Set(lines).size).toBe(lines.length);
+    });
+
+    it('is NOT in SEED_WORLD and not in manifest.recipes, so every other flow still sees "3 recipes"', () => {
+        expect(SEED_WORLD.map((recipe) => recipe.key)).not.toContain('ambiguityProbe');
+        expect(manifest.recipes.map((recipe) => recipe.key)).not.toContain('ambiguityProbe');
+    });
+
+    it('builds a request the shipped contract accepts, carrying each line’s source line', () => {
+        const ids = new Map([[AMBIGUITY_PROBE_FOOD_NAME, '00000000-0000-4000-8000-0000000000b1']]);
+        const request = toCreateRequest(manifest.ambiguityProbe, ids);
+
+        expect(createRecipeRequestSchema.safeParse(request).success).toBe(true);
+        expect(request.ingredients.map((line) => line.sourceLine)).toEqual(
+            AMBIGUITY_PROBE_RECIPE.ingredients.map((line) => line.sourceLine),
+        );
+    });
+
+    it('reaches the flow as E2E_RECIPE_AMBIGUITY_PROBE, with the run-scoped title', () => {
+        expect(FIXTURE_ENV_KEYS.ambiguityProbeRecipe).toBe('E2E_RECIPE_AMBIGUITY_PROBE');
+        expect(manifestToEnvLines(manifest, provisioned(ERASURE))).toContain(
+            `E2E_RECIPE_AMBIGUITY_PROBE=${runScopedTitle('Ambiguity Probe', RUN)}`,
+        );
+    });
+
+    it('uses no regex metacharacters in its title, because the flow puts it inside a Maestro pattern', () => {
+        expect(manifest.ambiguityProbe.title).toMatch(/^[A-Za-z0-9 -]+$/u);
+    });
+
+    it('is frozen with the rest of the manifest', () => {
+        expect(Object.isFrozen(manifest.ambiguityProbe)).toBe(true);
     });
 });

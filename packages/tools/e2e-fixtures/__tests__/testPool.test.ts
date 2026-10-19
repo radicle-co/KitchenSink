@@ -25,6 +25,7 @@ import {
     maestroErasureSlots,
     maestroShardCapacity,
     maestroSlotForShard,
+    peerSlotFor,
     POOL_PASSWORD,
     POOL_ROSTER,
     POOL_TIERS,
@@ -268,17 +269,22 @@ describe('password-bearing slots', () => {
      * EITHER platform, types the password on its own device, so the claim is per (platform, shard). Comparing sorted
      * sets keeps the assertion about WHICH slots type a password, which is what `poolAdmin` acts on.
      */
-    it('are exactly the slots a flow types a password for: web shards, maestro signers, erasures and the role users', () => {
+    it('are exactly the slots a flow types a password for: web shards and their peers, maestro signers and co-authors, erasures and the role users', () => {
         const typed = rosterSlots()
             .filter((slot) => slot.signsInByPassword)
             .map((slot) => `${slot.tier}/${slot.id}`);
         const signers = everyShard().map(({ platform, shard }) => maestroSlotForShard('signer', platform, shard));
+        // Owner decision 2026-10-19 (plan 013 C4, matrix G18): `sessionHandoff` signs the CO-AUTHOR in on the device, and
+        // its web twin signs the shard's PEER in, so both types the password now.
+        const coauthors = everyShard().map(({ platform, shard }) => maestroSlotForShard('coauthor', platform, shard));
 
         expect([...typed].sort()).toEqual(
             [
                 ...POOL_ROSTER.web.map((lane) => `web/${lane.id}`),
                 ...POOL_ROSTER.webStub.map((lane) => `webStub/${lane.id}`),
+                ...POOL_ROSTER.webPeer.map((lane) => `webPeer/${lane.id}`),
                 ...signers.map((slot) => `maestro/${slot.id}`),
+                ...coauthors.map((slot) => `maestro/${slot.id}`),
                 ...consumableSlots('maestro').map((slot) => `maestro/${slot.id}`),
                 ...POOL_ROSTER.roles.map((lane) => `roles/${lane.id}`),
             ].sort(),
@@ -290,8 +296,10 @@ describe('password-bearing slots', () => {
             const label = `${platform} shard ${shard}`;
 
             expect(maestroSlotForShard('signer', platform, shard).signsInByPassword, label).toBe(true);
-            // The co-author is an API identity only — `provision` signs it in over HTTP and no flow types it.
-            expect(maestroSlotForShard('coauthor', platform, shard).signsInByPassword, label).toBe(false);
+            // REWRITTEN 2026-10-19 (plan 013 C4): this used to pin the co-author as an API identity nobody types.
+            // `sessionHandoff.yaml` now signs it in on the device by password (ADR-0054's second cook), so every
+            // shard's co-author must carry the password too, or `poolAdmin` leaves it with a random one.
+            expect(maestroSlotForShard('coauthor', platform, shard).signsInByPassword, label).toBe(true);
         }
     });
 
@@ -559,7 +567,51 @@ describe('the roles tier', () => {
         }
     });
 
-    it('is the LAST tier, so no existing lane is renumbered', () => {
-        expect(POOL_TIERS.at(-1)).toBe('roles');
+    it('keeps the tiers in the order they were appended, so no existing lane is renumbered', () => {
+        // REWRITTEN 2026-10-19: `webPeer` was appended after `roles`, so `roles` is no longer last. The claim that
+        // matters is unchanged: tiers only ever grow at the end.
+        expect(POOL_TIERS).toEqual(['web', 'webStub', 'maestro', 'k6', 'linkage', 'roles', 'webPeer']);
+    });
+});
+
+/**
+ * The web SECOND identity (owner decision 2026-10-19, plan 013 C4 / matrix G18). `sessionHandoff.spec.ts` signs cook A
+ * in as the shard's own lane, signs out, then signs cook B in on the same browser. B must be nobody else's user: a lane
+ * borrowed from another shard would put two concurrent runs on one Clerk user.
+ */
+describe('webPeer tier', () => {
+    it('declares one peer for every web shard, so shard N has a peer of its own', () => {
+        expect(POOL_ROSTER.webPeer.length).toBeGreaterThanOrEqual(POOL_ROSTER.web.length);
+        expect(POOL_ROSTER.webPeer.length).toBeGreaterThanOrEqual(POOL_ROSTER.webStub.length);
+    });
+
+    it('allocates shard N to peer N, and it is never the shard’s own user', () => {
+        for (let shard = 1; shard <= POOL_ROSTER.web.length; shard += 1) {
+            expect(slotForShard('webPeer', shard).id).toBe(`webpeer${String(shard).padStart(2, '0')}`);
+            expect(slotForShard('webPeer', shard).email).not.toBe(slotForShard('web', shard).email);
+        }
+    });
+
+    it('signs in by password, holds no scope, and is never consumed', () => {
+        for (const lane of POOL_ROSTER.webPeer) {
+            expect(lane.signsInByPassword, lane.id).toBe(true);
+            expect(lane.scopes, lane.id).toEqual([]);
+            expect(lane.consumable, lane.id).toBe(false);
+            expect(lane.roles, lane.id).toEqual(['default']);
+        }
+    });
+
+    it('names the peer of a web or webStub slot, by the slot’s own index — so no caller re-parses the shard', () => {
+        expect(peerSlotFor(slotForShard('web', 3))).toEqual(slotForShard('webPeer', 3));
+        expect(peerSlotFor(slotForShard('webStub', 5))).toEqual(slotForShard('webPeer', 5));
+    });
+
+    it('⛔ refuses a slot of any other tier, which has no peer, rather than guessing one', () => {
+        expect(() => peerSlotFor(slotFor('maestro', 'signer'))).toThrow(/peer/u);
+        expect(() => peerSlotFor(slotFor('webPeer', 'webpeer01'))).toThrow(/peer/u);
+    });
+
+    it('refuses a shard past the declared peers rather than wrapping onto another shard’s peer', () => {
+        expect(() => slotForShard('webPeer', POOL_ROSTER.webPeer.length + 1)).toThrow(/declares only/u);
     });
 });

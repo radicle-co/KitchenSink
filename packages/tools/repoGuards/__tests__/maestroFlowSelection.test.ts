@@ -272,23 +272,11 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     'offline/offlineSurvivesRestart',
     // Discard while offline (plan 2026-10-13-004): Android-bound like its siblings (`setAirplaneMode`), manual-only.
     'offline/discardWhileOffline',
-    // ADR-0054's handoff on one device: cook A signs out, the co-author signs in, and must not see A's recipe. The
-    // co-author's pool lane has no password sign-in (`POOL_ROSTER` in `@kitchensink/e2e-fixtures`), so the flow cannot
-    // sign in as them until the owner gives that lane one (`poolAdmin --apply`). Promote it to FLOW_PLAN then.
-    'sessionHandoff',
     'homeRecentRecipeTap',
     // Slice 3: the iOS edge swipe needs the iOS Simulator, which does not run on Linux (blueprint Q4); it runs by name on
     // a Mac until an iOS lane exists.
     'shell/iosSwipeBack',
     'recipes/sourceTabs',
-    // U13: the batched review story needs a recipe carrying a gate-AMBIGUOUS line, and that state is
-    // produced by the verification worker over a stored inconclusive verdict + a spread shortlist — not
-    // constructible from the app. A CI seeding step for the fixture recipe is owed before this promotes
-    // into the plan; the surface's states are covered by ambiguityReviewSurface.native.test.tsx meanwhile.
-    'recipes/ambiguityReview',
-    // Row 7's shortlist on a device needs the same seeded gate-AMBIGUOUS fixture recipe as `ambiguityReview`, and the
-    // same seeding step promotes it.
-    'recipes/ingredientShortlist',
     // Plan 012: the native Google sign-in's cancel (iOS) / no-Play-services error (Android) path. It must start signed
     // OUT, so planning it costs one more Clerk email-code sign-in per platform per run (to restore the session the next
     // flow needs) against the budget the describe below pins to two, and it has never run on a device. The buttons'
@@ -603,7 +591,7 @@ describe('the plan — ordering invariants the flows depend on', () => {
 });
 
 /**
- * The Maestro tier's share of Clerk's EMAIL-CODE verification budget: up to seven per platform per full run, and only on
+ * The Maestro tier's share of Clerk's EMAIL-CODE verification budget: up to seven per platform per full run before `sessionHandoff`, ten with it, and only on
  * purpose.
  *
  * The deployed k6 pool failed on Clerk refusing its email-code steps, and that counter's window and scope are
@@ -641,7 +629,7 @@ describe('the Clerk email-code budget — only the flows that test sign-in clear
     const planned = (): readonly { readonly flow: string; readonly body: string }[] =>
         ALL_FLOWS.map((flow) => ({ flow, body: readFileSync(join(MAESTRO_DIR, `${flow}.yaml`), 'utf8') }));
 
-    it('clears app state only in the sign-in UI test, the erasure flow and the two role flows', () => {
+    it('clears app state only in the sign-in UI test, the erasure flow, the session handoff and the two role flows', () => {
         const clearing = planned()
             .filter(({ body }) => /^\s*clearState:\s*true\b/mu.test(body))
             .map(({ flow }) => flow);
@@ -649,7 +637,13 @@ describe('the Clerk email-code budget — only the flows that test sign-in clear
         expect(
             clearing.sort(),
             'a flow that clears state forces a UI sign-in, which spends a shared Clerk email-code verification',
-        ).toEqual(['accountErasure', 'auth/loginFlow', 'recipes/makePublicConfirm', 'recipes/paidFeaturesByRole']);
+        ).toEqual([
+            'accountErasure',
+            'auth/loginFlow',
+            'recipes/makePublicConfirm',
+            'recipes/paidFeaturesByRole',
+            'sessionHandoff',
+        ]);
     });
 
     it('types the fixed email code only in the guarded credential sub-flow — and the unplanned sign-up', () => {
@@ -782,6 +776,8 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
             'dataSources',
             'profileUsername',
             'accountDangerZone',
+            // ADR-0054's handoff joined the auth vertical with plan 013 C4 (2026-10-19): it is a sign-out/sign-in story.
+            'sessionHandoff',
             'accountErasure',
         ]);
         // What did NOT run is reported, in full, so a narrowed run can never be mistaken for a complete one.

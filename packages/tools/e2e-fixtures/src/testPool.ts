@@ -80,8 +80,16 @@ export type PoolTenant = (typeof POOL_TENANTS)[number];
  *   3. **End only your own session**, as the webStub tier does.
  *
  * A change that needs a write as one of these users needs a lease and resets first.
+ *
+ * `webPeer` (owner decision 2026-10-19, plan 013 C4 / matrix G18) is the SECOND web identity of a shard: lane N is the
+ * peer of web shard N (and of webStub shard N), the cook who signs in after the shard's own user signs out, so
+ * `sessionHandoff.spec.ts` can prove ADR-0054 on a browser. It is a tier of its own, and not more lanes of `web`,
+ * because `slotForShard` takes the lane at the shard's index and a shard past the eight would otherwise land on a peer.
+ * It holds NO lease and gets NO reset, on the `roles` argument, and binds the same two rules: sign in and READ only
+ * (the spec stubs the recipe service, so it writes nothing), and end only your own session. Appended after `roles`
+ * so no existing tier is reordered.
  */
-export const POOL_TIERS = ['web', 'webStub', 'maestro', 'k6', 'linkage', 'roles'] as const;
+export const POOL_TIERS = ['web', 'webStub', 'maestro', 'k6', 'linkage', 'roles', 'webPeer'] as const;
 
 /** One of {@link POOL_TIERS}. */
 export type PoolTier = (typeof POOL_TIERS)[number];
@@ -153,6 +161,13 @@ const lane = (id: string, overrides: Partial<Omit<PoolLane, 'id'>> = {}): PoolLa
     ...overrides,
 });
 
+/**
+ * A Maestro co-author lane. It types the password: `sessionHandoff.yaml` signs it in on the device as the SECOND cook
+ * (ADR-0054; owner decision 2026-10-19, plan 013 C4), so `poolAdmin` gives it {@link POOL_PASSWORD}. Its other work is
+ * unchanged: `provision` still signs it in over HTTP.
+ */
+const coauthor = (id: string): PoolLane => lane(id, { signsInByPassword: true });
+
 /** A lane number as the two digits every numbered lane id carries. */
 const pad = (n: number): string => String(n).padStart(2, '0');
 
@@ -211,7 +226,7 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
         // The signer owns the PRIVATE recipes of the seeded world, which the recipe service admits only for a
         // premium caller.
         lane('signer', { roles: ['premium'], signsInByPassword: true }),
-        lane('coauthor'),
+        coauthor('coauthor'),
         // Each real erasure destroys its subject for good (identity keeps it unresolvable), so the flow takes
         // the first erasure slot that still exists and `poolAdmin` replenishes the rest.
         ...numbered('erasure', 10, { consumable: true, signsInByPassword: true }),
@@ -222,31 +237,31 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
         // other's fixtures mid-flow and answer `423 ERASURE_IN_PROGRESS` while a purge is in flight.
         // `MAESTRO_PLATFORM_LANES` is the index; `maestroShardCapacity` is what bounds the matrix.
         lane('signer02', { roles: ['premium'], signsInByPassword: true }),
-        lane('coauthor02'),
+        coauthor('coauthor02'),
         // Shards 3 and 4 of Android, then iOS's own four shards, so the two platforms run side by side instead of
         // queueing on one lane's concurrency group (owner, 2026-10-13). Appended, for the reason above.
         lane('signer03', { roles: ['premium'], signsInByPassword: true }),
-        lane('coauthor03'),
+        coauthor('coauthor03'),
         lane('signer04', { roles: ['premium'], signsInByPassword: true }),
-        lane('coauthor04'),
+        coauthor('coauthor04'),
         lane('iossigner01', { roles: ['premium'], signsInByPassword: true }),
-        lane('ioscoauthor01'),
+        coauthor('ioscoauthor01'),
         lane('iossigner02', { roles: ['premium'], signsInByPassword: true }),
-        lane('ioscoauthor02'),
+        coauthor('ioscoauthor02'),
         lane('iossigner03', { roles: ['premium'], signsInByPassword: true }),
-        lane('ioscoauthor03'),
+        coauthor('ioscoauthor03'),
         lane('iossigner04', { roles: ['premium'], signsInByPassword: true }),
-        lane('ioscoauthor04'),
+        coauthor('ioscoauthor04'),
         // ⛔ SHARDS 5 TO 8 OF EACH PLATFORM — APPENDED after the sixteen above, never interleaved, so no existing lane
         // changes index and no shard signs in as a user another shard's data was reset for. Android first, then iOS,
         // the order the first eight were declared in. Each needs `poolAdmin --apply` before a run can lease it.
         ...[5, 6, 7, 8].flatMap((n) => [
             lane(`signer${pad(n)}`, { roles: ['premium'], signsInByPassword: true }),
-            lane(`coauthor${pad(n)}`),
+            coauthor(`coauthor${pad(n)}`),
         ]),
         ...[5, 6, 7, 8].flatMap((n) => [
             lane(`iossigner${pad(n)}`, { roles: ['premium'], signsInByPassword: true }),
-            lane(`ioscoauthor${pad(n)}`),
+            coauthor(`ioscoauthor${pad(n)}`),
         ]),
     ],
     k6: [
@@ -271,6 +286,8 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
         // `DOWNGRADED_OWNER_LANE_ID` — and the flows that sign in as it only READ, like every other lane here.
         lane(DOWNGRADED_OWNER_LANE_ID, { roles: ['default'], seedRoles: ['premium'], signsInByPassword: true }),
     ],
+    // One peer per web shard (see POOL_TIERS). Eight, the deployed matrix's size; the six stub shards use the first six.
+    webPeer: numbered('webpeer', 8, { signsInByPassword: true }),
 };
 
 /**
@@ -500,7 +517,7 @@ export function slotFor(tier: PoolTier, id: string): PoolSlot {
  * ⛔ It THROWS past the declared lanes rather than wrapping. Wrapping would put two shards of one run on one
  * user — the collision the whole pool exists to rule out — and it would do so silently.
  */
-export function slotForShard(tier: 'web' | 'webStub', shard: number): PoolSlot {
+export function slotForShard(tier: 'web' | 'webStub' | 'webPeer', shard: number): PoolSlot {
     if (!Number.isInteger(shard) || shard < 1) {
         throw new Error(`test pool: shard must be a positive integer, got ${String(shard)}`);
     }
@@ -515,6 +532,24 @@ export function slotForShard(tier: 'web' | 'webStub', shard: number): PoolSlot {
     }
 
     return toSlot(tier, declared);
+}
+
+/**
+ * The peer of a web slot: the `webPeer` lane at the same index, the SECOND cook `sessionHandoff.spec.ts` signs in after
+ * the slot's own user signs out. Pure.
+ *
+ * Derived from the slot rather than from a shard number so a caller that already holds its slot (`webPoolSlot`) does
+ * not parse the shard a second time. It throws for a slot of any other tier.
+ *
+ * @param slot - A `web` or `webStub` slot.
+ * @throws When the slot is not a web slot, or the peer tier declares no lane for its index.
+ */
+export function peerSlotFor(slot: PoolSlot): PoolSlot {
+    if (slot.tier !== 'web' && slot.tier !== 'webStub') {
+        throw new Error(`test pool: only a web slot has a peer, got ${slot.tier}/${slot.id}`);
+    }
+
+    return slotForShard('webPeer', POOL_ROSTER[slot.tier].findIndex((declared) => declared.id === slot.id) + 1);
 }
 
 /**

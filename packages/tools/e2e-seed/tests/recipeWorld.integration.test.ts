@@ -28,9 +28,10 @@ import {
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { deriveFixtureManifest } from '../src/fixtureManifest.js';
+import { AMBIGUITY_PROBE_FOOD_NAME, deriveFixtureManifest } from '../src/fixtureManifest.js';
 import {
     applyPlan,
+    ensureAmbiguityProbe,
     ensureCapFoods,
     ensurePrivateFoodRecipe,
     ensureProbeFood,
@@ -83,6 +84,13 @@ interface Recorded {
     lastId: number;
     /** When set, a created recipe's lines are stored bound to THIS binding instead of the one the body sent. */
     rebindCreatedLinesTo?: string;
+    /**
+     * When set, a read of a recipe answers every line with this status, given how many reads of that recipe came before —
+     * the verification worker's verdict landing between two polls.
+     */
+    lineStatusOnRead?: (readsBefore: number) => string;
+    /** Reads of each recipe by id, counted for {@link lineStatusOnRead}. */
+    detailReads: Map<string, number>;
 }
 
 let server: Server;
@@ -139,6 +147,7 @@ const recipeDetail = (
     title: string,
     visibility: StoredRecipe['visibility'],
     lines: readonly StoredLine[] = [],
+    status?: string,
 ) => ({
     ...recipeRow(id, title, visibility),
     // The line-view shape's required fields only, as `recipeRow` does for the row.
@@ -146,6 +155,7 @@ const recipeDetail = (
         ingredientId: line.ingredientId,
         quantity: line.quantity,
         ...(line.unit === undefined ? {} : { unit: line.unit }),
+        ...(status === undefined ? {} : { resolutionStatus: status }),
         isUserEntered: false,
     })),
     steps: [],
@@ -257,7 +267,19 @@ beforeAll(async () => {
                 return;
             }
 
-            send(200, recipeDetail(stored.id, stored.title, stored.visibility, state.recipeLines.get(stored.id)));
+            const reads = state.detailReads.get(stored.id) ?? 0;
+            state.detailReads.set(stored.id, reads + 1);
+
+            send(
+                200,
+                recipeDetail(
+                    stored.id,
+                    stored.title,
+                    stored.visibility,
+                    state.recipeLines.get(stored.id),
+                    state.lineStatusOnRead?.(reads),
+                ),
+            );
 
             return;
         }
@@ -426,6 +448,7 @@ const freshState = (): Recorded => ({
     foodCreates: [],
     byFoodRequests: [],
     recipeLines: new Map(),
+    detailReads: new Map(),
     lastId: 0,
 });
 
@@ -723,5 +746,75 @@ describe('the private-food recipe over a real wire', () => {
         state.rebindCreatedLinesTo = bindingId(1);
 
         await expect(ensurePrivateFoodRecipe(foodClients(), recipe, name)).rejects.toThrow(/not bound to/u);
+    });
+});
+
+/**
+ * Audit 2026-10-19, plan 013 C3. Over the real wire and the SHIPPED contract: the probe's create body (with its per-line
+ * `sourceLine`) satisfies `createRecipeRequestSchema`, the client parses a detail whose lines read `AMBIGUOUS`, and the
+ * wait ends when the verdict lands and not before. What this cannot prove is that the DEPLOYED worker ever answers
+ * AMBIGUOUS for these lines: only the Maestro run does.
+ */
+describe('ensureAmbiguityProbe over a real wire', () => {
+    const fast = {
+        intervalMs: 5,
+        deadlineMs: 300,
+        now: () => Date.now(),
+        sleep: async (ms: number) => void (await new Promise((r) => setTimeout(r, ms))),
+    };
+
+    it('creates the probe with the contract’s body and returns once the verdict lands, not before', async () => {
+        state = freshState();
+        state.lineStatusOnRead = (readsBefore) => (readsBefore < 2 ? 'PENDING_VERIFICATION' : 'AMBIGUOUS');
+
+        const id = await ensureAmbiguityProbe(foodClients(), manifest.ambiguityProbe, AMBIGUITY_PROBE_FOOD_NAME, fast);
+
+        expect(state.schemaFailures).toEqual([]);
+        expect(state.createdBodies).toHaveLength(1);
+        expect(state.createdBodies[0]).toMatchObject({
+            title: manifest.ambiguityProbe.title,
+            visibility: 'private',
+            ingredients: [
+                { unit: 'cup', sourceLine: '1 cup chicken stock' },
+                { unit: 'tbsp', sourceLine: '2 tbsp olive oil' },
+            ],
+        });
+        // Both lines are bound to the ONE binding food minted for the authored food.
+        const bindings = state.recipeLines.get(id)?.map((line) => line.ingredientId);
+
+        expect(bindings).toHaveLength(2);
+        expect(new Set(bindings).size).toBe(1);
+        // Two polls saw PENDING, the third saw the verdict: it waited.
+        expect(state.detailReads.get(id)).toBe(3);
+    });
+
+    it('⛔ fails at the deadline when the worker never answers, instead of returning a recipe with nothing to review', async () => {
+        state = freshState();
+        state.lineStatusOnRead = () => 'PENDING_VERIFICATION';
+
+        await expect(
+            ensureAmbiguityProbe(foodClients(), manifest.ambiguityProbe, AMBIGUITY_PROBE_FOOD_NAME, fast),
+        ).rejects.toThrow(/PENDING_VERIFICATION, PENDING_VERIFICATION/u);
+    });
+
+    it('⛔ a recipe whose lines carry no status at all is not ambiguous', async () => {
+        state = freshState();
+
+        await expect(
+            ensureAmbiguityProbe(foodClients(), manifest.ambiguityProbe, AMBIGUITY_PROBE_FOOD_NAME, fast),
+        ).rejects.toThrow(/none, none/u);
+    });
+
+    it('plans the probe as residue in ambiguity mode, so a re-pointed probe is deleted before a fresh one is made', async () => {
+        state = freshState();
+        state.recipes = [{ id: 'old-probe', title: manifest.ambiguityProbe.title, visibility: 'private' }];
+
+        await applyPlan(
+            client(),
+            planWorldReset({ recipes: state.recipes, collections: [] }, manifest, 'ambiguity'),
+            noSleep,
+        );
+
+        expect(state.deleted).toContain('/api/v1/recipes/old-probe');
     });
 });

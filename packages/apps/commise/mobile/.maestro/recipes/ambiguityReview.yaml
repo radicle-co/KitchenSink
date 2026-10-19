@@ -1,26 +1,45 @@
 appId: ${APP_ID}
 ---
-# U13 — the ambiguity-review story (mobile). Mirror of the web Playwright `ambiguityReview.spec.ts` per the
-# cross-platform mandate: the surface's decision layer is shared, so what this flow proves on a device is the native
-# markup and the real tap path — badge → entry → open → a row per ambiguous LINE → pick → saved.
+# The ambiguity-review story on a device, in both of its doors (mobile). Mirror of the web Playwright
+# `ambiguityReview.spec.ts` for the batched review, and of `ingredientShortlistRow.spec.ts` for row 7 on a saved line
+# (`docs/design/ingredientStatusExplanation.md` SPECIFY.1 row 7). Merged from the former `ingredientShortlist.yaml`
+# (audit 2026-10-19, plan 013 C3): both flows needed the same fixture and ended in the same remote pick. What only this
+# flow proves on a device: the badge and the entry render from a real detail, a TAP opens the review and the editor
+# row's sheet, the shortlist answers, and a pick re-points ONE line, on each door.
 #
-# Assumes an authenticated session against the live sandbox services AND a recipe the viewer OWNS carrying at least one
-# gate-AMBIGUOUS line (the seeded review fixture "Ambiguity Probe", whose line is `apple sauce`). The ambiguity state is
-# produced by the verification worker, not constructible from the app, so the flow stops at the labelled wait below
-# when the fixture is absent, and never passes without having opened the review.
+# THE FIXTURE is `manifest.ambiguityProbe` (`packages/tools/e2e-seed/src/fixtureManifest.ts`): the signer's private
+# recipe "Ambiguity Probe" with TWO `apple sauce` lines (1 cup, 2 tbsp), each bound to the signer's own `apple sauce`
+# food while its source line names another food ("1 cup chicken stock", "2 tbsp olive oil"). The verification worker
+# calls such a line AMBIGUOUS. The runner makes it in this flow's own reset (`reset --mode ambiguity`), which waits for the
+# worker's verdict and FAILS THE RESET, not this flow, if the verdict never comes.
 #
-# ⚠️ The pick is a real write: it re-points THAT line alone through the rebind command (owner ruling 2026-10-02, "Fix
-# one line at a time"), which makes a new version of the fixture recipe and leaves the line no longer AMBIGUOUS. So the
-# fixture must be seeded for each run, by the same seeding step `ingredientShortlist.yaml` waits on.
+# ⚠️ Each pick is a real write: it re-points THAT line alone through the rebind command (owner ruling 2026-10-02, "Fix
+# one line at a time"; `docs/design/rowEditorBlueprint.md` decision 7), which makes a new version of the recipe and leaves
+# that line no longer AMBIGUOUS. The recipe is therefore spent by the flow, and the next flow's reset deletes it. The two
+# legs use the two lines: the review takes one, the editor's row takes the other. The flow leaves the editor with ×, never
+# its Discard.
 - runFlow: ../auth/signin.yaml
 
-- assertVisible: 'Recipes'
-- tapOn: 'Ambiguity Probe'
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_AMBIGUITY_PROBE}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: '${E2E_RECIPE_AMBIGUITY_PROBE}'
 
-# The badge and the entry render from the detail's own resolutionStatus.
+# LEG 1, the detail's batched review. The badge and the entry render from the detail's own resolutionStatus, and the
+# entry counts LINES: two ambiguous lines read "2 ingredients …" (audit 2026-10-19, C3: this is the "before" the count
+# check after the pick compares against).
 - scrollUntilVisible:
       element: 'Choose a match'
       direction: DOWN
+      timeout: 20000
+- scrollUntilVisible:
+      element: '2 ingredients could match more than one food\. Review them to sharpen the nutrition\.'
+      direction: UP
       timeout: 20000
 - runFlow:
       file: common/scrollIntoTapView.yaml
@@ -37,7 +56,7 @@ appId: ${APP_ID}
           text: '.+ apple sauce'
           below: 'Review ingredient matches'
       timeout: 30000
-      label: 'the owner’s recipe carries an AMBIGUOUS "apple sauce" line, and its review row is open'
+      label: 'the owner’s recipe carries two AMBIGUOUS "apple sauce" lines, and their review rows are open'
 
 # The source's foods flow into the row with no press (plan 002 S7.8, ADR-0055 point 9).
 - extendedWaitUntil:
@@ -45,8 +64,8 @@ appId: ${APP_ID}
           text: 'From USDA'
       timeout: 40000
       label: 'USDA answered the progressive search for "apple sauce" on this stage'
-# One pick, of a remote food: the review adopts it and re-points THAT line to the root (ADR-0055 point 10). The line
-# leaves the review and the surface says it saved.
+# One pick, of a remote food: the review adopts it and re-points THAT line to the root (ADR-0055 point 10). The surface
+# says it saved.
 - runFlow:
       file: common/scrollOpenList.yaml
       env:
@@ -57,3 +76,69 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Saved — future recipes will use this match.'
       timeout: 30000
+# audit 2026-10-19, C3: the pick fixed ONE line and left the other under review. The entry counted two before the pick
+# and counts one after, so this text is ABSENT before and PRESENT after, and the saved sentence alone could not say it.
+- scrollUntilVisible:
+      element: '1 ingredient could match more than one food\. Review it to sharpen the nutrition\.'
+      direction: UP
+      timeout: 30000
+
+# LEG 2, row 7 on a saved line, in the editor. The attention line names the one line still ambiguous.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: UP
+          TIMEOUT: 20000
+- tapOn: 'Edit recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 30000
+
+# The attention line, named for the line (UI overhaul slice 8, build spec §7.5.1). The panel never opens by itself.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Choose a match: apple sauce'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- assertNotVisible: 'Search for another food'
+- tapOn:
+      text: 'Choose a match: apple sauce'
+      index: 0
+
+# Row 7's own explanation, and the shortlist the food search finds for the line's words.
+- extendedWaitUntil:
+      visible:
+          text: 'Which “apple sauce” did you mean\?'
+      timeout: 30000
+      label: 'the recipe still carries one AMBIGUOUS "apple sauce" line, and its shortlist answered'
+- assertVisible: 'Two or more foods match closely and their nutrition differs, so we’d rather you chose\.'
+- assertVisible: 'Search for another food'
+
+# The source's foods flow into the same shortlist with no press (plan 002 S7.8, ADR-0055 point 9).
+- extendedWaitUntil:
+      visible:
+          text: 'From USDA'
+      timeout: 40000
+      label: 'USDA answered the progressive search for "apple sauce" on this stage'
+# One pick, of a remote food: the panel adopts it and rebinds THAT line to the root (ADR-0055 point 10). The sheet
+# closes once the food is on the line.
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: '.*, from USDA'
+- tapOn:
+      text: '.*, from USDA'
+      index: 0
+- extendedWaitUntil:
+      notVisible: 'Search for another food'
+      timeout: 30000
+
+# Leave with ×. The pick was the write; nothing else was typed, so × has nothing more to save. ⛔ NOT the header's
+# Discard: it would delete the recipe. audit 2026-10-19, F3: the old wait for 'Edit recipe' was met by the editor's own
+# header title, so it could not fail. 'Close editor' exists only while the editor is open.
+- tapOn: 'Close editor'
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 20000

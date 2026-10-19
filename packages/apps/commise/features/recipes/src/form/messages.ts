@@ -234,6 +234,12 @@ export interface RecipeFormMessages {
     readonly rowStateLookingUp: string;
     /** A read row's open control (§7.5.1): `{item}` is the amount, the unit and the food, as the row reads them. */
     readonly rowOpenLabel: string;
+    /**
+     * The same control's name when the line has a preparation: `{item}` as above, then `{prep}` after a COMMA. The row shows
+     * it after a `·`, which screen readers voice inconsistently; on iOS the row is one element, so the name is all that is
+     * heard (SC 1.3.1, 2.5.3).
+     */
+    readonly rowOpenLabelWithPrep: string;
     /** The row's `⋯` item that opens its editor. */
     readonly rowEdit: string;
     /** The attention line's name: `{state}` is its visible words, so the name contains them (SC 2.5.3). Holds `{food}`. */
@@ -660,6 +666,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         rowStateFoodRemoved: 'Food no longer listed',
         rowStateLookingUp: 'Looking it up…',
         rowOpenLabel: 'Edit {item}',
+        rowOpenLabelWithPrep: 'Edit {item}, {prep}',
         rowEdit: 'Edit',
         rowAttentionLabel: '{state}: {food}',
         rowAmountInvalid: 'Check the amount',

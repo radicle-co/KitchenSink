@@ -31,7 +31,12 @@ import {
     ingredientsErrorId,
     ingredientUnitNoteId,
 } from '../fieldErrorIds.js';
-import { ingredientRowViewOf, type IngredientRowContext, type IngredientRowView } from '../ingredientRowView.js';
+import {
+    ingredientRowViewOf,
+    rowOpenLabelOf,
+    type IngredientRowContext,
+    type IngredientRowView,
+} from '../ingredientRowView.js';
 import type { IngredientLineKey } from '../lineKey.js';
 import type { LookupEntry } from '../nutritionLookup.js';
 import { recipeFormMessages } from '../messages.js';
@@ -796,6 +801,61 @@ describe('ingredientRowViewOf — the row editor’s Amount field reads like the
     });
 });
 
+// On iOS the row is ONE accessible element, so its open control's name is all VoiceOver reads: the preparation the row
+// shows must be IN that name (WCAG 2.5.3 label in name, 1.3.1). It is spoken after a comma, not the visible `·`, which
+// readers voice inconsistently; a line with no preparation keeps the label it always had.
+describe('rowOpenLabelOf — the open control`s accessible name', () => {
+    it('reads amount, name, then the preparation after a comma', () => {
+        expect(rowOpenLabelOf(m, '2 cups Tomato', 'finely chopped')).toBe('Edit 2 cups Tomato, finely chopped');
+    });
+
+    it('is exactly the old label with no preparation', () => {
+        expect(rowOpenLabelOf(m, '2 cups Tomato', undefined)).toBe('Edit 2 cups Tomato');
+    });
+
+    it('reads a name alone, and a name with a preparation but no amount', () => {
+        expect(rowOpenLabelOf(m, 'Tomato', undefined)).toBe('Edit Tomato');
+        expect(rowOpenLabelOf(m, 'Tomato', 'diced')).toBe('Edit Tomato, diced');
+    });
+
+    it('reads an amount alone', () => {
+        expect(rowOpenLabelOf(m, '2 cups', undefined)).toBe('Edit 2 cups');
+    });
+
+    it('never speaks the visible separator glyph', () => {
+        expect(rowOpenLabelOf(m, '2 cups Tomato', 'finely chopped')).not.toContain('·');
+    });
+});
+
+describe('ingredientRowViewOf — the open label carries the preparation', () => {
+    it('adds the preparation to a named row, and nothing to one without', () => {
+        const withPrep = onlyRow({
+            lines: [bound({ name: 'tomato', quantity: 2, unit: 'cup', preparation: 'finely chopped' })],
+        });
+        const without = onlyRow({ lines: [bound({ name: 'tomato', quantity: 2, unit: 'cup', preparation: ' ' })] });
+
+        expect(withPrep.row.openLabel).toBe(`${without.row.openLabel}, finely chopped`);
+        expect(without.row.openLabel).not.toContain(',');
+    });
+
+    it('leaves a stand-in row (which shows no preparation) as it was', () => {
+        const { row } = onlyRow({
+            lines: [
+                bound({
+                    name: undefined,
+                    quantity: 2,
+                    unit: 'tbsp',
+                    preparation: 'sifted',
+                    resolutionStatus: FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+                }),
+            ],
+        });
+
+        expect(row.standIn).toBe(true);
+        expect(row.openLabel).toBe('Edit 2 tbsp Private ingredient');
+    });
+});
+
 describe('ingredientRowViewOf — the read row (build spec §7.5.1)', () => {
     it('reads amount first, then the name and the preparation; a healthy row has no second line', () => {
         const { row } = onlyRow({
@@ -805,7 +865,7 @@ describe('ingredientRowViewOf — the read row (build spec §7.5.1)', () => {
         expect(row.amountText).toBe('2–2.5 kg');
         expect(row.prepText).toBe('trimmed');
         expect(row.secondLine).toEqual({ kind: 'none' });
-        expect(row.openLabel).toBe('Edit 2–2.5 kg beef brisket');
+        expect(row.openLabel).toBe('Edit 2–2.5 kg beef brisket, trimmed');
     });
 
     it('a line with no amount leaves the amount column empty: never an invented "1" (F5)', () => {
@@ -879,7 +939,7 @@ describe('ingredientRowViewOf — the singular name for a count of one (D21)', (
         });
 
         expect(row.displayName).toBe('onion');
-        expect(row.openLabel).toBe('Edit 1 large onion');
+        expect(row.openLabel).toBe('Edit 1 large onion, diced');
         expect(row.line.name).toBe('onions');
     });
 

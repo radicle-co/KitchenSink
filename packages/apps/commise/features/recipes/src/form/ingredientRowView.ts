@@ -64,6 +64,21 @@ import type { ControlFocus, RowFocus } from './useRowFocus.js';
 import type { RecipeFormErrors } from './validate.js';
 import type { RecipeFormIngredient, RecipeFormValues } from './values.js';
 
+/**
+ * The name of a row's open control: "Edit" and the row as it reads (amount, name), then the preparation after a comma
+ * when the line has one. One builder for both platforms' leaves, so the name cannot drift from what the row shows. Pure.
+ *
+ * @param m - The field group's copy.
+ * @param item - The amount and the food, as the row reads them.
+ * @param prep - The line's trimmed preparation, if any.
+ * @returns The accessible name.
+ */
+export function rowOpenLabelOf(m: RecipeFormMessages, item: string, prep: string | undefined): string {
+    return prep === undefined || prep === ''
+        ? fillTemplate(m.rowOpenLabel, { item })
+        : fillTemplate(m.rowOpenLabelWithPrep, { item, prep });
+}
+
 /** What every row's view is derived from: the field group's props, its controllers and its copy. */
 export interface IngredientRowContext {
     readonly values: RecipeFormValues;
@@ -710,9 +725,10 @@ export const ingredientRowViewOf = (
         changing,
         amountText,
         prepText: prep === undefined || prep === '' ? undefined : prep,
-        openLabel: fillTemplate(m.rowOpenLabel, {
-            item: presentation.standIn ? triggerFood : `${amountText} ${displayName}`.trim(),
-        }),
+        // A stand-in row shows no preparation (the leaves draw it only beside a real name), so its name carries none.
+        openLabel: presentation.standIn
+            ? rowOpenLabelOf(m, triggerFood, undefined)
+            : rowOpenLabelOf(m, `${amountText} ${displayName}`.trim(), prep === '' ? undefined : prep),
         secondLine,
         amountInvalidNote: marks.quantityInvalid ? m.rowAmountInvalid : undefined,
         inEntry: changing,

@@ -256,7 +256,7 @@ describe('RecipeIngredientsFields (native) — the states (§7.5.1, §7.9)', () 
 
         const [rice, salt] = rowItems();
 
-        expect(within(rice!).getByRole('button', { name: 'Edit 300 g Arborio rice' }).textContent).toBe(
+        expect(within(rice!).getByRole('button', { name: 'Edit 300 g Arborio rice, rinsed' }).textContent).toBe(
             '300 gArborio rice · rinsed',
         );
         expect(within(salt!).getByRole('button', { name: 'Edit Salt' }).textContent).toBe('Salt');
@@ -274,7 +274,7 @@ describe('RecipeIngredientsFields (native) — the states (§7.5.1, §7.9)', () 
 
         const [one, two] = rowItems();
 
-        expect(within(one!).getByRole('button', { name: 'Edit 1 large onion' }).textContent).toBe(
+        expect(within(one!).getByRole('button', { name: 'Edit 1 large onion, diced' }).textContent).toBe(
             '1 largeonion · diced',
         );
         expect(within(two!).getByRole('button', { name: 'Edit 2 onions' })).toBeTruthy();
@@ -459,7 +459,7 @@ describe('RecipeIngredientsFields (native) — the row editor on a phone: a shee
         const seen: RecipeFormValues[] = [];
         render(<StatefulLeaf initial={[{ ...RICE, preparation: 'rinsed' }]} seen={seen} />);
 
-        press('Edit 300 g Arborio rice');
+        press('Edit 300 g Arborio rice, rinsed');
         const sheet = dialogTitled('Arborio rice');
 
         expect((within(sheet).getByLabelText(en.rowAmountLabel) as HTMLInputElement).value).toBe('300');

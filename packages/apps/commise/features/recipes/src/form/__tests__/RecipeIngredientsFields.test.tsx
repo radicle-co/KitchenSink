@@ -213,7 +213,7 @@ describe('RecipeIngredientsFields (web) — the states (§7.5.1, §7.9)', () => 
 
         const [rice, salt] = rowItems();
 
-        expect(within(rice!).getByRole('button', { name: 'Edit 300 g Arborio rice' }).textContent).toBe(
+        expect(within(rice!).getByRole('button', { name: 'Edit 300 g Arborio rice, rinsed' }).textContent).toBe(
             '300 gArborio rice · rinsed',
         );
         // No amount: the column is empty, never an invented "1" (F5).
@@ -232,7 +232,7 @@ describe('RecipeIngredientsFields (web) — the states (§7.5.1, §7.9)', () => 
 
         const [one, two] = rowItems();
 
-        expect(within(one!).getByRole('button', { name: 'Edit 1 large onion' }).textContent).toBe(
+        expect(within(one!).getByRole('button', { name: 'Edit 1 large onion, diced' }).textContent).toBe(
             '1 largeonion · diced',
         );
         expect(within(two!).getByRole('button', { name: 'Edit 2 onions' })).toBeTruthy();
@@ -507,7 +507,7 @@ describe('RecipeIngredientsFields (web) — the row editor as a phone sheet (§7
         const user = userEvent.setup();
         render(<StatefulLeaf initial={[{ ...RICE, preparation: 'rinsed' }]} />);
 
-        await user.click(screen.getByRole('button', { name: 'Edit 300 g Arborio rice' }));
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Arborio rice, rinsed' }));
 
         const sheet = screen.getByRole('dialog', { name: 'Arborio rice' });
 
@@ -547,7 +547,9 @@ describe('RecipeIngredientsFields (web) — the row editor as a phone sheet (§7
 
         await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
         await vi.waitFor(() =>
-            expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit 250 g Arborio rice' })),
+            expect(document.activeElement).toBe(
+                screen.getByRole('button', { name: 'Edit 250 g Arborio rice, rinsed' }),
+            ),
         );
     });
 

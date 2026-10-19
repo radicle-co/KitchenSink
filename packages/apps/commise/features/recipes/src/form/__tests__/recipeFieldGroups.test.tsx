@@ -432,9 +432,9 @@ describe('the recipe field groups (web) — preparation (U26)', () => {
             />,
         );
 
-        expect(screen.getByRole('button', { name: 'Edit 1 Onion' }).textContent).toContain('Onion · diced');
+        expect(screen.getByRole('button', { name: 'Edit 1 Onion, diced' }).textContent).toContain('Onion · diced');
 
-        const sheet = await openEditor(user, 'Edit 1 Onion');
+        const sheet = await openEditor(user, 'Edit 1 Onion, diced');
         await user.clear(within(sheet).getByLabelText(en.rowPrepLabel));
         await user.type(within(sheet).getByLabelText(en.rowPrepLabel), 'sliced');
 

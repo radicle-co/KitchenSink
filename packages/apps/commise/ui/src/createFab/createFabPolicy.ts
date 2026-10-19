@@ -48,13 +48,14 @@ export interface FabInputs {
  * The floating button's presentation.
  *
  * A label wider than half the window (a long translation, 200% text, the iOS accessibility sizes) keeps the button
- * icon-only, never wrapped and never truncated; its accessible name stays the label either way.
+ * icon-only, never wrapped and never truncated; its accessible name stays the label either way. A button that has
+ * focus when it must yield stays until it loses focus, so focus never drops to the page.
  *
  * @param inputs - The screen's state.
  * @returns The presentation. Pure.
  */
 export function fabPresentationOf(inputs: FabInputs): FabPresentation {
-    if (inputs.chrome === 'sidebar' || inputs.keyboardOpen || inputs.yielded) {
+    if (inputs.chrome === 'sidebar' || inputs.keyboardOpen || (inputs.yielded && !inputs.focused)) {
         return 'hidden';
     }
 

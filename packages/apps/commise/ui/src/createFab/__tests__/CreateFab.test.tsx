@@ -78,6 +78,23 @@ describe('CreateFab (web)', () => {
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
     });
 
+    it('stays while it has focus when it must yield, and goes once focus leaves', () => {
+        const tree = (yielded: boolean) => (
+            <ScrollHost>
+                <input aria-label="Search your recipes" />
+                <CreateFab label="New recipe" icon="plus" onPress={vi.fn()} yielded={yielded} />
+            </ScrollHost>
+        );
+        const { rerender } = render(tree(false));
+
+        act(() => fab().focus());
+        rerender(tree(true));
+        expect(fab().getAttribute('data-presentation')).toBe('extended');
+
+        act(() => screen.getByRole('textbox', { name: 'Search your recipes' }).focus());
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+    });
+
     it('is not drawn while it yields', () => {
         renderFab(true);
 

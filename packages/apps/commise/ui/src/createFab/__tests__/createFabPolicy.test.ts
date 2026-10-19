@@ -38,6 +38,13 @@ describe('fabPresentationOf', () => {
             { yielded: true },
             'hidden',
         ],
+        ['a focused button that must yield stays until focus leaves', { yielded: true, focused: true }, 'extended'],
+        [
+            'a focused button that must yield keeps the icon form for an over-wide label',
+            { yielded: true, focused: true, labelWidthPx: 196, windowWidthPx: 390 },
+            'icon',
+        ],
+        ['the keyboard hides it even while it has focus', { keyboardOpen: true, focused: true }, 'hidden'],
         ['a label wider than half the window stays icon-only', { labelWidthPx: 196, windowWidthPx: 390 }, 'icon'],
         ['a label of exactly half the window still fits', { labelWidthPx: 195, windowWidthPx: 390 }, 'extended'],
         [

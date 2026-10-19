@@ -153,6 +153,22 @@ describe('CreateFab (native)', () => {
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
     });
 
+    it('stays while it has focus when it must yield, and goes once focus leaves', () => {
+        const tree = (yielded: boolean) => (
+            <ScrollHost>
+                {() => <CreateFab label="New recipe" icon="plus" onPress={vi.fn()} yielded={yielded} />}
+            </ScrollHost>
+        );
+        const { rerender } = render(tree(false));
+
+        act(() => fab().focus());
+        rerender(tree(true));
+        expect(fab()).toBeTruthy();
+
+        act(() => fab().blur());
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+    });
+
     // Owner 2026-10-13: held sideways, a side cutout or the 3-button navigation bar sits where the button's corner is.
     // It keeps its margin from the window's edge PLUS the inset on that side, so it is never under either.
     describe('sideways insets', () => {

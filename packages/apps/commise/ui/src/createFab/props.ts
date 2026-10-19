@@ -25,7 +25,7 @@ export interface CreateFabProps {
     readonly onPress: () => void;
     /**
      * Whether the button yields its place: while the screen's first load is in flight, or in its first-run state, whose
-     * own start buttons take its place.
+     * own start buttons take its place. A button with focus stays until it loses focus.
      */
     readonly yielded?: boolean;
 }

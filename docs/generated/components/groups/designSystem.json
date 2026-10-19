@@ -3070,7 +3070,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": "false",
-                            "description": "Whether the button yields its place: while the screen's first load is in flight, or in its first-run state, whose\nown start buttons take its place.",
+                            "description": "Whether the button yields its place: while the screen's first load is in flight, or in its first-run state, whose\nown start buttons take its place. A button with focus stays until it loses focus.",
                             "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
                         }
                     ],
@@ -3187,7 +3187,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": "false",
-                            "description": "Whether the button yields its place: while the screen's first load is in flight, or in its first-run state, whose\nown start buttons take its place.",
+                            "description": "Whether the button yields its place: while the screen's first load is in flight, or in its first-run state, whose\nown start buttons take its place. A button with focus stays until it loses focus.",
                             "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
                         }
                     ],
